@@ -16,9 +16,7 @@ SamplerState sampler1 : register(s1);
 // texture0 == HUD foreground
 // texture1 == HUD background
 
-
 #define MAX_DC_COORDS 8
-
 cbuffer ConstantBuffer : register(b0)
 {
 	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
@@ -27,9 +25,6 @@ cbuffer ConstantBuffer : register(b0)
 	uint bRenderHUD;			// When set, first texture is HUD foreground and second texture is HUD background
 	// 16 bytes
 
-	//uint bAlphaOnly;			// Output only the alpha component for debug purposes
-	//uint unused[3];
-	
 	float4 src[MAX_DC_COORDS];		// HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
 	float4 dst[MAX_DC_COORDS];
 	uint4 bgColor[MAX_DC_COORDS / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
@@ -46,6 +41,12 @@ struct PixelShaderInput
 	float4 pos : SV_POSITION;
 	float4 color : COLOR0;
 	float2 tex : TEXCOORD;
+};
+
+struct PixelShaderOutput
+{
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -113,11 +114,15 @@ uint getBGColor(uint i) {
 	return bgColor[idx][sub_idx];
 }
 
-float4 main(PixelShaderInput input) : SV_TARGET
+PixelShaderOutput main(PixelShaderInput input)
 {
+	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
+	// Zero-out the bloom mask.
+	output.bloom = float4(0, 0, 0, 0);
+	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser > 0) {
@@ -129,11 +134,17 @@ float4 main(PixelShaderInput input) : SV_TARGET
 			HSV.y *= 1.5;
 			HSV.z *= 2.0;
 			//return float4(0, 1, 0, 2.0 * 1.2 * alpha);
-			return float4(HSVtoRGB(HSV), 1.2 * alpha);
+			float3 color = HSVtoRGB(HSV);
+			output.color = float4(color, 1.2 * alpha);
+			output.bloom = float4(color, 2.0 * 1.2 * alpha);
+			return output;
 		}
 		else {
 			//return float4(0, 1, 0, alpha);
-			return texelColor; // Return the original color when 32-bit mode is off
+			//return texelColor; 
+			output.color = texelColor; // Return the original color when 32-bit mode is off
+			output.bloom = texelColor;
+			return output;
 		}
 	}
 
@@ -148,14 +159,19 @@ float4 main(PixelShaderInput input) : SV_TARGET
 			// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to
 			// make it [0, 1]
 			alpha *= 10.0;
-			//if (val > 0.8 && alpha > 0.5)
-			//	return float4(0, 1, 0, val);				
-			return float4(HSVtoRGB(HSV), alpha);
+			float3 color = HSVtoRGB(HSV);
+			if (val > 0.8 && alpha > 0.5)
+				//return float4(0, 1, 0, val);
+				output.bloom = float4(color, val / 2.0);
+			output.color = float4(color, alpha);
+			return output;
 		}
 		else {
-			//if (val > 0.8 && alpha > 0.5)
-			//	return float4(0, 1, 0, val);
-			return texelColor; // Return the original color when 32-bit mode is off
+			if (val > 0.8 && alpha > 0.5)
+				//return float4(0, 1, 0, val);
+				output.bloom = float4(texelColor.rgb, val / 2.0);
+			output.color = texelColor;	// Return the original color when 32-bit mode is off
+			return output;
 		}
 	}
 
@@ -170,10 +186,16 @@ float4 main(PixelShaderInput input) : SV_TARGET
 			float3 HSV = RGBtoHSV(texelColor.xyz);
 			HSV.y *= 1.15;
 			HSV.z *= 1.25;
-			return float4(HSVtoRGB(HSV), alpha);
+			float3 color = HSVtoRGB(HSV);
+			output.color = float4(color, alpha);
+			output.bloom = float4(color, alpha / 2.0);
+			return output;
 		}
-		else
-			return texelColor; // Return the original color when 32-bit mode is off
+		else {
+			output.color = texelColor;
+			output.bloom = float4(texelColor.rgb, alpha / 2.0);
+			return output; // Return the original color when 32-bit mode is off
+		}
 	}
 
 	// Render the captured HUD, execute the move_region commands.
@@ -213,7 +235,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		// Do the alpha blending
 		texelColor.xyz = lerp(texelColorBG.xyz, texelColor.xyz, alpha);
 		texelColor.w += 3.0 * alphaBG;
-		return texelColor;
+		output.color = texelColor;
+		return output;
 	} 
 	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
 	// The code returns a color from this path
@@ -264,19 +287,23 @@ float4 main(PixelShaderInput input) : SV_TARGET
 				HSV = RGBtoHSV(texelColor.xyz);
 				HSV.z *= 1.2;
 				texelColor.xyz = HSVtoRGB(HSV);
+				output.bloom = float4(texelColor.xyz, 0.5);
 				brightness = 1.0;
 			}
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
 			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, that's what the 0.8 below is for:
 			texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
+			output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 			diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
 		} else {
 			texelColor = hud_texelColor;
 			diffuse = float3(1, 1, 1);
 		}
-		return float4(diffuse * texelColor.xyz, texelColor.w);
+		output.color = float4(diffuse * texelColor.xyz, texelColor.w);
+		return output;
 	}
 	
-	return float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	return output;
 }

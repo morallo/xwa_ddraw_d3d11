@@ -590,8 +590,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		//this->_reshadeBloomFSRV.Release();
 	}
 	if (g_bReshadeEnabled) {
-		this->_offscreenBufferAsInputReshade.Release();
+		this->_offscreenBufferReshadeMask.Release();
+		this->_offscreenBufferReshadeMaskR.Release();
+		this->_offscreenBufferAsInputReshadeMask.Release();
+		this->_offscreenBufferAsInputReshadeMaskR.Release();
 		this->_offscreenAsInputReshadeSRV.Release();
+		this->_renderTargetViewReshadeMask.Release();
+		this->_renderTargetViewReshadeMaskR.Release();
 		this->_renderTargetViewReshade1.Release();
 		this->_renderTargetViewReshade2.Release();
 		this->_reshadeOutput1.Release();
@@ -800,8 +805,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		/*
 		if (g_bReshadeEnabled) {
+			step = "_offscreenBufferReshade";
+			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferReshadeMask);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_offscreenBufferReshadeR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferReshadeMaskR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			/*
 			UINT curFlags = desc.BindFlags;
 			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
@@ -836,8 +858,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 			// Restore the previous bind flags, just in case there is a dependency on these later on
 			desc.BindFlags = curFlags;
+			*/
 		}
-		*/
 
 		/*
 		UINT curFlags = desc.BindFlags;
@@ -887,8 +909,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			step = "_offscreenBufferAsInputReshade";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputReshade);
+			step = "_offscreenBufferAsInputReshadeMask";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputReshadeMask);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_offscreenBufferAsInputReshadeMaskR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputReshadeMaskR);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
@@ -1001,7 +1031,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		if (g_bReshadeEnabled) {
 			step = "_offscreenAsInputReshadeSRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputReshade,
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputReshadeMask,
 				&shaderResourceViewDesc, &this->_offscreenAsInputReshadeSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -1125,6 +1155,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (FAILED(hr)) goto out;
 		*/
 		if (g_bReshadeEnabled) {
+			step = "_renderTargetViewReshadeMask";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferReshadeMask, &renderTargetViewDesc, &this->_renderTargetViewReshadeMask);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewReshadeMaskR";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferReshadeMaskR, &renderTargetViewDesc, &this->_renderTargetViewReshadeMaskR);
+			if (FAILED(hr)) goto out;
+
 			// These RTVs render to non-MSAA buffers
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			step = "_renderTargetViewReshade1";

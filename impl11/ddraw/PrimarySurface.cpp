@@ -1888,11 +1888,22 @@ HRESULT PrimarySurface::Flip(
 
 			// Re-shade the contents of _offscreenBufferAsInputReshade
 			if (g_bReshadeEnabled) {
-				// _offscreenBufferAsInputReshade is resolved during Execute() -- right before any GUI is rendered
-				//if (g_iPresentCounter == 100)				
-				//	capture(0, resources->_offscreenBufferAsInputReshade, L"C:\\Temp\\offscreenBufferAsInputReshade-0.jpg");
+				// Resolve whatever is in the _offscreenBuffer into _offscreenBufferAsInputReshade
+				// -- I'll worry about the details later
+				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
+				context->ResolveSubresource(resources->_offscreenBufferAsInputReshadeMask, 0,
+					resources->_offscreenBufferReshadeMask, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				if (g_bSteamVREnabled)
+					context->ResolveSubresource(resources->_offscreenBufferAsInputReshadeMaskR, 0,
+						resources->_offscreenBufferReshadeMaskR, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				
-				if (g_bBloomEnabled) {
+				//if (g_iPresentCounter == 100) {
+				//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
+				//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+				//}
+				
+				//if (g_bBloomEnabled) {
+				if (false) {
 					//float factor = 0.0f;
 					/* factor = -2.0f;
 					context->UpdateSubresource(, 0, nullptr, &g_MSCBuffer, 0, 0);
@@ -2010,11 +2021,9 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Perform the lean left/right etc animations
-			//if (!g_bUseSteamVR) {
-				animTickX();
-				animTickY();
-				animTickZ();
-			//}
+			animTickX();
+			animTickY();
+			animTickZ();
 
 			// Enable 6dof
 			if (g_bUseSteamVR) {

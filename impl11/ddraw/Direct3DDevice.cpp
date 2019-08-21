@@ -138,7 +138,7 @@ const char *MAX_POSITIONAL_Y_VRPARAM = "max_positional_track_y";
 const char *MIN_POSITIONAL_Z_VRPARAM = "min_positional_track_z";
 const char *MAX_POSITIONAL_Z_VRPARAM = "max_positional_track_z";
 const char *STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
-const char *BLOOM_ENABLED_VRPARAM = "bloom_effect_enabled";
+const char *BLOOM_ENABLED_VRPARAM = "bloom_enabled";
 // Cockpitlook params
 const char *YAW_MULTIPLIER_CLPARAM   = "yaw_multiplier";
 const char *PITCH_MULTIPLIER_CLPARAM = "pitch_multiplier";
@@ -762,8 +762,8 @@ void SaveVRParams() {
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
 
-	//fprintf(file, "\n; Enable the Bloom effect\n");
-	//fprintf(file, "%s = %d\n", BLOOM_ENABLED_VRPARAM, g_bBloomEnabled);
+	fprintf(file, "\n; Enable the Bloom effect\n");
+	fprintf(file, "%s = %d\n", BLOOM_ENABLED_VRPARAM, g_bBloomEnabled);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -1570,14 +1570,12 @@ void LoadVRParams() {
 				g_bSteamVRPosFromFreePIE = (bool)value;
 			}
 
-			/*
 			// ReShade state
 			else if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
 				bool state = (bool)value;
 				g_bReshadeEnabled |= state;
 				g_bBloomEnabled = state;
 			}
-			*/
 			param_read_count++;
 		}
 	} // while ... read file
@@ -3433,12 +3431,12 @@ HRESULT Direct3DDevice::Execute(
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
 
-				if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
+				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
-					context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
-						resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-				}
+				//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
+				//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				//}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
@@ -3868,11 +3866,8 @@ HRESULT Direct3DDevice::Execute(
 						bRenderToDynCockpitBGBuffer = true;
 
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay) {
-					//if (lastTextureSelected->is_SpecialDebug)
-					//	log_debug("[DBG] Skipping: [%s]", lastTextureSelected->_surface->_name);
+				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
-				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
 				//	goto out;
@@ -3933,7 +3928,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Modify the state for both VR and regular game modes:
 
-				// DYNAMIC COCKPIT: REPLACE TEXTURES AT RUN-TIME:
+				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitDst)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
@@ -4081,9 +4076,18 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					}
 
-					// The original 2D vertices are already in the GPU, so just render as usual
-					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-						resources->_depthStencilViewL.Get());
+					if (!g_bReshadeEnabled) {
+						// The original 2D vertices are already in the GPU, so just render as usual
+						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							resources->_depthStencilViewL.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets
+						ID3D11RenderTargetView *rtvs[2] = {
+							resources->_renderTargetView.Get(),
+							resources->_renderTargetViewReshadeMask.Get()
+						};
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+					}
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}
@@ -4209,11 +4213,31 @@ HRESULT Direct3DDevice::Execute(
 				// easier.
 
 				if (g_bUseSteamVR)
-					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-						resources->_depthStencilViewL.Get());
-				else
-					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-						resources->_depthStencilViewL.Get());
+					// TODO: Fix Reshade for SteamVR
+					if (!g_bReshadeEnabled) {
+						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							resources->_depthStencilViewL.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets
+						ID3D11RenderTargetView *rtvs[2] = {
+							resources->_renderTargetView.Get(),
+							resources->_renderTargetViewReshadeMask.Get()
+						};
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+					}
+				else {
+					if (!g_bReshadeEnabled) {
+						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							resources->_depthStencilViewL.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets
+						ID3D11RenderTargetView *rtvs[2] = {
+							resources->_renderTargetView.Get(),
+							resources->_renderTargetViewReshadeMask.Get()
+						};
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+					}
+				}
 				
 				// VIEWPORT-LEFT
 				if (g_bUseSteamVR) {
@@ -4241,12 +4265,32 @@ HRESULT Direct3DDevice::Execute(
 				// just need one ZBuffer.
 				//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 				//	resources->_depthStencilViewR.Get());
-				if (g_bUseSteamVR)
-					context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
-						resources->_depthStencilViewR.Get());
-				else
-					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-						resources->_depthStencilViewL.Get());
+				if (g_bUseSteamVR) {
+					// TODO: Fix Reshade for SteamVR
+					if (!g_bBloomEnabled) {
+						context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
+							resources->_depthStencilViewR.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets
+						ID3D11RenderTargetView *rtvs[2] = {
+							resources->_renderTargetViewR.Get(),
+							resources->_renderTargetViewReshadeMaskR.Get()
+						};
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
+					}
+				} else {
+					if (!g_bReshadeEnabled) {
+						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							resources->_depthStencilViewL.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets
+						ID3D11RenderTargetView *rtvs[2] = {
+							resources->_renderTargetView.Get(),
+							resources->_renderTargetViewReshadeMask.Get()
+						};
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+					}
+				}
 
 				// VIEWPORT-RIGHT
 				if (g_bUseSteamVR) {
@@ -4650,6 +4694,10 @@ HRESULT Direct3DDevice::BeginScene()
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 	if (g_bUseSteamVR)
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+	if (g_bReshadeEnabled) {
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewReshadeMask, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewReshadeMaskR, this->_deviceResources->clearColor);
+	}
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 

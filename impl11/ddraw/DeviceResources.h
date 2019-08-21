@@ -291,29 +291,40 @@ public:
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
+	// Dynamic Cockpit
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshade;
+	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
-
+	// Reshade
+	ComPtr<ID3D11Texture2D> _offscreenBufferReshadeMask; // Used to render the bloom mask
+	ComPtr<ID3D11Texture2D> _offscreenBufferReshadeMaskR; // Used to render the bloom mask to the right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshadeMask;  // Used to resolve offscreenBufferReshadeMask
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshadeMaskR; // Used to resolve offscreenBufferReshadeMaskR
 	ComPtr<ID3D11Texture2D> _reshadeOutput1; // Output from reshade pass 1
 	ComPtr<ID3D11Texture2D> _reshadeOutput2; // Output from reshade pass 2
 	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
+
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
+	// Dynamic Cockpit
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
+	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
+	// Reshade
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshadeMask;  // Renders to _offscreenBufferReshadeMask
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshadeMaskR; // Renders to _offscreenBufferReshadeMaskR
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade1; // Renders to reshadeOutput1
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade2; // Renders to reshadeOutput2
 	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomF; // Renders to _offscreenBufferBloomF
