@@ -6,19 +6,19 @@
 #include "Matrices.h"
 #include <vector>
 
-// Also found in the Floating_GUI_CRCs list:
-const uint32_t DYN_COCKPIT_TARGET_COMP_SRC_CRC   = 0x3b9a3741;
-const uint32_t DYN_COCKPIT_LEFT_RADAR_SRC_CRC    = 0x75b9e062;
-const uint32_t DYN_COCKPIT_RIGHT_RADAR_SRC_CRC   = 0x1ec963a9;
-const uint32_t DYN_COCKPIT_RIGHT_RADAR_2_SRC_CRC = 0xbe6846fb;
-const uint32_t DYN_COCKPIT_SHIELDS_SRC_CRC       = 0x3188119f;
-const uint32_t DYN_COCKPIT_SOLID_MSG_SRC_CRC     = 0x7e1b021d;
-const uint32_t DYN_COCKPIT_BORDER_MSG_SRC_CRC    = 0x771a714c;
-const uint32_t DYN_COCKPIT_LASER_BOX_SRC_CRC     = 0xd0168df9;
-const uint32_t DYN_COCKPIT_ION_BOX_SRC_CRC	     = 0xe321d785;
-const uint32_t DYN_COCKPIT_BEAM_BOX_SRC_CRC      = 0x75082e5e;
-const uint32_t DYN_COCKPIT_TOP_LEFT_SRC_CRC      = 0xc2416bf9;
-const uint32_t DYN_COCKPIT_TOP_RIGHT_SRC_CRC     = 0x71ce88f1;
+// Also found in the Floating_GUI_RESNAME list:
+extern const char *DC_TARGET_COMP_SRC_RESNAME;
+extern const char *DC_LEFT_SENSOR_SRC_RESNAME;
+extern const char *DC_RIGHT_SENSOR_SRC_RESNAME;
+extern const char *DC_RIGHT_SENSOR_2_SRC_RESNAME;
+extern const char *DC_SHIELDS_SRC_RESNAME;
+extern const char *DC_SOLID_MSG_SRC_RESNAME;
+extern const char *DC_BORDER_MSG_SRC_RESNAME;
+extern const char *DC_LASER_BOX_SRC_RESNAME;
+extern const char *DC_ION_BOX_SRC_RESNAME;
+extern const char *DC_BEAM_BOX_SRC_RESNAME;
+extern const char *DC_TOP_LEFT_SRC_RESNAME;
+extern const char *DC_TOP_RIGHT_SRC_RESNAME;
 
 typedef struct Box_struct {
 	float x0, y0, x1, y1;
@@ -182,14 +182,24 @@ typedef struct PixelShaderCBStruct {
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
 	uint32_t bRenderHUD;
+	// 16 bytes
 
 	//uint32_t bAlphaOnly;
 	//uint32_t unused[3];
 
 	uvfloat4 src[MAX_DC_COORDS];
+	// 4 * MAX_DC_COORDS * 4 = 128
 	uvfloat4 dst[MAX_DC_COORDS];
-	float4 bgColor[MAX_DC_COORDS];   // Background colors (dynamic cockpit)
-
+	// 4 * MAX_DC_COORDS * 4 = 128
+	uint32_t bgColor[MAX_DC_COORDS];   // Background colors (dynamic cockpit)
+	// 4 * MAX_DC_COORDS = 32
+	
+	uint32_t bIsLaser;
+	uint32_t bIsLightTexture;
+	uint32_t bIsEngineGlow;
+	float ct_brightness;
+	// 16 bytes
+	// 320 bytes total
 } PixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
@@ -220,6 +230,8 @@ typedef struct move_region_coords_struct {
 	uvfloat4 dst[MAX_HUD_BOXES];
 	int numCoords;
 } move_region_coords;
+
+//extern ID3D11ShaderResourceView *g_RebelLaser;
 
 class DeviceResources
 {
@@ -289,8 +301,10 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
+
 	ComPtr<ID3D11Texture2D> _reshadeOutput1; // Output from reshade pass 1
 	ComPtr<ID3D11Texture2D> _reshadeOutput2; // Output from reshade pass 2
+	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
@@ -302,6 +316,7 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade1; // Renders to reshadeOutput1
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade2; // Renders to reshadeOutput2
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomF; // Renders to _offscreenBufferBloomF
 
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
@@ -310,6 +325,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputReshadeSRV;
 	ComPtr<ID3D11ShaderResourceView> _reshadeOutput1SRV; // SRV for reshadeOutput1
 	ComPtr<ID3D11ShaderResourceView> _reshadeOutput2SRV; // SRV for reshadeOutput2
+	//ComPtr<ID3D11ShaderResourceView> _reshadeBloomFSRV; // SRV for _offscreenBufferBloomF
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;

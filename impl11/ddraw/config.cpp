@@ -18,11 +18,16 @@ Config::Config()
 	this->AspectRatioPreserved = true;
 	this->MultisamplingAntialiasingEnabled = false;
 	this->AnisotropicFilteringEnabled = true;
+	this->VSyncEnabled = true;
 	this->WireframeFillMode = false;
 
 	this->Concourse3DScale = 0.6f;
 
 	this->ProcessAffinityCore = 2;
+
+	this->EnhanceLasers = false;
+	this->EnhanceIllumination = false;
+	this->EnhanceEngineGlow = false;
 
 	ifstream file("ddraw.cfg");
 
@@ -67,6 +72,10 @@ Config::Config()
 			{
 				this->AnisotropicFilteringEnabled = stoi(value) != 0;
 			}
+			else if (name == "EnableVSync")
+			{
+				this->VSyncEnabled = stoi(value) != 0;
+			}
 			else if (name == "FillWireframe")
 			{
 				this->WireframeFillMode = stoi(value) != 0;
@@ -78,6 +87,18 @@ Config::Config()
 			else if (name == "ProcessAffinityCore")
 			{
 				this->ProcessAffinityCore = stoi(value);
+			}
+			else if (name == "EnhanceLasers")
+			{
+				this->EnhanceLasers = (bool)stoi(value);
+			}
+			else if (name == "EnhanceIlluminationTextures")
+			{
+				this->EnhanceIllumination = (bool)stoi(value);
+			}
+			else if (name == "EnhanceEngineGlow")
+			{
+				this->EnhanceEngineGlow = (bool)stoi(value);
 			}
 		}
 	}

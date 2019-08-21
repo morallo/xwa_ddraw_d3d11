@@ -6,15 +6,11 @@
 
 class TextureSurface;
 
-#define TRIANGLE_PTR_CRC 0x6cf63265		// Triangle that indicates where is the target (master branch)
-#define WARHEAD_CRC 0xa4870ab3			// Main Warhead HUD (master branch)
-#define TARGETING_COMP_CRC 0x3b9a3741   // The main targetting computer, where the targeted craft is displayed
-
 class Direct3DTexture : public IDirect3DTexture
 {
 public:
 	// The CRC of the texture
-	uint32_t crc;
+	//uint32_t crc;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
 	// This flag is set during resource Load, by comparing its CRC with the set of known CRCs.
 	bool is_HUD;
@@ -22,12 +18,22 @@ public:
 	bool is_TrianglePointer;
 	// This flag is set to true if this texture is a font/text
 	bool is_Text;
-	// This flag is set to true if this is a floating GUI element (like the targetting computer)
+	// This flag is set to true if this is a floating GUI element (like the targeting computer)
 	bool is_Floating_GUI;
 	// This flag is set to true if this is a regular GUI element
 	bool is_GUI;
 	// This flag is set to true if this is the main targeting computer HUD background (center, low)
 	bool is_TargetingComp;
+	// True if this texture is a laser or ion and should be shadeless/bright
+	bool is_Laser;
+	// True if this is an "illumination" or "light" texture
+	bool is_LightTexture;
+	// True if this is an Engine Glow texture
+	bool is_EngineGlow;
+	// TODO: Remove this later, I'm only using this to dump the rebel lasers for debugging purposes
+	//bool is_RebelLaser;
+	// TODO: Remove this later
+	//bool is_SpecialDebug;
 
 	// **** DYNAMIC COCKPIT MEMBERS **** //
 	// Textures in the cockpit that can be replaced with new textures
@@ -35,11 +41,23 @@ public:
 	int DCElementIndex;
 	// True for all textures that can be used as destinations for the dynamic cockpit.
 	bool is_DynCockpitDst;
-	// True for the additional textures loaded in Hi-Res mode that provide additional glow
+	// True for the light textures loaded in Hi-Res mode that provide additional glow
 	bool is_DynCockpitAlphaOverlay;
-	// Auto-computed bounding box in in-game resolution coordinates
-	// TODO: Remove this later, I don't think I'm going to need it.
-	Box boundingBox;
+	// True for all the source HUD textures
+	bool is_DC_HUDSource;
+	// True for specific DC HUD source textures
+	bool is_DC_TargetCompSrc;
+	bool is_DC_LeftSensorSrc;
+	bool is_DC_RightSensorSrc;
+	bool is_DC_RightSensor2Src;
+	bool is_DC_ShieldsSrc;
+	bool is_DC_SolidMsgSrc;
+	bool is_DC_BorderMsgSrc;
+	bool is_DC_LaserBoxSrc;
+	bool is_DC_IonBoxSrc;
+	bool is_DC_BeamBoxSrc;
+	bool is_DC_TopLeftSrc;
+	bool is_DC_TopRightSrc;
 
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 

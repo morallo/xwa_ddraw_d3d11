@@ -15,6 +15,8 @@
 #include "Direct3DTexture.h"
 #include "BackbufferSurface.h"
 #include "ExecuteBufferDumper.h"
+// TODO: Remove later
+//#include "TextureSurface.h"
 
 #include <ScreenGrab.h>
 #include <wincodec.h>
@@ -149,6 +151,7 @@ const char *COVER_TEX_NAME_DCPARAM		= "cover_texture";
 const char *COVER_TEX_SIZE_DCPARAM		= "cover_texture_size";
 const char *ERASE_REGION_DCPARAM			= "erase_region";
 const char *MOVE_REGION_DCPARAM			= "move_region";
+const char *CT_BRIGHTNESS_DCPARAM		= "cover_texture_brightness";
 const char *DC_TARGET_COMP_UV_COORDS_VRPARAM   = "dc_target_comp_uv_coords";
 const char *DC_LEFT_RADAR_UV_COORDS_VRPARAM    = "dc_left_radar_uv_coords";
 const char *DC_RIGHT_RADAR_UV_COORDS_VRPARAM   = "dc_right_radar_uv_coords";
@@ -279,6 +282,7 @@ float g_fAspectRatio = DEFAULT_ASPECT_RATIO;
 bool g_bZoomOut = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
+float g_fCoverTextureBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
@@ -1012,7 +1016,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 	try {
 		int len;
-		uColor = 0x121233FF;
+		uColor = 0x121233;
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -1043,8 +1047,8 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			coords->dst[idx].y0 = y0 / height;
 			coords->dst[idx].x1 = x1 / width;
 			coords->dst[idx].y1 = y1 / height;
-			if (res == 5) // A color was read, add the alpha
-				uColor = (uColor << 8) | 0xFF;
+			//if (res == 5) // A color was read, add the alpha
+			//	uColor = (uColor << 8) | 0xFF;
 			coords->uBGColor[idx] = uColor;
 			coords->numCoords++;
 		}
@@ -1369,6 +1373,9 @@ bool LoadDCParams() {
 				// Individual cockpit move_region commands override the global move_region commands:
 				if (!bCockpitParamsLoaded)
 					LoadDCMoveRegion(buf);
+			}
+			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
+				g_fCoverTextureBrightness = value;
 			}
 		}
 	}
@@ -3045,9 +3052,11 @@ HRESULT Direct3DDevice::Execute(
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness       = MAX_BRIGHTNESS;
-	g_PSCBuffer.DynCockpitSlots  = 0;
-	g_PSCBuffer.bUseCoverTexture = 0;
-	g_PSCBuffer.bRenderHUD		 = 0;
+	g_PSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
+	//g_PSCBuffer.DynCockpitSlots  = 0;
+	//g_PSCBuffer.bUseCoverTexture = 0;
+	//g_PSCBuffer.bRenderHUD		 = 0;
+	//g_PSCBuffer.bEnhaceLasers	 = 0;
 	//g_PSCBuffer.bAlphaOnly		 = 0;
 
 	// Save the current viewMatrix: if the Dynamic Cockpit is enabled, we'll need it later to restore the transform
@@ -3268,7 +3277,12 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else
 						{
+							texture->_refCount++;
+							//if (texture->is_RebelLaser)
+							//	context->PSSetShaderResources(0, 1, &g_RebelLaser);
+							//else
 							context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
+							texture->_refCount--;
 
 							pixelShader = resources->_pixelShaderTexture;
 							// Keep the last texture selected
@@ -3449,6 +3463,20 @@ HRESULT Direct3DDevice::Execute(
 					State management ends here
 				 *************************************************************************/
 
+				/*
+				if (lastTextureSelected != NULL && lastTextureSelected->is_RebelLaser) {
+					ID3D11Resource *res = NULL;
+					static int counter = 0;
+					wchar_t name[120];
+					swprintf_s(name, 120, L"c:\\Temp\\RebelLaser%d.png", counter);
+					lastTextureSelected->is_RebelLaser = false;
+					lastTextureSelected->_textureView->GetResource(&res);					
+					hr = DirectX::SaveWICTextureToFile(context.Get(),
+						res, GUID_ContainerFormatPng, name);
+					counter++;
+				}
+				*/
+
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
 				//	goto out;
@@ -3456,7 +3484,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the left radar:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_LEFT_RADAR_SRC_CRC)
+					if (lastTextureSelected->is_DC_LeftSensorSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -3511,8 +3539,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the right radar:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if ((lastTextureSelected->crc == DYN_COCKPIT_RIGHT_RADAR_SRC_CRC) ||
-					    (lastTextureSelected->crc == DYN_COCKPIT_RIGHT_RADAR_2_SRC_CRC))
+					if ((lastTextureSelected->is_DC_RightSensorSrc) ||
+					    (lastTextureSelected->is_DC_RightSensor2Src))
 					{
 						if (!g_DCHUDBoxes.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -3556,7 +3584,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the shields:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_SHIELDS_SRC_CRC)
+					if (lastTextureSelected->is_DC_ShieldsSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -3588,7 +3616,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the tractor beam:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_BEAM_BOX_SRC_CRC)
+					if (lastTextureSelected->is_DC_BeamBoxSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -3620,7 +3648,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the targeting computer:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_TARGET_COMP_SRC_CRC)
+					if (lastTextureSelected->is_DC_TargetCompSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -3710,8 +3738,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the left/right message boxes:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_BORDER_MSG_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_SOLID_MSG_SRC_CRC)
+					if (lastTextureSelected->is_DC_BorderMsgSrc ||
+						lastTextureSelected->is_DC_SolidMsgSrc)
 					{
 						DCHUDBox *dcSrcBoxL = &g_DCHUDBoxes.boxes[LEFT_MSG_HUD_BOX_IDX];
 						DCHUDBox *dcSrcBoxR = &g_DCHUDBoxes.boxes[RIGHT_MSG_HUD_BOX_IDX];
@@ -3761,7 +3789,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the top-left bracket:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_TOP_LEFT_SRC_CRC)
+					if (lastTextureSelected->is_DC_TopLeftSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
 						{
@@ -3799,7 +3827,7 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the bounds for the top-right bracket:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
-					if (lastTextureSelected->crc == DYN_COCKPIT_TOP_RIGHT_SRC_CRC)
+					if (lastTextureSelected->is_DC_TopRightSrc)
 					{
 						if (!g_DCHUDBoxes.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
 						{
@@ -3836,27 +3864,20 @@ HRESULT Direct3DDevice::Execute(
 
 				// Render HUD backgrounds to their own layer (HUD BG)
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
-					if (lastTextureSelected->crc == DYN_COCKPIT_LEFT_RADAR_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_RIGHT_RADAR_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_RIGHT_RADAR_2_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_SOLID_MSG_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_BORDER_MSG_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_TARGET_COMP_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_SHIELDS_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_LASER_BOX_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_ION_BOX_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_TOP_LEFT_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_TOP_RIGHT_SRC_CRC ||
-						lastTextureSelected->crc == DYN_COCKPIT_BEAM_BOX_SRC_CRC)
+					if (lastTextureSelected->is_DC_HUDSource)
 						bRenderToDynCockpitBGBuffer = true;
+
+				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
+				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay) {
+					//if (lastTextureSelected->is_SpecialDebug)
+					//	log_debug("[DBG] Skipping: [%s]", lastTextureSelected->_surface->_name);
+					goto out;
+				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
 				//	goto out;
 					//log_debug("[DBG] NoZWrite, ZFunc: %d", _renderStates->GetZFunc());
 				//}
-
-				//if (lastTextureSelected != NULL && lastTextureSelected->crc == 0xfcf50e34)
-				//	goto out;
 
 				 // Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR
@@ -3898,10 +3919,6 @@ HRESULT Direct3DDevice::Execute(
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders = false;
 
-				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
-					goto out;
-
 				//if (g_bDynCockpitEnabled && !g_bPrevIsFloatingGUI3DObject && g_bIsFloating3DObject) {
 					// The targeted craft is about to be drawn!
 					// Let's clear the render target view for the dynamic cockpit
@@ -3914,6 +3931,8 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
+				// Modify the state for both VR and regular game modes:
+
 				// DYNAMIC COCKPIT: REPLACE TEXTURES AT RUN-TIME:
 				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitDst)
 				{
@@ -3923,7 +3942,6 @@ HRESULT Direct3DDevice::Execute(
 
 					bModifiedShaders = true;
 					dc_element *dc_element = &g_DCElements[idx];
-					float bgColor[4];
 					int numCoords = 0;
 					for (int i = 0; i < dc_element->coords.numCoords; i++) {
 						int src_slot = dc_element->coords.src_slot[i];
@@ -3940,18 +3958,14 @@ HRESULT Direct3DDevice::Execute(
 						uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
 						g_PSCBuffer.src[numCoords] = uv_src;
 						g_PSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-
-						uint32_t uColor = dc_element->coords.uBGColor[i];
-						bgColor[3] =  (uColor        & 0xFF) / 255.0f;
-						bgColor[2] = ((uColor >> 8)  & 0xFF) / 255.0f;
-						bgColor[1] = ((uColor >> 16) & 0xFF) / 255.0f;
-						bgColor[0] = ((uColor >> 24) & 0xFF) / 255.0f;
-						memcpy(&(g_PSCBuffer.bgColor[numCoords]), bgColor, 4 * sizeof(float));
+						g_PSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
 						numCoords++;
 					}
 					g_PSCBuffer.DynCockpitSlots = numCoords;
 					g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != NULL) ? 1 : 0;
 
+					// slot 0 is the cover texture
+					// slot 1 is the HUD offscreen buffer
 					context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
 					if (g_PSCBuffer.bUseCoverTexture)
 						context->PSSetShaderResources(0, 1, &(dc_element->coverTexture));
@@ -3968,6 +3982,36 @@ HRESULT Direct3DDevice::Execute(
 						bDumped = true;
 					}
 					*/
+				}
+
+				// Send the flag for lasers (enhance them in 32-bit mode)
+				if (lastTextureSelected != NULL && lastTextureSelected->is_Laser) {
+					bModifiedShaders = true;
+					g_PSCBuffer.bIsLaser = 1;
+					if (g_config.EnhanceLasers)
+						g_PSCBuffer.bIsLaser = 2; // Enhance the lasers (intended for 32-bit mode)
+				}
+
+				// Send the flag for light textures (enhance them in 32-bit mode)
+				if (lastTextureSelected != NULL && lastTextureSelected->is_LightTexture) {
+					bModifiedShaders = true;
+					g_PSCBuffer.bIsLightTexture = 1;
+					if (g_config.EnhanceIllumination)
+						g_PSCBuffer.bIsLightTexture = 2; // Enhance the light textures (intended for 32-bit mode)
+				}
+
+				// Set the flag for EngineGlow (enhance them in 32-bit mode)
+				if (lastTextureSelected != NULL && lastTextureSelected->is_EngineGlow) {
+					bModifiedShaders = true;
+					g_PSCBuffer.bIsEngineGlow = 1;
+					if (g_config.EnhanceEngineGlow)
+						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Engine Glow (intended for 32-bit mode)
+				}
+
+				// Dim all the GUI elements
+				if (g_bStartedGUI && !g_bIsFloating3DObject) {
+					bModifiedShaders = true;
+					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
 				// Early exit 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
@@ -4063,12 +4107,6 @@ HRESULT Direct3DDevice::Execute(
 					// Enable the fixed GUI
 					if (g_bFixedGUI)
 						g_VSCBuffer.bFullTransform = 1.0f;
-				}
-
-				// Dim all the GUI elements
-				if (g_bStartedGUI && !g_bIsFloating3DObject) {
-					bModifiedShaders = true;
-					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
 				// The game renders brackets with ZWrite disabled; but we need to enable it temporarily so that we
@@ -4264,11 +4302,14 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.bPreventTransform =  0.0f;
 					g_VSCBuffer.bFullTransform    =  0.0f;
 
+					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness        = MAX_BRIGHTNESS;
-					g_PSCBuffer.bUseCoverTexture  = 0;
-					g_PSCBuffer.DynCockpitSlots   = 0;
-					g_PSCBuffer.bRenderHUD		  = 0;
-					//g_PSCBuffer.bAlphaOnly		  = 0;
+					g_PSCBuffer.ct_brightness	  = g_fCoverTextureBrightness;
+					//g_PSCBuffer.bUseCoverTexture  = 0;
+					//g_PSCBuffer.DynCockpitSlots   = 0;
+					//g_PSCBuffer.bRenderHUD		  = 0;
+					//g_PSCBuffer.bEnhaceLasers	  = 0;
+					//g_PSCBuffer.bIsLightTexture   = 0;
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 				}
