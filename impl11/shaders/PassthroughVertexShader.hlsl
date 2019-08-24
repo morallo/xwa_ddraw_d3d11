@@ -26,6 +26,6 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos.z = input.pos.z;
 	output.pos.w = 1.0f;
 	output.color = input.color.zyxw;
-	output.tex = input.tex;
+	output.tex   = input.tex;
 	return output;
 }

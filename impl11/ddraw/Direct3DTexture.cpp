@@ -638,7 +638,8 @@ HRESULT Direct3DTexture::Load(
 		}
 	}
 	else if (surface->_mipmapCount > 1) {
-		// Catch the laser-related textures
+		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
+		// Catch the laser-related textures and mark them
 		if (strstr(surface->_name, "Laser") != NULL) {
 			// Ignore "LaserBat.OPT"
 			if (strstr(surface->_name, "LaserBat") == NULL) {
@@ -711,9 +712,9 @@ HRESULT Direct3DTexture::Load(
 							//	g_DCElements[idx].coverTextureName, res);
 							g_DCElements[idx].coverTexture = NULL;
 						}
-						//else {
-						//	log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-						//}
+						else {
+							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
+						}
 					}
 				} else if (strstr(surface->_name, ",light") != NULL) {
 					this->is_DynCockpitAlphaOverlay = true;
@@ -723,7 +724,7 @@ HRESULT Direct3DTexture::Load(
 						saveSurface(L"c:\\temp\\TEX00036-light", (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
 					}*/
 				}
-			}
+			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
 	}
 

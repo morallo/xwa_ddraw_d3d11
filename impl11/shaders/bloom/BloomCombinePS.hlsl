@@ -25,10 +25,16 @@ struct PixelShaderInput
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	float2 input_uv_sub = input.uv / 4.0;
+	float scale = 1 / 8.0; // Enlarge image by this much
+	//float scale = 1;
+	float2 input_uv_sub = input.uv * scale;
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = bloomTex.Sample(bloomSampler, input_uv_sub);
-	color += bloom;
+	//color += bloom;
+	//color += bloom.w * bloom;
 	color.w = 1.0f;
-	return color;
+	//return color;
+	// hack
+	bloom.w = 1.0f;
+	return color + bloom;
 }

@@ -1,6 +1,6 @@
 /*=============================================================================
 
-	Adapted by Leo Reyes with permission from:
+	Adapted by Leo Reyes with permission from Pascal Gilcher.
 
 	ReShade 4 effect file
 	github.com/martymcmodding
@@ -43,12 +43,3 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//color.w = 1.0f;
 	//return color;
 }
-
-/*
-float4 main(PixelShaderInput input) : SV_TARGET
-{
-	float4 color = texture0.Sample(sampler0, input.uv);
-	color.w = 1.0f;
-	return color;
-}
-*/

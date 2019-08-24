@@ -162,14 +162,14 @@ PixelShaderOutput main(PixelShaderInput input)
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5)
 				//return float4(0, 1, 0, val);
-				output.bloom = float4(color, val / 2.0);
+				output.bloom = float4(color, val);
 			output.color = float4(color, alpha);
 			return output;
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5)
 				//return float4(0, 1, 0, val);
-				output.bloom = float4(texelColor.rgb, val / 2.0);
+				output.bloom = float4(texelColor.rgb, val);
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 			return output;
 		}
@@ -188,12 +188,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 1.25;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			output.bloom = float4(color, alpha / 2.0);
+			output.bloom = float4(color, alpha);
 			return output;
 		}
 		else {
 			output.color = texelColor;
-			output.bloom = float4(texelColor.rgb, alpha / 2.0);
+			output.bloom = float4(texelColor.rgb, alpha);
 			return output; // Return the original color when 32-bit mode is off
 		}
 	}
@@ -287,7 +287,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				HSV = RGBtoHSV(texelColor.xyz);
 				HSV.z *= 1.2;
 				texelColor.xyz = HSVtoRGB(HSV);
-				output.bloom = float4(texelColor.xyz, 0.5);
+				output.bloom = float4(texelColor.xyz, 1);
 				brightness = 1.0;
 			}
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
@@ -301,6 +301,27 @@ PixelShaderOutput main(PixelShaderInput input)
 			diffuse = float3(1, 1, 1);
 		}
 		output.color = float4(diffuse * texelColor.xyz, texelColor.w);
+		return output;
+	}
+	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
+	// The code returns a color from this path
+	else if (bUseCoverTexture > 0) {
+		// texelColor is the cover_texture right now
+		float3 HSV = RGBtoHSV(texelColor.xyz);
+		float4 hud_texelColor = float4(0, 0, 0, 1);
+		float brightness = ct_brightness;
+		if (HSV.z * alpha >= 0.8) {
+			// The cover texture is bright enough, go shadeless and make it brighter
+			diffuse = float3(1, 1, 1);
+			// Increase the brightness:
+			HSV = RGBtoHSV(texelColor.xyz);
+			HSV.z *= 1.2;
+			texelColor.xyz = HSVtoRGB(HSV);
+			output.bloom = float4(texelColor.xyz, 1);
+			brightness = 1.0;
+		}
+		texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
+		output.color = float4(diffuse * texelColor.xyz, alpha);
 		return output;
 	}
 	

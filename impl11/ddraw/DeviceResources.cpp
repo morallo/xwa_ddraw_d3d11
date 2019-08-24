@@ -60,7 +60,7 @@ extern VertexShaderMatrixCB g_VSMatrixCB;
 extern std::vector<dc_element> g_DCElements;
 extern char g_sCurrentCockpit[128];
 
-extern DCHUDBoxes g_DCHUDBoxes;
+extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
@@ -453,11 +453,6 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 		g_HUDVertexBuffer = NULL;
 	}
 
-	if (g_ClearFullScreenHUDVertexBuffer != NULL) {
-		g_ClearFullScreenHUDVertexBuffer->Release();
-		g_ClearFullScreenHUDVertexBuffer = NULL;
-	}
-
 	if (g_ClearHUDVertexBuffer != NULL) {
 		g_ClearHUDVertexBuffer->Release();
 		g_ClearHUDVertexBuffer = NULL;
@@ -476,10 +471,11 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	vertexBufferData.pSysMem = HUDVertices;
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_HUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_HUDVertexBuffer");
+		log_debug("[DBG] [DC] Could not create g_HUDVertexBuffer");
 		g_bHUDVerticesReady = false;
 	}
 
+	/*
 	// Change the color to 0 to create a vertex buffer that clears the whole HUD
 	for (int i = 0; i < 6; i++)
 		HUDVertices[i].color = 0;
@@ -490,6 +486,7 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 		log_debug("[DBG] Could not create g_ClearFullScreenHUDVertexBuffer");
 		g_bHUDVerticesReady = false;
 	}
+	*/
 
 	// Build the vertex buffer that will be used to clear areas of the offscreen DC buffer:
 	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -497,7 +494,7 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	vertexBufferDesc.StructureByteStride = 0;
 	hr = device->CreateBuffer(&vertexBufferDesc, nullptr, &g_ClearHUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_ClearHUDVertexBuffer");
+		log_debug("[DBG] [DC] Could not create g_ClearHUDVertexBuffer");
 		g_bHUDVerticesReady = false;
 	}
 
@@ -512,7 +509,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
-	//log_debug("[DBG] OnSizeChanged called");
+	log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
 	if (!g_bWndProcReplaced) {
@@ -554,7 +551,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 	if (g_bDynCockpitEnabled) {
 		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
-		g_DCHUDBoxes.ResetLimits();
+		g_DCHUDRegions.ResetLimits();
 		// Reset the Source DC elements so that we know when they get re-computed.
 		g_DCElemSrcBoxes.Reset();
 		// Reset the cockpit name
@@ -566,13 +563,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			dc_element *elem = &g_DCElements[i];
 			if (elem->bActive) {
 				if (elem->coverTexture != NULL) {
-					//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
+					log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
 					elem->coverTexture->Release();
 					elem->coverTexture = NULL;
 				}
 				elem->bActive = false;
 				elem->bNameHasBeenTested = false;
 			}
+		}
+		// Reset the dynamic cockpit vector
+		if (g_DCElements.size() > 0) {
+			log_debug("[DBG] [DC] Clearing g_DCElements");
+			ClearDynCockpitVector(g_DCElements);
 		}
 		this->_renderTargetViewDynCockpit.Release();
 		this->_renderTargetViewDynCockpitBG.Release();

@@ -33,7 +33,7 @@ void IncreaseNoDrawAfterHUD(int Delta);
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter;
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized;
+extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bDumpHUDBuffers, g_bClearHUDBuffers;
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -151,6 +151,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bSkipGUI: %d", g_bSkipGUI);
 				return 0;
 #endif
+			case 'D':
+				// Force a refresh of the display width
+				g_bDumpHUDBuffers = true;
+				return 0;
+			case 'C':
+				// Force a refresh of the display width
+				g_bClearHUDBuffers = true;
+				return 0;
 
 			case 'B':
 				g_bDisableBarrelEffect = !g_bDisableBarrelEffect;

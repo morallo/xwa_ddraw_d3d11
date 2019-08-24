@@ -27,9 +27,10 @@ extern bool g_bNaturalConcourseAnimations;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bHUDVerticesReady;
 extern std::vector<dc_element> g_DCElements;
-extern DCHUDBoxes g_DCHUDBoxes;
+extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
+extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -55,7 +56,9 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
 
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
 bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
-ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL, *g_ClearFullScreenHUDVertexBuffer = NULL;
+ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL; // , *g_ClearFullScreenHUDVertexBuffer = NULL;
+extern bool g_bDumpHUDBuffers, g_bDCBuffersCleared;
+bool g_bClearHUDBuffers = false;
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -1135,6 +1138,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
  *		Input: an already-resolved _reshadeOutput1
  *		Renders to _reshadeOutput2
  */
+
+ /*
+  * Applies the bloom effect on the 3D window.
+  * ...
+  * pass 1:
+  *		Input: an already-resolved _reshadeOutput1
+  *		Renders to _reshadeOutput2
+  */
 void PrimarySurface::bloom(int pass) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1189,51 +1200,53 @@ void PrimarySurface::bloom(int pass) {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 
-	// The input texture must be resolved already to _offscreenBufferAsInputReshade
+	// The input texture must be resolved already to _offscreenBufferAsInputReshadeMask
 	resources->InitVertexShader(resources->_mainVertexShader);
 	switch (pass) {
 		case 0: 	// Prepass
 			// Input: _offscreenAsInputReshadeSRV
 			// Output _reshadeOutput1
-			viewport.Width  /= 4.0f;
-			viewport.Height /= 4.0f;
-			resources->InitPixelShader(resources->_bloomPrepassPS);
+			viewport.Width  /= 8.0f;
+			viewport.Height /= 8.0f;
+			resources->InitPixelShader(resources->_bloomHGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputReshadeSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
-				//this->_deviceResources->_depthStencilViewL.Get());
 			break;
-		case 1: // Threshold + Horizontal Gaussian Blur
+		case 1: // Vertical Gaussian Blur
+			// Input:  _reshadeOutput1
 			// Output: _reshadeOutput2
-			resources->InitPixelShader(resources->_bloomHGaussPS);
+			resources->InitPixelShader(resources->_bloomVGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_reshadeOutput1SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewReshade2, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade2.GetAddressOf(), NULL);
-				//this->_deviceResources->_depthStencilViewL.Get());
 			break;
-		case 2: // Vertical Gaussian Blur
+		case 2: // Horizontal Gaussian Blur
+			// Input:  _reshadeOutput2
 			// Output: _reshadeOutput1
 			//context->ResolveSubresource(resources->_reshadeOutput2AsInput, 0, resources->_reshadeOutput2, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			resources->InitPixelShader(resources->_bloomVGaussPS);
+			resources->InitPixelShader(resources->_bloomHGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_reshadeOutput2SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
-				//this->_deviceResources->_depthStencilViewL.Get());
 			break;
 		case 3: // Final pass to combine the bloom texture with the backbuffer
-			// Output: _reshadeOutput2
+			// Input:  _offscreenBufferAsInput
+			// Output: _reshadeOutput1
 			//context->ResolveSubresource(resources->_reshadeOutput1AsInput, 0, resources->_reshadeOutput1, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputReshadeSRV.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_reshadeOutput1SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewReshade2, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade2.GetAddressOf(), NULL);
-				//this->_deviceResources->_depthStencilViewL.Get());
+			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_reshadeOutput2SRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
 			break;
 	}
 
 	// Set the constant buffers
-	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
 	context->Draw(6, 0);
@@ -1308,34 +1321,28 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	hr = resources->InitBlendState(nullptr, &blendDesc);
-
-	// Set the constant buffers
-	//VertexShaderCBuffer tempVSBuffer = g_VSCBuffer;
-	//tempVSBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
-	//tempVSBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
-	//tempVSBuffer.viewportScale[2] =  scale;
-	//tempVSBuffer.viewportScale[3] =  g_fGlobalScale;
-	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &tempVSBuffer);
+	//if (FAILED(hr))
+	//	log_debug("[DBG] [DC] Failed to InitBlendState");
 
 	// Set the vertex buffer
 	// D3DCOLOR seems to be AARRGGBB
-	//if (!fullScreen)
-	{
-		D3DTLVERTEX vertices[6];
-		vertices[0].sx = box.x0; vertices[0].sy = box.y0; vertices[0].sz = 0.98f; vertices[0].rhw = 34.0f; vertices[0].color = clearColor;
-		vertices[1].sx = box.x1; vertices[1].sy = box.y0; vertices[1].sz = 0.98f; vertices[1].rhw = 34.0f; vertices[1].color = clearColor;
-		vertices[2].sx = box.x1; vertices[2].sy = box.y1; vertices[2].sz = 0.98f; vertices[2].rhw = 34.0f; vertices[2].color = clearColor;
+	D3DTLVERTEX vertices[6];
+	vertices[0].sx = box.x0; vertices[0].sy = box.y0; vertices[0].sz = 0.98f; vertices[0].rhw = 34.0f; vertices[0].color = clearColor;
+	vertices[1].sx = box.x1; vertices[1].sy = box.y0; vertices[1].sz = 0.98f; vertices[1].rhw = 34.0f; vertices[1].color = clearColor;
+	vertices[2].sx = box.x1; vertices[2].sy = box.y1; vertices[2].sz = 0.98f; vertices[2].rhw = 34.0f; vertices[2].color = clearColor;
 
-		vertices[3].sx = box.x1; vertices[3].sy = box.y1; vertices[3].sz = 0.98f; vertices[3].rhw = 34.0f; vertices[3].color = clearColor;
-		vertices[4].sx = box.x0; vertices[4].sy = box.y1; vertices[4].sz = 0.98f; vertices[4].rhw = 34.0f; vertices[4].color = clearColor;
-		vertices[5].sx = box.x0; vertices[5].sy = box.y0; vertices[5].sz = 0.98f; vertices[5].rhw = 34.0f; vertices[5].color = clearColor;
-		D3D11_MAPPED_SUBRESOURCE map;
-		hr = context->Map(g_ClearHUDVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-		if (SUCCEEDED(hr)) {
-			memcpy(map.pData, vertices, sizeof(D3DTLVERTEX) * 6);
-			context->Unmap(g_ClearHUDVertexBuffer, 0);
-		}
+	vertices[3].sx = box.x1; vertices[3].sy = box.y1; vertices[3].sz = 0.98f; vertices[3].rhw = 34.0f; vertices[3].color = clearColor;
+	vertices[4].sx = box.x0; vertices[4].sy = box.y1; vertices[4].sz = 0.98f; vertices[4].rhw = 34.0f; vertices[4].color = clearColor;
+	vertices[5].sx = box.x0; vertices[5].sy = box.y0; vertices[5].sz = 0.98f; vertices[5].rhw = 34.0f; vertices[5].color = clearColor;
+
+	D3D11_MAPPED_SUBRESOURCE map;
+	hr = context->Map(g_ClearHUDVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	if (SUCCEEDED(hr)) {
+		memcpy(map.pData, vertices, sizeof(D3DTLVERTEX) * 6);
+		context->Unmap(g_ClearHUDVertexBuffer, 0);
 	}
+	//else
+	//	log_debug("[DBG] [DC] Could not Map g_ClearHUDVertexBuffer");
 
 	D3D11_DEPTH_STENCIL_DESC zDesc;
 	// Temporarily disable ZWrite: we won't need it to display the HUD
@@ -1362,16 +1369,15 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	context->OMSetRenderTargets(2, rtvs, NULL);
 	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInput.GetAddressOf(), NULL);
 	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInputBG.GetAddressOf(), NULL);
+
 	// Set the viewport
 	resources->InitViewport(viewport);
 	// Set the vertex buffer (map the vertices from the box)
 	UINT stride = sizeof(D3DTLVERTEX);
 	UINT offset = 0;
-	//if (!fullScreen)
 	resources->InitVertexBuffer(&g_ClearHUDVertexBuffer, &stride, &offset);
-	//else
-	//resources->InitVertexBuffer(&g_ClearFullScreenHUDVertexBuffer, &stride, &offset);
 	// Draw
+	//log_debug("[DBG] [DC] Clearing box");
 	context->Draw(6, 0);
 }
 
@@ -1384,6 +1390,25 @@ void PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
+	// Dump the HUD offscreen buffer for debugging purposes
+	/*
+	if (g_bDumpHUDBuffers) {
+		auto& resources = this->_deviceResources;
+		auto& device = resources->_d3dDevice;
+		auto& context = resources->_d3dDeviceContext;
+
+		HRESULT hr;
+		hr = DirectX::SaveWICTextureToFile(context.Get(),
+			resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
+		log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
+
+		hr = DirectX::SaveWICTextureToFile(context.Get(),
+			resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
+		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
+		g_bDumpHUDBuffers = false;
+	}
+	*/
+
 	int size = (int)g_DCElements.size();
 	for (int i = 0; i < size; i++) {
 		dc_element *dc_elem = &g_DCElements[i];
@@ -1392,7 +1417,7 @@ void PrimarySurface::ClearHUDRegions() {
 			if (strstr(dc_elem->name, g_sCurrentCockpit) != NULL) {
 				dc_elem->bActive = true;
 				dc_elem->bNameHasBeenTested = true;
-				//log_debug("[DBG] [DC] ACTIVATED: '%s'", dc_elem->name);
+				log_debug("[DBG] [DC] ACTIVATED: '%s'", dc_elem->name);
 			}
 		}
 		// Only clear HUD regions for active dc_elements
@@ -1404,9 +1429,14 @@ void PrimarySurface::ClearHUDRegions() {
 
 		for (int j = 0; j < dc_elem->num_erase_slots; j++) {
 			int erase_slot = dc_elem->erase_slots[j];
-			DCHUDBox *dcSrcBox = &g_DCHUDBoxes.boxes[erase_slot];
-			if (dcSrcBox->bLimitsComputed)
-				ClearBox(dcSrcBox->erase_coords, &viewport, 0);
+			DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[erase_slot];
+			if (dcSrcBox->bLimitsComputed) {
+				//log_debug("[DBG] [DC] Clearing region (%0.3f, %0.3f)-(%0.3f, %0.3f), %f, %f", 
+				//	dcSrcBox->erase_coords.x0, dcSrcBox->erase_coords.y0,
+				//	dcSrcBox->erase_coords.x1, dcSrcBox->erase_coords.y1,
+				//	viewport.Width, viewport.Height);
+				ClearBox(dcSrcBox->erase_coords, &viewport, 0x0);
+			}
 		}
 	}
 
@@ -1419,6 +1449,22 @@ void PrimarySurface::ClearHUDRegions() {
 			ClearBox(dcSrcBox->erase_coords, &viewport, 0);
 	}
 	*/
+
+	if (g_bDumpHUDBuffers) {
+		auto& resources = this->_deviceResources;
+		auto& device = resources->_d3dDevice;
+		auto& context = resources->_d3dDeviceContext;
+
+		HRESULT hr;
+		hr = DirectX::SaveWICTextureToFile(context.Get(),
+			resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
+		log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
+
+		hr = DirectX::SaveWICTextureToFile(context.Get(),
+			resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
+		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
+		g_bDumpHUDBuffers = false;
+	}
 }
 
 void PrimarySurface::DrawHUDVertices() {
@@ -1440,17 +1486,6 @@ void PrimarySurface::DrawHUDVertices() {
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	hr = resources->InitBlendState(nullptr, &blendDesc);
-	
-	/*
-	// Dump the HUD offscreen buffer for debugging purposes
-	static bool bDumped = false;
-	if (g_iPresentCounter > 100 && !bDumped) {
-		hr = DirectX::SaveWICTextureToFile(context.Get(),
-			resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//offscreenBuf-DC-BG.png");
-		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
-		bDumped = true;
-	}
-	*/
 
 	// We don't need to clear the current vertex and pixel constant buffers.
 	// Since we've just finished rendering 3D, they should contain values that
@@ -1493,10 +1528,10 @@ void PrimarySurface::DrawHUDVertices() {
 		if (region_slot < 0)
 			continue;
 		// Skip regions if their limits haven't been computed
-		if (!g_DCHUDBoxes.boxes[region_slot].bLimitsComputed)
+		if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed)
 			continue;
 		// Fetch the source uv coords:
-		g_PSCBuffer.src[numCoords] = g_DCHUDBoxes.boxes[region_slot].erase_coords;
+		g_PSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
 		// Fetch the destination uv coords:
 		g_PSCBuffer.dst[numCoords] = g_DCMoveRegions.dst[i];
 		numCoords++;
@@ -1628,6 +1663,7 @@ HRESULT PrimarySurface::Flip(
 
 	this->_deviceResources->sceneRenderedEmpty = this->_deviceResources->sceneRendered == false;
 	this->_deviceResources->sceneRendered = false;
+	auto &context = this->_deviceResources->_d3dDeviceContext;
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
@@ -1636,6 +1672,14 @@ HRESULT PrimarySurface::Flip(
 			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPostR, this->_deviceResources->clearColor);
 		}
+		/*
+		if (g_bDynCockpitEnabled) {
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
+		}
+		*/
 		// Do we need to clear renderTargetViewPost?
 		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPost, this->_deviceResources->clearColor);
 		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
@@ -1745,6 +1789,7 @@ HRESULT PrimarySurface::Flip(
 				hr = DD_OK;
 
 				interval = g_bNaturalConcourseAnimations ? interval : 1;
+				//log_debug("[DBG] g_bNatural: %d, interval: %d", g_bNaturalConcourseAnimations, interval);
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
@@ -1801,15 +1846,20 @@ HRESULT PrimarySurface::Flip(
 						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library
 						// Let's clear the render target for the next iteration or we'll get multiple images during
 						// the animation
+						auto &context = this->_deviceResources->_d3dDeviceContext;
 						float bgColor[4] = { 0, 0, 0, 0 };
 						this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(
 							this->_deviceResources->_renderTargetView, bgColor);
 						if (g_bUseSteamVR) {
-							this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(
-								this->_deviceResources->_renderTargetViewR, bgColor);
-							this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(
-								this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
 						}
+						/* if (g_bDynCockpitEnabled) {
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
+							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
+						} */
 					}
 
 					if (g_bUseSteamVR) {					
@@ -1888,8 +1938,8 @@ HRESULT PrimarySurface::Flip(
 
 			// Re-shade the contents of _offscreenBufferAsInputReshade
 			if (g_bReshadeEnabled) {
-				// Resolve whatever is in the _offscreenBuffer into _offscreenBufferAsInputReshade
-				// -- I'll worry about the details later
+				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
+				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputReshadeMask, 0,
 					resources->_offscreenBufferReshadeMask, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
@@ -1902,36 +1952,64 @@ HRESULT PrimarySurface::Flip(
 				//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
 				//}
 				
-				//if (g_bBloomEnabled) {
-				if (false) {
+				if (g_bBloomEnabled) {
 					//float factor = 0.0f;
 					/* factor = -2.0f;
 					context->UpdateSubresource(, 0, nullptr, &g_MSCBuffer, 0, 0);
 					context->PSSetConstantBuffers(0, 1, buffer);
 					g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE; */
-					// Bloom pre-pass
+					// Horizontal Gaussian Blur. input: reshade mask, output: reshade1
 					bloom(0);
-					// Horizontal Gaussian Blur. input: reshade1, output: reshade2
-					bloom(1);
-					// Vertical Gaussian Blur. input: reshade2, output: reshade1
-					bloom(2);
+					//context->CopyResource(resources->_reshadeOutput2, resources->_reshadeOutput1);
+					//goto bloom_out;
 
-					// Repeat once more (yes, this can be done; but we need to tune down the bloom effect a bit)
-					// Horizontal Gaussian Blur
-					bloom(1);
-					// Vertical Gaussian Blur
-					bloom(2);
+					//if (g_iPresentCounter == 100) {
+					//	capture(0, resources->_reshadeOutput1, L"C:\\Temp\\_reshadeOutput1.jpg");
+					//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+					//}
 
-					// Repeat once more (yes, this can be done; but we need to tune down the bloom effect a bit)
-					// Horizontal Gaussian Blur
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
 					bloom(1);
-					// Vertical Gaussian Blur
-					bloom(2);
+					//goto bloom_out;
 
-					// Combine
+					// Second pass
+					// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+					bloom(2);
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
+					bloom(1);
+
+					// Third pass
+					// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+					bloom(2);
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
+					bloom(1);
+
+					// Fourth pass
+					// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+					bloom(2);
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
+					bloom(1);
+
+					// Fourth pass
+					// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+					bloom(2);
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
+					bloom(1);
+
+					// Fourth pass
+					// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+					bloom(2);
+					// Vertical Gaussian Blur. input: reshade1, output: reshade2
+					bloom(1);
+
+//bloom_out:
+					// Combine. input: offscreenBuffer, reshade2; output: reshade1
 					bloom(3);
 					// Resolve:
-					context->CopyResource(resources->_offscreenBufferAsInput, resources->_reshadeOutput2);
+					//context->CopyResource(resources->_offscreenBufferAsInput, resources->_reshadeOutput1);
+
+					context->CopyResource(resources->_offscreenBuffer, resources->_reshadeOutput1);
+					context->CopyResource(resources->_offscreenBufferPost, resources->_reshadeOutput1);
 				}
 			}
 
@@ -2004,21 +2082,38 @@ HRESULT PrimarySurface::Flip(
 			//*g_playerInHangar = 0;
 
 			if (g_bDynCockpitEnabled) {
-				_deviceResources->_d3dDeviceContext->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
+				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				auto &context = this->_deviceResources->_d3dDeviceContext;
+				if (!g_bDCBuffersCleared || g_bClearHUDBuffers) {
+					// The DC Buffers were never cleared, we should clear them here (?)
+					//log_debug("[DBG] [DC] CLEARING DC BUFFERS");
+					context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+					context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+					//if (g_bClearHUDBuffers)
+					//	log_debug("[DBG] [DC] HUD Buffers cleared manually");
+					g_bClearHUDBuffers = false;
+				}
+				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-				_deviceResources->_d3dDeviceContext->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
+				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
 					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
 				/*
-				static bool bDumped = false;
-				if (!bDumped && g_iPresentCounter == 100) {
+				if (g_bDumpHUDBuffers) {
+					HRESULT hr;
 					hr = DirectX::SaveWICTextureToFile(context.Get(),
-						resources->_offscreenBufferAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//HUD-BG.png");
-					log_debug("[DBG] Dumping offscreenBufferDynCockpitBG");
-					bDumped = true;
+						resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
+					log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
+
+					hr = DirectX::SaveWICTextureToFile(context.Get(),
+						resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
+					log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
+					g_bDumpHUDBuffers = false;
 				}
 				*/
 			}
+			// Reset this flag for the next frame
+			g_bDCBuffersCleared = false;
 
 			// Perform the lean left/right etc animations
 			animTickX();

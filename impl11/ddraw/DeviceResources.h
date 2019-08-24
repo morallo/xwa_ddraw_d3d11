@@ -42,7 +42,7 @@ extern std::vector<const char *>g_HUDRegionNames;
 // Convert a string into a *_HUD_BOX_IDX constant
 int HUDRegionNameToIndex(char *name);
 
-class DCHUDBox {
+class DCHUDRegion {
 public:
 	Box coords;
 	Box uv_erase_coords;
@@ -51,15 +51,15 @@ public:
 };
 
 /*
- * This class stores the coordinates for each HUD texture: left radar, right radar, text
+ * This class stores the coordinates for each HUD Region : left radar, right radar, text
  * boxes, etc. It does not store the individual HUD elements within each HUD texture. For
  * that, look at DCElementSourceBox
  */
-class DCHUDBoxes {
+class DCHUDRegions {
 public:
-	std::vector<DCHUDBox> boxes;
+	std::vector<DCHUDRegion> boxes;
 
-	DCHUDBoxes();
+	DCHUDRegions();
 
 	void Clear() {
 		boxes.clear();
