@@ -9,6 +9,7 @@
 // Also found in the Floating_GUI_RESNAME list:
 extern const char *DC_TARGET_COMP_SRC_RESNAME;
 extern const char *DC_LEFT_SENSOR_SRC_RESNAME;
+extern const char *DC_LEFT_SENSOR_2_SRC_RESNAME;
 extern const char *DC_RIGHT_SENSOR_SRC_RESNAME;
 extern const char *DC_RIGHT_SENSOR_2_SRC_RESNAME;
 extern const char *DC_SHIELDS_SRC_RESNAME;

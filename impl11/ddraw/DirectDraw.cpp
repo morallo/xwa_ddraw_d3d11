@@ -351,8 +351,10 @@ HRESULT DirectDraw::CreateSurface(
 		*lplpDDSurface = textureSurface;
 		textureSurface->_name[0] = 0;
 		// TODO: Replace texture names with dynamically-allocated char*'s and release them after they are classified during Load()
-		if (bTexNameAvailable)
-			strcpy_s(textureSurface->_name, MAX_TEXTURE_NAME, texName);		
+		if (bTexNameAvailable) {
+			//log_debug("[DBG] [DC] CreateSurface [%s], 0x%x", texName, textureSurface);
+			strcpy_s(textureSurface->_name, MAX_TEXTURE_NAME, texName);
+		}
 
 #if LOGGER
 		str.str("");

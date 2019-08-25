@@ -16,11 +16,13 @@
 #include "BackbufferSurface.h"
 #include "ExecuteBufferDumper.h"
 // TODO: Remove later
-//#include "TextureSurface.h"
+#include "TextureSurface.h"
 
 #include <ScreenGrab.h>
+#include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
+//#include <assert.h>
 
 #include "FreePIE.h"
 #include <headers/openvr.h>
@@ -243,7 +245,9 @@ DCElemSrcBoxes g_DCElemSrcBoxes;
 std::vector<dc_element> g_DCElements = {};
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1;
-bool g_bDCBuffersCleared = false;
+bool g_bDCBuffersCleared = false, g_bDCManualActivate = true;
+int g_iDCElementsRendered = 0, g_iNumDCDestPerFrame = 0, g_iNumHUDRegionsPerFrame = 0;
+Direct3DTexture* debugTexture = NULL;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScreenHUDVertexBuffer;
@@ -313,18 +317,6 @@ float g_fHalfIPD = g_fIPD / 2.0f;
 float g_fFocalDist = DEFAULT_FOCAL_DIST;
 
 /*
- * New Cockpit Textures
- */
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCTargetCompCover;
-extern ComPtr<ID3D11ShaderResourceView> g_NewHUDLeftRadar;
-extern ComPtr<ID3D11ShaderResourceView> g_NewHUDRightRadar;
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCLeftRadarCover;
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCRightRadarCover;
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCShieldsCover;
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCLasersCover;
-extern ComPtr<ID3D11ShaderResourceView> g_NewDCFrontPanelCover;
-
-/*
  * Control/Debug variables
  */
 bool g_bDisableZBuffer = false;
@@ -345,6 +337,8 @@ bool InitDirectSBS();
 //bool LoadNewCockpitTextures(ID3D11Device *device);
 //void UnloadNewCockpitTextures();
 int isInVector(char *name, std::vector<dc_element> dc_elements);
+// Tags textures using their names
+void TagTexture(Direct3DTexture *d3dTexture);
 
 /* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
 float centeredSigmoid(float x) {
@@ -3289,6 +3283,37 @@ HRESULT Direct3DDevice::Execute(
 							pixelShader = resources->_pixelShaderTexture;
 							// Keep the last texture selected
 							lastTextureSelected = texture;
+							// DEBUG
+							/*if (strlen(lastTextureSelected->_surface->_name) > 0) {
+								char *name = lastTextureSelected->_surface->_name;
+								if (strstr(name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) {
+									lastTextureSelected->is_GUI = true;
+									log_debug("[DBG] [DC] Rendering LEFT SENSOR [%s], Hangar: %d", name, *g_playerInHangar);
+								}
+								if ((strstr(name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+									(strstr(name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+									lastTextureSelected->is_GUI = true;
+									log_debug("[DBG] [DC] Rendering RIGHT SENSOR [%s], Hangar: %d", name, *g_playerInHangar);
+								}
+								if (strstr(name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+									lastTextureSelected->is_GUI = true;
+									lastTextureSelected->is_TargetingComp = true;
+									log_debug("[DBG] [DC] Rendering TARGET COMP [%s], Hangar: %d", name, *g_playerInHangar);
+								}
+							}*/
+							TagTexture(lastTextureSelected);
+
+							if (lastTextureSelected->is_DynCockpitDst) {
+								g_iNumDCDestPerFrame++;
+								//log_debug("[DBG] [DC] lastTexSel Dst: [%s]", lastTextureSelected->_surface->_name);
+							}
+							if (lastTextureSelected->is_DC_HUDRegionSrc) {
+								g_iNumHUDRegionsPerFrame++;
+								//log_debug("[DBG] [DC] lastTexSel: [%s]", lastTextureSelected->_surface->_name);
+							}
+							// DEBUG
+							//if (strstr(lastTextureSelected->_surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL)
+							//	log_debug("[DBG] [DC] Rendering RIGHT SENSOR");
 						}
 
 						resources->InitPixelShader(pixelShader);
@@ -3393,7 +3418,11 @@ HRESULT Direct3DDevice::Execute(
 
 				/* ZWriteEnabled is false when rendering the background starfield or when
 				 * rendering the GUI elements -- except that the targetting computer GUI
-				 * is rendered with ZWriteEnabled == true. I wonder why? */
+				 * is rendered with ZWriteEnabled == true. This is probably done to clear
+				 * the depth stencil in the area covered by the targeting computer, so that
+				 * later, when the targeted object is rendered, it can render without
+				 * interfering with the z-values of the cockpit.
+				 */
 				bZWriteEnabled = this->_renderStates->GetZWriteEnabled();
 
 				/* If we have drawn at least one Floating GUI element and now the ZWrite has been enabled
@@ -3458,8 +3487,8 @@ HRESULT Direct3DDevice::Execute(
 						g_bDCBuffersCleared = true;
 					}
 				}
-				bool bRenderToDynCockpitBuffer = g_bDynCockpitEnabled && lastTextureSelected != NULL &&
-					g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
+				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && g_bDynCockpitEnabled  &&
+					lastTextureSelected != NULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				bool bRenderToDynCockpitBGBuffer = false;
 
 				/*************************************************************************
@@ -3484,11 +3513,21 @@ HRESULT Direct3DDevice::Execute(
 				//if (PlayerDataTable[0].cockpitDisplayed2)
 				//	goto out;
 	
+				//if (lastTextureSelected != NULL && lastTextureSelected->is_DC_LeftSensorSrc && debugTexture == NULL) {
+				//	log_debug("[DBG] [DC] lastTextureSelected is_DC_LeftSensorSrc TRUE");
+				//	debugTexture = lastTextureSelected;
+				//}
+				//if (debugTexture != NULL) {
+				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
+				//}
+
 				// Capture the bounds for the left radar:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_LeftSensorSrc)
 					{
+						//log_debug("[DBG] [DC] is_DC_LeftSensorSrc: true, bLimitsComputed: %d",
+						//	g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed);
 						if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
 							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX];
@@ -3539,7 +3578,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the right radar:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if ((lastTextureSelected->is_DC_RightSensorSrc) ||
 					    (lastTextureSelected->is_DC_RightSensor2Src))
@@ -3579,12 +3618,16 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
+							log_debug("[DBG] [DC] Right Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								box.x0, box.y0, box.x1, box.y1);
 						}
 					}
 				}
 				
 				// Capture the bounds for the shields:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_ShieldsSrc)
 					{
@@ -3616,7 +3659,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the tractor beam:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_BeamBoxSrc)
 					{
@@ -3648,7 +3691,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the targeting computer:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_TargetCompSrc)
 					{
@@ -3740,7 +3783,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the left/right message boxes:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_BorderMsgSrc ||
 						lastTextureSelected->is_DC_SolidMsgSrc)
@@ -3791,7 +3834,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the top-left bracket:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_TopLeftSrc)
 					{
@@ -3829,7 +3872,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the top-right bracket:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
 				{
 					if (lastTextureSelected->is_DC_TopRightSrc)
 					{
@@ -3867,12 +3910,13 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Render HUD backgrounds to their own layer (HUD BG)
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL)
-					if (lastTextureSelected->is_DC_HUDSource)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL)
+					if (lastTextureSelected->is_DC_HUDRegionSrc)
 						bRenderToDynCockpitBGBuffer = true;
 
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && 
+					lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
@@ -3935,7 +3979,7 @@ HRESULT Direct3DDevice::Execute(
 				// Modify the state for both VR and regular game modes:
 
 				// Dynamic Cockpit: Replace textures at run-time:
-				if (g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitDst)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitDst)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
 					// Check if this idx is valid before rendering
@@ -3944,7 +3988,8 @@ HRESULT Direct3DDevice::Execute(
 						if (dc_element->bActive) {
 							bModifiedShaders = true;
 							int numCoords = 0;
-							for (int i = 0; i < dc_element->coords.numCoords; i++) {
+							for (int i = 0; i < dc_element->coords.numCoords; i++) 
+							{
 								int src_slot = dc_element->coords.src_slot[i];
 								// Skip invalid src slots
 								if (src_slot < 0)
@@ -3955,6 +4000,7 @@ HRESULT Direct3DDevice::Execute(
 										src_slot, g_DCElemSrcBoxes.src_boxes.size());
 									continue;
 								}
+
 								DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[src_slot];
 								// Skip src boxes that haven't been computed yet
 								if (!src_box->bComputed)
@@ -3966,9 +4012,11 @@ HRESULT Direct3DDevice::Execute(
 								g_PSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
 								g_PSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
 								numCoords++;
-							}
+							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
 							g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != NULL) ? 1 : 0;
+							if (numCoords > 0)
+								g_iDCElementsRendered++;
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
@@ -3991,8 +4039,7 @@ HRESULT Direct3DDevice::Execute(
 							}
 							*/
 						} // if dc_element->bActive
-					}
-					else if (idx >= (int)g_DCElements.size()) {
+					} else if (idx >= (int)g_DCElements.size()) {
 						log_debug("[DBG] [DC] ****** idx: %d outside the bounds of g_DCElements (%d)", idx, g_DCElements.size());
 					}
 				}
@@ -4028,7 +4075,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Early exit 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) {
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
+					//assert((bRenderToDynCockpitBuffer && !bRenderToDynCockpitBGBuffer) ||
+					//	   (!bRenderToDynCockpitBuffer && bRenderToDynCockpitBGBuffer));
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
 					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();
@@ -4057,6 +4106,7 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bIsFloating3DObject)
 						QuickSetZWriteEnabled(TRUE);
 					// Render
+					//log_debug("[DBG] [DB] Rendering to offscreen HUD buffer, %d, %d", bRenderToDynCockpitBuffer, bRenderToDynCockpitBGBuffer);
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
 					// Restore the regular texture, RTV, shaders, etc:
@@ -4327,10 +4377,7 @@ HRESULT Direct3DDevice::Execute(
 				// Draw the Right Image
 				context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
-				// out: label
-//#ifdef DBG_VR
 			out:
-//#endif
 				// Update counters
 				g_iDrawCounter++;
 				if (g_iDrawCounterAfterHUD > -1)

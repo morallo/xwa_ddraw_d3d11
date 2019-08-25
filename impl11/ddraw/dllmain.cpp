@@ -33,7 +33,7 @@ void IncreaseNoDrawAfterHUD(int Delta);
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter;
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bDumpHUDBuffers, g_bClearHUDBuffers;
+extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bDumpHUDBuffers, g_bClearHUDBuffers, g_bDCManualActivate;
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -155,9 +155,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Force a refresh of the display width
 				g_bDumpHUDBuffers = true;
 				return 0;
-			case 'C':
+			case 'A':
 				// Force a refresh of the display width
-				g_bClearHUDBuffers = true;
+				//g_bClearHUDBuffers = true;
+				g_bDCManualActivate = !g_bDCManualActivate;
+				log_debug("[DBG] [DC] g_bDCManualActivate: %d", g_bDCManualActivate);
 				return 0;
 
 			case 'B':

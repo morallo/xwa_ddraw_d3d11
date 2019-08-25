@@ -30,7 +30,8 @@ extern std::vector<dc_element> g_DCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern float g_fXWAScale;
+extern int g_iDCElementsRendered, g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame;
+//extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -57,7 +58,7 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
 bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
 ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL; // , *g_ClearFullScreenHUDVertexBuffer = NULL;
-extern bool g_bDumpHUDBuffers, g_bDCBuffersCleared;
+extern bool g_bDumpHUDBuffers, g_bDCBuffersCleared, g_bDCManualActivate;
 bool g_bClearHUDBuffers = false;
 
 /*
@@ -1450,6 +1451,7 @@ void PrimarySurface::ClearHUDRegions() {
 	}
 	*/
 
+	/*
 	if (g_bDumpHUDBuffers) {
 		auto& resources = this->_deviceResources;
 		auto& device = resources->_d3dDevice;
@@ -1465,6 +1467,7 @@ void PrimarySurface::ClearHUDRegions() {
 		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
 		g_bDumpHUDBuffers = false;
 	}
+	*/
 }
 
 void PrimarySurface::DrawHUDVertices() {
@@ -1874,6 +1877,10 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
+					// DEBUG
+					g_iNumDCDestPerFrame = 0;
+					g_iNumHUDRegionsPerFrame = 0;
+					// DEBUG
 					// Present 2D
 					if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))
 					{
@@ -2014,7 +2021,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
-			if (g_bDynCockpitEnabled) {
+			if (g_bDCManualActivate && g_bDynCockpitEnabled) {
 				// Clear everything we don't want to display from the HUD
 				ClearHUDRegions();
 
@@ -2065,10 +2072,22 @@ HRESULT PrimarySurface::Flip(
 				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 					this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
+			// DEBUG
+			if (g_bDynCockpitEnabled) {
+				if (g_iDCElementsRendered > 0)
+					log_debug("[DBG] [DC] g_iDCElementsRendered: %d", g_iDCElementsRendered);
+				log_debug("[DBG] [DC] g_iNumDCDestPerFrame: %d, g_iNumHUDRegionsPerFrame: %d, Hangar: %d",
+					g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, *g_playerInHangar);
+				g_iNumDCDestPerFrame = 0;
+				g_iNumHUDRegionsPerFrame = 0;
+			}
+			// DEBUG
+
 			// Let's reset some frame counters and other control variables
 			g_iDrawCounter = 0; g_iExecBufCounter = 0;
 			g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
 			g_iFloatingGUIDrawnCounter = 0;
+			g_iDCElementsRendered = 0;
 			g_bTargetCompDrawn = false;
 			g_bPrevIsFloatingGUI3DObject = false;
 			g_bIsFloating3DObject = false;
@@ -2084,6 +2103,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDynCockpitEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				auto &context = this->_deviceResources->_d3dDeviceContext;
+				/*
 				if (!g_bDCBuffersCleared || g_bClearHUDBuffers) {
 					// The DC Buffers were never cleared, we should clear them here (?)
 					//log_debug("[DBG] [DC] CLEARING DC BUFFERS");
@@ -2093,24 +2113,31 @@ HRESULT PrimarySurface::Flip(
 					//	log_debug("[DBG] [DC] HUD Buffers cleared manually");
 					g_bClearHUDBuffers = false;
 				}
+				*/
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
 					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
-				/*
 				if (g_bDumpHUDBuffers) {
 					HRESULT hr;
 					hr = DirectX::SaveWICTextureToFile(context.Get(),
-						resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
-					log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
+						resources->_offscreenBufferDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenBufferDynCockpit.png");
+					log_debug("[DBG] Dumping _offscreenBufferDynCockpit");
 
 					hr = DirectX::SaveWICTextureToFile(context.Get(),
-						resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
-					log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
+						resources->_offscreenBufferDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenBufferDynCockpitBG.png");
+					log_debug("[DBG] Dumping _offscreenBufferDynCockpitBG");
+
+					//hr = DirectX::SaveWICTextureToFile(context.Get(),
+					//	resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
+					//log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
+
+					//hr = DirectX::SaveWICTextureToFile(context.Get(),
+					//	resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
+					//log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
 					g_bDumpHUDBuffers = false;
 				}
-				*/
 			}
 			// Reset this flag for the next frame
 			g_bDCBuffersCleared = false;

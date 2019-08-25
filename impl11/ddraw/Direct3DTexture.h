@@ -44,7 +44,7 @@ public:
 	// True for the light textures loaded in Hi-Res mode that provide additional glow
 	bool is_DynCockpitAlphaOverlay;
 	// True for all the source HUD textures
-	bool is_DC_HUDSource;
+	bool is_DC_HUDRegionSrc;
 	// True for specific DC HUD source textures
 	bool is_DC_TargetCompSrc;
 	bool is_DC_LeftSensorSrc;

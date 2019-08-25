@@ -741,6 +741,7 @@ HRESULT MipmapSurface::Unlock(
 
 	if (this->_mipmapCount == 1)
 	{
+		//log_debug("[DBG] [DC] MipmapSurface Load");
 		this->_surface->_d3dTexture->Load(this->_surface->_d3dTexture);
 
 		if (this->_surface->_buffer != nullptr)
