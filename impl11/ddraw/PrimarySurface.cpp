@@ -23,14 +23,14 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
 
-extern bool g_bNaturalConcourseAnimations;
+extern int g_iNaturalConcourseAnimations;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bHUDVerticesReady;
 extern std::vector<dc_element> g_DCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern int g_iDCElementsRendered, g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame;
+extern int g_iDCElementsRendered, g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, g_iHUDOffscreenCommandsRendered;
 //extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -1322,8 +1322,6 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	hr = resources->InitBlendState(nullptr, &blendDesc);
-	//if (FAILED(hr))
-	//	log_debug("[DBG] [DC] Failed to InitBlendState");
 
 	// Set the vertex buffer
 	// D3DCOLOR seems to be AARRGGBB
@@ -1342,8 +1340,6 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 		memcpy(map.pData, vertices, sizeof(D3DTLVERTEX) * 6);
 		context->Unmap(g_ClearHUDVertexBuffer, 0);
 	}
-	//else
-	//	log_debug("[DBG] [DC] Could not Map g_ClearHUDVertexBuffer");
 
 	D3D11_DEPTH_STENCIL_DESC zDesc;
 	// Temporarily disable ZWrite: we won't need it to display the HUD
@@ -1378,7 +1374,6 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	UINT offset = 0;
 	resources->InitVertexBuffer(&g_ClearHUDVertexBuffer, &stride, &offset);
 	// Draw
-	//log_debug("[DBG] [DC] Clearing box");
 	context->Draw(6, 0);
 }
 
@@ -1391,25 +1386,6 @@ void PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
-	// Dump the HUD offscreen buffer for debugging purposes
-	/*
-	if (g_bDumpHUDBuffers) {
-		auto& resources = this->_deviceResources;
-		auto& device = resources->_d3dDevice;
-		auto& context = resources->_d3dDeviceContext;
-
-		HRESULT hr;
-		hr = DirectX::SaveWICTextureToFile(context.Get(),
-			resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
-		log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
-
-		hr = DirectX::SaveWICTextureToFile(context.Get(),
-			resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
-		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
-		g_bDumpHUDBuffers = false;
-	}
-	*/
-
 	int size = (int)g_DCElements.size();
 	for (int i = 0; i < size; i++) {
 		dc_element *dc_elem = &g_DCElements[i];
@@ -1418,7 +1394,7 @@ void PrimarySurface::ClearHUDRegions() {
 			if (strstr(dc_elem->name, g_sCurrentCockpit) != NULL) {
 				dc_elem->bActive = true;
 				dc_elem->bNameHasBeenTested = true;
-				log_debug("[DBG] [DC] ACTIVATED: '%s'", dc_elem->name);
+				//log_debug("[DBG] [DC] ACTIVATED: '%s'", dc_elem->name);
 			}
 		}
 		// Only clear HUD regions for active dc_elements
@@ -1431,43 +1407,10 @@ void PrimarySurface::ClearHUDRegions() {
 		for (int j = 0; j < dc_elem->num_erase_slots; j++) {
 			int erase_slot = dc_elem->erase_slots[j];
 			DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[erase_slot];
-			if (dcSrcBox->bLimitsComputed) {
-				//log_debug("[DBG] [DC] Clearing region (%0.3f, %0.3f)-(%0.3f, %0.3f), %f, %f", 
-				//	dcSrcBox->erase_coords.x0, dcSrcBox->erase_coords.y0,
-				//	dcSrcBox->erase_coords.x1, dcSrcBox->erase_coords.y1,
-				//	viewport.Width, viewport.Height);
+			if (dcSrcBox->bLimitsComputed)
 				ClearBox(dcSrcBox->erase_coords, &viewport, 0x0);
-			}
 		}
 	}
-
-
-	/*
-	unsigned int size = g_DCHUDBoxes.boxes.size();
-	for (unsigned int i = 0; i < size; i++) {
-		DCHUDBox *dcSrcBox = &g_DCHUDBoxes.boxes[i];
-		if (dcSrcBox->bLimitsComputed && dcSrcBox->bErase)
-			ClearBox(dcSrcBox->erase_coords, &viewport, 0);
-	}
-	*/
-
-	/*
-	if (g_bDumpHUDBuffers) {
-		auto& resources = this->_deviceResources;
-		auto& device = resources->_d3dDevice;
-		auto& context = resources->_d3dDeviceContext;
-
-		HRESULT hr;
-		hr = DirectX::SaveWICTextureToFile(context.Get(),
-			resources->_offscreenAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpit.png");
-		log_debug("[DBG] Dumping _offscreenAsInputDynCockpit");
-
-		hr = DirectX::SaveWICTextureToFile(context.Get(),
-			resources->_offscreenAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//_offscreenAsInputDynCockpitBG.png");
-		log_debug("[DBG] Dumping _offscreenAsInputDynCockpitBG");
-		g_bDumpHUDBuffers = false;
-	}
-	*/
 }
 
 void PrimarySurface::DrawHUDVertices() {
@@ -1791,7 +1734,9 @@ HRESULT PrimarySurface::Flip(
 
 				hr = DD_OK;
 
-				interval = g_bNaturalConcourseAnimations ? interval : 1;
+				interval = g_iNaturalConcourseAnimations ? interval : 1;
+				if (g_iNaturalConcourseAnimations > 1)
+					interval = g_iNaturalConcourseAnimations;
 				//log_debug("[DBG] g_bNatural: %d, interval: %d", g_bNaturalConcourseAnimations, interval);
 				for (UINT i = 0; i < interval; i++)
 				{
@@ -1898,8 +1843,6 @@ HRESULT PrimarySurface::Flip(
 					}
 					if (g_bUseSteamVR) {
 						g_pVRCompositor->PostPresentHandoff();
-						//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
-						//if (seconds > 0.008)
 						WaitGetPoses();
 					}		
 				}
@@ -2021,7 +1964,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
-			if (g_bDCManualActivate && g_bDynCockpitEnabled) {
+			if (g_bDCManualActivate && g_bDynCockpitEnabled && g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
 				// Clear everything we don't want to display from the HUD
 				ClearHUDRegions();
 
@@ -2074,10 +2017,11 @@ HRESULT PrimarySurface::Flip(
 
 			// DEBUG
 			if (g_bDynCockpitEnabled) {
-				if (g_iDCElementsRendered > 0)
-					log_debug("[DBG] [DC] g_iDCElementsRendered: %d", g_iDCElementsRendered);
-				log_debug("[DBG] [DC] g_iNumDCDestPerFrame: %d, g_iNumHUDRegionsPerFrame: %d, Hangar: %d",
-					g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, *g_playerInHangar);
+				//if (g_iDCElementsRendered > 0)
+				//	log_debug("[DBG] [DC] g_iDCElementsRendered: %d", g_iDCElementsRendered);
+				//log_debug("[DBG] [DC] g_iNumDCDestPerFrame: %d, g_iNumHUDRegionsPerFrame: %d, Hangar: %d",
+				//	g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, *g_playerInHangar);
+				//log_debug("[DBG] [DC] g_iHUDOffscreenCommandsRendered: %d", g_iHUDOffscreenCommandsRendered);
 				g_iNumDCDestPerFrame = 0;
 				g_iNumHUDRegionsPerFrame = 0;
 			}
@@ -2098,6 +2042,7 @@ HRESULT PrimarySurface::Flip(
 			g_bScaleableHUDStarted = false;
 			g_bIsTrianglePointer = false;
 			g_bLastTrianglePointer = false;
+			g_iHUDOffscreenCommandsRendered = 0;
 			//*g_playerInHangar = 0;
 
 			if (g_bDynCockpitEnabled) {
@@ -2358,7 +2303,8 @@ HRESULT PrimarySurface::Flip(
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))
 			// For VR, we probably want to disable VSync to get as much frames a possible:
-			if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))			
+			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))
+			if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;
 				if (!messageShown)

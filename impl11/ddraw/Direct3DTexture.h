@@ -9,6 +9,8 @@ class TextureSurface;
 class Direct3DTexture : public IDirect3DTexture
 {
 public:
+	// Set to true once this texture has been tagged/classified.
+	bool is_Tagged;
 	// The CRC of the texture
 	//uint32_t crc;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
@@ -49,12 +51,11 @@ public:
 	bool is_DC_TargetCompSrc;
 	bool is_DC_LeftSensorSrc;
 	bool is_DC_RightSensorSrc;
-	bool is_DC_RightSensor2Src;
 	bool is_DC_ShieldsSrc;
 	bool is_DC_SolidMsgSrc;
 	bool is_DC_BorderMsgSrc;
-	bool is_DC_LaserBoxSrc;
-	bool is_DC_IonBoxSrc;
+	//bool is_DC_LaserBoxSrc;
+	//bool is_DC_IonBoxSrc;
 	bool is_DC_BeamBoxSrc;
 	bool is_DC_TopLeftSrc;
 	bool is_DC_TopRightSrc;

@@ -95,16 +95,6 @@ typedef enum {
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
 extern bool g_bDynCockpitEnabled;
-//bool g_bNewCockpitTexturesLoaded = false;
-ComPtr<ID3D11ShaderResourceView> g_NewHUDLeftRadar = NULL;
-ComPtr<ID3D11ShaderResourceView> g_NewHUDRightRadar = NULL;
-
-//ComPtr<ID3D11ShaderResourceView> g_NewDCTargetCompCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCLeftRadarCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCRightRadarCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCShieldsCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCLasersCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCFrontPanelCover = NULL;
 
 FILE *g_DebugFile = NULL;
 
@@ -112,10 +102,6 @@ FILE *g_DebugFile = NULL;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
-//void ProcessVREvent(const vr::VREvent_t & event);
-//vr::TrackedDevicePose_t m_rTrackedDevicePose[vr::k_unMaxTrackedDeviceCount];
-
-//ID3D11ShaderResourceView *g_RebelLaser = NULL;
 
 void ClearDynCockpitVector(std::vector<dc_element> &DCElements);
 
@@ -200,12 +186,27 @@ const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
 const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
 const char *DC_SOLID_MSG_SRC_RESNAME			= "dat,12000,100,";
 const char *DC_BORDER_MSG_SRC_RESNAME		= "dat,12000,200,";
-const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
-const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
+//const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
+//const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
 const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
 const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
 const char *DC_TOP_RIGHT_SRC_RESNAME			= "dat,12000,2800,";
 
+/*
+std::vector<const char*>g_DC_HUD_Region_Resnames = {
+	DC_TARGET_COMP_SRC_RESNAME,
+	DC_LEFT_SENSOR_SRC_RESNAME,
+	DC_LEFT_SENSOR_2_SRC_RESNAME,
+	DC_RIGHT_SENSOR_SRC_RESNAME,
+	DC_RIGHT_SENSOR_2_SRC_RESNAME,
+	DC_SHIELDS_SRC_RESNAME,
+	DC_SOLID_MSG_SRC_RESNAME,
+	DC_BORDER_MSG_SRC_RESNAME,
+	DC_BEAM_BOX_SRC_RESNAME,
+	DC_TOP_LEFT_SRC_RESNAME,
+	DC_TOP_RIGHT_SRC_RESNAME,
+};
+*/
 
 std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
@@ -510,7 +511,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
-	log_debug("[DBG] OnSizeChanged called");
+	//log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
 	if (!g_bWndProcReplaced) {
@@ -564,7 +565,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			dc_element *elem = &g_DCElements[i];
 			if (elem->bActive) {
 				if (elem->coverTexture != NULL) {
-					log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
+					//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
 					elem->coverTexture->Release();
 					elem->coverTexture = NULL;
 				}

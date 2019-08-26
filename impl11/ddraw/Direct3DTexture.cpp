@@ -216,18 +216,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
-	if (surface != NULL) {
-		if (surface->_d3dTexture != NULL) {
-			if (surface->_d3dTexture->is_DynCockpitDst)
-				log_debug("[DBG] [DC] CONSTRUCTOR from is_DynCockpitDst");
-			if (surface->_d3dTexture->is_DC_HUDRegionSrc)
-				log_debug("[DBG] [DC] CONSTRUCTOR from is_DC_HUDRegionSrc");
-		}
-		strncpy_s(this->_surface->_name, surface->_name, MAX_TEXTURE_NAME);
-	}
-	// Should I copy the flags from surface here?
-
 	//this->crc = 0;
+	this->is_Tagged = false;
 	this->is_HUD = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
@@ -245,17 +235,12 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_TargetCompSrc = false;
 	this->is_DC_LeftSensorSrc = false;
 	this->is_DC_RightSensorSrc = false;
-	this->is_DC_RightSensor2Src = false;
 	this->is_DC_ShieldsSrc = false;
 	this->is_DC_SolidMsgSrc = false;
 	this->is_DC_BorderMsgSrc = false;
-	this->is_DC_LaserBoxSrc = false;
-	this->is_DC_IonBoxSrc = false;
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
-	if (strlen(surface->_name) > 0)
-		log_debug("[DBG] [DC] Direct3DTexture CONSTRUCTOR: [%s]", surface->_name);
 }
 
 int Direct3DTexture::GetWidth() {
@@ -326,50 +311,6 @@ ULONG Direct3DTexture::Release()
 
 	if (this->_refCount == 0)
 	{
-		if (g_bDynCockpitEnabled) 
-		{
-			if (this->is_DC_HUDRegionSrc) {
-				/*
-				if (this->is_DC_LeftSensorSrc)
-					g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_RightSensorSrc || this->is_DC_RightSensor2Src)
-					g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_TargetCompSrc)
-					g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_ShieldsSrc)
-					g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_SolidMsgSrc || this->is_DC_BorderMsgSrc) {
-					g_DCHUDRegions.boxes[LEFT_MSG_DC_ELEM_SRC_IDX].bLimitsComputed = false;
-					g_DCHUDRegions.boxes[RIGHT_MSG_DC_ELEM_SRC_IDX].bLimitsComputed = false;
-				}
-				if (this->is_DC_BeamBoxSrc)
-					g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_TopLeftSrc)
-					g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed = false;
-				if (this->is_DC_TopRightSrc)
-					g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed = false;
-				*/
-				log_debug("[DBG] [DC] Releasing HUD Region: %s, 0x%x", this->_surface->_name, this);
-			}
-
-			if (this->is_DynCockpitDst) {
-				int idx = isInVector(this->_surface->_name, g_DCElements);
-				if (idx > -1) {
-					g_DCElements[idx].bActive = false;
-					g_DCElements[idx].bNameHasBeenTested = false;
-					log_debug("[DBG] [DC] g_DCElements[%d]: DISABLED", idx);
-				}
-				log_debug("[DBG] [DC] Releasing DynCockpitDst: [%s]", this->_surface->_name);
-				/*
-				if (g_sCurrentCockpit[0] != 0) {
-					g_sCurrentCockpit[0] = 0;
-					log_debug("[DBG] [DC] Cockpit Name Removed");
-				}
-				*/
-			}
-		}
-
-		//log_debug("[DBG] [DC] Releasing Texture: %s", this->_surface->_name);
 		delete this;
 		return 0;
 	}
@@ -440,9 +381,11 @@ HRESULT Direct3DTexture::PaletteChanged(
 
 void TagTexture(Direct3DTexture *d3dTexture) {
 	TextureSurface *surface = d3dTexture->_surface;
+	d3dTexture->is_Tagged = true;
 	if (surface->_mipmapCount == 1) {
-		if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || surface->_width == 64 ||
-			surface->_width == 128 || surface->_width == 256 || surface->_width == 512)
+		if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
+			surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
+			surface->_width == 512)
 		{
 
 			// Capture the textures
@@ -488,20 +431,14 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					d3dTexture->is_DC_TargetCompSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
-				if (strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) {
+				if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+					(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
 					d3dTexture->is_DC_LeftSensorSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
-				if (strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_LeftSensorSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) {
+				if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+					(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
 					d3dTexture->is_DC_RightSensorSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_RightSensor2Src = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
 				if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
@@ -516,14 +453,14 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					d3dTexture->is_DC_BorderMsgSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
-				if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+				/* if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_LaserBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
 				if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_IonBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
+				} */
 				if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_BeamBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
@@ -591,7 +528,6 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					d3dTexture->DCElementIndex = idx;
 					// Activate this dc_element
 					g_DCElements[idx].bActive = true;
-					//log_debug("[DBG] [DC] g_DCElements[%d]: ACTIVE", idx);
 					// Load the cover texture if necessary
 					if (g_DCElements[idx].coverTexture == NULL && g_DCElements[idx].coverTextureName[0] != 0) {
 						wchar_t wTexName[MAX_TEXTURE_NAME];
@@ -604,18 +540,14 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 							//	g_DCElements[idx].coverTextureName, res);
 							g_DCElements[idx].coverTexture = NULL;
 						}
-						else {
+						/*else {
 							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-						}
+						}*/
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {
 					d3dTexture->is_DynCockpitAlphaOverlay = true;
 					//log_debug("[DBG] [DC] Alpha Overlay: [%s]", surface->_name);
-					/*if (_stricmp(surface->_name, "TEX00036") == 0) {
-						log_debug("[DBG] Dumping light texture for TEX00036...");
-						saveSurface(L"c:\\temp\\TEX00036-light", (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
-					}*/
 				}
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
@@ -648,6 +580,7 @@ HRESULT Direct3DTexture::Load(
 	// The changes from Jeremy's commit fe50cc59e03225bb7e39ae2852e87d305e7c7891 to reduce
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
+	this->is_Tagged = d3dTexture->is_Tagged;
 	this->is_HUD = d3dTexture->is_HUD;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
@@ -672,12 +605,9 @@ HRESULT Direct3DTexture::Load(
 	this->is_DC_TargetCompSrc = d3dTexture->is_DC_TargetCompSrc;
 	this->is_DC_LeftSensorSrc = d3dTexture->is_DC_LeftSensorSrc;
 	this->is_DC_RightSensorSrc = d3dTexture->is_DC_RightSensorSrc;
-	this->is_DC_RightSensor2Src = d3dTexture->is_DC_RightSensor2Src;
 	this->is_DC_ShieldsSrc = d3dTexture->is_DC_ShieldsSrc;
 	this->is_DC_SolidMsgSrc = d3dTexture->is_DC_SolidMsgSrc;
 	this->is_DC_BorderMsgSrc = d3dTexture->is_DC_BorderMsgSrc;
-	this->is_DC_LaserBoxSrc = d3dTexture->is_DC_LaserBoxSrc;
-	this->is_DC_IonBoxSrc = d3dTexture->is_DC_IonBoxSrc;
 	this->is_DC_BeamBoxSrc = d3dTexture->is_DC_BeamBoxSrc;
 	this->is_DC_TopLeftSrc = d3dTexture->is_DC_TopLeftSrc;
 	this->is_DC_TopRightSrc = d3dTexture->is_DC_TopRightSrc;
