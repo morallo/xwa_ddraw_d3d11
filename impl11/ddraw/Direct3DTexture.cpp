@@ -61,6 +61,60 @@ std::vector<char *> GUI_ResNames = {
 	"dat,12000,4400,", // 0x75082e5e, // (128x128) Right Tractor Beam Display (master branch)
 };
 
+// List of common roots for the explosion names
+std::vector<char *> Explosions_ResNames = {
+	// Explosions
+	"dat,2000,",
+	"dat,2001,",
+	"dat,2002,",
+	"dat,2003,",
+	"dat,2004,",
+	"dat,2005,",
+	"dat,2006,",
+	// Animations
+	"dat,2007,",
+	"dat,2008,",
+	"dat,3005,",
+	"dat,3006,",
+	"dat,3051,", // Hyperspace!
+	"dat,3055,",
+	"dat,3100,",
+	"dat,3200,",
+	"dat,3300,",
+	"dat,3400,",
+	"dat,3500,",
+	// Backdrops
+	"dat,9001,",
+	"dat,9002,",
+	"dat,9003,",
+	"dat,9004,",
+	"dat,9005,",
+	"dat,9006,",
+	"dat,9007,",
+	"dat,9008,",
+	"dat,9009,",
+	"dat,9010,",
+	"dat,9100,",
+	// Particles
+	"dat,22000,",
+	"dat,22003,",
+	"dat,22005,",
+	"dat,22007,",
+	// Sparks
+	"dat,3000,",
+	"dat,3001,",
+	"dat,3002,",
+	"dat,3003,",
+	// Trails?
+	//"dat,21000,",
+	//"dat,21005,",
+	//"dat,21010,",
+	//"dat,21015,",
+	//"dat,21020,",
+	//"dat,21025,",
+};
+
+
 /*
   Target comp tex:		'opt,FlightModels\XwingCockpit.opt,TEX00097,color,0' img-270, size: 256x128
   In low-res mode, this texture is:
@@ -227,6 +281,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Laser = false;
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
+	this->is_Explosion = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -238,6 +293,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_ShieldsSrc = false;
 	this->is_DC_SolidMsgSrc = false;
 	this->is_DC_BorderMsgSrc = false;
+	this->is_DC_LaserBoxSrc = false;
+	this->is_DC_IonBoxSrc = false;
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
@@ -383,11 +440,10 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 	TextureSurface *surface = d3dTexture->_surface;
 	d3dTexture->is_Tagged = true;
 	if (surface->_mipmapCount == 1) {
-		if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
-			surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
-			surface->_width == 512)
+		//if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
+		//	surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
+		//	surface->_width == 512 || surface->_width == 768)
 		{
-
 			// Capture the textures
 #ifdef DBG_VR
 
@@ -414,16 +470,19 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 				d3dTexture->is_TargetingComp = true;
 			else if (isInVector(surface->_name, HUD_ResNames))
 				d3dTexture->is_HUD = true;
-			else if (isInVector(surface->_name, Floating_GUI_ResNames))
-				d3dTexture->is_Floating_GUI = true;
 			else if (isInVector(surface->_name, Text_ResNames))
 				d3dTexture->is_Text = true;
-			else if (isInVector(surface->_name, GUI_ResNames))
-				d3dTexture->is_GUI = true;
 
+			if (isInVector(surface->_name, Floating_GUI_ResNames))
+				d3dTexture->is_Floating_GUI = true;
+			if (isInVector(surface->_name, GUI_ResNames))
+				d3dTexture->is_GUI = true;
 			// Catch the engine glow and mark it
 			if (strstr(surface->_name, "dat,1000,1,") != NULL)
 				d3dTexture->is_EngineGlow = true;
+			// Catch the explosions and mark them
+			if (isInVector(surface->_name, Explosions_ResNames))
+				d3dTexture->is_Explosion = true;
 
 			/* Special handling for Dynamic Cockpit source HUD textures */
 			if (g_bDynCockpitEnabled) {
@@ -453,14 +512,14 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					d3dTexture->is_DC_BorderMsgSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
-				/* if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+				if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_LaserBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
 				if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_IonBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
-				} */
+				}
 				if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_BeamBoxSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
@@ -473,9 +532,6 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					d3dTexture->is_DC_TopRightSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;
 				}
-
-				//if (d3dTexture->is_DC_HUDRegionSrc)
-				//	log_debug("[DBG] [DC] Loaded is_DC_HUDRegionSrc [%s] at 0x%x", surface->_name, this);
 			}
 		}
 	}
@@ -590,6 +646,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Laser = d3dTexture->is_Laser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
+	this->is_Explosion = d3dTexture->is_Explosion;
 	// TODO: Remove later:
 	// TODO: We don't need to copy texture names around!
 	// Actually, it looks like we need to copy the texture names in order to have them available
@@ -608,6 +665,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_DC_ShieldsSrc = d3dTexture->is_DC_ShieldsSrc;
 	this->is_DC_SolidMsgSrc = d3dTexture->is_DC_SolidMsgSrc;
 	this->is_DC_BorderMsgSrc = d3dTexture->is_DC_BorderMsgSrc;
+	this->is_DC_LaserBoxSrc = d3dTexture->is_DC_LaserBoxSrc;
+	this->is_DC_IonBoxSrc = d3dTexture->is_DC_IonBoxSrc;
 	this->is_DC_BeamBoxSrc = d3dTexture->is_DC_BeamBoxSrc;
 	this->is_DC_TopLeftSrc = d3dTexture->is_DC_TopLeftSrc;
 	this->is_DC_TopRightSrc = d3dTexture->is_DC_TopRightSrc;

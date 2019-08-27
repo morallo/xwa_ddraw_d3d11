@@ -14,14 +14,14 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
-	float4 bloom : SV_TARGET1;
+	float4 color0 : SV_TARGET0;
+	float4 color1 : SV_TARGET1;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.color = input.color;
-	output.bloom = float4(0, 0, 0, 1);
+	output.color0 = input.color;
+	output.color1 = input.color;
 	return output;
 }

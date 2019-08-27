@@ -10,12 +10,13 @@ SamplerState sampler0 : register(s0);
 Texture2D bloomTex: register(t1);
 SamplerState bloomSampler : register(s1);
 
-/*
-cbuffer ConstantBuffer : register(b0)
+cbuffer ConstantBuffer : register(b1)
 {
-	float factor;
+	float pixelSizeX, pixelSizeY, colorMul, alphaMul;
+	// 16 bytes
+	float amplifyFactor, bloomStrength, unused, unused3;
+	// 32 bytes
 };
-*/
 
 struct PixelShaderInput
 {
@@ -25,8 +26,7 @@ struct PixelShaderInput
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	float scale = 1 / 8.0; // Enlarge image by this much
-	//float scale = 1;
+	float scale = 1.0 / amplifyFactor; // Enlarge image by this much
 	float2 input_uv_sub = input.uv * scale;
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = bloomTex.Sample(bloomSampler, input_uv_sub);
@@ -36,5 +36,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//return color;
 	// hack
 	bloom.w = 1.0f;
-	return color + bloom;
+	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
+	// 1 - (1 - Target) * (1 - Blend)
+	//return color + bloomStrength * bloom;
+	return 1 - (1 - color) * (1 - bloomStrength * bloom);
 }

@@ -146,6 +146,10 @@ class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
 
+typedef struct HeadPosStruct {
+	float x, y, z;
+} HeadPos;
+
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
@@ -156,7 +160,14 @@ typedef struct BarrelPixelShaderCBStruct {
 	float k1, k2, k3;
 } BarrelPixelShaderCBuffer;
 
-/* 3D Constant Bufffers */
+typedef struct BloomPixelShaderCBStruct {
+	float pixelSizeX, pixelSizeY, colorMul, alphaMul;
+	// 16 bytes
+	float amplifyFactor, bloomStrength, unused, unused3;
+	// 32 bytes
+} BloomPixelShaderCBuffer;
+
+/* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
@@ -169,10 +180,6 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
-typedef struct HeadPosStruct {
-	float x, y, z;
-} HeadPos;
-
 typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
@@ -184,9 +191,6 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bUseCoverTexture;
 	uint32_t bRenderHUD;
 	// 16 bytes
-
-	//uint32_t bAlphaOnly;
-	//uint32_t unused[3];
 
 	uvfloat4 src[MAX_DC_COORDS];
 	// 4 * MAX_DC_COORDS * 4 = 128
@@ -263,6 +267,7 @@ public:
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
+	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
@@ -373,11 +378,13 @@ public:
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
+	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
+	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 
 	BOOL _useAnisotropy;

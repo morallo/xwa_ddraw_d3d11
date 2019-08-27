@@ -244,8 +244,8 @@ DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 std::vector<dc_element> g_DCElements = {};
 move_region_coords g_DCMoveRegions = { 0 };
-float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1;
-bool g_bDCBuffersCleared = false, g_bDCManualActivate = true;
+float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+bool g_bDCManualActivate = true;
 int g_iDCElementsRendered = 0, g_iNumDCDestPerFrame = 0, g_iNumHUDRegionsPerFrame = 0, g_iHUDOffscreenCommandsRendered = 0;
 //Direct3DTexture* debugTexture = NULL;
 
@@ -257,14 +257,19 @@ extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScr
 bool g_bCockpitPZHackEnabled = true;
 bool g_bOverrideAspectRatio = false;
 bool g_bEnableVR = true; // Enable/disable VR mode.
+
+// Bloom
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
+float g_fBloomAmplifyFactor = 8.0f, g_fBloomStrength = 1.0f, g_fBloomColorMul = 1.0f;
+int g_iNumBloomPasses = 8;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
 bool g_bDisplayWidth = false;
 extern bool g_bDumpDebug;
-bool g_bDumpHUDBuffers = false;
+bool g_bDumpBloomBuffers = false;
 
 // This is the current resolution of the screen:
 float g_fLensK1 = DEFAULT_LENS_K1;
@@ -1402,7 +1407,7 @@ void LoadVRParams() {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
@@ -1419,77 +1424,77 @@ void LoadVRParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 			if (_stricmp(param, FOCAL_DIST_VRPARAM) == 0) {
-				g_fFocalDist = value;
+				g_fFocalDist = fValue;
 			}
 			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
-				EvaluateIPD(value);
+				EvaluateIPD(fValue);
 			}
 			else if (_stricmp(param, SIZE_3D_WINDOW_VRPARAM) == 0) {
 				// Size of the window while playing the game
-				g_fGlobalScale = value;
+				g_fGlobalScale = fValue;
 			}
 			else if (_stricmp(param, SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM) == 0) {
 				// Size of the window while playing the game; but zoomed out to see all the GUI
-				g_fGlobalScaleZoomOut = value;
+				g_fGlobalScaleZoomOut = fValue;
 			}
 			else if (_stricmp(param, WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM) == 0) {
-				g_bZoomOutInitialState = (bool)value;
-				g_bZoomOut = (bool)value;
+				g_bZoomOutInitialState = (bool)fValue;
+				g_bZoomOut = (bool)fValue;
 			}
 			else if (_stricmp(param, CONCOURSE_WINDOW_SCALE_VRPARAM) == 0) {
 				// Concourse and 2D menus scale
-				g_fConcourseScale = value;
+				g_fConcourseScale = fValue;
 			}
 			else if (_stricmp(param, COCKPIT_Z_THRESHOLD_VRPARAM) == 0) {
-				g_fCockpitPZThreshold = value;
+				g_fCockpitPZThreshold = fValue;
 			}
 			else if (_stricmp(param, ASPECT_RATIO_VRPARAM) == 0) {
-				g_fAspectRatio = value;
+				g_fAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
 			}
 			else if (_stricmp(param, CONCOURSE_ASPECT_RATIO_VRPARAM) == 0) {
-				g_fConcourseAspectRatio = value;
+				g_fConcourseAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
 			}
 			else if (_stricmp(param, K1_VRPARAM) == 0) {
-				g_fLensK1 = value;
+				g_fLensK1 = fValue;
 			}
 			else if (_stricmp(param, K2_VRPARAM) == 0) {
-				g_fLensK2 = value;
+				g_fLensK2 = fValue;
 			}
 			else if (_stricmp(param, K3_VRPARAM) == 0) {
-				g_fLensK3 = value;
+				g_fLensK3 = fValue;
 			}
 			else if (_stricmp(param, BARREL_EFFECT_STATE_VRPARAM) == 0) {
-				g_bDisableBarrelEffect = !((bool)value);
+				g_bDisableBarrelEffect = !((bool)fValue);
 			}
 			else if (_stricmp(param, HUD_PARALLAX_VRPARAM) == 0) {
-				g_fHUDDepth = value;
+				g_fHUDDepth = fValue;
 			}
 			else if (_stricmp(param, FLOATING_AIMING_HUD_VRPARAM) == 0) {
-				g_bFloatingAimingHUD = (bool)value;
+				g_bFloatingAimingHUD = (bool)fValue;
 			}
 			else if (_stricmp(param, GUI_PARALLAX_VRPARAM) == 0) {
 				// "Floating" GUI elements: targetting computer and the like
-				g_fFloatingGUIDepth = value;
+				g_fFloatingGUIDepth = fValue;
 			}
 			else if (_stricmp(param, GUI_OBJ_PARALLAX_VRPARAM) == 0) {
 				// "Floating" GUI targeted elements
-				g_fFloatingGUIObjDepth = value;
+				g_fFloatingGUIObjDepth = fValue;
 			}
 			else if (_stricmp(param, TEXT_PARALLAX_VRPARAM) == 0) {
-				g_fTextDepth = value;
+				g_fTextDepth = fValue;
 			}
 			else if (_stricmp(param, TECH_LIB_PARALLAX_VRPARAM) == 0) {
-				g_fTechLibraryParallax = value;
+				g_fTechLibraryParallax = fValue;
 			}
 			else if (_stricmp(param, BRIGHTNESS_VRPARAM) == 0) {
-				g_fBrightness = value;
+				g_fBrightness = fValue;
 			}
 			else if (_stricmp(param, STICKY_ARROW_KEYS_VRPARAM) == 0) {
-				g_bStickyArrowKeys = (bool)value;
+				g_bStickyArrowKeys = (bool)fValue;
 			}
 			else if (_stricmp(param, VR_MODE_VRPARAM) == 0) {
 				if (_stricmp(svalue, VR_MODE_NONE_SVAL) == 0) {
@@ -1512,71 +1517,89 @@ void LoadVRParams() {
 				}
 			}
 			else if (_stricmp(param, INTERLEAVED_REPROJ_VRPARAM) == 0) {
-				g_bInterleavedReprojection = (bool)value;
+				g_bInterleavedReprojection = (bool)fValue;
 				if (g_bUseSteamVR) {
 					log_debug("[DBG] Setting Interleaved Reprojection to: %d", g_bInterleavedReprojection);
 					g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 				}
 			}
 			else if (_stricmp(param, INVERSE_TRANSPOSE_VRPARAM) == 0) {
-				g_bInverseTranspose = (bool)value;
+				g_bInverseTranspose = (bool)fValue;
 				log_debug("[DBG] Inverse Transpose set to: %d", g_bInverseTranspose);
 			}
 			else if (_stricmp(param, NATURAL_CONCOURSE_ANIM_VRPARAM) == 0) {
-				g_iNaturalConcourseAnimations = (int)value;
+				g_iNaturalConcourseAnimations = (int)fValue;
 			}
 			else if (_stricmp(param, FIXED_GUI_VRPARAM) == 0) {
-				g_bFixedGUI = (bool)value;
+				g_bFixedGUI = (bool)fValue;
 			}
 
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
-				g_iFreePIESlot = (int)value;
+				g_iFreePIESlot = (int)fValue;
 			}
 			else if (_stricmp(param, ROLL_MULTIPLIER_VRPARAM) == 0) {
-				g_fRollMultiplier = value;
+				g_fRollMultiplier = fValue;
 			}
 			else if (_stricmp(param, POS_X_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosXMultiplier = value;
+				g_fPosXMultiplier = fValue;
 			}
 			else if (_stricmp(param, POS_Y_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosYMultiplier = value;
+				g_fPosYMultiplier = fValue;
 			}
 			else if (_stricmp(param, POS_Z_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosZMultiplier = value;
+				g_fPosZMultiplier = fValue;
 			}
 
 			else if (_stricmp(param, MIN_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMinPositionX = value;
+				g_fMinPositionX = fValue;
 			}
 			else if (_stricmp(param, MAX_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMaxPositionX = value;
+				g_fMaxPositionX = fValue;
 			}
 			else if (_stricmp(param, MIN_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMinPositionY = value;
+				g_fMinPositionY = fValue;
 			}
 			else if (_stricmp(param, MAX_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMaxPositionY = value;
+				g_fMaxPositionY = fValue;
 			}
 			else if (_stricmp(param, MIN_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMinPositionZ = value;
+				g_fMinPositionZ = fValue;
 			}
 			else if (_stricmp(param, MAX_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMaxPositionZ = value;
+				g_fMaxPositionZ = fValue;
 			}
 			else if (_stricmp(param, STEAMVR_POS_FROM_FREEPIE_VRPARAM) == 0) {
-				g_bSteamVRPosFromFreePIE = (bool)value;
+				g_bSteamVRPosFromFreePIE = (bool)fValue;
 			}
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
-				g_bDCManualActivate = (bool)value;
+				g_bDCManualActivate = (bool)fValue;
 			}
 
 			// ReShade state
 			else if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
-				bool state = (bool)value;
+				bool state = (bool)fValue;
 				g_bReshadeEnabled |= state;
 				g_bBloomEnabled = state;
 			}
+			// Bloom
+			else if (_stricmp(param, "bloom_screen_size_amplify") == 0) {
+				g_fBloomAmplifyFactor = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomAmplifyFactor: %f", g_fBloomAmplifyFactor);
+			}
+			else if (_stricmp(param, "bloom_strength") == 0) {
+				g_fBloomStrength = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomStrength: %f", g_fBloomStrength);
+			}
+			else if (_stricmp(param, "bloom_passes") == 0) {
+				g_iNumBloomPasses = (int )fValue;
+				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
+			}
+			else if (_stricmp(param, "bloom_color_mul") == 0) {
+				g_fBloomColorMul = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomColorMul: %f", g_fBloomColorMul);
+			}
+
 			param_read_count++;
 		}
 	} // while ... read file
@@ -2872,86 +2895,6 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
-/*
-void Direct3DDevice::ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor) {
-	HRESULT hr;
-	auto& resources = _deviceResources;
-	auto& device = resources->_d3dDevice;
-	auto& context = resources->_d3dDeviceContext;
-
-	// Set the constant buffers
-	VertexShaderCBuffer tempVSBuffer = g_VSCBuffer;
-	tempVSBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
-	tempVSBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
-	tempVSBuffer.viewportScale[2] =  scale;
-	tempVSBuffer.viewportScale[3] =  g_fGlobalScale;
-	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &tempVSBuffer);
-
-	// Set the vertex buffer
-	// D3DCOLOR seems to be AARRGGBB
-	if (!fullScreen) {
-		D3DTLVERTEX vertices[6];
-		vertices[0].sx = box.left;  vertices[0].sy = box.top;    vertices[0].sz = 0.98f; vertices[0].rhw = 34.0f; vertices[0].color = clearColor;
-		vertices[1].sx = box.right; vertices[1].sy = box.top;    vertices[1].sz = 0.98f; vertices[1].rhw = 34.0f; vertices[1].color = clearColor;
-		vertices[2].sx = box.right; vertices[2].sy = box.bottom; vertices[2].sz = 0.98f; vertices[2].rhw = 34.0f; vertices[2].color = clearColor;
-
-		vertices[3].sx = box.right; vertices[3].sy = box.bottom; vertices[3].sz = 0.98f; vertices[3].rhw = 34.0f; vertices[3].color = clearColor;
-		vertices[4].sx = box.left;  vertices[4].sy = box.bottom; vertices[4].sz = 0.98f; vertices[4].rhw = 34.0f; vertices[4].color = clearColor;
-		vertices[5].sx = box.left;  vertices[5].sy = box.top;    vertices[5].sz = 0.98f; vertices[5].rhw = 34.0f; vertices[5].color = clearColor;
-		D3D11_MAPPED_SUBRESOURCE map;
-		hr = context->Map(g_ClearHUDVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-		if (SUCCEEDED(hr)) {
-			memcpy(map.pData, vertices, sizeof(D3DTLVERTEX) * 6);
-			context->Unmap(g_ClearHUDVertexBuffer, 0);
-		}
-	}
-	
-	D3D11_DEPTH_STENCIL_DESC currentStencilDesc = _renderStates->GetDepthStencilDesc();
-	D3D11_DEPTH_STENCIL_DESC desc;
-
-	// Temporarily disable ZWrite: we won't need it to display the HUD
-	ComPtr<ID3D11DepthStencilState> depthState;
-	desc.DepthEnable = FALSE;
-	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	desc.StencilEnable = FALSE;
-	resources->InitDepthStencilState(depthState, &desc);
-
-	// Change the shaders
-	resources->InitVertexShader(resources->_vertexShader);
-	resources->InitPixelShader(resources->_pixelShaderSolid);
-	// Change the render target
-	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInput.GetAddressOf(), NULL);
-	// Set the viewport
-	resources->InitViewport(viewport);
-	// Set the vertex buffer (map the vertices from the box)
-	UINT stride = sizeof(D3DTLVERTEX);
-	UINT offset = 0;
-	if (!fullScreen)
-		resources->InitVertexBuffer(&g_ClearHUDVertexBuffer, &stride, &offset);
-	else
-		resources->InitVertexBuffer(&g_ClearFullScreenHUDVertexBuffer, &stride, &offset);
-	// Draw
-	context->Draw(6, 0);
-
-	// Restore the constant buffers
-	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-	// Restore the depth stencil state
-	resources->InitDepthStencilState(depthState, &currentStencilDesc);
-	// Restore the vertex and pixel shaders
-	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
-	else
-		// The original code used _vertexShader:
-		this->_deviceResources->InitVertexShader(resources->_vertexShader);
-	this->_deviceResources->InitPixelShader(resources->_pixelShaderTexture);
-	// Restore the vertex buffer
-	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-	resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
-	// We don't need to restore the viewport, it gets set before each draw call anyway
-}
-*/
-
 inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
 {
 	*x_out = left + x / g_fCurInGameWidth  * width;
@@ -3277,9 +3220,6 @@ HRESULT Direct3DDevice::Execute(
 						else
 						{
 							texture->_refCount++;
-							//if (texture->is_RebelLaser)
-							//	context->PSSetShaderResources(0, 1, &g_RebelLaser);
-							//else
 							context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							texture->_refCount--;
 
@@ -3290,13 +3230,11 @@ HRESULT Direct3DDevice::Execute(
 								TagTexture(lastTextureSelected);
 
 							// DEBUG
-							if (lastTextureSelected->is_DynCockpitDst) 
+							/*if (lastTextureSelected->is_DynCockpitDst) 
 								g_iNumDCDestPerFrame++;
 							if (lastTextureSelected->is_DC_HUDRegionSrc)
-								g_iNumHUDRegionsPerFrame++;
+								g_iNumHUDRegionsPerFrame++;*/
 							// DEBUG
-							//if (strstr(lastTextureSelected->_surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL)
-							//	log_debug("[DBG] [DC] Rendering RIGHT SENSOR");
 						}
 
 						resources->InitPixelShader(pixelShader);
@@ -3464,10 +3402,9 @@ HRESULT Direct3DDevice::Execute(
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
-						// I think we need to clear the depth buffer here so that the targeted craft is drawn properly
+						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-						g_bDCBuffersCleared = true;
 					}
 				}
 				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && g_bDynCockpitEnabled  &&
@@ -3953,12 +3890,14 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsLightTexture = 2; // Enhance the light textures (intended for 32-bit mode)
 				}
 
-				// Set the flag for EngineGlow (enhance them in 32-bit mode)
-				if (lastTextureSelected != NULL && lastTextureSelected->is_EngineGlow) {
+				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode)
+				if (lastTextureSelected != NULL && (lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsEngineGlow = 1;
-					if (g_config.EnhanceEngineGlow)
+					if (g_config.EnhanceEngineGlow && lastTextureSelected->is_EngineGlow)
 						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Engine Glow (intended for 32-bit mode)
+					if (g_config.EnhanceExplosions && lastTextureSelected->is_Explosion)
+						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Explosions (intended for 32-bit mode)
 				}
 
 				// Dim all the GUI elements
@@ -4092,11 +4031,11 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Count the number of *actual* DC commands sent to the GPU:
-				if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
-					g_iDCElementsRendered++;
+				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
+				//	g_iDCElementsRendered++;
 
 				// Early exit 2: if we're not in VR mode, we only need the state; but not the extra
-				// processing. (The state will be used later to do post-processing like Bloom and AO.
+				// processing. (The state will be used later to do post-processing like Bloom and AO).
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
 
@@ -4234,6 +4173,14 @@ HRESULT Direct3DDevice::Execute(
 				if (g_iNoDrawAfterIndex > -1 && g_iDrawCounter > g_iNoDrawAfterIndex)
 					goto out;
 #endif
+
+				/*
+				if (bIsBracket) {
+					// What the hell are we sending in the pixel shader?
+					log_debug("[DBG] [Bloom] Bracket: bModifiedShaders: %d, bIsLaser: %d, Glow: %d, LightTex: %d",
+						bModifiedShaders, g_PSCBuffer.bIsLaser, g_PSCBuffer.bIsEngineGlow, g_PSCBuffer.bIsLightTexture);
+				}
+				*/
 
 				// ****************************************************************************
 				// Render the left image
@@ -4397,7 +4344,9 @@ HRESULT Direct3DDevice::Execute(
 					//g_PSCBuffer.DynCockpitSlots   = 0;
 					//g_PSCBuffer.bRenderHUD		  = 0;
 					//g_PSCBuffer.bEnhaceLasers	  = 0;
+					//g_PSCBuffer.bIsLaser = 0;
 					//g_PSCBuffer.bIsLightTexture   = 0;
+					//g_PSCBuffer.bIsEngineGlow = 0;
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 				}

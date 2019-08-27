@@ -4,16 +4,19 @@
 // https://learnopengl.com/Advanced-Lighting/Bloom
 // Also look here:
 // http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
+// Kernel calculator:
+// http://dev.theomader.com/gaussian-kernel-calculator/
 
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-/*
-cbuffer ConstantBuffer : register(b0)
+cbuffer ConstantBuffer : register(b1)
 {
-	float factor;
+	float pixelSizeX, pixelSizeY, colorMul, alphaMul;
+	// 16 bytes
+	float amplifyFactor, unused1, unused, unused3;
+	// 32 bytes
 };
-*/
 
 struct PixelShaderInput
 {
@@ -27,7 +30,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float4 color0 = texture0.Sample(sampler0, input_uv);
 	float4 color = color0 * weight[0];
 	float4 s1, s2;
-	float2 dx = float2(PIXEL_SIZE.x, 0);
+	float2 dx = float2(pixelSizeX, 0);
 	float2 uv1 = input_uv + dx;
 	float2 uv2 = input_uv - dx;
 
@@ -39,7 +42,6 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv1 += dx;
 		uv2 -= dx;
 	}
-	color.w *= 8.0;
-	//color.w = 1;
-	return 1.0 * color;
+	//color.w *= alphaMul;
+	return colorMul * color;
 }

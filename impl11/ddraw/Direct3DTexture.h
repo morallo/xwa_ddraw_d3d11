@@ -32,6 +32,8 @@ public:
 	bool is_LightTexture;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
+	// True if this is an Explosion texture
+	bool is_Explosion;
 	// TODO: Remove this later, I'm only using this to dump the rebel lasers for debugging purposes
 	//bool is_RebelLaser;
 	// TODO: Remove this later
@@ -54,8 +56,8 @@ public:
 	bool is_DC_ShieldsSrc;
 	bool is_DC_SolidMsgSrc;
 	bool is_DC_BorderMsgSrc;
-	//bool is_DC_LaserBoxSrc;
-	//bool is_DC_IonBoxSrc;
+	bool is_DC_LaserBoxSrc;
+	bool is_DC_IonBoxSrc;
 	bool is_DC_BeamBoxSrc;
 	bool is_DC_TopLeftSrc;
 	bool is_DC_TopRightSrc;

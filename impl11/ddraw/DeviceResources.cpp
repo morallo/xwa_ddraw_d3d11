@@ -14,14 +14,15 @@
 #include "../Debug/BarrelPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
-#include "../Release/PassthroughVertexShader.h"
+#include "../Debug/PassthroughVertexShader.h"
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderSolid.h"
-#include "../Release/BloomPrePassPS.h"
-#include "../Release/BloomHGaussPS.h"
-#include "../Release/BloomVGaussPS.h"
-#include "../Release/BloomCombinePS.h"
+#include "../Debug/PixelShaderClearBox.h"
+#include "../Debug/BloomPrePassPS.h"
+#include "../Debug/BloomHGaussPS.h"
+#include "../Debug/BloomVGaussPS.h"
+#include "../Debug/BloomCombinePS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -35,6 +36,7 @@
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderSolid.h"
+#include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomPrePassPS.h"
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomVGaussPS.h"
@@ -49,7 +51,7 @@
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
 extern MainShadersCBuffer g_MSCBuffer;
-extern BarrelPixelShaderCBuffer g_BPSCBuffer;
+extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
 extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio;
 extern int g_iPresentCounter;
@@ -68,7 +70,7 @@ extern bool g_bReshadeEnabled, g_bBloomEnabled;
 extern float g_fHUDDepth;
 extern bool g_bHUDVerticesReady;
 extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScreenHUDVertexBuffer;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 // SteamVR
 #include <headers/openvr.h>
@@ -91,6 +93,7 @@ typedef enum {
 	PS_CONSTANT_BUFFER_BARREL,
 	PS_CONSTANT_BUFFER_2D,
 	PS_CONSTANT_BUFFER_3D,
+	PS_CONSTANT_BUFFER_BLOOM,
 } PSConstantBufferType;
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
@@ -186,27 +189,11 @@ const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
 const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
 const char *DC_SOLID_MSG_SRC_RESNAME			= "dat,12000,100,";
 const char *DC_BORDER_MSG_SRC_RESNAME		= "dat,12000,200,";
-//const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
-//const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
+const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
+const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
 const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
 const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
 const char *DC_TOP_RIGHT_SRC_RESNAME			= "dat,12000,2800,";
-
-/*
-std::vector<const char*>g_DC_HUD_Region_Resnames = {
-	DC_TARGET_COMP_SRC_RESNAME,
-	DC_LEFT_SENSOR_SRC_RESNAME,
-	DC_LEFT_SENSOR_2_SRC_RESNAME,
-	DC_RIGHT_SENSOR_SRC_RESNAME,
-	DC_RIGHT_SENSOR_2_SRC_RESNAME,
-	DC_SHIELDS_SRC_RESNAME,
-	DC_SOLID_MSG_SRC_RESNAME,
-	DC_BORDER_MSG_SRC_RESNAME,
-	DC_BEAM_BOX_SRC_RESNAME,
-	DC_TOP_LEFT_SRC_RESNAME,
-	DC_TOP_RIGHT_SRC_RESNAME,
-};
-*/
 
 std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
@@ -219,7 +206,6 @@ std::vector<const char *>g_HUDRegionNames = {
 	"TOP_LEFT_REGION",			// 7
 	"TOP_RIGHT_REGION"			// 8
 };
-//const int MAX_HUD_BOXES = (int )g_HUDRegionNames.size();
 
 std::vector<const char *>g_DCElemSrcNames = {
 	"LEFT_SENSOR_SRC",			// 0
@@ -248,7 +234,6 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
 };
-//const int MAX_DC_SRC_ELEMENTS = (int )g_DCElemSrcNames.size();
 
 int HUDRegionNameToIndex(char *name) {
 	if (name == NULL || name[0] == '\0')
@@ -688,6 +673,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_FullScreenHeight = sd.BufferDesc.Height;
 				g_fCurScreenWidth = (float)sd.BufferDesc.Width;
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
+				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
+				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
 				//log_debug("[DBG] Fullscreen size: %d, %d", g_FullScreenWidth, g_FullScreenHeight);
 			}
 		}
@@ -1432,6 +1419,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderSolid, sizeof(g_PixelShaderSolid), nullptr, &_pixelShaderSolid)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderClearBox, sizeof(g_PixelShaderClearBox), nullptr, &_pixelShaderClearBox)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
@@ -1487,13 +1477,17 @@ HRESULT DeviceResources::LoadResources()
 	// Create the constant buffer for the (3D) textured pixel shader
 	constantBufferDesc.ByteWidth = 320;
 	static_assert(sizeof(PixelShaderCBuffer) == 320, "sizeof(PixelShaderCBuffer) must be 320");
-	//log_debug("[DBG] PixelShaderCBuffer size: %d", sizeof(PixelShaderCBuffer));
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the barrel pixel shader
 	constantBufferDesc.ByteWidth = 16;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_barrelConstantBuffer)))
+		return hr;
+
+	// Create the constant buffer for the bloom pixel shader
+	constantBufferDesc.ByteWidth = 32;
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the main pixel shader
@@ -1697,7 +1691,7 @@ void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer)
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
-	static VertexShaderCBuffer currentVSConstants{};
+	static VertexShaderCBuffer currentVSConstants = { 0 };
 	static int sizeof_constants = sizeof(VertexShaderCBuffer);
 
 	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
@@ -1720,28 +1714,6 @@ void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const Vertex
 
 void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer)
 {
-	//static ID3D11Buffer** currentBuffer = nullptr;
-	//static VertexShaderCBuffer currentVSConstants{};
-	//static int sizeof_constants = sizeof(VertexShaderCBuffer);
-
-	/*
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		memcmp(vsCBuffer, &currentVSConstants, sizeof_constants) != 0)
-	{ 
-		memcpy(&currentVSConstants, vsCBuffer, sizeof_constants);
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	}	
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_3D;
-	*/
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
 	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
@@ -1809,14 +1781,14 @@ void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const fl
 	static ID3D11Buffer** currentBuffer = nullptr;
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
 		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BARREL ||
-		g_BPSCBuffer.k1 != k1 ||
-		g_BPSCBuffer.k2 != k2 ||
-		g_BPSCBuffer.k3 != k3)
+		g_BarrelPSCBuffer.k1 != k1 ||
+		g_BarrelPSCBuffer.k2 != k2 ||
+		g_BarrelPSCBuffer.k3 != k3)
 	{
-		g_BPSCBuffer.k1 = k1;
-		g_BPSCBuffer.k2 = k2;
-		g_BPSCBuffer.k3 = k3;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_BPSCBuffer, 0, 0);
+		g_BarrelPSCBuffer.k1 = k1;
+		g_BarrelPSCBuffer.k2 = k2;
+		g_BarrelPSCBuffer.k3 = k3;
+		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_BarrelPSCBuffer, 0, 0);
 	}
 
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
@@ -1827,6 +1799,27 @@ void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const fl
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_BARREL;
+}
+
+void DeviceResources::InitPSConstantBufferBloom(ID3D11Buffer** buffer, const BloomPixelShaderCBuffer *psConstants)
+{
+	static BloomPixelShaderCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(BloomPixelShaderCBuffer);
+
+	static ID3D11Buffer** currentBuffer = nullptr;
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BLOOM ||
+		memcmp(psConstants, &currentPSConstants, sizeof_constants) != 0)
+		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BLOOM ||
+		buffer != currentBuffer)
+	{
+		currentBuffer = buffer;
+		this->_d3dDeviceContext->PSSetConstantBuffers(1, 1, buffer);
+	}
+	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_BLOOM;
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)

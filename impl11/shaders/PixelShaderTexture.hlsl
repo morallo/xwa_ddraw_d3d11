@@ -104,7 +104,7 @@ float4 uintColorToFloat4(uint color) {
 	return float4(
 		((color >> 16) & 0xFF) / 255.0,
 		((color >> 8) & 0xFF) / 255.0,
-		(color & 0xFF) / 255.0,
+		 (color & 0xFF) / 255.0,
 		1);
 }
 
@@ -121,31 +121,33 @@ PixelShaderOutput main(PixelShaderInput input)
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.
-	output.bloom = float4(0, 0, 0, 0);
+	output.bloom = float4(0, 0, 0, 1);
 	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser > 0) {
 		// This is a laser texture, process the bloom mask accordingly
+		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
 			// Enhance the lasers in 32-bit mode
-			float3 HSV = RGBtoHSV(texelColor.xyz);
 			// Increase the saturation and lightness
 			HSV.y *= 1.5;
 			HSV.z *= 2.0;
-			//return float4(0, 1, 0, 2.0 * 1.2 * alpha);
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, 1.2 * alpha);
-			output.bloom = float4(color, 2.0 * 1.2 * alpha);
-			return output;
+			// Enhance the saturation even more for lasers
+			HSV.y *= 4.0;
+			color = HSVtoRGB(HSV);
+			output.bloom = float4(alpha * color, 1);
 		}
 		else {
-			//return float4(0, 1, 0, alpha);
-			//return texelColor; 
 			output.color = texelColor; // Return the original color when 32-bit mode is off
-			output.bloom = texelColor;
-			return output;
+			// Enhance the saturation for lasers
+			HSV.y *= 4.0;
+			float3 color = HSVtoRGB(HSV);
+			output.bloom = float4(alpha * color, 1);
 		}
+		return output;
 	}
 
 	// Process light textures (make them brighter in 32-bit mode)
@@ -162,17 +164,15 @@ PixelShaderOutput main(PixelShaderInput input)
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5)
 				//return float4(0, 1, 0, val);
-				output.bloom = float4(color, val);
+				output.bloom = float4(val * color, 1);
 			output.color = float4(color, alpha);
-			return output;
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5)
-				//return float4(0, 1, 0, val);
-				output.bloom = float4(texelColor.rgb, val);
+				output.bloom = float4(val * texelColor.rgb, 1);
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
-			return output;
 		}
+		return output;
 	}
 
 	// Enhance engine glow. In this texture, the diffuse component also provides
@@ -188,14 +188,13 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 1.25;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			output.bloom = float4(color, alpha);
-			return output;
+			output.bloom = float4(alpha * color, 1);
 		}
 		else {
-			output.color = texelColor;
-			output.bloom = float4(texelColor.rgb, alpha);
-			return output; // Return the original color when 32-bit mode is off
+			output.color = texelColor; // Return the original color when 32-bit mode is off
+			output.bloom = float4(alpha * texelColor.rgb, 1);
 		}
+		return output;
 	}
 
 	// Render the captured HUD, execute the move_region commands.
@@ -293,7 +292,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
 			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, that's what the 0.8 below is for:
 			texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
-			output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
+			output.bloom = lerp(float4(0, 0, 0, 1), output.bloom, alpha);
 			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 			diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
 		} else {
