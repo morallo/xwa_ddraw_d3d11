@@ -16,6 +16,19 @@ SamplerState sampler1 : register(s1);
 // texture0 == HUD foreground
 // texture1 == HUD background
 
+struct PixelShaderInput
+{
+	float4 pos : SV_POSITION;
+	float4 color : COLOR0;
+	float2 tex : TEXCOORD;
+};
+
+struct PixelShaderOutput
+{
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
+};
+
 #define MAX_DC_COORDS 8
 cbuffer ConstantBuffer : register(b0)
 {
@@ -34,19 +47,6 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	float ct_brightness;				// Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
-};
-
-struct PixelShaderInput
-{
-	float4 pos : SV_POSITION;
-	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
-};
-
-struct PixelShaderOutput
-{
-	float4 color : SV_TARGET0;
-	float4 bloom : SV_TARGET1;
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -83,23 +83,6 @@ float3 HSVtoRGB(in float3 HSV)
 	return ((RGB - 1) * HSV.y + 1) * HSV.z;
 }
 
-/*
-float3 RGBtoHSL(in float3 RGB)
-{
-	float3 HCV = RGBtoHCV(RGB);
-	float L = HCV.z - HCV.y * 0.5;
-	float S = HCV.y / (1 - abs(L * 2 - 1) + Epsilon);
-	return float3(HCV.x, S, L);
-}
-
-float3 HSLtoRGB(in float3 HSL)
-{
-	float3 RGB = HUEtoRGB(HSL.x);
-	float C = (1 - abs(2 * HSL.z - 1)) * HSL.y;
-	return (RGB - 0.5) * C + HSL.z;
-}
-*/
-
 float4 uintColorToFloat4(uint color) {
 	return float4(
 		((color >> 16) & 0xFF) / 255.0,
@@ -122,6 +105,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
+	//output.bloom = float4(0.2 * texelColor.xyz, alpha * 0.2);
 	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
@@ -135,17 +119,17 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 2.0;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, 1.2 * alpha);
-			// Enhance the saturation even more for lasers
+			// Enhance the saturation even more for the bloom laser mask
 			HSV.y *= 4.0;
 			color = HSVtoRGB(HSV);
-			output.bloom = float4(color, 1.5 * alpha);
+			output.bloom = float4(color, alpha);
 		}
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
 			// Enhance the saturation for lasers
 			HSV.y *= 4.0;
 			float3 color = HSVtoRGB(HSV);
-			output.bloom = float4(color, 1.5 * alpha);
+			output.bloom = float4(color, alpha);
 		}
 		return output;
 	}
@@ -187,11 +171,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 1.25;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			output.bloom = float4(color, 1.5 * alpha);
+			output.bloom = float4(color, alpha);
 		}
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
-			output.bloom = float4(texelColor.rgb, 1.5 * alpha);
+			output.bloom = float4(texelColor.rgb, alpha);
 		}
 		return output;
 	}

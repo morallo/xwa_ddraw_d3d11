@@ -709,7 +709,7 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 /*
  * Applies the barrel distortion effect on the 3D window.
  * Resolves the offscreenBuffer into offscreenBufferAsInput
- * Renders to _offscreenBufferPost
+ * Renders to offscreenBufferPost
  */
 void PrimarySurface::barrelEffect3D() {
 	auto& resources = this->_deviceResources;
@@ -764,15 +764,9 @@ void PrimarySurface::barrelEffect3D() {
 	viewport.Height = (float)screen_res_y;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
-
-	if (g_bReshadeEnabled && g_bBloomEnabled) {
-		// Nothing to resolve: offscreenBufferAsInput should contain the buffer to display already
-		//context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_reshadeOutput1,
-		//	0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	} else {
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	}
+	
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -1919,17 +1913,22 @@ HRESULT PrimarySurface::Flip(
 					g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
 					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+					if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
+						capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
+					}
+
+					//goto no_bloom;
 					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: reshade1
 					bloom(0);
 					// Vertical Gaussian Blur. input: reshade1, output: reshade2
 					bloom(1);
 					
 					// DEBUG
-					if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
-						capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
+					/*if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
 						capture(0, resources->_reshadeOutput2, L"C:\\Temp\\_reshadeOutput2.jpg");
 						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					}
+					}*/
 					// DEBUG
 
 					for (int i = 0; i < g_iNumBloomPasses; i++) {
@@ -1945,23 +1944,29 @@ HRESULT PrimarySurface::Flip(
 					}
 
 					// DEBUG
-					if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
+					/*if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
 						capture(0, resources->_reshadeOutput2, L"C:\\Temp\\_reshadeOutput2-Final.jpg");
-					}
+					}*/
 					// DEBUG
-//bloom_out:
+
 					// Combine. input: offscreenBuffer, reshade2; output: reshade1
 					bloom(3);
 					// The final output of the bloom effect will always be in reshade1
 
-					if (g_bDumpBloomBuffers) {
+					/*if (g_bDumpBloomBuffers) {
 						capture(0, resources->_reshadeOutput1, L"C:\\Temp\\_reshadeOutput1-Final.jpg");
 						g_bDumpBloomBuffers = false;
-					}
-					// Resolve:
-					//context->CopyResource(resources->_offscreenBufferAsInput, resources->_reshadeOutput1);
+					}*/
+				//no_bloom:
+				//	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferReshadeMask);
+				//	context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferReshadeMask);
+
+					// To make this step compatible with the rest of the code, we need to copy the results
+					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
 					context->CopyResource(resources->_offscreenBuffer, resources->_reshadeOutput1);
-					context->CopyResource(resources->_offscreenBufferPost, resources->_reshadeOutput1);
+					// TODO: Add support for right-eye buffers
+					//if (g_bUseSteamVR)
+					//	context->CopyResource(resources->_offscreenBufferR, resources->_reshadeOutput1R);
 				}
 			}
 
@@ -1982,7 +1987,7 @@ HRESULT PrimarySurface::Flip(
 				}
 				*/
 
-				// Display the HUD
+				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
 				DrawHUDVertices();
 			}
 
