@@ -1911,6 +1911,7 @@ HRESULT PrimarySurface::Flip(
 					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
 					g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
 					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
+					g_BloomPSCBuffer.uvStepSize = 2.0f;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 					if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
@@ -1931,8 +1932,9 @@ HRESULT PrimarySurface::Flip(
 					// DEBUG
 
 					for (int i = 0; i < g_iNumBloomPasses; i++) {
-						//g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
-						//g_BloomPSCBuffer.alphaMul = 1.0;
+						// Alternating between 2.0 and 1.5 avoids banding artifacts
+						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
+						g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
 						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 						// Horizontal Gaussian Blur. input: reshade2, output: reshade1
 						bloom(2);

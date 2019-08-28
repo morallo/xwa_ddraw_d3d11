@@ -10,7 +10,7 @@ cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, unused1, unused, unused3;
+	float bloomStrength, uvStepSize, unused, unused3;
 	// 32 bytes
 };
 
@@ -25,7 +25,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 input_uv = input.uv;
 	float3 color = texture0.Sample(sampler0, input_uv).xyz * weight[0];
 	float3 s1, s2;
-	float2 dy = float2(0, pixelSizeY);
+	float2 dy = uvStepSize * float2(0, pixelSizeY);
 	float2 uv1 = input_uv + dy;
 	float2 uv2 = input_uv - dy;
 

@@ -14,7 +14,7 @@ cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, unused1, unused, unused3;
+	float bloomStrength, uvStepSize, unused, unused3;
 	// 32 bytes
 };
 
