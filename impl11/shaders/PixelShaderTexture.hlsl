@@ -121,7 +121,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.
-	output.bloom = float4(0, 0, 0, 1);
+	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
@@ -138,14 +138,14 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Enhance the saturation even more for lasers
 			HSV.y *= 4.0;
 			color = HSVtoRGB(HSV);
-			output.bloom = float4(alpha * color, 1);
+			output.bloom = float4(color, 1.5 * alpha);
 		}
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
 			// Enhance the saturation for lasers
 			HSV.y *= 4.0;
 			float3 color = HSVtoRGB(HSV);
-			output.bloom = float4(alpha * color, 1);
+			output.bloom = float4(color, 1.5 * alpha);
 		}
 		return output;
 	}
@@ -163,7 +163,6 @@ PixelShaderOutput main(PixelShaderInput input)
 			alpha *= 10.0;
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5)
-				//return float4(0, 1, 0, val);
 				output.bloom = float4(val * color, 1);
 			output.color = float4(color, alpha);
 		}
@@ -188,11 +187,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 1.25;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			output.bloom = float4(alpha * color, 1);
+			output.bloom = float4(color, 1.5 * alpha);
 		}
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
-			output.bloom = float4(alpha * texelColor.rgb, 1);
+			output.bloom = float4(texelColor.rgb, 1.5 * alpha);
 		}
 		return output;
 	}
@@ -292,7 +291,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
 			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, that's what the 0.8 below is for:
 			texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
-			output.bloom = lerp(float4(0, 0, 0, 1), output.bloom, alpha);
+			output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 			diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
 		} else {

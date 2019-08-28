@@ -84,7 +84,7 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,3400,",
 	"dat,3500,",
 	// Backdrops
-	"dat,9001,",
+	/*"dat,9001,",
 	"dat,9002,",
 	"dat,9003,",
 	"dat,9004,",
@@ -94,7 +94,7 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,9008,",
 	"dat,9009,",
 	"dat,9010,",
-	"dat,9100,",
+	"dat,9100,",*/
 	// Particles
 	"dat,22000,",
 	"dat,22003,",

@@ -1952,6 +1952,7 @@ HRESULT PrimarySurface::Flip(
 //bloom_out:
 					// Combine. input: offscreenBuffer, reshade2; output: reshade1
 					bloom(3);
+					// The final output of the bloom effect will always be in reshade1
 
 					if (g_bDumpBloomBuffers) {
 						capture(0, resources->_reshadeOutput1, L"C:\\Temp\\_reshadeOutput1-Final.jpg");

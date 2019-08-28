@@ -29,13 +29,13 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float scale = 1.0 / amplifyFactor; // Enlarge image by this much
 	float2 input_uv_sub = input.uv * scale;
 	float4 color = texture0.Sample(sampler0, input.uv);
-	float4 bloom = bloomTex.Sample(bloomSampler, input_uv_sub);
+	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
 	//color += bloom;
 	//color += bloom.w * bloom;
 	color.w = 1.0f;
 	//return color;
 	// hack
-	bloom.w = 1.0f;
+	//bloom.w = 1.0f;
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)
 	//return color + bloomStrength * bloom;
