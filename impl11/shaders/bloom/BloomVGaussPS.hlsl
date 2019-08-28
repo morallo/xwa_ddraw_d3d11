@@ -6,11 +6,11 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-cbuffer ConstantBuffer : register(b1)
+cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, colorMul, alphaMul;
+	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
 	// 16 bytes
-	float amplifyFactor, unused1, unused, unused3;
+	float bloomStrength, unused1, unused, unused3;
 	// 32 bytes
 };
 
@@ -23,9 +23,7 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv = input.uv;
-	//float4 color0 = texture0.Sample(sampler0, input_uv);
-	float3 color0 = texture0.Sample(sampler0, input_uv).xyz;
-	float3 color = color0 * weight[0];
+	float3 color = texture0.Sample(sampler0, input_uv).xyz * weight[0];
 	float3 s1, s2;
 	float2 dy = float2(0, pixelSizeY);
 	float2 uv1 = input_uv + dy;
@@ -39,6 +37,5 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv1 += dy;
 		uv2 -= dy;
 	}
-	//color.w *= alphaMul;
 	return float4(colorMul * color, 1);
 }

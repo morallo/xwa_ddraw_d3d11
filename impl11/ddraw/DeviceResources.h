@@ -161,9 +161,9 @@ typedef struct BarrelPixelShaderCBStruct {
 } BarrelPixelShaderCBuffer;
 
 typedef struct BloomPixelShaderCBStruct {
-	float pixelSizeX, pixelSizeY, colorMul, alphaMul;
+	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
 	// 16 bytes
-	float amplifyFactor, bloomStrength, unused, unused3;
+	float bloomStrength, unused1, unused2, unused3;
 	// 32 bytes
 } BloomPixelShaderCBuffer;
 

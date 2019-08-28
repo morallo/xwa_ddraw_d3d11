@@ -1909,7 +1909,6 @@ HRESULT PrimarySurface::Flip(
 					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
 					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
 					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
-					g_BloomPSCBuffer.alphaMul = 1.0;
 					g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
 					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
