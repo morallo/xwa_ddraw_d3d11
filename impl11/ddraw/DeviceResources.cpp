@@ -462,19 +462,6 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 		g_bHUDVerticesReady = false;
 	}
 
-	/*
-	// Change the color to 0 to create a vertex buffer that clears the whole HUD
-	for (int i = 0; i < 6; i++)
-		HUDVertices[i].color = 0;
-	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = HUDVertices;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_ClearFullScreenHUDVertexBuffer);
-	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_ClearFullScreenHUDVertexBuffer");
-		g_bHUDVerticesReady = false;
-	}
-	*/
-
 	// Build the vertex buffer that will be used to clear areas of the offscreen DC buffer:
 	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -536,32 +523,34 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
 	}
-	if (g_bDynCockpitEnabled) {
-		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
-		g_DCHUDRegions.ResetLimits();
-		// Reset the Source DC elements so that we know when they get re-computed.
-		g_DCElemSrcBoxes.Reset();
-		// Reset the cockpit name
-		g_sCurrentCockpit[0] = 0;
-		// Reset the active slots in g_DCElements
-		int size = (int)g_DCElements.size();
-		for (int i = 0; i < size; i++)
-		{
-			dc_element *elem = &g_DCElements[i];
-			if (elem->bActive) {
-				if (elem->coverTexture != NULL) {
-					//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
-					elem->coverTexture->Release();
-					elem->coverTexture = NULL;
+	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+		if (g_bDynCockpitEnabled) {
+			// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
+			g_DCHUDRegions.ResetLimits();
+			// Reset the Source DC elements so that we know when they get re-computed.
+			g_DCElemSrcBoxes.Reset();
+			// Reset the cockpit name
+			g_sCurrentCockpit[0] = 0;
+			// Reset the active slots in g_DCElements
+			int size = (int)g_DCElements.size();
+			for (int i = 0; i < size; i++)
+			{
+				dc_element *elem = &g_DCElements[i];
+				if (elem->bActive) {
+					if (elem->coverTexture != NULL) {
+						//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
+						elem->coverTexture->Release();
+						elem->coverTexture = NULL;
+					}
+					elem->bActive = false;
+					elem->bNameHasBeenTested = false;
 				}
-				elem->bActive = false;
-				elem->bNameHasBeenTested = false;
 			}
-		}
-		// Reset the dynamic cockpit vector
-		if (g_DCElements.size() > 0) {
-			log_debug("[DBG] [DC] Clearing g_DCElements");
-			ClearDynCockpitVector(g_DCElements);
+			// Reset the dynamic cockpit vector
+			if (g_DCElements.size() > 0) {
+				log_debug("[DBG] [DC] Clearing g_DCElements");
+				ClearDynCockpitVector(g_DCElements);
+			}
 		}
 		this->_renderTargetViewDynCockpit.Release();
 		this->_renderTargetViewDynCockpitBG.Release();
@@ -573,10 +562,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputDynCockpitBG.Release();
 		this->_offscreenAsInputSRVDynCockpit.Release();
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
-		// Reshade-test
-		//this->_offscreenBufferBloomF.Release();
-		//this->_renderTargetViewBloomF.Release();
-		//this->_reshadeBloomFSRV.Release();
 	}
 	if (g_bReshadeEnabled) {
 		this->_offscreenBufferReshadeMask.Release();
@@ -590,15 +575,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewReshade2.Release();
 		this->_reshadeOutput1.Release();
 		this->_reshadeOutput2.Release();
-		//this->_reshadeOutput1AsInput.Release();
-		//this->_reshadeOutput2AsInput.Release();
 		this->_reshadeOutput1SRV.Release();
 		this->_reshadeOutput2SRV.Release();
 	}
 
 	this->_backBuffer.Release();
 	this->_swapChain.Release();
-	//UnloadNewCockpitTextures();
 
 	this->_refreshRate = { 0, 1 };
 
@@ -635,14 +617,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			DXGI_SWAP_CHAIN_DESC sd{};
 			sd.BufferCount = 2;
 			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
-			//if (g_bUseSteamVR) {
-			//	sd.BufferDesc.Width = g_steamVRWidth;
-			//	sd.BufferDesc.Height = g_steamVRHeight;
-			//}
-			//else {
-				sd.BufferDesc.Width  = 0;
-				sd.BufferDesc.Height = 0;
-			//}
+			sd.BufferDesc.Width  = 0;
+			sd.BufferDesc.Height = 0;
 			sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -652,7 +628,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.Windowed = TRUE;
 
 			ComPtr<IDXGIFactory> dxgiFactory;
-			//ComPtr<IDXGIFactory1> dxgiFactory;
 			hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
 
 			if (SUCCEEDED(hr))
@@ -758,7 +733,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_offscreenBufferDynCockpit";
 			// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferDynCockpit);
@@ -767,8 +742,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
-			//else
-			//	log_debug("[DBG] [DC] _offscreenBufferDynCockpit CREATED");
 
 			step = "_offscreenBufferDynCockpitBG";
 			// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
@@ -778,8 +751,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
-			//else
-			//	log_debug("[DBG] [DC] _offscreenBufferDynCockpitBG CREATED");
 		}
 
 		if (g_bUseSteamVR) {
@@ -895,7 +866,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		// Create the DC Input Buffers
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			// This guy should be the last one to be created because it modifies the BindFlags
 			// _offscreenBufferAsInputDynCockpit should have the same properties as _offscreenBufferAsInput
 			UINT curFlags = desc.BindFlags;
@@ -993,7 +964,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			// Create the SRV for _offscreenBufferAsInputDynCockpit
 			step = "_offscreenBufferAsInputDynCockpit";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenAsInputDynCockpit,
@@ -1051,7 +1022,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 		}
 
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_renderTargetViewDynCockpit";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &renderTargetViewDesc, &this->_renderTargetViewDynCockpit);
 			if (FAILED(hr)) {
@@ -1216,7 +1187,6 @@ out:
 		if (!messageShown)
 		{
 			char text[512];
-			log_err("g_bWndProcReplaced: %d\n", g_bWndProcReplaced);
 			close_error_file();
 			strcpy_s(text, step);
 			strcat_s(text, "\n");

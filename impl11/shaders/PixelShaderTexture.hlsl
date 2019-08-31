@@ -109,7 +109,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
-	if (bIsLaser > 0) {
+	if (bIsLaser) {
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Process light textures (make them brighter in 32-bit mode)
-	if (bIsLightTexture > 0) {
+	if (bIsLightTexture) {
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		float val = HSV.z;
@@ -160,7 +160,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Enhance engine glow. In this texture, the diffuse component also provides
 	// the hue
-	if (bIsEngineGlow > 0) {
+	if (bIsEngineGlow) {
 		//return float4(0, 1, 0, alpha);
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
@@ -185,11 +185,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bRenderHUD) {
 		// texture0 == HUD foreground
 		// texture1 == HUD background
+		//float4 texelColor = texture0.Sample(sampler0, input.tex);
+		//float alpha = texelColor.w;
 		float4 texelColorBG = texture1.Sample(sampler1, input.tex);
 		float alphaBG = texelColorBG.w;
 		uint i;
 		
 		// Execute the move_region commands: erase source regions
+		[unroll]
 		for (i = 0; i < DynCockpitSlots; i++)
 			if (input.tex.x >= src[i].x && input.tex.x <= src[i].z &&
 				input.tex.y >= src[i].y && input.tex.y <= src[i].w) {
@@ -216,7 +219,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		// Do the alpha blending
 		texelColor.xyz = lerp(texelColorBG.xyz, texelColor.xyz, alpha);
-		texelColor.w += 3.0 * alphaBG;
+		texelColor.w += 3.5 * alphaBG;
 		output.color = texelColor;
 		return output;
 	} 

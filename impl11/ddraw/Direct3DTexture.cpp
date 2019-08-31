@@ -114,22 +114,9 @@ std::vector<char *> Explosions_ResNames = {
 	//"dat,21025,",
 };
 
-
-/*
-  Target comp tex:		'opt,FlightModels\XwingCockpit.opt,TEX00097,color,0' img-270, size: 256x128
-  In low-res mode, this texture is:
-	size: 128, 64, name: opt,FlightModels\XwingCockpit.opt,TEX00097,color,0  <-- This is half the size; but still Mipmap 0
-  
-  Target comp tex:		'opt,FlightModels\XwingCockpit.opt,TEX00097,color,0' img-270, size: 256x128
-  Left radar panel:		'opt,FlightModels\XwingCockpit.opt,TEX00096,color,0'
-  Right radar panel:		'opt,FlightModels\XwingCockpit.opt,TEX00095,color,0'
-  Front panel:			'opt,FlightModels\XwingCockpit.opt,TEX00076,color,0'
-  Shields panel:			'opt,FlightModels\XwingCockpit.opt,TEX00098,color,0'
-  Lasers panel:			'opt,FlightModels\XwingCockpit.opt,TEX00094,color,0'
-*/
 // g_DCElements is used when loading textures to load the cover texture.
 extern std::vector<dc_element> g_DCElements;
-extern bool g_bDynCockpitEnabled;
+extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 
@@ -485,7 +472,7 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 				d3dTexture->is_Explosion = true;
 
 			/* Special handling for Dynamic Cockpit source HUD textures */
-			if (g_bDynCockpitEnabled) {
+			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 					d3dTexture->is_DC_TargetCompSrc = true;
 					d3dTexture->is_DC_HUDRegionSrc = true;

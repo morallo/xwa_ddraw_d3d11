@@ -3224,17 +3224,10 @@ HRESULT Direct3DDevice::Execute(
 							texture->_refCount--;
 
 							pixelShader = resources->_pixelShaderTexture;
-							// Keep the last texture selected
+							// Keep the last texture selected and tag it (classify it) if necessary
 							lastTextureSelected = texture;
 							if (!lastTextureSelected->is_Tagged)
 								TagTexture(lastTextureSelected);
-
-							// DEBUG
-							/*if (lastTextureSelected->is_DynCockpitDst) 
-								g_iNumDCDestPerFrame++;
-							if (lastTextureSelected->is_DC_HUDRegionSrc)
-								g_iNumHUDRegionsPerFrame++;*/
-							// DEBUG
 						}
 
 						resources->InitPixelShader(pixelShader);
@@ -3398,7 +3391,7 @@ HRESULT Direct3DDevice::Execute(
 					// HACK
 					//*g_playerInHangar = 1;
 					// We're about to render the scaleable HUD, time to clear the dynamic cockpit texture
-					if (g_bDynCockpitEnabled) {
+					if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
@@ -3407,9 +3400,14 @@ HRESULT Direct3DDevice::Execute(
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					}
 				}
-				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && g_bDynCockpitEnabled  &&
+				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					lastTextureSelected != NULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				bool bRenderToDynCockpitBGBuffer = false;
+
+				// Render HUD backgrounds to their own layer (HUD BG)
+				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					lastTextureSelected != NULL && lastTextureSelected->is_DC_HUDRegionSrc)
+					bRenderToDynCockpitBGBuffer = true;
 
 				/*************************************************************************
 					State management ends here
@@ -3441,7 +3439,7 @@ HRESULT Direct3DDevice::Execute(
 				 //	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				 //}
 
-				 // Capture the bounds for the left radar:
+				 // Capture the bounds for the left sensor:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_LeftSensorSrc)
 				{
 					if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
@@ -3493,7 +3491,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				// Capture the bounds for the right radar:
+				// Capture the bounds for the right sensor:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_RightSensorSrc)
 				{
 					if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
@@ -3806,10 +3804,6 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				// Render HUD backgrounds to their own layer (HUD BG)
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_HUDRegionSrc)
-					bRenderToDynCockpitBGBuffer = true;
-
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
@@ -3874,7 +3868,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Modify the state for both VR and regular game modes...
 
-				// Send the flag for lasers (enhance them in 32-bit mode)
+				// Send the flag for lasers (enhance them in 32-bit mode, apply bloom)
 				if (lastTextureSelected != NULL && lastTextureSelected->is_Laser) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsLaser = 1;
@@ -3882,7 +3876,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsLaser = 2; // Enhance the lasers (intended for 32-bit mode)
 				}
 
-				// Send the flag for light textures (enhance them in 32-bit mode)
+				// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
 				if (lastTextureSelected != NULL && lastTextureSelected->is_LightTexture) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsLightTexture = 1;
@@ -3890,7 +3884,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsLightTexture = 2; // Enhance the light textures (intended for 32-bit mode)
 				}
 
-				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode)
+				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
 				if (lastTextureSelected != NULL && (lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsEngineGlow = 1;
@@ -3907,7 +3901,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Early exit 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
+				if (g_bDCManualActivate && 
+					(g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
 					//assert((bRenderToDynCockpitBuffer && !bRenderToDynCockpitBGBuffer) ||
 					//	   (!bRenderToDynCockpitBuffer && bRenderToDynCockpitBGBuffer));
 					// Looks like we don't need to restore the blend/depth state???

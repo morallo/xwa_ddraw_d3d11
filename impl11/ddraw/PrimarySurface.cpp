@@ -1416,6 +1416,10 @@ void PrimarySurface::ClearHUDRegions() {
 	}
 }
 
+/*
+ * Renders the HUD foreground and background and sends the move_region commands 
+ * if DC is enabled
+ */
 void PrimarySurface::DrawHUDVertices() {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1471,19 +1475,21 @@ void PrimarySurface::DrawHUDVertices() {
 	g_PSCBuffer.bRenderHUD		  = 1;
 	// Add the move_regions commands.
 	int numCoords = 0;
-	for (int i = 0; i < g_DCMoveRegions.numCoords; i++) {
-		int region_slot = g_DCMoveRegions.region_slot[i];
-		// Skip invalid src slots
-		if (region_slot < 0)
-			continue;
-		// Skip regions if their limits haven't been computed
-		if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed)
-			continue;
-		// Fetch the source uv coords:
-		g_PSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
-		// Fetch the destination uv coords:
-		g_PSCBuffer.dst[numCoords] = g_DCMoveRegions.dst[i];
-		numCoords++;
+	if (g_bDynCockpitEnabled) {
+		for (int i = 0; i < g_DCMoveRegions.numCoords; i++) {
+			int region_slot = g_DCMoveRegions.region_slot[i];
+			// Skip invalid src slots
+			if (region_slot < 0)
+				continue;
+			// Skip regions if their limits haven't been computed
+			if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed)
+				continue;
+			// Fetch the source uv coords:
+			g_PSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
+			// Fetch the destination uv coords:
+			g_PSCBuffer.dst[numCoords] = g_DCMoveRegions.dst[i];
+			numCoords++;
+		}
 	}
 	g_PSCBuffer.DynCockpitSlots = numCoords;
 
@@ -1914,9 +1920,9 @@ HRESULT PrimarySurface::Flip(
 					g_BloomPSCBuffer.uvStepSize = 2.0f;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-					if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
-						capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
-					}
+					//if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
+					//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
+					//}
 
 					//goto no_bloom;
 					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: reshade1
@@ -1972,9 +1978,11 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
-			if (g_bDCManualActivate && g_bDynCockpitEnabled && g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
+			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+				g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
 				// Clear everything we don't want to display from the HUD
-				ClearHUDRegions();
+				if (g_bDynCockpitEnabled)
+					ClearHUDRegions();
 
 				/*
 				static bool bDumped = false;
@@ -2053,7 +2061,7 @@ HRESULT PrimarySurface::Flip(
 			g_iHUDOffscreenCommandsRendered = 0;
 			//*g_playerInHangar = 0;
 
-			if (g_bDynCockpitEnabled) {
+			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				auto &context = this->_deviceResources->_d3dDeviceContext;
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
