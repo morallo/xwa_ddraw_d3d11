@@ -264,6 +264,7 @@ bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 float g_fBloomAmplifyFactor = 8.0f, g_fBloomStrength = 1.0f, g_fBloomColorMul = 1.0f;
 int g_iNumBloomPasses = 8;
+extern float g_fBloomLayerMult[8];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1598,6 +1599,32 @@ void LoadVRParams() {
 			else if (_stricmp(param, "bloom_color_mul") == 0) {
 				g_fBloomColorMul = fValue;
 				log_debug("[DBG] [Bloom] g_fBloomColorMul: %f", g_fBloomColorMul);
+			}
+			else if (_stricmp(param, "bloom_layer_mult_0") == 0) {
+				g_fBloomLayerMult[0] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_1") == 0) {
+				g_fBloomLayerMult[1] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_2") == 0) {
+				g_fBloomLayerMult[2] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_3") == 0) {
+				g_fBloomLayerMult[3] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_4") == 0) {
+				g_fBloomLayerMult[4] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_5") == 0) {
+				g_fBloomLayerMult[5] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_6") == 0) {
+				g_fBloomLayerMult[6] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_7") == 0) {
+				g_fBloomLayerMult[7] = fValue;
+				for (int i = 1; i < 8; i++)
+					log_debug("[DBG] [Bloom] g_fBloomLayerMult[%d] = %f", i, g_fBloomLayerMult[i]);
 			}
 
 			param_read_count++;

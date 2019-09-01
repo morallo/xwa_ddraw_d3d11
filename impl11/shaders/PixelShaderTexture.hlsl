@@ -190,6 +190,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		float4 texelColorBG = texture1.Sample(sampler1, input.tex);
 		float alphaBG = texelColorBG.w;
 		uint i;
+		// TODO: When DC is off (DynCockpitSlots == 0) we can return early by
+		// simply combining texelColor with texelColorBG
 		
 		// Execute the move_region commands: erase source regions
 		[unroll]

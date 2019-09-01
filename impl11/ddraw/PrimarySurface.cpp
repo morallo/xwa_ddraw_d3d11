@@ -62,6 +62,16 @@ bool g_bClearHUDBuffers = false;
 
 // Bloom
 extern bool g_bDumpBloomBuffers, g_bDCManualActivate;
+float g_fBloomLayerMult[8] = {
+	1.000f, // 0
+	1.025f, // 1
+	1.030f, // 2
+	1.035f, // 3
+	1.045f, // 4
+	1.055f, // 5
+	1.070f, // 6
+	1.100f, // 7
+};
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -1746,7 +1756,6 @@ HRESULT PrimarySurface::Flip(
 				interval = g_iNaturalConcourseAnimations ? interval : 1;
 				if (g_iNaturalConcourseAnimations > 1)
 					interval = g_iNaturalConcourseAnimations;
-				//log_debug("[DBG] g_bNatural: %d, interval: %d", g_bNaturalConcourseAnimations, interval);
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
@@ -1811,12 +1820,6 @@ HRESULT PrimarySurface::Flip(
 							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
 							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
 						}
-						/* if (g_bDynCockpitEnabled) {
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
-						} */
 					}
 
 					if (g_bUseSteamVR) {					
@@ -1824,10 +1827,7 @@ HRESULT PrimarySurface::Flip(
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-						//if (error) log_debug("[DBG] SteamVR (L) error: %d", error);
 						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-						//if (error) log_debug("[DBG] SteamVR (R) error: %d", error);
-						//g_pVRCompositor->PostPresentHandoff();
 					}
 					
 					g_bRendering3D = false;
@@ -1912,9 +1912,13 @@ HRESULT PrimarySurface::Flip(
 				//}
 				
 				if (g_bBloomEnabled) {
+					//float fCurZoomFactor = 2.0f;
+					//g_fBloomAmplifyFactor = fCurZoomFactor;
+					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
+
 					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
 					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
-					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
+					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;					
 					g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
 					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
 					g_BloomPSCBuffer.uvStepSize = 2.0f;
@@ -1937,6 +1941,40 @@ HRESULT PrimarySurface::Flip(
 					}*/
 					// DEBUG
 
+					// Pyramidal Bloom
+					/*
+					// Downsample iterations
+					for (int i = 2; i <= 3; i++) {
+						fCurZoomFactor *= 2.0f;
+						g_fBloomAmplifyFactor = fCurZoomFactor;
+						g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
+						g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[i];
+						
+						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+						for (int j = 0; j < 3; j++) {
+							// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+							bloom(2);
+							// Vertical Gaussian Blur. input: reshade1, output: reshade2
+							bloom(1);
+						}
+					}
+					// Upsample iterations
+					g_BloomPSCBuffer.uvStepSize = 1.5f;
+					for (int i = 3; i >= 2; i--) {
+						fCurZoomFactor /= 2.0f;
+						g_fBloomAmplifyFactor = fCurZoomFactor;
+						g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
+						g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[i];
+						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+						for (int j = 0; j < 3; j++) {
+							// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+							bloom(2);
+							// Vertical Gaussian Blur. input: reshade1, output: reshade2
+							bloom(1);
+						}
+					}
+					*/
+					
 					for (int i = 0; i < g_iNumBloomPasses; i++) {
 						// Alternating between 2.0 and 1.5 avoids banding artifacts
 						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
@@ -1944,8 +1982,6 @@ HRESULT PrimarySurface::Flip(
 						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 						// Horizontal Gaussian Blur. input: reshade2, output: reshade1
 						bloom(2);
-
-						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 						// Vertical Gaussian Blur. input: reshade1, output: reshade2
 						bloom(1);
 					}
@@ -1964,9 +2000,6 @@ HRESULT PrimarySurface::Flip(
 						capture(0, resources->_reshadeOutput1, L"C:\\Temp\\_reshadeOutput1-Final.jpg");
 						g_bDumpBloomBuffers = false;
 					}*/
-				//no_bloom:
-				//	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferReshadeMask);
-				//	context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferReshadeMask);
 
 					// To make this step compatible with the rest of the code, we need to copy the results
 					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
