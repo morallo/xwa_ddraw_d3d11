@@ -35,6 +35,7 @@ extern int g_iDCElementsRendered, g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
+extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern D3D11_VIEWPORT g_nonVRViewport;
@@ -1482,7 +1483,7 @@ void PrimarySurface::DrawHUDVertices() {
 	//g_PSCBuffer.brightness        = g_fBrightness;
 	g_PSCBuffer.brightness		  = 1.0f; // TODO: Check if g_fBrightness is already applied when the textures are rendered
 	g_PSCBuffer.bUseCoverTexture  = 0;
-	g_PSCBuffer.bRenderHUD		  = 1;
+	//g_PSCBuffer.bRenderHUD		  = 1;
 	// Add the move_regions commands.
 	int numCoords = 0;
 	if (g_bDynCockpitEnabled) {
@@ -1495,9 +1496,9 @@ void PrimarySurface::DrawHUDVertices() {
 			if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed)
 				continue;
 			// Fetch the source uv coords:
-			g_PSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
+			g_DCPSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
 			// Fetch the destination uv coords:
-			g_PSCBuffer.dst[numCoords] = g_DCMoveRegions.dst[i];
+			g_DCPSCBuffer.dst[numCoords] = g_DCMoveRegions.dst[i];
 			numCoords++;
 		}
 	}
@@ -1515,7 +1516,8 @@ void PrimarySurface::DrawHUDVertices() {
 	else
 		// The original code used _vertexShader:
 		resources->InitVertexShader(resources->_vertexShader);
-	resources->InitPixelShader(resources->_pixelShaderTexture);
+	resources->InitPixelShader(resources->_pixelShaderHUD);
+	//resources->InitPixelShader(resources->_pixelShaderTexture);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitRasterizerState(resources->_rasterizerState);
 

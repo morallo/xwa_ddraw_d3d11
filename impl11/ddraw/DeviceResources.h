@@ -184,28 +184,35 @@ typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
-const int MAX_DC_COORDS = 8;
+
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
-	uint32_t bRenderHUD;
+	uint32_t unused1; // bRenderHUD;
 	// 16 bytes
-
-	uvfloat4 src[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uvfloat4 dst[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uint32_t bgColor[MAX_DC_COORDS];   // Background colors (dynamic cockpit)
-	// 4 * MAX_DC_COORDS = 32
 	
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	float ct_brightness;
+	float unused2;
 	// 16 bytes
-	// 320 bytes total
+	// 32 bytes total
 } PixelShaderCBuffer;
+
+// Pixel Shader constant buffer for the Dynamic Cockpit
+const int MAX_DC_COORDS = 8;
+typedef struct DCPixelShaderCBStruct {
+	uvfloat4 src[MAX_DC_COORDS];
+	// 4 * MAX_DC_COORDS * 4 = 128
+	uvfloat4 dst[MAX_DC_COORDS];
+	// 4 * MAX_DC_COORDS * 4 = 128
+	uint32_t bgColor[MAX_DC_COORDS]; // 32-bit Background colors
+	// 4 * MAX_DC_COORDS = 32
+
+	float ct_brightness, unused1, unused2, unused3;
+	// 304 bytes
+} DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS];
@@ -269,6 +276,7 @@ public:
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
+	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -377,12 +385,15 @@ public:
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
+	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
+	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;

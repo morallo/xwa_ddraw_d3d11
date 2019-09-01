@@ -17,6 +17,8 @@
 #include "../Debug/PassthroughVertexShader.h"
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
+#include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
 #include "../Debug/BloomPrePassPS.h"
@@ -35,6 +37,8 @@
 #include "../Release/PassthroughVertexShader.h"
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
+#include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomPrePassPS.h"
@@ -1386,6 +1390,12 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderSolid, sizeof(g_PixelShaderSolid), nullptr, &_pixelShaderSolid)))
 		return hr;
 
@@ -1445,9 +1455,15 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 320;
-	static_assert(sizeof(PixelShaderCBuffer) == 320, "sizeof(PixelShaderCBuffer) must be 320");
+	constantBufferDesc.ByteWidth = 32;
+	static_assert(sizeof(PixelShaderCBuffer) == 32, "sizeof(PixelShaderCBuffer) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
+		return hr;
+
+	// Create the constant buffer for the (3D) textured pixel shader -- Dynamic Cockpit data
+	constantBufferDesc.ByteWidth = 304;
+	static_assert(sizeof(DCPixelShaderCBuffer) == 304, "sizeof(PixelShaderCBuffer) must be 304");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBufferDC)))
 		return hr;
 
 	// Create the constant buffer for the barrel pixel shader
@@ -1814,6 +1830,16 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_3D;
+}
+
+void DeviceResources::InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer* psConstants)
+{
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static DCPixelShaderCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(DCPixelShaderCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(1, 1, buffer);
 }
 
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)

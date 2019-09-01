@@ -306,6 +306,7 @@ D3D11_VIEWPORT g_nonVRViewport{};
 VertexShaderMatrixCB g_VSMatrixCB;
 VertexShaderCBuffer g_VSCBuffer;
 PixelShaderCBuffer g_PSCBuffer;
+DCPixelShaderCBuffer g_DCPSCBuffer;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -3021,7 +3022,8 @@ HRESULT Direct3DDevice::Execute(
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness       = MAX_BRIGHTNESS;
-	g_PSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
+	g_DCPSCBuffer = { 0 };
+	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
 	//g_PSCBuffer.DynCockpitSlots  = 0;
 	//g_PSCBuffer.bUseCoverTexture = 0;
 	//g_PSCBuffer.bRenderHUD		 = 0;
@@ -3043,6 +3045,7 @@ HRESULT Direct3DDevice::Execute(
 	this->_deviceResources->InitPixelShader(resources->_pixelShaderTexture);
 	this->_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	this->_deviceResources->InitRasterizerState(resources->_rasterizerState);
+	ID3D11PixelShader *lastPixelShader = resources->_pixelShaderTexture;
 
 	int numVerts = executeBuffer->_executeData.dwVertexCount;
 	size_t vertsLength = sizeof(D3DTLVERTEX) * numVerts;
@@ -3258,6 +3261,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 
 						resources->InitPixelShader(pixelShader);
+						lastPixelShader = pixelShader;
 						break;
 					}
 
@@ -3931,8 +3935,6 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDCManualActivate && 
 					(g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
-					//assert((bRenderToDynCockpitBuffer && !bRenderToDynCockpitBGBuffer) ||
-					//	   (!bRenderToDynCockpitBuffer && bRenderToDynCockpitBGBuffer));
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
 					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();
@@ -3951,6 +3953,8 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Set the original vertex buffer and dynamic cockpit RTV:
 					resources->InitVertexShader(resources->_vertexShader);
+					// Set the PixelShaderHUD:
+					//resources->InitPixelShader(resources->_pixelShaderHUD);
 					if (bRenderToDynCockpitBGBuffer)
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
@@ -3981,6 +3985,8 @@ HRESULT Direct3DDevice::Execute(
 					// Restore the Pixel Shader constant buffers:
 					g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+					// Restore the previous pixel shader
+					//resources->InitPixelShader(lastPixelShader);
 					// Restore the original blend state
 					//if (g_bIsFloating3DObject)
 					//	hr = resources->InitBlendState(nullptr, &curBlendDesc);
@@ -4018,9 +4024,9 @@ HRESULT Direct3DDevice::Execute(
 								uvfloat4 uv_src;
 								uv_src.x0 = src_box->coords.x0; uv_src.y0 = src_box->coords.y0;
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
-								g_PSCBuffer.src[numCoords] = uv_src;
-								g_PSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-								g_PSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
+								g_DCPSCBuffer.src[numCoords] = uv_src;
+								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
+								g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
@@ -4036,21 +4042,13 @@ HRESULT Direct3DDevice::Execute(
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-
-							/*
-							static bool bDumped = false;
-							if (g_iPresentCounter > 100 && !bDumped) {
-								hr = DirectX::SaveWICTextureToFile(context.Get(),
-									resources->_offscreenBufferAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//dyncock.png");
-								log_debug("[DBG] Dumping offscreenBufferDynCockpit");
-								bDumped = true;
-							}
-							*/
+							resources->InitPixelShader(resources->_pixelShaderDC);
 						} // if dc_element->bActive
 					}
-					else if (idx >= (int)g_DCElements.size()) {
+					// TODO: I should probably put an assert here since this shouldn't happen
+					/*else if (idx >= (int)g_DCElements.size()) {
 						log_debug("[DBG] [DC] ****** idx: %d outside the bounds of g_DCElements (%d)", idx, g_DCElements.size());
-					}
+					}*/
 				}
 
 				// Count the number of *actual* DC commands sent to the GPU:
@@ -4065,6 +4063,8 @@ HRESULT Direct3DDevice::Execute(
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+						if (g_PSCBuffer.DynCockpitSlots > 0)
+							resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 					}
 
 					if (!g_bReshadeEnabled) {
@@ -4187,6 +4187,8 @@ HRESULT Direct3DDevice::Execute(
 				if (bModifiedShaders) {
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+					if (g_PSCBuffer.DynCockpitSlots > 0)
+						resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 				}
 
 				// Skip the draw call for debugging purposes depending on g_iNoDrawBeforeIndex and g_iNoDrawAfterIndex
@@ -4196,14 +4198,6 @@ HRESULT Direct3DDevice::Execute(
 				if (g_iNoDrawAfterIndex > -1 && g_iDrawCounter > g_iNoDrawAfterIndex)
 					goto out;
 #endif
-
-				/*
-				if (bIsBracket) {
-					// What the hell are we sending in the pixel shader?
-					log_debug("[DBG] [Bloom] Bracket: bModifiedShaders: %d, bIsLaser: %d, Glow: %d, LightTex: %d",
-						bModifiedShaders, g_PSCBuffer.bIsLaser, g_PSCBuffer.bIsEngineGlow, g_PSCBuffer.bIsLightTexture);
-				}
-				*/
 
 				// ****************************************************************************
 				// Render the left image
@@ -4360,7 +4354,12 @@ HRESULT Direct3DDevice::Execute(
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness = MAX_BRIGHTNESS;
-					g_PSCBuffer.ct_brightness = g_fCoverTextureBrightness;
+					if (g_PSCBuffer.DynCockpitSlots > 0) {
+						g_DCPSCBuffer = { 0 };
+						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;
+						// Restore the regular pixel shader (disable the PixelShaderDC)
+						resources->InitPixelShader(lastPixelShader);
+					}
 					// Remove the cover texture
 					//context->PSSetShaderResources(1, 1, NULL);
 					//g_PSCBuffer.bUseCoverTexture  = 0;

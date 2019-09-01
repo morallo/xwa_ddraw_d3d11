@@ -32,6 +32,8 @@
     <FxCompile Include="bloom\BloomCombinePS.hlsl" />
     <FxCompile Include="PassthroughVertexShader.hlsl" />
     <FxCompile Include="PixelShaderClearBox.hlsl" />
+    <FxCompile Include="PixelShaderDC.hlsl" />
+    <FxCompile Include="PixelShaderHUD.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
