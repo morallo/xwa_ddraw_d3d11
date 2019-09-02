@@ -4076,7 +4076,7 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets
 						ID3D11RenderTargetView *rtvs[2] = {
 							resources->_renderTargetView.Get(),
-							resources->_renderTargetViewReshadeMask.Get()
+							resources->_renderTargetViewBloomMask.Get()
 						};
 						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 					}
@@ -4217,7 +4217,7 @@ HRESULT Direct3DDevice::Execute(
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewReshadeMask.Get()
+								resources->_renderTargetViewBloomMask.Get()
 							};
 							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -4230,7 +4230,7 @@ HRESULT Direct3DDevice::Execute(
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewReshadeMask.Get()
+								resources->_renderTargetViewBloomMask.Get()
 							};
 							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -4275,7 +4275,7 @@ HRESULT Direct3DDevice::Execute(
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetViewR.Get(),
-								resources->_renderTargetViewReshadeMaskR.Get()
+								resources->_renderTargetViewBloomMaskR.Get()
 							};
 							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
 						}
@@ -4289,7 +4289,7 @@ HRESULT Direct3DDevice::Execute(
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewReshadeMask.Get()
+								resources->_renderTargetViewBloomMask.Get()
 							};
 							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -4716,8 +4716,8 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
 	} */
 	if (g_bReshadeEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewReshadeMask, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewReshadeMaskR, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
 	}
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);

@@ -1156,10 +1156,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 
  /*
   * Applies the bloom effect on the 3D window.
-  * ...
-  * pass 1:
-  *		Input: an already-resolved _reshadeOutput1
-  *		Renders to _reshadeOutput2
+  * The input texture must be resolved already to 
+  * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
 void PrimarySurface::bloom(int pass) {
 	auto& resources = this->_deviceResources;
@@ -1208,103 +1206,116 @@ void PrimarySurface::bloom(int pass) {
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	D3D11_VIEWPORT viewport{};
-	viewport.TopLeftX = (float)0;
-	viewport.TopLeftY = (float)0;
-	viewport.Width    = (float)screen_res_x;
-	viewport.Height   = (float)screen_res_y;
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	if (pass < 3) {
+		viewport.Width  = screen_res_x / g_fBloomAmplifyFactor;
+		viewport.Height = screen_res_y / g_fBloomAmplifyFactor;
+	} else { // The final pass should be performed at full resolution
+		viewport.Width  = screen_res_x;
+		viewport.Height = screen_res_y;
+	}
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
-
-	// The input texture must be resolved already to _offscreenBufferAsInputReshadeMask
-	resources->InitVertexShader(resources->_mainVertexShader);
-	switch (pass) {
-		case 0: 	// Prepass
-			// Input: _offscreenAsInputReshadeSRV
-			// Output _reshadeOutput1
-			viewport.Width  /= g_fBloomAmplifyFactor;
-			viewport.Height /= g_fBloomAmplifyFactor;
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputReshadeSRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
-			break;
-		case 1: // Vertical Gaussian Blur
-			// Input:  _reshadeOutput1
-			// Output: _reshadeOutput2
-			resources->InitPixelShader(resources->_bloomVGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_reshadeOutput1SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewReshade2, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade2.GetAddressOf(), NULL);
-			break;
-		case 2: // Horizontal Gaussian Blur
-			// Input:  _reshadeOutput2
-			// Output: _reshadeOutput1
-			//context->ResolveSubresource(resources->_reshadeOutput2AsInput, 0, resources->_reshadeOutput2, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_reshadeOutput2SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
-			break;
-		case 3: // Final pass to combine the bloom texture with the backbuffer
-			// Input:  _offscreenBufferAsInput
-			// Output: _reshadeOutput1
-			//context->ResolveSubresource(resources->_reshadeOutput1AsInput, 0, resources->_reshadeOutput1, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_reshadeOutput2SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewReshade1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewReshade1.GetAddressOf(), NULL);
-			break;
-	}
+	resources->InitViewport(&viewport);
 
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	// The input texture must be resolved already to
+	// _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
+	switch (pass) {
+		case 0: 	// Horizontal Gaussian Blur
+			// Input: _offscreenAsInputReshadeSRV
+			// Output _bloomOutput1
+			resources->InitPixelShader(resources->_bloomHGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomSRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			break;
+		case 1: // Vertical Gaussian Blur
+			// Input:  _bloomOutput1
+			// Output: _bloomOutput2
+			resources->InitPixelShader(resources->_bloomVGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
+			break;
+		case 2: // Horizontal Gaussian Blur
+			// Input:  _bloomOutput2
+			// Output: _bloomOutput1
+			resources->InitPixelShader(resources->_bloomHGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			break;
+		case 3: // Final pass to combine the bloom texture with the backbuffer
+			// Input:  _bloomOutput2, _offscreenBufferAsInput
+			// Output: _bloomOutput1
+			resources->InitPixelShader(resources->_bloomCombinePS);
+			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			break;
+	}
+	
+	//resources->InitViewport(&viewport);
 	context->Draw(6, 0);
 
-#ifdef DBG_VR
-	if (g_bCapture2DOffscreenBuffer) {
-		static int frame = 0;
-		wchar_t filename[120];
-
-		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
-
-		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf2-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer2, filename);
-
-		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf3-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer3, filename);
-
-		frame++;
-		if (frame >= 5)
-			g_bCapture2DOffscreenBuffer = false;
-	}
-#endif
-#ifdef DBG_VR
-	if (g_iPresentCounter == 100) {
+	// Draw the right image when SteamVR is enabled
+	if (g_bSteamVREnabled) {
 		switch (pass) {
-			case 0:
-				capture(0, resources->_reshadeOutput1, L"C:\\Temp\\reshade-pass-0.jpg");
-				break;
-			case 1:
-				capture(0, resources->_reshadeOutput2, L"C:\\Temp\\reshade-pass-1.jpg");
-				break;
-			case 2:
-				capture(0, resources->_reshadeOutput1, L"C:\\Temp\\reshade-pass-2.jpg");
-				break;
-			case 3:
-				capture(0, resources->_reshadeOutput2, L"C:\\Temp\\reshade-pass-3.jpg");
-				break;
+		case 0: 	// Prepass
+			// Input: _offscreenAsInputReshadeSRV_R
+			// Output _bloomOutput1R
+			resources->InitPixelShader(resources->_bloomHGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomSRV_R.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			break;
+		case 1: // Vertical Gaussian Blur
+			// Input:  _bloomOutput1R
+			// Output: _bloomOutput2R
+			resources->InitPixelShader(resources->_bloomVGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV_R.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom2R, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2R.GetAddressOf(), NULL);
+			break;
+		case 2: // Horizontal Gaussian Blur
+			// Input:  _bloomOutput2R
+			// Output: _bloomOutput1R
+			resources->InitPixelShader(resources->_bloomHGaussPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			break;
+		case 3: // Final pass to combine the bloom texture with the backbuffer
+			// Input:  _bloomOutput2R, _offscreenBufferAsInputR
+			// Output: _bloomOutput1R
+			resources->InitPixelShader(resources->_bloomCombinePS);
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			break;
 		}
+
+		//resources->InitViewport(&viewport);
+		context->Draw(6, 0);
 	}
-#endif
 
 	// Restore previous rendertarget, etc
+	viewport.Width  = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
@@ -1902,11 +1913,11 @@ HRESULT PrimarySurface::Flip(
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
-				context->ResolveSubresource(resources->_offscreenBufferAsInputReshadeMask, 0,
-					resources->_offscreenBufferReshadeMask, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+					resources->_offscreenBufferBloomMask, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				if (g_bSteamVREnabled)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputReshadeMaskR, 0,
-						resources->_offscreenBufferReshadeMaskR, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+						resources->_offscreenBufferBloomMaskR, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				
 				//if (g_iPresentCounter == 100) {
 				//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
@@ -1918,30 +1929,46 @@ HRESULT PrimarySurface::Flip(
 					//g_fBloomAmplifyFactor = fCurZoomFactor;
 					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
 
-					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
-					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
-					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;					
-					g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
+					//g_BloomPSCBuffer.pixelSizeX    = 1.0f / (g_fCurScreenWidth  * g_fBloomAmplifyFactor);
+					//g_BloomPSCBuffer.pixelSizeY    = 1.0f / (g_fCurScreenHeight * g_fBloomAmplifyFactor);
+					g_BloomPSCBuffer.pixelSizeX    = g_fBloomAmplifyFactor / g_fCurScreenWidth;
+					g_BloomPSCBuffer.pixelSizeY    = g_fBloomAmplifyFactor / g_fCurScreenHeight;
+					g_BloomPSCBuffer.colorMul      = g_fBloomColorMul;					
+					//g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
+					g_BloomPSCBuffer.amplifyFactor = 1.0f;
 					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
-					g_BloomPSCBuffer.uvStepSize = 2.0f;
+					//g_BloomPSCBuffer.uvStepSize    = 2.0f;
+					g_BloomPSCBuffer.uvStepSize = 3.0f;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-					//if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
-					//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
-					//}
-
-					//goto no_bloom;
-					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: reshade1
-					bloom(0);
-					// Vertical Gaussian Blur. input: reshade1, output: reshade2
-					bloom(1);
-					
 					// DEBUG
-					/*if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
-						capture(0, resources->_reshadeOutput2, L"C:\\Temp\\_reshadeOutput2.jpg");
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
 						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
 					}*/
 					// DEBUG
+
+					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
+					bloom(0);
+					// DEBUG
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput1.jpg");
+					}*/
+					// DEBUG
+
+					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
+					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
+					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
+					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+					// Vertical Gaussian Blur. input: bloom1, output: bloom2
+					bloom(1);
+					// DEBUG
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2.jpg");
+					}*/
+					// DEBUG
+
+					//goto skip;
 
 					// Pyramidal Bloom
 					/*
@@ -1976,39 +2003,42 @@ HRESULT PrimarySurface::Flip(
 						}
 					}
 					*/
-					
+										
 					for (int i = 0; i < g_iNumBloomPasses; i++) {
 						// Alternating between 2.0 and 1.5 avoids banding artifacts
-						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
-						g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
+						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
+						//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
+						g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
 						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-						// Horizontal Gaussian Blur. input: reshade2, output: reshade1
+						// Horizontal Gaussian Blur. input: bloom2, output: bloom1
 						bloom(2);
-						// Vertical Gaussian Blur. input: reshade1, output: reshade2
+						// Vertical Gaussian Blur. input: bloom1, output: bloom2
 						bloom(1);
 					}
 
 					// DEBUG
-					/*if (g_iPresentCounter == 500 || g_bDumpBloomBuffers) {
-						capture(0, resources->_reshadeOutput2, L"C:\\Temp\\_reshadeOutput2-Final.jpg");
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2-Final.jpg");
 					}*/
 					// DEBUG
 
-					// Combine. input: offscreenBuffer, reshade2; output: reshade1
+				skip:
+					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
+					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+					// Combine. input: offscreenBuffer, bloom2; output: bloom1
 					bloom(3);
-					// The final output of the bloom effect will always be in reshade1
+					// The final output of the bloom effect will always be in bloom1
 
-					/*if (g_bDumpBloomBuffers) {
-						capture(0, resources->_reshadeOutput1, L"C:\\Temp\\_reshadeOutput1-Final.jpg");
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput1-Final.jpg");
 						g_bDumpBloomBuffers = false;
 					}*/
 
 					// To make this step compatible with the rest of the code, we need to copy the results
 					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
-					context->CopyResource(resources->_offscreenBuffer, resources->_reshadeOutput1);
-					// TODO: Add support for right-eye buffers
-					//if (g_bUseSteamVR)
-					//	context->CopyResource(resources->_offscreenBufferR, resources->_reshadeOutput1R);
+					context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
+					if (g_bUseSteamVR)
+						context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
 				}
 			}
 
@@ -2018,18 +2048,6 @@ HRESULT PrimarySurface::Flip(
 				// Clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled)
 					ClearHUDRegions();
-
-				/*
-				static bool bDumped = false;
-				if (!bDumped && g_iPresentCounter == 100) {
-					hr = DirectX::SaveWICTextureToFile(context.Get(),
-						resources->_offscreenBufferAsInputDynCockpit.Get(), GUID_ContainerFormatPng, L"c://temp//HUD-FG.png");
-					hr = DirectX::SaveWICTextureToFile(context.Get(),
-						resources->_offscreenBufferAsInputDynCockpitBG.Get(), GUID_ContainerFormatPng, L"c://temp//HUD-BG.png");
-					log_debug("[DBG] Dumping offscreenBufferDynCockpitBG");
-					bDumped = true;
-				}
-				*/
 
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
 				DrawHUDVertices();

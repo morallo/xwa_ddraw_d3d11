@@ -317,12 +317,14 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// Reshade
-	ComPtr<ID3D11Texture2D> _offscreenBufferReshadeMask; // Used to render the bloom mask
-	ComPtr<ID3D11Texture2D> _offscreenBufferReshadeMaskR; // Used to render the bloom mask to the right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshadeMask;  // Used to resolve offscreenBufferReshadeMask
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshadeMaskR; // Used to resolve offscreenBufferReshadeMaskR
-	ComPtr<ID3D11Texture2D> _reshadeOutput1; // Output from reshade pass 1
-	ComPtr<ID3D11Texture2D> _reshadeOutput2; // Output from reshade pass 2
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
+	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
+	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
+	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
 	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -337,20 +339,28 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
 	// Reshade
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshadeMask;  // Renders to _offscreenBufferReshadeMask
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshadeMaskR; // Renders to _offscreenBufferReshadeMaskR
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade1; // Renders to reshadeOutput1
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade2; // Renders to reshadeOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask;  // Renders to _offscreenBufferBloomMask
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
 	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomF; // Renders to _offscreenBufferBloomF
 
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputReshadeSRV;
-	ComPtr<ID3D11ShaderResourceView> _reshadeOutput1SRV; // SRV for reshadeOutput1
-	ComPtr<ID3D11ShaderResourceView> _reshadeOutput2SRV; // SRV for reshadeOutput2
+	
+	// Reshade
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomSRV;
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomSRV_R;
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
 	//ComPtr<ID3D11ShaderResourceView> _reshadeBloomFSRV; // SRV for _offscreenBufferBloomF
+
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;

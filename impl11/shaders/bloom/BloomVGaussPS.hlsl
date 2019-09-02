@@ -2,6 +2,10 @@
 
 // Based on the implementation from:
 // https://learnopengl.com/Advanced-Lighting/Bloom
+// Also look here:
+// http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
+// Kernel calculator:
+// http://dev.theomader.com/gaussian-kernel-calculator/
 
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -22,7 +26,7 @@ struct PixelShaderInput
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	float2 input_uv = input.uv;
+	float2 input_uv = input.uv * amplifyFactor;
 	float3 color = texture0.Sample(sampler0, input_uv).xyz * weight[0];
 	float3 s1, s2;
 	float2 dy = uvStepSize * float2(0, pixelSizeY);
@@ -38,4 +42,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv2 -= dy;
 	}
 	return float4(colorMul * color, 1);
+	//float4 output = float4(colorMul * color, 1);
+	//output.z = 0.2;
+	//return output;
 }

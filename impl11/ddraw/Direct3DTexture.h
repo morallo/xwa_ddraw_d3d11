@@ -34,12 +34,10 @@ public:
 	bool is_EngineGlow;
 	// True if this is an Explosion texture
 	bool is_Explosion;
-	// TODO: Remove this later, I'm only using this to dump the rebel lasers for debugging purposes
-	//bool is_RebelLaser;
-	// TODO: Remove this later
-	//bool is_SpecialDebug;
+	// True when displaying the hyperspace animation
+	bool is_HyperspaceAnim;
 
-	// **** DYNAMIC COCKPIT MEMBERS **** //
+	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures
 	// Index into g_DCElements that holds the Dynamic Cockpit information for this texture
 	int DCElementIndex;

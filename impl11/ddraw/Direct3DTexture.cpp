@@ -76,7 +76,7 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,2008,",
 	"dat,3005,",
 	"dat,3006,",
-	"dat,3051,", // Hyperspace!
+	//"dat,3051,", // Hyperspace!
 	"dat,3055,",
 	"dat,3100,",
 	"dat,3200,",
@@ -269,6 +269,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
+	this->is_HyperspaceAnim = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -470,6 +471,9 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 			// Catch the explosions and mark them
 			if (isInVector(surface->_name, Explosions_ResNames))
 				d3dTexture->is_Explosion = true;
+			// Catch the hyperspace anim and mark it
+			if (strstr(surface->_name, "dat,3051,") != NULL)
+				d3dTexture->is_HyperspaceAnim = true;			
 
 			/* Special handling for Dynamic Cockpit source HUD textures */
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -634,6 +638,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;
+	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
 	// TODO: Remove later:
 	// TODO: We don't need to copy texture names around!
 	// Actually, it looks like we need to copy the texture names in order to have them available

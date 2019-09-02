@@ -1,9 +1,11 @@
-//static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
+static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
 //static const float weight[5]   = {0.382928, 0.241732,  0.060598,  0.005977, 0.000229}; // Sigma 1, kernel size 9
 //static const float weight[5] = { 0.170793, 0.157829, 0.124548, 0.08393, 0.048297 }; // Sigma 2.5, kernel size 9
 // 0.20236	0.179044	0.124009	0.067234	0.028532 // Sigma 2, kernel size 9
+
+// This works fine; but looks square on 1 pass (looks fine on 12 passes):
 // Sigma 5, kernel size 9
-static const float weight[5] = { 0.126061, 0.123573, 0.1164, 0.105358, 0.091637 };
+//static const float weight[5] = { 0.126061, 0.123573, 0.1164, 0.105358, 0.091637 };
 
 //static const float weight[6] = {0.382925, 0.24173,   0.060598,  0.005977, 0.000229, 0.000003};
 
