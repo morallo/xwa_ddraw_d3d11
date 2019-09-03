@@ -1388,6 +1388,98 @@ bool LoadDCParams() {
 	return true;
 }
 
+/* Loads the Bloom parameters from bloom.cfg */
+bool LoadBloomParams() {
+	log_debug("[DBG] Loading Bloom params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./bloom.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load bloom.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading bloom.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			// ReShade state
+			if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
+				bool state = (bool)fValue;
+				g_bReshadeEnabled |= state;
+				g_bBloomEnabled = state;
+			}
+			// Bloom
+			else if (_stricmp(param, "bloom_screen_size_sub_scale") == 0) {
+				if (fValue < 1.0f)
+					fValue = 1.0f;
+				g_fBloomAmplifyFactor = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomAmplifyFactor: %f", g_fBloomAmplifyFactor);
+			}
+			else if (_stricmp(param, "bloom_strength") == 0) {
+				g_fBloomStrength = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomStrength: %f", g_fBloomStrength);
+			}
+			else if (_stricmp(param, "bloom_passes") == 0) {
+				g_iNumBloomPasses = (int)fValue;
+				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
+			}
+			else if (_stricmp(param, "bloom_pass_gain") == 0) {
+				if (fValue < 0.0f)
+					fValue = 0.0f;
+				g_fBloomColorMul = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomColorMul: %f", g_fBloomColorMul);
+			}
+			else if (_stricmp(param, "bloom_layer_mult_0") == 0) {
+				g_fBloomLayerMult[0] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_1") == 0) {
+				g_fBloomLayerMult[1] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_2") == 0) {
+				g_fBloomLayerMult[2] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_3") == 0) {
+				g_fBloomLayerMult[3] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_4") == 0) {
+				g_fBloomLayerMult[4] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_5") == 0) {
+				g_fBloomLayerMult[5] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_6") == 0) {
+				g_fBloomLayerMult[6] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_7") == 0) {
+				g_fBloomLayerMult[7] = fValue;
+				for (int i = 1; i < 8; i++)
+					log_debug("[DBG] [Bloom] g_fBloomLayerMult[%d] = %f", i, g_fBloomLayerMult[i]);
+			}
+		}
+	}
+	fclose(file);
+	return true;
+}
+
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
 	log_debug("[DBG] Loading view params...");
@@ -1578,56 +1670,6 @@ void LoadVRParams() {
 				g_bDCManualActivate = (bool)fValue;
 			}
 
-			// ReShade state
-			else if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
-				bool state = (bool)fValue;
-				g_bReshadeEnabled |= state;
-				g_bBloomEnabled = state;
-			}
-			// Bloom
-			else if (_stricmp(param, "bloom_screen_size_amplify") == 0) {
-				g_fBloomAmplifyFactor = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomAmplifyFactor: %f", g_fBloomAmplifyFactor);
-			}
-			else if (_stricmp(param, "bloom_strength") == 0) {
-				g_fBloomStrength = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomStrength: %f", g_fBloomStrength);
-			}
-			else if (_stricmp(param, "bloom_passes") == 0) {
-				g_iNumBloomPasses = (int )fValue;
-				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
-			}
-			else if (_stricmp(param, "bloom_color_mul") == 0) {
-				g_fBloomColorMul = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomColorMul: %f", g_fBloomColorMul);
-			}
-			else if (_stricmp(param, "bloom_layer_mult_0") == 0) {
-				g_fBloomLayerMult[0] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_1") == 0) {
-				g_fBloomLayerMult[1] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_2") == 0) {
-				g_fBloomLayerMult[2] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_3") == 0) {
-				g_fBloomLayerMult[3] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_4") == 0) {
-				g_fBloomLayerMult[4] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_5") == 0) {
-				g_fBloomLayerMult[5] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_6") == 0) {
-				g_fBloomLayerMult[6] = fValue;
-			}
-			else if (_stricmp(param, "bloom_layer_mult_7") == 0) {
-				g_fBloomLayerMult[7] = fValue;
-				for (int i = 1; i < 8; i++)
-					log_debug("[DBG] [Bloom] g_fBloomLayerMult[%d] = %f", i, g_fBloomLayerMult[i]);
-			}
-
 			param_read_count++;
 		}
 	} // while ... read file
@@ -1646,6 +1688,8 @@ next:
 	LoadDCInternalCoordinates();
 	// Load Dynamic Cockpit params
 	LoadDCParams();
+	// Load the Bloom params
+	LoadBloomParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3925,6 +3969,23 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Explosions (intended for 32-bit mode)
 				}
 
+				// Set the hyperspace flags
+				if (PlayerDataTable->hyperspacePhase) {
+					// 2: Entering hyperspace
+					// 4: Traveling through hyperspace (animation plays back at this point)
+					// 3: Exiting hyperspace
+					if (lastTextureSelected != NULL) {
+						if (lastTextureSelected->is_FlatLightEffect) {
+							bModifiedShaders = true;
+							g_PSCBuffer.bIsHyperspaceStreak = 1;
+						}
+						if (lastTextureSelected->is_HyperspaceAnim) {
+							bModifiedShaders = true;
+							g_PSCBuffer.bIsHyperspaceAnim = 1;
+						}
+					}
+				}
+
 				// Dim all the GUI elements
 				if (g_bStartedGUI && !g_bIsFloating3DObject) {
 					bModifiedShaders = true;
@@ -3953,8 +4014,6 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Set the original vertex buffer and dynamic cockpit RTV:
 					resources->InitVertexShader(resources->_vertexShader);
-					// Set the PixelShaderHUD:
-					//resources->InitPixelShader(resources->_pixelShaderHUD);
 					if (bRenderToDynCockpitBGBuffer)
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());

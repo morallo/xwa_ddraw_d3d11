@@ -36,6 +36,8 @@ public:
 	bool is_Explosion;
 	// True when displaying the hyperspace animation
 	bool is_HyperspaceAnim;
+	// True for dat,1000,2, (used for the hyperspace streak effect)
+	bool is_FlatLightEffect;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures
@@ -45,7 +47,7 @@ public:
 	bool is_DynCockpitDst;
 	// True for the light textures loaded in Hi-Res mode that provide additional glow
 	bool is_DynCockpitAlphaOverlay;
-	// True for all the source HUD textures
+	// True for all the source HUD textures (HUD Regions)
 	bool is_DC_HUDRegionSrc;
 	// True for specific DC HUD source textures
 	bool is_DC_TargetCompSrc;

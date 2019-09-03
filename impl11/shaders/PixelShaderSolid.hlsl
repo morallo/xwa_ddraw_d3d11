@@ -22,6 +22,6 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = input.color;
-	output.bloom = float4(0, 0, 0, 1);
+	output.bloom = float4(0, 0, 0, 0);
 	return output;
 }

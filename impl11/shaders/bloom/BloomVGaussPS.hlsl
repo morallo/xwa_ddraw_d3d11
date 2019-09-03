@@ -42,7 +42,4 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv2 -= dy;
 	}
 	return float4(colorMul * color, 1);
-	//float4 output = float4(colorMul * color, 1);
-	//output.z = 0.2;
-	//return output;
 }

@@ -31,16 +31,16 @@ struct PixelShaderOutput
 
 cbuffer ConstantBuffer : register(b0)
 {
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint unused;				// (Used to be bRenderHUD) When set, first texture is HUD foreground and second texture is HUD background
+	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
+	uint DynCockpitSlots;		// How many DC slots will be used. This setting was "bShadeless" previously
+	uint bUseCoverTexture;		// When set, use the first texture as cover texture for the dynamic cockpit
+	uint bIsHyperspaceAnim;		// 1 if we're rendering the hyperspace animation
 	// 16 bytes
 
-	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	// unused
+	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
+	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -159,6 +159,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		return output;
 	}
+	
+	if (bIsHyperspaceAnim)
+		output.bloom = float4(texelColor.xyz, 0.5);
+
+	if (bIsHyperspaceStreak)
+		output.bloom = float4(0.7, 0.7, 1, 0.7);
 
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;

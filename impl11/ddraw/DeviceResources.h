@@ -189,13 +189,13 @@ typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
-	uint32_t unused1; // bRenderHUD;
+	uint32_t bIsHyperspaceAnim;
 	// 16 bytes
 	
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	float unused2;
+	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
 	// 32 bytes total
 } PixelShaderCBuffer;
@@ -226,7 +226,7 @@ typedef struct uv_coords_struct {
 	int numCoords;
 } uv_coords;
 
-const int MAX_TEXTURE_NAME = 256;
+const int MAX_TEXTURE_NAME = 128;
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
 	int erase_slots[MAX_DC_COORDS];
@@ -242,8 +242,6 @@ typedef struct move_region_coords_struct {
 	uvfloat4 dst[MAX_HUD_BOXES];
 	int numCoords;
 } move_region_coords;
-
-//extern ID3D11ShaderResourceView *g_RebelLaser;
 
 class DeviceResources
 {

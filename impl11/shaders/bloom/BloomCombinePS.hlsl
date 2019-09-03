@@ -30,8 +30,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
 	color.w = 1.0f;
+	//return color + bloomStrength * bloom;
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)
-	//return color + bloomStrength * bloom;
 	return 1 - (1 - color) * (1 - bloomStrength * bloom);
 }
