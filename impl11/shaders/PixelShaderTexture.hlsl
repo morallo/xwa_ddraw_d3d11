@@ -164,7 +164,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = float4(texelColor.xyz, 0.5);
 
 	if (bIsHyperspaceStreak)
-		output.bloom = float4(0.7, 0.7, 1, 0.7);
+		output.bloom = float4(0.5, 0.5, 1, 0.5);
 
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;

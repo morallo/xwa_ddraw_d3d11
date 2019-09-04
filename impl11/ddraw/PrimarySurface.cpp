@@ -1929,6 +1929,15 @@ HRESULT PrimarySurface::Flip(
 					//g_fBloomAmplifyFactor = fCurZoomFactor;
 					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
 
+					float fOldZoomFactor = g_fBloomAmplifyFactor;
+					int iOldNumPasses = g_iNumBloomPasses;
+					if (PlayerDataTable->hyperspacePhase) {
+						// Nice hyperspace animation:
+						// https://www.youtube.com/watch?v=d5W3afhgOlY
+						g_fBloomAmplifyFactor = 2.0f;
+						g_iNumBloomPasses = 2;
+					}
+
 					//g_BloomPSCBuffer.pixelSizeX    = 1.0f / (g_fCurScreenWidth  * g_fBloomAmplifyFactor);
 					//g_BloomPSCBuffer.pixelSizeY    = 1.0f / (g_fCurScreenHeight * g_fBloomAmplifyFactor);
 					g_BloomPSCBuffer.pixelSizeX    = g_fBloomAmplifyFactor / g_fCurScreenWidth;
@@ -2027,6 +2036,12 @@ HRESULT PrimarySurface::Flip(
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 					// Combine. input: offscreenBuffer, bloom2; output: bloom1
 					bloom(3);
+
+					if (PlayerDataTable->hyperspacePhase) {
+						g_fBloomAmplifyFactor = fOldZoomFactor;
+						g_iNumBloomPasses = iOldNumPasses;
+					}
+
 					// The final output of the bloom effect will always be in bloom1
 
 					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
