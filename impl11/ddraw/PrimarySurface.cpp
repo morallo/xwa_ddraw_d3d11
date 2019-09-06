@@ -1156,11 +1156,16 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
  */
 
  /*
-  * Applies the bloom effect on the 3D window.
+  * Applies a single bloom effect pass. Depending on the input:
+  * pass = 0: Initial horizontal blur pass from the bloom mask.
+  * pass = 1: Vertical pass from internal temporary ping-pong buffer.
+  * pass = 2: Horizontal pass from internal temporary ping-pong buffer.
+  * pass = 3 : Final combine pass.
+  *
   * The input texture must be resolved already to 
   * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
-void PrimarySurface::bloom(int pass) {
+void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1210,8 +1215,8 @@ void PrimarySurface::bloom(int pass) {
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
 	if (pass < 3) {
-		viewport.Width  = screen_res_x / g_fBloomAmplifyFactor;
-		viewport.Height = screen_res_y / g_fBloomAmplifyFactor;
+		viewport.Width  = screen_res_x / fZoomFactor;
+		viewport.Height = screen_res_y / fZoomFactor;
 	} else { // The final pass should be performed at full resolution
 		viewport.Width  = screen_res_x;
 		viewport.Height = screen_res_y;
@@ -1265,8 +1270,6 @@ void PrimarySurface::bloom(int pass) {
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
 			break;
 	}
-	
-	//resources->InitViewport(&viewport);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -1309,17 +1312,71 @@ void PrimarySurface::bloom(int pass) {
 			break;
 		}
 
-		//resources->InitViewport(&viewport);
 		context->Draw(6, 0);
 	}
 
 	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
 	viewport.Width  = screen_res_x;
 	viewport.Height = screen_res_y;
 	resources->InitViewport(&viewport);
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+/*
+ * Performs a full bloom blur pass to build a pyramidal bloom. This function
+ * calls BloomBasicPass internally several times.
+ * Input: Bloom mask
+ * Output: bloom1
+ */
+void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, float fZoomFactor) {
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	g_BloomPSCBuffer.pixelSizeX			= fZoomFactor / g_fCurScreenWidth;
+	g_BloomPSCBuffer.pixelSizeY			= fZoomFactor / g_fCurScreenHeight;
+	g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
+	g_BloomPSCBuffer.amplifyFactor		= 1.0f;
+	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
+	g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
+	g_BloomPSCBuffer.uvStepSize			= 3.0f;
+	//g_BloomPSCBuffer.uvStepSize    = 2.0f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
+	BloomBasicPass(0, fZoomFactor);
+
+	// Second Vertical Gaussian Blur: adjust the scale since the image was downsampled in the previous blur pass:
+	g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+	// Vertical Gaussian Blur. input: bloom1, output: bloom2
+	BloomBasicPass(1, fZoomFactor);
+
+	for (int i = 0; i < 1; i++) {
+		// Alternating between 2.0 and 1.5 avoids banding artifacts
+		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
+		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
+		g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
+		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+		// Horizontal Gaussian Blur. input: bloom2, output: bloom1
+		BloomBasicPass(2, fZoomFactor);
+		// Vertical Gaussian Blur. input: bloom1, output: bloom2
+		BloomBasicPass(1, fZoomFactor);
+	}
+
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
+	BloomBasicPass(3, fZoomFactor);
+	// To make this step compatible with the rest of the code, we need to copy the results
+	// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
+	context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
 }
 
 /* Convenience function to call WaitGetPoses() */
@@ -1941,127 +1998,24 @@ HRESULT PrimarySurface::Flip(
 					}*/
 					// DEBUG
 
-					float fOldZoomFactor = g_fBloomAmplifyFactor;
-					int iOldNumPasses = g_iNumBloomPasses;
 					if (PlayerDataTable->hyperspacePhase) {
 						// Nice hyperspace animation:
 						// https://www.youtube.com/watch?v=d5W3afhgOlY
-						g_fBloomAmplifyFactor = 2.0f;
-						g_iNumBloomPasses = 2;
+						//g_fBloomAmplifyFactor = 2.0f;
+						//g_iNumBloomPasses = 2;
+						BloomPyramidLevelPass(1, 2.0f);
+					}
+					else {
+						// Bloom at Zoom = 2
+						BloomPyramidLevelPass(1, 2.0f);
+						// Bloom at Zoom = 4
+						BloomPyramidLevelPass(2, 4.0f);
 					}
 
-					float fCurZoomFactor = 2.0f, fSaveZoomFactor = g_fBloomAmplifyFactor;
-
-					// Bloom at Zoom = 2
-					g_fBloomAmplifyFactor = fCurZoomFactor;
-					//g_BloomPSCBuffer.pixelSizeX    = 1.0f / (g_fCurScreenWidth  * g_fBloomAmplifyFactor);
-					//g_BloomPSCBuffer.pixelSizeY    = 1.0f / (g_fCurScreenHeight * g_fBloomAmplifyFactor);
-					g_BloomPSCBuffer.pixelSizeX    = g_fBloomAmplifyFactor / g_fCurScreenWidth;
-					g_BloomPSCBuffer.pixelSizeY    = g_fBloomAmplifyFactor / g_fCurScreenHeight;
-					g_BloomPSCBuffer.colorMul      = g_fBloomColorMul;	
-					//g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
-					g_BloomPSCBuffer.amplifyFactor = 1.0f;
-					//g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
-					g_BloomPSCBuffer.bloomStrength = g_fBloomLayerMult[1];
-					g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
-					//g_BloomPSCBuffer.uvStepSize    = 2.0f;
-					g_BloomPSCBuffer.uvStepSize	   = 3.0f;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-
-					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
-					bloom(0);
-					
-					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
-					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
-					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-					// Vertical Gaussian Blur. input: bloom1, output: bloom2
-					bloom(1);
-					
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2.jpg");
-					}*/
-					// DEBUG
-					
-					for (int i = 0; i < 1; i++) {
-						// Alternating between 2.0 and 1.5 avoids banding artifacts
-						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
-						//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
-						g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
-						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-						// Horizontal Gaussian Blur. input: bloom2, output: bloom1
-						bloom(2);
-						// Vertical Gaussian Blur. input: bloom1, output: bloom2
-						bloom(1);
-					}
-
-					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-					// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
-					bloom(3);
-
-					// To make this step compatible with the rest of the code, we need to copy the results
-					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
-					context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
-					if (g_bUseSteamVR)
-						context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
-
-
-
-
-					// Bloom at original Zoom factor
-					g_fBloomAmplifyFactor = fSaveZoomFactor;
-					g_BloomPSCBuffer.pixelSizeX = g_fBloomAmplifyFactor / g_fCurScreenWidth;
-					g_BloomPSCBuffer.pixelSizeY = g_fBloomAmplifyFactor / g_fCurScreenHeight;
-					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
-					//g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
-					g_BloomPSCBuffer.amplifyFactor = 1.0f;
-					//g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
-					g_BloomPSCBuffer.bloomStrength = g_fBloomLayerMult[2];
-					g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
-					//g_BloomPSCBuffer.uvStepSize    = 2.0f;
-					g_BloomPSCBuffer.uvStepSize = 3.0f;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-
-					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
-					bloom(0);
-
-					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
-					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
-					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-					// Vertical Gaussian Blur. input: bloom1, output: bloom2
-					bloom(1);
-
-					for (int i = 0; i < g_iNumBloomPasses; i++) {
-						// Alternating between 2.0 and 1.5 avoids banding artifacts
-						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
-						//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
-						g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
-						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-						// Horizontal Gaussian Blur. input: bloom2, output: bloom1
-						bloom(2);
-						// Vertical Gaussian Blur. input: bloom1, output: bloom2
-						bloom(1);
-					}
-
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2-Final.jpg");
-					}*/
-					// DEBUG
-
-				skip:
-					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
-					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-					// Combine. input: offscreenBuffer, bloom2; output: bloom1
-					bloom(3);
-
-					if (PlayerDataTable->hyperspacePhase) {
+					/*if (PlayerDataTable->hyperspacePhase) {
 						g_fBloomAmplifyFactor = fOldZoomFactor;
 						g_iNumBloomPasses = iOldNumPasses;
-					}
+					}*/
 
 					// The final output of the bloom effect will always be in bloom1
 					// DEBUG
@@ -2070,12 +2024,6 @@ HRESULT PrimarySurface::Flip(
 						g_bDumpBloomBuffers = false;
 					}*/
 					// DEBUG
-
-					// To make this step compatible with the rest of the code, we need to copy the results
-					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
-					context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
-					if (g_bUseSteamVR)
-						context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
 				}
 			}
 
