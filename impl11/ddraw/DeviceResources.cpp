@@ -656,7 +656,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bReshadeEnabled) {
 		this->_offscreenBufferBloomMask.Release();
 		this->_offscreenBufferAsInputBloomMask.Release();
-		this->_offscreenAsInputBloomSRV.Release();
+		this->_offscreenAsInputBloomMaskSRV.Release();
 		this->_renderTargetViewBloomMask.Release();
 		this->_renderTargetViewBloom1.Release();
 		this->_renderTargetViewBloom2.Release();
@@ -667,7 +667,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
-			this->_offscreenAsInputBloomSRV_R.Release();
+			this->_offscreenAsInputBloomMaskSRV_R.Release();
 			this->_renderTargetViewBloomMaskR.Release();
 			this->_bloomOutput1R.Release();
 			this->_bloomOutput2R.Release();
@@ -1051,7 +1051,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			step = "_offscreenAsInputBloomSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
-				&shaderResourceViewDesc, &this->_offscreenAsInputBloomSRV);
+				&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
@@ -1079,7 +1079,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_bSteamVREnabled) {
 				step = "_offscreenAsInputBloomSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
-					&shaderResourceViewDesc, &this->_offscreenAsInputBloomSRV_R);
+					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);

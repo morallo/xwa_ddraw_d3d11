@@ -1162,7 +1162,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   * pass = 2: Horizontal pass from internal temporary ping-pong buffer.
   * pass = 3 : Final combine pass.
   *
-  * The input texture must be resolved already to 
+  * For pass 0, the input texture must be resolved already to 
   * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
 void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
@@ -1238,7 +1238,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Input: _offscreenAsInputReshadeSRV
 			// Output _bloomOutput1
 			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomSRV.GetAddressOf());
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
 			break;
@@ -1279,7 +1279,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Input: _offscreenAsInputReshadeSRV_R
 			// Output _bloomOutput1R
 			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomSRV_R.GetAddressOf());
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV_R.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
 			break;
@@ -1328,15 +1328,18 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 /*
  * Performs a full bloom blur pass to build a pyramidal bloom. This function
  * calls BloomBasicPass internally several times.
- * Input: Bloom mask
- * Output: bloom1
+ * Input: Bloom mask (_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR)
+ * Output: 
+ *		_offscreenBuffer (with accumulated bloom)
+ *		_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR (blurred and downsampled from this pass)
  */
-void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor) {
+void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fFirstPassZoomFactor, 
+	float fZoomFactor, float fFinalPassZoomFactor) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
-	g_BloomPSCBuffer.pixelSizeX			= fZoomFactor / g_fCurScreenWidth;
-	g_BloomPSCBuffer.pixelSizeY			= fZoomFactor / g_fCurScreenHeight;
+	g_BloomPSCBuffer.pixelSizeX			= fFirstPassZoomFactor / g_fCurScreenWidth;
+	g_BloomPSCBuffer.pixelSizeY			= fFirstPassZoomFactor / g_fCurScreenHeight;
 	g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f;
 	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
@@ -1345,13 +1348,21 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	//g_BloomPSCBuffer.uvStepSize    = 2.0f;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
+	// DEBUG
+	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+		wchar_t filename[80];
+		swprintf_s(filename, 80, L"c:\\temp\\_offscreenInputBloomMask-%d.jpg", PyramidLevel);
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
+	}
+	// DEBUG
+
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	BloomBasicPass(0, fZoomFactor);
 
 	// Second Vertical Gaussian Blur: adjust the scale since the image was downsampled in the previous blur pass:
-	g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
-	g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
-	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX		= g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY		= g_fCurScreenHeightRcp;
+	g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
@@ -1367,8 +1378,21 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
 		BloomBasicPass(1, fZoomFactor);
 	}
+	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
+	// next pass:
+	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
+	if (g_bSteamVREnabled)
+		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
-	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	// DEBUG
+	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+		wchar_t filename[80];
+		swprintf_s(filename, 80, L"c:\\temp\\_bloom2Buffer-%d.jpg", PyramidLevel);
+		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
+	}
+	// DEBUG
+
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFinalPassZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
 	BloomBasicPass(3, fZoomFactor);
@@ -1377,14 +1401,6 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
-}
-
-/* Convenience function to call WaitGetPoses() */
-inline void WaitGetPoses() {
-	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
-	// error 101 when doing VRCompositor->Submit()
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
 }
 
 void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR clearColor) {
@@ -1658,6 +1674,14 @@ void PrimarySurface::DrawHUDVertices() {
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
 	context->Draw(6, 0);
+}
+
+/* Convenience function to call WaitGetPoses() */
+inline void WaitGetPoses() {
+	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
+	// error 101 when doing VRCompositor->Submit()
+	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
+		0, NULL, 0);
 }
 
 HRESULT PrimarySurface::Flip(
@@ -1992,22 +2016,24 @@ HRESULT PrimarySurface::Flip(
 					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
 
 					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
+					if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						//capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
 						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					}*/
+					}
 					// DEBUG
 
 					if (PlayerDataTable->hyperspacePhase) {
 						// Nice hyperspace animation:
 						// https://www.youtube.com/watch?v=d5W3afhgOlY
-						BloomPyramidLevelPass(1, 2, 2.0f);
+						BloomPyramidLevelPass(1, 2, 2.0f, 2.0f, 2.0f);
 					}
 					else {
 						// Bloom at Zoom = 2
-						BloomPyramidLevelPass(1, 1, 2.0f);
+						BloomPyramidLevelPass(1, 1, 2.0f, 2.0f, 2.0f);
 						// Bloom at Zoom = 4
-						BloomPyramidLevelPass(2, 1, 4.0f);
+						BloomPyramidLevelPass(2, 1, 2.0f, 2.0f, 4.0f);
+						// Bloom at Zoom = 8
+						BloomPyramidLevelPass(3, 1, 2.0f, 2.0f, 8.0f);
 					}
 
 					// The final output of the bloom effect will always be in bloom1

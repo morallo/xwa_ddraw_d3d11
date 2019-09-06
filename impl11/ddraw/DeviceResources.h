@@ -351,8 +351,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
 	
 	// Reshade
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomSRV;
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomSRV_R;
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
