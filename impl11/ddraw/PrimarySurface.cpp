@@ -1331,7 +1331,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
  * Input: Bloom mask
  * Output: bloom1
  */
-void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, float fZoomFactor) {
+void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -1356,7 +1356,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, float fZoomFactor) 
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
 
-	for (int i = 0; i < 1; i++) {
+	for (int i = 0; i < AdditionalPasses; i++) {
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
 		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
@@ -2001,21 +2001,14 @@ HRESULT PrimarySurface::Flip(
 					if (PlayerDataTable->hyperspacePhase) {
 						// Nice hyperspace animation:
 						// https://www.youtube.com/watch?v=d5W3afhgOlY
-						//g_fBloomAmplifyFactor = 2.0f;
-						//g_iNumBloomPasses = 2;
-						BloomPyramidLevelPass(1, 2.0f);
+						BloomPyramidLevelPass(1, 2, 2.0f);
 					}
 					else {
 						// Bloom at Zoom = 2
-						BloomPyramidLevelPass(1, 2.0f);
+						BloomPyramidLevelPass(1, 1, 2.0f);
 						// Bloom at Zoom = 4
-						BloomPyramidLevelPass(2, 4.0f);
+						BloomPyramidLevelPass(2, 1, 4.0f);
 					}
-
-					/*if (PlayerDataTable->hyperspacePhase) {
-						g_fBloomAmplifyFactor = fOldZoomFactor;
-						g_iNumBloomPasses = iOldNumPasses;
-					}*/
 
 					// The final output of the bloom effect will always be in bloom1
 					// DEBUG

@@ -51,7 +51,7 @@ public:
 
 	void BloomBasicPass(int pass, float fZoomFactor);
 
-	void BloomPyramidLevelPass(int PyramidLevel, float fZoomFactor);
+	void BloomPyramidLevelPass(int PyramidLevel, int Passes, float fZoomFactor);
 
 	void capture(int time_delay, ComPtr<ID3D11Texture2D> buffer, const wchar_t *filename);
 
