@@ -200,7 +200,7 @@ float g_fPosZMultiplier  = DEFAULT_POS_Z_MULTIPLIER;
 float g_fMinPositionX = DEFAULT_MIN_POS_X, g_fMaxPositionX = DEFAULT_MAX_POS_X;
 float g_fMinPositionY = DEFAULT_MIN_POS_Y, g_fMaxPositionY = DEFAULT_MAX_POS_Y;
 float g_fMinPositionZ = DEFAULT_MIN_POS_Z, g_fMaxPositionZ = DEFAULT_MAX_POS_Z;
-bool g_bStickyArrowKeys = false;
+bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 Vector3 g_headCenter; // The head's center: this value should be re-calibrated whenever we set the headset
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &y, float &z);
 
@@ -246,11 +246,10 @@ std::vector<dc_element> g_DCElements = {};
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true;
-int g_iDCElementsRendered = 0, g_iNumDCDestPerFrame = 0, g_iNumHUDRegionsPerFrame = 0, g_iHUDOffscreenCommandsRendered = 0;
-//Direct3DTexture* debugTexture = NULL;
+int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScreenHUDVertexBuffer;
+extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
 
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
@@ -262,7 +261,7 @@ bool g_bEnableVR = true; // Enable/disable VR mode.
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
-float g_fBloomAmplifyFactor = 8.0f, g_fBloomStrength = 1.0f, g_fBloomColorMul = 1.0f;
+float g_fBloomAmplifyFactor = 8.0f, g_fBloomStrength = 1.0f, g_fBloomSaturationStrength = 1.0f, g_fBloomColorMul = 1.0f;
 int g_iNumBloomPasses = 8;
 extern float g_fBloomLayerMult[8];
 
@@ -592,6 +591,7 @@ void ResetVRParams() {
 
 	g_fBrightness = DEFAULT_BRIGHTNESS;
 	g_bStickyArrowKeys = false;
+	g_bYawPitchFromMouseOverride = false;
 
 	g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 	if (g_bUseSteamVR)
@@ -1438,6 +1438,10 @@ bool LoadBloomParams() {
 				g_fBloomStrength = fValue;
 				log_debug("[DBG] [Bloom] g_fBloomStrength: %f", g_fBloomStrength);
 			}
+			else if (_stricmp(param, "saturation_strength") == 0) {
+				g_fBloomSaturationStrength = fValue;
+				log_debug("[DBG] [Bloom] g_fBloomSaturationStrength: %f", g_fBloomSaturationStrength);
+			}
 			else if (_stricmp(param, "bloom_passes") == 0) {
 				g_iNumBloomPasses = (int)fValue;
 				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
@@ -1477,6 +1481,9 @@ bool LoadBloomParams() {
 		}
 	}
 	fclose(file);
+
+	log_debug("[DBG] Reshade Enabled: %d", g_bReshadeEnabled);
+	log_debug("[DBG] Bloom Enabled: %d", g_bBloomEnabled);
 	return true;
 }
 
@@ -1590,6 +1597,9 @@ void LoadVRParams() {
 			else if (_stricmp(param, STICKY_ARROW_KEYS_VRPARAM) == 0) {
 				g_bStickyArrowKeys = (bool)fValue;
 			}
+			else if (_stricmp(param, "yaw_pitch_from_mouse_override") == 0) {
+				g_bYawPitchFromMouseOverride = (bool)fValue;
+			}
 			else if (_stricmp(param, VR_MODE_VRPARAM) == 0) {
 				if (_stricmp(svalue, VR_MODE_NONE_SVAL) == 0) {
 					//g_VRMode = VR_MODE_NONE;
@@ -1677,8 +1687,6 @@ void LoadVRParams() {
 	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
 	fclose(file);
 
-	log_debug("[DBG] Reshade Enabled: %d", g_bReshadeEnabled);
-	log_debug("[DBG] Bloom Enabled: %d", g_bBloomEnabled);
 next:
 	// Load CRCs
 	ReloadCRCs();
@@ -2910,6 +2918,29 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 	}
 }
 
+void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	WORD index;
+	
+	log_debug("[DBG] START Geom");
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = triangle->v1;
+		vert = g_OrigVerts[index];
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
+
+		index = triangle->v2;
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+
+		index = triangle->v3;
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+		triangle++;
+	}
+	log_debug("[DBG] END Geom");
+}
+
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
 	float *minU, float *minV, float *maxU, float *maxV,
@@ -3424,6 +3455,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
 				// bIsSkyBox is true if we're about to render the SkyBox
 				bool bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				bool bIsHyperspaceTunnel = lastTextureSelected != NULL && lastTextureSelected->is_HyperspaceAnim;
 				g_bIsTrianglePointer = lastTextureSelected != NULL && lastTextureSelected->is_TrianglePointer;
 				bool bIsText = lastTextureSelected != NULL && lastTextureSelected->is_Text;
 				bool bIsHUD = lastTextureSelected != NULL && lastTextureSelected->is_HUD;
@@ -3487,20 +3519,6 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					State management ends here
 				 *************************************************************************/
-
-				 /*
-				 if (lastTextureSelected != NULL && lastTextureSelected->is_RebelLaser) {
-					 ID3D11Resource *res = NULL;
-					 static int counter = 0;
-					 wchar_t name[120];
-					 swprintf_s(name, 120, L"c:\\Temp\\RebelLaser%d.png", counter);
-					 lastTextureSelected->is_RebelLaser = false;
-					 lastTextureSelected->_textureView->GetResource(&res);
-					 hr = DirectX::SaveWICTextureToFile(context.Get(),
-						 res, GUID_ContainerFormatPng, name);
-					 counter++;
-				 }
-				 */
 
 				 //if (PlayerDataTable[0].cockpitDisplayed)
 				 //if (PlayerDataTable[0].cockpitDisplayed2)
@@ -3889,7 +3907,12 @@ HRESULT Direct3DDevice::Execute(
 					//log_debug("[DBG] NoZWrite, ZFunc: %d", _renderStates->GetZFunc());
 				//}
 
-				 // Skip specific draw calls for debugging purposes.
+				// Eliminate the default hyperspace animation:
+				//if (bIsHyperspaceTunnel) {
+				//	goto out;
+				//}
+
+				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR
 				if (!bZWriteEnabled)
 					g_iNonZBufferCounter++;
@@ -3992,10 +4015,11 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
-				// Early exit 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
+				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && 
 					(g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
+
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
 					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();
@@ -4023,6 +4047,7 @@ HRESULT Direct3DDevice::Execute(
 					// Enable Z-Buffer if we're drawing the targeted craft
 					if (g_bIsFloating3DObject)
 						QuickSetZWriteEnabled(TRUE);
+
 					// Render
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					g_iHUDOffscreenCommandsRendered++;
@@ -4114,7 +4139,7 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
-				// Early exit 2: if we're not in VR mode, we only need the state; but not the extra
+				// EARLY EXIT 2: if we're not in VR mode, we only need the state; but not the extra
 				// processing. (The state will be used later to do post-processing like Bloom and AO).
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
@@ -4139,6 +4164,15 @@ HRESULT Direct3DDevice::Execute(
 						};
 						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 					}
+
+					//if (bIsHyperspaceTunnel) {
+					//	UINT stride = sizeof(D3DTLVERTEX);
+					//	UINT offset = 0;
+					//	resources->InitVertexBuffer(&g_HUDVertexBuffer, &stride, &offset);
+					//	resources->InitInputLayout(resources->_inputLayout);
+					//	context->Draw(3, 0);
+					//	// TODO: Restore the original input layout here
+					//} else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}
@@ -4164,6 +4198,14 @@ HRESULT Direct3DDevice::Execute(
 						g_VSCBuffer.bFullTransform = 1.0f;
 				}
 
+				// Enable the full transform for the hyperspace tunnel
+				if (bIsHyperspaceTunnel) {
+					bModifiedShaders = true;
+					g_VSCBuffer.bFullTransform = 1.0f;
+					//g_VSCBuffer.sz_override = 0.01f;
+					//g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
+				}
+
 				// The game renders brackets with ZWrite disabled; but we need to enable it temporarily so that we
 				// can place the brackets at infinity and avoid visual contention
 				if (bIsBracket) {
@@ -4183,6 +4225,10 @@ HRESULT Direct3DDevice::Execute(
 
 				if (bIsSkyBox) {
 					bModifiedShaders = true;
+					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
+					//DisplayCoords(instruction, currentIndexLocation);
+					// DEBUG
+
 					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
 					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
 					// Send the skybox to infinity:
@@ -4313,6 +4359,15 @@ HRESULT Direct3DDevice::Execute(
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image
+					//if (bIsHyperspaceTunnel) {
+					//	UINT stride = sizeof(D3DTLVERTEX);
+					//	UINT offset = 0;
+					//	resources->InitVertexBuffer(&g_HyperspaceVertexBuffer, &stride, &offset);
+					//	resources->InitInputLayout(resources->_inputLayout);
+					//	context->Draw(6, 0);
+					//	// TODO: Restore the original input layout here
+					//}
+					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
@@ -4372,7 +4427,11 @@ HRESULT Direct3DDevice::Execute(
 					g_VSMatrixCB.projEye = g_fullMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
-					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+					//if (bIsHyperspaceTunnel) {
+					//	context->Draw(6, 0);
+					//	// TODO: Restore the original input layout here
+					//} else
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
 			out:
@@ -4380,7 +4439,6 @@ HRESULT Direct3DDevice::Execute(
 				g_iDrawCounter++;
 				if (g_iDrawCounterAfterHUD > -1)
 					g_iDrawCounterAfterHUD++;
-				//g_iDrawIndexAfterHUD
 				// Have we just finished drawing the targetting computer?
 				if (lastTextureSelected != NULL && lastTextureSelected->is_Floating_GUI)
 					g_iFloatingGUIDrawnCounter++;

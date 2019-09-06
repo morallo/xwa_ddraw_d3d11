@@ -1,4 +1,5 @@
 #include "BloomCommon.fxh"
+// https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_bloom.fx
 
 // Based on the implementation from:
 // https://learnopengl.com/Advanced-Lighting/Bloom
@@ -14,7 +15,7 @@ cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, uvStepSize, unused, unused3;
+	float bloomStrength, uvStepSize, saturationStrength, unused3;
 	// 32 bytes
 };
 
@@ -24,14 +25,102 @@ struct PixelShaderInput
 	float2 uv : TEXCOORD;
 };
 
+// From http://www.chilliant.com/rgb2hsv.html
+static float Epsilon = 1e-10;
+
+float3 RGBtoHCV(in float3 RGB)
+{
+	// Based on work by Sam Hocevar and Emil Persson
+	float4 P = (RGB.g < RGB.b) ? float4(RGB.bg, -1.0, 2.0 / 3.0) : float4(RGB.gb, 0.0, -1.0 / 3.0);
+	float4 Q = (RGB.r < P.x) ? float4(P.xyw, RGB.r) : float4(RGB.r, P.yzx);
+	float C = Q.x - min(Q.w, Q.y);
+	float H = abs((Q.w - Q.y) / (6 * C + Epsilon) + Q.z);
+	return float3(H, C, Q.x);
+}
+
+float3 HUEtoRGB(in float H)
+{
+	float R = abs(H * 6 - 3) - 1;
+	float G = 2 - abs(H * 6 - 2);
+	float B = 2 - abs(H * 6 - 4);
+	return saturate(float3(R, G, B));
+}
+
+float3 RGBtoHSV(in float3 RGB)
+{
+	float3 HCV = RGBtoHCV(RGB);
+	float S = HCV.y / (HCV.z + Epsilon);
+	return float3(HCV.x, S, HCV.z);
+}
+
+float3 HSVtoRGB(in float3 HSV)
+{
+	float3 RGB = HUEtoRGB(HSV.x);
+	return ((RGB - 1) * HSV.y + 1) * HSV.z;
+}
+
+//float4 main(PixelShaderInput input) : SV_TARGET
+//{
+//	float2 input_uv_sub = input.uv * amplifyFactor;
+//	float4 color = texture0.Sample(sampler0, input.uv);
+//	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
+//	
+//	//float3 HSV = RGBtoHSV(bloom.xyz);
+//	
+//
+//	color.w = 1.0f;
+//	//return color + bloomStrength * bloom;
+//	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
+//	// 1 - (1 - Target) * (1 - Blend)
+//	//return 1 - (1 - color) * (1 - bloomStrength * bloom);
+//
+//	float3 HSV = RGBtoHSV(bloom.xyz);
+//	float V = HSV.z * bloomStrength;
+//	V = V / (V + 1);
+//	HSV.z = V;
+//	// Increase the saturation only in bright areas (otherwise halos are created):
+//	HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
+//	bloom.xyz = HSVtoRGB(HSV);
+//	color = 1 - (1 - color) * (1 - bloom);
+//
+//	//int passes = (int)bloomStrength;
+//	//for (int i = 0; i < passes; i++) {
+//	//	//color += bloom;
+//	//	color = 1 - (1 - color) * (1 - bloom);
+//	//}
+//	return color;
+//}
+
+
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
+
+	//float3 HSV = RGBtoHSV(bloom.xyz);
+
+
 	color.w = 1.0f;
 	//return color + bloomStrength * bloom;
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)
-	return 1 - (1 - color) * (1 - bloomStrength * bloom);
+
+	float3 HSV = RGBtoHSV(bloom.xyz);
+	float V = bloomStrength * HSV.z;
+	//V = pow(max(0, V), BLOOM_TONEMAP_COMPRESSION);
+	V = V / (V + 1);
+	//V = pow(V, 1 / BLOOM_TONEMAP_COMPRESSION);
+	HSV.z = V;
+	// Increase the saturation only in bright areas (otherwise halos are created):
+	HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
+	bloom.rgb = HSVtoRGB(HSV);
+
+	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
+	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);
+	color.rgb = color.rgb / (1.0 + color.rgb);
+	color.rgb = pow(color.rgb, 1.0 / BLOOM_TONEMAP_COMPRESSION);*/
+
+	color.rgb = 1 - (1 - color.rgb) * (1 - bloom.rgb);
+	return color;
 }

@@ -1,5 +1,6 @@
 static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
 //static const float weight[5]   = {0.382928, 0.241732,  0.060598,  0.005977, 0.000229}; // Sigma 1, kernel size 9
+
 //static const float weight[5] = { 0.170793, 0.157829, 0.124548, 0.08393, 0.048297 }; // Sigma 2.5, kernel size 9
 // 0.20236	0.179044	0.124009	0.067234	0.028532 // Sigma 2, kernel size 9
 
@@ -31,7 +32,7 @@ static float BLOOM_LAYER_MULT_7 = 0.01;
 static float BLOOM_ADAPT_STRENGTH = 0.5;
 static float BLOOM_ADAPT_EXPOSURE = 0.0;
 static float BLOOM_ADAPT_SPEED = 2.0;
-static float BLOOM_TONEMAP_COMPRESSION = 4.0;
+static float BLOOM_TONEMAP_COMPRESSION = 4.0; // Original value was 4.0
 
 float4 downsample(Texture2D tex, SamplerState s, float2 tex_size, float2 uv)
 {

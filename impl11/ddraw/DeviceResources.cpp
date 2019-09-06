@@ -73,7 +73,7 @@ extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
 extern bool g_bHUDVerticesReady;
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScreenHUDVertexBuffer;
+extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 // SteamVR
@@ -477,6 +477,92 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	}
 
 	g_bHUDVerticesReady = true;
+}
+
+void BuildHyperspaceVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) {
+	HRESULT hr;
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	//float depth = g_fHUDDepth;
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
+	// Why do I even have to bother? Can I just use my *own* vertex shader and do
+	// away with all this silliness?
+	D3DTLVERTEX HUDVertices[6] = { 0 };
+
+	HUDVertices[0].sx = 0;
+	HUDVertices[0].sy = 0;
+	HUDVertices[0].sz = sz_depth;
+	HUDVertices[0].rhw = rhw_depth;
+	HUDVertices[0].tu = 0;
+	HUDVertices[0].tv = 0;
+	HUDVertices[0].color = color;
+
+	HUDVertices[1].sx = (float)width;
+	HUDVertices[1].sy = 0;
+	HUDVertices[1].sz = sz_depth;
+	HUDVertices[1].rhw = rhw_depth;
+	HUDVertices[1].tu = 1;
+	HUDVertices[1].tv = 0;
+	HUDVertices[1].color = color;
+
+	HUDVertices[2].sx = (float)width;
+	HUDVertices[2].sy = (float)height;
+	HUDVertices[2].sz = sz_depth;
+	HUDVertices[2].rhw = rhw_depth;
+	HUDVertices[2].tu = 1;
+	HUDVertices[2].tv = 1;
+	HUDVertices[2].color = color;
+
+	HUDVertices[3].sx = (float)width;
+	HUDVertices[3].sy = (float)height;
+	HUDVertices[3].sz = sz_depth;
+	HUDVertices[3].rhw = rhw_depth;
+	HUDVertices[3].tu = 1;
+	HUDVertices[3].tv = 1;
+	HUDVertices[3].color = color;
+
+	HUDVertices[4].sx = 0;
+	HUDVertices[4].sy = (float)height;
+	HUDVertices[4].sz = sz_depth;
+	HUDVertices[4].rhw = rhw_depth;
+	HUDVertices[4].tu = 0;
+	HUDVertices[4].tv = 1;
+	HUDVertices[4].color = color;
+
+	HUDVertices[5].sx = 0;
+	HUDVertices[5].sy = 0;
+	HUDVertices[5].sz = sz_depth;
+	HUDVertices[5].rhw = rhw_depth;
+	HUDVertices[5].tu = 0;
+	HUDVertices[5].tv = 0;
+	HUDVertices[5].color = color;
+
+	/* Create the VertexBuffer if necessary */
+	if (g_HyperspaceVertexBuffer != NULL) {
+		g_HyperspaceVertexBuffer->Release();
+		g_HyperspaceVertexBuffer = NULL;
+	}
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HUDVertices);
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = HUDVertices;
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_HyperspaceVertexBuffer);
+	if (FAILED(hr)) {
+		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
+	}
+	else
+		log_debug("[DBG] [DC] g_HyperspaceVertexBuffer ready");
+
+	//g_bHUDVerticesReady = true;
 }
 
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
@@ -925,7 +1011,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			} else {
 				log_err("Successfully created _offscreenBufferAsInputDynCockpit with combined flags\n");
-				//log_debug("[DBG] [DC] _offscreenAsInputDynCockpit CREATED");
 			}
 
 			step = "_offscreenBufferAsInputDynCockpitBG";
@@ -938,7 +1023,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			} else {
 				log_err("Successfully created _offscreenBufferAsInputDynCockpitBG with combined flags\n");
-				//log_debug("[DBG] [DC] _offscreenAsInputDynCockpitBG CREATED");
 			}
 
 			// Restore the previous bind flags, just in case there is a dependency on these later on
@@ -1058,6 +1142,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// Build the HUD vertex buffer
 		BuildHUDVertexBuffer(_d3dDevice, _displayWidth, _displayHeight);
+		BuildHyperspaceVertexBuffer(_d3dDevice, _displayWidth, _displayHeight);
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 	}

@@ -30,7 +30,8 @@ extern std::vector<dc_element> g_DCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern int g_iDCElementsRendered, g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, g_iHUDOffscreenCommandsRendered;
+extern int g_iHUDOffscreenCommandsRendered;
+extern bool g_bYawPitchFromMouseOverride;
 //extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -58,7 +59,7 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
 bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
-ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL; // , *g_ClearFullScreenHUDVertexBuffer = NULL;
+ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL, *g_HyperspaceVertexBuffer = NULL;
 bool g_bClearHUDBuffers = false;
 
 // Bloom
@@ -204,7 +205,7 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 // Bloom
 BloomPixelShaderCBStruct g_BloomPSCBuffer;
 extern bool g_bBloomEnabled;
-extern float g_fBloomAmplifyFactor, g_fBloomStrength, g_fBloomColorMul;
+extern float g_fBloomAmplifyFactor, g_fBloomStrength, g_fBloomSaturationStrength, g_fBloomColorMul;
 extern int g_iNumBloomPasses;
 
 // Main Pixel Shader constant buffer
@@ -1769,6 +1770,13 @@ HRESULT PrimarySurface::Flip(
 				interval = g_iNaturalConcourseAnimations ? interval : 1;
 				if (g_iNaturalConcourseAnimations > 1)
 					interval = g_iNaturalConcourseAnimations;
+				// DEBUG
+				static bool bDisplayInterval = true;
+				if (bDisplayInterval) {
+					log_debug("[DBG] g_iNaturalConcourseAnimations: %d, interval: %d", g_iNaturalConcourseAnimations, interval);
+					bDisplayInterval = false;
+				}
+				// DEBUG
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
@@ -1844,10 +1852,6 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
-					// DEBUG
-					g_iNumDCDestPerFrame = 0;
-					g_iNumHUDRegionsPerFrame = 0;
-					// DEBUG
 					// Present 2D
 					if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))
 					{
@@ -1863,6 +1867,7 @@ HRESULT PrimarySurface::Flip(
 						hr = DDERR_SURFACELOST;
 						break;
 					}
+
 					if (g_bUseSteamVR) {
 						g_pVRCompositor->PostPresentHandoff();
 						WaitGetPoses();
@@ -1929,6 +1934,13 @@ HRESULT PrimarySurface::Flip(
 					//g_fBloomAmplifyFactor = fCurZoomFactor;
 					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
 
+					// DEBUG
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
+						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+					}*/
+					// DEBUG
+
 					float fOldZoomFactor = g_fBloomAmplifyFactor;
 					int iOldNumPasses = g_iNumBloomPasses;
 					if (PlayerDataTable->hyperspacePhase) {
@@ -1938,32 +1950,82 @@ HRESULT PrimarySurface::Flip(
 						g_iNumBloomPasses = 2;
 					}
 
+					float fCurZoomFactor = 2.0f, fSaveZoomFactor = g_fBloomAmplifyFactor;
+
+					// Bloom at Zoom = 2
+					g_fBloomAmplifyFactor = fCurZoomFactor;
 					//g_BloomPSCBuffer.pixelSizeX    = 1.0f / (g_fCurScreenWidth  * g_fBloomAmplifyFactor);
 					//g_BloomPSCBuffer.pixelSizeY    = 1.0f / (g_fCurScreenHeight * g_fBloomAmplifyFactor);
 					g_BloomPSCBuffer.pixelSizeX    = g_fBloomAmplifyFactor / g_fCurScreenWidth;
 					g_BloomPSCBuffer.pixelSizeY    = g_fBloomAmplifyFactor / g_fCurScreenHeight;
-					g_BloomPSCBuffer.colorMul      = g_fBloomColorMul;					
+					g_BloomPSCBuffer.colorMul      = g_fBloomColorMul;	
 					//g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
 					g_BloomPSCBuffer.amplifyFactor = 1.0f;
-					g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
+					//g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
+					g_BloomPSCBuffer.bloomStrength = g_fBloomLayerMult[1];
+					g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
+					//g_BloomPSCBuffer.uvStepSize    = 2.0f;
+					g_BloomPSCBuffer.uvStepSize	   = 3.0f;
+					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
+					bloom(0);
+					
+					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
+					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
+					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
+					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+					// Vertical Gaussian Blur. input: bloom1, output: bloom2
+					bloom(1);
+					
+					// DEBUG
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2.jpg");
+					}*/
+					// DEBUG
+					
+					for (int i = 0; i < 1; i++) {
+						// Alternating between 2.0 and 1.5 avoids banding artifacts
+						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
+						//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
+						g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
+						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+						// Horizontal Gaussian Blur. input: bloom2, output: bloom1
+						bloom(2);
+						// Vertical Gaussian Blur. input: bloom1, output: bloom2
+						bloom(1);
+					}
+
+					g_BloomPSCBuffer.amplifyFactor = 1.0f / g_fBloomAmplifyFactor;
+					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+					// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
+					bloom(3);
+
+					// To make this step compatible with the rest of the code, we need to copy the results
+					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
+					context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
+					if (g_bUseSteamVR)
+						context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
+
+
+
+
+					// Bloom at original Zoom factor
+					g_fBloomAmplifyFactor = fSaveZoomFactor;
+					g_BloomPSCBuffer.pixelSizeX = g_fBloomAmplifyFactor / g_fCurScreenWidth;
+					g_BloomPSCBuffer.pixelSizeY = g_fBloomAmplifyFactor / g_fCurScreenHeight;
+					g_BloomPSCBuffer.colorMul = g_fBloomColorMul;
+					//g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
+					g_BloomPSCBuffer.amplifyFactor = 1.0f;
+					//g_BloomPSCBuffer.bloomStrength = g_fBloomStrength;
+					g_BloomPSCBuffer.bloomStrength = g_fBloomLayerMult[2];
+					g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
 					//g_BloomPSCBuffer.uvStepSize    = 2.0f;
 					g_BloomPSCBuffer.uvStepSize = 3.0f;
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
-						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					}*/
-					// DEBUG
-
 					// Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 					bloom(0);
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput1.jpg");
-					}*/
-					// DEBUG
 
 					g_BloomPSCBuffer.pixelSizeX = g_fCurScreenWidthRcp;
 					g_BloomPSCBuffer.pixelSizeY = g_fCurScreenHeightRcp;
@@ -1971,48 +2033,7 @@ HRESULT PrimarySurface::Flip(
 					resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 					// Vertical Gaussian Blur. input: bloom1, output: bloom2
 					bloom(1);
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_bloomOutput2, L"C:\\Temp\\_bloomOutput2.jpg");
-					}*/
-					// DEBUG
 
-					//goto skip;
-
-					// Pyramidal Bloom
-					/*
-					// Downsample iterations
-					for (int i = 2; i <= 3; i++) {
-						fCurZoomFactor *= 2.0f;
-						g_fBloomAmplifyFactor = fCurZoomFactor;
-						g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
-						g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[i];
-						
-						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-						for (int j = 0; j < 3; j++) {
-							// Horizontal Gaussian Blur. input: reshade2, output: reshade1
-							bloom(2);
-							// Vertical Gaussian Blur. input: reshade1, output: reshade2
-							bloom(1);
-						}
-					}
-					// Upsample iterations
-					g_BloomPSCBuffer.uvStepSize = 1.5f;
-					for (int i = 3; i >= 2; i--) {
-						fCurZoomFactor /= 2.0f;
-						g_fBloomAmplifyFactor = fCurZoomFactor;
-						g_BloomPSCBuffer.amplifyFactor = g_fBloomAmplifyFactor;
-						g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[i];
-						resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-						for (int j = 0; j < 3; j++) {
-							// Horizontal Gaussian Blur. input: reshade2, output: reshade1
-							bloom(2);
-							// Vertical Gaussian Blur. input: reshade1, output: reshade2
-							bloom(1);
-						}
-					}
-					*/
-										
 					for (int i = 0; i < g_iNumBloomPasses; i++) {
 						// Alternating between 2.0 and 1.5 avoids banding artifacts
 						//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
@@ -2043,11 +2064,12 @@ HRESULT PrimarySurface::Flip(
 					}
 
 					// The final output of the bloom effect will always be in bloom1
-
+					// DEBUG
 					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 						capture(0, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput1-Final.jpg");
 						g_bDumpBloomBuffers = false;
 					}*/
+					// DEBUG
 
 					// To make this step compatible with the rest of the code, we need to copy the results
 					// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
@@ -2099,23 +2121,10 @@ HRESULT PrimarySurface::Flip(
 				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 					this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
-			// DEBUG
-			if (g_bDynCockpitEnabled) {
-				//if (g_iDCElementsRendered > 0)
-				//	log_debug("[DBG] [DC] g_iDCElementsRendered: %d", g_iDCElementsRendered);
-				//log_debug("[DBG] [DC] g_iNumDCDestPerFrame: %d, g_iNumHUDRegionsPerFrame: %d, Hangar: %d",
-				//	g_iNumDCDestPerFrame, g_iNumHUDRegionsPerFrame, *g_playerInHangar);
-				//log_debug("[DBG] [DC] g_iHUDOffscreenCommandsRendered: %d", g_iHUDOffscreenCommandsRendered);
-				g_iNumDCDestPerFrame = 0;
-				g_iNumHUDRegionsPerFrame = 0;
-			}
-			// DEBUG
-
 			// Let's reset some frame counters and other control variables
 			g_iDrawCounter = 0; g_iExecBufCounter = 0;
 			g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
 			g_iFloatingGUIDrawnCounter = 0;
-			g_iDCElementsRendered = 0;
 			g_bTargetCompDrawn = false;
 			g_bPrevIsFloatingGUI3DObject = false;
 			g_bIsFloating3DObject = false;
@@ -2248,12 +2257,18 @@ HRESULT PrimarySurface::Flip(
 						headCenter[2] = g_FreePIEData.z;
 					}
 					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
-					yaw   = g_FreePIEData.yaw   * g_fYawMultiplier;
-					pitch = g_FreePIEData.pitch * g_fPitchMultiplier;
-					roll  = g_FreePIEData.roll  * g_fRollMultiplier;
+					yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
+					pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
+					roll   = g_FreePIEData.roll  * g_fRollMultiplier;
 					yaw   += g_fYawOffset;
 					pitch += g_fPitchOffset;
 					headPos = (pos - headCenter);
+				} 
+				
+				if (g_bYawPitchFromMouseOverride) {
+					// If FreePIE could not be read, then get the yaw/pitch from the mouse:
+					yaw   =  (float)PlayerDataTable[0].cockpitCameraYaw / 32768.0f * 180.0f;
+					pitch = -(float)PlayerDataTable[0].cockpitCameraPitch / 32768.0f * 180.0f;
 				}
 
 				if (g_bResetHeadCenter)
