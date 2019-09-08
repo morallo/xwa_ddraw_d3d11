@@ -114,6 +114,30 @@ std::vector<char *> Explosions_ResNames = {
 	//"dat,21025,",
 };
 
+// List of Lens Flare effects
+std::vector<char *> LensFlare_ResNames = {
+	"dat,1000,3,",
+	"dat,1000,4,",
+	"dat,1000,5,",
+	"dat,1000,6,",
+	"dat,1000,7,",
+	"dat,1000,8,",
+};
+
+// List of Suns in the Backdrop.dat file
+std::vector<char *> Sun_ResNames = {
+	"dat,9001,",
+	"dat,9002,",
+	"dat,9003,",
+	"dat,9004,",
+	"dat,9005,",
+	"dat,9006,",
+	"dat,9007,",
+	"dat,9008,",
+	"dat,9009,",
+	"dat,9010,",
+};
+
 // g_DCElements is used when loading textures to load the cover texture.
 extern std::vector<dc_element> g_DCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
@@ -271,6 +295,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Explosion = false;
 	this->is_HyperspaceAnim = false;
 	this->is_FlatLightEffect = false;
+	this->is_LensFlare = false;
+	this->is_Sun = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -428,109 +454,120 @@ HRESULT Direct3DTexture::PaletteChanged(
 void TagTexture(Direct3DTexture *d3dTexture) {
 	TextureSurface *surface = d3dTexture->_surface;
 	d3dTexture->is_Tagged = true;
-	if (surface->_mipmapCount == 1) {
+	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
+	// and regular textures because mip-mapping may be turned off in the video settings
+	// menu.
+	//if (surface->_mipmapCount == 1)
 		//if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
 		//	surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
 		//	surface->_width == 512 || surface->_width == 768)
-		{
-			// Capture the textures
+	{
+		// Capture the textures
 #ifdef DBG_VR
 
-			{
-				static int TexIndex = 0;
-				wchar_t filename[300];
-				swprintf_s(filename, 300, L"c:\\XWA-Tex-w-names-3\\img-%d.png", TexIndex);
-				saveSurface(filename, (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
+		{
+			static int TexIndex = 0;
+			wchar_t filename[300];
+			swprintf_s(filename, 300, L"c:\\XWA-Tex-w-names-3\\img-%d.png", TexIndex);
+			saveSurface(filename, (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
 
-				char buf[300];
-				sprintf_s(buf, 300, "c:\\XWA-Tex-w-names-3\\data-%d.txt", TexIndex);
-				FILE *file;
-				fopen_s(&file, buf, "wt");
-				fprintf(file, "0x%x, size: %d, %d, name: '%s'\n", crc, surface->_width, surface->_height, surface->_name);
-				fclose(file);
+			char buf[300];
+			sprintf_s(buf, 300, "c:\\XWA-Tex-w-names-3\\data-%d.txt", TexIndex);
+			FILE *file;
+			fopen_s(&file, buf, "wt");
+			fprintf(file, "0x%x, size: %d, %d, name: '%s'\n", crc, surface->_width, surface->_height, surface->_name);
+			fclose(file);
 
-				TexIndex++;
-			}
+			TexIndex++;
+		}
 #endif
 
-			if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
-				d3dTexture->is_TrianglePointer = true;
-			else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
-				d3dTexture->is_TargetingComp = true;
-			else if (isInVector(surface->_name, HUD_ResNames))
-				d3dTexture->is_HUD = true;
-			else if (isInVector(surface->_name, Text_ResNames))
-				d3dTexture->is_Text = true;
+		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
+			d3dTexture->is_TrianglePointer = true;
+		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+			d3dTexture->is_TargetingComp = true;
+		else if (isInVector(surface->_name, HUD_ResNames))
+			d3dTexture->is_HUD = true;
+		else if (isInVector(surface->_name, Text_ResNames))
+			d3dTexture->is_Text = true;
 
-			if (isInVector(surface->_name, Floating_GUI_ResNames))
-				d3dTexture->is_Floating_GUI = true;
-			if (isInVector(surface->_name, GUI_ResNames))
-				d3dTexture->is_GUI = true;
-			// Catch the engine glow and mark it
-			if (strstr(surface->_name, "dat,1000,1,") != NULL)
-				d3dTexture->is_EngineGlow = true;
-			// Catch the flat light effect
-			if (strstr(surface->_name, "dat,1000,2") != NULL)
-				d3dTexture->is_FlatLightEffect = true;
-			// Catch the explosions and mark them
-			if (isInVector(surface->_name, Explosions_ResNames))
-				d3dTexture->is_Explosion = true;
-			// Catch the hyperspace anim and mark it
-			if (strstr(surface->_name, "dat,3051,") != NULL)
-				d3dTexture->is_HyperspaceAnim = true;
+		if (isInVector(surface->_name, Floating_GUI_ResNames))
+			d3dTexture->is_Floating_GUI = true;
+		if (isInVector(surface->_name, GUI_ResNames))
+			d3dTexture->is_GUI = true;
 
-			/* Special handling for Dynamic Cockpit source HUD textures */
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-				if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_TargetCompSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
-					(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
-					d3dTexture->is_DC_LeftSensorSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
-					(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
-					d3dTexture->is_DC_RightSensorSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_ShieldsSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_SolidMsgSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_BorderMsgSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_LaserBoxSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_IonBoxSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_BeamBoxSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_TopLeftSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
-				if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
-					d3dTexture->is_DC_TopRightSrc = true;
-					d3dTexture->is_DC_HUDRegionSrc = true;
-				}
+		// Catch the engine glow and mark it
+		if (strstr(surface->_name, "dat,1000,1,") != NULL)
+			d3dTexture->is_EngineGlow = true;
+		// Catch the flat light effect
+		if (strstr(surface->_name, "dat,1000,2") != NULL)
+			d3dTexture->is_FlatLightEffect = true;
+		// Catch the explosions and mark them
+		if (isInVector(surface->_name, Explosions_ResNames))
+			d3dTexture->is_Explosion = true;
+		// Catch the lens flare and mark it
+		if (isInVector(surface->_name, LensFlare_ResNames))
+			d3dTexture->is_LensFlare = true;
+		// Catch the hyperspace anim and mark it
+		if (strstr(surface->_name, "dat,3051,") != NULL)
+			d3dTexture->is_HyperspaceAnim = true;
+		// Catch the backdrup suns and mark them
+		if (isInVector(surface->_name, Sun_ResNames))
+			d3dTexture->is_Sun = true;
+
+		/* Special handling for Dynamic Cockpit source HUD textures */
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_TargetCompSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+				d3dTexture->is_DC_LeftSensorSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+				d3dTexture->is_DC_RightSensorSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_ShieldsSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_SolidMsgSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_BorderMsgSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_LaserBoxSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_IonBoxSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_BeamBoxSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_TopLeftSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+				d3dTexture->is_DC_TopRightSrc = true;
+				d3dTexture->is_DC_HUDRegionSrc = true;
 			}
 		}
 	}
-	else if (surface->_mipmapCount > 1) {
+
+	//else if (surface->_mipmapCount > 1)
+	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		
 		// Catch the laser-related textures and mark them
@@ -550,7 +587,6 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 			if (g_sCurrentCockpit[0] == 0) {
 				if (strstr(surface->_name, "Cockpit") != NULL) {
 					//strstr(surface->_name, "Gunner")  != NULL)  {
-					//log_debug("[DBG] [DC] Cockpit found");
 					char *start = strstr(surface->_name, "\\");
 					char *end = strstr(surface->_name, ".opt");
 					if (start != NULL && end != NULL) {
@@ -644,6 +680,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_Explosion = d3dTexture->is_Explosion;
 	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
+	this->is_LensFlare = d3dTexture->is_LensFlare;
+	this->is_Sun = d3dTexture->is_Sun;
 	// TODO: Remove later:
 	// TODO: We don't need to copy texture names around!
 	// Actually, it looks like we need to copy the texture names in order to have them available

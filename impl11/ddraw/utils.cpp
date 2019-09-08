@@ -696,12 +696,12 @@ void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWO
 
 void log_debug(const char *format, ...)
 {
-	char buf[120];
+	char buf[256];
 
 	va_list args;
 	va_start(args, format);
 
-	vsprintf_s(buf, 120, format, args);
+	vsprintf_s(buf, 256, format, args);
 	OutputDebugString(buf);
 
 	va_end(args);

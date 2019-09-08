@@ -257,12 +257,13 @@ bool g_bCockpitPZHackEnabled = true;
 bool g_bOverrideAspectRatio = false;
 bool g_bEnableVR = true; // Enable/disable VR mode.
 
+const int MAX_BLOOM_PASSES = 5;
 // Bloom
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
-float g_fBloomAmplifyFactor = 8.0f, g_fBloomStrength = 1.0f, g_fBloomSaturationStrength = 1.0f, g_fBloomColorMul = 1.0f;
-int g_iNumBloomPasses = 8;
+float g_fBloomSaturationStrength = 1.0f, g_fBloomColorMul = 1.0f;
+int g_iNumBloomPasses = MAX_BLOOM_PASSES;
 extern float g_fBloomLayerMult[8];
 
 bool g_bDumpSpecificTex = false;
@@ -1428,22 +1429,14 @@ bool LoadBloomParams() {
 				g_bBloomEnabled = state;
 			}
 			// Bloom
-			else if (_stricmp(param, "bloom_screen_size_sub_scale") == 0) {
-				if (fValue < 1.0f)
-					fValue = 1.0f;
-				g_fBloomAmplifyFactor = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomAmplifyFactor: %f", g_fBloomAmplifyFactor);
-			}
-			else if (_stricmp(param, "bloom_strength") == 0) {
-				g_fBloomStrength = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomStrength: %f", g_fBloomStrength);
-			}
 			else if (_stricmp(param, "saturation_strength") == 0) {
 				g_fBloomSaturationStrength = fValue;
 				log_debug("[DBG] [Bloom] g_fBloomSaturationStrength: %f", g_fBloomSaturationStrength);
 			}
 			else if (_stricmp(param, "bloom_passes") == 0) {
 				g_iNumBloomPasses = (int)fValue;
+				if (g_iNumBloomPasses > MAX_BLOOM_PASSES)
+					g_iNumBloomPasses = MAX_BLOOM_PASSES;
 				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
 			}
 			else if (_stricmp(param, "bloom_pass_gain") == 0) {
@@ -1475,8 +1468,6 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "bloom_layer_mult_7") == 0) {
 				g_fBloomLayerMult[7] = fValue;
-				for (int i = 1; i < 8; i++)
-					log_debug("[DBG] [Bloom] g_fBloomLayerMult[%d] = %f", i, g_fBloomLayerMult[i]);
 			}
 		}
 	}
@@ -3451,36 +3442,39 @@ HRESULT Direct3DDevice::Execute(
 				   been drawn. Here it's being set *before* it's drawn. */
 				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
 					g_bTargetCompDrawn = true;
+				bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
 				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
 				// bIsSkyBox is true if we're about to render the SkyBox
 				bool bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
-				bool bIsHyperspaceTunnel = lastTextureSelected != NULL && lastTextureSelected->is_HyperspaceAnim;
-				g_bIsTrianglePointer = lastTextureSelected != NULL && lastTextureSelected->is_TrianglePointer;
-				bool bIsText = lastTextureSelected != NULL && lastTextureSelected->is_Text;
-				bool bIsHUD = lastTextureSelected != NULL && lastTextureSelected->is_HUD;
-				bool bIsGUI = lastTextureSelected != NULL && lastTextureSelected->is_GUI;
+				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
+				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
+				bool bIsAimingHUD  = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
+				bool bIsGUI  = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
+				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
+				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
+				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
 				// Shadows  are rendered with ZFunc D3DCMP_GREATEREQUAL (7)
 				// Cockpit Glass & Engine Glow are rendered with ZFunc D3DCMP_GREATER (5)
-				bool bIsBracket = bIsNoZWrite && lastTextureSelected == NULL &&
+				bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
-				bool bIsFloatingGUI = lastTextureSelected != NULL && lastTextureSelected->is_Floating_GUI;
-				bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
+				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
+				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
-				g_bIsFloating3DObject = g_bTargetCompDrawn && lastTextureSelected != NULL &&
+				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
 					!lastTextureSelected->is_Text && !lastTextureSelected->is_TrianglePointer &&
 					!lastTextureSelected->is_HUD && !lastTextureSelected->is_Floating_GUI &&
-					!lastTextureSelected->is_TargetingComp;
+					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				g_bPrevStartedGUI = g_bStartedGUI;
 				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI;
 				// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 				g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
-				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsHUD && !bIsBracket && !g_bIsTrianglePointer;
+				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsAimingHUD && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
 
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
@@ -3508,32 +3502,36 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					lastTextureSelected != NULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
+					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				bool bRenderToDynCockpitBGBuffer = false;
 
 				// Render HUD backgrounds to their own layer (HUD BG)
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					lastTextureSelected != NULL && lastTextureSelected->is_DC_HUDRegionSrc)
+					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
 				/*************************************************************************
 					State management ends here
 				 *************************************************************************/
 
-				 //if (PlayerDataTable[0].cockpitDisplayed)
-				 //if (PlayerDataTable[0].cockpitDisplayed2)
-				 //	goto out;
+				// DEBUG
+				// [4540] [DBG] LENSFLARE, bIsFloatingGUI: 0, g_bStartedGUI: 1, g_bIsScaleableGUIElem: 0, bRenderToDynCockpitBuffer: 0, bRenderToDynCockpitBGBuffer: 0
+				// DEBUG
 
-				 //if (lastTextureSelected != NULL && lastTextureSelected->is_DC_LeftSensorSrc && debugTexture == NULL) {
-				 //	log_debug("[DBG] [DC] lastTextureSelected is_DC_LeftSensorSrc TRUE");
-				 //	debugTexture = lastTextureSelected;
-				 //}
-				 //if (debugTexture != NULL) {
-				 //	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
-				 //}
+				//if (PlayerDataTable[0].cockpitDisplayed)
+				//if (PlayerDataTable[0].cockpitDisplayed2)
+				//	goto out;
+
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc && debugTexture == NULL) {
+				//	log_debug("[DBG] [DC] lastTextureSelected is_DC_LeftSensorSrc TRUE");
+				//	debugTexture = lastTextureSelected;
+				//}
+				//if (debugTexture != NULL) {
+				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
+				//}
 
 				 // Capture the bounds for the left sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_LeftSensorSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 				{
 					if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 					{
@@ -3585,7 +3583,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the right sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_RightSensorSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
 				{
 					if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 					{
@@ -3627,7 +3625,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the shields:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_ShieldsSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
 				{
 					if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
 					{
@@ -3657,7 +3655,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the tractor beam:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_BeamBoxSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
 				{
 					if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
 					{
@@ -3687,7 +3685,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the targeting computer:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_TargetCompSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
 				{
 					if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
 					{
@@ -3773,7 +3771,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the left/right message boxes:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_SolidMsgSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
 				{
 					//if (lastTextureSelected->is_DC_BorderMsgSrc ||
 					//	)
@@ -3826,7 +3824,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the top-left bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_TopLeftSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
 				{
 					if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
 					{
@@ -3862,7 +3860,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Capture the bounds for the top-right bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DC_TopRightSrc)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
 				{
 					if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
 					{
@@ -3899,7 +3897,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
-					lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
+					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
@@ -3932,7 +3930,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bStartedGUI && g_bSkipGUI)
 					goto out;
 				// Engine glow:
-				//if (bIsNoZWrite && lastTextureSelected != NULL && g_bSkipGUI)
+				//if (bIsNoZWrite && bLastTextureSelectedNotNULL && g_bSkipGUI)
 				//	goto out;
 
 				/* if (bIsBracket) {
@@ -3967,7 +3965,7 @@ HRESULT Direct3DDevice::Execute(
 				// Modify the state for both VR and regular game modes...
 
 				// Send the flag for lasers (enhance them in 32-bit mode, apply bloom)
-				if (lastTextureSelected != NULL && lastTextureSelected->is_Laser) {
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Laser) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsLaser = 1;
 					if (g_config.EnhanceLasers)
@@ -3975,7 +3973,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
-				if (lastTextureSelected != NULL && lastTextureSelected->is_LightTexture) {
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsLightTexture = 1;
 					if (g_config.EnhanceIllumination)
@@ -3983,7 +3981,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
-				if (lastTextureSelected != NULL && (lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion)) {
+				if (bLastTextureSelectedNotNULL && 
+					(lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion || 
+					 lastTextureSelected->is_LensFlare || bIsSun)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsEngineGlow = 1;
 					if (g_config.EnhanceEngineGlow && lastTextureSelected->is_EngineGlow)
@@ -3997,7 +3997,7 @@ HRESULT Direct3DDevice::Execute(
 					// 2: Entering hyperspace
 					// 4: Traveling through hyperspace (animation plays back at this point)
 					// 3: Exiting hyperspace
-					if (lastTextureSelected != NULL) {
+					if (bLastTextureSelectedNotNULL) {
 						if (lastTextureSelected->is_FlatLightEffect) {
 							bModifiedShaders = true;
 							g_PSCBuffer.bIsHyperspaceStreak = 1;
@@ -4079,7 +4079,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Dynamic Cockpit: Replace textures at run-time:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && lastTextureSelected != NULL && lastTextureSelected->is_DynCockpitDst)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
 					// Check if this idx is valid before rendering
@@ -4096,8 +4096,8 @@ HRESULT Direct3DDevice::Execute(
 									continue;
 
 								if (src_slot >= (int)g_DCElemSrcBoxes.src_boxes.size()) {
-									log_debug("[DBG] [DC] src_slot: %d bigger than src_boxes.size! %d",
-										src_slot, g_DCElemSrcBoxes.src_boxes.size());
+									//log_debug("[DBG] [DC] src_slot: %d bigger than src_boxes.size! %d",
+									//	src_slot, g_DCElemSrcBoxes.src_boxes.size());
 									continue;
 								}
 
@@ -4189,7 +4189,7 @@ HRESULT Direct3DDevice::Execute(
 				 // * Maybe explosions and other animations? I think explosions are actually rendered at depth (?)
 				 // * Cockpit sparks?
 
-				 // Reduce the scale for GUI elements, except for the HUD
+				 // Reduce the scale for GUI elements, except for the HUD and Lens Flare
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
 					g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
@@ -4243,7 +4243,7 @@ HRESULT Direct3DDevice::Execute(
 				*/
 
 				// Add an extra depth to HUD elements
-				if (bIsHUD) {
+				if (bIsAimingHUD) {
 					bModifiedShaders = true;
 					g_VSCBuffer.z_override = g_fHUDDepth;
 					if (g_bFloatingAimingHUD)
@@ -4259,8 +4259,8 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.z_override = g_fTextDepth;
 				}
 
-				// Add extra depth to Floating GUI elements
-				if (bIsFloatingGUI || g_bIsFloating3DObject || g_bIsScaleableGUIElem) {
+				// Add extra depth to Floating GUI elements and Lens Flare
+				if (bIsFloatingGUI || g_bIsFloating3DObject || g_bIsScaleableGUIElem || bIsLensFlare) {
 					bModifiedShaders = true;
 					if (!bIsBracket)
 						g_VSCBuffer.z_override = g_fFloatingGUIDepth;
@@ -4278,7 +4278,7 @@ HRESULT Direct3DDevice::Execute(
 				/*
 				// HACK
 				// Skip the text call after the triangle pointer is rendered
-				if (g_bLastTrianglePointer && lastTextureSelected != NULL && lastTextureSelected->is_Text) {
+				if (g_bLastTrianglePointer && bLastTextureSelectedNotNULL && lastTextureSelected->is_Text) {
 					g_bLastTrianglePointer = false;
 					//log_debug("[DBG] Skipping text");
 					bModifiedShaders = true;
@@ -4440,7 +4440,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_iDrawCounterAfterHUD > -1)
 					g_iDrawCounterAfterHUD++;
 				// Have we just finished drawing the targetting computer?
-				if (lastTextureSelected != NULL && lastTextureSelected->is_Floating_GUI)
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI)
 					g_iFloatingGUIDrawnCounter++;
 
 				if (g_bIsTrianglePointer)

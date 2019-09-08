@@ -38,6 +38,10 @@ public:
 	bool is_HyperspaceAnim;
 	// True for dat,1000,2, (used for the hyperspace streak effect)
 	bool is_FlatLightEffect;
+	// True for lens flare effects
+	bool is_LensFlare;
+	// True for suns in the backdrop dat files
+	bool is_Sun;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures

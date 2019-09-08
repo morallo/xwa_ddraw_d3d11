@@ -1336,16 +1336,17 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=fals
  *		_offscreenBuffer (with accumulated bloom)
  *		_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR (blurred and downsampled from this pass)
  */
-void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fViewportDivider,
-	float fFirstPassZoomFactor, float fZoomFactor, float fFinalPassZoomFactor, bool debug=false) {
+void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
+	float fPixelScale = 4.0f;
+	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
 
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
 	// with a zoom factor:
-	g_BloomPSCBuffer.pixelSizeX			= 4.0f * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
-	g_BloomPSCBuffer.pixelSizeY			= 4.0f * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp  / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
@@ -1355,38 +1356,40 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// DEBUG
-	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
 		swprintf_s(filename, 80, L"c:\\temp\\_offscreenInputBloomMask-%d.jpg", PyramidLevel);
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
-	}
+	}*/
 	// DEBUG
 
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
-	BloomBasicPass(0, fViewportDivider, debug);
+	BloomBasicPass(0, fZoomFactor, debug);
 	// DEBUG
-	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
 		swprintf_s(filename, 80, L"c:\\temp\\_bloom1-pass0-level-%d.jpg", PyramidLevel);
 		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput1, GUID_ContainerFormatJpeg, filename);
-	}
+	}*/
 	// DEBUG
 
 	// Second Vertical Gaussian Blur: adjust the pixel size since this image was downsampled in
 	// the previous pass:
-	g_BloomPSCBuffer.pixelSizeX		= 4.0f * g_fCurScreenWidthRcp / fZoomFactor;
-	g_BloomPSCBuffer.pixelSizeY		= 4.0f * g_fCurScreenHeightRcp / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY		= fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
 	// The UVs should now go to half the original range because the image was downsampled:
 	g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
-	BloomBasicPass(1, fViewportDivider);
-	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	BloomBasicPass(1, fZoomFactor);
+	// DEBUG
+	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
 		swprintf_s(filename, 80, L"c:\\temp\\_bloom2-pass1-level-%d.jpg", PyramidLevel);
 		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
-	}
+	}*/
+	// DEBUG
 
 	for (int i = 0; i < AdditionalPasses; i++) {
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
@@ -1395,9 +1398,9 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 		// Horizontal Gaussian Blur. input: bloom2, output: bloom1
-		BloomBasicPass(2, fViewportDivider);
+		BloomBasicPass(2, fZoomFactor);
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
-		BloomBasicPass(1, fViewportDivider);
+		BloomBasicPass(1, fZoomFactor);
 	}
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
@@ -1413,10 +1416,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	} */
 	// DEBUG
 
-	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFinalPassZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
-	BloomBasicPass(3, fViewportDivider);
+	BloomBasicPass(3, fZoomFactor);
 	// To make this step compatible with the rest of the code, we need to copy the results
 	// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
 	context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
@@ -1861,24 +1864,32 @@ HRESULT PrimarySurface::Flip(
 			{
 				UINT rate = 25 * this->_deviceResources->_refreshRate.Denominator;
 				UINT numerator = this->_deviceResources->_refreshRate.Numerator + this->_flipFrames;
-
 				UINT interval = numerator / rate;
 				this->_flipFrames = numerator % rate;
+				// DEBUG
+				//static bool bDisplayInterval = true;
+				// DEBUG
 
 				interval = max(interval, 1);
+				// DEBUG
+				/*if (bDisplayInterval) {
+					log_debug("[DBG] Original interval: %d", interval);
+				}*/
+				// DEBUG
 
 				hr = DD_OK;
 
 				interval = g_iNaturalConcourseAnimations ? interval : 1;
 				if (g_iNaturalConcourseAnimations > 1)
 					interval = g_iNaturalConcourseAnimations;
+				
 				// DEBUG
-				static bool bDisplayInterval = true;
-				if (bDisplayInterval) {
-					log_debug("[DBG] g_iNaturalConcourseAnimations: %d, interval: %d", g_iNaturalConcourseAnimations, interval);
+				/*if (bDisplayInterval) {
+					log_debug("[DBG] g_iNaturalConcourseAnimations: %d, Final interval: %d", g_iNaturalConcourseAnimations, interval);
 					bDisplayInterval = false;
-				}
+				}*/
 				// DEBUG
+
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
@@ -1903,19 +1914,6 @@ HRESULT PrimarySurface::Flip(
 						}
 					}
 					
-					// Capture the backBuffer to a JPG file
-#ifdef DBG_VR
-					/*
-					if (g_bCapture2DOffscreenBuffer) {
-						static int frame = 0;
-						wchar_t filename[120];
-						swprintf_s(filename, 120, L"c:\\temp\\backbuffer-%d.jpg", frame++);
-						capture(0, this->_deviceResources->_backBuffer, filename);
-						g_bCapture2DOffscreenBuffer = false;
-					}
-					*/
-#endif
-
 					// Enable capturing 3D objects even when rendering 2D. This happens in the Tech Library
 #ifdef DBG_VR
 					if (g_bStart3DCapture && !g_bDo3DCapture) {
@@ -1955,10 +1953,10 @@ HRESULT PrimarySurface::Flip(
 					
 					g_bRendering3D = false;
 					// Present 2D
-					if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))
+					if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_iNaturalConcourseAnimations, 0)))
 					{
 						static bool messageShown = false;
-
+						
 						if (!messageShown)
 						{
 							MessageBox(nullptr, _com_error(hr).ErrorMessage(), __FUNCTION__, MB_ICONERROR);
@@ -2032,36 +2030,34 @@ HRESULT PrimarySurface::Flip(
 				//}
 				
 				if (g_bBloomEnabled) {
-					//float fCurZoomFactor = 2.0f;
-					//g_fBloomAmplifyFactor = fCurZoomFactor;
-					//g_BloomPSCBuffer.colorMul = g_fBloomLayerMult[1];
-
 					// DEBUG
-					if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						//capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
-						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					}
+					//if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+					//	//capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
+					//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+					//}
 					// DEBUG
 
 					if (PlayerDataTable->hyperspacePhase) {
+						//log_debug("[DBG] Hyperspace: %d", PlayerDataTable->hyperspacePhase);
 						// Nice hyperspace animation:
+						// 2 = Entering hyperspace
+						// 4 = Blue tunnel
+						// 3 = Exiting hyperspace
 						// https://www.youtube.com/watch?v=d5W3afhgOlY
-						BloomPyramidLevelPass(1, 2, 2.0f, 2.0f, 2.0f, 2.0f);
-					}
-					else {
-						static bool bDebug = true;
-						// Bloom at Zoom = 2
-						BloomPyramidLevelPass(1, 1, 2.0f, 1.0f, 2.0f, 2.0f, bDebug);
-						// Bloom at Zoom = 4
-						BloomPyramidLevelPass(2, 1, 4.0f, 2.0f, 4.0f, 4.0f, bDebug);
-						// Bloom at Zoom = 8
-						BloomPyramidLevelPass(3, 1, 8.0f, 4.0f, 8.0f, 8.0f);
-						// Bloom at Zoom = 8
-						BloomPyramidLevelPass(4, 1, 16.0f, 8.0f, 16.0f, 16.0f);
-						// Bloom at Zoom = 8
-						BloomPyramidLevelPass(5, 1, 32.0f, 16.0f, 32.0f, 32.0f);
-						if (bDebug)
-							bDebug = false;
+						//BloomPyramidLevelPass(1, 1, 2.0f);
+						float fStrength = g_fBloomLayerMult[1];
+						g_fBloomLayerMult[1] = 4.0f;
+						BloomPyramidLevelPass(1, 2, 2.0f);
+						g_fBloomLayerMult[1] = fStrength;
+					} else {
+						float fScale = 2.0f;
+						for (int i = 1; i <= g_iNumBloomPasses; i++) {
+							int AdditionalPasses = (i == 1) ? 1 : 0;
+							// Bloom at Zoom = 2
+							// Doing a single pass at this level shows noticeable banding artifacts
+							BloomPyramidLevelPass(i, AdditionalPasses, fScale);
+							fScale *= 2.0f;
+						}
 					}
 
 					// The final output of the bloom effect will always be in bloom1
@@ -2078,8 +2074,9 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
 				// Clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled)
+				if (g_bDynCockpitEnabled) {
 					ClearHUDRegions();
+				}
 
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
 				DrawHUDVertices();
@@ -2135,11 +2132,18 @@ HRESULT PrimarySurface::Flip(
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				auto &context = this->_deviceResources->_d3dDeviceContext;
+				auto &context = resources->_d3dDeviceContext;
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
 					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+
+				/*static bool bDump = true;
+				if (g_iPresentCounter == 100 && bDump) {
+					capture(0, resources->_offscreenAsInputDynCockpit, L"C:\\Temp\\_DC-FG.jpg");
+					capture(0, resources->_offscreenAsInputDynCockpitBG, L"C:\\Temp\\_DC-BG.jpg");
+					bDump = false;
+				}*/
 			}
 
 			// Perform the lean left/right etc animations

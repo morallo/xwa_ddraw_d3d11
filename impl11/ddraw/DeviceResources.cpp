@@ -559,10 +559,6 @@ void BuildHyperspaceVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT h
 	if (FAILED(hr)) {
 		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
 	}
-	else
-		log_debug("[DBG] [DC] g_HyperspaceVertexBuffer ready");
-
-	//g_bHUDVerticesReady = true;
 }
 
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
