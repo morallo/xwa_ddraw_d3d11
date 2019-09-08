@@ -75,6 +75,17 @@ float g_fBloomLayerMult[8] = {
 	1.100f, // 7
 };
 
+float g_fBloomSpread[8] = {
+	2.0f, // 0
+	3.0f, // 1
+	4.0f, // 2
+	4.0f, // 3
+	4.0f, // 4
+	4.0f, // 5
+	4.0f, // 6
+	4.0f, // 7
+};
+
 /*
  * Convert a rotation matrix to a normalized quaternion.
  * From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
@@ -1339,7 +1350,8 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=fals
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-	float fPixelScale = 4.0f;
+	//float fPixelScale = 4.0f;
+	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
 
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
