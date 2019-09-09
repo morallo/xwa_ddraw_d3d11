@@ -74,7 +74,6 @@ float g_fBloomLayerMult[8] = {
 	1.070f, // 6
 	1.100f, // 7
 };
-
 float g_fBloomSpread[8] = {
 	2.0f, // 0
 	3.0f, // 1
@@ -84,6 +83,9 @@ float g_fBloomSpread[8] = {
 	4.0f, // 5
 	4.0f, // 6
 	4.0f, // 7
+};
+int g_iBloomPasses[8] = {
+	1, 1, 1, 1, 1, 1, 1, 1
 };
 
 /*
@@ -1549,8 +1551,8 @@ void PrimarySurface::ClearHUDRegions() {
 }
 
 /*
- * Renders the HUD foreground and background and sends the move_region commands 
- * if DC is enabled
+ * Renders the HUD foreground and background and applies the move_region 
+ * commands if DC is enabled
  */
 void PrimarySurface::DrawHUDVertices() {
 	auto& resources = this->_deviceResources;
@@ -2059,14 +2061,14 @@ HRESULT PrimarySurface::Flip(
 						//BloomPyramidLevelPass(1, 1, 2.0f);
 						float fStrength = g_fBloomLayerMult[1];
 						g_fBloomLayerMult[1] = 4.0f;
-						BloomPyramidLevelPass(1, 2, 2.0f);
+						BloomPyramidLevelPass(1, 4, 2.0f);
 						g_fBloomLayerMult[1] = fStrength;
 					} else {
 						float fScale = 2.0f;
 						for (int i = 1; i <= g_iNumBloomPasses; i++) {
-							int AdditionalPasses = (i == 1) ? 1 : 0;
-							// Bloom at Zoom = 2
-							// Doing a single pass at this level shows noticeable banding artifacts
+							int AdditionalPasses = g_iBloomPasses[i] - 1;
+							// Zoom level 2.0f with only one pass tends to show artifacts unless
+							// the spread is set to 1
 							BloomPyramidLevelPass(i, AdditionalPasses, fScale);
 							fScale *= 2.0f;
 						}
@@ -2091,6 +2093,7 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
+				//if (!PlayerDataTable->externalCamera)
 				DrawHUDVertices();
 			}
 
@@ -2140,6 +2143,8 @@ HRESULT PrimarySurface::Flip(
 			g_bIsTrianglePointer = false;
 			g_bLastTrianglePointer = false;
 			g_iHUDOffscreenCommandsRendered = 0;
+			// Disable the Dynamic Cockpit whenever we're in external camera mode:
+			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			//*g_playerInHangar = 0;
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {

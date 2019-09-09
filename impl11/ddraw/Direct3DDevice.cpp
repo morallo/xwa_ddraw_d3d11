@@ -265,6 +265,7 @@ extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 float g_fBloomSaturationStrength = 1.0f, g_fBloomColorMul = 1.0f;
 int g_iNumBloomPasses = MAX_BLOOM_PASSES;
 extern float g_fBloomLayerMult[8], g_fBloomSpread[8];
+extern int g_iBloomPasses[8];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1433,7 +1434,7 @@ bool LoadBloomParams() {
 				g_fBloomSaturationStrength = fValue;
 				log_debug("[DBG] [Bloom] g_fBloomSaturationStrength: %f", g_fBloomSaturationStrength);
 			}
-			else if (_stricmp(param, "bloom_passes") == 0) {
+			else if (_stricmp(param, "bloom_levels") == 0) {
 				g_iNumBloomPasses = (int)fValue;
 				if (g_iNumBloomPasses > MAX_BLOOM_PASSES)
 					g_iNumBloomPasses = MAX_BLOOM_PASSES;
@@ -1493,6 +1494,29 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "bloom_spread_7") == 0) {
 				g_fBloomSpread[7] = fValue;
+			}
+
+			// Bloom Passes
+			else if (_stricmp(param, "bloom_passes_1") == 0) {
+				g_iBloomPasses[1] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_2") == 0) {
+				g_iBloomPasses[2] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_3") == 0) {
+				g_iBloomPasses[3] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_4") == 0) {
+				g_iBloomPasses[4] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_5") == 0) {
+				g_iBloomPasses[5] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_6") == 0) {
+				g_iBloomPasses[6] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_7") == 0) {
+				g_iBloomPasses[7] = (int)fValue;
 			}
 		}
 	}
