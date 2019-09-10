@@ -2029,14 +2029,18 @@ HRESULT PrimarySurface::Flip(
 
 			// Re-shade the contents of _offscreenBufferAsInputReshade
 			if (g_bReshadeEnabled) {
+				// Old format: DXGI_FORMAT_B8G8R8A8_UNORM
+				//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
+
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-					resources->_offscreenBufferBloomMask, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					resources->_offscreenBufferBloomMask, 0, BloomFormatFloat);
 				if (g_bSteamVREnabled)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-						resources->_offscreenBufferBloomMaskR, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+						resources->_offscreenBufferBloomMaskR, 0, BloomFormatFloat);
 				
 				//if (g_iPresentCounter == 100) {
 				//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
@@ -2045,10 +2049,10 @@ HRESULT PrimarySurface::Flip(
 				
 				if (g_bBloomEnabled) {
 					// DEBUG
-					//if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-					//	//capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
-					//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					//}
+					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
+						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+					}*/
 					// DEBUG
 
 					if (PlayerDataTable->hyperspacePhase) {

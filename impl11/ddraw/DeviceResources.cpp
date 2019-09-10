@@ -569,6 +569,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
+	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
 	//log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
@@ -867,11 +869,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			//DXGI_FORMAT oldFormat = desc.Format;
+			DXGI_FORMAT oldFormat = desc.Format;
 
 			step = "_offscreenBufferReshade";
 			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
-			//desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			desc.Format = BloomFormatFloat;
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMask);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -889,7 +892,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			//desc.Format = oldFormat;
+			desc.Format = oldFormat;
 		}
 
 		// No MSAA after this point
@@ -916,6 +919,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
+			DXGI_FORMAT oldFormat = desc.Format;
+			desc.Format = BloomFormatFloat;
 			step = "_offscreenBufferAsInputBloomMask";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMask);
 			if (FAILED(hr)) {
@@ -924,13 +929,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			step = "_offscreenBufferAsInputBloomMaskR";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
+			if (g_bSteamVREnabled) {
+				step = "_offscreenBufferAsInputBloomMaskR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
 			}
+			desc.Format = oldFormat;
 
 			// These guys should be the last to be created because they modify the BindFlags to
 			// add D3D11_BIND_RENDER_TARGET
@@ -1052,6 +1060,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
+			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+			shaderResourceViewDesc.Format = BloomFormatFloat;
 			step = "_offscreenAsInputBloomSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
 				&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV);
@@ -1060,6 +1070,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+			shaderResourceViewDesc.Format = oldFormat;
 
 			step = "_bloomOutput1SRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1,
@@ -1080,6 +1091,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			if (g_bSteamVREnabled) {
+				shaderResourceViewDesc.Format = BloomFormatFloat;
 				step = "_offscreenAsInputBloomSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
 					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
@@ -1088,6 +1100,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
+				shaderResourceViewDesc.Format = oldFormat;
 
 				step = "_bloomOutput1SRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
@@ -1212,6 +1225,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
+			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
+
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			renderTargetViewDesc.Format = BloomFormatFloat;
 			step = "_renderTargetViewReshadeMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
@@ -1221,6 +1238,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 			}
+			renderTargetViewDesc.Format = oldFormat;
 			
 			// These RTVs render to non-MSAA buffers
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
