@@ -161,9 +161,9 @@ typedef struct BarrelPixelShaderCBStruct {
 } BarrelPixelShaderCBuffer;
 
 typedef struct BloomPixelShaderCBStruct {
-	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
+	float pixelSizeX, pixelSizeY, unused1 /* colorMul */, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, uvStepSize, saturationStrength, unused3;
+	float bloomStrength, uvStepSize, saturationStrength, unused2;
 	// 32 bytes
 } BloomPixelShaderCBuffer;
 
@@ -197,7 +197,12 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsEngineGlow;
 	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
-	// 32 bytes total
+
+	float fBloomStrength;
+	float unused1, unused2, unused3;
+	// 16 bytes
+
+	// 48 bytes total
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

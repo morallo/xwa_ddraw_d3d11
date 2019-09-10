@@ -7,15 +7,16 @@
 // This texture slot should be the original backbuffer SRV
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
+
 // This texture slot should be the bloom texture
 Texture2D bloomTex: register(t1);
 SamplerState bloomSampler : register(s1);
 
 cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
+	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, uvStepSize, saturationStrength, unused3;
+	float bloomStrength, uvStepSize, saturationStrength, unused2;
 	// 32 bytes
 };
 
@@ -59,49 +60,13 @@ float3 HSVtoRGB(in float3 HSV)
 	return ((RGB - 1) * HSV.y + 1) * HSV.z;
 }
 
-//float4 main(PixelShaderInput input) : SV_TARGET
-//{
-//	float2 input_uv_sub = input.uv * amplifyFactor;
-//	float4 color = texture0.Sample(sampler0, input.uv);
-//	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
-//	
-//	//float3 HSV = RGBtoHSV(bloom.xyz);
-//	
-//
-//	color.w = 1.0f;
-//	//return color + bloomStrength * bloom;
-//	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
-//	// 1 - (1 - Target) * (1 - Blend)
-//	//return 1 - (1 - color) * (1 - bloomStrength * bloom);
-//
-//	float3 HSV = RGBtoHSV(bloom.xyz);
-//	float V = HSV.z * bloomStrength;
-//	V = V / (V + 1);
-//	HSV.z = V;
-//	// Increase the saturation only in bright areas (otherwise halos are created):
-//	HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
-//	bloom.xyz = HSVtoRGB(HSV);
-//	color = 1 - (1 - color) * (1 - bloom);
-//
-//	//int passes = (int)bloomStrength;
-//	//for (int i = 0; i < passes; i++) {
-//	//	//color += bloom;
-//	//	color = 1 - (1 - color) * (1 - bloom);
-//	//}
-//	return color;
-//}
-
-
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = float4(bloomTex.Sample(bloomSampler, input_uv_sub).xyz, 1);
-
-	//float3 HSV = RGBtoHSV(bloom.xyz);
-
-
 	color.w = 1.0f;
+	
 	//return color + bloomStrength * bloom;
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)

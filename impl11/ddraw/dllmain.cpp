@@ -68,7 +68,7 @@ bool InitSteamVR();
 void ShutDownSteamVR();
 
 // Debug functions
-bool ReloadCRCs();
+//bool ReloadCRCs();
 void log_debug(const char *format, ...);
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -151,13 +151,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bSkipGUI: %d", g_bSkipGUI);
 				return 0;
 #endif
-			case 'D':
+			/*case 'D':
 				g_bDumpBloomBuffers = true;
 				return 0;
-			case 'A':
+			*/
+			/*case 'A':
 				g_bDCManualActivate = !g_bDCManualActivate;
-				log_debug("[DBG] [DC] g_bDCManualActivate: %d", g_bDCManualActivate);
-				return 0;
+				return 0;*/
 
 			case 'B':
 				g_bDisableBarrelEffect = !g_bDisableBarrelEffect;

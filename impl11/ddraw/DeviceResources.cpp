@@ -1596,8 +1596,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(PixelShaderCBuffer) == 32, "sizeof(PixelShaderCBuffer) must be 32");
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(PixelShaderCBuffer) == 48, "sizeof(PixelShaderCBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 

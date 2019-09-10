@@ -12,9 +12,9 @@ SamplerState sampler0 : register(s0);
 
 cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, colorMul, amplifyFactor;
+	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, uvStepSize, unused, unused3;
+	float bloomStrength, uvStepSize, saturationStrength, unused2;
 	// 32 bytes
 };
 
@@ -41,5 +41,5 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv1 += dy;
 		uv2 -= dy;
 	}
-	return float4(colorMul * color, 1);
+	return float4(/* colorMul * */ color, 1);
 }

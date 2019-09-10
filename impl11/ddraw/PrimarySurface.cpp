@@ -218,7 +218,7 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 // Bloom
 BloomPixelShaderCBStruct g_BloomPSCBuffer;
 extern bool g_bBloomEnabled;
-extern float g_fBloomAmplifyFactor, g_fBloomStrength, g_fBloomSaturationStrength, g_fBloomColorMul;
+extern float g_fBloomAmplifyFactor, g_fBloomStrength, g_fBloomSaturationStrength;
 extern int g_iNumBloomPasses;
 
 // Main Pixel Shader constant buffer
@@ -1361,7 +1361,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// with a zoom factor:
 	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp  / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
-	g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
+	//g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
 	g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;

@@ -201,15 +201,10 @@ bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
 	return true;
 }
 
-bool ReloadCRCs() {
-	// TODO: Replace with a resname-based reloader... if such a thing makes sense
-	bool result = true;
-	/*result &= Reload_CRC_vector(HUD_CRCs, "./HUD_CRCs.txt");
-	result &= Reload_CRC_vector(Text_CRCs, "./Text_CRCs.txt");
-	result &= Reload_CRC_vector(GUI_CRCs, "./GUI_CRCs.txt");
-	result &= Reload_CRC_vector(Floating_GUI_CRCs, "./Floating_GUI_CRCs.txt");*/
-	return result;
-}
+//
+//void ReloadCRCs() {
+//	// TODO: Replace with a resname-based reloader... if such a thing makes sense
+//}
 
 #ifdef DBG_VR
 /*
@@ -293,6 +288,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
+	this->is_CockpitTex = false;
 	this->is_HyperspaceAnim = false;
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
@@ -578,6 +574,10 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 			}
 		}
 
+		if (strstr(surface->_name, "Cockpit") != NULL) {
+			d3dTexture->is_CockpitTex = true;
+		}
+
 		// Catch light textures and mark them appropriately
 		if (strstr(surface->_name, ",light,") != NULL)
 			d3dTexture->is_LightTexture = true;
@@ -585,7 +585,7 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
 			if (g_sCurrentCockpit[0] == 0) {
-				if (strstr(surface->_name, "Cockpit") != NULL) {
+				if (d3dTexture->is_CockpitTex) {
 					//strstr(surface->_name, "Gunner")  != NULL)  {
 					char *start = strstr(surface->_name, "\\");
 					char *end = strstr(surface->_name, ".opt");
@@ -678,12 +678,12 @@ HRESULT Direct3DTexture::Load(
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;
+	this->is_CockpitTex = d3dTexture->is_CockpitTex;
 	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
-	// TODO: Remove later:
-	// TODO: We don't need to copy texture names around!
+	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
 	// the hangar.

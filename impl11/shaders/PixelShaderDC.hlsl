@@ -36,13 +36,15 @@ cbuffer ConstantBuffer : register(b0)
 	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
 	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
 	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint unused;				// (Used to be bRenderHUD) When set, first texture is HUD foreground and second texture is HUD background
+	uint bIsHyperspaceAnim;
 	// 16 bytes
 
 	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	// unused
+	uint bIsHyperspaceStreak;
+
+	float fBloomStrength;			// General multiplier for the bloom effect
 };
 
 #define MAX_DC_COORDS 8
@@ -158,13 +160,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			float brightness = ct_brightness;
 			if (HSV.z * alpha >= 0.8) {
 				// The cover texture is bright enough, go shadeless and make it brighter
-				//return float4(1, 0, 1, 1);
 				diffuse = float3(1, 1, 1);
 				// Increase the brightness:
 				HSV = RGBtoHSV(texelColor.xyz);
 				HSV.z *= 1.2;
 				texelColor.xyz = HSVtoRGB(HSV);
-				output.bloom = float4(texelColor.xyz, 1);
+				output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 				brightness = 1.0;
 			}
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
@@ -195,7 +196,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV = RGBtoHSV(texelColor.xyz);
 			HSV.z *= 1.2;
 			texelColor.xyz = HSVtoRGB(HSV);
-			output.bloom = float4(texelColor.xyz, 1);
+			output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 			brightness = 1.0;
 		}
 		texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);

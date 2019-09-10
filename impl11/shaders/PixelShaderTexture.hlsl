@@ -41,6 +41,8 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
+
+	float fBloomStrength;		// General multiplier for the bloom effect
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -127,12 +129,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			alpha *= 10.0;
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5)
-				output.bloom = float4(val * color, 1);
+				output.bloom = float4(fBloomStrength * val * color, 1);
 			output.color = float4(color, alpha);
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5)
-				output.bloom = float4(val * texelColor.rgb, 1);
+				output.bloom = float4(fBloomStrength * val * texelColor.rgb, 1);
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
 		return output;

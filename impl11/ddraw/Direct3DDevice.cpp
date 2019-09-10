@@ -257,13 +257,14 @@ bool g_bCockpitPZHackEnabled = true;
 bool g_bOverrideAspectRatio = false;
 bool g_bEnableVR = true; // Enable/disable VR mode.
 
-const int MAX_BLOOM_PASSES = 5;
 // Bloom
+const int MAX_BLOOM_PASSES = 7;
+const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
-bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE, g_bBloomSuns = false, g_bBloomLensFlare = false;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
-float g_fBloomSaturationStrength = 1.0f, g_fBloomColorMul = 1.0f;
-int g_iNumBloomPasses = MAX_BLOOM_PASSES;
+float g_fBloomSaturationStrength = 1.0f, g_fBloomCockpitStrength = 1.0f;
+int g_iNumBloomPasses = DEFAULT_BLOOM_PASSES;
 extern float g_fBloomLayerMult[8], g_fBloomSpread[8];
 extern int g_iBloomPasses[8];
 
@@ -338,7 +339,7 @@ int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
 
 /* Reloads all the CRCs. */
-bool ReloadCRCs();
+//bool ReloadCRCs();
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
@@ -624,7 +625,7 @@ void ResetVRParams() {
 	g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 	g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 	// Load CRCs
-	ReloadCRCs();
+	//ReloadCRCs();
 	LoadCockpitLookParams();
 }
 
@@ -1429,6 +1430,7 @@ bool LoadBloomParams() {
 				g_bReshadeEnabled |= state;
 				g_bBloomEnabled = state;
 			}
+
 			// Bloom
 			else if (_stricmp(param, "saturation_strength") == 0) {
 				g_fBloomSaturationStrength = fValue;
@@ -1440,13 +1442,16 @@ bool LoadBloomParams() {
 					g_iNumBloomPasses = MAX_BLOOM_PASSES;
 				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
 			}
-			else if (_stricmp(param, "bloom_pass_gain") == 0) {
-				if (fValue < 0.0f)
-					fValue = 0.0f;
-				g_fBloomColorMul = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomColorMul: %f", g_fBloomColorMul);
+			else if (_stricmp(param, "bloom_background_suns") == 0) {
+				g_bBloomSuns = (bool)fValue;
 			}
-
+			else if (_stricmp(param, "bloom_lens_flare") == 0) {
+				g_bBloomLensFlare = (bool)fValue;
+			}
+			else if (_stricmp(param, "bloom_cockpit_strength") == 0) {
+				g_fBloomCockpitStrength = fValue;
+			}
+			
 			// Bloom strength
 			else if (_stricmp(param, "bloom_layer_mult_0") == 0) {
 				g_fBloomLayerMult[0] = fValue;
@@ -1729,7 +1734,7 @@ void LoadVRParams() {
 
 next:
 	// Load CRCs
-	ReloadCRCs();
+	//ReloadCRCs();
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
@@ -3136,9 +3141,12 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.bFullTransform = 0.0f;
 
 	g_PSCBuffer = { 0 };
-	g_PSCBuffer.brightness       = MAX_BRIGHTNESS;
+	g_PSCBuffer.brightness     = MAX_BRIGHTNESS;
+	g_PSCBuffer.fBloomStrength = 1.0f;
+
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
+
 	//g_PSCBuffer.DynCockpitSlots  = 0;
 	//g_PSCBuffer.bUseCoverTexture = 0;
 	//g_PSCBuffer.bRenderHUD		 = 0;
@@ -4025,6 +4033,8 @@ HRESULT Direct3DDevice::Execute(
 				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture) {
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsLightTexture = 1;
+					if (lastTextureSelected->is_CockpitTex)
+						g_PSCBuffer.fBloomStrength = g_fBloomCockpitStrength;
 					if (g_config.EnhanceIllumination)
 						g_PSCBuffer.bIsLightTexture = 2; // Enhance the light textures (intended for 32-bit mode)
 				}
@@ -4032,7 +4042,10 @@ HRESULT Direct3DDevice::Execute(
 				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
 				if (bLastTextureSelectedNotNULL && 
 					(lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion || 
-					 lastTextureSelected->is_LensFlare || bIsSun)) {
+					 (lastTextureSelected->is_LensFlare && g_bBloomLensFlare) || 
+					 (bIsSun && g_bBloomSuns))
+				   ) 
+				{
 					bModifiedShaders = true;
 					g_PSCBuffer.bIsEngineGlow = 1;
 					if (g_config.EnhanceEngineGlow && lastTextureSelected->is_EngineGlow)
@@ -4136,6 +4149,7 @@ HRESULT Direct3DDevice::Execute(
 						dc_element *dc_element = &g_DCElements[idx];
 						if (dc_element->bActive) {
 							bModifiedShaders = true;
+							g_PSCBuffer.fBloomStrength = g_fBloomCockpitStrength; 
 							int numCoords = 0;
 							for (int i = 0; i < dc_element->coords.numCoords; i++)
 							{
@@ -4362,7 +4376,6 @@ HRESULT Direct3DDevice::Execute(
 					// computation faster? On the other hand, having always 2 z-buffers makes the code
 					// easier.
 					if (g_bUseSteamVR)
-						// TODO: Fix Reshade for SteamVR
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
@@ -4429,7 +4442,6 @@ HRESULT Direct3DDevice::Execute(
 					//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
-						// TODO: Fix Reshade for SteamVR
 						if (!g_bBloomEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
 								resources->_depthStencilViewR.Get());
@@ -4519,7 +4531,9 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.bFullTransform = 0.0f;
 
 					g_PSCBuffer = { 0 };
-					g_PSCBuffer.brightness = MAX_BRIGHTNESS;
+					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
+					g_PSCBuffer.fBloomStrength	= 1.0f;
+
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
 						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;

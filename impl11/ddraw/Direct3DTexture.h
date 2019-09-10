@@ -34,6 +34,8 @@ public:
 	bool is_EngineGlow;
 	// True if this is an Explosion texture
 	bool is_Explosion;
+	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
+	bool is_CockpitTex;
 	// True when displaying the hyperspace animation
 	bool is_HyperspaceAnim;
 	// True for dat,1000,2, (used for the hyperspace streak effect)
