@@ -49,7 +49,7 @@ public:
 
 	HRESULT buildSteamVRResizeMesh2D();
 
-	void BloomBasicPass(int pass, float fZoomFactor, bool debug);
+	void BloomBasicPass(int pass, float fZoomFactor);
 
 	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
 

@@ -1173,12 +1173,12 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   * pass = 0: Initial horizontal blur pass from the bloom mask.
   * pass = 1: Vertical pass from internal temporary ping-pong buffer.
   * pass = 2: Horizontal pass from internal temporary ping-pong buffer.
-  * pass = 3 : Final combine pass.
+  * pass = 3: Final combine pass.
   *
   * For pass 0, the input texture must be resolved already to 
   * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
-void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=false) {
+void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1234,8 +1234,6 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=fals
 		viewport.Width  = screen_res_x;
 		viewport.Height = screen_res_y;
 	}
-	if (debug)
-		log_debug("[DBG] viewport: (%f, %f)", viewport.Width, viewport.Height);
 
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
@@ -1276,14 +1274,18 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=fals
 			break;
 		case 3: // Final pass to combine the bloom texture with the backbuffer
 			// Input:  _bloomOutput2, _offscreenBufferAsInput
-			// Output: _bloomOutput1
+			// Output: _offscreenBuffer (_bloomOutput1?)
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			//if (bFinalLevel)
+				context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+			/*else {
+				context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			}*/
 			break;
 	}
 	context->Draw(6, 0);
@@ -1317,14 +1319,19 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, bool debug=fals
 			break;
 		case 3: // Final pass to combine the bloom texture with the backbuffer
 			// Input:  _bloomOutput2R, _offscreenBufferAsInputR
-			// Output: _bloomOutput1R
+			// Output: _offscreenBufferR (_bloomOutput1R?)
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			//if (bFinalLevel)
+				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			/*else {
+				context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
+				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			}*/
+			
 			break;
 		}
 
@@ -1361,7 +1368,6 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// with a zoom factor:
 	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp  / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
-	//g_BloomPSCBuffer.colorMul			= g_fBloomColorMul;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
 	g_BloomPSCBuffer.saturationStrength = g_fBloomSaturationStrength;
@@ -1379,7 +1385,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
-	BloomBasicPass(0, fZoomFactor, debug);
+	BloomBasicPass(0, fZoomFactor);
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
@@ -1423,22 +1429,23 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
-	/* if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
 		swprintf_s(filename, 80, L"c:\\temp\\_bloom2Buffer-%d.jpg", PyramidLevel);
 		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
-	} */
+	}*/
 	// DEBUG
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
+	//BloomBasicPass(3, fZoomFactor, bFinalLevel);
 	BloomBasicPass(3, fZoomFactor);
 	// To make this step compatible with the rest of the code, we need to copy the results
 	// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
-	context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
+	/*context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);
+		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);*/
 }
 
 void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR clearColor) {
@@ -2028,64 +2035,58 @@ HRESULT PrimarySurface::Flip(
 			hr = DD_OK;
 
 			// Re-shade the contents of _offscreenBufferAsInputReshade
-			if (g_bReshadeEnabled) {
+			if (g_bBloomEnabled) {
 				// Old format: DXGI_FORMAT_B8G8R8A8_UNORM
 				//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
+				//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
 
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-					resources->_offscreenBufferBloomMask, 0, BloomFormatFloat);
+					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 				if (g_bSteamVREnabled)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-						resources->_offscreenBufferBloomMaskR, 0, BloomFormatFloat);
-				
-				//if (g_iPresentCounter == 100) {
-				//	capture(0, resources->_offscreenBufferAsInputReshadeMask, L"C:\\Temp\\_offscreenBufferAsInputReshadeMask.jpg");
-				//	capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-				//}
-				
-				if (g_bBloomEnabled) {
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
-						capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-					}*/
-					// DEBUG
+						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
-					if (PlayerDataTable->hyperspacePhase) {
-						//log_debug("[DBG] Hyperspace: %d", PlayerDataTable->hyperspacePhase);
-						// Nice hyperspace animation:
-						// 2 = Entering hyperspace
-						// 4 = Blue tunnel
-						// 3 = Exiting hyperspace
-						// https://www.youtube.com/watch?v=d5W3afhgOlY
-						//BloomPyramidLevelPass(1, 1, 2.0f);
-						float fStrength = g_fBloomLayerMult[1];
-						g_fBloomLayerMult[1] = 4.0f;
-						BloomPyramidLevelPass(1, 4, 2.0f);
-						g_fBloomLayerMult[1] = fStrength;
-					} else {
-						float fScale = 2.0f;
-						for (int i = 1; i <= g_iNumBloomPasses; i++) {
-							int AdditionalPasses = g_iBloomPasses[i] - 1;
-							// Zoom level 2.0f with only one pass tends to show artifacts unless
-							// the spread is set to 1
-							BloomPyramidLevelPass(i, AdditionalPasses, fScale);
-							fScale *= 2.0f;
-						}
-					}
+				// DEBUG
+				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+					capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
+					capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
+				}*/
+				// DEBUG
 
-					// The final output of the bloom effect will always be in bloom1
-					// DEBUG
-					/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-						capture(0, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput1-Final.jpg");
-						g_bDumpBloomBuffers = false;
-					}*/
-					// DEBUG
+				if (PlayerDataTable->hyperspacePhase) {
+					//log_debug("[DBG] Hyperspace: %d", PlayerDataTable->hyperspacePhase);
+					// Nice hyperspace animation:
+					// 2 = Entering hyperspace
+					// 4 = Blue tunnel
+					// 3 = Exiting hyperspace
+					// https://www.youtube.com/watch?v=d5W3afhgOlY
+					//BloomPyramidLevelPass(1, 1, 2.0f);
+					float fStrength = g_fBloomLayerMult[1];
+					g_fBloomLayerMult[1] = 4.0f;
+					BloomPyramidLevelPass(1, 4, 2.0f);
+					g_fBloomLayerMult[1] = fStrength;
 				}
+				else {
+					float fScale = 2.0f;
+					for (int i = 1; i <= g_iNumBloomPasses; i++) {
+						int AdditionalPasses = g_iBloomPasses[i] - 1;
+						// Zoom level 2.0f with only one pass tends to show artifacts unless
+						// the spread is set to 1
+						BloomPyramidLevelPass(i, AdditionalPasses, fScale); // , i == g_iNumBloomPasses);
+						fScale *= 2.0f;
+					}
+				}
+
+				// The final output of the bloom effect will always be in bloom1
+				// DEBUG
+				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+					capture(0, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput1-Final.jpg");
+					g_bDumpBloomBuffers = false;
+				}*/
+				// DEBUG
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
