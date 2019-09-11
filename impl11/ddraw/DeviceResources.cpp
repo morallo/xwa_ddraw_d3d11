@@ -21,10 +21,11 @@
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
-#include "../Debug/BloomPrePassPS.h"
+//#include "../Debug/BloomPrePassPS.h"
 #include "../Debug/BloomHGaussPS.h"
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomCombinePS.h"
+#include "../Debug/BloomBufferAddPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -41,10 +42,11 @@
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
-#include "../Release/BloomPrePassPS.h"
+//#include "../Release/BloomPrePassPS.h"
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomCombinePS.h"
+#include "../Release/BloomBufferAddPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -658,10 +660,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewBloomMask.Release();
 		this->_renderTargetViewBloom1.Release();
 		this->_renderTargetViewBloom2.Release();
+		this->_renderTargetViewBloomSum.Release();
 		this->_bloomOutput1.Release();
 		this->_bloomOutput2.Release();
+		this->_bloomOutputSum.Release();
 		this->_bloomOutput1SRV.Release();
 		this->_bloomOutput2SRV.Release();
+		this->_bloomOutputSumSRV.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
@@ -669,10 +674,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_renderTargetViewBloomMaskR.Release();
 			this->_bloomOutput1R.Release();
 			this->_bloomOutput2R.Release();
+			this->_bloomOutputSumR.Release();
 			this->_renderTargetViewBloom1R.Release();
 			this->_renderTargetViewBloom2R.Release();
+			this->_renderTargetViewBloomSumR.Release();
 			this->_bloomOutput1SRV_R.Release();
 			this->_bloomOutput2SRV_R.Release();
+			this->_bloomOutputSumSRV_R.Release();
 		}
 	}
 
@@ -972,6 +980,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Successfully created _bloomOutput2 with combined flags\n");
 			}
 
+			step = "_bloomOutputSum";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSum);
+			if (FAILED(hr)) {
+				log_err("Failed to create _bloomOutputSum\n");
+				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+			else {
+				log_err("Successfully created _bloomOutputSum with combined flags\n");
+			}
+
 			if (g_bSteamVREnabled) {
 				step = "_bloomOutput1R";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
@@ -997,6 +1018,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 				else {
 					log_err("Successfully created _bloomOutput2R with combined flags\n");
+				}
+
+				step = "_bloomOutputSumR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSumR);
+				if (FAILED(hr)) {
+					log_err("Failed to create _bloomOutputSumR\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_err("Successfully created _bloomOutputSumR with combined flags\n");
 				}
 			}
 			// Restore the previous bind flags, just in case there is a dependency on these later on
@@ -1091,6 +1125,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_bloomOutputSumSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSum,
+				&shaderResourceViewDesc, &this->_bloomOutputSumSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
 			if (g_bSteamVREnabled) {
 				//shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 				step = "_offscreenAsInputBloomSRV_R";
@@ -1115,6 +1158,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				step = "_bloomOutput2SRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2R,
 					&shaderResourceViewDesc, &this->_bloomOutput2SRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_bloomOutputSumSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSumR,
+					&shaderResourceViewDesc, &this->_bloomOutputSumSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
@@ -1253,12 +1305,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2);
 			if (FAILED(hr)) goto out;
 
+			step = "_renderTargetViewBloomSum";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
+			if (FAILED(hr)) goto out;
+
 			if (g_bSteamVREnabled) {
 				step = "_renderTargetViewBloom1R";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
 				if (FAILED(hr)) goto out;
+
 				step = "_renderTargetViewBloom2R";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2R);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewBloomSumR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
 				if (FAILED(hr)) goto out;
 			}
 
@@ -1401,8 +1462,8 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -1411,6 +1472,9 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 			return hr;
 	}
 
@@ -1582,8 +1646,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -1592,6 +1656,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 			return hr;
 	}
 

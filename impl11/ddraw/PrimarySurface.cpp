@@ -1272,7 +1272,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
 			break;
-		case 3: // Final pass to combine the bloom texture with the backbuffer
+		case 3: // Final pass to combine the bloom texture with the offscreenBuffer
 			// Input:  _bloomOutput2, _offscreenBufferAsInput
 			// Output: _offscreenBuffer (_bloomOutput1?)
 			resources->InitPixelShader(resources->_bloomCombinePS);
@@ -1280,12 +1280,32 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
-			//if (bFinalLevel)
-				context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			/*else {
-				context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
-			}*/
+			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+
+			//context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			//context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			break;
+		case 4:
+			// Input: _bloomOutput2, _bloomSum
+			// Output: _bloomOutput1
+			resources->InitPixelShader(resources->_bloomBufferAddPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			break;
+		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
+			// Input:  _bloomSum, _offscreenBufferAsInput
+			// Output: _offscreenBuffer
+			resources->InitPixelShader(resources->_bloomCombinePS);
+			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
+			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+
+			//context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
+			//context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
 			break;
 	}
 	context->Draw(6, 0);
@@ -1325,13 +1345,22 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			//if (bFinalLevel)
-				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+
 			/*else {
 				context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
 				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
 			}*/
 			
+			break;
+		case 4:
+			// Input: _bloomOutput2R, _bloomSumR
+			// Output: _bloomOutput1R
+			resources->InitPixelShader(resources->_bloomBufferAddPS);
+			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
+			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
 			break;
 		}
 
@@ -1431,16 +1460,36 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_bloom2Buffer-%d.jpg", PyramidLevel);
+		swprintf_s(filename, 80, L"c:\\temp\\_bloom2Buffer-Level-%d.jpg", PyramidLevel);
 		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
 	}*/
 	// DEBUG
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: bloom1
-	//BloomBasicPass(3, fZoomFactor, bFinalLevel);
-	BloomBasicPass(3, fZoomFactor);
+	
+	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
+	//BloomBasicPass(3, fZoomFactor);
+
+	// Accummulate the bloom buffer, input: bloom2, bloomSum; output: bloom1
+	BloomBasicPass(4, fZoomFactor);
+
+	// Copy _bloomOutput1 over _bloomOutputSum
+	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
+	if (g_bSteamVREnabled)
+		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
+
+	// DEBUG
+	if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+		wchar_t filename[80];
+		//swprintf_s(filename, 80, L"c:\\temp\\_bloom1Buffer-Level-%d.jpg", PyramidLevel);
+		//DirectX::SaveWICTextureToFile(context, resources->_bloomOutput1, GUID_ContainerFormatJpeg, filename);
+
+		swprintf_s(filename, 80, L"c:\\temp\\_bloomOutputSum-Level-%d.jpg", PyramidLevel);
+		DirectX::SaveWICTextureToFile(context, resources->_bloomOutputSum, GUID_ContainerFormatJpeg, filename);
+	}
+	// DEBUG
+
 	// To make this step compatible with the rest of the code, we need to copy the results
 	// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
 	/*context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
@@ -2049,11 +2098,17 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
+				// Initialize the accummulator buffer
+				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
+				if (g_bSteamVREnabled)
+					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
+
 				// DEBUG
-				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+				if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 					capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
 					capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-				}*/
+				}
 				// DEBUG
 
 				if (PlayerDataTable->hyperspacePhase) {
@@ -2078,6 +2133,8 @@ HRESULT PrimarySurface::Flip(
 						BloomPyramidLevelPass(i, AdditionalPasses, fScale); // , i == g_iNumBloomPasses);
 						fScale *= 2.0f;
 					}
+					// Add the accumulated bloom with the offscreen buffer
+					BloomBasicPass(5, 1.0f);
 				}
 
 				// The final output of the bloom effect will always be in bloom1

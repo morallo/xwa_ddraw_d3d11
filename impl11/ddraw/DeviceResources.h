@@ -160,8 +160,8 @@ typedef struct BarrelPixelShaderCBStruct {
 	float k1, k2, k3;
 } BarrelPixelShaderCBuffer;
 
-#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
-//#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
+//#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 
 typedef struct BloomPixelShaderCBStruct {
 	float pixelSizeX, pixelSizeY, unused1 /* colorMul */, amplifyFactor;
@@ -329,8 +329,10 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
 	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
 	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
+	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
 	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
 	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
 	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -349,9 +351,10 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomF; // Renders to _offscreenBufferBloomF
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
@@ -363,8 +366,10 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	//ComPtr<ID3D11ShaderResourceView> _reshadeBloomFSRV; // SRV for _offscreenBufferBloomF
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
@@ -383,6 +388,7 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
+	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

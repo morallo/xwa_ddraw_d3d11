@@ -34,6 +34,7 @@
     <FxCompile Include="PixelShaderClearBox.hlsl" />
     <FxCompile Include="PixelShaderDC.hlsl" />
     <FxCompile Include="PixelShaderHUD.hlsl" />
+    <FxCompile Include="BloomBufferAddPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
