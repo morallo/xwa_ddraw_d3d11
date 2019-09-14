@@ -163,6 +163,13 @@ typedef struct BarrelPixelShaderCBStruct {
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 
+typedef struct BloomConfigStruct {
+	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength;
+	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
+	float fLensFlareStrength, fExplosionsStrength, fSunsStrength;
+	int iNumPasses;
+} BloomConfig;
+
 typedef struct BloomPixelShaderCBStruct {
 	float pixelSizeX, pixelSizeY, unused1 /* colorMul */, amplifyFactor;
 	// 16 bytes

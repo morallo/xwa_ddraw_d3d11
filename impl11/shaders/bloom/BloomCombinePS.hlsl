@@ -60,6 +60,7 @@ float3 HSVtoRGB(in float3 HSV)
 	return ((RGB - 1) * HSV.y + 1) * HSV.z;
 }
 
+/*
 float4 main_32_bit(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
@@ -73,23 +74,18 @@ float4 main_32_bit(PixelShaderInput input) : SV_TARGET
 
 	float3 HSV = RGBtoHSV(bloom.xyz);
 	float V = bloomStrength * HSV.z;
-	//V = pow(max(0, V), BLOOM_TONEMAP_COMPRESSION);
 	V = V / (V + 1);
-	//V = pow(V, 1 / BLOOM_TONEMAP_COMPRESSION);
 	HSV.z = V;
 	// Increase the saturation only in bright areas (otherwise halos are created):
 	HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
 	bloom.rgb = HSVtoRGB(HSV);
 
-	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
-	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);
-	color.rgb = color.rgb / (1.0 + color.rgb);
-	color.rgb = pow(color.rgb, 1.0 / BLOOM_TONEMAP_COMPRESSION);*/
-
 	color.rgb = 1 - (1 - color.rgb) * (1 - bloom.rgb);
 	return color;
 }
+*/
 
+/*
 float4 main_float_1(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
@@ -107,50 +103,50 @@ float4 main_float_1(PixelShaderInput input) : SV_TARGET
 	bloom.rgb = HSVtoRGB(HSV);
 	bloom = saturate(bloom);
 
-	//color.rgb += bloom.rgb;
-	//color = saturate(color);
-	//return color;
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)
-
-	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
-	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);
-	color.rgb = color.rgb / (1.0 + color.rgb);
-	color.rgb = pow(color.rgb, 1.0 / BLOOM_TONEMAP_COMPRESSION);*/
 
 	color.rgb = 1 - (1 - color.rgb) * (1 - bloom.rgb);
 	return color;
 }
+*/
+
+/*
+struct PixelShaderOutput
+{
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
+};
+*/
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	//float2 input_uv_sub = input.uv * amplifyFactor;
-	//float4 bloom = bloomTex.Sample(bloomSampler, input_uv_sub);
 	float4 color = texture0.Sample(sampler0, input.uv);
 	float4 bloom = bloomTex.Sample(bloomSampler, input.uv);
 	color.w = 1.0f;
+	bloom.w = 1.0f;
 
+	//float3 HSV = RGBtoHSV(output.bloom.xyz);
+	//float V = HSV.z;
+	//V = V / (V + 1);
+	//HSV.z = V;
+	//// Increase the saturation only in bright areas (otherwise halos are created):
+	//HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
+	//output.bloom.rgb = HSVtoRGB(HSV);
+	
+	bloom = bloom / (bloom + 1);
 	float3 HSV = RGBtoHSV(bloom.xyz);
-	//float V = bloomStrength * HSV.z;
-	float V = HSV.z;
-	V = V / (V + 1);
-	HSV.z = V;
-	// Increase the saturation only in bright areas (otherwise halos are created):
-	HSV.y = lerp(HSV.y, HSV.y * saturationStrength, HSV.z);
+	HSV.y = saturate(lerp(HSV.y, HSV.y * saturationStrength, HSV.z));
 	bloom.rgb = HSVtoRGB(HSV);
 	bloom = saturate(bloom);
-
-	//color.rgb += bloom.rgb;
-	//color = saturate(color);
-	//return color;
-	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
-	// 1 - (1 - Target) * (1 - Blend)
 
 	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
 	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);
 	color.rgb = color.rgb / (1.0 + color.rgb);
 	color.rgb = pow(color.rgb, 1.0 / BLOOM_TONEMAP_COMPRESSION);*/
 
+	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
+	// 1 - (1 - Target) * (1 - Blend)
 	color.rgb = 1 - (1 - color.rgb) * (1 - bloom.rgb);
 	return color;
 }

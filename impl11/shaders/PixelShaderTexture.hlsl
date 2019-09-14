@@ -87,7 +87,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
-	//output.bloom = float4(0.2 * texelColor.xyz, alpha * 0.2);
 	output.color = texelColor;
 
 	// Process lasers (make them brighter in 32-bit mode)
@@ -100,19 +99,20 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.y *= 1.5;
 			HSV.z *= 2.0;
 			float3 color = HSVtoRGB(HSV);
-			output.color = float4(color, 1.2 * alpha);
+			output.color = float4(color, alpha);
 			// Enhance the saturation even more for the bloom laser mask
-			HSV.y *= 4.0;
-			color = HSVtoRGB(HSV);
+			//HSV.y *= 4.0;
+			//color = HSVtoRGB(HSV);
 			output.bloom = float4(color, alpha);
 		}
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
 			// Enhance the saturation for lasers
-			HSV.y *= 4.0;
+			HSV.y *= 1.5;
 			float3 color = HSVtoRGB(HSV);
 			output.bloom = float4(color, alpha);
 		}
+		output.bloom.rgb *= fBloomStrength;
 		return output;
 	}
 
@@ -129,44 +129,43 @@ PixelShaderOutput main(PixelShaderInput input)
 			alpha *= 10.0;
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5)
-				output.bloom = float4(fBloomStrength * val * color, 1);
+				output.bloom = float4(val * color, 1);
 			output.color = float4(color, alpha);
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5)
-				output.bloom = float4(fBloomStrength * val * texelColor.rgb, 1);
+				output.bloom = float4(val * texelColor.rgb, 1);
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
+		output.bloom.rgb *= fBloomStrength;
 		return output;
 	}
 
-	// Enhance engine glow. In this texture, the diffuse component also provides
+	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue
 	if (bIsEngineGlow) {
-		//return float4(0, 1, 0, alpha);
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
 			// Enhance the glow in 32-bit mode
 			float3 HSV = RGBtoHSV(texelColor.xyz);
-			HSV.y *= 1.15;
+			//HSV.y *= 1.15;
+			HSV.y *= 1.25;
 			HSV.z *= 1.25;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			output.bloom = float4(color, alpha);
-		}
-		else {
+		} 
+		else
 			output.color = texelColor; // Return the original color when 32-bit mode is off
-			output.bloom = float4(texelColor.rgb, alpha);
-		}
+		output.bloom = float4(fBloomStrength * output.color.rgb, alpha);
 		return output;
 	}
-	
+
 	if (bIsHyperspaceAnim)
-		output.bloom = float4(texelColor.xyz, 0.5);
+		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
 
 	if (bIsHyperspaceStreak)
-		output.bloom = float4(0.5, 0.5, 1, 0.5);
+		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
 
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;

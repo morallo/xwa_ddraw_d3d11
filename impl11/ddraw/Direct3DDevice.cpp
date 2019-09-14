@@ -261,10 +261,9 @@ bool g_bEnableVR = true; // Enable/disable VR mode.
 const int MAX_BLOOM_PASSES = 7;
 const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
-bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE, g_bBloomSuns = false, g_bBloomLensFlare = false;
+bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
-float g_fBloomSaturationStrength = 1.0f, g_fBloomCockpitStrength = 1.0f;
-int g_iNumBloomPasses = DEFAULT_BLOOM_PASSES;
+BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[8], g_fBloomSpread[8];
 extern int g_iBloomPasses[8];
 
@@ -1433,26 +1432,43 @@ bool LoadBloomParams() {
 
 			// Bloom
 			else if (_stricmp(param, "saturation_strength") == 0) {
-				g_fBloomSaturationStrength = fValue;
-				log_debug("[DBG] [Bloom] g_fBloomSaturationStrength: %f", g_fBloomSaturationStrength);
+				g_BloomConfig.fSaturationStrength = fValue;
 			}
 			else if (_stricmp(param, "bloom_levels") == 0) {
-				g_iNumBloomPasses = (int)fValue;
-				if (g_iNumBloomPasses > MAX_BLOOM_PASSES)
-					g_iNumBloomPasses = MAX_BLOOM_PASSES;
-				log_debug("[DBG] [Bloom] g_iNumBloomPasses: %d", g_iNumBloomPasses);
+				g_BloomConfig.iNumPasses = (int)fValue;
+				if (g_BloomConfig.iNumPasses > MAX_BLOOM_PASSES)
+					g_BloomConfig.iNumPasses = MAX_BLOOM_PASSES;
+				log_debug("[DBG] [Bloom] iNumPasses: %d", g_BloomConfig.iNumPasses);
 			}
-			else if (_stricmp(param, "bloom_background_suns") == 0) {
-				g_bBloomSuns = (bool)fValue;
+			else if (_stricmp(param, "background_suns_strength") == 0) {
+				g_BloomConfig.fSunsStrength = fValue;
 			}
-			else if (_stricmp(param, "bloom_lens_flare") == 0) {
-				g_bBloomLensFlare = (bool)fValue;
+			else if (_stricmp(param, "lens_flare_strength") == 0) {
+				g_BloomConfig.fLensFlareStrength = fValue;
 			}
-			else if (_stricmp(param, "bloom_cockpit_strength") == 0) {
-				g_fBloomCockpitStrength = fValue;
+			else if (_stricmp(param, "cockpit_lights_strength") == 0) {
+				g_BloomConfig.fCockpitStrength = fValue;
+			}
+			else if (_stricmp(param, "light_map_strength") == 0) {
+				g_BloomConfig.fLightMapsStrength = fValue;
+			}
+			else if (_stricmp(param, "lasers_strength") == 0) {
+				g_BloomConfig.fLasersStrength = fValue;
+			}
+			else if (_stricmp(param, "engine_glow_strength") == 0) {
+				g_BloomConfig.fEngineGlowStrength = fValue;
+			}
+			else if (_stricmp(param, "explosions_strength") == 0) {
+				g_BloomConfig.fExplosionsStrength = fValue;
+			}
+			else if (_stricmp(param, "hyper_streak_strength") == 0) {
+				g_BloomConfig.fHyperStreakStrength = fValue;
+			}
+			else if (_stricmp(param, "hyper_tunnel_strength") == 0) {
+				g_BloomConfig.fHyperTunnelStrength = fValue;
 			}
 			
-			// Bloom strength
+			// Bloom strength per pyramid level
 			else if (_stricmp(param, "bloom_layer_mult_0") == 0) {
 				g_fBloomLayerMult[0] = fValue;
 			}
@@ -3446,8 +3462,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width = (float)width;
-				g_nonVRViewport.Height = (float)height;
+				g_nonVRViewport.Width	 = (float)width;
+				g_nonVRViewport.Height	 = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
@@ -3527,6 +3543,7 @@ HRESULT Direct3DDevice::Execute(
 					!lastTextureSelected->is_HUD && !lastTextureSelected->is_Floating_GUI &&
 					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
+				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
 				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI;
 				// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
@@ -3570,10 +3587,6 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					State management ends here
 				 *************************************************************************/
-
-				// DEBUG
-				// [4540] [DBG] LENSFLARE, bIsFloatingGUI: 0, g_bStartedGUI: 1, g_bIsScaleableGUIElem: 0, bRenderToDynCockpitBuffer: 0, bRenderToDynCockpitBGBuffer: 0
-				// DEBUG
 
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
@@ -4019,58 +4032,6 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
-				// Modify the state for both VR and regular game modes...
-
-				// Send the flag for lasers (enhance them in 32-bit mode, apply bloom)
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Laser) {
-					bModifiedShaders = true;
-					g_PSCBuffer.bIsLaser = 1;
-					if (g_config.EnhanceLasers)
-						g_PSCBuffer.bIsLaser = 2; // Enhance the lasers (intended for 32-bit mode)
-				}
-
-				// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture) {
-					bModifiedShaders = true;
-					g_PSCBuffer.bIsLightTexture = 1;
-					if (lastTextureSelected->is_CockpitTex)
-						g_PSCBuffer.fBloomStrength = g_fBloomCockpitStrength;
-					if (g_config.EnhanceIllumination)
-						g_PSCBuffer.bIsLightTexture = 2; // Enhance the light textures (intended for 32-bit mode)
-				}
-
-				// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
-				if (bLastTextureSelectedNotNULL && 
-					(lastTextureSelected->is_EngineGlow || lastTextureSelected->is_Explosion || 
-					 (lastTextureSelected->is_LensFlare && g_bBloomLensFlare) || 
-					 (bIsSun && g_bBloomSuns))
-				   ) 
-				{
-					bModifiedShaders = true;
-					g_PSCBuffer.bIsEngineGlow = 1;
-					if (g_config.EnhanceEngineGlow && lastTextureSelected->is_EngineGlow)
-						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Engine Glow (intended for 32-bit mode)
-					if (g_config.EnhanceExplosions && lastTextureSelected->is_Explosion)
-						g_PSCBuffer.bIsEngineGlow = 2; // Enhance the Explosions (intended for 32-bit mode)
-				}
-
-				// Set the hyperspace flags
-				if (PlayerDataTable->hyperspacePhase) {
-					// 2: Entering hyperspace
-					// 4: Traveling through hyperspace (animation plays back at this point)
-					// 3: Exiting hyperspace
-					if (bLastTextureSelectedNotNULL) {
-						if (lastTextureSelected->is_FlatLightEffect) {
-							bModifiedShaders = true;
-							g_PSCBuffer.bIsHyperspaceStreak = 1;
-						}
-						if (lastTextureSelected->is_HyperspaceAnim) {
-							bModifiedShaders = true;
-							g_PSCBuffer.bIsHyperspaceAnim = 1;
-						}
-					}
-				}
-
 				// Dim all the GUI elements
 				if (g_bStartedGUI && !g_bIsFloating3DObject) {
 					bModifiedShaders = true;
@@ -4078,10 +4039,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (g_bDCManualActivate && 
-					(g_bDynCockpitEnabled || g_bReshadeEnabled) && 
-					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) {
-
+				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
+				{					
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
 					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();
@@ -4133,11 +4093,71 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Restore the previous pixel shader
 					//resources->InitPixelShader(lastPixelShader);
-					// Restore the original blend state
-					//if (g_bIsFloating3DObject)
-					//	hr = resources->InitBlendState(nullptr, &curBlendDesc);
 
+					// Restore the original blend state
+					/*if (g_bIsFloating3DObject)
+						hr = resources->InitBlendState(nullptr, &curBlendDesc);*/
 					goto out;
+				}
+
+				// Modify the state for both VR and regular game modes...
+
+				// BLOOM flags and apply 32-bit mode ENHANCEMENTS
+				if (bLastTextureSelectedNotNULL)
+				{
+					if (lastTextureSelected->is_Laser) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
+						g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
+					}
+					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
+					else if (lastTextureSelected->is_LightTexture) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
+							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
+						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
+					}
+					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
+					else if (lastTextureSelected->is_EngineGlow) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
+						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
+					}
+					else if (lastTextureSelected->is_Explosion)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
+						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceExplosions ? 2 : 1;
+					}
+					else if (lastTextureSelected->is_LensFlare) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fLensFlareStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (bIsSun) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+				}
+
+				// Set the hyperspace flags
+				if (PlayerDataTable->hyperspacePhase) {
+					// 2: Entering hyperspace
+					// 4: Traveling through hyperspace (animation plays back at this point)
+					// 3: Exiting hyperspace
+					if (bLastTextureSelectedNotNULL) {
+						if (lastTextureSelected->is_FlatLightEffect) {
+							bModifiedShaders = true;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
+							g_PSCBuffer.bIsHyperspaceStreak = 1;
+						}
+						if (lastTextureSelected->is_HyperspaceAnim) {
+							bModifiedShaders = true;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
+							g_PSCBuffer.bIsHyperspaceAnim = 1;
+						}
+					}
 				}
 
 				// Dynamic Cockpit: Replace textures at run-time:
@@ -4149,7 +4169,7 @@ HRESULT Direct3DDevice::Execute(
 						dc_element *dc_element = &g_DCElements[idx];
 						if (dc_element->bActive) {
 							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_fBloomCockpitStrength; 
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitStrength;
 							int numCoords = 0;
 							for (int i = 0; i < dc_element->coords.numCoords; i++)
 							{
@@ -4553,7 +4573,6 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 				}
 
-				//no_vr_out:
 				currentIndexLocation += 3 * instruction->wCount;
 				break;
 			}
