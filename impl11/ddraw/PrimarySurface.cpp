@@ -1412,8 +1412,8 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fFirstPassZoomFactor;
 	g_BloomPSCBuffer.bloomStrength		= g_fBloomLayerMult[PyramidLevel];
 	g_BloomPSCBuffer.saturationStrength = g_BloomConfig.fSaturationStrength;
-	g_BloomPSCBuffer.uvStepSize			= 3.0f;
-	//g_BloomPSCBuffer.uvStepSize    = 2.0f;
+	g_BloomPSCBuffer.uvStepSize			= g_BloomConfig.uvStepSize1;
+	//g_BloomPSCBuffer.uvStepSize			= 1.5f;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// DEBUG
@@ -1454,9 +1454,9 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	for (int i = 0; i < AdditionalPasses; i++) {
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
-		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 1.5f : 2.0f;
+		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
-		g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 3.0f;
+		g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? g_BloomConfig.uvStepSize2 : g_BloomConfig.uvStepSize1;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 		// Horizontal Gaussian Blur. input: bloom2, output: bloom1
 		BloomBasicPass(2, fZoomFactor);

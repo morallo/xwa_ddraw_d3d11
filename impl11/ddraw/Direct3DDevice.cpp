@@ -1411,6 +1411,8 @@ bool LoadBloomParams() {
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
 	float fValue = 0.0f;
+	g_BloomConfig.uvStepSize1 = 3.0f;
+	g_BloomConfig.uvStepSize2 = 2.0f;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1439,6 +1441,12 @@ bool LoadBloomParams() {
 				if (g_BloomConfig.iNumPasses > MAX_BLOOM_PASSES)
 					g_BloomConfig.iNumPasses = MAX_BLOOM_PASSES;
 				log_debug("[DBG] [Bloom] iNumPasses: %d", g_BloomConfig.iNumPasses);
+			}
+			else if (_stricmp(param, "uv_step_size_1") == 0) {
+				g_BloomConfig.uvStepSize1 = fValue;
+			}
+			else if (_stricmp(param, "uv_step_size_2") == 0) {
+				g_BloomConfig.uvStepSize2 = fValue;
 			}
 			else if (_stricmp(param, "background_suns_strength") == 0) {
 				g_BloomConfig.fSunsStrength = fValue;
