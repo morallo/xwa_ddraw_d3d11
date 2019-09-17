@@ -28,18 +28,18 @@ float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv = input.uv * amplifyFactor;
 	float2 kernel_small_offsets = uvStepSize * float2(pixelSizeX, pixelSizeY);
-	float3 kernel_center = texture0.Sample(sampler0, input_uv).rgb;
+	float3 kernel_center = 0.2 * texture0.Sample(sampler0, input_uv).rgb;
 	float3 kernel_small = 0;
 	float2 offset_uv = 0;
 
 	offset_uv.xy  = input_uv   + kernel_small_offsets;
-	kernel_small += texture0.Sample(sampler0, offset_uv).rgb; //++
+	kernel_small += 0.75 * 0.2 * texture0.Sample(sampler0, offset_uv).rgb; //++
 	offset_uv.x   = input_uv.x - kernel_small_offsets.x;
-	kernel_small += texture0.Sample(sampler0, offset_uv).rgb; //-+
+	kernel_small += 0.2 * texture0.Sample(sampler0, offset_uv).rgb; //-+
 	offset_uv.y   = input_uv.y - kernel_small_offsets.y;
-	kernel_small += texture0.Sample(sampler0, offset_uv).rgb; //--
+	kernel_small += 0.75 * 0.2 * texture0.Sample(sampler0, offset_uv).rgb; //--
 	offset_uv.x	  = input_uv.x + kernel_small_offsets.x;
-	kernel_small += texture0.Sample(sampler0, offset_uv).rgb; //+-
+	kernel_small += 0.2 * texture0.Sample(sampler0, offset_uv).rgb; //+-
 
-	return float4((kernel_center + kernel_small) / 5.0, 1);
+	return float4(kernel_center + kernel_small, 1);
 }

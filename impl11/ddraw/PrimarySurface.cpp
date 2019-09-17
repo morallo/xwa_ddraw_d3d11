@@ -2349,33 +2349,28 @@ HRESULT PrimarySurface::Flip(
 				else
 				*/
 				{
-					/*float fScale = 2.0f;
+					float fScale = 1.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
-						int AdditionalPasses = g_iBloomPasses[i] - 1;
-						BloomPyramidLevelPass(i, AdditionalPasses, fScale);
-						fScale *= 2.0f;
-					}*/
-					
-					float fScale = 2.0f;
-					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
+						fScale = exp2((float)i);
 						BloomPyramidLevelDownSamplePass(i, 0, fScale);
-						fScale *= 2.0f;
 					}
 					
-					/*BloomPyramidLevelDownSamplePass(1, 0, 2.0f);
+					/*
+					BloomPyramidLevelDownSamplePass(1, 0, 2.0f);
 					BloomPyramidLevelDownSamplePass(2, 0, 4.0f);
-					BloomPyramidLevelDownSamplePass(3, 0, 8.0f);*/
+					BloomPyramidLevelDownSamplePass(3, 0, 8.0f);
+					*/
 					
-					/*for (int i = g_BloomConfig.iNumPasses; i >= 1; i--) {
-						fScale /= 2.0f;
+					for (int i = g_BloomConfig.iNumPasses; i >= 1; i--) {
+						fScale = exp2((float)(i - 1));
 						BloomPyramidLevelUpSamplePass(i, 0, fScale);
-					}*/
+					}
 
-					BloomPyramidLevelUpSamplePass(5, 0, 16.0f);
-					BloomPyramidLevelUpSamplePass(4, 0, 8.0f);
+					/*
 					BloomPyramidLevelUpSamplePass(3, 0, 4.0f);
 					BloomPyramidLevelUpSamplePass(2, 0, 2.0f);
 					BloomPyramidLevelUpSamplePass(1, 0, 1.0f);
+					*/
 				}
 				// Add the accumulated bloom with the offscreen buffer
 				// Input: _bloomSum, _offscreenBufferAsInput
