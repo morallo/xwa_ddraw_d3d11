@@ -34,7 +34,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 uv2 = input_uv - dy;
 
 	[unroll]
-	for (int i = 1; i < 5; i++) {
+	for (int i = 1; i < 3; i++) {
 		s1 = texture0.Sample(sampler0, uv1).xyz * weight[i];
 		s2 = texture0.Sample(sampler0, uv2).xyz * weight[i];
 		color += s1 + s2;
