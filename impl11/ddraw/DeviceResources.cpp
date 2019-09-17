@@ -21,11 +21,12 @@
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
-//#include "../Debug/BloomPrePassPS.h"
 #include "../Debug/BloomHGaussPS.h"
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomCombinePS.h"
 #include "../Debug/BloomBufferAddPS.h"
+#include "../Debug/BloomDownSample.h"
+#include "../Debug/BloomUpSample.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -42,11 +43,12 @@
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
-//#include "../Release/BloomPrePassPS.h"
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomCombinePS.h"
 #include "../Release/BloomBufferAddPS.h"
+#include "../Release/BloomDownSample.h"
+#include "../Release/BloomUpSample.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -1476,6 +1478,12 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomDownSample, sizeof(g_BloomDownSample), nullptr, &_bloomDownSamplePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomUpSample, sizeof(g_BloomUpSample), nullptr, &_bloomUpSamplePS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -1659,6 +1667,12 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomDownSample, sizeof(g_BloomDownSample), nullptr, &_bloomDownSamplePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomUpSample, sizeof(g_BloomUpSample), nullptr, &_bloomUpSamplePS)))
 			return hr;
 	}
 

@@ -49,9 +49,13 @@ public:
 
 	HRESULT buildSteamVRResizeMesh2D();
 
+	void BloomBasicPass_105(int pass, float fZoomFactor);
+
 	void BloomBasicPass(int pass, float fZoomFactor);
 
-	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
+	void BloomPyramidLevelDownSamplePass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
+
+	void BloomPyramidLevelUpSamplePass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
 
 	void capture(int time_delay, ComPtr<ID3D11Texture2D> buffer, const wchar_t *filename);
 
