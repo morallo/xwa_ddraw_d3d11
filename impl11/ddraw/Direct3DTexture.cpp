@@ -567,7 +567,8 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		
 		// Catch the laser-related textures and mark them
-		if (strstr(surface->_name, "Laser") != NULL) {
+		if (strstr(surface->_name, "Laser") != NULL ||
+			strstr(surface->_name, "Turbo") != NULL) {
 			// Ignore "LaserBat.OPT"
 			if (strstr(surface->_name, "LaserBat") == NULL) {
 				d3dTexture->is_Laser = true;
