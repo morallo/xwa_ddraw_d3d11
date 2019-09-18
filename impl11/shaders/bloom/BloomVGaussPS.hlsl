@@ -41,5 +41,5 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv1 += dy;
 		uv2 -= dy;
 	}
-	return float4(/* colorMul * */ color, 1);
+	return float4(color, 1);
 }

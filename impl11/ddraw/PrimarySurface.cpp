@@ -2109,6 +2109,16 @@ HRESULT PrimarySurface::Flip(
 				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display Bloom
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
 				int HyperspacePhase = PlayerDataTable->hyperspacePhase;
 				bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
 

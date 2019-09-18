@@ -1,6 +1,8 @@
 //static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
-static const float weight[3] = {0.38774,	 0.24477, 0.06136}; // Kernel size 5, sigma = 1.0
 //static const float weight[4] = {0.383103	, 0.241843,	0.060626, 0.00598}; // Kernel size 7, sigma = 1.0
+static const float weight[3] = {0.38774,	 0.24477, 0.06136}; // Kernel size 5, sigma = 1.0
+//static const float weight[2] = {0.44198, 0.27901}; // Kernel size 3, sigma = 1.0
+
 
 //static const float weight[5]   = {0.382928, 0.241732,  0.060598,  0.005977, 0.000229}; // Sigma 1, kernel size 9
 
