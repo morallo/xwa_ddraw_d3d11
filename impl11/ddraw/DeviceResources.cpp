@@ -623,20 +623,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// Reset the cockpit name
 			g_sCurrentCockpit[0] = 0;
 			// Reset the active slots in g_DCElements
-			int size = g_iNumDCElements;
-			for (int i = 0; i < size; i++)
+			for (int i = 0; i < g_iNumDCElements; i++)
 			{
 				dc_element *elem = &g_DCElements[i];
 				if (elem->bActive) {
 					if (elem->coverTexture != NULL) {
-						//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
 						delete g_DCElements[i].coverTexture;
 						log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
 						//elem->coverTexture->Release();
-						//log_debug("[DBG] [DC] NULL-ing %s", elem->coverTextureName);
-						//log_debug("[DBG] [DC] ref: %d", ref);
 						//elem->coverTexture = NULL;
-						//g_DCElements[i].coverTexture->Release();
 						g_DCElements[i].coverTexture = nullptr;
 					}
 					elem->bActive = false;

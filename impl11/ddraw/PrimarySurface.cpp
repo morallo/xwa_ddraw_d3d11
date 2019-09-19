@@ -2123,6 +2123,10 @@ HRESULT PrimarySurface::Flip(
 				int HyperspacePhase = PlayerDataTable->hyperspacePhase;
 				bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
 
+				// DEBUG
+				static int CaptureCounter = 1;
+				// DEBUG
+
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
@@ -2139,10 +2143,20 @@ HRESULT PrimarySurface::Flip(
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
-				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-					capture(0, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_offscreenBufferAsInputBloomMask.jpg");
-					capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer.jpg");
-				}*/
+				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
+					wchar_t filename[80];
+					
+					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
+					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.dds", CaptureCounter);
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, filename);
+
+
+					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.jpg", CaptureCounter);
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
+					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.dds", CaptureCounter);
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
+				}
 				// DEBUG
 
 				if (bHyperStreaks) 
@@ -2163,7 +2177,7 @@ HRESULT PrimarySurface::Flip(
 						int AdditionalPasses = g_iBloomPasses[i] - 1;
 						// Zoom level 2.0f with only one pass tends to show artifacts unless
 						// the spread is set to 1
-						BloomPyramidLevelPass(i, AdditionalPasses, fScale); // , i == g_iNumBloomPasses);
+						BloomPyramidLevelPass(i, AdditionalPasses, fScale);
 						fScale *= 2.0f;
 					}
 				}
@@ -2173,11 +2187,22 @@ HRESULT PrimarySurface::Flip(
 				BloomBasicPass(5, 1.0f);
 
 				// DEBUG
-				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-					capture(0, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput1-Final.jpg");
-					capture(0, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer-Final.jpg");
+				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
+					wchar_t filename[80];
+
+					swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.jpg", CaptureCounter);
+					DirectX::SaveWICTextureToFile(context, resources->_bloomOutput1, GUID_ContainerFormatJpeg, filename);
+					swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.dds", CaptureCounter);
+					DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput1, filename);
+
+					swprintf_s(filename, 80, L".\\_offscreenBuffer-Final-%d.jpg", CaptureCounter);
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
+					swprintf_s(filename, 80, L".\\_offscreenBuffer-Final-%d.dds", CaptureCounter);
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
+
+					CaptureCounter++;
 					g_bDumpBloomBuffers = false;
-				}*/
+				}
 				// DEBUG
 			}
 

@@ -29,9 +29,9 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
-	float4 bloom = float4(bloomTex0.Sample(sampler0, input_uv_sub).rgb, 1);
-	float4 bloomSum = float4(bloomSumTex.Sample(bloomSumSampler, input.uv).rgb, 1);
+	float3 bloom = bloomTex0.Sample(sampler0, input_uv_sub).rgb;
+	float3 bloomSum = bloomSumTex.Sample(bloomSumSampler, input.uv).rgb;
 
 	// Truncate negative values coming from the bloom texture:
-	return bloomSum + max(0, bloomStrength * bloom);
+	return float4(bloomSum.rgb + max(0, bloomStrength * bloom.rgb), 1);
 }

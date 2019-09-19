@@ -151,11 +151,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bSkipGUI: %d", g_bSkipGUI);
 				return 0;
 #endif
-			/*
+			
 			case 'D':
 				g_bDumpBloomBuffers = true;
 				return 0;
-			*/
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
 				return 0;

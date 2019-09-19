@@ -122,9 +122,8 @@ struct PixelShaderOutput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float4 color = texture0.Sample(sampler0, input.uv);
-	float4 bloom = bloomTex.Sample(bloomSampler, input.uv);
+	float3 bloom = bloomTex.Sample(bloomSampler, input.uv).rgb;
 	color.w = 1.0f;
-	bloom.w = 1.0f;
 
 	//float3 HSV = RGBtoHSV(output.bloom.xyz);
 	//float V = HSV.z;
@@ -135,10 +134,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//output.bloom.rgb = HSVtoRGB(HSV);
 	
 	bloom = bloom / (bloom + 1);
-	float3 HSV = RGBtoHSV(bloom.xyz);
+	float3 HSV = RGBtoHSV(bloom);
 	HSV.y = saturate(lerp(HSV.y, HSV.y * saturationStrength, HSV.z));
-	bloom.rgb = HSVtoRGB(HSV);
-	bloom = saturate(bloom);
+	bloom = saturate(HSVtoRGB(HSV));
 
 	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
 	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);
@@ -147,6 +145,6 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	// Screen blending mode, see http://www.deepskycolors.com/archive/2010/04/21/formulas-for-Photoshop-blending-modes.html
 	// 1 - (1 - Target) * (1 - Blend)
-	color.rgb = 1 - (1 - color.rgb) * (1 - bloom.rgb);
+	color.rgb = 1 - (1 - color.rgb) * (1 - bloom);
 	return color;
 }
