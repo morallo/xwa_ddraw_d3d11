@@ -26,7 +26,8 @@ extern uint32_t *g_playerInHangar;
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bHUDVerticesReady;
-extern std::vector<dc_element> g_DCElements;
+extern dc_element g_DCElements[];
+extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
@@ -1588,7 +1589,7 @@ void PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
-	int size = (int)g_DCElements.size();
+	int size = g_iNumDCElements;
 	for (int i = 0; i < size; i++) {
 		dc_element *dc_elem = &g_DCElements[i];
 		if (g_sCurrentCockpit[0] != 0 && !dc_elem->bNameHasBeenTested)

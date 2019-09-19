@@ -139,7 +139,8 @@ std::vector<char *> Sun_ResNames = {
 };
 
 // g_DCElements is used when loading textures to load the cover texture.
-extern std::vector<dc_element> g_DCElements;
+extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
+extern int g_iNumDCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
@@ -161,9 +162,8 @@ bool isInVector(char *name, std::vector<char *> &vector) {
 	return false;
 }
 
-int isInVector(char *name, std::vector<dc_element> dc_elements) {
-	int size = (int)dc_elements.size();
-	for (int i = 0; i < size; i++) {
+int isInVector(char *name, dc_element *dc_elements, int num_elems) {
+	for (int i = 0; i < num_elems; i++) {
 		if (strstr(name, dc_elements[i].name) != NULL)
 			return i;
 	}
@@ -606,7 +606,7 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 			}
 
 			/* Process Dynamic Cockpit destination textures: */
-			int idx = isInVector(surface->_name, g_DCElements);
+			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
 				// "light" and "color" textures are processed differently
 				if (strstr(surface->_name, ",color") != NULL) {
@@ -622,20 +622,20 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 						size_t len = 0;
 						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
 						HRESULT res = DirectX::CreateWICTextureFromFile(surface->_deviceResources->_d3dDevice,
-							wTexName, NULL, &g_DCElements[idx].coverTexture);
+							wTexName, NULL, &(g_DCElements[idx].coverTexture));
 						if (FAILED(res)) {
 							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
 							//	g_DCElements[idx].coverTextureName, res);
-							g_DCElements[idx].coverTexture = NULL;
+							g_DCElements[idx].coverTexture = nullptr;
 						}
-						/*else {
+						else {
 							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-						}*/
+							//g_DCElements[idx].coverTexture->AddRef();
+						}
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {
 					d3dTexture->is_DynCockpitAlphaOverlay = true;
-					//log_debug("[DBG] [DC] Alpha Overlay: [%s]", surface->_name);
 				}
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)

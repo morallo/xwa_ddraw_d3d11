@@ -242,7 +242,8 @@ float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value i
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
-std::vector<dc_element> g_DCElements = {};
+dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
+int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true;
@@ -344,7 +345,7 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
 //bool LoadNewCockpitTextures(ID3D11Device *device);
 //void UnloadNewCockpitTextures();
-int isInVector(char *name, std::vector<dc_element> dc_elements);
+int isInVector(char *name, dc_element *dc_elements, int num_elems);
 // Tags textures using their names
 void TagTexture(Direct3DTexture *d3dTexture);
 
@@ -952,17 +953,18 @@ bool LoadDCInternalCoordinates() {
 	return true;
 }
 
-void ClearDynCockpitVector(std::vector<dc_element> &DCElements) {
-	int size = (int)DCElements.size();
+void ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
 		if (DCElements[i].coverTexture != NULL) {
 			log_debug("[DBG] [DC] !!!! Releasing [%s]", DCElements[i].coverTextureName);
 			DCElements[i].coverTexture->Release();
+			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
 			DCElements[i].coverTexture = NULL;
 		}
 		DCElements[i].coverTextureName[0] = 0;
 	}
-	DCElements.clear();
+	g_iNumDCElements = 0;
+	//DCElements.clear();
 }
 
 /*
@@ -1234,7 +1236,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (end != NULL)
 					*end = 0;
 				// See if we have this DC element already
-				lastDCElemSelected = isInVector(dc_elem.name, g_DCElements);
+				lastDCElemSelected = isInVector(dc_elem.name, g_DCElements, g_iNumDCElements);
 				//log_debug("[DBG] [DC] New dc_elem.name: [%s], idx: %d",
 				//	dc_elem.name, lastDCElemSelected);
 				if (lastDCElemSelected > -1) {
@@ -1242,20 +1244,29 @@ bool LoadIndividualDCParams(char *sFileName) {
 					g_DCElements[lastDCElemSelected].num_erase_slots = 0;
 					log_debug("[DBG] [DC] Resetting coords of exisiting DC elem @ idx: %d", lastDCElemSelected);
 				}
-				else {
+				else if (g_iNumDCElements < MAX_DC_SRC_ELEMENTS) {
 					// Initialize this dc_elem:
 					dc_elem.coverTextureName[0] = 0;
-					dc_elem.coverTexture = NULL;
+					dc_elem.coverTexture = nullptr;
 					dc_elem.coords = { 0 };
 					dc_elem.num_erase_slots = 0;
 					dc_elem.bActive = false;
 					dc_elem.bNameHasBeenTested = false;
-					g_DCElements.push_back(dc_elem);
-					lastDCElemSelected = (int)g_DCElements.size() - 1;
+					//g_DCElements.push_back(dc_elem);
+					g_DCElements[g_iNumDCElements] = dc_elem;
+					//lastDCElemSelected = (int)g_DCElements.size() - 1;
+					lastDCElemSelected = g_iNumDCElements;
+					g_iNumDCElements++;
+					log_debug("[DBG] [DC] Added new dc_elem, count: %d", g_iNumDCElements);
+				}
+				else {
+					if (g_iNumDCElements >= MAX_DC_SRC_ELEMENTS)
+						log_debug("[DBG] [DC] ERROR: Max g_iNumDCElements: %d reached", g_iNumDCElements);
 				}
 			}
 			else if (_stricmp(param, UV_COORDS_DCPARAM) == 0) {
-				if (g_DCElements.size() == 0) {
+				//if (g_DCElements.size() == 0) {
+				if (g_iNumDCElements == 0) {
 					log_debug("[DBG] [DC] ERROR. Line %d, g_DCElements is empty, cannot add %s", line, param, UV_COORDS_DCPARAM);
 					continue;
 				}
@@ -1271,7 +1282,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			*/
 			else if (_stricmp(param, ERASE_REGION_DCPARAM) == 0) {
-				if (g_DCElements.size() == 0) {
+				//if (g_DCElements.size() == 0) {
+				if (g_iNumDCElements == 0) {
 					log_debug("[DBG] [DC] ERROR. Line %d, g_DCElements is empty, cannot add %s", line, param, ERASE_REGION_DCPARAM);
 					continue;
 				}
@@ -4173,7 +4185,7 @@ HRESULT Direct3DDevice::Execute(
 				{
 					int idx = lastTextureSelected->DCElementIndex;
 					// Check if this idx is valid before rendering
-					if (idx >= 0 && idx < (int)g_DCElements.size()) {
+					if (idx >= 0 && idx < g_iNumDCElements) {
 						dc_element *dc_element = &g_DCElements[idx];
 						if (dc_element->bActive) {
 							bModifiedShaders = true;
@@ -4210,9 +4222,14 @@ HRESULT Direct3DDevice::Execute(
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
 							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
-							if (g_PSCBuffer.bUseCoverTexture)
-								context->PSSetShaderResources(0, 1, &(dc_element->coverTexture));
-							else
+							if (g_PSCBuffer.bUseCoverTexture) {
+								//log_debug("[DBG] [DC] PSSetShaderRes--Get: 0x%x", dc_element->coverTexture.Get());
+								context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
+								//dc_element->coverTexture->AddRef();
+								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
+								//dc_element->coverTexture->Release();
+								//context->PSSetShaderResources(0, 1, &(dc_element->coverTexture));
+							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());

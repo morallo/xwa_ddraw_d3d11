@@ -17,11 +17,14 @@ DirectDraw::DirectDraw(DeviceResources* deviceResources)
 {
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
+	log_debug("[DBG] [DDraw] Created DirectDraw object: 0x%x", this);
 }
 
 DirectDraw::~DirectDraw()
 {
+	log_debug("[DBG] [DDraw] ~DirectDraw() called on 0x%x", this);
 	delete this->_deviceResources;
+	log_debug("[DBG] [DDraw] ~DirectDraw() EXIT 0x%x", this);
 }
 
 HRESULT DirectDraw::QueryInterface(
@@ -118,6 +121,7 @@ ULONG DirectDraw::AddRef()
 
 ULONG DirectDraw::Release()
 {
+	log_debug("[DBG] [DDraw] Releasing DirectDraw ptr: 0x%x", this);
 #if LOGGER
 	std::ostringstream str;
 	str << this << " " << __FUNCTION__;
@@ -134,7 +138,9 @@ ULONG DirectDraw::Release()
 
 	if (this->_refCount == 0)
 	{
+		log_debug("[DBG] [DDraw] deleting DirectDraw ptr: 0x%x", this);
 		delete this;
+		log_debug("[DBG] [DDraw] DELETED DirectDraw ptr: 0x%x", this);
 		return 0;
 	}
 

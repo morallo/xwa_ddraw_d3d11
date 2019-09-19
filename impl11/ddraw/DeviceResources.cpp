@@ -65,7 +65,8 @@ int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
 extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 extern VertexShaderMatrixCB g_VSMatrixCB;
-extern std::vector<dc_element> g_DCElements;
+extern dc_element g_DCElements[];
+extern int g_iNumDCElements;
 extern char g_sCurrentCockpit[128];
 
 extern DCHUDRegions g_DCHUDRegions;
@@ -112,7 +113,7 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
 
-void ClearDynCockpitVector(std::vector<dc_element> &DCElements);
+void ClearDynCockpitVector(dc_element DCElements[], int num_elems);
 
 void log_err(const char *format, ...)
 {
@@ -622,24 +623,30 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// Reset the cockpit name
 			g_sCurrentCockpit[0] = 0;
 			// Reset the active slots in g_DCElements
-			int size = (int)g_DCElements.size();
+			int size = g_iNumDCElements;
 			for (int i = 0; i < size; i++)
 			{
 				dc_element *elem = &g_DCElements[i];
 				if (elem->bActive) {
 					if (elem->coverTexture != NULL) {
 						//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
-						elem->coverTexture->Release();
-						elem->coverTexture = NULL;
+						delete g_DCElements[i].coverTexture;
+						log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
+						//elem->coverTexture->Release();
+						//log_debug("[DBG] [DC] NULL-ing %s", elem->coverTextureName);
+						//log_debug("[DBG] [DC] ref: %d", ref);
+						//elem->coverTexture = NULL;
+						//g_DCElements[i].coverTexture->Release();
+						g_DCElements[i].coverTexture = NULL;
 					}
 					elem->bActive = false;
 					elem->bNameHasBeenTested = false;
 				}
 			}
 			// Reset the dynamic cockpit vector
-			if (g_DCElements.size() > 0) {
+			if (g_iNumDCElements > 0) {
 				log_debug("[DBG] [DC] Clearing g_DCElements");
-				ClearDynCockpitVector(g_DCElements);
+				ClearDynCockpitVector(g_DCElements, g_iNumDCElements);
 			}
 		}
 		this->_renderTargetViewDynCockpit.Release();
