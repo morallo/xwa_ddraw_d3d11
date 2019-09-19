@@ -957,9 +957,10 @@ void ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
 		if (DCElements[i].coverTexture != NULL) {
 			log_debug("[DBG] [DC] !!!! Releasing [%s]", DCElements[i].coverTextureName);
-			DCElements[i].coverTexture->Release();
+			//DCElements[i].coverTexture->Release();
+			delete DCElements[i].coverTexture;
 			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
-			DCElements[i].coverTexture = NULL;
+			DCElements[i].coverTexture = nullptr;
 		}
 		DCElements[i].coverTextureName[0] = 0;
 	}
@@ -4217,19 +4218,15 @@ HRESULT Direct3DDevice::Execute(
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
-							g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != NULL) ? 1 : 0;
+							g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
 							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
-							if (g_PSCBuffer.bUseCoverTexture) {
-								//log_debug("[DBG] [DC] PSSetShaderRes--Get: 0x%x", dc_element->coverTexture.Get());
+							if (g_PSCBuffer.bUseCoverTexture)
 								context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
-								//dc_element->coverTexture->AddRef();
 								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
-								//dc_element->coverTexture->Release();
-								//context->PSSetShaderResources(0, 1, &(dc_element->coverTexture));
-							} else
+							else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());

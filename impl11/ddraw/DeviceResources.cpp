@@ -637,7 +637,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 						//log_debug("[DBG] [DC] ref: %d", ref);
 						//elem->coverTexture = NULL;
 						//g_DCElements[i].coverTexture->Release();
-						g_DCElements[i].coverTexture = NULL;
+						g_DCElements[i].coverTexture = nullptr;
 					}
 					elem->bActive = false;
 					elem->bNameHasBeenTested = false;

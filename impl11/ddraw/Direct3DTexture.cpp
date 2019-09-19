@@ -617,7 +617,7 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 					// Activate this dc_element
 					g_DCElements[idx].bActive = true;
 					// Load the cover texture if necessary
-					if (g_DCElements[idx].coverTexture == NULL && g_DCElements[idx].coverTextureName[0] != 0) {
+					if (g_DCElements[idx].coverTexture == nullptr && g_DCElements[idx].coverTextureName[0] != 0) {
 						wchar_t wTexName[MAX_TEXTURE_NAME];
 						size_t len = 0;
 						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
@@ -628,10 +628,9 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 							//	g_DCElements[idx].coverTextureName, res);
 							g_DCElements[idx].coverTexture = nullptr;
 						}
-						else {
+						/*else {
 							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-							//g_DCElements[idx].coverTexture->AddRef();
-						}
+						}*/
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {
