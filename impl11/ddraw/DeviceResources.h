@@ -250,7 +250,7 @@ typedef struct dc_element_struct {
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
-	ID3D11ShaderResourceView *coverTexture = NULL;
+	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested;
 } dc_element;
 
@@ -313,78 +313,74 @@ public:
 	D3D_DRIVER_TYPE _d3dDriverType;
 	D3D_FEATURE_LEVEL _d3dFeatureLevel;
 	ComPtr<ID3D11Device> _d3dDevice;
-	//ComPtr<ID3D11Device1> _d3dDevice1;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
-	//ComPtr<ID3D11DeviceContext1> _d3dDeviceContext1;
 	ComPtr<IDXGISwapChain> _swapChain;
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
-	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
+	//ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
+	//ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
+	//ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
 	// Dynamic Cockpit
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
-	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
+	//ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	//ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	//ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
+	//ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
 	// Barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
-	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
+	//ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
+	//ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
+	//ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// Reshade
-	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
-	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
-	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
-	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
-	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
-	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
-	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
+	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
+	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
+	//ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
+	//ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
+	//ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
+	//ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
+	//ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
+	//ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
+	//ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
+	//ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
 	// Dynamic Cockpit
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
 	// Barrel Effect
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
 	// Reshade
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask;  // Renders to _offscreenBufferBloomMask
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask;  // Renders to _offscreenBufferBloomMask
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
 	
 	// Reshade
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
-	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
-	//ComPtr<ID3D11ShaderResourceView> _reshadeBloomFSRV; // SRV for _offscreenBufferBloomF
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
+	//ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
+	//ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
-	ComPtr<ID3D11Texture2D> _depthStencilR;
+	//ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
-	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
+	//ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
 	ComPtr<ID3D11InputLayout> _mainInputLayout;
@@ -392,19 +388,18 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey00;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
-	ComPtr<ID3D11PixelShader> _barrelPixelShader;
-	ComPtr<ID3D11PixelShader> _bloomPrepassPS;
-	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
-	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
-	ComPtr<ID3D11PixelShader> _bloomCombinePS;
-	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
-	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
+	//ComPtr<ID3D11PixelShader> _barrelPixelShader;
+	//ComPtr<ID3D11PixelShader> _bloomHGaussPS;
+	//ComPtr<ID3D11PixelShader> _bloomVGaussPS;
+	//ComPtr<ID3D11PixelShader> _bloomCombinePS;
+	//ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
+	//ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
 	ComPtr<ID3D11BlendState> _mainBlendState;
 	ComPtr<ID3D11DepthStencilState> _mainDepthState;
 	ComPtr<ID3D11Buffer> _mainVertexBuffer;
-	ComPtr<ID3D11Buffer> _steamVRPresentVertexBuffer; // Used in SteamVR mode to correct the image presented on the monitor
+	//ComPtr<ID3D11Buffer> _steamVRPresentVertexBuffer; // Used in SteamVR mode to correct the image presented on the monitor
 	ComPtr<ID3D11Buffer> _mainIndexBuffer;
 	ComPtr<ID3D11Texture2D> _mainDisplayTexture;
 	ComPtr<ID3D11ShaderResourceView> _mainDisplayTextureView;
@@ -412,21 +407,21 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _mainDisplayTextureViewTemp;
 
 	ComPtr<ID3D11VertexShader> _vertexShader;
-	ComPtr<ID3D11VertexShader> _sbsVertexShader;
-	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
+	//ComPtr<ID3D11VertexShader> _sbsVertexShader;
+	//ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
-	ComPtr<ID3D11PixelShader> _pixelShaderDC;
-	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
+	//ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	//ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
-	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
+	//ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
-	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
-	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
-	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
+	//ComPtr<ID3D11Buffer> _PSConstantBufferDC;
+	//ComPtr<ID3D11Buffer> _barrelConstantBuffer;
+	//ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 
 	BOOL _useAnisotropy;

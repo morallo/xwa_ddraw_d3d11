@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
-#include <ScreenGrab.h>
-#include <wincodec.h>
+//#include <ScreenGrab.h>
+//#include <wincodec.h>
 
 #include "common.h"
 #include "DeviceResources.h"
@@ -26,16 +26,16 @@ extern uint32_t *g_playerInHangar;
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bHUDVerticesReady;
-extern dc_element g_DCElements[];
+//extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
-extern DCHUDRegions g_DCHUDRegions;
-extern move_region_coords g_DCMoveRegions;
+//extern DCHUDRegions g_DCHUDRegions;
+//extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
 //extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
-extern DCPixelShaderCBuffer g_DCPSCBuffer;
+//extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern D3D11_VIEWPORT g_nonVRViewport;
@@ -279,8 +279,8 @@ void PrimarySurface::capture(int time_delay, ComPtr<ID3D11Texture2D> buffer, con
 	bool bDoCapture = false;
 	HRESULT hr = D3D_OK;
 
-	hr = DirectX::SaveWICTextureToFile(this->_deviceResources->_d3dDeviceContext.Get(),
-		buffer.Get(), GUID_ContainerFormatJpeg, filename);
+	/*hr = DirectX::SaveWICTextureToFile(this->_deviceResources->_d3dDeviceContext.Get(),
+		buffer.Get(), GUID_ContainerFormatJpeg, filename);*/
 
 	if (SUCCEEDED(hr))
 		log_debug("[DBG] CAPTURED (1)!");
@@ -684,8 +684,8 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBuffer2 to use it
 	// as input, so that we can render the image twice.
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	/*context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -714,14 +714,14 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_barrelPixelShader);
+	//resources->InitPixelShader(resources->_barrelPixelShader);
 	
 	// Set the lens distortion constants for the barrel shader
-	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+//	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
-	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+	/*context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());*/
 
 	resources->InitViewport(&viewport);
 	context->Draw(6, 0);
@@ -789,23 +789,23 @@ void PrimarySurface::barrelEffect3D() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	//context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+	//	0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_barrelPixelShader);
+	//resources->InitPixelShader(resources->_barrelPixelShader);
 	
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	// Set the lens distortion constants for the barrel shader
-	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+//	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
 	// Clear the depth stencil
 	// Maybe I should be using resources->clearDepth instead of 1.0f:
 	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// Clear the render target
-	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+	//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
 	context->Draw(6, 0);
@@ -896,10 +896,10 @@ void PrimarySurface::barrelEffectSteamVR() {
 	resources->InitViewport(&viewport);
 
 	// Resolve both images
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	/*context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
+	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+	//	0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -921,26 +921,24 @@ void PrimarySurface::barrelEffectSteamVR() {
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_singleBarrelPixelShader);
+	//resources->InitPixelShader(resources->_singleBarrelPixelShader);
 
 	// Set the lens distortion constants for the barrel shader
-	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+//	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
 	// Clear the depth stencil and render target
 	//context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	//context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+	//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+	//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 	context->IASetInputLayout(resources->_mainInputLayout);
 
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-		//resources->_depthStencilViewL.Get());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 	context->Draw(6, 0);
 
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-		//resources->_depthStencilViewR.Get());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 	context->Draw(6, 0);
 
 #ifdef DBG_VR
@@ -1001,8 +999,8 @@ HRESULT PrimarySurface::buildSteamVRResizeMesh2D() {
 	vertexBufferData.SysMemPitch = 0;
 	vertexBufferData.SysMemSlicePitch = 0;
 
-	return _deviceResources->_d3dDevice->CreateBuffer(&vertexBufferDesc,
-		&vertexBufferData, &this->_deviceResources->_steamVRPresentVertexBuffer);
+	/*return _deviceResources->_d3dDevice->CreateBuffer(&vertexBufferDesc,
+		&vertexBufferData, &this->_deviceResources->_steamVRPresentVertexBuffer);*/
 }
 
 /*
@@ -1064,8 +1062,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
 	// use it as input
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	/*context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 
 	// Resize the buffer to be presented for SteamVR
 	float scale_x = screen_res_x / g_steamVRWidth;
@@ -1123,10 +1121,10 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitPixelShader(resources->_mainPixelShader);
 
 	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
-		resources->_depthStencilViewL.Get());
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
+	//	resources->_depthStencilViewL.Get());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -1252,61 +1250,54 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 0: 	// Horizontal Gaussian Blur
 			// Input: _offscreenAsInputReshadeSRV
 			// Output _bloomOutput1
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomHGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);*/
 			break;
 		case 1: // Vertical Gaussian Blur
 			// Input:  _bloomOutput1
 			// Output: _bloomOutput2
-			resources->InitPixelShader(resources->_bloomVGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomVGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);*/
 			break;
 		case 2: // Horizontal Gaussian Blur
 			// Input:  _bloomOutput2
 			// Output: _bloomOutput1
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomHGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);*/
 			break;
 		case 3: // Final pass to combine the bloom texture with the offscreenBuffer
 			// Input:  _bloomOutput2, _offscreenBufferAsInput
 			// Output: _offscreenBuffer (_bloomOutput1?)
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			//resources->InitPixelShader(resources->_bloomCombinePS);
+			/*context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());*/
+			//context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 		case 4:
 			// Input: _bloomOutput2, _bloomSum
 			// Output: _bloomOutput1
-			resources->InitPixelShader(resources->_bloomBufferAddPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomBufferAddPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);*/
 			break;
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSum, _offscreenBufferAsInput
 			// Output: _offscreenBuffer
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			//resources->InitPixelShader(resources->_bloomCombinePS);
+			/*context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
-			/*
-			ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBloom1.Get()
-			};
-			context->OMSetRenderTargets(2, rtvs, NULL);
-			*/
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());*/
+			//context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 	}
@@ -1318,62 +1309,55 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 0: 	// Prepass
 			// Input: _offscreenAsInputReshadeSRV_R
 			// Output _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV_R.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomHGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV_R.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);*/
 			break;
 		case 1: // Vertical Gaussian Blur
 			// Input:  _bloomOutput1R
 			// Output: _bloomOutput2R
-			resources->InitPixelShader(resources->_bloomVGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV_R.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomVGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV_R.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom2R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2R.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2R.GetAddressOf(), NULL);*/
 			break;
 		case 2: // Horizontal Gaussian Blur
 			// Input:  _bloomOutput2R
 			// Output: _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomHGaussPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);*/
 			break;
 		case 3: // Final pass to combine the bloom texture with the backbuffer
 			// Input:  _bloomOutput2R, _offscreenBufferAsInputR
 			// Output: _offscreenBufferR
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			//resources->InitPixelShader(resources->_bloomCombinePS);
+			//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			//	0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+			//context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			//context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
 			break;
 		case 4:
 			// Input: _bloomOutput2R, _bloomSumR
 			// Output: _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomBufferAddPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
+			//resources->InitPixelShader(resources->_bloomBufferAddPS);
+			/*context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);*/
 			break;
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSumR, _offscreenBufferAsInputR
 			// Output: _offscreenBufferR
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			//resources->InitPixelShader(resources->_bloomCombinePS);
+			/*context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
-			/*
-			ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetViewR.Get(),
-				resources->_renderTargetViewBloom1R.Get()
-			};
-			context->OMSetRenderTargets(2, rtvs, NULL);
-			*/
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());*/
+			//context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
+			//context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
 			break;
 		}
 
@@ -1415,7 +1399,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	g_BloomPSCBuffer.saturationStrength = g_BloomConfig.fSaturationStrength;
 	g_BloomPSCBuffer.uvStepSize			= g_BloomConfig.uvStepSize1;
 	//g_BloomPSCBuffer.uvStepSize			= 1.5f;
-	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+//	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -1442,7 +1426,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	g_BloomPSCBuffer.pixelSizeY		= fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
 	// The UVs should now go to half the original range because the image was downsampled:
 	g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
-	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+//	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
 	// DEBUG
@@ -1458,7 +1442,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
 		g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? g_BloomConfig.uvStepSize2 : g_BloomConfig.uvStepSize1;
-		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+//		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 		// Horizontal Gaussian Blur. input: bloom2, output: bloom1
 		BloomBasicPass(2, fZoomFactor);
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
@@ -1466,9 +1450,9 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	}
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
-	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
+	/*context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
 	if (g_bSteamVREnabled)
-		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
+		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);*/
 
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -1479,7 +1463,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// DEBUG
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+//	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
 	//BloomBasicPass(3, fZoomFactor);
@@ -1488,9 +1472,9 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	BloomBasicPass(4, fZoomFactor);
 
 	// Copy _bloomOutput1 over _bloomOutputSum
-	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	if (g_bSteamVREnabled)
-		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
+	//context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
+	//if (g_bSteamVREnabled)
+	//	context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -1557,16 +1541,16 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	resources->InitRasterizerState(resources->_rasterizerState);
 
 	// Change the shaders
-	resources->InitVertexShader(resources->_passthroughVertexShader);
-	resources->InitPixelShader(resources->_pixelShaderClearBox);
+	//resources->InitVertexShader(resources->_passthroughVertexShader);
+	//resources->InitPixelShader(resources->_pixelShaderClearBox);
 	// Change the render target
 	// Set two RTVs: one for the foreground HUD and one for the HUD background
 	// Binding 2 RTVs implies that _pixelShaderSolid can output to 2 SV_TARGETs
-	ID3D11RenderTargetView *rtvs[2] = {
+	/*ID3D11RenderTargetView *rtvs[2] = {
 		resources->_renderTargetViewDynCockpitAsInput.Get(),
 		resources->_renderTargetViewDynCockpitAsInputBG.Get() 
 	};
-	context->OMSetRenderTargets(2, rtvs, NULL);
+	context->OMSetRenderTargets(2, rtvs, NULL);*/
 	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInput.GetAddressOf(), NULL);
 	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInputBG.GetAddressOf(), NULL);
 
@@ -1580,6 +1564,7 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	context->Draw(6, 0);
 }
 
+/*
 void PrimarySurface::ClearHUDRegions() {
 	D3D11_VIEWPORT viewport = { 0 };
 	viewport.TopLeftX = 0.0f;
@@ -1615,11 +1600,12 @@ void PrimarySurface::ClearHUDRegions() {
 		}
 	}
 }
+*/
 
 /*
  * Renders the HUD foreground and background and applies the move_region 
  * commands if DC is enabled
- */
+ 
 void PrimarySurface::DrawHUDVertices() {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1700,12 +1686,12 @@ void PrimarySurface::DrawHUDVertices() {
 	UINT offset = 0;
 	resources->InitVertexBuffer(&g_HUDVertexBuffer, &stride, &offset);
 	resources->InitInputLayout(resources->_inputLayout);
-	if (g_bEnableVR)
-		resources->InitVertexShader(resources->_sbsVertexShader);
-	else
+	//if (g_bEnableVR)
+	//	resources->InitVertexShader(resources->_sbsVertexShader);
+	//else
 		// The original code used _vertexShader:
 		resources->InitVertexShader(resources->_vertexShader);
-	resources->InitPixelShader(resources->_pixelShaderHUD);
+	//resources->InitPixelShader(resources->_pixelShaderHUD);
 	//resources->InitPixelShader(resources->_pixelShaderTexture);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitRasterizerState(resources->_rasterizerState);
@@ -1754,9 +1740,9 @@ void PrimarySurface::DrawHUDVertices() {
 		return;
 
 	// Render the right image
-	if (g_bUseSteamVR)
-		context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
-	else
+	//if (g_bUseSteamVR)
+	//	context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+	//else
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 
 	// VIEWPORT-RIGHT
@@ -1779,6 +1765,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Draw the Right Image
 	context->Draw(6, 0);
 }
+*/
 
 /* Convenience function to call WaitGetPoses() */
 inline void WaitGetPoses() {
@@ -1833,8 +1820,8 @@ HRESULT PrimarySurface::Flip(
 	{
 		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 		if (g_bUseSteamVR) {
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPostR, this->_deviceResources->clearColor);
+			//this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+			//this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPostR, this->_deviceResources->clearColor);
 		}
 		/*
 		if (g_bDynCockpitEnabled) {
@@ -1845,9 +1832,9 @@ HRESULT PrimarySurface::Flip(
 		}
 		*/
 		// Do we need to clear renderTargetViewPost?
-		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPost, this->_deviceResources->clearColor);
+		//this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPost, this->_deviceResources->clearColor);
 		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+		//this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	}
 
 	/* Present 2D content */
@@ -1978,15 +1965,15 @@ HRESULT PrimarySurface::Flip(
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
 						// Barrel effect enabled for DirectSBS mode
 						barrelEffect2D(i);
-						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+						/*this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
+							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 					}
 					else {
 						// In SteamVR mode this will display the left image:
 						if (g_bUseSteamVR) {
 							resizeForSteamVR(0, true);
-							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-								this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+							/*this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
+								this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 						}
 						else {
 							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
@@ -2018,17 +2005,17 @@ HRESULT PrimarySurface::Flip(
 						this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(
 							this->_deviceResources->_renderTargetView, bgColor);
 						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
+							//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
+							//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
 						}
 					}
 
 					if (g_bUseSteamVR) {					
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+						//vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+						//error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
 					
 					g_bRendering3D = false;
@@ -2130,23 +2117,25 @@ HRESULT PrimarySurface::Flip(
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
-				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+				/*context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);*/
+				/*
 				if (g_bSteamVREnabled)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+				*/
 
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
+				/*context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
 				if (g_bSteamVREnabled)
-					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
+					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);*/
 
 				// DEBUG
 				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
-					wchar_t filename[80];
+					//wchar_t filename[80];
 					
-					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
+					/*swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.dds", CaptureCounter);
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, filename);
@@ -2155,7 +2144,7 @@ HRESULT PrimarySurface::Flip(
 					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.dds", CaptureCounter);
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);*/
 				}
 				// DEBUG
 
@@ -2188,9 +2177,9 @@ HRESULT PrimarySurface::Flip(
 
 				// DEBUG
 				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
-					wchar_t filename[80];
+					//wchar_t filename[80];
 
-					swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.jpg", CaptureCounter);
+					/*swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_bloomOutput1, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.dds", CaptureCounter);
 					DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput1, filename);
@@ -2198,7 +2187,7 @@ HRESULT PrimarySurface::Flip(
 					swprintf_s(filename, 80, L".\\_offscreenBuffer-Final-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBuffer-Final-%d.dds", CaptureCounter);
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);*/
 
 					CaptureCounter++;
 					g_bDumpBloomBuffers = false;
@@ -2207,15 +2196,15 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
-			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
-				g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
+			//if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+			//	g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
 				// Clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled)
-					ClearHUDRegions();
+				/*if (g_bDynCockpitEnabled)
+					ClearHUDRegions();*/
 				
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
-				DrawHUDVertices();
-			}
+				//DrawHUDVertices();
+			//}
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
@@ -2226,20 +2215,20 @@ HRESULT PrimarySurface::Flip(
 					if (!g_bDisableBarrelEffect) {
 						// Do the barrel effect (_offscreenBuffer -> _offscreenBufferPost)
 						barrelEffectSteamVR();
-						this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer,
-							this->_deviceResources->_offscreenBufferPost);
+						/*this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer,
+							this->_deviceResources->_offscreenBufferPost);*/
 					}
 					// Resize the buffer to be presented (_offscreenBuffer -> _steamVRPresentBuffer)
 					resizeForSteamVR(0, false);
 					// Resolve steamVRPresentBuffer to backBuffer so that it gets presented
-					this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-						this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					/*this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
+						this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 				} 
 				else { // Direct SBS mode
 					if (!g_bDisableBarrelEffect) {
 						barrelEffect3D();
-						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+						/*this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
+							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 					} else
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 							this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
@@ -2269,12 +2258,12 @@ HRESULT PrimarySurface::Flip(
 			//*g_playerInHangar = 0;
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				auto &context = resources->_d3dDeviceContext;
-				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
+				//float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				//auto &context = resources->_d3dDeviceContext;
+				/*context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
-					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);*/
 
 				/*static bool bDump = true;
 				if (g_iPresentCounter == 100 && bDump) {
@@ -2475,20 +2464,20 @@ HRESULT PrimarySurface::Flip(
 				//	log_debug("[DBG] No Vsync info available");
 
 				vr::EVRCompositorError error = vr::VRCompositorError_None;
-				vr::Texture_t leftEyeTexture;
-				vr::Texture_t rightEyeTexture;
+				//vr::Texture_t leftEyeTexture;
+				//vr::Texture_t rightEyeTexture;
 
 				if (g_bDisableBarrelEffect) {
-					leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+					//leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+					//rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 				}
 				else {
-					leftEyeTexture = { this->_deviceResources->_offscreenBufferPost.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferPostR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+					//leftEyeTexture = { this->_deviceResources->_offscreenBufferPost.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+					//rightEyeTexture = { this->_deviceResources->_offscreenBufferPostR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 				}
-				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+				//error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
 				//if (error) log_debug("[DBG] 3D Present (left) SteamVR error: %d", error);
-				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+				//error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 				//if (error) log_debug("[DBG] 3D Present (right) SteamVR error: %d", error);
 				//g_pVRCompositor->PostPresentHandoff();
 			}

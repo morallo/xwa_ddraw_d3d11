@@ -392,7 +392,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		log_debug("[DBG] **********************");
 		log_debug("[DBG] Initializing VR ddraw.dll");
 		// Initialize the libraries needed to dump DirectX Textures
-		CoInitialize(NULL);
+		//CoInitialize(NULL);
 		// Load vrparams.cfg if present
 		LoadVRParams();
 		// Initialize SteamVR

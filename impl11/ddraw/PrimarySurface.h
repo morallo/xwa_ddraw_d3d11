@@ -57,9 +57,9 @@ public:
 
 	void ClearBox(uvfloat4 box, D3D11_VIEWPORT * viewport, D3DCOLOR clearColor);
 
-	void ClearHUDRegions();
+	//void ClearHUDRegions();
 
-	void DrawHUDVertices();
+	//void DrawHUDVertices();
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 

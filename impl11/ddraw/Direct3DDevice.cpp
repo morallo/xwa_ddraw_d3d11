@@ -18,8 +18,8 @@
 // TODO: Remove later
 #include "TextureSurface.h"
 
-#include <ScreenGrab.h>
-#include <WICTextureLoader.h>
+//#include <ScreenGrab.h>
+//#include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
 //#include <assert.h>
@@ -240,17 +240,17 @@ int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = 
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
 char g_sCurrentCockpit[128] = { 0 };
-DCHUDRegions g_DCHUDRegions;
-DCElemSrcBoxes g_DCElemSrcBoxes;
-dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
+//DCHUDRegions g_DCHUDRegions;
+//DCElemSrcBoxes g_DCElemSrcBoxes;
+//dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
-move_region_coords g_DCMoveRegions = { 0 };
+//move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
+//extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
 
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
@@ -261,8 +261,8 @@ bool g_bEnableVR = true; // Enable/disable VR mode.
 // Bloom
 const int MAX_BLOOM_PASSES = 7;
 const int DEFAULT_BLOOM_PASSES = 5;
-bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
-bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+bool g_bReshadeEnabled = false;
+bool g_bBloomEnabled = false;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[8], g_fBloomSpread[8];
@@ -347,7 +347,7 @@ bool InitDirectSBS();
 //void UnloadNewCockpitTextures();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 // Tags textures using their names
-void TagTexture(Direct3DTexture *d3dTexture);
+//void TagTexture(Direct3DTexture *d3dTexture);
 
 /* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
 float centeredSigmoid(float x) {
@@ -884,7 +884,7 @@ DCElemSrcBoxes::DCElemSrcBoxes() {
  * Load dynamic_cockpit_global.cfg 
  * This function will not grow g_DCHUDBoxes and it expects it to be populated
  * already.
- */
+ 
 bool LoadDCInternalCoordinates() {
 	
 	log_debug("[DBG] [DC] Loading Internal Dynamic Cockpit coordinates...");
@@ -938,12 +938,12 @@ bool LoadDCInternalCoordinates() {
 					continue;
 				}
 				Box box = { 0 };
-				if (LoadDCGlobalUVCoords(buf, &box)) {
-					g_DCHUDRegions.boxes[erase_slot].uv_erase_coords = box;
-					g_DCHUDRegions.boxes[erase_slot].bLimitsComputed = false; // Force a recompute of the limits
-				}
-				else
-					log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
+				//if (LoadDCGlobalUVCoords(buf, &box)) {
+				//	g_DCHUDRegions.boxes[erase_slot].uv_erase_coords = box;
+				//	g_DCHUDRegions.boxes[erase_slot].bLimitsComputed = false; // Force a recompute of the limits
+				//}
+				//else
+				//	log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
 				//log_debug("[DBG] [DC] Region %d = [%s] loaded", erase_slot, g_HUDRegionNames[erase_slot]);
 				erase_slot++;
 			}
@@ -952,9 +952,11 @@ bool LoadDCInternalCoordinates() {
 	fclose(file);
 	return true;
 }
+*/
 
 void ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
+		/*
 		if (DCElements[i].coverTexture != nullptr) {
 			log_debug("[DBG] [DC] !!!! Releasing [%s]", DCElements[i].coverTextureName);
 			//DCElements[i].coverTexture->Release();
@@ -962,6 +964,7 @@ void ClearDynCockpitVector(dc_element DCElements[], int size) {
 			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
 			DCElements[i].coverTexture = nullptr;
 		}
+		*/
 		DCElements[i].coverTextureName[0] = 0;
 	}
 	g_iNumDCElements = 0;
@@ -1098,7 +1101,7 @@ bool LoadDCCoverTextureSize(char *buf, float *width, float *height)
 /*
  * Loads a move_region row into g_DCMoveRegions:
  * move_region = region, x0,y0,x1,y1
- */
+ 
 bool LoadDCMoveRegion(char *buf)
 {
 	float x0, y0, x1, y1;
@@ -1167,13 +1170,15 @@ bool LoadDCMoveRegion(char *buf)
 	}
 	return true;
 }
+*/
 
 /*
  * Clears all the move_region commands
- */
+ 
 static inline void ClearDCMoveRegions() {
 	g_DCMoveRegions.numCoords = 0;
 }
+*/
 
 /*
  * Convert a cockpit name into a DC params file of the form:
@@ -1186,7 +1191,7 @@ void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileName
 /*
  * Load the DC params for an individual cockpit. 
  * Resets g_DCElements (if we're not rendering in 3D), and the move regions.
- */
+ 
 bool LoadIndividualDCParams(char *sFileName) {
 	log_debug("[DBG] Loading Dynamic Cockpit params for [%s]...", sFileName);
 	FILE *file;
@@ -1237,7 +1242,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (end != NULL)
 					*end = 0;
 				// See if we have this DC element already
-				lastDCElemSelected = isInVector(dc_elem.name, g_DCElements, g_iNumDCElements);
+				//lastDCElemSelected = isInVector(dc_elem.name, g_DCElements, g_iNumDCElements);
 				//log_debug("[DBG] [DC] New dc_elem.name: [%s], idx: %d",
 				//	dc_elem.name, lastDCElemSelected);
 				if (lastDCElemSelected > -1) {
@@ -1248,16 +1253,16 @@ bool LoadIndividualDCParams(char *sFileName) {
 				else if (g_iNumDCElements < MAX_DC_SRC_ELEMENTS) {
 					// Initialize this dc_elem:
 					dc_elem.coverTextureName[0] = 0;
-					dc_elem.coverTexture = nullptr;
+					//dc_elem.coverTexture = nullptr;
 					dc_elem.coords = { 0 };
 					dc_elem.num_erase_slots = 0;
 					dc_elem.bActive = false;
 					dc_elem.bNameHasBeenTested = false;
 					//g_DCElements.push_back(dc_elem);
-					g_DCElements[g_iNumDCElements] = dc_elem;
+					//g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
 					lastDCElemSelected = g_iNumDCElements;
-					g_iNumDCElements++;
+					//g_iNumDCElements++;
 					//log_debug("[DBG] [DC] Added new dc_elem, count: %d", g_iNumDCElements);
 				}
 				else {
@@ -1277,11 +1282,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				}
 				LoadDCUVCoords(buf, cover_tex_width, cover_tex_height, &(g_DCElements[lastDCElemSelected].coords));
 			}
-			/*
-			else if (_stricmp(param, MOVE_REGION_DCPARAM) == 0) {
-				LoadDCMoveRegion(buf);
-			}
-			*/
+
 			else if (_stricmp(param, ERASE_REGION_DCPARAM) == 0) {
 				//if (g_DCElements.size() == 0) {
 				if (g_iNumDCElements == 0) {
@@ -1329,8 +1330,9 @@ bool LoadIndividualDCParams(char *sFileName) {
 	fclose(file);
 	return true;
 }
+*/
 
-/* Loads the dynamic_cockpit.cfg file */
+/* Loads the dynamic_cockpit.cfg file 
 bool LoadDCParams() {
 	log_debug("[DBG] Loading Dynamic Cockpit params...");
 	FILE *file;
@@ -1361,7 +1363,7 @@ bool LoadDCParams() {
 	//}
 	ClearDCMoveRegions();
 
-	/* Reload individual cockit parameters if the current cockpit is set */
+	/* Reload individual cockit parameters if the current cockpit is set 
 	bool bCockpitParamsLoaded = false;
 	if (g_sCurrentCockpit[0] != 0) {
 		char sFileName[80];
@@ -1402,6 +1404,7 @@ bool LoadDCParams() {
 	fclose(file);
 	return true;
 }
+*/
 
 /* Loads the Bloom parameters from bloom.cfg */
 bool LoadBloomParams() {
@@ -1775,11 +1778,11 @@ next:
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
-	LoadDCInternalCoordinates();
+	//LoadDCInternalCoordinates();
 	// Load Dynamic Cockpit params
-	LoadDCParams();
+	//LoadDCParams();
 	// Load the Bloom params
-	LoadBloomParams();
+	//LoadBloomParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -2829,114 +2832,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 	z =  PX[2];
 }
 
-/* 
- * This function was originally used to reconstruct 3D. Now, most of this logic is in the 
- * SBSVertexShader. We actually don't need this function at all, and at some point it will
- * be moved entirely to the vertex shader. At that point, we can get rid of g_3DVerts too and
- * the logic associated with it.
- */
-/*
-void PreprocessVerticesStereo(float width, float height, int numVerts)
-{
-	// Pre-process vertices for Stereo
-	float px, py;
-	//bool is_cockpit;
-	float scale_x = 1.0f / width;
-	float scale_y = 1.0f / height;
-	//float w;
-	//float scale = scale_x;
-	//bool is_GUI = false;
-
-	// Back-project and do stereo
-	for (register int i = 0; i < numVerts; i++) {
-		g_3DVerts[i] = g_OrigVerts[i];
-		// Normalize the coords: move the screen's center to (0,0) and scale the (x,y) axes
-		// to -0.5..0.5
-		px = g_OrigVerts[i].sx * scale_x - 0.5f;
-		py = g_OrigVerts[i].sy * scale_y - 0.5f;
-		// Also invert the Z axis so that z = 0 is the screen plane and z = 1 is ZFar, the original
-		// values have ZFar = 0, and ZNear = 1
-		//direct_pz = g_OrigVerts[i].sz;
-		//pz = 1.0f - direct_pz;
-
-		// GUI elements seem to be in the range 0..0.0005, so 0.0006 sounds like a good threshold:
-		//is_GUI = (pz <= g_fGUIElemPZThreshold);
-		//is_cockpit = (pz <= g_fCockpitPZThreshold);
-
-		g_3DVerts[i].sx = px;
-		g_3DVerts[i].sy = py;
-	}
-	*/
-		// Reproject back into 2D space
-		//if (is_GUI) {
-			// We need to restore the original ZBuffer value for the GUI elements or
-			// they will cause Z-Fighting with the 3D objects. Also the depth of the
-			// GUI elements is fixed by directly setting their parallax. So, nothing
-			// to do here.
-			/*
-			qx = px;
-			qy = py;
-			qz = pz;
-			*/
-			//g_3DVerts[i].sz = g_fFocalDist;
-			//g_3DVerts[i].sz = 0.0008f;
-			//g_3DVerts[i].sz = g_fFloatingGUIParallax;
-			//g_3DVerts[i].sz += 0.9f;
-		//} 
-		/*
-		else { //if (is_cockpit) {
-			if (g_bUseSteamVR) {
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Left, px, py, pz);
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Right, qx, qy, qz);
-			} else {
-				project(X + g_fHalfIPD, Y, Z, px, py, pz);
-				project(X - g_fHalfIPD, Y, Z, qx, qy, qz);
-			}			
-		} /* else {
-			float disp = 10.0f; // Objects "out there" need to have their parallax boosted or they just look flat
-			project(X + g_fHalfIPD * disp, Y, Z, px, py, pz);
-			project(X - g_fHalfIPD * disp, Y, Z, qx, qy, qz);
-		} */
-
-		/*
-		// (px,py) and (qx,qy) are now in the range [-0.5,..,0.5], we need
-		// to map them to the range [0..width, 0..height]
-		
-		// Compute the vertices for the left image
-		{
-			// De-normalize coords (left image)
-			g_LeftVerts[i].sx = (px + 0.5f) / scale_x;
-			g_LeftVerts[i].sy = (py + 0.5f) / scale_y;
-			g_LeftVerts[i].sz = 1.0f - pz;
-		}
-		// Compute the vertices for the right image
-		{
-			// De-normalize coords (right image)
-			g_RightVerts[i].sx = (qx + 0.5f) / scale_x;
-			g_RightVerts[i].sy = (qy + 0.5f) / scale_y;
-			g_RightVerts[i].sz = 1.0f - qz;
-		}
-		// Restore the original Z for the GUI elements: this will avoid Z-fighting
-		// (I think this also helps with Z-fighting in general)
-		//if (is_GUI) {
-			g_LeftVerts[i].sz  = g_OrigVerts[i].sz;
-			g_RightVerts[i].sz = g_OrigVerts[i].sz;
-		//}
-
-		*/
-	//} // Original end of the main for-loop
-
-#ifdef DBG_VR
-	// DBG: Hack: Dump the 3D scene. Triggered with Ctrl-Alt-C
-	if (g_bDo3DCapture)
-	{
-		if (g_HackFile == NULL)
-			fopen_s(&g_HackFile, "./vertexbuf.obj", "wt");
-		DumpOrigVertices(g_HackFile, numVerts);
-	}
-#endif
-//}
-
 /* Function to quickly enable/disable ZWrite. Currently only used for brackets */
 HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	HRESULT hr;
@@ -3197,9 +3092,9 @@ HRESULT Direct3DDevice::Execute(
 	char* step = "";
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
-	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
-	else
+	//if (g_bEnableVR)
+	//	this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+	//else
 		// The original code used _vertexShader:
 		this->_deviceResources->InitVertexShader(resources->_vertexShader);	
 	this->_deviceResources->InitPixelShader(resources->_pixelShaderTexture);
@@ -3416,8 +3311,8 @@ HRESULT Direct3DDevice::Execute(
 							pixelShader = resources->_pixelShaderTexture;
 							// Keep the last texture selected and tag it (classify it) if necessary
 							lastTextureSelected = texture;
-							if (!lastTextureSelected->is_Tagged)
-								TagTexture(lastTextureSelected);
+							/*if (!lastTextureSelected->is_Tagged)
+								TagTexture(lastTextureSelected);*/
 						}
 
 						resources->InitPixelShader(pixelShader);
@@ -3589,8 +3484,8 @@ HRESULT Direct3DDevice::Execute(
 					// We're about to render the scaleable HUD, time to clear the dynamic cockpit texture
 					if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+						/*context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);*/
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
@@ -3621,6 +3516,7 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
+				/*
 				 // Capture the bounds for the left sensor:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 				{
@@ -3990,6 +3886,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
+				*/
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
 				//	goto out;
@@ -4081,12 +3978,12 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Set the original vertex buffer and dynamic cockpit RTV:
 					resources->InitVertexShader(resources->_vertexShader);
-					if (bRenderToDynCockpitBGBuffer)
+					/*if (bRenderToDynCockpitBGBuffer)
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
 					else
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
+							resources->_depthStencilViewL.Get());*/
 					// Enable Z-Buffer if we're drawing the targeted craft
 					if (g_bIsFloating3DObject)
 						QuickSetZWriteEnabled(TRUE);
@@ -4100,7 +3997,7 @@ HRESULT Direct3DDevice::Execute(
 					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 						resources->_depthStencilViewL.Get());
 					if (g_bEnableVR) {
-						resources->InitVertexShader(resources->_sbsVertexShader);
+						//resources->InitVertexShader(resources->_sbsVertexShader);
 						// Restore the right constants in case we're doing VR rendering
 						g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 						g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
@@ -4181,6 +4078,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
+				/*
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
@@ -4218,28 +4116,26 @@ HRESULT Direct3DDevice::Execute(
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
-							g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
+							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
-							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
+							//context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
 							if (g_PSCBuffer.bUseCoverTexture) {
 								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", dc_element->coverTexture);
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
-								context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
+								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
 							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							resources->InitPixelShader(resources->_pixelShaderDC);
+							//resources->InitPixelShader(resources->_pixelShaderDC);
 						} // if dc_element->bActive
 					}
 					// TODO: I should probably put an assert here since this shouldn't happen
-					/*else if (idx >= (int)g_DCElements.size()) {
-						log_debug("[DBG] [DC] ****** idx: %d outside the bounds of g_DCElements (%d)", idx, g_DCElements.size());
-					}*/
 				}
+				*/
 
 				// Count the number of *actual* DC commands sent to the GPU:
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
@@ -4253,8 +4149,8 @@ HRESULT Direct3DDevice::Execute(
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-						if (g_PSCBuffer.DynCockpitSlots > 0)
-							resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+						//if (g_PSCBuffer.DynCockpitSlots > 0)
+						//	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 					}
 
 					if (!g_bReshadeEnabled) {
@@ -4264,11 +4160,11 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets
-						ID3D11RenderTargetView *rtvs[2] = {
+						/*ID3D11RenderTargetView *rtvs[2] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get()
 						};
-						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());*/
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4398,8 +4294,8 @@ HRESULT Direct3DDevice::Execute(
 				if (bModifiedShaders) {
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-					if (g_PSCBuffer.DynCockpitSlots > 0)
-						resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+					//if (g_PSCBuffer.DynCockpitSlots > 0)
+					//	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 				}
 
 				// Skip the draw call for debugging purposes depending on g_iNoDrawBeforeIndex and g_iNoDrawAfterIndex
@@ -4425,11 +4321,11 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							/*ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());*/
 						}
 					} else {
 						if (!g_bReshadeEnabled) {
@@ -4438,11 +4334,11 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							/*ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());*/
 						}
 					}
 
@@ -4486,30 +4382,30 @@ HRESULT Direct3DDevice::Execute(
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
 						if (!g_bBloomEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
-								resources->_depthStencilViewR.Get());
-						} else {
-							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetViewR.Get(),
-								resources->_renderTargetViewBloomMaskR.Get()
-							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
-						}
+							//context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
+							//	resources->_depthStencilViewR.Get());
+						} //else {
+						//	// Reshade is enabled, render to multiple output targets
+						//	ID3D11RenderTargetView *rtvs[2] = {
+						//		resources->_renderTargetViewR.Get(),
+						//		resources->_renderTargetViewBloomMaskR.Get()
+						//	};
+						//	context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
+						//}
 					}
 					else {
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
 						}
-						else {
-							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
-							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
-						}
+						//else {
+							//// Reshade is enabled, render to multiple output targets
+							//ID3D11RenderTargetView *rtvs[2] = {
+							//	resources->_renderTargetView.Get(),
+							//	resources->_renderTargetViewBloomMask.Get()
+							//};
+							//context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+						//}
 					}
 
 					// VIEWPORT-RIGHT
@@ -4928,21 +4824,21 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& context = this->_deviceResources->_d3dDeviceContext;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	if (g_bUseSteamVR)
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+	//if (g_bUseSteamVR)
+	//	context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 	/* if (g_bDynCockpitEnabled) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
 	} */
-	if (g_bReshadeEnabled) {
+	/*if (g_bReshadeEnabled) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
-	}
+	}*/
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+	//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 
 	if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;
