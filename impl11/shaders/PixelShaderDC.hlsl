@@ -93,12 +93,24 @@ float3 HSVtoRGB(in float3 HSV)
 	return ((RGB - 1) * HSV.y + 1) * HSV.z;
 }
 
+/*
 float4 uintColorToFloat4(uint color) {
 	return float4(
 		((color >> 16) & 0xFF) / 255.0,
 		((color >> 8) & 0xFF) / 255.0,
 		(color & 0xFF) / 255.0,
 		1);
+}
+*/
+
+float4 uintColorToFloat4(uint color) {
+	float r, g, b;
+	b = (color % 256) / 255.0;
+	color = color / 256;
+	g = (color % 256) / 255.0;
+	color = color / 256;
+	r = (color % 256) / 255.0;
+	return float4(r, g, b, 1);
 }
 
 uint getBGColor(uint i) {

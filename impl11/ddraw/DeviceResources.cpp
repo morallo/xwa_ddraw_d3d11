@@ -627,7 +627,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			{
 				dc_element *elem = &g_DCElements[i];
 				if (elem->bActive) {
-					if (elem->coverTexture != NULL) {
+					if (elem->coverTexture != nullptr) {
+						log_debug("[DBG] [DC] Deleting [%s]...", elem->coverTextureName);
 						delete g_DCElements[i].coverTexture;
 						log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
 						//elem->coverTexture->Release();
@@ -881,7 +882,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			DXGI_FORMAT oldFormat = desc.Format;
 
-			step = "_offscreenBufferReshade";
+			step = "_offscreenBufferBloomMask";
 			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
 			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
 			desc.Format = BLOOM_BUFFER_FORMAT;
@@ -893,7 +894,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			if (g_bSteamVREnabled) {
-				step = "_offscreenBufferReshadeR";
+				step = "_offscreenBufferBloomMaskR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMaskR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -1100,7 +1101,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
-			step = "_offscreenAsInputBloomSRV";
+			step = "_offscreenAsInputBloomMaskSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
 				&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV);
 			if (FAILED(hr)) {
@@ -1286,12 +1287,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
 			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
-			step = "_renderTargetViewReshadeMask";
+			step = "_renderTargetViewBloomMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
 
 			if (g_bSteamVREnabled) {
-				step = "_renderTargetViewReshadeMaskR";
+				step = "_renderTargetViewBloomMaskR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 			}

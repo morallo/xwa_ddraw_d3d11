@@ -628,9 +628,9 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 							//	g_DCElements[idx].coverTextureName, res);
 							g_DCElements[idx].coverTexture = nullptr;
 						}
-						/*else {
+						else {
 							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-						}*/
+						}
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {

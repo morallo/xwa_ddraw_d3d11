@@ -138,9 +138,13 @@ ULONG DirectDraw::Release()
 
 	if (this->_refCount == 0)
 	{
-		log_debug("[DBG] [DDraw] deleting DirectDraw ptr: 0x%x", this);
-		delete this;
-		log_debug("[DBG] [DDraw] DELETED DirectDraw ptr: 0x%x", this);
+		try {
+			log_debug("[DBG] [DDraw] deleting DirectDraw ptr: 0x%x", this);
+			delete this;
+			log_debug("[DBG] [DDraw] DELETED DirectDraw ptr");
+		} catch (...) {
+			log_debug("[DBG] [DDraw] MUTED Exception in DirectDraw::Release()");
+		}
 		return 0;
 	}
 

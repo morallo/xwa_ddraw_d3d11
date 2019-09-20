@@ -249,8 +249,8 @@ typedef struct dc_element_struct {
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
-	//ID3D11ShaderResourceView *coverTexture = NULL;
+	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
+	ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested;
 } dc_element;
 

@@ -242,7 +242,7 @@ float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value i
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
-dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
+dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
@@ -955,7 +955,7 @@ bool LoadDCInternalCoordinates() {
 
 void ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
-		if (DCElements[i].coverTexture != NULL) {
+		if (DCElements[i].coverTexture != nullptr) {
 			log_debug("[DBG] [DC] !!!! Releasing [%s]", DCElements[i].coverTextureName);
 			//DCElements[i].coverTexture->Release();
 			delete DCElements[i].coverTexture;
@@ -1258,7 +1258,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
 					lastDCElemSelected = g_iNumDCElements;
 					g_iNumDCElements++;
-					log_debug("[DBG] [DC] Added new dc_elem, count: %d", g_iNumDCElements);
+					//log_debug("[DBG] [DC] Added new dc_elem, count: %d", g_iNumDCElements);
 				}
 				else {
 					if (g_iNumDCElements >= MAX_DC_SRC_ELEMENTS)
@@ -4223,10 +4223,11 @@ HRESULT Direct3DDevice::Execute(
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
 							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
-							if (g_PSCBuffer.bUseCoverTexture)
-								context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
-								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
-							else
+							if (g_PSCBuffer.bUseCoverTexture) {
+								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", dc_element->coverTexture);
+								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
+								context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
+							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
@@ -4417,7 +4418,7 @@ HRESULT Direct3DDevice::Execute(
 					// with just using one, though... but why would we use just one? To make AO 
 					// computation faster? On the other hand, having always 2 z-buffers makes the code
 					// easier.
-					if (g_bUseSteamVR)
+					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
@@ -4430,7 +4431,7 @@ HRESULT Direct3DDevice::Execute(
 							};
 							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
 						}
-					else {
+					} else {
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
@@ -4487,8 +4488,7 @@ HRESULT Direct3DDevice::Execute(
 						if (!g_bBloomEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
 								resources->_depthStencilViewR.Get());
-						}
-						else {
+						} else {
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[2] = {
 								resources->_renderTargetViewR.Get(),
@@ -4938,7 +4938,8 @@ HRESULT Direct3DDevice::BeginScene()
 	} */
 	if (g_bReshadeEnabled) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
+		if (g_bUseSteamVR)
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
 	}
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
