@@ -111,8 +111,6 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
 
-void ClearDynCockpitVector(dc_element DCElements[], int num_elems);
-
 void log_err(const char *format, ...)
 {
 	char buf[120];
@@ -292,6 +290,9 @@ DeviceResources::DeviceResources()
 	this->_clearHUDVertexBuffer = nullptr;
 	this->_hyperspaceVertexBuffer = nullptr;
 	this->_bHUDVerticesReady = false;
+
+	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
+		this->dc_coverTexture[i] = nullptr;
 }
 
 HRESULT DeviceResources::Initialize()
@@ -578,6 +579,21 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	}
 }
 
+void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
+	for (int i = 0; i < size; i++) {
+		if (this->dc_coverTexture[i] != nullptr) {
+			log_debug("[DBG] [DC] !!!! Releasing [%d][%s]", i, DCElements[i].coverTextureName);
+			this->dc_coverTexture[i]->Release();
+			//delete DCElements[i].coverTexture;
+			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
+			this->dc_coverTexture[i] = nullptr;
+		}
+		DCElements[i].coverTextureName[0] = 0;
+	}
+	g_iNumDCElements = 0;
+	//DCElements.clear();
+}
+
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 {
 	/*
@@ -641,13 +657,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			{
 				dc_element *elem = &g_DCElements[i];
 				if (elem->bActive) {
-					if (elem->coverTexture != nullptr) {
-						log_debug("[DBG] [DC] Deleting [%s]...", elem->coverTextureName);
-						delete g_DCElements[i].coverTexture;
-						log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
+					//if (elem->coverTexture != nullptr) {
+					if (this->dc_coverTexture[i] != nullptr) {
+						//log_debug("[DBG] [DC] Deleting [%s]...", elem->coverTextureName);
+						//delete g_DCElements[i].coverTexture;
+						//log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
+
+						log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
+						this->dc_coverTexture[i]->Release();
+						log_debug("[DBG] [DC] RELEASED");
 						//elem->coverTexture->Release();
 						//elem->coverTexture = NULL;
-						g_DCElements[i].coverTexture = nullptr;
+						//g_DCElements[i].coverTexture = nullptr;
+						this->dc_coverTexture[i] = nullptr;
 					}
 					elem->bActive = false;
 					elem->bNameHasBeenTested = false;
@@ -657,6 +679,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_iNumDCElements > 0) {
 				log_debug("[DBG] [DC] Clearing g_DCElements");
 				ClearDynCockpitVector(g_DCElements, g_iNumDCElements);
+				g_iNumDCElements = 0;
 			}
 		}
 		this->_renderTargetViewDynCockpit.Release();

@@ -250,7 +250,7 @@ typedef struct dc_element_struct {
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
-	ID3D11ShaderResourceView *coverTexture = NULL;
+	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested;
 } dc_element;
 
@@ -295,6 +295,7 @@ public:
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void ClearDynCockpitVector(dc_element DCElements[], int size);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -437,6 +438,9 @@ public:
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
 	bool _bHUDVerticesReady;
+
+	// Dynamic Cockpit coverTextures:
+	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

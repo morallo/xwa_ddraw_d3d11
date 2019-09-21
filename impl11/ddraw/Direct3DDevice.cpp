@@ -340,8 +340,6 @@ void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
-// Tags textures using their names
-void TagTexture(Direct3DTexture *d3dTexture);
 
 /* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
 float centeredSigmoid(float x) {
@@ -947,21 +945,6 @@ bool LoadDCInternalCoordinates() {
 	return true;
 }
 
-void ClearDynCockpitVector(dc_element DCElements[], int size) {
-	for (int i = 0; i < size; i++) {
-		if (DCElements[i].coverTexture != nullptr) {
-			log_debug("[DBG] [DC] !!!! Releasing [%s]", DCElements[i].coverTextureName);
-			//DCElements[i].coverTexture->Release();
-			delete DCElements[i].coverTexture;
-			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
-			DCElements[i].coverTexture = nullptr;
-		}
-		DCElements[i].coverTextureName[0] = 0;
-	}
-	g_iNumDCElements = 0;
-	//DCElements.clear();
-}
-
 /*
  * Reads the name-slot from a string of the form:
  * name, x0, y0, x1, y1
@@ -1242,7 +1225,9 @@ bool LoadIndividualDCParams(char *sFileName) {
 				else if (g_iNumDCElements < MAX_DC_SRC_ELEMENTS) {
 					// Initialize this dc_elem:
 					dc_elem.coverTextureName[0] = 0;
-					dc_elem.coverTexture = nullptr;
+					// TODO: Replace the line below with the proper command now that the
+					// coverTextures live inside DeviceResources
+					//dc_elem.coverTexture = nullptr;
 					dc_elem.coords = { 0 };
 					dc_elem.num_erase_slots = 0;
 					dc_elem.bActive = false;
@@ -3411,7 +3396,7 @@ HRESULT Direct3DDevice::Execute(
 							// Keep the last texture selected and tag it (classify it) if necessary
 							lastTextureSelected = texture;
 							if (!lastTextureSelected->is_Tagged)
-								TagTexture(lastTextureSelected);
+								lastTextureSelected->TagTexture();
 						}
 
 						resources->InitPixelShader(pixelShader);
@@ -4212,15 +4197,17 @@ HRESULT Direct3DDevice::Execute(
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
-							g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
+							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
+							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
 							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
 							if (g_PSCBuffer.bUseCoverTexture) {
-								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", dc_element->coverTexture);
+								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", resources->dc_coverTexture[idx].GetAddressOf());
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
-								context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
+								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
+								context->PSSetShaderResources(0, 1, resources->dc_coverTexture[idx].GetAddressOf());
 							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
 							// No need for an else statement, slot 0 is already set to:
@@ -4268,7 +4255,7 @@ HRESULT Direct3DDevice::Execute(
 					//if (bIsHyperspaceTunnel) {
 					//	UINT stride = sizeof(D3DTLVERTEX);
 					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(&this->_hyperspaceVertexBuffer, &stride, &offset);
+					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 					//	resources->InitInputLayout(resources->_inputLayout);
 					//	context->Draw(3, 0);
 					//	// TODO: Restore the original input layout here
@@ -4461,7 +4448,7 @@ HRESULT Direct3DDevice::Execute(
 					//if (bIsHyperspaceTunnel) {
 					//	UINT stride = sizeof(D3DTLVERTEX);
 					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(&g_HyperspaceVertexBuffer, &stride, &offset);
+					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 					//	resources->InitInputLayout(resources->_inputLayout);
 					//	context->Draw(6, 0);
 					//	// TODO: Restore the original input layout here

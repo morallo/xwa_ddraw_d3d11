@@ -72,6 +72,7 @@ public:
 
 	int GetWidth();
 	int GetHeight();
+	void TagTexture();
 
 	virtual ~Direct3DTexture();
 

@@ -998,7 +998,7 @@ HRESULT PrimarySurface::buildSteamVRResizeMesh2D() {
 	vertexBufferData.SysMemSlicePitch = 0;
 
 	return _deviceResources->_d3dDevice->CreateBuffer(&vertexBufferDesc,
-		&vertexBufferData, &this->_deviceResources->_steamVRPresentVertexBuffer);
+		&vertexBufferData, this->_deviceResources->_steamVRPresentVertexBuffer.GetAddressOf());
 }
 
 /*

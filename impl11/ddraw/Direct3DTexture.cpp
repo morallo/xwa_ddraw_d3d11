@@ -447,9 +447,10 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
-void TagTexture(Direct3DTexture *d3dTexture) {
-	TextureSurface *surface = d3dTexture->_surface;
-	d3dTexture->is_Tagged = true;
+void Direct3DTexture::TagTexture() {
+	TextureSurface *surface = this->_surface;
+	auto &resources = this->_deviceResources;
+	this->is_Tagged = true;
 	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
 	// and regular textures because mip-mapping may be turned off in the video settings
 	// menu.
@@ -479,85 +480,85 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 #endif
 
 		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
-			d3dTexture->is_TrianglePointer = true;
+			this->is_TrianglePointer = true;
 		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
-			d3dTexture->is_TargetingComp = true;
+			this->is_TargetingComp = true;
 		else if (isInVector(surface->_name, HUD_ResNames))
-			d3dTexture->is_HUD = true;
+			this->is_HUD = true;
 		else if (isInVector(surface->_name, Text_ResNames))
-			d3dTexture->is_Text = true;
+			this->is_Text = true;
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
-			d3dTexture->is_Floating_GUI = true;
+			this->is_Floating_GUI = true;
 		if (isInVector(surface->_name, GUI_ResNames))
-			d3dTexture->is_GUI = true;
+			this->is_GUI = true;
 
 		// Catch the engine glow and mark it
 		if (strstr(surface->_name, "dat,1000,1,") != NULL)
-			d3dTexture->is_EngineGlow = true;
+			this->is_EngineGlow = true;
 		// Catch the flat light effect
 		if (strstr(surface->_name, "dat,1000,2") != NULL)
-			d3dTexture->is_FlatLightEffect = true;
+			this->is_FlatLightEffect = true;
 		// Catch the explosions and mark them
 		if (isInVector(surface->_name, Explosions_ResNames))
-			d3dTexture->is_Explosion = true;
+			this->is_Explosion = true;
 		// Catch the lens flare and mark it
 		if (isInVector(surface->_name, LensFlare_ResNames))
-			d3dTexture->is_LensFlare = true;
+			this->is_LensFlare = true;
 		// Catch the hyperspace anim and mark it
 		if (strstr(surface->_name, "dat,3051,") != NULL)
-			d3dTexture->is_HyperspaceAnim = true;
+			this->is_HyperspaceAnim = true;
 		// Catch the backdrup suns and mark them
 		if (isInVector(surface->_name, Sun_ResNames))
-			d3dTexture->is_Sun = true;
+			this->is_Sun = true;
 
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_TargetCompSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_TargetCompSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
 				(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
-				d3dTexture->is_DC_LeftSensorSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_LeftSensorSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
 				(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
-				d3dTexture->is_DC_RightSensorSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_RightSensorSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_ShieldsSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_ShieldsSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_SolidMsgSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_SolidMsgSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_BorderMsgSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_BorderMsgSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_LaserBoxSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_LaserBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_IonBoxSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_IonBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_BeamBoxSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_BeamBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_TopLeftSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_TopLeftSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 			if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
-				d3dTexture->is_DC_TopRightSrc = true;
-				d3dTexture->is_DC_HUDRegionSrc = true;
+				this->is_DC_TopRightSrc = true;
+				this->is_DC_HUDRegionSrc = true;
 			}
 		}
 	}
@@ -571,22 +572,22 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 			strstr(surface->_name, "Turbo") != NULL) {
 			// Ignore "LaserBat.OPT"
 			if (strstr(surface->_name, "LaserBat") == NULL) {
-				d3dTexture->is_Laser = true;
+				this->is_Laser = true;
 			}
 		}
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
-			d3dTexture->is_CockpitTex = true;
+			this->is_CockpitTex = true;
 		}
 
 		// Catch light textures and mark them appropriately
 		if (strstr(surface->_name, ",light,") != NULL)
-			d3dTexture->is_LightTexture = true;
+			this->is_LightTexture = true;
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
 			if (g_sCurrentCockpit[0] == 0) {
-				if (d3dTexture->is_CockpitTex) {
+				if (this->is_CockpitTex) {
 					//strstr(surface->_name, "Gunner")  != NULL)  {
 					char *start = strstr(surface->_name, "\\");
 					char *end = strstr(surface->_name, ".opt");
@@ -611,30 +612,34 @@ void TagTexture(Direct3DTexture *d3dTexture) {
 				// "light" and "color" textures are processed differently
 				if (strstr(surface->_name, ",color") != NULL) {
 					// This texture is a Dynamic Cockpit destination texture
-					d3dTexture->is_DynCockpitDst = true;
+					this->is_DynCockpitDst = true;
 					// Make this texture "point back" to the right dc_element
-					d3dTexture->DCElementIndex = idx;
+					this->DCElementIndex = idx;
 					// Activate this dc_element
 					g_DCElements[idx].bActive = true;
 					// Load the cover texture if necessary
-					if (g_DCElements[idx].coverTexture == nullptr && g_DCElements[idx].coverTextureName[0] != 0) {
+					if (resources->dc_coverTexture[idx] == nullptr &&
+						g_DCElements[idx].coverTextureName[0] != 0) {
+						//ID3D11ShaderResourceView *coverTexture;
 						wchar_t wTexName[MAX_TEXTURE_NAME];
 						size_t len = 0;
 						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
-						HRESULT res = DirectX::CreateWICTextureFromFile(surface->_deviceResources->_d3dDevice,
-							wTexName, NULL, &(g_DCElements[idx].coverTexture));
+						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+							&(resources->dc_coverTexture[idx]));
+							//&coverTexture);
 						if (FAILED(res)) {
 							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
 							//	g_DCElements[idx].coverTextureName, res);
-							g_DCElements[idx].coverTexture = nullptr;
+							resources->dc_coverTexture[idx] = nullptr;
 						}
 						else {
-							log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
+							//resources->dc_coverTexture[idx] = coverTexture;
+							log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
 						}
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {
-					d3dTexture->is_DynCockpitAlphaOverlay = true;
+					this->is_DynCockpitAlphaOverlay = true;
 				}
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
@@ -812,7 +817,7 @@ HRESULT Direct3DTexture::Load(
 		goto out;
 	}
 
-	TagTexture(this);
+	TagTexture();
 
 out:
 	if (useBuffers)
