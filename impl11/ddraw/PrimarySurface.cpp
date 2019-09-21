@@ -251,8 +251,6 @@ MainVertex g_BarrelEffectVertices[6] = {
 	MainVertex(-1,  1, 0, 0),
 	MainVertex(-1, -1, 0, 1),
 };
-ID3D11Buffer* g_BarrelEffectVertBuffer = NULL;
-
 
 extern bool g_bStart3DCapture, g_bDo3DCapture;
 extern FILE *g_HackFile;
@@ -651,7 +649,7 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	/* Create the VertexBuffer if necessary */
-	if (g_BarrelEffectVertBuffer == NULL)
+	if (resources->_barrelEffectVertBuffer == nullptr)
 	{
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
@@ -666,13 +664,13 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_BarrelEffectVertBuffer);
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
 	}
 
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_BarrelEffectVertBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// This is probably an opportunity for an optimization: let's use the same topology everywhere?
@@ -739,7 +737,7 @@ void PrimarySurface::barrelEffect3D() {
 	auto& context = resources->_d3dDeviceContext;
 
 	// Create the VertexBuffer if necessary
-	if (g_BarrelEffectVertBuffer == NULL) {
+	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
@@ -753,12 +751,12 @@ void PrimarySurface::barrelEffect3D() {
 
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_BarrelEffectVertBuffer);
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
 	}
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_BarrelEffectVertBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -846,7 +844,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 	auto& context = resources->_d3dDeviceContext;
 
 	// Create the VertexBuffer if necessary
-	if (g_BarrelEffectVertBuffer == NULL) {
+	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -858,12 +856,12 @@ void PrimarySurface::barrelEffectSteamVR() {
 		D3D11_SUBRESOURCE_DATA vertexBufferData;
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_BarrelEffectVertBuffer);
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
 	}
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_BarrelEffectVertBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -1183,7 +1181,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	auto& context = resources->_d3dDeviceContext;
 
 	// Create the VertexBuffer if necessary
-	if (g_BarrelEffectVertBuffer == NULL) {
+	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
@@ -1197,12 +1195,12 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_BarrelEffectVertBuffer);
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
 	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_BarrelEffectVertBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?

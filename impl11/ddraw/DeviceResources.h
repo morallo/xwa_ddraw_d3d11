@@ -432,6 +432,7 @@ public:
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
+	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;

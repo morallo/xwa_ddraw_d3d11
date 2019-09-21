@@ -287,6 +287,10 @@ DeviceResources::DeviceResources()
 	this->sceneRenderedEmpty = false;
 	this->inScene = false;
 
+	this->_barrelEffectVertBuffer = nullptr;
+	this->_HUDVertexBuffer = nullptr;
+	this->_clearHUDVertexBuffer = nullptr;
+	this->_hyperspaceVertexBuffer = nullptr;
 	this->_bHUDVerticesReady = false;
 }
 

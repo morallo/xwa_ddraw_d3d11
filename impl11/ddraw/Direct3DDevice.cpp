@@ -334,16 +334,11 @@ bool g_bStart3DCapture = false, g_bDo3DCapture = false, g_bSkipTexturelessGUI = 
 bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
-#undef INDEX_BUF_SAVE
-
 
 /* Reloads all the CRCs. */
-//bool ReloadCRCs();
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
-//bool LoadNewCockpitTextures(ID3D11Device *device);
-//void UnloadNewCockpitTextures();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 // Tags textures using their names
 void TagTexture(Direct3DTexture *d3dTexture);
