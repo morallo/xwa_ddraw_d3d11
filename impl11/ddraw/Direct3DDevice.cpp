@@ -250,7 +250,6 @@ bool g_bDCManualActivate = true;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
 
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
@@ -4274,7 +4273,7 @@ HRESULT Direct3DDevice::Execute(
 					//if (bIsHyperspaceTunnel) {
 					//	UINT stride = sizeof(D3DTLVERTEX);
 					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(&g_HUDVertexBuffer, &stride, &offset);
+					//	resources->InitVertexBuffer(&this->_hyperspaceVertexBuffer, &stride, &offset);
 					//	resources->InitInputLayout(resources->_inputLayout);
 					//	context->Draw(3, 0);
 					//	// TODO: Restore the original input layout here

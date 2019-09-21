@@ -75,8 +75,6 @@ extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern bool g_bHUDVerticesReady;
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_HyperspaceVertexBuffer;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 // SteamVR
@@ -288,6 +286,8 @@ DeviceResources::DeviceResources()
 	this->sceneRendered = false;
 	this->sceneRenderedEmpty = false;
 	this->inScene = false;
+
+	this->_bHUDVerticesReady = false;
 }
 
 HRESULT DeviceResources::Initialize()
@@ -384,9 +384,10 @@ HRESULT DeviceResources::Initialize()
 	return hr;
 }
 
-void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) {
+void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
 	// The values for rhw_depth and sz_depth were taken from an actual sample from the X-Wing's front panel
 	float rhw_depth = 34.0f;
@@ -442,14 +443,14 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	HUDVertices[5].color = color;	
 
 	/* Create the VertexBuffer if necessary */
-	if (g_HUDVertexBuffer != NULL) {
-		g_HUDVertexBuffer->Release();
-		g_HUDVertexBuffer = NULL;
+	if (this->_HUDVertexBuffer != NULL) {
+		this->_HUDVertexBuffer->Release();
+		this->_HUDVertexBuffer = NULL;
 	}
 
-	if (g_ClearHUDVertexBuffer != NULL) {
-		g_ClearHUDVertexBuffer->Release();
-		g_ClearHUDVertexBuffer = NULL;
+	if (this->_clearHUDVertexBuffer != NULL) {
+		this->_clearHUDVertexBuffer->Release();
+		this->_clearHUDVertexBuffer = NULL;
 	}
 
 	D3D11_BUFFER_DESC vertexBufferDesc;
@@ -463,28 +464,29 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	D3D11_SUBRESOURCE_DATA vertexBufferData;
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 	vertexBufferData.pSysMem = HUDVertices;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_HUDVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_HUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] [DC] Could not create g_HUDVertexBuffer");
-		g_bHUDVerticesReady = false;
+		log_debug("[DBG] [DC] Could not create _HUDVertexBuffer");
+		this->_bHUDVerticesReady = false;
 	}
 
 	// Build the vertex buffer that will be used to clear areas of the offscreen DC buffer:
 	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	vertexBufferDesc.StructureByteStride = 0;
-	hr = device->CreateBuffer(&vertexBufferDesc, nullptr, &g_ClearHUDVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, nullptr, &this->_clearHUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] [DC] Could not create g_ClearHUDVertexBuffer");
-		g_bHUDVerticesReady = false;
+		log_debug("[DBG] [DC] Could not create _clearHUDVertexBuffer");
+		this->_bHUDVerticesReady = false;
 	}
 
-	g_bHUDVerticesReady = true;
+	this->_bHUDVerticesReady = true;
 }
 
-void BuildHyperspaceVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) {
+void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
 	// The values for rhw_depth and sz_depth were taken from the skybox
 	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
@@ -542,9 +544,17 @@ void BuildHyperspaceVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT h
 	HUDVertices[5].color = color;
 
 	/* Create the VertexBuffer if necessary */
-	if (g_HyperspaceVertexBuffer != NULL) {
-		g_HyperspaceVertexBuffer->Release();
-		g_HyperspaceVertexBuffer = NULL;
+	if (this->_hyperspaceVertexBuffer != NULL) {
+		// Calling Release here was causing a crash when the game was exiting; but
+		// only if dynamic_cockpit is disabled! If DC is enabled, Release can be
+		// called without problems... why?
+		// Why is this not happening with the HUD vertices buffer?
+		// I think the problem was that BuildHUDVertexBuffer and BuildHyperspaceVertexBuffer
+		// both used d3dDevice, which probably increased the refcount for that object directly
+		// without updating the refcount in DirectDraw. Making these variables members and the
+		// functions methods in DeviceResources seems to have fixed these problems.
+		this->_hyperspaceVertexBuffer->Release();
+		this->_hyperspaceVertexBuffer = NULL;
 	}
 
 	D3D11_BUFFER_DESC vertexBufferDesc;
@@ -558,7 +568,7 @@ void BuildHyperspaceVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT h
 	D3D11_SUBRESOURCE_DATA vertexBufferData;
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 	vertexBufferData.pSysMem = HUDVertices;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_HyperspaceVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_hyperspaceVertexBuffer);
 	if (FAILED(hr)) {
 		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
 	}
@@ -1215,8 +1225,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		// Build the HUD vertex buffer
-		BuildHUDVertexBuffer(_d3dDevice, _displayWidth, _displayHeight);
-		BuildHyperspaceVertexBuffer(_d3dDevice, _displayWidth, _displayHeight);
+		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
+		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 	}

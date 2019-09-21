@@ -25,7 +25,7 @@ extern uint32_t *g_playerInHangar;
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
-extern bool g_bYawPitchFromMouseOverride, g_bHUDVerticesReady;
+extern bool g_bYawPitchFromMouseOverride;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -57,9 +57,7 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
 
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
-bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
-ID3D11Buffer *g_HUDVertexBuffer = NULL, *g_ClearHUDVertexBuffer = NULL, *g_HyperspaceVertexBuffer = NULL;
-bool g_bClearHUDBuffers = false;
+//bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
 
 // Bloom
 extern bool g_bDumpBloomBuffers, g_bDCManualActivate;
@@ -1538,10 +1536,10 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	vertices[5].sx = box.x0; vertices[5].sy = box.y0; vertices[5].sz = 0.98f; vertices[5].rhw = 34.0f; vertices[5].color = clearColor;
 
 	D3D11_MAPPED_SUBRESOURCE map;
-	hr = context->Map(g_ClearHUDVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	hr = context->Map(resources->_clearHUDVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 	if (SUCCEEDED(hr)) {
 		memcpy(map.pData, vertices, sizeof(D3DTLVERTEX) * 6);
-		context->Unmap(g_ClearHUDVertexBuffer, 0);
+		context->Unmap(resources->_clearHUDVertexBuffer, 0);
 	}
 
 	D3D11_DEPTH_STENCIL_DESC zDesc;
@@ -1567,15 +1565,13 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 		resources->_renderTargetViewDynCockpitAsInputBG.Get() 
 	};
 	context->OMSetRenderTargets(2, rtvs, NULL);
-	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInput.GetAddressOf(), NULL);
-	//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitAsInputBG.GetAddressOf(), NULL);
 
 	// Set the viewport
 	resources->InitViewport(viewport);
 	// Set the vertex buffer (map the vertices from the box)
 	UINT stride = sizeof(D3DTLVERTEX);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_ClearHUDVertexBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_clearHUDVertexBuffer.GetAddressOf(), &stride, &offset);
 	// Draw
 	context->Draw(6, 0);
 }
@@ -1698,7 +1694,7 @@ void PrimarySurface::DrawHUDVertices() {
 
 	UINT stride = sizeof(D3DTLVERTEX);
 	UINT offset = 0;
-	resources->InitVertexBuffer(&g_HUDVertexBuffer, &stride, &offset);
+	resources->InitVertexBuffer(resources->_HUDVertexBuffer.GetAddressOf(), &stride, &offset);
 	resources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
 		resources->InitVertexShader(resources->_sbsVertexShader);
@@ -2208,7 +2204,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
 			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
-				g_iHUDOffscreenCommandsRendered && g_bHUDVerticesReady) {
+				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
 				// Clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled)
 					ClearHUDRegions();

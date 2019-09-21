@@ -293,6 +293,9 @@ public:
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
 
+	void BuildHUDVertexBuffer(UINT width, UINT height);
+	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
 	HRESULT RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp);
@@ -428,6 +431,11 @@ public:
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
+	
+	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
+	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
+	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
+	bool _bHUDVerticesReady;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

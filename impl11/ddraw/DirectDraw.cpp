@@ -138,13 +138,17 @@ ULONG DirectDraw::Release()
 
 	if (this->_refCount == 0)
 	{
-		try {
-			log_debug("[DBG] [DDraw] deleting DirectDraw ptr: 0x%x", this);
-			delete this;
-			log_debug("[DBG] [DDraw] DELETED DirectDraw ptr");
-		} catch (...) {
-			log_debug("[DBG] [DDraw] MUTED Exception in DirectDraw::Release()");
+		log_debug("[DBG] [DDraw] deleting DirectDraw ptr: 0x%x", this);
+		/*if (g_HyperspaceVertexBuffer != NULL) {
+			g_HyperspaceVertexBuffer->AddRef();
+			int ref = g_HyperspaceVertexBuffer->Release();
+			log_debug("[DBG] [DDraw] g_HyperspaceVertexBuffer ref: %d", ref);
 		}
+		else {
+			log_debug("[DBG] [DDraw] g_HyperspaceVertexBuffer == NULL");
+		}*/
+		delete this;
+		log_debug("[DBG] [DDraw] DELETED DirectDraw ptr");
 		return 0;
 	}
 
