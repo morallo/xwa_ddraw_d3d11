@@ -12,6 +12,7 @@
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
 #include "../Debug/MainPixelShaderBpp4ColorKey20.h"
 #include "../Debug/BarrelPixelShader.h"
+#include "../Debug/BasicPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
 #include "../Debug/PassthroughVertexShader.h"
@@ -33,6 +34,7 @@
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
 #include "../Release/MainPixelShaderBpp4ColorKey20.h"
 #include "../Release/BarrelPixelShader.h"
+#include "../Release/BasicPixelShader.h"
 #include "../Release/SingleBarrelPixelShader.h"
 #include "../Release/VertexShader.h"
 #include "../Release/PassthroughVertexShader.h"
@@ -657,18 +659,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			{
 				dc_element *elem = &g_DCElements[i];
 				if (elem->bActive) {
-					//if (elem->coverTexture != nullptr) {
 					if (this->dc_coverTexture[i] != nullptr) {
-						//log_debug("[DBG] [DC] Deleting [%s]...", elem->coverTextureName);
-						//delete g_DCElements[i].coverTexture;
-						//log_debug("[DBG] [DC] DELETED %s", elem->coverTextureName);
-
-						log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
+						//log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
 						this->dc_coverTexture[i]->Release();
-						log_debug("[DBG] [DC] RELEASED");
-						//elem->coverTexture->Release();
-						//elem->coverTexture = NULL;
-						//g_DCElements[i].coverTexture = nullptr;
+						//log_debug("[DBG] [DC] RELEASED");
 						this->dc_coverTexture[i] = nullptr;
 					}
 					elem->bActive = false;
@@ -1496,6 +1490,9 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_MainPixelShader, sizeof(g_MainPixelShader), nullptr, &_mainPixelShader)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BasicPixelShader, sizeof(g_BasicPixelShader), nullptr, &_basicPixelShader)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))

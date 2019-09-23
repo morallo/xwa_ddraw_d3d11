@@ -634,7 +634,7 @@ void Direct3DTexture::TagTexture() {
 						}
 						else {
 							//resources->dc_coverTexture[idx] = coverTexture;
-							log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
+							//log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
 						}
 					}
 				}

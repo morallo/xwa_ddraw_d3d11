@@ -1116,7 +1116,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_mainPixelShader);
+	resources->InitPixelShader(resources->_basicPixelShader);
 
 	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
@@ -2004,7 +2004,7 @@ HRESULT PrimarySurface::Flip(
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
 					if (g_bRendering3D) {
-						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library
+						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library (?)
 						// Let's clear the render target for the next iteration or we'll get multiple images during
 						// the animation
 						auto &context = this->_deviceResources->_d3dDeviceContext;
@@ -2015,6 +2015,7 @@ HRESULT PrimarySurface::Flip(
 							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
 							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
 						}
+						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable->externalCamera);
 					}
 
 					if (g_bUseSteamVR) {					

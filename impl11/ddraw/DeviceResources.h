@@ -396,6 +396,7 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey00;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
+	ComPtr<ID3D11PixelShader> _basicPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
 	ComPtr<ID3D11PixelShader> _bloomPrepassPS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
