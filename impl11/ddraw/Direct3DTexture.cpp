@@ -54,28 +54,96 @@ std::vector<char *> GUI_ResNames = {
 	"dat,12000,2700,", // 0xc2416bf9, // (256x32) Top-left bracket (master branch)
 	"dat,12000,2800,", // 0x71ce88f1, // (256x32) Top-right bracket (master branch)
 	"dat,12000,4500,", // 0x75b9e062, // (128x128) Left radar (master branch)
+	"dat,12000,300,",  // (128x128) Left sensor when... no shields are present?
 	"dat,12000,4600,", // 0x1ec963a9, // (128x128) Right radar (master branch)
 	"dat,12000,400,",  // 0xbe6846fb, // Right radar when no tractor beam is present
 	"dat,12000,4300,", // 0x3188119f, // (128x128) Left Shield Display (master branch)
 	"dat,12000,4400,", // 0x75082e5e, // (128x128) Right Tractor Beam Display (master branch)
 };
 
-/*
-  Target comp tex:		'opt,FlightModels\XwingCockpit.opt,TEX00097,color,0' img-270, size: 256x128
-  In low-res mode, this texture is:
-	size: 128, 64, name: opt,FlightModels\XwingCockpit.opt,TEX00097,color,0  <-- This is half the size; but still Mipmap 0
-  
-  Target comp tex:		'opt,FlightModels\XwingCockpit.opt,TEX00097,color,0' img-270, size: 256x128
-  Left radar panel:		'opt,FlightModels\XwingCockpit.opt,TEX00096,color,0'
-  Right radar panel:		'opt,FlightModels\XwingCockpit.opt,TEX00095,color,0'
-  Front panel:			'opt,FlightModels\XwingCockpit.opt,TEX00076,color,0'
-  Shields panel:			'opt,FlightModels\XwingCockpit.opt,TEX00098,color,0'
-  Lasers panel:			'opt,FlightModels\XwingCockpit.opt,TEX00094,color,0'
-*/
+// List of common roots for the explosion names
+std::vector<char *> Explosions_ResNames = {
+	// Explosions
+	"dat,2000,",
+	"dat,2001,",
+	"dat,2002,",
+	"dat,2003,",
+	"dat,2004,",
+	"dat,2005,",
+	"dat,2006,",
+	// Animations
+	"dat,2007,",
+	"dat,2008,",
+	"dat,3005,",
+	"dat,3006,",
+	//"dat,3051,", // Hyperspace!
+	"dat,3055,",
+	"dat,3100,",
+	"dat,3200,",
+	"dat,3300,",
+	"dat,3400,",
+	"dat,3500,",
+	// Backdrops
+	/*"dat,9001,",
+	"dat,9002,",
+	"dat,9003,",
+	"dat,9004,",
+	"dat,9005,",
+	"dat,9006,",
+	"dat,9007,",
+	"dat,9008,",
+	"dat,9009,",
+	"dat,9010,",
+	"dat,9100,",*/
+	// Particles
+	"dat,22000,",
+	"dat,22003,",
+	"dat,22005,",
+	"dat,22007,",
+	// Sparks
+	"dat,3000,",
+	"dat,3001,",
+	"dat,3002,",
+	"dat,3003,",
+	// Trails?
+	//"dat,21000,",
+	//"dat,21005,",
+	//"dat,21010,",
+	//"dat,21015,",
+	//"dat,21020,",
+	//"dat,21025,",
+};
+
+// List of Lens Flare effects
+std::vector<char *> LensFlare_ResNames = {
+	"dat,1000,3,",
+	"dat,1000,4,",
+	"dat,1000,5,",
+	"dat,1000,6,",
+	"dat,1000,7,",
+	"dat,1000,8,",
+};
+
+// List of Suns in the Backdrop.dat file
+std::vector<char *> Sun_ResNames = {
+	"dat,9001,",
+	"dat,9002,",
+	"dat,9003,",
+	"dat,9004,",
+	"dat,9005,",
+	"dat,9006,",
+	"dat,9007,",
+	"dat,9008,",
+	"dat,9009,",
+	"dat,9010,",
+};
+
 // g_DCElements is used when loading textures to load the cover texture.
-extern std::vector<dc_element> g_DCElements;
-extern bool g_bDynCockpitEnabled;
+extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
+extern int g_iNumDCElements;
+extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
+extern DCHUDRegions g_DCHUDRegions;
 
 bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
@@ -94,9 +162,8 @@ bool isInVector(char *name, std::vector<char *> &vector) {
 	return false;
 }
 
-int isInVector(char *name, std::vector<dc_element> dc_elements) {
-	int size = (int)dc_elements.size();
-	for (int i = 0; i < size; i++) {
+int isInVector(char *name, dc_element *dc_elements, int num_elems) {
+	for (int i = 0; i < num_elems; i++) {
 		if (strstr(name, dc_elements[i].name) != NULL)
 			return i;
 	}
@@ -134,15 +201,10 @@ bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
 	return true;
 }
 
-bool ReloadCRCs() {
-	// TODO: Replace with a resname-based reloader... if such a thing makes sense
-	bool result = true;
-	/*result &= Reload_CRC_vector(HUD_CRCs, "./HUD_CRCs.txt");
-	result &= Reload_CRC_vector(Text_CRCs, "./Text_CRCs.txt");
-	result &= Reload_CRC_vector(GUI_CRCs, "./GUI_CRCs.txt");
-	result &= Reload_CRC_vector(Floating_GUI_CRCs, "./Floating_GUI_CRCs.txt");*/
-	return result;
-}
+//
+//void ReloadCRCs() {
+//	// TODO: Replace with a resname-based reloader... if such a thing makes sense
+//}
 
 #ifdef DBG_VR
 /*
@@ -214,8 +276,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
-
 	//this->crc = 0;
+	this->is_Tagged = false;
 	this->is_HUD = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
@@ -223,17 +285,23 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_GUI = false;
 	this->is_TargetingComp = false;
 	this->is_Laser = false;
+	this->is_TurboLaser = false;
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
+	this->is_Explosion = false;
+	this->is_CockpitTex = false;
+	this->is_HyperspaceAnim = false;
+	this->is_FlatLightEffect = false;
+	this->is_LensFlare = false;
+	this->is_Sun = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
 	this->is_DynCockpitAlphaOverlay = false;
-	this->is_DC_HUDSource = false;
+	this->is_DC_HUDRegionSrc = false;
 	this->is_DC_TargetCompSrc = false;
 	this->is_DC_LeftSensorSrc = false;
 	this->is_DC_RightSensorSrc = false;
-	this->is_DC_RightSensor2Src = false;
 	this->is_DC_ShieldsSrc = false;
 	this->is_DC_SolidMsgSrc = false;
 	this->is_DC_BorderMsgSrc = false;
@@ -380,6 +448,208 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
+void Direct3DTexture::TagTexture() {
+	TextureSurface *surface = this->_surface;
+	auto &resources = this->_deviceResources;
+	this->is_Tagged = true;
+	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
+	// and regular textures because mip-mapping may be turned off in the video settings
+	// menu.
+	//if (surface->_mipmapCount == 1)
+		//if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
+		//	surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
+		//	surface->_width == 512 || surface->_width == 768)
+	{
+		// Capture the textures
+#ifdef DBG_VR
+
+		{
+			static int TexIndex = 0;
+			wchar_t filename[300];
+			swprintf_s(filename, 300, L"c:\\XWA-Tex-w-names-3\\img-%d.png", TexIndex);
+			saveSurface(filename, (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
+
+			char buf[300];
+			sprintf_s(buf, 300, "c:\\XWA-Tex-w-names-3\\data-%d.txt", TexIndex);
+			FILE *file;
+			fopen_s(&file, buf, "wt");
+			fprintf(file, "0x%x, size: %d, %d, name: '%s'\n", crc, surface->_width, surface->_height, surface->_name);
+			fclose(file);
+
+			TexIndex++;
+		}
+#endif
+
+		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
+			this->is_TrianglePointer = true;
+		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+			this->is_TargetingComp = true;
+		else if (isInVector(surface->_name, HUD_ResNames))
+			this->is_HUD = true;
+		else if (isInVector(surface->_name, Text_ResNames))
+			this->is_Text = true;
+
+		if (isInVector(surface->_name, Floating_GUI_ResNames))
+			this->is_Floating_GUI = true;
+		if (isInVector(surface->_name, GUI_ResNames))
+			this->is_GUI = true;
+
+		// Catch the engine glow and mark it
+		if (strstr(surface->_name, "dat,1000,1,") != NULL)
+			this->is_EngineGlow = true;
+		// Catch the flat light effect
+		if (strstr(surface->_name, "dat,1000,2") != NULL)
+			this->is_FlatLightEffect = true;
+		// Catch the explosions and mark them
+		if (isInVector(surface->_name, Explosions_ResNames))
+			this->is_Explosion = true;
+		// Catch the lens flare and mark it
+		if (isInVector(surface->_name, LensFlare_ResNames))
+			this->is_LensFlare = true;
+		// Catch the hyperspace anim and mark it
+		if (strstr(surface->_name, "dat,3051,") != NULL)
+			this->is_HyperspaceAnim = true;
+		// Catch the backdrup suns and mark them
+		if (isInVector(surface->_name, Sun_ResNames))
+			this->is_Sun = true;
+
+		/* Special handling for Dynamic Cockpit source HUD textures */
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+				this->is_DC_TargetCompSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+				this->is_DC_LeftSensorSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+				this->is_DC_RightSensorSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+				this->is_DC_ShieldsSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+				this->is_DC_SolidMsgSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+				this->is_DC_BorderMsgSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+				this->is_DC_LaserBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+				this->is_DC_IonBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+				this->is_DC_BeamBoxSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+				this->is_DC_TopLeftSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+			if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+				this->is_DC_TopRightSrc = true;
+				this->is_DC_HUDRegionSrc = true;
+			}
+		}
+	}
+
+	//else if (surface->_mipmapCount > 1)
+	{
+		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
+		
+		// Catch the laser-related textures and mark them
+		if (strstr(surface->_name, "Laser") != NULL) {
+			// Ignore "LaserBat.OPT"
+			if (strstr(surface->_name, "LaserBat") == NULL) {
+				this->is_Laser = true;
+			}
+		}
+
+		if (strstr(surface->_name, "Turbo") != NULL) {
+			this->is_TurboLaser = true;
+		}
+
+		if (strstr(surface->_name, "Cockpit") != NULL) {
+			this->is_CockpitTex = true;
+		}
+
+		// Catch light textures and mark them appropriately
+		if (strstr(surface->_name, ",light,") != NULL)
+			this->is_LightTexture = true;
+
+		if (g_bDynCockpitEnabled) {
+			// Capture and store the name of the cockpit
+			if (g_sCurrentCockpit[0] == 0) {
+				if (this->is_CockpitTex) {
+					//strstr(surface->_name, "Gunner")  != NULL)  {
+					char *start = strstr(surface->_name, "\\");
+					char *end = strstr(surface->_name, ".opt");
+					if (start != NULL && end != NULL) {
+						start += 1; // Skip the backslash
+						int size = end - start;
+						strncpy_s(g_sCurrentCockpit, 128, start, size);
+						log_debug("[DBG] [DC] Cockpit Name: '%s'", g_sCurrentCockpit);
+
+						// Load the relevant DC file for the current cockpit
+						char sFileName[80];
+						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
+						if (!LoadIndividualDCParams(sFileName))
+							log_debug("[DBG] [DC] ERROR: Could not load DC params");
+					}
+				}
+			}
+
+			/* Process Dynamic Cockpit destination textures: */
+			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
+			if (idx > -1) {
+				// "light" and "color" textures are processed differently
+				if (strstr(surface->_name, ",color") != NULL) {
+					// This texture is a Dynamic Cockpit destination texture
+					this->is_DynCockpitDst = true;
+					// Make this texture "point back" to the right dc_element
+					this->DCElementIndex = idx;
+					// Activate this dc_element
+					g_DCElements[idx].bActive = true;
+					// Load the cover texture if necessary
+					if (resources->dc_coverTexture[idx] == nullptr &&
+						g_DCElements[idx].coverTextureName[0] != 0) {
+						//ID3D11ShaderResourceView *coverTexture;
+						wchar_t wTexName[MAX_TEXTURE_NAME];
+						size_t len = 0;
+						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
+						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+							&(resources->dc_coverTexture[idx]));
+							//&coverTexture);
+						if (FAILED(res)) {
+							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
+							//	g_DCElements[idx].coverTextureName, res);
+							resources->dc_coverTexture[idx] = nullptr;
+						}
+						else {
+							//resources->dc_coverTexture[idx] = coverTexture;
+							//log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
+						}
+					}
+				}
+				else if (strstr(surface->_name, ",light") != NULL) {
+					this->is_DynCockpitAlphaOverlay = true;
+				}
+			} // if (idx > -1)
+		} // if (g_bDynCockpitEnabled)
+	}
+}
+
 HRESULT Direct3DTexture::Load(
 	LPDIRECT3DTEXTURE lpD3DTexture)
 {
@@ -406,6 +676,7 @@ HRESULT Direct3DTexture::Load(
 	// The changes from Jeremy's commit fe50cc59e03225bb7e39ae2852e87d305e7c7891 to reduce
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
+	this->is_Tagged = d3dTexture->is_Tagged;
 	this->is_HUD = d3dTexture->is_HUD;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
@@ -413,20 +684,29 @@ HRESULT Direct3DTexture::Load(
 	this->is_GUI = d3dTexture->is_GUI;
 	this->is_TargetingComp = d3dTexture->is_TargetingComp;
 	this->is_Laser = d3dTexture->is_Laser;
+	this->is_TurboLaser = d3dTexture->is_TurboLaser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
-	// TODO: Remove later:
-	// TODO: We don't need to copy texture names around!
-	//strncpy_s(this->_surface->_name, d3dTexture->_surface->_name, MAX_TEXTURE_NAME);
+	this->is_Explosion = d3dTexture->is_Explosion;
+	this->is_CockpitTex = d3dTexture->is_CockpitTex;
+	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
+	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
+	this->is_LensFlare = d3dTexture->is_LensFlare;
+	this->is_Sun = d3dTexture->is_Sun;
+	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
+	// Actually, it looks like we need to copy the texture names in order to have them available
+	// during 3D rendering. This makes them available both in the hangar and after launching from
+	// the hangar.
+	//log_debug("[DBG] [DC] Load Copying name: [%s]", d3dTexture->_surface->_name);
+	strncpy_s(this->_surface->_name, d3dTexture->_surface->_name, MAX_TEXTURE_NAME);
 	// Dynamic Cockpit data
 	this->is_DynCockpitDst = d3dTexture->is_DynCockpitDst;
 	this->is_DynCockpitAlphaOverlay = d3dTexture->is_DynCockpitAlphaOverlay;
 	this->DCElementIndex = d3dTexture->DCElementIndex;
-	this->is_DC_HUDSource = d3dTexture->is_DC_HUDSource;
+	this->is_DC_HUDRegionSrc = d3dTexture->is_DC_HUDRegionSrc;
 	this->is_DC_TargetCompSrc = d3dTexture->is_DC_TargetCompSrc;
 	this->is_DC_LeftSensorSrc = d3dTexture->is_DC_LeftSensorSrc;
 	this->is_DC_RightSensorSrc = d3dTexture->is_DC_RightSensorSrc;
-	this->is_DC_RightSensor2Src = d3dTexture->is_DC_RightSensor2Src;
 	this->is_DC_ShieldsSrc = d3dTexture->is_DC_ShieldsSrc;
 	this->is_DC_SolidMsgSrc = d3dTexture->is_DC_SolidMsgSrc;
 	this->is_DC_BorderMsgSrc = d3dTexture->is_DC_BorderMsgSrc;
@@ -542,190 +822,7 @@ HRESULT Direct3DTexture::Load(
 		goto out;
 	}
 
-	if (surface->_mipmapCount == 1) {
-		if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || surface->_width == 64 ||
-			surface->_width == 128 || surface->_width == 256 || surface->_width == 512) 
-		{
-
-			// Capture the textures
-			#ifdef DBG_VR
-			
-			{
-				static int TexIndex = 0;
-				wchar_t filename[300];
-				swprintf_s(filename, 300, L"c:\\XWA-Tex-w-names-3\\img-%d.png", TexIndex);
-				saveSurface(filename, (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
-
-				char buf[300];
-				sprintf_s(buf, 300, "c:\\XWA-Tex-w-names-3\\data-%d.txt", TexIndex);
-				FILE *file;
-				fopen_s(&file, buf, "wt");
-				fprintf(file, "0x%x, size: %d, %d, name: '%s'\n", crc, surface->_width, surface->_height, surface->_name);
-				fclose(file);
-
-				TexIndex++;
-			}
-			#endif
-
-			if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
-				this->is_TrianglePointer = true;
-			else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
-				this->is_TargetingComp = true;
-			else if (isInVector(surface->_name, HUD_ResNames))
-				this->is_HUD = true;
-			else if (isInVector(surface->_name, Floating_GUI_ResNames))
-				this->is_Floating_GUI = true;
-			else if (isInVector(surface->_name, Text_ResNames))
-				this->is_Text = true;
-			else if (isInVector(surface->_name, GUI_ResNames))
-				this->is_GUI = true;
-
-			// Catch the engine glow and mark it
-			if (strstr(surface->_name, "dat,1000,1,") != NULL)
-				this->is_EngineGlow = true;
-
-			/* Special handling for Dynamic Cockpit source HUD textures */
-			if (g_bDynCockpitEnabled) {
-				if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
-					this->is_DC_TargetCompSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) {
-					this->is_DC_LeftSensorSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) {
-					this->is_DC_RightSensorSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL) {
-					this->is_DC_RightSensor2Src = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
-					this->is_DC_ShieldsSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
-					this->is_DC_SolidMsgSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
-					this->is_DC_BorderMsgSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
-					this->is_DC_LaserBoxSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
-					this->is_DC_IonBoxSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
-					this->is_DC_BeamBoxSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
-					this->is_DC_TopLeftSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-				if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
-					this->is_DC_TopRightSrc = true;
-					this->is_DC_HUDSource = true;
-				}
-			}
-		}
-	}
-	else if (surface->_mipmapCount > 1) {
-		// Catch the laser-related textures
-		if (strstr(surface->_name, "Laser") != NULL) {
-			// Ignore "LaserBat.OPT"
-			if (strstr(surface->_name, "LaserBat") == NULL) {
-				this->is_Laser = true;
-				// Dump the texture
-				/*
-				// Dump the texture, let's see it's contents...
-				{
-					char name[120];
-					char *start = strstr(surface->_name, "Laser");
-					char *end = strstr(start, ".opt");
-					int size = end - start;
-					strncpy_s(name, 120, start, size);
-					log_debug("[DBG] Laser name: [%s], file: [%s]", surface->_name, name);
-					snprintf(name, 120, "c:\\temp\\%s", surface->_name);
-					//log_debug("[DBG] Dumping Laser texture for [%s]", surface->_name);
-					//saveSurface(name, (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
-				}
-				*/
-			}
-		}
-
-		// Catch light textures and mark them appropriately
-		if (strstr(surface->_name, ",light,") != NULL)
-			this->is_LightTexture = true;
-
-		if (g_bDynCockpitEnabled) {
-			// Capture and store the name of the cockpit
-			if (g_sCurrentCockpit[0] == 0) {
-				if (strstr(surface->_name, "Cockpit") != NULL) {
-					//strstr(surface->_name, "Gunner")  != NULL)  {
-					//log_debug("[DBG] [DC] Cockpit found");
-					char *start = strstr(surface->_name, "\\");
-					char *end = strstr(surface->_name, ".opt");
-					if (start != NULL && end != NULL) {
-						start += 1; // Skip the backslash
-						int size = end - start;
-						strncpy_s(g_sCurrentCockpit, 128, start, size);
-						log_debug("[DBG] [DC] Cockpit Name: '%s'", g_sCurrentCockpit);
-
-						// Load the relevant DC file for the current cockpit
-						char sFileName[80];
-						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
-						if (!LoadIndividualDCParams(sFileName))
-							log_debug("[DBG] [DC] ERROR: Could not load DC params");
-					}
-				}
-			}
-
-			/* Process Dynamic Cockpit destination textures: */
-			int idx = isInVector(surface->_name, g_DCElements);
-			if (idx > -1) {
-				// "light" and "color" textures are processed differently
-				if (strstr(surface->_name, ",color") != NULL) {
-					// This texture is a Dynamic Cockpit destination texture
-					this->is_DynCockpitDst = true;
-					// Make this texture "point back" to the right dc_element
-					this->DCElementIndex = idx;
-					// Activate this dc_element
-					g_DCElements[idx].bActive = true;
-					// Load the cover texture if necessary
-					if (g_DCElements[idx].coverTexture == NULL && g_DCElements[idx].coverTextureName[0] != 0) {
-						wchar_t wTexName[MAX_TEXTURE_NAME];
-						size_t len = 0;
-						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
-						HRESULT res = DirectX::CreateWICTextureFromFile(surface->_deviceResources->_d3dDevice,
-							wTexName, NULL, &g_DCElements[idx].coverTexture);
-						if (FAILED(res)) {
-							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
-							//	g_DCElements[idx].coverTextureName, res);
-							g_DCElements[idx].coverTexture = NULL;
-						}
-						//else {
-						//	log_debug("[DBG] [DC] ***** Loaded cover texture [%s]", g_DCElements[idx].coverTextureName);
-						//}
-					}
-				} else if (strstr(surface->_name, ",light") != NULL) {
-					this->is_DynCockpitAlphaOverlay = true;
-					//log_debug("[DBG] [DC] Alpha Overlay: [%s]", surface->_name);
-					/*if (_stricmp(surface->_name, "TEX00036") == 0) {
-						log_debug("[DBG] Dumping light texture for TEX00036...");
-						saveSurface(L"c:\\temp\\TEX00036-light", (char *)textureData[0].pSysMem, surface->_width, surface->_height, bpp);
-					}*/
-				}
-			}
-		} // if (g_bDynCockpitEnabled)
-	}
+	TagTexture();
 
 out:
 	if (useBuffers)

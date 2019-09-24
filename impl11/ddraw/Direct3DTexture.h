@@ -9,6 +9,8 @@ class TextureSurface;
 class Direct3DTexture : public IDirect3DTexture
 {
 public:
+	// Set to true once this texture has been tagged/classified.
+	bool is_Tagged;
 	// The CRC of the texture
 	//uint32_t crc;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
@@ -26,16 +28,26 @@ public:
 	bool is_TargetingComp;
 	// True if this texture is a laser or ion and should be shadeless/bright
 	bool is_Laser;
+	// True if this texture is a turbolaser.
+	bool is_TurboLaser;
 	// True if this is an "illumination" or "light" texture
 	bool is_LightTexture;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
-	// TODO: Remove this later, I'm only using this to dump the rebel lasers for debugging purposes
-	//bool is_RebelLaser;
-	// TODO: Remove this later
-	//bool is_SpecialDebug;
+	// True if this is an Explosion texture
+	bool is_Explosion;
+	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
+	bool is_CockpitTex;
+	// True when displaying the hyperspace animation
+	bool is_HyperspaceAnim;
+	// True for dat,1000,2, (used for the hyperspace streak effect)
+	bool is_FlatLightEffect;
+	// True for lens flare effects
+	bool is_LensFlare;
+	// True for suns in the backdrop dat files
+	bool is_Sun;
 
-	// **** DYNAMIC COCKPIT MEMBERS **** //
+	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures
 	// Index into g_DCElements that holds the Dynamic Cockpit information for this texture
 	int DCElementIndex;
@@ -43,13 +55,12 @@ public:
 	bool is_DynCockpitDst;
 	// True for the light textures loaded in Hi-Res mode that provide additional glow
 	bool is_DynCockpitAlphaOverlay;
-	// True for all the source HUD textures
-	bool is_DC_HUDSource;
+	// True for all the source HUD textures (HUD Regions)
+	bool is_DC_HUDRegionSrc;
 	// True for specific DC HUD source textures
 	bool is_DC_TargetCompSrc;
 	bool is_DC_LeftSensorSrc;
 	bool is_DC_RightSensorSrc;
-	bool is_DC_RightSensor2Src;
 	bool is_DC_ShieldsSrc;
 	bool is_DC_SolidMsgSrc;
 	bool is_DC_BorderMsgSrc;
@@ -63,6 +74,7 @@ public:
 
 	int GetWidth();
 	int GetHeight();
+	void TagTexture();
 
 	virtual ~Direct3DTexture();
 

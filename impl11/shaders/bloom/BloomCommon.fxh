@@ -1,4 +1,19 @@
-static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};
+//static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
+//static const float weight[4] = {0.383103	, 0.241843,	0.060626, 0.00598}; // Kernel size 7, sigma = 1.0
+static const float weight[3] = {0.38774,	 0.24477, 0.06136}; // Kernel size 5, sigma = 1.0
+//static const float weight[2] = {0.44198, 0.27901}; // Kernel size 3, sigma = 1.0
+
+
+//static const float weight[5]   = {0.382928, 0.241732,  0.060598,  0.005977, 0.000229}; // Sigma 1, kernel size 9
+
+//static const float weight[5] = { 0.170793, 0.157829, 0.124548, 0.08393, 0.048297 }; // Sigma 2.5, kernel size 9
+// 0.20236	0.179044	0.124009	0.067234	0.028532 // Sigma 2, kernel size 9
+
+// This works fine; but looks square on 1 pass (looks fine on 12 passes):
+// Sigma 5, kernel size 9
+//static const float weight[5] = { 0.126061, 0.123573, 0.1164, 0.105358, 0.091637 };
+
+//static const float weight[6] = {0.382925, 0.24173,   0.060598,  0.005977, 0.000229, 0.000003};
 
 static float BUFFER_WIDTH  = 3840;
 static float BUFFER_HEIGHT = 2160;
@@ -22,7 +37,7 @@ static float BLOOM_LAYER_MULT_7 = 0.01;
 static float BLOOM_ADAPT_STRENGTH = 0.5;
 static float BLOOM_ADAPT_EXPOSURE = 0.0;
 static float BLOOM_ADAPT_SPEED = 2.0;
-static float BLOOM_TONEMAP_COMPRESSION = 4.0;
+static float BLOOM_TONEMAP_COMPRESSION = 4.0; // Original value was 4.0
 
 float4 downsample(Texture2D tex, SamplerState s, float2 tex_size, float2 uv)
 {

@@ -21,6 +21,7 @@ public:
 	bool EnhanceLasers;
 	bool EnhanceIllumination;
 	bool EnhanceEngineGlow;
+	bool EnhanceExplosions;
 };
 
 extern Config g_config;

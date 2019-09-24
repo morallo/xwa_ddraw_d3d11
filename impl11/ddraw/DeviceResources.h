@@ -9,6 +9,7 @@
 // Also found in the Floating_GUI_RESNAME list:
 extern const char *DC_TARGET_COMP_SRC_RESNAME;
 extern const char *DC_LEFT_SENSOR_SRC_RESNAME;
+extern const char *DC_LEFT_SENSOR_2_SRC_RESNAME;
 extern const char *DC_RIGHT_SENSOR_SRC_RESNAME;
 extern const char *DC_RIGHT_SENSOR_2_SRC_RESNAME;
 extern const char *DC_SHIELDS_SRC_RESNAME;
@@ -42,7 +43,7 @@ extern std::vector<const char *>g_HUDRegionNames;
 // Convert a string into a *_HUD_BOX_IDX constant
 int HUDRegionNameToIndex(char *name);
 
-class DCHUDBox {
+class DCHUDRegion {
 public:
 	Box coords;
 	Box uv_erase_coords;
@@ -51,15 +52,15 @@ public:
 };
 
 /*
- * This class stores the coordinates for each HUD texture: left radar, right radar, text
+ * This class stores the coordinates for each HUD Region : left radar, right radar, text
  * boxes, etc. It does not store the individual HUD elements within each HUD texture. For
  * that, look at DCElementSourceBox
  */
-class DCHUDBoxes {
+class DCHUDRegions {
 public:
-	std::vector<DCHUDBox> boxes;
+	std::vector<DCHUDRegion> boxes;
 
-	DCHUDBoxes();
+	DCHUDRegions();
 
 	void Clear() {
 		boxes.clear();
@@ -145,6 +146,10 @@ class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
 
+typedef struct HeadPosStruct {
+	float x, y, z;
+} HeadPos;
+
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
@@ -155,7 +160,25 @@ typedef struct BarrelPixelShaderCBStruct {
 	float k1, k2, k3;
 } BarrelPixelShaderCBuffer;
 
-/* 3D Constant Bufffers */
+//#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
+
+typedef struct BloomConfigStruct {
+	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength;
+	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
+	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
+	float uvStepSize1, uvStepSize2;
+	int iNumPasses;
+} BloomConfig;
+
+typedef struct BloomPixelShaderCBStruct {
+	float pixelSizeX, pixelSizeY, unused1 /* colorMul */, amplifyFactor;
+	// 16 bytes
+	float bloomStrength, uvStepSize, saturationStrength, unused2;
+	// 32 bytes
+} BloomPixelShaderCBuffer;
+
+/* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
@@ -168,39 +191,44 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
-typedef struct HeadPosStruct {
-	float x, y, z;
-} HeadPos;
-
 typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
-const int MAX_DC_COORDS = 8;
+
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
-	uint32_t bRenderHUD;
+	uint32_t bIsHyperspaceAnim;
 	// 16 bytes
-
-	//uint32_t bAlphaOnly;
-	//uint32_t unused[3];
-
-	uvfloat4 src[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uvfloat4 dst[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uint32_t bgColor[MAX_DC_COORDS];   // Background colors (dynamic cockpit)
-	// 4 * MAX_DC_COORDS = 32
 	
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	float ct_brightness;
+	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
-	// 320 bytes total
+
+	float fBloomStrength;
+	float unused1, unused2, unused3;
+	// 16 bytes
+
+	// 48 bytes total
 } PixelShaderCBuffer;
+
+// Pixel Shader constant buffer for the Dynamic Cockpit
+const int MAX_DC_COORDS = 8;
+typedef struct DCPixelShaderCBStruct {
+	uvfloat4 src[MAX_DC_COORDS];
+	// 4 * MAX_DC_COORDS * 4 = 128
+	uvfloat4 dst[MAX_DC_COORDS];
+	// 4 * MAX_DC_COORDS * 4 = 128
+	uint32_t bgColor[MAX_DC_COORDS]; // 32-bit Background colors
+	// 4 * MAX_DC_COORDS = 32
+
+	float ct_brightness, unused1, unused2, unused3;
+	// 304 bytes
+} DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS];
@@ -214,14 +242,15 @@ typedef struct uv_coords_struct {
 	int numCoords;
 } uv_coords;
 
-const int MAX_TEXTURE_NAME = 256;
+const int MAX_TEXTURE_NAME = 128;
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
 	int erase_slots[MAX_DC_COORDS];
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	ID3D11ShaderResourceView *coverTexture = NULL;
+	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
+	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested;
 } dc_element;
 
@@ -230,8 +259,6 @@ typedef struct move_region_coords_struct {
 	uvfloat4 dst[MAX_HUD_BOXES];
 	int numCoords;
 } move_region_coords;
-
-//extern ID3D11ShaderResourceView *g_RebelLaser;
 
 class DeviceResources
 {
@@ -262,7 +289,13 @@ public:
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
+	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
+	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
+
+	void BuildHUDVertexBuffer(UINT width, UINT height);
+	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void ClearDynCockpitVector(dc_element DCElements[], int size);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -291,41 +324,67 @@ public:
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
+	// Dynamic Cockpit
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputReshade;
+	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
-
-	ComPtr<ID3D11Texture2D> _reshadeOutput1; // Output from reshade pass 1
-	ComPtr<ID3D11Texture2D> _reshadeOutput2; // Output from reshade pass 2
+	// Reshade
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
+	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
+	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
+	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
+	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
+	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
 	//ComPtr<ID3D11Texture2D> _offscreenBufferBloomF; // Float buffer (test)
+
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
+	// Dynamic Cockpit
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
+	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade1; // Renders to reshadeOutput1
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewReshade2; // Renders to reshadeOutput2
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomF; // Renders to _offscreenBufferBloomF
+	// Reshade
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask;  // Renders to _offscreenBufferBloomMask
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputReshadeSRV;
-	ComPtr<ID3D11ShaderResourceView> _reshadeOutput1SRV; // SRV for reshadeOutput1
-	ComPtr<ID3D11ShaderResourceView> _reshadeOutput2SRV; // SRV for reshadeOutput2
+	
+	// Reshade
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	//ComPtr<ID3D11ShaderResourceView> _reshadeBloomFSRV; // SRV for _offscreenBufferBloomF
+
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
@@ -337,11 +396,13 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey00;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
+	ComPtr<ID3D11PixelShader> _basicPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
 	ComPtr<ID3D11PixelShader> _bloomPrepassPS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
+	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -360,13 +421,27 @@ public:
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
+	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
+	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
+	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
+	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
+	
+	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;
+	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
+	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
+	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
+	bool _bHUDVerticesReady;
+
+	// Dynamic Cockpit coverTextures:
+	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

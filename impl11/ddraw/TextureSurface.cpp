@@ -128,6 +128,7 @@ ULONG TextureSurface::Release()
 
 	if (this->_refCount == 0)
 	{
+		//log_debug("[DBG] [DC] Releasing TextureSurface [%s], 0x%x", this->_name, this);
 		delete this;
 		return 0;
 	}
@@ -784,6 +785,7 @@ HRESULT TextureSurface::Unlock(
 	// do not free memory for ModelIndex_418_16000_0_ResData_Fonts
 	if (this->_pixelFormat.dwRGBBitCount == 32 && this->_mipmapCount == 1)
 	{
+		//log_debug("[DBG] [DC] TextureSurface Load");
 		this->_d3dTexture->Load(this->_d3dTexture);
 
 		if (this->_buffer != nullptr)

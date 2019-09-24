@@ -12,16 +12,21 @@
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
 #include "../Debug/MainPixelShaderBpp4ColorKey20.h"
 #include "../Debug/BarrelPixelShader.h"
+#include "../Debug/BasicPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
-#include "../Release/PassthroughVertexShader.h"
+#include "../Debug/PassthroughVertexShader.h"
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
+#include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
-#include "../Release/BloomPrePassPS.h"
-#include "../Release/BloomHGaussPS.h"
-#include "../Release/BloomVGaussPS.h"
-#include "../Release/BloomCombinePS.h"
+#include "../Debug/PixelShaderClearBox.h"
+//#include "../Debug/BloomPrePassPS.h"
+#include "../Debug/BloomHGaussPS.h"
+#include "../Debug/BloomVGaussPS.h"
+#include "../Debug/BloomCombinePS.h"
+#include "../Debug/BloomBufferAddPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -29,16 +34,21 @@
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
 #include "../Release/MainPixelShaderBpp4ColorKey20.h"
 #include "../Release/BarrelPixelShader.h"
+#include "../Release/BasicPixelShader.h"
 #include "../Release/SingleBarrelPixelShader.h"
 #include "../Release/VertexShader.h"
 #include "../Release/PassthroughVertexShader.h"
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
+#include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
-#include "../Release/BloomPrePassPS.h"
+#include "../Release/PixelShaderClearBox.h"
+//#include "../Release/BloomPrePassPS.h"
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomCombinePS.h"
+#include "../Release/BloomBufferAddPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -49,7 +59,7 @@
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
 extern MainShadersCBuffer g_MSCBuffer;
-extern BarrelPixelShaderCBuffer g_BPSCBuffer;
+extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
 extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio;
 extern int g_iPresentCounter;
@@ -57,18 +67,17 @@ int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
 extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 extern VertexShaderMatrixCB g_VSMatrixCB;
-extern std::vector<dc_element> g_DCElements;
+extern dc_element g_DCElements[];
+extern int g_iNumDCElements;
 extern char g_sCurrentCockpit[128];
 
-extern DCHUDBoxes g_DCHUDBoxes;
+extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern bool g_bHUDVerticesReady;
-extern ID3D11Buffer *g_HUDVertexBuffer, *g_ClearHUDVertexBuffer, *g_ClearFullScreenHUDVertexBuffer;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 // SteamVR
 #include <headers/openvr.h>
@@ -91,20 +100,11 @@ typedef enum {
 	PS_CONSTANT_BUFFER_BARREL,
 	PS_CONSTANT_BUFFER_2D,
 	PS_CONSTANT_BUFFER_3D,
+	PS_CONSTANT_BUFFER_BLOOM,
 } PSConstantBufferType;
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
 extern bool g_bDynCockpitEnabled;
-//bool g_bNewCockpitTexturesLoaded = false;
-ComPtr<ID3D11ShaderResourceView> g_NewHUDLeftRadar = NULL;
-ComPtr<ID3D11ShaderResourceView> g_NewHUDRightRadar = NULL;
-
-//ComPtr<ID3D11ShaderResourceView> g_NewDCTargetCompCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCLeftRadarCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCRightRadarCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCShieldsCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCLasersCover = NULL;
-//ComPtr<ID3D11ShaderResourceView> g_NewDCFrontPanelCover = NULL;
 
 FILE *g_DebugFile = NULL;
 
@@ -112,12 +112,6 @@ FILE *g_DebugFile = NULL;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
-//void ProcessVREvent(const vr::VREvent_t & event);
-//vr::TrackedDevicePose_t m_rTrackedDevicePose[vr::k_unMaxTrackedDeviceCount];
-
-//ID3D11ShaderResourceView *g_RebelLaser = NULL;
-
-void ClearDynCockpitVector(std::vector<dc_element> &DCElements);
 
 void log_err(const char *format, ...)
 {
@@ -194,6 +188,7 @@ struct MainVertex
 
 const char *DC_TARGET_COMP_SRC_RESNAME		= "dat,12000,1100,";
 const char *DC_LEFT_SENSOR_SRC_RESNAME		= "dat,12000,4500,";
+const char *DC_LEFT_SENSOR_2_SRC_RESNAME		= "dat,12000,300,";
 const char *DC_RIGHT_SENSOR_SRC_RESNAME		= "dat,12000,4600,";
 const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
 const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
@@ -204,7 +199,6 @@ const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
 const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
 const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
 const char *DC_TOP_RIGHT_SRC_RESNAME			= "dat,12000,2800,";
-
 
 std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
@@ -217,7 +211,6 @@ std::vector<const char *>g_HUDRegionNames = {
 	"TOP_LEFT_REGION",			// 7
 	"TOP_RIGHT_REGION"			// 8
 };
-//const int MAX_HUD_BOXES = (int )g_HUDRegionNames.size();
 
 std::vector<const char *>g_DCElemSrcNames = {
 	"LEFT_SENSOR_SRC",			// 0
@@ -246,7 +239,6 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
 };
-//const int MAX_DC_SRC_ELEMENTS = (int )g_DCElemSrcNames.size();
 
 int HUDRegionNameToIndex(char *name) {
 	if (name == NULL || name[0] == '\0')
@@ -294,6 +286,15 @@ DeviceResources::DeviceResources()
 	this->sceneRendered = false;
 	this->sceneRenderedEmpty = false;
 	this->inScene = false;
+
+	this->_barrelEffectVertBuffer = nullptr;
+	this->_HUDVertexBuffer = nullptr;
+	this->_clearHUDVertexBuffer = nullptr;
+	this->_hyperspaceVertexBuffer = nullptr;
+	this->_bHUDVerticesReady = false;
+
+	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
+		this->dc_coverTexture[i] = nullptr;
 }
 
 HRESULT DeviceResources::Initialize()
@@ -390,9 +391,10 @@ HRESULT DeviceResources::Initialize()
 	return hr;
 }
 
-void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) {
+void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
 	// The values for rhw_depth and sz_depth were taken from an actual sample from the X-Wing's front panel
 	float rhw_depth = 34.0f;
@@ -448,19 +450,14 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	HUDVertices[5].color = color;	
 
 	/* Create the VertexBuffer if necessary */
-	if (g_HUDVertexBuffer != NULL) {
-		g_HUDVertexBuffer->Release();
-		g_HUDVertexBuffer = NULL;
+	if (this->_HUDVertexBuffer != NULL) {
+		this->_HUDVertexBuffer->Release();
+		this->_HUDVertexBuffer = NULL;
 	}
 
-	if (g_ClearFullScreenHUDVertexBuffer != NULL) {
-		g_ClearFullScreenHUDVertexBuffer->Release();
-		g_ClearFullScreenHUDVertexBuffer = NULL;
-	}
-
-	if (g_ClearHUDVertexBuffer != NULL) {
-		g_ClearHUDVertexBuffer->Release();
-		g_ClearHUDVertexBuffer = NULL;
+	if (this->_clearHUDVertexBuffer != NULL) {
+		this->_clearHUDVertexBuffer->Release();
+		this->_clearHUDVertexBuffer = NULL;
 	}
 
 	D3D11_BUFFER_DESC vertexBufferDesc;
@@ -474,34 +471,129 @@ void BuildHUDVertexBuffer(ComPtr<ID3D11Device> device, UINT width, UINT height) 
 	D3D11_SUBRESOURCE_DATA vertexBufferData;
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 	vertexBufferData.pSysMem = HUDVertices;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_HUDVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_HUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_HUDVertexBuffer");
-		g_bHUDVerticesReady = false;
-	}
-
-	// Change the color to 0 to create a vertex buffer that clears the whole HUD
-	for (int i = 0; i < 6; i++)
-		HUDVertices[i].color = 0;
-	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = HUDVertices;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &g_ClearFullScreenHUDVertexBuffer);
-	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_ClearFullScreenHUDVertexBuffer");
-		g_bHUDVerticesReady = false;
+		log_debug("[DBG] [DC] Could not create _HUDVertexBuffer");
+		this->_bHUDVerticesReady = false;
 	}
 
 	// Build the vertex buffer that will be used to clear areas of the offscreen DC buffer:
 	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	vertexBufferDesc.StructureByteStride = 0;
-	hr = device->CreateBuffer(&vertexBufferDesc, nullptr, &g_ClearHUDVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, nullptr, &this->_clearHUDVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] Could not create g_ClearHUDVertexBuffer");
-		g_bHUDVerticesReady = false;
+		log_debug("[DBG] [DC] Could not create _clearHUDVertexBuffer");
+		this->_bHUDVerticesReady = false;
 	}
 
-	g_bHUDVerticesReady = true;
+	this->_bHUDVerticesReady = true;
+}
+
+void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
+	HRESULT hr;
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	auto &device = this->_d3dDevice;
+	//float depth = g_fHUDDepth;
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
+	// Why do I even have to bother? Can I just use my *own* vertex shader and do
+	// away with all this silliness?
+	D3DTLVERTEX HUDVertices[6] = { 0 };
+
+	HUDVertices[0].sx = 0;
+	HUDVertices[0].sy = 0;
+	HUDVertices[0].sz = sz_depth;
+	HUDVertices[0].rhw = rhw_depth;
+	HUDVertices[0].tu = 0;
+	HUDVertices[0].tv = 0;
+	HUDVertices[0].color = color;
+
+	HUDVertices[1].sx = (float)width;
+	HUDVertices[1].sy = 0;
+	HUDVertices[1].sz = sz_depth;
+	HUDVertices[1].rhw = rhw_depth;
+	HUDVertices[1].tu = 1;
+	HUDVertices[1].tv = 0;
+	HUDVertices[1].color = color;
+
+	HUDVertices[2].sx = (float)width;
+	HUDVertices[2].sy = (float)height;
+	HUDVertices[2].sz = sz_depth;
+	HUDVertices[2].rhw = rhw_depth;
+	HUDVertices[2].tu = 1;
+	HUDVertices[2].tv = 1;
+	HUDVertices[2].color = color;
+
+	HUDVertices[3].sx = (float)width;
+	HUDVertices[3].sy = (float)height;
+	HUDVertices[3].sz = sz_depth;
+	HUDVertices[3].rhw = rhw_depth;
+	HUDVertices[3].tu = 1;
+	HUDVertices[3].tv = 1;
+	HUDVertices[3].color = color;
+
+	HUDVertices[4].sx = 0;
+	HUDVertices[4].sy = (float)height;
+	HUDVertices[4].sz = sz_depth;
+	HUDVertices[4].rhw = rhw_depth;
+	HUDVertices[4].tu = 0;
+	HUDVertices[4].tv = 1;
+	HUDVertices[4].color = color;
+
+	HUDVertices[5].sx = 0;
+	HUDVertices[5].sy = 0;
+	HUDVertices[5].sz = sz_depth;
+	HUDVertices[5].rhw = rhw_depth;
+	HUDVertices[5].tu = 0;
+	HUDVertices[5].tv = 0;
+	HUDVertices[5].color = color;
+
+	/* Create the VertexBuffer if necessary */
+	if (this->_hyperspaceVertexBuffer != NULL) {
+		// Calling Release here was causing a crash when the game was exiting; but
+		// only if dynamic_cockpit is disabled! If DC is enabled, Release can be
+		// called without problems... why?
+		// Why is this not happening with the HUD vertices buffer?
+		// I think the problem was that BuildHUDVertexBuffer and BuildHyperspaceVertexBuffer
+		// both used d3dDevice, which probably increased the refcount for that object directly
+		// without updating the refcount in DirectDraw. Making these variables members and the
+		// functions methods in DeviceResources seems to have fixed these problems.
+		this->_hyperspaceVertexBuffer->Release();
+		this->_hyperspaceVertexBuffer = NULL;
+	}
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HUDVertices);
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = HUDVertices;
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_hyperspaceVertexBuffer);
+	if (FAILED(hr)) {
+		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
+	}
+}
+
+void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
+	for (int i = 0; i < size; i++) {
+		if (this->dc_coverTexture[i] != nullptr) {
+			log_debug("[DBG] [DC] !!!! Releasing [%d][%s]", i, DCElements[i].coverTextureName);
+			this->dc_coverTexture[i]->Release();
+			//delete DCElements[i].coverTexture;
+			//log_debug("[DBG] [DC] !!!! ref: %d", ref);
+			this->dc_coverTexture[i] = nullptr;
+		}
+		DCElements[i].coverTextureName[0] = 0;
+	}
+	g_iNumDCElements = 0;
+	//DCElements.clear();
 }
 
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
@@ -512,6 +604,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
+	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
 	//log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
@@ -552,26 +646,34 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
 	}
-	if (g_bDynCockpitEnabled) {
-		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
-		g_DCHUDBoxes.ResetLimits();
-		// Reset the Source DC elements so that we know when they get re-computed.
-		g_DCElemSrcBoxes.Reset();
-		// Reset the cockpit name
-		g_sCurrentCockpit[0] = 0;
-		// Reset the active slots in g_DCElements
-		int size = (int)g_DCElements.size();
-		for (int i = 0; i < size; i++)
-		{
-			dc_element *elem = &g_DCElements[i];
-			if (elem->bActive) {
-				if (elem->coverTexture != NULL) {
-					//log_debug("[DBG] [DC] Releasing %s", elem->coverTextureName);
-					elem->coverTexture->Release();
-					elem->coverTexture = NULL;
+	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+		if (g_bDynCockpitEnabled) {
+			// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
+			g_DCHUDRegions.ResetLimits();
+			// Reset the Source DC elements so that we know when they get re-computed.
+			g_DCElemSrcBoxes.Reset();
+			// Reset the cockpit name
+			g_sCurrentCockpit[0] = 0;
+			// Reset the active slots in g_DCElements
+			for (int i = 0; i < g_iNumDCElements; i++)
+			{
+				dc_element *elem = &g_DCElements[i];
+				if (elem->bActive) {
+					if (this->dc_coverTexture[i] != nullptr) {
+						//log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
+						this->dc_coverTexture[i]->Release();
+						//log_debug("[DBG] [DC] RELEASED");
+						this->dc_coverTexture[i] = nullptr;
+					}
+					elem->bActive = false;
+					elem->bNameHasBeenTested = false;
 				}
-				elem->bActive = false;
-				elem->bNameHasBeenTested = false;
+			}
+			// Reset the dynamic cockpit vector
+			if (g_iNumDCElements > 0) {
+				log_debug("[DBG] [DC] Clearing g_DCElements");
+				ClearDynCockpitVector(g_DCElements, g_iNumDCElements);
+				g_iNumDCElements = 0;
 			}
 		}
 		this->_renderTargetViewDynCockpit.Release();
@@ -584,27 +686,40 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputDynCockpitBG.Release();
 		this->_offscreenAsInputSRVDynCockpit.Release();
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
-		// Reshade-test
-		//this->_offscreenBufferBloomF.Release();
-		//this->_renderTargetViewBloomF.Release();
-		//this->_reshadeBloomFSRV.Release();
 	}
 	if (g_bReshadeEnabled) {
-		this->_offscreenBufferAsInputReshade.Release();
-		this->_offscreenAsInputReshadeSRV.Release();
-		this->_renderTargetViewReshade1.Release();
-		this->_renderTargetViewReshade2.Release();
-		this->_reshadeOutput1.Release();
-		this->_reshadeOutput2.Release();
-		//this->_reshadeOutput1AsInput.Release();
-		//this->_reshadeOutput2AsInput.Release();
-		this->_reshadeOutput1SRV.Release();
-		this->_reshadeOutput2SRV.Release();
+		this->_offscreenBufferBloomMask.Release();
+		this->_offscreenBufferAsInputBloomMask.Release();
+		this->_offscreenAsInputBloomMaskSRV.Release();
+		this->_renderTargetViewBloomMask.Release();
+		this->_renderTargetViewBloom1.Release();
+		this->_renderTargetViewBloom2.Release();
+		this->_renderTargetViewBloomSum.Release();
+		this->_bloomOutput1.Release();
+		this->_bloomOutput2.Release();
+		this->_bloomOutputSum.Release();
+		this->_bloomOutput1SRV.Release();
+		this->_bloomOutput2SRV.Release();
+		this->_bloomOutputSumSRV.Release();
+		if (g_bUseSteamVR) {
+			this->_offscreenBufferBloomMaskR.Release();
+			this->_offscreenBufferAsInputBloomMaskR.Release();
+			this->_offscreenAsInputBloomMaskSRV_R.Release();
+			this->_renderTargetViewBloomMaskR.Release();
+			this->_bloomOutput1R.Release();
+			this->_bloomOutput2R.Release();
+			this->_bloomOutputSumR.Release();
+			this->_renderTargetViewBloom1R.Release();
+			this->_renderTargetViewBloom2R.Release();
+			this->_renderTargetViewBloomSumR.Release();
+			this->_bloomOutput1SRV_R.Release();
+			this->_bloomOutput2SRV_R.Release();
+			this->_bloomOutputSumSRV_R.Release();
+		}
 	}
 
 	this->_backBuffer.Release();
 	this->_swapChain.Release();
-	//UnloadNewCockpitTextures();
 
 	this->_refreshRate = { 0, 1 };
 
@@ -641,14 +756,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			DXGI_SWAP_CHAIN_DESC sd{};
 			sd.BufferCount = 2;
 			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
-			//if (g_bUseSteamVR) {
-			//	sd.BufferDesc.Width = g_steamVRWidth;
-			//	sd.BufferDesc.Height = g_steamVRHeight;
-			//}
-			//else {
-				sd.BufferDesc.Width  = 0;
-				sd.BufferDesc.Height = 0;
-			//}
+			sd.BufferDesc.Width  = 0;
+			sd.BufferDesc.Height = 0;
 			sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -658,7 +767,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.Windowed = TRUE;
 
 			ComPtr<IDXGIFactory> dxgiFactory;
-			//ComPtr<IDXGIFactory1> dxgiFactory;
 			hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
 
 			if (SUCCEEDED(hr))
@@ -679,6 +787,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_FullScreenHeight = sd.BufferDesc.Height;
 				g_fCurScreenWidth = (float)sd.BufferDesc.Width;
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
+				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
+				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
 				//log_debug("[DBG] Fullscreen size: %d, %d", g_FullScreenWidth, g_FullScreenHeight);
 			}
 		}
@@ -762,7 +872,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_offscreenBufferDynCockpit";
 			// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferDynCockpit);
@@ -800,68 +910,32 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		/*
 		if (g_bReshadeEnabled) {
-			UINT curFlags = desc.BindFlags;
-			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
-			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
-			log_err("Flags: 0x%x\n", desc.BindFlags);
+			DXGI_FORMAT oldFormat = desc.Format;
 
-			step = "_reshadeOutput1";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_reshadeOutput1);
+			step = "_offscreenBufferBloomMask";
+			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			desc.Format = BLOOM_BUFFER_FORMAT;
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMask);
 			if (FAILED(hr)) {
-				log_err("Failed to create _reshadeOutput1\n");
-				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
-			else {
-				log_debug("[DBG] _reshadeOutput1 created with combined flags");
-				log_err("Successfully created _reshadeOutput1 with combined flags\n");
+
+			if (g_bSteamVREnabled) {
+				step = "_offscreenBufferBloomMaskR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMaskR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
 			}
 
-			step = "_reshadeOutput2";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_reshadeOutput2);
-			if (FAILED(hr)) {
-				log_err("Failed to create _reshadeOutput2\n");
-				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
-			}
-			else {
-				log_debug("[DBG] _reshadeOutput2 created with combined flags");
-				log_err("Successfully created _reshadeOutput2 with combined flags\n");
-			}
-			// Restore the previous bind flags, just in case there is a dependency on these later on
-			desc.BindFlags = curFlags;
+			desc.Format = oldFormat;
 		}
-		*/
-
-		/*
-		UINT curFlags = desc.BindFlags;
-		//desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
-		desc.SampleDesc.Count = 1;
-		desc.SampleDesc.Quality = 0;
-		log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
-		log_err("Flags: 0x%x\n", desc.BindFlags);
-		step = "_offscreenBufferBloomF";
-		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomF);
-		if (FAILED(hr)) {
-			log_err("Failed to create _offscreenBufferBloomF\n");
-			log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-			log_err_desc(step, hWnd, hr, desc);
-			goto out;
-		}
-		else {
-			log_debug("[DBG] _offscreenBufferBloomF FLOAT buffer created with combined flags");
-			log_err("Successfully created _offscreenBufferBloomF with combined flags\n");
-		}
-		*/
 
 		// No MSAA after this point
 		// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
@@ -887,13 +961,26 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			step = "_offscreenBufferAsInputReshade";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputReshade);
+			DXGI_FORMAT oldFormat = desc.Format;
+			desc.Format = BLOOM_BUFFER_FORMAT;
+			step = "_offscreenBufferAsInputBloomMask";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMask);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
+
+			if (g_bSteamVREnabled) {
+				step = "_offscreenBufferAsInputBloomMaskR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+			//desc.Format = oldFormat;
 
 			// These guys should be the last to be created because they modify the BindFlags to
 			// add D3D11_BIND_RENDER_TARGET
@@ -902,10 +989,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 			log_err("Flags: 0x%x\n", desc.BindFlags);
 
-			step = "_reshadeOutput1";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_reshadeOutput1);
+			step = "_bloomOutput1";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1);
 			if (FAILED(hr)) {
-				log_err("Failed to create _reshadeOutput1\n");
+				log_err("Failed to create _bloomOutput1\n");
 				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
@@ -915,22 +1002,79 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Successfully created _reshadeOutput1 with combined flags\n");
 			}
 
-			step = "_reshadeOutput2";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_reshadeOutput2);
+			step = "_bloomOutput2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2);
 			if (FAILED(hr)) {
-				log_err("Failed to create _reshadeOutput2\n");
+				log_err("Failed to create _bloomOutput2\n");
 				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			} else {
-				log_err("Successfully created _reshadeOutput2 with combined flags\n");
+				log_err("Successfully created _bloomOutput2 with combined flags\n");
+			}
+
+			step = "_bloomOutputSum";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSum);
+			if (FAILED(hr)) {
+				log_err("Failed to create _bloomOutputSum\n");
+				log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+			else {
+				log_err("Successfully created _bloomOutputSum with combined flags\n");
+			}
+
+			if (g_bSteamVREnabled) {
+				step = "_bloomOutput1R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
+				if (FAILED(hr)) {
+					log_err("Failed to create _bloomOutput1R\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_err("Successfully created _bloomOutput1R with combined flags\n");
+				}
+
+				step = "_bloomOutput2R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2R);
+				if (FAILED(hr)) {
+					log_err("Failed to create _bloomOutput2R\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_err("Successfully created _bloomOutput2R with combined flags\n");
+				}
+
+				step = "_bloomOutputSumR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSumR);
+				if (FAILED(hr)) {
+					log_err("Failed to create _bloomOutputSumR\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_err("Successfully created _bloomOutputSumR with combined flags\n");
+				}
 			}
 			// Restore the previous bind flags, just in case there is a dependency on these later on
 			desc.BindFlags = curFlags;
+			// Restore the non-float format
+			desc.Format = oldFormat;
 		}
 
-		if (g_bDynCockpitEnabled) {
+		// Create the DC Input Buffers
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			// This guy should be the last one to be created because it modifies the BindFlags
 			// _offscreenBufferAsInputDynCockpit should have the same properties as _offscreenBufferAsInput
 			UINT curFlags = desc.BindFlags;
@@ -985,47 +1129,86 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
-		/*
-		step = "_reshadeBloomFSRV";
-		DXGI_FORMAT format = desc.Format;
-		shaderResourceViewDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferBloomF,
-			&shaderResourceViewDesc, &this->_reshadeBloomFSRV);
-		if (FAILED(hr)) {
-			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-			log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-			goto out;
-		}
-		desc.Format = format;
-		*/
-
 		if (g_bReshadeEnabled) {
-			step = "_offscreenAsInputReshadeSRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputReshade,
-				&shaderResourceViewDesc, &this->_offscreenAsInputReshadeSRV);
+			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
+			step = "_offscreenAsInputBloomMaskSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
+				&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+			
+			step = "_bloomOutput1SRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1,
+				&shaderResourceViewDesc, &this->_bloomOutput1SRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
 
-			step = "_reshadeOutput1SRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_reshadeOutput1,
-				&shaderResourceViewDesc, &this->_reshadeOutput1SRV);
+			step = "_bloomOutput2SRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2,
+				&shaderResourceViewDesc, &this->_bloomOutput2SRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
 
-			step = "_reshadeOutput2SRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_reshadeOutput2,
-				&shaderResourceViewDesc, &this->_reshadeOutput2SRV);
+			step = "_bloomOutputSumSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSum,
+				&shaderResourceViewDesc, &this->_bloomOutputSumSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+
+			if (g_bSteamVREnabled) {
+				//shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
+				step = "_offscreenAsInputBloomSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
+					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+				//shaderResourceViewDesc.Format = oldFormat;
+
+				step = "_bloomOutput1SRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
+					&shaderResourceViewDesc, &this->_bloomOutput1SRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_bloomOutput2SRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2R,
+					&shaderResourceViewDesc, &this->_bloomOutput2SRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_bloomOutputSumSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSumR,
+					&shaderResourceViewDesc, &this->_bloomOutputSumSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
+
+			shaderResourceViewDesc.Format = oldFormat;
 		}
 
 		if (g_bUseSteamVR) {
@@ -1040,8 +1223,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bDynCockpitEnabled) {
-			// Create the SRSV for _offscreenBufferAsInputDynCockpit
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			// Create the SRV for _offscreenBufferAsInputDynCockpit
 			step = "_offscreenBufferAsInputDynCockpit";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenAsInputDynCockpit,
 				&shaderResourceViewDesc, &this->_offscreenAsInputSRVDynCockpit);
@@ -1050,6 +1233,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+
 			// Create the SRV for _offscreenBufferAsInputDynCockpitBG
 			step = "_offscreenBufferAsInputDynCockpitBG";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenAsInputDynCockpitBG,
@@ -1061,10 +1245,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		// Dynamic Cockpit: Load the new cockpit textures
-		//LoadNewCockpitTextures(_d3dDevice);
 		// Build the HUD vertex buffer
-		BuildHUDVertexBuffer(_d3dDevice, _displayWidth, _displayHeight);
+		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
+		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 	}
@@ -1095,47 +1278,86 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 		}
 
-		if (g_bDynCockpitEnabled) {
+		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_renderTargetViewDynCockpit";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &renderTargetViewDesc, &this->_renderTargetViewDynCockpit);
-			if (FAILED(hr)) goto out;
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _renderTargetViewDynCockpit FAILED");
+				goto out;
+			}
 
 			step = "_renderTargetViewDynCockpitBG";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpitBG, &renderTargetViewDesc, &this->_renderTargetViewDynCockpitBG);
-			if (FAILED(hr)) goto out;
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _renderTargetViewDynCockpitBG FAILED");
+				goto out;
+			}
 
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			step = "_renderTargetViewDynCockpitAsInput";
 			// This RTV writes to a non-MSAA texture
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpit, &renderTargetViewDescNoMSAA,
 				&this->_renderTargetViewDynCockpitAsInput);
-			if (FAILED(hr)) goto out;
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _renderTargetViewDynCockpitAsInput FAILED");
+				goto out;
+			}
 
 			step = "_renderTargetViewDynCockpitAsInputBG";
 			// This RTV writes to a non-MSAA texture
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpitBG, &renderTargetViewDescNoMSAA,
 				&this->_renderTargetViewDynCockpitAsInputBG);
-			if (FAILED(hr)) goto out;
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _renderTargetViewDynCockpitAsInputBG FAILED");
+				goto out;
+			}
 		}
 
-		/*
-		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
-		step = "_renderTargetViewBloomF";
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomF, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomF);
-		if (FAILED(hr)) goto out;
-		*/
 		if (g_bReshadeEnabled) {
-			// These RTVs render to non-MSAA buffers
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
-			step = "_renderTargetViewReshade1";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_reshadeOutput1, &renderTargetViewDescNoMSAA, &this->_renderTargetViewReshade1);
-			//hr = this->_d3dDevice->CreateRenderTargetView(this->_reshadeOutput1, &renderTargetViewDesc, &this->_renderTargetViewReshade1);
+			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
+
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
+			step = "_renderTargetViewBloomMask";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
 
-			step = "_renderTargetViewReshade2";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_reshadeOutput2, &renderTargetViewDescNoMSAA, &this->_renderTargetViewReshade2);
-			//hr = this->_d3dDevice->CreateRenderTargetView(this->_reshadeOutput2, &renderTargetViewDesc, &this->_renderTargetViewReshade2);
+			if (g_bSteamVREnabled) {
+				step = "_renderTargetViewBloomMaskR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
+				if (FAILED(hr)) goto out;
+			}
+			//renderTargetViewDesc.Format = oldFormat;
+			
+			// These RTVs render to non-MSAA buffers
+			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
+			step = "_renderTargetViewBloom1";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1);
 			if (FAILED(hr)) goto out;
+			
+			step = "_renderTargetViewBloom2";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewBloomSum";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
+			if (FAILED(hr)) goto out;
+
+			if (g_bSteamVREnabled) {
+				step = "_renderTargetViewBloom1R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewBloom2R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2R);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewBloomSumR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
+				if (FAILED(hr)) goto out;
+			}
+
+			renderTargetViewDesc.Format = oldFormat;
 		}
 	}
 
@@ -1237,7 +1459,6 @@ out:
 		if (!messageShown)
 		{
 			char text[512];
-			log_err("g_bWndProcReplaced: %d\n", g_bWndProcReplaced);
 			close_error_file();
 			strcpy_s(text, step);
 			strcat_s(text, "\n");
@@ -1271,12 +1492,15 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_MainPixelShader, sizeof(g_MainPixelShader), nullptr, &_mainPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BasicPixelShader, sizeof(g_BasicPixelShader), nullptr, &_basicPixelShader)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
 	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -1285,6 +1509,9 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 			return hr;
 	}
 
@@ -1437,7 +1664,16 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderSolid, sizeof(g_PixelShaderSolid), nullptr, &_pixelShaderSolid)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderClearBox, sizeof(g_PixelShaderClearBox), nullptr, &_pixelShaderClearBox)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
@@ -1447,8 +1683,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -1457,6 +1693,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 			return hr;
 	}
 
@@ -1493,15 +1732,25 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 320;
-	static_assert(sizeof(PixelShaderCBuffer) == 320, "sizeof(PixelShaderCBuffer) must be 320");
-	//log_debug("[DBG] PixelShaderCBuffer size: %d", sizeof(PixelShaderCBuffer));
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(PixelShaderCBuffer) == 48, "sizeof(PixelShaderCBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
+		return hr;
+
+	// Create the constant buffer for the (3D) textured pixel shader -- Dynamic Cockpit data
+	constantBufferDesc.ByteWidth = 304;
+	static_assert(sizeof(DCPixelShaderCBuffer) == 304, "sizeof(PixelShaderCBuffer) must be 304");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBufferDC)))
 		return hr;
 
 	// Create the constant buffer for the barrel pixel shader
 	constantBufferDesc.ByteWidth = 16;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_barrelConstantBuffer)))
+		return hr;
+
+	// Create the constant buffer for the bloom pixel shader
+	constantBufferDesc.ByteWidth = 32;
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the main pixel shader
@@ -1705,7 +1954,7 @@ void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer)
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
-	static VertexShaderCBuffer currentVSConstants{};
+	static VertexShaderCBuffer currentVSConstants = { 0 };
 	static int sizeof_constants = sizeof(VertexShaderCBuffer);
 
 	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
@@ -1728,28 +1977,6 @@ void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const Vertex
 
 void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer)
 {
-	//static ID3D11Buffer** currentBuffer = nullptr;
-	//static VertexShaderCBuffer currentVSConstants{};
-	//static int sizeof_constants = sizeof(VertexShaderCBuffer);
-
-	/*
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		memcmp(vsCBuffer, &currentVSConstants, sizeof_constants) != 0)
-	{ 
-		memcpy(&currentVSConstants, vsCBuffer, sizeof_constants);
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	}	
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_3D;
-	*/
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
 	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
@@ -1817,14 +2044,14 @@ void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const fl
 	static ID3D11Buffer** currentBuffer = nullptr;
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
 		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BARREL ||
-		g_BPSCBuffer.k1 != k1 ||
-		g_BPSCBuffer.k2 != k2 ||
-		g_BPSCBuffer.k3 != k3)
+		g_BarrelPSCBuffer.k1 != k1 ||
+		g_BarrelPSCBuffer.k2 != k2 ||
+		g_BarrelPSCBuffer.k3 != k3)
 	{
-		g_BPSCBuffer.k1 = k1;
-		g_BPSCBuffer.k2 = k2;
-		g_BPSCBuffer.k3 = k3;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_BPSCBuffer, 0, 0);
+		g_BarrelPSCBuffer.k1 = k1;
+		g_BarrelPSCBuffer.k2 = k2;
+		g_BarrelPSCBuffer.k3 = k3;
+		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_BarrelPSCBuffer, 0, 0);
 	}
 
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
@@ -1835,6 +2062,27 @@ void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const fl
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_BARREL;
+}
+
+void DeviceResources::InitPSConstantBufferBloom(ID3D11Buffer** buffer, const BloomPixelShaderCBuffer *psConstants)
+{
+	static BloomPixelShaderCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(BloomPixelShaderCBuffer);
+
+	static ID3D11Buffer** currentBuffer = nullptr;
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BLOOM ||
+		memcmp(psConstants, &currentPSConstants, sizeof_constants) != 0)
+		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_BLOOM ||
+		buffer != currentBuffer)
+	{
+		currentBuffer = buffer;
+		this->_d3dDeviceContext->PSSetConstantBuffers(2, 1, buffer);
+	}
+	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_BLOOM;
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)
@@ -1859,6 +2107,16 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_3D;
+}
+
+void DeviceResources::InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer* psConstants)
+{
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static DCPixelShaderCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(DCPixelShaderCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(1, 1, buffer);
 }
 
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)

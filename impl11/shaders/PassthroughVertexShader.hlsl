@@ -1,6 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR/Dynamic Cockpit by Leo Reyes, 2019.
+// This shader is used to render the offscreen HUD FG and BG buffers
 
 struct VertexShaderInput
 {
@@ -26,6 +27,6 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos.z = input.pos.z;
 	output.pos.w = 1.0f;
 	output.color = input.color.zyxw;
-	output.tex = input.tex;
+	output.tex   = input.tex;
 	return output;
 }

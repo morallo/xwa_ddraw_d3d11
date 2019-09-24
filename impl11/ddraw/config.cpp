@@ -100,6 +100,10 @@ Config::Config()
 			{
 				this->EnhanceEngineGlow = (bool)stoi(value);
 			}
+			else if (name == "EnhanceExplosions")
+			{
+				this->EnhanceExplosions = (bool)stoi(value);
+			}
 		}
 	}
 

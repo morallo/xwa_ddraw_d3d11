@@ -23,14 +23,5 @@ float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 
-	// In Win7 we need to discard pixels or else we'll get black artifacts
-	// in the Tech Library, the Pilot Proving Grounds and other places.
-	// In Win10 we can remove the discard instruction and it will look fine;
-	// but we need to keep the original semantics for backwards-compatibility.
-	if (texelColor.a > 0.4f)
-	{
-		discard;
-	}
-
 	return float4(brightness * texelColor.xyz, 1.0f);
 }
