@@ -33,7 +33,8 @@ void IncreaseNoDrawAfterHUD(int Delta);
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled;
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bDumpBloomBuffers, g_bClearHUDBuffers, g_bDCManualActivate;
+extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
+// extern bool g_bDumpBloomBuffers, 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -68,13 +69,12 @@ bool InitSteamVR();
 void ShutDownSteamVR();
 
 // Debug functions
-//bool ReloadCRCs();
 void log_debug(const char *format, ...);
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	bool AltKey = (GetAsyncKeyState(VK_MENU) & 0x8000) == 0x8000;
-	bool CtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
-	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0x8000;
+	bool AltKey   = (GetAsyncKeyState(VK_MENU)	  & 0x8000) == 0x8000;
+	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
 
 	switch (uMsg)
 	{
@@ -153,10 +153,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 #endif
 			
 			case 'D':
-				g_bDumpBloomBuffers = true;
+				//g_bDumpBloomBuffers = true;
 				return 0;
 			case 'A':
-				g_bBloomEnabled = !g_bBloomEnabled;
+				//g_bBloomEnabled = !g_bBloomEnabled;
 				return 0;
 
 			case 'B':

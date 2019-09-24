@@ -166,7 +166,7 @@ typedef struct BarrelPixelShaderCBStruct {
 typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength;
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
-	float fLensFlareStrength, fExplosionsStrength, fSunsStrength;
+	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;

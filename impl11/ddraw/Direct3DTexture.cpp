@@ -285,6 +285,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_GUI = false;
 	this->is_TargetingComp = false;
 	this->is_Laser = false;
+	this->is_TurboLaser = false;
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
@@ -568,12 +569,15 @@ void Direct3DTexture::TagTexture() {
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		
 		// Catch the laser-related textures and mark them
-		if (strstr(surface->_name, "Laser") != NULL ||
-			strstr(surface->_name, "Turbo") != NULL) {
+		if (strstr(surface->_name, "Laser") != NULL) {
 			// Ignore "LaserBat.OPT"
 			if (strstr(surface->_name, "LaserBat") == NULL) {
 				this->is_Laser = true;
 			}
+		}
+
+		if (strstr(surface->_name, "Turbo") != NULL) {
+			this->is_TurboLaser = true;
 		}
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
@@ -680,6 +684,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_GUI = d3dTexture->is_GUI;
 	this->is_TargetingComp = d3dTexture->is_TargetingComp;
 	this->is_Laser = d3dTexture->is_Laser;
+	this->is_TurboLaser = d3dTexture->is_TurboLaser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;

@@ -28,6 +28,8 @@ public:
 	bool is_TargetingComp;
 	// True if this texture is a laser or ion and should be shadeless/bright
 	bool is_Laser;
+	// True if this texture is a turbolaser.
+	bool is_TurboLaser;
 	// True if this is an "illumination" or "light" texture
 	bool is_LightTexture;
 	// True if this is an Engine Glow texture

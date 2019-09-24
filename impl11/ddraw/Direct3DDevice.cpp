@@ -258,20 +258,20 @@ bool g_bOverrideAspectRatio = false;
 bool g_bEnableVR = true; // Enable/disable VR mode.
 
 // Bloom
-const int MAX_BLOOM_PASSES = 7;
+const int MAX_BLOOM_PASSES = 9;
 const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
-extern float g_fBloomLayerMult[8], g_fBloomSpread[8];
-extern int g_iBloomPasses[8];
+extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
+extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
 bool g_bDisplayWidth = false;
 extern bool g_bDumpDebug;
-bool g_bDumpBloomBuffers = false;
+//bool g_bDumpBloomBuffers = false;
 
 // This is the current resolution of the screen:
 float g_fLensK1 = DEFAULT_LENS_K1;
@@ -1455,6 +1455,9 @@ bool LoadBloomParams() {
 			else if (_stricmp(param, "lasers_strength") == 0) {
 				g_BloomConfig.fLasersStrength = fValue;
 			}
+			else if (_stricmp(param, "turbolasers_strength") == 0) {
+				g_BloomConfig.fTurboLasersStrength = fValue;
+			}
 			else if (_stricmp(param, "engine_glow_strength") == 0) {
 				g_BloomConfig.fEngineGlowStrength = fValue;
 			}
@@ -1493,6 +1496,12 @@ bool LoadBloomParams() {
 			else if (_stricmp(param, "bloom_layer_mult_7") == 0) {
 				g_fBloomLayerMult[7] = fValue;
 			}
+			else if (_stricmp(param, "bloom_layer_mult_8") == 0) {
+				g_fBloomLayerMult[8] = fValue;
+			}
+			else if (_stricmp(param, "bloom_layer_mult_9") == 0) {
+				g_fBloomLayerMult[9] = fValue;
+			}
 
 			// Bloom Spread
 			else if (_stricmp(param, "bloom_spread_1") == 0) {
@@ -1516,6 +1525,12 @@ bool LoadBloomParams() {
 			else if (_stricmp(param, "bloom_spread_7") == 0) {
 				g_fBloomSpread[7] = fValue;
 			}
+			else if (_stricmp(param, "bloom_spread_8") == 0) {
+				g_fBloomSpread[8] = fValue;
+			}
+			else if (_stricmp(param, "bloom_spread_9") == 0) {
+				g_fBloomSpread[9] = fValue;
+			}
 
 			// Bloom Passes
 			else if (_stricmp(param, "bloom_passes_1") == 0) {
@@ -1538,6 +1553,12 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "bloom_passes_7") == 0) {
 				g_iBloomPasses[7] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_8") == 0) {
+				g_iBloomPasses[8] = (int)fValue;
+			}
+			else if (_stricmp(param, "bloom_passes_9") == 0) {
+				g_iBloomPasses[9] = (int)fValue;
 			}
 		}
 	}
@@ -4105,9 +4126,10 @@ HRESULT Direct3DDevice::Execute(
 				// BLOOM flags and apply 32-bit mode ENHANCEMENTS
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (lastTextureSelected->is_Laser) {
+					if (lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
+						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_Laser ?
+							g_BloomConfig.fLasersStrength : g_BloomConfig.fTurboLasersStrength;
 						g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
 					}
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)

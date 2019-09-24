@@ -60,7 +60,7 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
 //bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
 
 // Bloom
-extern bool g_bDumpBloomBuffers, g_bDCManualActivate;
+extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
 extern BloomConfig g_BloomConfig;
 float g_fBloomLayerMult[8] = {
 	1.000f, // 0
@@ -2138,7 +2138,7 @@ HRESULT PrimarySurface::Flip(
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
-				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
+				/* if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 					wchar_t filename[80];
 					
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
@@ -2151,7 +2151,7 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.dds", CaptureCounter);
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
-				}
+				} */
 				// DEBUG
 
 				if (bHyperStreaks) 
@@ -2163,7 +2163,10 @@ HRESULT PrimarySurface::Flip(
 					// 3 = Exiting hyperspace
 					// Nice hyperspace animation:
 					// https://www.youtube.com/watch?v=d5W3afhgOlY
-					BloomPyramidLevelPass(1, 4, 2.0f);
+					BloomPyramidLevelPass(1, 2, 2.0f);
+					BloomPyramidLevelPass(2, 1, 4.0f);
+					BloomPyramidLevelPass(3, 1, 8.0f);
+					BloomPyramidLevelPass(4, 1, 16.0f);
 				}
 				else 
 				{
@@ -2182,7 +2185,7 @@ HRESULT PrimarySurface::Flip(
 				BloomBasicPass(5, 1.0f);
 
 				// DEBUG
-				if (/* g_iPresentCounter == 100 || */ g_bDumpBloomBuffers) {
+				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 					wchar_t filename[80];
 
 					swprintf_s(filename, 80, L".\\_bloomMask-Final-%d.jpg", CaptureCounter);
@@ -2197,7 +2200,7 @@ HRESULT PrimarySurface::Flip(
 
 					CaptureCounter++;
 					g_bDumpBloomBuffers = false;
-				}
+				}*/
 				// DEBUG
 			}
 
