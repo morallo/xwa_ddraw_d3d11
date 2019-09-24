@@ -91,6 +91,8 @@ const float DEFAULT_MAX_POS_Z =  2.5f;
 const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 const bool DEFAULT_RESHADE_ENABLED_STATE = false;
 const bool DEFAULT_BLOOM_ENABLED_STATE = false;
+// TODO: Make this toggleable later
+const bool DEFAULT_AO_ENABLED_STATE = true;
 // cockpit look constants
 const float DEFAULT_YAW_MULTIPLIER   = 1.0f;
 const float DEFAULT_PITCH_MULTIPLIER = 1.0f;
@@ -262,6 +264,7 @@ const int MAX_BLOOM_PASSES = 9;
 const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
@@ -3483,8 +3486,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width	 = (float)width;
-				g_nonVRViewport.Height	 = (float)height;
+				g_nonVRViewport.Width = (float)width;
+				g_nonVRViewport.Height = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
@@ -3543,8 +3546,8 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
 				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
-				bool bIsAimingHUD  = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
-				bool bIsGUI  = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
+				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
+				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
 				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
 				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
 				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
@@ -3577,8 +3580,8 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
-				//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
-				//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
+					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				//}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -3608,6 +3611,25 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					State management ends here
 				 *************************************************************************/
+
+				 if (g_bAOEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
+					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
+					 // This is where we can capture the current frame for post-processing effects
+					 context->ResolveSubresource(resources->_depthBufAsInput, 0,
+						resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					 if (g_bSteamVREnabled)
+						 context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+							 resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+					 // DEBUG
+					 if (g_iPresentCounter == 100) {
+						 DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
+							 L"c:\\temp\\_depthBuf.jpg");
+						 DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput,
+							 L"c:\\temp\\_depthBuf.dds");
+						 log_debug("[DBG] [AO] _depthBuf dumped");
+					 }
+					 // DEBUG
+				}
 
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
@@ -4059,6 +4081,19 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
+				if (bIsSkyBox) {
+					bModifiedShaders = true;
+					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
+					//DisplayCoords(instruction, currentIndexLocation);
+					// DEBUG
+
+					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
+					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
+					// Send the skybox to infinity:
+					g_VSCBuffer.sz_override = 0.01f;
+					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
+				}
+
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
@@ -4267,11 +4302,12 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets
-						ID3D11RenderTargetView *rtvs[2] = {
+						ID3D11RenderTargetView *rtvs[3] = {
 							resources->_renderTargetView.Get(),
-							resources->_renderTargetViewBloomMask.Get()
+							resources->_renderTargetViewBloomMask.Get(),
+							resources->_renderTargetViewDepthBuf.Get()
 						};
-						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4332,18 +4368,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 				*/
 
-				if (bIsSkyBox) {
-					bModifiedShaders = true;
-					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
-					//DisplayCoords(instruction, currentIndexLocation);
-					// DEBUG
-
-					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
-					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
-					// Send the skybox to infinity:
-					g_VSCBuffer.sz_override = 0.01f;
-					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
-				}
+				// if (bIsSkyBox) was here originally.
 
 				/*
 				if (bIsTranspOrGlow) {
@@ -4428,11 +4453,12 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+								resources->_renderTargetViewBloomMask.Get(),
+								resources->_renderTargetViewDepthBuf.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						if (!g_bReshadeEnabled) {
@@ -4441,11 +4467,12 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+								resources->_renderTargetViewBloomMask.Get(),
+								resources->_renderTargetViewDepthBuf.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4493,11 +4520,12 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetViewR.Get(),
-								resources->_renderTargetViewBloomMaskR.Get()
+								resources->_renderTargetViewBloomMaskR.Get(),
+								resources->_renderTargetViewDepthBufR.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewR.Get());
 						}
 					}
 					else {
@@ -4507,11 +4535,12 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
+							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+								resources->_renderTargetViewBloomMask.Get(),
+								resources->_renderTargetViewDepthBuf.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4943,6 +4972,11 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
+	}
+	if (g_bAOEnabled) {
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, this->_deviceResources->clearColor);
+		if (g_bUseSteamVR)
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, this->_deviceResources->clearColor);
 	}
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);

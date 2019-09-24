@@ -8,6 +8,8 @@ SamplerState sampler0 : register(s0);
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
 
+static float METRIC_SCALE_FACTOR = 25.0;
+
 // When the Dynamic Cockpit is active:
 // texture0 == cover texture and
 // texture1 == HUD offscreen buffer
@@ -20,13 +22,15 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
+	float2 tex : TEXCOORD0;
+	float3 pos3D : TEXCOORD1;
 };
 
 struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
+	float3 pos3D : SV_TARGET2;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -88,6 +92,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
+
+	//output.pos3D = input.pos3D;
+	// DEBUG
+	float Z = input.pos3D.z;
+	output.pos3D = float3(Z, Z, Z);
+	// DEBUG
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {

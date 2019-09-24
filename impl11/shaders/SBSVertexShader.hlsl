@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
 
+static float METRIC_SCALE_FACTOR = 25.0;
+
 cbuffer ConstantBuffer : register(b0)
 {
 	float4 vpScale;
@@ -28,10 +30,9 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
+	float2 tex : TEXCOORD0;
+	float3 pos3D : TEXCOORD1;
 };
-
-static float METRIC_SCALE_FACTOR = 25.0;
 
 PixelShaderInput main(VertexShaderInput input)
 {
@@ -48,7 +49,6 @@ PixelShaderInput main(VertexShaderInput input)
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-
 	temp.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
 	// Override the depth of this element if z_override is set
@@ -59,6 +59,8 @@ PixelShaderInput main(VertexShaderInput input)
 
 	// The back-projection into 3D is now very simple:
 	float3 P = float3(temp.z * temp.xy, temp.z);
+	// Write the reconstructed 3D into the output so that it gets interpolated:
+	output.pos3D = P;
 	// Adjust the coordinate system for SteamVR:
 	P.y = -P.y;
 	P.z = -P.z;

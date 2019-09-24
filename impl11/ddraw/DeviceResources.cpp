@@ -105,6 +105,7 @@ typedef enum {
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
 extern bool g_bDynCockpitEnabled;
+extern bool g_bAOEnabled;
 
 FILE *g_DebugFile = NULL;
 
@@ -718,6 +719,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 	}
 
+	if (g_bAOEnabled) {
+		this->_depthBuf.Release();
+		this->_depthBufAsInput.Release();
+		this->_renderTargetViewDepthBuf.Release();
+		this->_depthBufSRV.Release();
+		if (g_bSteamVREnabled) {
+			this->_depthBufR.Release();
+			this->_depthBufAsInputR.Release();
+			this->_renderTargetViewDepthBufR.Release();
+			this->_depthBufSRV_R.Release();
+		}
+	}
+
 	this->_backBuffer.Release();
 	this->_swapChain.Release();
 
@@ -937,6 +951,33 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.Format = oldFormat;
 		}
 
+		if (g_bAOEnabled) {
+			DXGI_FORMAT oldFormat = desc.Format;
+			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			
+			// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
+			step = "_depthBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
+				step = "_depthBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			desc.Format = oldFormat;
+		}
+
 		// No MSAA after this point
 		// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
 		step = "offscreenBufferAsInput";
@@ -1110,6 +1151,40 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.BindFlags = curFlags;
 		}
 
+		// Create Non-MSAA AO Buffers
+		if (g_bAOEnabled) {
+			DXGI_FORMAT oldFormat = desc.Format;
+			UINT oldFlags = desc.BindFlags;
+
+			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			//desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			//log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
+			//log_err("Flags: 0x%x\n", desc.BindFlags);
+			//log_debug("[DBG] [AO] BindFlags: %x", desc.BindFlags);
+			//log_debug("[DBG] [AO] Count: %d, Quality: %d", desc.SampleDesc.Count, desc.SampleDesc.Quality);
+
+			step = "_depthBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInput);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bSteamVREnabled) {
+				step = "_depthBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInputR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			desc.Format = oldFormat;
+			desc.BindFlags = oldFlags;
+		}
+
 		// Create the shader resource views for both offscreen buffers
 		D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 		// Create a shader resource view for the _offscreenBuffer
@@ -1208,6 +1283,32 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
+			shaderResourceViewDesc.Format = oldFormat;
+		}
+
+		if (g_bAOEnabled) {
+			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+
+			step = "_depthBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInput,
+				&shaderResourceViewDesc, &this->_depthBufSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			if (g_bSteamVREnabled) {
+				step = "_depthBufSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInputR,
+					&shaderResourceViewDesc, &this->_depthBufSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
 			shaderResourceViewDesc.Format = oldFormat;
 		}
 
@@ -1354,6 +1455,22 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				step = "_renderTargetViewBloomSumR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
+				if (FAILED(hr)) goto out;
+			}
+
+			renderTargetViewDesc.Format = oldFormat;
+		}
+
+		if (g_bAOEnabled) {
+			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
+			renderTargetViewDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			step = "_renderTargetViewDepthBuf";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf);
+			if (FAILED(hr)) goto out;
+
+			if (g_bSteamVREnabled) {
+				step = "_renderTargetViewDepthBufR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
 				if (FAILED(hr)) goto out;
 			}
 

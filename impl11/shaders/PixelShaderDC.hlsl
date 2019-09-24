@@ -22,13 +22,15 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
+	float2 tex : TEXCOORD0;
+	float3 pos3D : TEXCOORD1;
 };
 
 struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
+	float3 pos3D : SV_TARGET2;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -128,6 +130,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
+	//output.pos3D = input.pos3D;
+	// DEBUG
+	float Z = input.pos3D.z;
+	output.pos3D = float3(Z, Z, Z);
+	// DEBUG
 
 	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
 	// The code returns a color from this path
