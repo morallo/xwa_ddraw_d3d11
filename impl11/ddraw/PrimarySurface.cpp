@@ -2218,6 +2218,9 @@ HRESULT PrimarySurface::Flip(
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
+			// HACK: Let's visualize the normal buffer
+			context->CopyResource(resources->_offscreenBuffer, resources->_normBuf);
+
 			// The offscreenBuffer contains the fully-rendered image at this point.
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR) {
@@ -2242,7 +2245,8 @@ HRESULT PrimarySurface::Flip(
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 							this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				}
-			} else // Non-VR mode
+			} 
+			else // Non-VR mode
 				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 					this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 

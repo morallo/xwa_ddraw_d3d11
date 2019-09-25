@@ -3615,17 +3615,22 @@ HRESULT Direct3DDevice::Execute(
 				 if (g_bAOEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					 // This is where we can capture the current frame for post-processing effects
-					 context->ResolveSubresource(resources->_depthBufAsInput, 0,
-						resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					 if (g_bSteamVREnabled)
+					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					 context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					 if (g_bSteamVREnabled) {
 						 context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							 resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						 context->ResolveSubresource(resources->_normBufAsInputR, 0,
+							 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+					 }
 					 // DEBUG
 					 if (g_iPresentCounter == 100) {
 						 DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
 							 L"c:\\temp\\_depthBuf.jpg");
-						 DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput,
-							 L"c:\\temp\\_depthBuf.dds");
+						 DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
+							 L"c:\\temp\\_normBuf.jpg");
+						 //DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput,
+						 //	 L"c:\\temp\\_depthBuf.dds");
 						 log_debug("[DBG] [AO] _depthBuf dumped");
 					 }
 					 // DEBUG
@@ -4302,12 +4307,13 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets
-						ID3D11RenderTargetView *rtvs[3] = {
+						ID3D11RenderTargetView *rtvs[4] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							resources->_renderTargetViewDepthBuf.Get()
+							resources->_renderTargetViewDepthBuf.Get(),
+							resources->_renderTargetViewNormBuf.Get()
 						};
-						context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4453,12 +4459,13 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get()
+								resources->_renderTargetViewDepthBuf.Get(),
+								resources->_renderTargetViewNormBuf.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						if (!g_bReshadeEnabled) {
@@ -4467,12 +4474,13 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get()
+								resources->_renderTargetViewDepthBuf.Get(),
+								resources->_renderTargetViewNormBuf.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4520,12 +4528,13 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
-								resources->_renderTargetViewDepthBufR.Get()
+								resources->_renderTargetViewDepthBufR.Get(),
+								resources->_renderTargetViewNormBufR.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewR.Get());
 						}
 					}
 					else {
@@ -4535,12 +4544,13 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get()
+								resources->_renderTargetViewDepthBuf.Get(),
+								resources->_renderTargetViewNormBuf.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
