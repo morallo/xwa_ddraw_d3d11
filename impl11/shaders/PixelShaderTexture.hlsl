@@ -31,7 +31,7 @@ struct PixelShaderOutput
 	float4 color  : SV_TARGET0;
 	float4 bloom  : SV_TARGET1;
 	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
+	//float4 normal : SV_TARGET3;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -100,23 +100,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG
 	//float Z = -input.pos3D.z;
 	float3 P = float3(input.pos3D.xyz);
-	//float Z = (25.0f - P.z) / 25.0f;
-	float Z = P.z / (2.0 + P.z);
-	Z = 1.0 - Z;
-	float X = P.x / (1.0 + P.x);
-	output.pos3D = float4(Z, Z, Z, 1);
+	output.pos3D = float4(P, 1);
 
-	float3 N = normalize(cross(ddx(P), ddy(P)));
-	output.normal = float4(float3(N.xy, -N.z) * 0.5 + 0.5, 1);
+	//float Z = (25.0f - P.z) / 25.0f;
+	//float Z = P.z / (2.0 + P.z);
+	//Z = 1.0 - Z;
+	//float X = P.x / (1.0 + P.x);
+	
+	// The normals apparently can't be computed on this pass since they seem
+	// to contain per-vertex data only.
+	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	//output.normal = float4(N * 0.5 + 0.5, 1);
-	//output.pos3D = float4(P, 1);
-	//output.pos3D = normalize(input.pos3D);
 	// DEBUG Visualize the normal map:
 	//output.color = float4(N.xy, -N.z, 1);
 	//output.color = float4(float3(N.xy, -N.z) * 0.5 + 0.5, 1);
-	output.color = float4(X,X,X, 1);
+	//output.color = float4(X,X,X, 1);
 	// DEBUG
-	return output;
+	//return output;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {

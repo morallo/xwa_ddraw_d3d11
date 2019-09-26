@@ -215,7 +215,7 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
 BloomPixelShaderCBStruct g_BloomPSCBuffer;
-extern bool g_bBloomEnabled;
+extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
 // Main Pixel Shader constant buffer
@@ -1774,6 +1774,99 @@ void PrimarySurface::DrawHUDVertices() {
 	context->Draw(6, 0);
 }
 
+void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = screen_res_x / fZoomFactor;
+	viewport.Height = screen_res_y / fZoomFactor;
+
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _depthAsInput
+	// Output _normBuf
+	resources->InitPixelShader(resources->_computeNormalsPS);
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	context->PSSetShaderResources(0, 1, resources->_depthBufSRV.GetAddressOf());
+	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
+	ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+				resources->_renderTargetViewNormBuf.Get()
+	};
+	context->OMSetRenderTargets(2, rtvs, NULL);
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bSteamVREnabled) {
+		// TODO ...
+		context->Draw(6, 0);
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
 /* Convenience function to call WaitGetPoses() */
 inline void WaitGetPoses() {
 	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
@@ -2119,7 +2212,7 @@ HRESULT PrimarySurface::Flip(
 				bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
 
 				// DEBUG
-				static int CaptureCounter = 1;
+				//static int CaptureCounter = 1;
 				// DEBUG
 
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
@@ -2204,6 +2297,44 @@ HRESULT PrimarySurface::Flip(
 				// DEBUG
 			}
 
+			// TODO: AO must be computed before the bloom shader -- or at least output to a different buffer
+			if (g_bAOEnabled) {
+				// We need to set the blend state properly for AO
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display Bloom
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				// Set the constants used by the ComputeNormals shader
+				float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+				g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.uvStepSize = 1.0f;
+				resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+				// Input: depthBufAsInput (already resolved during Execute())
+				// Output: offscreenBuffer, normalsBuf
+				ComputeNormalsPass(1.0f);
+			}
+
 			// Apply the HUD *after* we have re-shaded it (if necessary)
 			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
@@ -2217,9 +2348,6 @@ HRESULT PrimarySurface::Flip(
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-
-			// HACK: Let's visualize the normal buffer
-			context->CopyResource(resources->_offscreenBuffer, resources->_normBuf);
 
 			// The offscreenBuffer contains the fully-rendered image at this point.
 			if (g_bEnableVR) {

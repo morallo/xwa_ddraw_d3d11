@@ -21,17 +21,17 @@ cbuffer ConstantBuffer : register(b1)
 
 struct VertexShaderInput
 {
-	float4 pos : POSITION;
-	float4 color : COLOR0;
+	float4 pos      : POSITION;
+	float4 color    : COLOR0;
 	float4 specular : COLOR1;
-	float2 tex : TEXCOORD;
+	float2 tex      : TEXCOORD;
 };
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
+	float4 pos   : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD0;
+	float2 tex   : TEXCOORD0;
 	float4 pos3D : COLOR1;
 };
 
@@ -74,11 +74,13 @@ PixelShaderInput main(VertexShaderInput input)
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
-	temp.xy -= 0.5;
+	temp.xy += float2(-0.5, 0.5);
+	//output.pos3D = float4(temp, 1);
+
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
-	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+	temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
 	// Override the depth of this element if z_override is set
@@ -92,6 +94,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Adjust the coordinate system for SteamVR:
 	//P.yz = -P.yz;
 	//P.z = P.z;
+	//P.y = -P.y;
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	output.pos3D = float4(P, 1);
 
