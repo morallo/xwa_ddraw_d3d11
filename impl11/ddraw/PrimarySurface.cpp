@@ -215,6 +215,7 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
 BloomPixelShaderCBStruct g_BloomPSCBuffer;
+SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
@@ -1309,7 +1310,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
-	if (g_bSteamVREnabled) {
+	if (g_bUseSteamVR) {
 		switch (pass) {
 		case 0: 	// Prepass
 			// Input: _offscreenAsInputReshadeSRV_R
@@ -1463,7 +1464,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
 	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
-	if (g_bSteamVREnabled)
+	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
@@ -1485,7 +1486,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Copy _bloomOutput1 over _bloomOutputSum
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	if (g_bSteamVREnabled)
+	if (g_bUseSteamVR)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 
 	// DEBUG
@@ -1823,8 +1824,8 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	D3D11_VIEWPORT viewport{};
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = screen_res_x / fZoomFactor;
-	viewport.Height = screen_res_y / fZoomFactor;
+	viewport.Width = screen_res_x / (1.0f * fZoomFactor);
+	viewport.Height = screen_res_y / (1.0f * fZoomFactor);
 
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
@@ -1842,19 +1843,187 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	resources->InitPixelShader(resources->_computeNormalsPS);
 	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	context->PSSetShaderResources(0, 1, resources->_depthBufSRV.GetAddressOf());
+	// DEBUG
+	//context->PSSetShaderResources(1, 1, resources->_randomBufSRV.GetAddressOf());
+	// DEBUG
 	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
-	ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
-				resources->_renderTargetViewNormBuf.Get()
-	};
-	context->OMSetRenderTargets(2, rtvs, NULL);
-	//context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	//ID3D11RenderTargetView *rtvs[2] = {
+	//			resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+	//			resources->_renderTargetViewNormBuf.Get()
+	//};
+	//context->OMSetRenderTargets(2, rtvs, NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
-	if (g_bSteamVREnabled) {
-		// TODO ...
+	if (g_bUseSteamVR) {
+		// TODO: Check that this works in SteamVR
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _depthAsInputR
+		// Output _normBufR
+		resources->InitPixelShader(resources->_computeNormalsPS);
+		context->PSSetShaderResources(0, 1, resources->_depthBufSRV_R.GetAddressOf());
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewNormBufR.GetAddressOf(), NULL);
 		context->Draw(6, 0);
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+void PrimarySurface::SSAOPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = screen_res_x / fZoomFactor;
+	viewport.Height   = screen_res_y / fZoomFactor;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _offscreenBufferAsInput, _depthBufAsInput, _normBuf, _randBuf
+	// Output _bloom1
+	resources->InitPixelShader(resources->_ssaoPS);
+	ID3D11ShaderResourceView *srvs4[4] = {
+		resources->_offscreenAsInputShaderResourceView.Get(),
+		resources->_depthBufSRV.Get(),
+		resources->_normBufSRV.Get(),
+		resources->_randomBufSRV.Get()
+	};
+	context->PSSetShaderResources(0, 4, srvs4);
+	
+	//context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+	//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+
+	//ID3D11RenderTargetView *rtvs[2] = {
+	//			resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+	//			resources->_renderTargetViewNormBuf.Get()
+	//};
+	//context->OMSetRenderTargets(2, rtvs, NULL);
+
+	context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
+	context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Copy the SSAO buffer to offscreenBufferAsInput -- we'll reuse the latter as a temp
+	// buffer to do the blur
+	context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+	// Blur
+
+	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
+	// size will be twice as big in the next pass due to the downsample, so we have to compensate
+	// with a zoom factor:
+	float fPixelScale = 2.0f, fFirstPassZoomFactor = fZoomFactor / 2.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp  / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.bloomStrength = 1.0f;
+	g_BloomPSCBuffer.saturationStrength = 1.0f;
+	g_BloomPSCBuffer.uvStepSize = 1.5f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// SSAO Blur
+	// input: offscreenAsInput
+	// output: ssaoBuf
+	resources->InitPixelShader(resources->_ssaoBlurPS);
+	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
+	context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Reset the viewport for the final SSAO combine
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = screen_res_x;
+	viewport.Height   = screen_res_y;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+	// Resolve offscreenBuf
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
+	context->PSSetShaderResources(0, 4, null_srvs4);
+	// Final combine
+	// input: offscreenAsInput (resolved here), bloomSum, ssaoBuf
+	// output: offscreenBuf
+	resources->InitPixelShader(resources->_ssaoAddPS);
+	context->CopyResource(resources->_ssaoBuf2, resources->_ssaoBuf);
+	ID3D11ShaderResourceView *srvs3[3] = {
+		resources->_offscreenAsInputShaderResourceView.Get(),
+		resources->_bloomOutputSumSRV.Get(),
+		resources->_ssaoBufSRV.Get()
+	};
+	context->PSSetShaderResources(0, 3, srvs3);
+	//context->PSSetShaderResources(2, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(2, 1, resources->_ssaoBufSRV.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		// TODO: ...
 	}
 
 	// Restore previous rendertarget, etc
@@ -2220,20 +2389,20 @@ HRESULT PrimarySurface::Flip(
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-				if (g_bSteamVREnabled)
+				if (g_bUseSteamVR)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-				if (g_bSteamVREnabled)
+				if (g_bUseSteamVR)
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
 				/* if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 					wchar_t filename[80];
-					
+
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.dds", CaptureCounter);
@@ -2247,7 +2416,7 @@ HRESULT PrimarySurface::Flip(
 				} */
 				// DEBUG
 
-				if (bHyperStreaks) 
+				if (bHyperStreaks)
 				{
 					// Only apply the "short" bloom to the hyperspace streaks (otherwise they
 					// tend to get overexposed)
@@ -2261,7 +2430,7 @@ HRESULT PrimarySurface::Flip(
 					BloomPyramidLevelPass(3, 1, 8.0f);
 					BloomPyramidLevelPass(4, 1, 16.0f);
 				}
-				else 
+				else
 				{
 					float fScale = 2.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
@@ -2299,7 +2468,8 @@ HRESULT PrimarySurface::Flip(
 
 			// TODO: AO must be computed before the bloom shader -- or at least output to a different buffer
 			if (g_bAOEnabled) {
-				// We need to set the blend state properly for AO
+				//HRESULT hr;
+				// We need to set the blend state properly for SSAO
 				D3D11_BLEND_DESC blendDesc{};
 				blendDesc.AlphaToCoverageEnable = FALSE;
 				blendDesc.IndependentBlendEnable = FALSE;
@@ -2313,7 +2483,7 @@ HRESULT PrimarySurface::Flip(
 				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 				hr = resources->InitBlendState(nullptr, &blendDesc);
 
-				// Temporarily disable ZWrite: we won't need it to display Bloom
+				// Temporarily disable ZWrite: we won't need it to display SSAO
 				D3D11_DEPTH_STENCIL_DESC desc;
 				ComPtr<ID3D11DepthStencilState> depthState;
 				desc.DepthEnable = FALSE;
@@ -2321,6 +2491,25 @@ HRESULT PrimarySurface::Flip(
 				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
+
+				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
+				/*D3D11_SAMPLER_DESC samplerDesc;
+				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
+				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.MipLODBias = 0.0f;
+				samplerDesc.MinLOD = 0;
+				samplerDesc.MaxLOD = FLT_MAX;
+				samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+				samplerDesc.BorderColor[0] = 0.0f;
+				samplerDesc.BorderColor[1] = 0.0f;
+				samplerDesc.BorderColor[2] = 0.0f;
+				samplerDesc.BorderColor[3] = 0.0f;
+				ComPtr<ID3D11SamplerState> tempSampler;
+				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
+				context->PSSetSamplers(1, 1, &tempSampler);*/
 
 				// Set the constants used by the ComputeNormals shader
 				float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
@@ -2331,8 +2520,27 @@ HRESULT PrimarySurface::Flip(
 				resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 				// Input: depthBufAsInput (already resolved during Execute())
-				// Output: offscreenBuffer, normalsBuf
+				// Output: normalsBuf
 				ComputeNormalsPass(1.0f);
+
+				g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
+				g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+				resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+				// Input: depthBuf, normBuf, randBuf
+				// Output: _bloom1
+				SSAOPass(2.0f);
+				if (g_iPresentCounter == 100) {
+					HRESULT hr;
+					ID3D11Resource *resource = NULL;
+					resources->_ssaoBufSRV->GetResource(&resource);
+					hr = DirectX::SaveWICTextureToFile(context, resource, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufSRV.jpg");
+					if (FAILED(hr))
+						log_debug("[DBG] [AO] Could not access ssaoBuf from SRV");
+					else
+						log_debug("[DBG] Dumped ssaoBufSRV.jpg, hr: 0x%x", hr);
+					//hr = DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInput, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuf.jpg");
+					//log_debug("[DBG] Dumped offscreenBuf.jpg, hr: 0x%x", hr);
+				}
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)

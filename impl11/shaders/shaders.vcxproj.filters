@@ -37,7 +37,9 @@
     <FxCompile Include="BloomBufferAddPS.hlsl" />
     <FxCompile Include="BasicPixelShader.hlsl" />
     <FxCompile Include="SSAO\ComputeNormalsShader.hlsl" />
-    <FxCompile Include="SSAO\SSAO.hlsl" />
+    <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
+    <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
+    <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

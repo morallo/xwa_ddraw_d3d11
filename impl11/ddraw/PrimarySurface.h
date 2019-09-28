@@ -63,6 +63,8 @@ public:
 
 	void ComputeNormalsPass(float fZoomFactor);
 
+	void SSAOPass(float fZoomFactor);
+
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
 	STDMETHOD(GetAttachedSurface)(THIS_ LPDDSCAPS, LPDIRECTDRAWSURFACE FAR *);

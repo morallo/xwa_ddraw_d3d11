@@ -266,6 +266,7 @@ bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
+extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
@@ -1572,6 +1573,74 @@ bool LoadBloomParams() {
 	return true;
 }
 
+bool LoadSSAOParams() {
+	log_debug("[DBG] Loading SSAO params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./ssao.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load ssao.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading ssao.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	g_BloomConfig.uvStepSize1 = 3.0f;
+	g_BloomConfig.uvStepSize2 = 2.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "ssao_enabled") == 0) {
+				bool state = (bool)fValue;
+				//g_bReshadeEnabled |= state;
+				g_bAOEnabled = state;
+			}
+
+			else if (_stricmp(param, "scale") == 0) {
+				g_SSAO_PSCBuffer.scale = fValue;
+			}
+			else if (_stricmp(param, "bias") == 0) {
+				g_SSAO_PSCBuffer.bias = fValue;
+			}
+			else if (_stricmp(param, "intensity") == 0) {
+				g_SSAO_PSCBuffer.intensity = fValue;
+			}
+			else if (_stricmp(param, "sample_radius") == 0) {
+				g_SSAO_PSCBuffer.sample_radius = fValue;
+			}
+			else if (_stricmp(param, "iterations") == 0) {
+				g_SSAO_PSCBuffer.iterations = (int )fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	log_debug("[DBG] [AO] SSAO Enabled: %d", g_bAOEnabled);
+	log_debug("[DBG] [AO] SSAO scale: %0.3f", g_SSAO_PSCBuffer.scale);
+	log_debug("[DBG] [AO] SSAO bias: %0.3f", g_SSAO_PSCBuffer.bias);
+	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
+	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
+	log_debug("[DBG] [AO] SSAO iterations: %d", g_SSAO_PSCBuffer.iterations);
+	return true;
+}
+
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
 	log_debug("[DBG] Loading view params...");
@@ -1783,6 +1852,8 @@ next:
 	LoadDCParams();
 	// Load the Bloom params
 	LoadBloomParams();
+	// Load the SSAO params
+	LoadSSAOParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3617,7 +3688,7 @@ HRESULT Direct3DDevice::Execute(
 					 // This is where we can capture the current frame for post-processing effects
 					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					 //context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					 if (g_bSteamVREnabled) {
+					 if (g_bUseSteamVR) {
 						 context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							 resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 						 //context->ResolveSubresource(resources->_normBufAsInputR, 0,
@@ -3625,13 +3696,12 @@ HRESULT Direct3DDevice::Execute(
 					 }
 					 // DEBUG
 					 if (g_iPresentCounter == 100) {
-						 DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
-							 L"c:\\temp\\_depthBuf.jpg");
-						 //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
-						 //	 L"c:\\temp\\_normBuf.jpg");
-						 DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput,
-						 	 L"c:\\temp\\_depthBuf.dds");
-						 log_debug("[DBG] [AO] _depthBuf dumped");
+						//DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
+						//	L"c:\\temp\\_depthBuf.jpg");
+						// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
+						// //	 L"c:\\temp\\_normBuf.jpg");
+						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
+						log_debug("[DBG] [AO] _depthBuf.dds dumped");
 					 }
 					 // DEBUG
 				}
@@ -4972,21 +5042,19 @@ HRESULT Direct3DDevice::BeginScene()
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 	if (g_bUseSteamVR)
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-	/* if (g_bDynCockpitEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
-	} */
+
 	if (g_bReshadeEnabled) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
 	}
 	if (g_bAOEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, this->_deviceResources->clearColor);
+		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
+		// on the sides of the screen
+		float infinity[4] = { 0, 0, 655350.0f, 0 };
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, infinity);
 		if (g_bUseSteamVR)
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, infinity);
 	}
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);

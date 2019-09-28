@@ -88,8 +88,6 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
-
-
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.

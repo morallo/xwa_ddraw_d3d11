@@ -180,6 +180,14 @@ typedef struct BloomPixelShaderCBStruct {
 	// 32 bytes
 } BloomPixelShaderCBuffer;
 
+typedef struct SSAOPixelShaderCBStruct {
+	float screenSizeX, screenSizeY, scale, bias;
+	// 16 bytes
+	float intensity, sample_radius;
+	int iterations, unused2;
+	// 32 bytes
+} SSAOPixelShaderCBuffer;
+
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
@@ -292,6 +300,7 @@ public:
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
+	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
 
@@ -357,7 +366,10 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
 	ComPtr<ID3D11Texture2D> _normBuf;   // No MSAA so that it can be both bound to RTV and SRV
 	ComPtr<ID3D11Texture2D> _normBufR;  // No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _randomBuf; // No MSAA, used to randomize SSAO
+	ComPtr<ID3D11Texture2D> _ssaoBuf;   // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBuf2;   // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBuf2R;   // No MSAA
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
@@ -384,6 +396,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
 
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
@@ -404,7 +418,9 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _normBufSRV; // SRV for normBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R; // SRV for normBufAsInputR
-	ComPtr<ID3D11ShaderResourceView> _randomBufSRV; // SRV for randomBuf
+	ComPtr<ID3D11ShaderResourceView> _randomBufSRV = nullptr; // SRV for randomBuf
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -425,6 +441,9 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
 	ComPtr<ID3D11PixelShader> _computeNormalsPS;
+	ComPtr<ID3D11PixelShader> _ssaoPS;
+	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -454,6 +473,7 @@ public:
 	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
+	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;

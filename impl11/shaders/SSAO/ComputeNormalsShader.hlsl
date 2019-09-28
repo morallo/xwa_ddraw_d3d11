@@ -6,7 +6,9 @@
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-//static float METRIC_SCALE_FACTOR = 25.0;
+// The colorbuf ONLY FOR DEBUG PURPOSES, REMOVE LATER!
+Texture2D    texture1 : register(t1);
+SamplerState sampler1 : register(s1);
 
 struct PixelShaderInput
 {
@@ -16,8 +18,9 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0; // For debugging purposes, remove later
-	float4 normal : SV_TARGET1;
+	//float4 color  : SV_TARGET0; // For debugging purposes, remove later
+	//float4 normal : SV_TARGET1;
+	float4 normal : SV_TARGET0;
 };
 
 cbuffer ConstantBuffer : register(b2)
@@ -28,29 +31,41 @@ cbuffer ConstantBuffer : register(b2)
 	// 32 bytes
 };
 
+/*
+float2 getRandom(in float2 uv)
+{
+	// g_screen_size is the size of the screen in pixels
+	// random_size is the size of the random texture (64x64)
+	return normalize(tex2D(g_random, g_screen_size * uv / random_size).xy * 2.0f - 1.0f);
+}
+*/
+
+/*
+inline float2 getRandom(in float2 uv) {
+	return normalize(texture1.Sample(sampler0, float2(3280, 2160) * uv / float2(64, 64)).xy * 2.0f - 1.0f);
+}
+*/
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float2 dx = uvStepSize * float2(pixelSizeX, 0);
-	float2 dy = uvStepSize * float2(0, pixelSizeY);
+	//float2 dx = uvStepSize * float2(pixelSizeX, 0);
+	//float2 dy = uvStepSize * float2(0, pixelSizeY);
 
 	float3 P  = texture0.Sample(sampler0, input.uv).xyz;
-	float3 Px = texture0.Sample(sampler0, input.uv + dx).xyz;
-	float3 Py = texture0.Sample(sampler0, input.uv + dy).xyz;
+	//float3 Px = texture0.Sample(sampler0, input.uv + dx).xyz;
+	//float3 Py = texture0.Sample(sampler0, input.uv + dy).xyz;
 	
-	//float Z = P.z / (1.0 + P.z);
-	//Z = 1.0 - Z;
-
-	//float3 N = normalize(cross(ddx(P), ddy(P)));
-	//output.normal = float4(N, 1);
-
-	float3 N = normalize(cross(P - Px, P - Py));
+	float3 N = normalize(cross(ddx(P), ddy(P)));
 	output.normal = float4(N, 1);
+
+	//float3 N = normalize(cross(P - Px, P - Py));
+	//output.normal = float4(N, 1);
 	
 	// DEBUG Visualize the normal map:
 	//output.color = float4(N.xy, -N.z, 1);
-	output.color = float4(float3(N.xy, -N.z) * 0.5 + 0.5, 1);
-	//output.color = float4(X,X,X, 1);
+	//output.color = float4(float3(N.xy, -N.z) * 0.5 + 0.5, 1);
+	//output.color = float4(getRandom(input.uv), 0, 1);
 	// DEBUG
 	return output;
 }
