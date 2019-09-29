@@ -156,7 +156,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bDumpBloomBuffers = true;
 				return 0;
 			case 'A':
-				//g_bBloomEnabled = !g_bBloomEnabled;
+				g_bBloomEnabled = !g_bBloomEnabled;
 				return 0;
 
 			case 'B':
