@@ -86,6 +86,11 @@ int g_iBloomPasses[8] = {
 	1, 1, 1, 1, 1, 1, 1, 1
 };
 
+// SSAO
+extern float g_fSSAOZoomFactor;
+extern bool g_bBlurSSAO, g_bDepthBufferResolved;
+extern bool g_bShowSSAODebug;
+
 /*
  * Convert a rotation matrix to a normalized quaternion.
  * From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
@@ -1959,16 +1964,22 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	//			resources->_renderTargetViewNormBuf.Get()
 	//};
 	//context->OMSetRenderTargets(2, rtvs, NULL);
-
-	context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
-	context->Draw(6, 0);
+	if (!g_bBlurSSAO && g_bShowSSAODebug) {
+		context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+		context->Draw(6, 0);
+		goto out;
+	} else {
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+		context->Draw(6, 0);
+	}
 
 	// Copy the SSAO buffer to offscreenBufferAsInput -- we'll reuse the latter as a temp
 	// buffer to do the blur
 	context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+	
 	// Blur
-
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
 	// with a zoom factor:
@@ -1982,13 +1993,23 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSAO Blur
-	// input: offscreenAsInput
-	// output: ssaoBuf
-	resources->InitPixelShader(resources->_ssaoBlurPS);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-	context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
-	context->Draw(6, 0);
+	if (g_bBlurSSAO) {
+		// input: offscreenAsInput
+		// output: ssaoBuf
+		resources->InitPixelShader(resources->_ssaoBlurPS);
+		context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+		if (g_bShowSSAODebug) {
+			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+			context->Draw(6, 0);
+			goto out;
+		}
+		else {
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+			context->Draw(6, 0);
+		}
+	}
 
 	// Reset the viewport for the final SSAO combine
 	viewport.TopLeftX = 0.0f;
@@ -2026,6 +2047,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// TODO: ...
 	}
 
+out:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width = screen_res_x;
@@ -2350,6 +2372,95 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// TODO: AO must be computed before the bloom shader -- or at least output to a different buffer
+			if (g_bAOEnabled) {
+				if (!g_bDepthBufferResolved) {
+					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here
+					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					if (g_bUseSteamVR) {
+						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						//context->ResolveSubresource(resources->_normBufAsInputR, 0,
+						//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+					}
+				}
+
+				// We need to set the blend state properly for SSAO
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display SSAO
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
+				/*D3D11_SAMPLER_DESC samplerDesc;
+				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
+				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.MipLODBias = 0.0f;
+				samplerDesc.MinLOD = 0;
+				samplerDesc.MaxLOD = FLT_MAX;
+				samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+				samplerDesc.BorderColor[0] = 0.0f;
+				samplerDesc.BorderColor[1] = 0.0f;
+				samplerDesc.BorderColor[2] = 0.0f;
+				samplerDesc.BorderColor[3] = 0.0f;
+				ComPtr<ID3D11SamplerState> tempSampler;
+				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
+				context->PSSetSamplers(1, 1, &tempSampler);*/
+
+				// Set the constants used by the ComputeNormals shader
+				float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+				g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+				g_BloomPSCBuffer.uvStepSize = 1.0f;
+				resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+				// Input: depthBufAsInput (already resolved during Execute())
+				// Output: normalsBuf
+				ComputeNormalsPass(1.0f);
+
+				g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
+				g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+				resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+				// Input: depthBuf, normBuf, randBuf
+				// Output: _bloom1
+				SSAOPass(g_fSSAOZoomFactor);
+
+				//if (g_iPresentCounter == 100) {
+				//	HRESULT hr;
+				//	ID3D11Resource *resource = NULL;
+				//	resources->_ssaoBufSRV->GetResource(&resource);
+				//	hr = DirectX::SaveWICTextureToFile(context, resource, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufSRV.jpg");
+				//	if (FAILED(hr))
+				//		log_debug("[DBG] [AO] Could not access ssaoBuf from SRV");
+				//	else
+				//		log_debug("[DBG] Dumped ssaoBufSRV.jpg, hr: 0x%x", hr);
+				//	//hr = DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInput, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuf.jpg");
+				//	//log_debug("[DBG] Dumped offscreenBuf.jpg, hr: 0x%x", hr);
+				//}
+			}
+
 			// Re-shade the contents of _offscreenBufferAsInputReshade
 			if (g_bBloomEnabled) {
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -2441,10 +2552,15 @@ HRESULT PrimarySurface::Flip(
 						fScale *= 2.0f;
 					}
 				}
-				// Add the accumulated bloom with the offscreen buffer
-				// Input: _bloomSum, _offscreenBufferAsInput
-				// Output: _offscreenBuffer
-				BloomBasicPass(5, 1.0f);
+
+				//if (!g_bAOEnabled) {
+					// If SSAO is not enabled, then we can merge the bloom buffer with the offscreen buffer
+					// here. Otherwise, we'll merge it along with the SSAO buffer later.
+					// Add the accumulated bloom with the offscreen buffer
+					// Input: _bloomSum, _offscreenBufferAsInput
+					// Output: _offscreenBuffer
+					BloomBasicPass(5, 1.0f);
+				//}
 
 				// DEBUG
 				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -2464,83 +2580,6 @@ HRESULT PrimarySurface::Flip(
 					g_bDumpBloomBuffers = false;
 				}*/
 				// DEBUG
-			}
-
-			// TODO: AO must be computed before the bloom shader -- or at least output to a different buffer
-			if (g_bAOEnabled) {
-				//HRESULT hr;
-				// We need to set the blend state properly for SSAO
-				D3D11_BLEND_DESC blendDesc{};
-				blendDesc.AlphaToCoverageEnable = FALSE;
-				blendDesc.IndependentBlendEnable = FALSE;
-				blendDesc.RenderTarget[0].BlendEnable = TRUE;
-				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-				hr = resources->InitBlendState(nullptr, &blendDesc);
-
-				// Temporarily disable ZWrite: we won't need it to display SSAO
-				D3D11_DEPTH_STENCIL_DESC desc;
-				ComPtr<ID3D11DepthStencilState> depthState;
-				desc.DepthEnable = FALSE;
-				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-				desc.StencilEnable = FALSE;
-				resources->InitDepthStencilState(depthState, &desc);
-
-				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
-				/*D3D11_SAMPLER_DESC samplerDesc;
-				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
-				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.MipLODBias = 0.0f;
-				samplerDesc.MinLOD = 0;
-				samplerDesc.MaxLOD = FLT_MAX;
-				samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-				samplerDesc.BorderColor[0] = 0.0f;
-				samplerDesc.BorderColor[1] = 0.0f;
-				samplerDesc.BorderColor[2] = 0.0f;
-				samplerDesc.BorderColor[3] = 0.0f;
-				ComPtr<ID3D11SamplerState> tempSampler;
-				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
-				context->PSSetSamplers(1, 1, &tempSampler);*/
-
-				// Set the constants used by the ComputeNormals shader
-				float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
-				g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.uvStepSize = 1.0f;
-				resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-
-				// Input: depthBufAsInput (already resolved during Execute())
-				// Output: normalsBuf
-				ComputeNormalsPass(1.0f);
-
-				g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
-				g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
-				resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
-				// Input: depthBuf, normBuf, randBuf
-				// Output: _bloom1
-				SSAOPass(2.0f);
-				if (g_iPresentCounter == 100) {
-					HRESULT hr;
-					ID3D11Resource *resource = NULL;
-					resources->_ssaoBufSRV->GetResource(&resource);
-					hr = DirectX::SaveWICTextureToFile(context, resource, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufSRV.jpg");
-					if (FAILED(hr))
-						log_debug("[DBG] [AO] Could not access ssaoBuf from SRV");
-					else
-						log_debug("[DBG] Dumped ssaoBufSRV.jpg, hr: 0x%x", hr);
-					//hr = DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInput, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuf.jpg");
-					//log_debug("[DBG] Dumped offscreenBuf.jpg, hr: 0x%x", hr);
-				}
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
@@ -2604,6 +2643,7 @@ HRESULT PrimarySurface::Flip(
 			g_iHUDOffscreenCommandsRendered = 0;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
+			g_bDepthBufferResolved = false;
 			//*g_playerInHangar = 0;
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {

@@ -92,7 +92,7 @@ const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 const bool DEFAULT_RESHADE_ENABLED_STATE = false;
 const bool DEFAULT_BLOOM_ENABLED_STATE = false;
 // TODO: Make this toggleable later
-const bool DEFAULT_AO_ENABLED_STATE = true;
+const bool DEFAULT_AO_ENABLED_STATE = false;
 // cockpit look constants
 const float DEFAULT_YAW_MULTIPLIER   = 1.0f;
 const float DEFAULT_PITCH_MULTIPLIER = 1.0f;
@@ -264,12 +264,17 @@ const int MAX_BLOOM_PASSES = 9;
 const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
-bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
+
+// SSAO
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+float g_fSSAOZoomFactor = 2.0f;
+bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
+bool g_bShowSSAODebug = false;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1627,6 +1632,12 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "iterations") == 0) {
 				g_SSAO_PSCBuffer.iterations = (int )fValue;
+			}
+			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
+				g_fSSAOZoomFactor = (float)fValue;
+			}
+			else if (_stricmp(param, "enable_blur") == 0) {
+				g_bBlurSSAO = (bool)fValue;
 			}
 		}
 	}
@@ -3684,6 +3695,7 @@ HRESULT Direct3DDevice::Execute(
 				 *************************************************************************/
 
 				 if (g_bAOEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
+					 g_bDepthBufferResolved = true;
 					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					 // This is where we can capture the current frame for post-processing effects
 					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);

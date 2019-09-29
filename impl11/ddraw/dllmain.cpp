@@ -31,10 +31,11 @@ void IncreaseFocalDist(float Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
 
-extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled;
+extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled;
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
+extern bool g_bShowSSAODebug;
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -154,9 +155,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			
 			case 'D':
 				//g_bDumpBloomBuffers = true;
+				g_bShowSSAODebug = !g_bShowSSAODebug;
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
+				return 0;
+			case 'O':
+				g_bAOEnabled = !g_bAOEnabled;
 				return 0;
 
 			case 'B':
