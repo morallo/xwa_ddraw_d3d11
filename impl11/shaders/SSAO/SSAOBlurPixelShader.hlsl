@@ -1,9 +1,13 @@
 /*
  * Simple blur for SSAO
+ * Copyright 2019, Leo Reyes
+ * Licensed under the MIT license. See LICENSE.txt
  */
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// I'm reusing the constant buffer from the bloom blur shader; but
+// we're only using the amplifyFactor here.
 cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;

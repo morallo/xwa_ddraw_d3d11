@@ -1,14 +1,12 @@
-// Copyright (c) 2014 Jérémy Ansel
-// Licensed under the MIT license. See LICENSE.txt
-// Extended for VR by Leo Reyes (c) 2019
+/*
+ * Simple shader to compute the normal buffer from the position buffer
+ * Copyright 2019, Leo Reyes.
+ * Licensed under the MIT license. See LICENSE.txt
+ */
 
 // The 3D position buffer (linear X,Y,Z)
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
-
-// The colorbuf ONLY FOR DEBUG PURPOSES, REMOVE LATER!
-Texture2D    texture1 : register(t1);
-SamplerState sampler1 : register(s1);
 
 struct PixelShaderInput
 {
@@ -18,33 +16,16 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	//float4 color  : SV_TARGET0; // For debugging purposes, remove later
-	//float4 normal : SV_TARGET1;
 	float4 normal : SV_TARGET0;
 };
 
-cbuffer ConstantBuffer : register(b2)
-{
-	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
-	// 16 bytes
-	float bloomStrength, uvStepSize, saturationStrength, unused2;
-	// 32 bytes
-};
-
-/*
-float2 getRandom(in float2 uv)
-{
-	// g_screen_size is the size of the screen in pixels
-	// random_size is the size of the random texture (64x64)
-	return normalize(tex2D(g_random, g_screen_size * uv / random_size).xy * 2.0f - 1.0f);
-}
-*/
-
-/*
-inline float2 getRandom(in float2 uv) {
-	return normalize(texture1.Sample(sampler0, float2(3280, 2160) * uv / float2(64, 64)).xy * 2.0f - 1.0f);
-}
-*/
+//cbuffer ConstantBuffer : register(b2)
+//{
+//	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
+//	// 16 bytes
+//	float bloomStrength, uvStepSize, saturationStrength, unused2;
+//	// 32 bytes
+//};
 
 PixelShaderOutput main(PixelShaderInput input)
 {

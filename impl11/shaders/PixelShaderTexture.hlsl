@@ -94,30 +94,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
 
-	//output.pos3D = input.pos3D;
-	// DEBUG
-	//float Z = -input.pos3D.z;
 	float3 P = float3(input.pos3D.xyz);
 	output.pos3D = float4(P, 1);
 
-	//float Z = (25.0f - P.z) / 25.0f;
-	//float Z = P.z / (2.0 + P.z);
-	//Z = 1.0 - Z;
-	//float X = P.x / (1.0 + P.x);
-	
-	// The normals apparently can't be computed on this pass since they seem
-	// to contain per-vertex data only.
+	// We could also compute normals in this pass...
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	//output.normal = float4(N * 0.5 + 0.5, 1);
-	// DEBUG Visualize the normal map:
-	//output.color = float4(N.xy, -N.z, 1);
-	//output.color = float4(float3(N.xy, -N.z) * 0.5 + 0.5, 1);
-	//output.color = float4(X,X,X, 1);
-	// DEBUG
-	//return output;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
+		output.pos3D.a = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
@@ -145,6 +131,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Process light textures (make them brighter in 32-bit mode)
 	if (bIsLightTexture) {
+		// output.pos3D.a = 0;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		float val = HSV.z;
@@ -171,6 +158,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue
 	if (bIsEngineGlow) {
+		// Disable depth-buffer write for engine glow textures
+		output.pos3D.a = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -188,11 +177,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	if (bIsHyperspaceAnim)
+	if (bIsHyperspaceAnim) {
+		output.pos3D.a = 0;
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
+	}
 
-	if (bIsHyperspaceStreak)
+	if (bIsHyperspaceStreak) {
+		output.pos3D.a = 0;
 		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
+	}
 
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;

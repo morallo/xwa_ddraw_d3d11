@@ -274,7 +274,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 float g_fSSAOZoomFactor = 2.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false;
+bool g_bShowSSAODebug = false, g_bShowNormBufDebug = false;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1633,6 +1633,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "iterations") == 0) {
 				g_SSAO_PSCBuffer.iterations = (int )fValue;
 			}
+			else if (_stricmp(param, "z_scale") == 0) {
+				g_SSAO_PSCBuffer.z_scale = fValue;
+			}
 			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor = (float)fValue;
 			}
@@ -1649,6 +1652,7 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
 	log_debug("[DBG] [AO] SSAO iterations: %d", g_SSAO_PSCBuffer.iterations);
+	log_debug("[DBG] [AO] SSAO z_scale: %f", g_SSAO_PSCBuffer.z_scale);
 	return true;
 }
 
@@ -3707,14 +3711,14 @@ HRESULT Direct3DDevice::Execute(
 						 //	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 					 }
 					 // DEBUG
-					 if (g_iPresentCounter == 100) {
-						//DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
-						//	L"c:\\temp\\_depthBuf.jpg");
-						// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
-						// //	 L"c:\\temp\\_normBuf.jpg");
-						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
-						log_debug("[DBG] [AO] _depthBuf.dds dumped");
-					 }
+					 //if (g_iPresentCounter == 100) {
+						////DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
+						////	L"c:\\temp\\_depthBuf.jpg");
+						//// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
+						//// //	 L"c:\\temp\\_normBuf.jpg");
+						//DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
+						//log_debug("[DBG] [AO] _depthBuf.dds dumped");
+					 //}
 					 // DEBUG
 				}
 

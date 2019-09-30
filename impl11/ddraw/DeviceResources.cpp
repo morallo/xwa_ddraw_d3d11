@@ -730,17 +730,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bAOEnabled) {
 		this->_depthBuf.Release();
 		this->_depthBufAsInput.Release();
-		//this->_normBuf.Release();
 		this->_normBuf.Release();
 		this->_ssaoBuf.Release();
-		this->_ssaoBuf2.Release();
 		this->_renderTargetViewDepthBuf.Release();
 		this->_depthBufSRV.Release();
 		this->_normBufSRV.Release();
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewSSAO.Release();
 		this->_ssaoBufSRV.Release();
-		//this->_randomBuf.Release();
 		if (this->_randomBufSRV != nullptr) {
 			this->_randomBufSRV.Release();
 			this->_randomBufSRV = nullptr;
@@ -749,7 +746,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
 			this->_ssaoBufR.Release();
-			this->_ssaoBuf2R.Release();
 			this->_normBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
 			this->_depthBufSRV_R.Release();
@@ -1241,15 +1237,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			desc.Format = oldFormat;
-			step = "_ssaoBuf2";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf2);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
-			}
-
 			/*step = "_randomBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_randomBuf);
 			if (FAILED(hr)) {
@@ -1271,15 +1258,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.Format = oldFormat;
 				step = "_ssaoBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
-
-				desc.Format = oldFormat;
-				step = "_ssaoBuf2R";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf2R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1415,7 +1393,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			shaderResourceViewDesc.Format = oldFormat;
 			step = "_ssaoBufSRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf2, &shaderResourceViewDesc, &this->_ssaoBufSRV);
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
@@ -1460,7 +1438,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				shaderResourceViewDesc.Format = oldFormat;
 				step = "_ssaoBufSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf2R, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);

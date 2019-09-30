@@ -183,8 +183,8 @@ typedef struct BloomPixelShaderCBStruct {
 typedef struct SSAOPixelShaderCBStruct {
 	float screenSizeX, screenSizeY, scale, bias;
 	// 16 bytes
-	float intensity, sample_radius;
-	int iterations, unused2;
+	float intensity, sample_radius, z_scale;
+	int iterations;
 	// 32 bytes
 } SSAOPixelShaderCBuffer;
 
@@ -367,9 +367,7 @@ public:
 	ComPtr<ID3D11Texture2D> _normBuf;   // No MSAA so that it can be both bound to RTV and SRV
 	ComPtr<ID3D11Texture2D> _normBufR;  // No MSAA so that it can be both bound to RTV and SRV
 	ComPtr<ID3D11Texture2D> _ssaoBuf;   // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBuf2;   // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBuf2R;   // No MSAA
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
