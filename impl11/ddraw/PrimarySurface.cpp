@@ -1785,6 +1785,14 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
+	// Set the constants used by the ComputeNormals shader
+	float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp  / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
@@ -1947,21 +1955,23 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Input: _randBuf, _depthBufAsInput, _normBuf,
 	// Output _ssaoBuf
-	resources->InitPixelShader(resources->_ssaoPS);
-	ID3D11ShaderResourceView *srvs4[4] = {
+	ID3D11ShaderResourceView *srvs3[3] = {
 		resources->_randomBufSRV.Get(),
 		resources->_depthBufSRV.Get(),
-		resources->_normBufSRV.Get()		
+		resources->_normBufSRV.Get()
 	};
-	context->PSSetShaderResources(0, 4, srvs4);
+	resources->InitPixelShader(resources->_ssaoPS);
 	if (!g_bBlurSSAO && g_bShowSSAODebug) {
 		context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+		context->PSSetShaderResources(0, 3, srvs3);
 		context->Draw(6, 0);
 		goto out;
-	} else {
+	}
+	else {
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
 		context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+		context->PSSetShaderResources(0, 3, srvs3);
 		context->Draw(6, 0);
 	}
 
@@ -2021,12 +2031,12 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Resolve offscreenBuf
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	ID3D11ShaderResourceView *srvs3[3] = {
+	ID3D11ShaderResourceView *srvs_pass2[3] = {
 		resources->_offscreenAsInputShaderResourceView.Get(),
 		resources->_offscreenAsInputBloomMaskSRV.Get(),
 		resources->_ssaoBufSRV.Get()
 	};
-	context->PSSetShaderResources(0, 3, srvs3);
+	context->PSSetShaderResources(0, 3, srvs_pass2);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -2370,15 +2380,17 @@ HRESULT PrimarySurface::Flip(
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
 				// DEBUG
-				if (g_iPresentCounter == 100) {
+				/*if (g_iPresentCounter == 100) {
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
-				}
+				}*/
 				// DEBUG
 			}
 
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
 			if (g_bAOEnabled) {
 				if (!g_bDepthBufferResolved) {
+					// If an external camera is used, then the depth buf will be resolved here
+					//log_debug("[DBG] [AO] Resolving depth Buf in PrimarySurface Flip()");
 					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here
 					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
@@ -2432,42 +2444,31 @@ HRESULT PrimarySurface::Flip(
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
 				context->PSSetSamplers(1, 1, &tempSampler);*/
 
-				// Set the constants used by the ComputeNormals shader
-				float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
-				g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
-				g_BloomPSCBuffer.uvStepSize = 1.0f;
-				resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+				/*if (g_iPresentCounter == 100) {
+					ID3D11Resource *normBuf = NULL;
+					resources->_normBufSRV->GetResource(&normBuf);
+					DirectX::SaveDDSTextureToFile(context, normBuf, L"C:\\Temp\\_normBuf1.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
+				}*/
 
 				// Input: depthBufAsInput (already resolved during Execute())
 				// Output: normalsBuf
-				ComputeNormalsPass(1.0f);
+				//ComputeNormalsPass(1.0f);
 
-				if (!g_bShowNormBufDebug) {
-					g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
-					g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
-					resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
-					// Input: depthBuf, normBuf, randBuf
-					// Output: _bloom1
-					SSAOPass(g_fSSAOZoomFactor);
-				}
+				g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
+				g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+				resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+				// Input: depthBuf, normBuf, randBuf
+				// Output: _bloom1
+				SSAOPass(g_fSSAOZoomFactor);
 
-				//if (g_iPresentCounter == 100) {
-				//	HRESULT hr;
-				//	ID3D11Resource *resource = NULL;
-				//	resources->_ssaoBufSRV->GetResource(&resource);
-				//	hr = DirectX::SaveWICTextureToFile(context, resource, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufSRV.jpg");
-				//	if (FAILED(hr))
-				//		log_debug("[DBG] [AO] Could not access ssaoBuf from SRV");
-				//	else
-				//		log_debug("[DBG] Dumped ssaoBufSRV.jpg, hr: 0x%x", hr);
-				//	//hr = DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInput, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuf.jpg");
-				//	//log_debug("[DBG] Dumped offscreenBuf.jpg, hr: 0x%x", hr);
-				//}
+				/*if (g_iPresentCounter == 100) {
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
+				}*/
 			}
 
-			// Re-shade the contents of _offscreenBufferAsInputReshade
+			// Apply the Bloom effect
 			if (g_bBloomEnabled) {
 				// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
 				// SSAO uses that mask to prevent applying SSAO on bright areas

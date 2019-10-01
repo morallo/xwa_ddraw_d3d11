@@ -4393,13 +4393,13 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[3] = {
+						ID3D11RenderTargetView *rtvs[4] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
 							resources->_renderTargetViewDepthBuf.Get(),
-							//resources->_renderTargetViewNormBuf.Get()
+							resources->_renderTargetViewNormBuf.Get()
 						};
-						context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4545,11 +4545,11 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								//resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get()
 							};
 							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -4560,11 +4560,11 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								//resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get()
 							};
 							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -4609,18 +4609,18 @@ HRESULT Direct3DDevice::Execute(
 					//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
-						if (!g_bBloomEnabled) {
+						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
-								//resources->_renderTargetViewNormBufR.Get()
+								resources->_renderTargetViewNormBufR.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewR.Get());
 						}
 					}
 					else {
@@ -4630,11 +4630,11 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[3] = {
+							ID3D11RenderTargetView *rtvs[4] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								//resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get()
 							};
 							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -5074,6 +5074,11 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, infinity);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, infinity);
+
+		float zero[4] = { 0, 0, 0, 0 };
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewNormBuf, infinity);
+		if (g_bUseSteamVR)
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewNormBufR, infinity);
 	}
 
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);

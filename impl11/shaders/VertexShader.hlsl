@@ -1,5 +1,6 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
+// Extended for SSAO by Leo Reyes, 2019
 
 static float METRIC_SCALE_FACTOR = 25.0;
 
@@ -29,10 +30,10 @@ struct VertexShaderInput
 
 struct PixelShaderInput
 {
-	float4 pos   : SV_POSITION;
-	float4 color : COLOR0;
-	float2 tex   : TEXCOORD0;
-	float4 pos3D : COLOR1;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 };
 
 /*
@@ -44,13 +45,10 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
 	output.pos.z = input.pos.z;
 	output.pos.w = 1.0f;
-
 	output.pos *= 1.0f / input.pos.w;
 
 	output.color = input.color.zyxw;
-
 	output.tex = input.tex;
-
 	return output;
 }
 */
@@ -67,9 +65,9 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos.z = input.pos.z;
 	output.pos.w = 1.0f;
 
-	output.pos *= 1.0f / input.pos.w;
+	output.pos  *= 1.0f / input.pos.w;
 	output.color = input.color.zyxw;
-	output.tex = input.tex;
+	output.tex   = input.tex;
 
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -0.5..0.5 range
@@ -91,10 +89,6 @@ PixelShaderInput main(VertexShaderInput input)
 
 	// The back-projection into 3D is now very simple:
 	float3 P = float3(temp.z * temp.xy, temp.z);
-	// Adjust the coordinate system for SteamVR:
-	//P.yz = -P.yz;
-	//P.z = P.z;
-	//P.y = -P.y;
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	output.pos3D = float4(P, 1);
 

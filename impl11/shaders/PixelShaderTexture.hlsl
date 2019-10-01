@@ -5,25 +5,14 @@
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-Texture2D    texture1 : register(t1);
-SamplerState sampler1 : register(s1);
-
 static float METRIC_SCALE_FACTOR = 25.0;
-
-// When the Dynamic Cockpit is active:
-// texture0 == cover texture and
-// texture1 == HUD offscreen buffer
-
-// If bRenderHUD is set:
-// texture0 == HUD foreground
-// texture1 == HUD background
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float4 color : COLOR0;
-	float2 tex : TEXCOORD0;
-	float4 pos3D : COLOR1;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 };
 
 struct PixelShaderOutput
@@ -31,7 +20,7 @@ struct PixelShaderOutput
 	float4 color  : SV_TARGET0;
 	float4 bloom  : SV_TARGET1;
 	float4 pos3D  : SV_TARGET2;
-	//float4 normal : SV_TARGET3;
+	float4 normal : SV_TARGET3;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -95,15 +84,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 
 	float3 P = float3(input.pos3D.xyz);
-	output.pos3D = float4(P, 1);
+	output.pos3D  = float4(P, 1);
 
-	// We could also compute normals in this pass...
-	//float3 N = normalize(cross(ddx(P), ddy(P)));
-	//output.normal = float4(N * 0.5 + 0.5, 1);
+	float3 N = normalize(cross(ddx(P), ddy(P)));
+	//output.normal = float4(N.xy, -N.z, 1);
+	output.normal = float4(N, 1);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
+		output.normal.a = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
@@ -160,6 +150,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsEngineGlow) {
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
+		output.normal.a = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -179,11 +170,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	if (bIsHyperspaceAnim) {
 		output.pos3D.a = 0;
+		output.normal.a = 0;
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
 	}
 
 	if (bIsHyperspaceStreak) {
 		output.pos3D.a = 0;
+		output.normal.a = 0;
 		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
 	}
 

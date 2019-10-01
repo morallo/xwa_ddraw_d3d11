@@ -1372,6 +1372,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			shaderResourceViewDesc.Format = oldFormat;
 		}
 
+		// AO SRVs
 		if (g_bAOEnabled) {
 			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;

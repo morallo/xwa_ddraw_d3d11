@@ -50,8 +50,9 @@ inline float2 getRandom(in float2 uv) {
 float doAmbientOcclusion(in float2 tcoord, in float2 uv, in float3 p, in float3 cnorm)
 {
 	float3 diff = getPosition(tcoord + uv) - p;
-	const float3 v = normalize(diff);
-	const float d = length(diff) * scale;
+	const float L = length(diff);
+	const float3 v = diff / L;
+	const float d = L * scale;
 	return max(0.0, dot(cnorm, v) - bias) * (1.0 / (1.0 + d)) * intensity;
 }
 
@@ -60,12 +61,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.ssao = float4(1, 1, 1, 1);
 
-	const float2 vec[4] = { float2(1,0),float2(-1,0), float2(0,1),float2(0,-1) };
+	const float2 vec[4] = { float2(1, 0), float2(-1, 0), float2(0, 1), float2(0, -1) };
 	float3 p = getPosition(input.uv);
 	float3 n = getNormal(input.uv);
 	float2 rand = getRandom(input.uv);
 	float ao = 0.0f;
-	//float radius = sample_radius * z_scale / p.z;
+	//float radius = sample_radius / (z_scale * p.z);
 	float radius = sample_radius;
 
 	// SSAO Calculation
@@ -86,5 +87,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	ao /= (float)iterations * 4.0;
 	output.ssao.xyz *= (1 - ao);
 	//output.color = float4(float3(1, 1, 1) * (1 - ao), 1);
+
 	return output;
 }

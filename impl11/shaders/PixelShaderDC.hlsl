@@ -131,20 +131,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
+	
 	float3 P = input.pos3D.xyz;
 	output.pos3D = float4(P, 1);
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
-	//output.pos3D = float4(N, 1);
-	output.normal = float4(N * 0.5 + 0.5, 1);
-	// DEBUG
-	//float Z = input.pos3D.z;
-	//output.pos3D = float4(Z, Z, Z, 1);
-	//float3 P = float3(input.pos3D.xy, -input.pos3D.z);
-	//output.pos3D = float4(P, 1);
-	output.pos3D = input.pos3D;
-	// DEBUG
-
+	output.normal = float4(N, 1);
+	
 	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
 	// The code returns a color from this path
 	if (DynCockpitSlots > 0) {
