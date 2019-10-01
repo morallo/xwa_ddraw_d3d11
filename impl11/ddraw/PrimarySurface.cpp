@@ -1853,7 +1853,7 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Input: _depthAsInput
 	// Output _normBuf
-	resources->InitPixelShader(resources->_computeNormalsPS);
+	//resources->InitPixelShader(resources->_computeNormalsPS);
 	context->PSSetShaderResources(0, 1, resources->_depthBufSRV.GetAddressOf());
 	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
 	//ID3D11RenderTargetView *rtvs[2] = {
@@ -1953,25 +1953,29 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 
 	// SSAO Computation
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-	// Input: _randBuf, _depthBufAsInput, _normBuf,
+	// Input: _randBuf, _depthBufAsInput, _normBuf, _offscreenBuf (resolved here)
 	// Output _ssaoBuf
-	ID3D11ShaderResourceView *srvs3[3] = {
+	// Resolve offscreenBuf
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	ID3D11ShaderResourceView *srvs_pass1[4] = {
 		resources->_randomBufSRV.Get(),
 		resources->_depthBufSRV.Get(),
-		resources->_normBufSRV.Get()
+		resources->_normBufSRV.Get(),
+		resources->_offscreenAsInputShaderResourceView
 	};
 	resources->InitPixelShader(resources->_ssaoPS);
 	if (!g_bBlurSSAO && g_bShowSSAODebug) {
 		context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-		context->PSSetShaderResources(0, 3, srvs3);
+		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 		goto out;
 	}
 	else {
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
 		context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
-		context->PSSetShaderResources(0, 3, srvs3);
+		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 	}
 
@@ -2369,7 +2373,8 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
-			if (g_bBloomEnabled) {
+			// Resolve the Bloom mask before the SSAO and Bloom effects.
+			if (g_bReshadeEnabled) {
 				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
@@ -2449,7 +2454,8 @@ HRESULT PrimarySurface::Flip(
 					resources->_normBufSRV->GetResource(&normBuf);
 					DirectX::SaveDDSTextureToFile(context, normBuf, L"C:\\Temp\\_normBuf1.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_bloomMask.jpg");
 				}*/
 
 				// Input: depthBufAsInput (already resolved during Execute())

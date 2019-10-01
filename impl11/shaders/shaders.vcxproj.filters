@@ -40,6 +40,7 @@
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
+    <FxCompile Include="PixelShaderEmptyDC.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

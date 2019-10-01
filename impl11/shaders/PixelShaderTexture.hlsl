@@ -35,8 +35,10 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
+	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect
+	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -84,11 +86,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 
 	float3 P = float3(input.pos3D.xyz);
-	output.pos3D  = float4(P, 1);
+	output.pos3D  = float4(P, fPosNormalAlpha);
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
-	//output.normal = float4(N.xy, -N.z, 1);
-	output.normal = float4(N, 1);
+	output.normal = float4(N, fPosNormalAlpha);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {

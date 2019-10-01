@@ -14,6 +14,10 @@ SamplerState sampPos : register(s1);
 Texture2D    texNorm  : register(t2);
 SamplerState sampNorm : register(s2);
 
+// The color buffer
+Texture2D    texColor  : register(t3);
+SamplerState sampColor : register(s3);
+
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
@@ -47,12 +51,14 @@ inline float2 getRandom(in float2 uv) {
 		float2(screenSizeX, screenSizeY) * uv / float2(64, 64)).xy * 2.0f - 1.0f);
 }
 
-float doAmbientOcclusion(in float2 tcoord, in float2 uv, in float3 p, in float3 cnorm)
+float3 doAmbientOcclusion(in float2 tcoord, in float2 uv, in float3 p, in float3 cnorm)
 {
-	float3 diff = getPosition(tcoord + uv) - p;
-	const float L = length(diff);
+	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
+	float3 diff    = getPosition(tcoord + uv) - p;
+	const float  L = length(diff);
 	const float3 v = diff / L;
-	const float d = L * scale;
+	const float  d = L * scale;
+	//return max(0.0, dot(cnorm, v) - bias) * (1.0 / (1.0 + d)) * intensity * color;
 	return max(0.0, dot(cnorm, v) - bias) * (1.0 / (1.0 + d)) * intensity;
 }
 
@@ -65,7 +71,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 p = getPosition(input.uv);
 	float3 n = getNormal(input.uv);
 	float2 rand = getRandom(input.uv);
-	float ao = 0.0f;
+	float3 ao = float3(0.0, 0.0, 0.0);
 	//float radius = sample_radius / (z_scale * p.z);
 	float radius = sample_radius;
 

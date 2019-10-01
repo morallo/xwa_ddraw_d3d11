@@ -219,8 +219,8 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
 
-	float fBloomStrength;
-	float unused1, unused2, unused3;
+	float fBloomStrength, fPosNormalAlpha;
+	float unused2, unused3;
 	// 16 bytes
 
 	// 48 bytes total
@@ -360,13 +360,11 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11Texture2D> _depthBuf;
 	ComPtr<ID3D11Texture2D> _depthBufR;
-	//ComPtr<ID3D11Texture2D> _normBuf;
-	//ComPtr<ID3D11Texture2D> _normBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
 	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _normBuf;   // No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;  // No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _ssaoBuf;   // No MSAA
+	ComPtr<ID3D11Texture2D> _normBuf;    // No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;   // No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _ssaoBuf;    // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
 
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -412,10 +410,10 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
 	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	// Ambient Occlusion
-	ComPtr<ID3D11ShaderResourceView> _depthBufSRV; // SRV for depthBufAsInput
+	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;   // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV; // SRV for normBufAsInput
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R; // SRV for normBufAsInputR
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBufAsInput
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _randomBufSRV = nullptr; // SRV for randomBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
@@ -433,12 +431,10 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
 	ComPtr<ID3D11PixelShader> _basicPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
-	ComPtr<ID3D11PixelShader> _bloomPrepassPS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
-	ComPtr<ID3D11PixelShader> _computeNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
@@ -461,6 +457,7 @@ public:
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderEmptyDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;

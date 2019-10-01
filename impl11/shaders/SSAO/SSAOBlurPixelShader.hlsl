@@ -3,6 +3,8 @@
  * Copyright 2019, Leo Reyes
  * Licensed under the MIT license. See LICENSE.txt
  */
+
+// The SSAO Buffer
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 

@@ -19,10 +19,10 @@
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
-//#include "../Debug/BloomPrePassPS.h"
 #include "../Debug/BloomHGaussPS.h"
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomCombinePS.h"
@@ -45,6 +45,7 @@
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
@@ -1795,8 +1796,8 @@ HRESULT DeviceResources::LoadMainResources()
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;
@@ -1957,8 +1958,13 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
-		return hr;
+	if (g_bDynCockpitEnabled) {
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderEmptyDC, sizeof(g_PixelShaderEmptyDC), nullptr, &_pixelShaderEmptyDC)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
 		return hr;
@@ -1976,9 +1982,6 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
-		//	return hr;
-
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
 
@@ -1993,8 +1996,8 @@ HRESULT DeviceResources::LoadResources()
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;

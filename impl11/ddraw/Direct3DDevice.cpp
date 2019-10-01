@@ -3267,8 +3267,9 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.bFullTransform = 0.0f;
 
 	g_PSCBuffer = { 0 };
-	g_PSCBuffer.brightness     = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
+	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
+	g_PSCBuffer.fPosNormalAlpha = 1.0f;
 
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
@@ -3734,7 +3735,7 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				 // Capture the bounds for the left sensor:
+				// Capture the bounds for the left sensor:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 				{
 					if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
@@ -4166,6 +4167,13 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
+				// Do not render pos3D or normal outputs anymore (used for SSAO)
+				// If these outputs are not disabled, then the aiming HUD gets AO as well!
+				if (g_bStartedGUI || bIsSkyBox) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+				}
+
 				// Dim all the GUI elements
 				if (g_bStartedGUI && !g_bIsFloating3DObject) {
 					bModifiedShaders = true;
@@ -4361,7 +4369,10 @@ HRESULT Direct3DDevice::Execute(
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							resources->InitPixelShader(resources->_pixelShaderDC);
+							if (g_PSCBuffer.DynCockpitSlots > 0)
+								resources->InitPixelShader(resources->_pixelShaderDC);
+							else if (g_PSCBuffer.bUseCoverTexture)
+								resources->InitPixelShader(resources->_pixelShaderEmptyDC);
 						} // if dc_element->bActive
 					}
 					// TODO: I should probably put an assert here since this shouldn't happen
@@ -4703,6 +4714,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
 					g_PSCBuffer.fBloomStrength	= 1.0f;
+					g_PSCBuffer.fPosNormalAlpha = 1.0f;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };

@@ -21,8 +21,10 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
-	float4 bloom : SV_TARGET1;
+	float4 color  : SV_TARGET0;
+	float4 bloom  : SV_TARGET1;
+	float4 pos3D  : SV_TARGET2;
+	float4 normal : SV_TARGET3;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -61,8 +63,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 diffuse = input.color.xyz;
 	uint i;
 
-	// Zero-out the bloom mask.
-	output.bloom = float4(0, 0, 0, 0);
+	// Zero-out the bloom, pos3d and normal masks.
+	output.bloom  = float4(0, 0, 0, 0);
+	output.pos3D  = float4(0, 0, 0, 0);
+	output.normal = float4(0, 0, 0, 0);
 	output.color = texelColor;
 
 	// This code assumes bRenderHUD is set -- so this is flag is now
