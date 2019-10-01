@@ -696,7 +696,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputSRVDynCockpit.Release();
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
 	}
-	if (g_bReshadeEnabled) {
+
+	if (g_bBloomEnabled) {
 		this->_offscreenBufferBloomMask.Release();
 		this->_offscreenBufferAsInputBloomMask.Release();
 		this->_offscreenAsInputBloomMaskSRV.Release();
@@ -948,7 +949,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bReshadeEnabled) {
+		if (g_bBloomEnabled) {
 			DXGI_FORMAT oldFormat = desc.Format;
 
 			step = "_offscreenBufferBloomMask";
@@ -1042,7 +1043,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bReshadeEnabled) {
+		if (g_bBloomEnabled) {
 			DXGI_FORMAT oldFormat = desc.Format;
 			desc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenBufferAsInputBloomMask";
@@ -1288,7 +1289,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
-		if (g_bReshadeEnabled) {
+		// Bloom SRVs
+		if (g_bBloomEnabled) {
 			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenAsInputBloomMaskSRV";
@@ -1550,7 +1552,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bReshadeEnabled) {
+		// Bloom RTVs
+		if (g_bBloomEnabled) {
 			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
 
 			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM

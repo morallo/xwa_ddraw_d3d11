@@ -1614,7 +1614,7 @@ bool LoadSSAOParams() {
 
 			if (_stricmp(param, "ssao_enabled") == 0) {
 				bool state = (bool)fValue;
-				//g_bReshadeEnabled |= state;
+				g_bReshadeEnabled |= state;
 				g_bAOEnabled = state;
 			}
 
@@ -4392,7 +4392,7 @@ HRESULT Direct3DDevice::Execute(
 							resources->_depthStencilViewL.Get());
 					}
 					else {
-						// Reshade is enabled, render to multiple output targets
+						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[3] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
@@ -4544,7 +4544,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						}
 						else {
-							// Reshade is enabled, render to multiple output targets
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -4559,7 +4559,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						}
 						else {
-							// Reshade is enabled, render to multiple output targets
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -4629,7 +4629,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						}
 						else {
-							// Reshade is enabled, render to multiple output targets
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[3] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -5059,11 +5059,14 @@ HRESULT Direct3DDevice::BeginScene()
 	if (g_bUseSteamVR)
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 
-	if (g_bReshadeEnabled) {
+	// Clear the Bloom Mask RTVs
+	if (g_bBloomEnabled) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
 	}
+
+	// Clear the AO RTVs
 	if (g_bAOEnabled) {
 		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 		// on the sides of the screen
@@ -5072,8 +5075,10 @@ HRESULT Direct3DDevice::BeginScene()
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, infinity);
 	}
+
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+	if (g_bUseSteamVR)
+		context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 
 	if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;
