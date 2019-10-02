@@ -17,17 +17,18 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
-	float4 bloom  : SV_TARGET1;
-	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
 {
 	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;		// How many DC slots will be used. This setting was "bShadeless" previously
-	uint bUseCoverTexture;		// When set, use the first texture as cover texture for the dynamic cockpit
+	uint DynCockpitSlots;		// (Unused here) How many DC slots will be used.
+	uint bUseCoverTexture;		// (Unused here) When set, use the first texture as cover texture for the dynamic cockpit
 	uint bIsHyperspaceAnim;		// 1 if we're rendering the hyperspace animation
 	// 16 bytes
 
@@ -39,6 +40,7 @@ cbuffer ConstantBuffer : register(b0)
 
 	float fBloomStrength;		// General multiplier for the bloom effect
 	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
+	float fSSAOMaskVal;			// SSAO mask value
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -91,10 +93,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	output.normal = float4(N, fPosNormalAlpha);
 
+	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
+
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		output.ssaoMask.a = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {

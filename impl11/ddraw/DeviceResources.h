@@ -164,6 +164,8 @@ typedef struct BarrelPixelShaderCBStruct {
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 //#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R32G32B32A32_FLOAT
+//#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
+#define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 
 typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength;
@@ -183,7 +185,7 @@ typedef struct BloomPixelShaderCBStruct {
 typedef struct SSAOPixelShaderCBStruct {
 	float screenSizeX, screenSizeY, scale, bias;
 	// 16 bytes
-	float intensity, sample_radius, z_scale;
+	float intensity, sample_radius, black_level;
 	int iterations;
 	// 32 bytes
 } SSAOPixelShaderCBuffer;
@@ -219,8 +221,8 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
 
-	float fBloomStrength, fPosNormalAlpha;
-	float unused2, unused3;
+	float fBloomStrength, fPosNormalAlpha, fSSAOMaskVal;
+	float unused3;
 	// 16 bytes
 
 	// 48 bytes total
@@ -366,7 +368,10 @@ public:
 	ComPtr<ID3D11Texture2D> _normBufR;   // No MSAA so that it can be both bound to RTV and SRV
 	ComPtr<ID3D11Texture2D> _ssaoBuf;    // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMask;	 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskR;	 // No MSAA
 
+	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
 	// Dynamic Cockpit
@@ -378,7 +383,7 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
-	// Reshade
+	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask;  // Renders to _offscreenBufferBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR; // Renders to _offscreenBufferBloomMaskR
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
@@ -394,13 +399,16 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 
+	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
+	// Dynamic Cockpit
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
-	
-	// Reshade
+	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
@@ -417,6 +425,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _randomBufSRV = nullptr; // SRV for randomBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

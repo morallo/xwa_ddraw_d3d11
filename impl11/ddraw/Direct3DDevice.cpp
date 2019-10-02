@@ -274,7 +274,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 float g_fSSAOZoomFactor = 2.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bShowNormBufDebug = false;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1633,14 +1633,17 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "iterations") == 0) {
 				g_SSAO_PSCBuffer.iterations = (int )fValue;
 			}
-			else if (_stricmp(param, "z_scale") == 0) {
+			/*else if (_stricmp(param, "z_scale") == 0) {
 				g_SSAO_PSCBuffer.z_scale = fValue;
-			}
+			}*/
 			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor = (float)fValue;
 			}
 			else if (_stricmp(param, "enable_blur") == 0) {
 				g_bBlurSSAO = (bool)fValue;
+			}
+			else if (_stricmp(param, "black_level") == 0) {
+				g_SSAO_PSCBuffer.black_level = fValue;
 			}
 		}
 	}
@@ -1652,7 +1655,8 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
 	log_debug("[DBG] [AO] SSAO iterations: %d", g_SSAO_PSCBuffer.iterations);
-	log_debug("[DBG] [AO] SSAO z_scale: %f", g_SSAO_PSCBuffer.z_scale);
+	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
+	//log_debug("[DBG] [AO] SSAO z_scale: %f", g_SSAO_PSCBuffer.z_scale);
 	return true;
 }
 
@@ -4193,6 +4197,13 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 				}
 
+				// Apply the SSAO mask
+				if (g_bAOEnabled && (bIsAimingHUD || bIsText || g_bIsTrianglePointer)) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fSSAOMaskVal = 1.0f;
+					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+				}
+
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
@@ -4385,8 +4396,8 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
-				// EARLY EXIT 2: if we're not in VR mode, we only need the state; but not the extra
-				// processing. (The state will be used later to do post-processing like Bloom and AO).
+				// EARLY EXIT 2: Render non-VR mode. Here we only need the state; but not the extra
+				// processing needed for VR.
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
 
@@ -4404,13 +4415,14 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[4] = {
+						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
 							resources->_renderTargetViewDepthBuf.Get(),
-							resources->_renderTargetViewNormBuf.Get()
+							resources->_renderTargetViewNormBuf.Get(),
+							resources->_renderTargetViewSSAOMask.Get()
 						};
-						context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4553,39 +4565,39 @@ HRESULT Direct3DDevice::Execute(
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
-						}
-						else {
+						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[4] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
+						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
-						}
-						else {
+						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[4] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
 					// VIEWPORT-LEFT
 					if (g_bUseSteamVR) {
 						viewport.Width = (float)resources->_backbufferWidth;
-					}
-					else {
+					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 					}
 					viewport.Height = (float)resources->_backbufferHeight;
@@ -4625,29 +4637,29 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[4] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
-								resources->_renderTargetViewNormBufR.Get()
+								resources->_renderTargetViewNormBufR.Get(),
+								resources->_renderTargetViewSSAOMaskR.Get()
 							};
-							context->OMSetRenderTargets(4, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
 						}
-					}
-					else {
+					} else {
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
-						}
-						else {
+						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[4] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								resources->_renderTargetViewNormBuf.Get()
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(3, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4655,8 +4667,7 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						viewport.Width = (float)resources->_backbufferWidth;
 						viewport.TopLeftX = 0.0f;
-					}
-					else {
+					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 						viewport.TopLeftX = 0.0f + viewport.Width;
 					}
@@ -4673,7 +4684,7 @@ HRESULT Direct3DDevice::Execute(
 					//	context->Draw(6, 0);
 					//	// TODO: Restore the original input layout here
 					//} else
-						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
 			out:

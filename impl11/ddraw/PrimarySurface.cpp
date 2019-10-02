@@ -89,7 +89,8 @@ int g_iBloomPasses[8] = {
 // SSAO
 extern float g_fSSAOZoomFactor;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug;
+extern bool g_bShowSSAODebug; // , g_bShowNormBufDebug;
+extern bool g_bDumpSSAOBuffers;
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -1864,9 +1865,6 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
 	context->Draw(6, 0);
 
-	if (g_bShowNormBufDebug)
-		goto out;
-
 	// Draw the right image when SteamVR is enabled
 	if (g_bUseSteamVR) {
 		// TODO: Check that this works in SteamVR
@@ -1879,7 +1877,6 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 		context->Draw(6, 0);
 	}
 
-out:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width = screen_res_x;
@@ -2035,12 +2032,13 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Resolve offscreenBuf
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	ID3D11ShaderResourceView *srvs_pass2[3] = {
+	ID3D11ShaderResourceView *srvs_pass2[4] = {
 		resources->_offscreenAsInputShaderResourceView.Get(),
 		resources->_offscreenAsInputBloomMaskSRV.Get(),
-		resources->_ssaoBufSRV.Get()
+		resources->_ssaoBufSRV.Get(),
+		resources->_ssaoMaskSRV.Get()
 	};
-	context->PSSetShaderResources(0, 3, srvs_pass2);
+	context->PSSetShaderResources(0, 4, srvs_pass2);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -2430,8 +2428,9 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
-				/*D3D11_SAMPLER_DESC samplerDesc;
+				/*
+				D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
+				D3D11_SAMPLER_DESC samplerDesc;
 				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
 				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -2449,14 +2448,17 @@ HRESULT PrimarySurface::Flip(
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
 				context->PSSetSamplers(1, 1, &tempSampler);*/
 
-				/*if (g_iPresentCounter == 100) {
-					ID3D11Resource *normBuf = NULL;
-					resources->_normBufSRV->GetResource(&normBuf);
-					DirectX::SaveDDSTextureToFile(context, normBuf, L"C:\\Temp\\_normBuf1.dds");
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_bloomMask.jpg");
-				}*/
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_offscreenBuf.jpg");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_ssaoMask.jpg");
+					log_debug("[DBG] [AO] Captured debug buffers");
+				}
 
 				// Input: depthBufAsInput (already resolved during Execute())
 				// Output: normalsBuf
@@ -2469,9 +2471,9 @@ HRESULT PrimarySurface::Flip(
 				// Output: _bloom1
 				SSAOPass(g_fSSAOZoomFactor);
 
-				/*if (g_iPresentCounter == 100) {
+				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
-				}*/
+				}
 			}
 
 			// Apply the Bloom effect
@@ -2652,6 +2654,8 @@ HRESULT PrimarySurface::Flip(
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;
 			//*g_playerInHangar = 0;
+			if (g_bDumpSSAOBuffers)
+				g_bDumpSSAOBuffers = false;
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };

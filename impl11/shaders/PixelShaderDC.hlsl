@@ -20,18 +20,19 @@ SamplerState sampler1 : register(s1);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float4 color : COLOR0;
-	float2 tex : TEXCOORD0;
-	float4 pos3D : COLOR1;
+	float4 pos      : SV_POSITION;
+	float4 color    : COLOR0;
+	float2 tex      : TEXCOORD0;
+	float4 pos3D    : COLOR1;
 };
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
-	float4 bloom  : SV_TARGET1;
-	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -42,12 +43,13 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsHyperspaceAnim;
 	// 16 bytes
 
-	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
+	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsHyperspaceStreak;
 
-	float fBloomStrength;			// General multiplier for the bloom effect
+	float fBloomStrength;		// General multiplier for the bloom effect
+	float fSSAOMaskVal;			// (Ignored) SSAO mask value
 };
 
 #define MAX_DC_COORDS 8
@@ -137,6 +139,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	output.normal = float4(N, 1);
+
+	output.ssaoMask = float4(0, 0, 0, 1);
 	
 	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
 	// The code returns a color from this path
@@ -192,15 +196,18 @@ PixelShaderOutput main(PixelShaderInput input)
 				brightness = 1.0;
 			}
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
-			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, that's what the 0.8 below is for:
+			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
+			// that's what the brightness setting below is for:
 			texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
 			output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 			diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
+			output.ssaoMask.xyz = float3(1, 1, 1) * (1 - alpha);
 		}
 		else {
 			texelColor = hud_texelColor;
 			diffuse = float3(1, 1, 1);
+			output.ssaoMask.xyz = float3(1, 1, 1);
 		}
 		output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 		return output;
@@ -210,6 +217,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// This path has now moved to PixelShaderEmptyDC
 	//else if (bUseCoverTexture > 0) 
 
-	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	return output;
+	/*output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	return output;*/
 }

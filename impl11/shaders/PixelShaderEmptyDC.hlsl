@@ -28,10 +28,11 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
-	float4 bloom  : SV_TARGET1;
-	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -42,12 +43,13 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsHyperspaceAnim;
 	// 16 bytes
 
-	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
+	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
+	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsHyperspaceStreak;
 
-	float fBloomStrength;			// General multiplier for the bloom effect
+	float fBloomStrength;		// General multiplier for the bloom effect
+	float fSSAOMaskVal;			// (Ignored) SSAO mask value
 };
 
 #define MAX_DC_COORDS 8
@@ -125,6 +127,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	output.normal = float4(N, 1);
+
+	output.ssaoMask = float4(1, 1, 1, alpha);
 
 	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
 	// The code returns a color from this path

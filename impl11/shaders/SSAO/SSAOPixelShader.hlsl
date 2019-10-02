@@ -33,7 +33,7 @@ cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, scale, bias;
 	// 16 bytes
-	float intensity, sample_radius, z_scale;
+	float intensity, sample_radius, black_level;
 	uint iterations;
 	// 32 bytes
 };
@@ -72,8 +72,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 n = getNormal(input.uv);
 	float2 rand = getRandom(input.uv);
 	float3 ao = float3(0.0, 0.0, 0.0);
-	//float radius = sample_radius / (z_scale * p.z);
-	float radius = sample_radius;
+	float radius = sample_radius / p.z;
+	//float radius = sample_radius;
 
 	// SSAO Calculation
 	//int iterations = 4;
@@ -90,8 +90,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		ao += doAmbientOcclusion(input.uv, coord2, p, n);
 	}
 
-	ao /= (float)iterations * 4.0;
-	output.ssao.xyz *= (1 - ao);
+	ao = 1 - ao / ((float)iterations * 4.0);
+	ao = lerp(black_level, ao, ao);
+	output.ssao.xyz *= ao;
 	//output.color = float4(float3(1, 1, 1) * (1 - ao), 1);
 
 	return output;
