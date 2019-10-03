@@ -48,6 +48,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// ... or not, the scale in DirectSBS mode is probably different from the regular mode
 	temp.xy -= 0.5;
 	//temp.xy += float2(-0.5, 0.5);
+
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
@@ -63,11 +64,11 @@ PixelShaderInput main(VertexShaderInput input)
 	// The back-projection into 3D is now very simple:
 	float3 P = float3(temp.z * temp.xy, temp.z);
 	// Write the reconstructed 3D into the output so that it gets interpolated:
-	output.pos3D = float4(P, 1);
+	output.pos3D = float4(P.x, -P.y, P.z, 1);
 	// Adjust the coordinate system for SteamVR:
-	P.y = -P.y;
-	P.z = -P.z;
-	// TODO: Replace the above with P.yz = -P.yz;
+	//P.y = -P.y; P.z = -P.z;
+	P.yz = -P.yz;
+	// TODO: CHECK that the line above didn't mess up the stereoscopy
 
 	// Apply head position and project 3D --> 2D
 	if (bPreventTransform < 0.5f) {

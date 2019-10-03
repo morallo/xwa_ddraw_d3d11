@@ -73,8 +73,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
 	temp.xy += float2(-0.5, 0.5);
-	//output.pos3D = float4(temp, 1);
-
+	
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
