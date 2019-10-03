@@ -47,7 +47,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float4 bloom		= texBloom.Sample(samplerBloom, input.uv);
 	float3 ssao		= texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
 	float  ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).x;
-	float mask = max(dot(0.333, bloom.xyz), ssaoMask);
+	float  mask     = max(dot(0.333, bloom.xyz), ssaoMask);
 	
 	return float4(lerp(color * ssao, color, mask), 1);
 }

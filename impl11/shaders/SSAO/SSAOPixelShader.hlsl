@@ -26,7 +26,8 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 ssao  : SV_TARGET0; // The SSAO output itself
+	float4 ssao        : SV_TARGET0; // The SSAO output itself
+	float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
 cbuffer ConstantBuffer : register(b3)
@@ -36,6 +37,8 @@ cbuffer ConstantBuffer : register(b3)
 	float intensity, sample_radius, black_level;
 	uint iterations;
 	// 32 bytes
+	uint z_division, unused1, unused2, unused3;
+	// 48 bytes
 };
 
 inline float3 getPosition(in float2 uv) {
@@ -51,29 +54,42 @@ inline float2 getRandom(in float2 uv) {
 		float2(screenSizeX, screenSizeY) * uv / float2(64, 64)).xy * 2.0f - 1.0f);
 }
 
-float3 doAmbientOcclusion(in float2 tcoord, in float2 uv, in float3 p, in float3 cnorm)
+/*
+These settings yield a nice effect:
+
+sample_radius = 0.1
+intensity = 2.0
+scale = 0.005
+*/
+inline float3 doAmbientOcclusion(in float2 uv, in float2 uv_offset, in float3 P, in float3 Normal)
 {
 	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
-	float3 diff    = getPosition(tcoord + uv) - p;
+	// diff: Vector from current pos (p) to sampled neighbor
+	float3 occluder = getPosition(uv + uv_offset);
+	float3 diff     = occluder - P;
+	//float zdist     = P.z - occluder.z;
+	// L: Distance from current pos (P) to the occluder
 	const float  L = length(diff);
+	// v: Normalized (occluder - P) vector
 	const float3 v = diff / L;
 	const float  d = L * scale;
-	//return max(0.0, dot(cnorm, v) - bias) * (1.0 / (1.0 + d)) * intensity * color;
-	return max(0.0, dot(cnorm, v) - bias) * (1.0 / (1.0 + d)) * intensity;
+	return intensity * max(0.0, dot(Normal, v) - bias) / (1.0 + d);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = float4(1, 1, 1, 1);
+	output.bentNormal = float4(0, 0, 0, 0);
 
 	const float2 vec[4] = { float2(1, 0), float2(-1, 0), float2(0, 1), float2(0, -1) };
 	float3 p = getPosition(input.uv);
 	float3 n = getNormal(input.uv);
 	float2 rand = getRandom(input.uv);
 	float3 ao = float3(0.0, 0.0, 0.0);
-	float radius = sample_radius / p.z;
-	//float radius = sample_radius;
+	float radius = sample_radius;
+	if (z_division)
+		radius /= p.z;
 
 	// SSAO Calculation
 	//int iterations = 4;
@@ -91,9 +107,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	ao = 1 - ao / ((float)iterations * 4.0);
-	ao = lerp(black_level, ao, ao);
-	output.ssao.xyz *= ao;
-	//output.color = float4(float3(1, 1, 1) * (1 - ao), 1);
-
+	output.ssao.xyz *= lerp(black_level, ao, ao);
 	return output;
 }

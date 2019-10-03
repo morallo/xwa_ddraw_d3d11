@@ -1645,6 +1645,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "black_level") == 0) {
 				g_SSAO_PSCBuffer.black_level = fValue;
 			}
+			else if (_stricmp(param, "perspective_correct") == 0) {
+				g_SSAO_PSCBuffer.z_division = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

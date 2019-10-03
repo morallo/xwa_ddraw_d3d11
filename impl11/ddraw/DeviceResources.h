@@ -188,6 +188,8 @@ typedef struct SSAOPixelShaderCBStruct {
 	float intensity, sample_radius, black_level;
 	int iterations;
 	// 32 bytes
+	int z_division, unused1, unused2, unused3;
+	// 48 bytes
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

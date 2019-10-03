@@ -138,13 +138,17 @@ PixelShaderOutput main(PixelShaderInput input)
 			// make it [0, 1]
 			alpha *= 10.0;
 			float3 color = HSVtoRGB(HSV);
-			if (val > 0.8 && alpha > 0.5)
+			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * color, 1);
+				output.ssaoMask = float4(1, 1, 1, 1);
+			}
 			output.color = float4(color, alpha);
 		}
 		else {
-			if (val > 0.8 && alpha > 0.5)
+			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * texelColor.rgb, 1);
+				output.ssaoMask = float4(1, 1, 1, 1);
+			}
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
 		output.bloom.rgb *= fBloomStrength;
