@@ -1648,6 +1648,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "perspective_correct") == 0) {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
+			else if (_stricmp(param, "area") == 0) {
+				g_SSAO_PSCBuffer.area = fValue;
+			}
+			else if (_stricmp(param, "falloff") == 0) {
+				g_SSAO_PSCBuffer.falloff = fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -3645,6 +3651,9 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
 				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
 				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
+				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
+				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
+				bool bIsPlayerObject = bIsCockpit || bIsExterior;
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -3711,10 +3720,13 @@ HRESULT Direct3DDevice::Execute(
 					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					 // This is where we can capture the current frame for post-processing effects
 					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					 context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
 					 //context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					 if (g_bUseSteamVR) {
 						 context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							 resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						 context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
+							 resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
 						 //context->ResolveSubresource(resources->_normBufAsInputR, 0,
 						 //	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 					 }
@@ -4399,7 +4411,7 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
-				// EARLY EXIT 2: Render non-VR mode. Here we only need the state; but not the extra
+				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
@@ -4421,7 +4433,7 @@ HRESULT Direct3DDevice::Execute(
 						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							resources->_renderTargetViewDepthBuf.Get(),
+							bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 							resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
 						};
@@ -4573,7 +4585,8 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4589,7 +4602,8 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4644,7 +4658,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
-								resources->_renderTargetViewNormBufR.Get(),
+								//resources->_renderTargetViewNormBufR.Get(),
+								bIsPlayerObject ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
@@ -4659,7 +4674,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
+								//resources->_renderTargetViewNormBuf.Get(),
+								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
@@ -5098,8 +5114,11 @@ HRESULT Direct3DDevice::BeginScene()
 		// on the sides of the screen
 		float infinity[4] = { 0, 0, 655350.0f, 0 };
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, infinity);
-		if (g_bUseSteamVR)
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf2, infinity);
+		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, infinity);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf2R, infinity);
+		}
 
 		float zero[4] = { 0, 0, 0, 0 };
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewNormBuf, infinity);

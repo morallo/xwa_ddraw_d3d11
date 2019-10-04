@@ -732,13 +732,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bAOEnabled) {
 		this->_depthBuf.Release();
 		this->_depthBufAsInput.Release();
+		this->_depthBuf2.Release();
+		this->_depthBuf2AsInput.Release();
 		this->_normBuf.Release();
+		this->_bentBuf.Release();
 		this->_ssaoBuf.Release();
 		this->_ssaoMask.Release();
 		this->_renderTargetViewDepthBuf.Release();
 		this->_depthBufSRV.Release();
+		this->_depthBuf2SRV.Release();
 		this->_normBufSRV.Release();
+		this->_bentBufSRV.Release();
 		this->_renderTargetViewNormBuf.Release();
+		this->_renderTargetViewBentBuf.Release();
 		this->_renderTargetViewSSAO.Release();
 		this->_renderTargetViewSSAOMask.Release();
 		this->_ssaoBufSRV.Release();
@@ -750,13 +756,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bUseSteamVR) {
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
+			this->_depthBuf2R.Release();
+			this->_depthBuf2AsInputR.Release();
 			this->_ssaoBufR.Release();
 			this->_ssaoMaskR.Release();
 			this->_normBufR.Release();
+			this->_bentBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
 			this->_depthBufSRV_R.Release();
+			this->_depthBuf2SRV_R.Release();
 			this->_normBufSRV_R.Release();
+			this->_bentBufSRV_R.Release();
 			this->_renderTargetViewNormBufR.Release();
+			this->_renderTargetViewBentBufR.Release();
 			this->_renderTargetViewSSAO_R.Release(); 
 			this->_renderTargetViewSSAOMaskR.Release();
 			this->_ssaoBufSRV_R.Release();
@@ -987,9 +999,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			DXGI_FORMAT oldFormat = desc.Format;
 			desc.Format = AO_DEPTH_BUFFER_FORMAT;
 			
-			// _depthBuf will be used as a renderTarget so it should have MSAA
+			// _depthBuf will be used as a renderTarget
 			step = "_depthBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_depthBuf2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
@@ -1009,6 +1029,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
 				step = "_depthBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_depthBuf2R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1216,9 +1244,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_depthBuf2AsInput";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2AsInput);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
 			if (g_bUseSteamVR) {
 				step = "_depthBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInputR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_depthBuf2R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2AsInputR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1230,6 +1274,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 			step = "_normBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_bentBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBuf);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
@@ -1266,6 +1318,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_normBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_bentBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1411,8 +1471,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_depthBuf2SRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBuf2AsInput,
+				&shaderResourceViewDesc, &this->_depthBuf2SRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
 			step = "_normBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_normBuf, &shaderResourceViewDesc, &this->_normBufSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_bentBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
@@ -1463,8 +1540,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
+				step = "_depthBuf2SRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBuf2AsInputR,
+					&shaderResourceViewDesc, &this->_depthBuf2SRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
 				step = "_normBufSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_normBufR, &shaderResourceViewDesc, &this->_normBufSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_bentBufSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
@@ -1652,8 +1746,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf);
 			if (FAILED(hr)) goto out;
 
+			step = "_renderTargetViewDepthBuf2";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf2, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf2);
+			if (FAILED(hr)) goto out;
+
 			step = "_renderTargetViewNormBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_normBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBuf);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewBentBuf";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
 			if (FAILED(hr)) goto out;
 
 			renderTargetViewDescNoMSAA.Format = oldFormat;
@@ -1672,8 +1774,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
 				if (FAILED(hr)) goto out;
 
+				step = "_renderTargetViewDepthBuf2R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf2R, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf2R);
+				if (FAILED(hr)) goto out;
+
 				step = "_renderTargetViewNormBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_normBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBufR);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewBentBufR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBufR);
 				if (FAILED(hr)) goto out;
 
 				renderTargetViewDescNoMSAA.Format = oldFormat;

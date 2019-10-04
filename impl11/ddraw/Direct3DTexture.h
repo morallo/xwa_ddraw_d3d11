@@ -38,6 +38,8 @@ public:
 	bool is_Explosion;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
+	// True if this texture belongs to an Exterior OPT
+	bool is_Exterior;
 	// True when displaying the hyperspace animation
 	bool is_HyperspaceAnim;
 	// True for dat,1000,2, (used for the hyperspace streak effect)
