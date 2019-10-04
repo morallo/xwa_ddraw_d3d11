@@ -265,16 +265,17 @@ const int DEFAULT_BLOOM_PASSES = 5;
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
-extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
+extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 float g_fSSAOZoomFactor = 2.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
+bool g_bDisableDualSSAO = false;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1653,6 +1654,12 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "falloff") == 0) {
 				g_SSAO_PSCBuffer.falloff = fValue;
+			}
+			else if (_stricmp(param, "power") == 0) {
+				g_SSAO_PSCBuffer.power = fValue;
+			}
+			else if (_stricmp(param, "enable_dual_ssao") == 0) {
+				g_bDisableDualSSAO = !(bool)fValue;
 			}
 		}
 	}
@@ -4186,9 +4193,9 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
-				// Do not render pos3D or normal outputs anymore (used for SSAO)
+				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
-				if (g_bStartedGUI || bIsSkyBox) {
+				if (g_bStartedGUI || bIsSkyBox || bIsBracket) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 				}
@@ -4433,7 +4440,8 @@ HRESULT Direct3DDevice::Execute(
 						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+							bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
+								resources->_renderTargetViewDepthBuf2.Get(),
 							resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
 						};
@@ -4586,7 +4594,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4603,7 +4611,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4659,7 +4667,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewBloomMaskR.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
 								//resources->_renderTargetViewNormBufR.Get(),
-								bIsPlayerObject ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
@@ -4675,7 +4683,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
 								//resources->_renderTargetViewNormBuf.Get(),
-								bIsPlayerObject ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());

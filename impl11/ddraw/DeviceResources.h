@@ -189,7 +189,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	int iterations;
 	// 32 bytes
 	int z_division;
-	float area, falloff, unused3;
+	float area, falloff, power;
 	// 48 bytes
 } SSAOPixelShaderCBuffer;
 
