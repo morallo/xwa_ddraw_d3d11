@@ -749,10 +749,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewSSAOMask.Release();
 		this->_ssaoBufSRV.Release();
 		this->_ssaoMaskSRV.Release();
-		if (this->_randomBufSRV != nullptr) {
-			this->_randomBufSRV.Release();
-			this->_randomBufSRV = nullptr;
-		}
 		if (g_bUseSteamVR) {
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
@@ -1297,14 +1293,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			/*step = "_randomBuf";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_randomBuf);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
-			}*/
-
 			desc.Format = AO_MASK_FORMAT;
 			step = "_ssaoMask";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMask);
@@ -1503,23 +1491,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
-			}
-
-			step = "_randomBufSRV";
-			/*
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_randomBuf, &shaderResourceViewDesc, &this->_randomBufSRV);
-			*/
-			if (_randomBufSRV == nullptr) {
-				hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\SSAO-random.jpg", NULL,
-				//hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\SSAO-random-32.jpg", NULL,
-				//hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\ssdonoise.png", NULL,
-					&this->_randomBufSRV);
-				if (FAILED(hr)) {
-					log_err("Could not load SSAO-random.jpg");
-					goto out;
-				}
-				else
-					log_debug("[DBG] [AO] Loaded SSAO-random.jpg");
 			}
 
 			shaderResourceViewDesc.Format = AO_MASK_FORMAT;

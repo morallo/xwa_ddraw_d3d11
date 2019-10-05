@@ -186,7 +186,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	float screenSizeX, screenSizeY, scale, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
-	int iterations;
+	int samples;
 	// 32 bytes
 	int z_division;
 	float area, falloff, power;
@@ -439,7 +439,6 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
 	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
 	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
-	ComPtr<ID3D11ShaderResourceView> _randomBufSRV = nullptr; // SRV for randomBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask

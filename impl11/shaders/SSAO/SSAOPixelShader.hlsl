@@ -4,25 +4,21 @@
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
 
-// The random normals buffer
-Texture2D    texRand  : register(t0);
-SamplerState sampRand : register(s0);
-
 // The Foreground 3D position buffer (linear X,Y,Z)
-Texture2D    texPos   : register(t1);
-SamplerState sampPos  : register(s1);
+Texture2D    texPos   : register(t0);
+SamplerState sampPos  : register(s0);
 
 // The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t2);
-SamplerState sampPos2 : register(s2);
+Texture2D    texPos2  : register(t1);
+SamplerState sampPos2 : register(s1);
 
 // The normal buffer
-Texture2D    texNorm   : register(t3);
-SamplerState sampNorm  : register(s3);
+Texture2D    texNorm   : register(t2);
+SamplerState sampNorm  : register(s2);
 
 // The color buffer
-Texture2D    texColor  : register(t4);
-SamplerState sampColor : register(s4);
+Texture2D    texColor  : register(t3);
+SamplerState sampColor : register(s3);
 
 #define INFINITY_Z 10000
 
@@ -43,7 +39,7 @@ cbuffer ConstantBuffer : register(b3)
 	float screenSizeX, screenSizeY, scale, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
-	uint iterations;
+	uint samples;
 	// 32 bytes
 	uint z_division;
 	float area, falloff, power;
@@ -56,13 +52,16 @@ cbuffer ConstantBuffer : register(b3)
 
 //class ForegroundPos : IPosition {
 float3 getPositionFG(in float2 uv) {
-	return texPos.Sample(sampPos, uv).xyz;
+	// The use of SampleLevel fixes the following error:
+	// warning X3595: gradient instruction used in a loop with varying iteration
+	// This happens because the texture is sampled within an if statement (if FGFlag then...)
+	return texPos.SampleLevel(sampPos, uv, 0).xyz;
 }
 //};
 
 //class BackgroundPos : IPosition {
 float3 getPositionBG(in float2 uv) {
-	return texPos2.Sample(sampPos2, uv).xyz;
+	return texPos2.SampleLevel(sampPos2, uv, 0).xyz;
 }
 //};
 
@@ -70,32 +69,13 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
 }
 
-inline float2 getRandom(in float2 uv) {
-	// The float2(64, 64) in the following expression comes from the size of the
-	// random texture
-	return normalize(texRand.Sample(sampRand, 
-		float2(screenSizeX, screenSizeY) * uv / float2(64, 64)).xy * 2.0f - 1.0f);
-}
-
-//inline float3 getRandom(in float2 uv) {
-//	return normalize(texRand.Sample(sampRand,
-//		float3(screenSizeX, screenSizeY) * uv / float2(64, 64)).xyz * 2.0f - 1.0f);
-//}
-
-/*
-These settings yield a nice effect:
-
-sample_radius = 0.1
-intensity = 2.0
-scale = 0.005
-*/
-inline float3 doAmbientOcclusion(bool FG, in float2 uv, in float2 uv_offset, in float3 P, in float3 Normal /*, inout float3 BentNormal */)
+inline float3 doAmbientOcclusion(bool FGFlag, in float2 uv, in float3 P, in float3 Normal /*, inout float3 BentNormal */)
 {
 	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
 	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
-	float3 occluder = FG ? getPositionFG(uv + uv_offset) : getPositionBG(uv + uv_offset);
+	float3 occluder = FGFlag ? getPositionFG(uv) : getPositionBG(uv);
 	// diff: Vector from current pos (p) to sampled neighbor
-	float3 diff     = occluder - P;
+	float3 diff = occluder - P;
 	//float zdist     = -diff.z;
 	// L: Distance from current pos (P) to the occluder
 	const float  L = length(diff);
@@ -105,7 +85,6 @@ inline float3 doAmbientOcclusion(bool FG, in float2 uv, in float2 uv_offset, in 
 	//if (zdist < 0) BentNormal += v;
 	//BentNormal += v;
 	return intensity * pow(max(0.0, dot(Normal, v) - bias), power) / (1.0 + d);
-	//return step(falloff, zdist) * (1.0 - smoothstep(falloff, area, zdist));
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -114,12 +93,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssao = float4(1, 1, 1, 1);
 	//float3 dummy = float3(0, 0, 0);
 	
-	//const float2 vec[4] = { float2(1, 0), float2(-1, 0), float2(0, 1), float2(0, -1) };
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
 	//float3 bentNormal = n;
-	//float2 rand = getRandom(input.uv);
 	float3 ao = float3(0.0, 0.0, 0.0);
 	float radius = sample_radius;
 	float3 p;
@@ -141,31 +118,39 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
-	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); //2.3999632 * 16
+	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
+	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
 
 	// SSAO Calculation
-	//int iterations = 4;
 	[loop]
-	for (uint j = 0; j < 4 * iterations; j++)
+	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
-		sample_direction.xy = mul(sample_direction.xy, float2x2(0.76465, -0.64444, 0.64444, 0.76465)); //cos/sin 2.3999632 * 16 
-		ao += doAmbientOcclusion(FGFlag, sample_uv, float2(0, 0), p, n);
+		sample_direction.xy = mul(sample_direction.xy, rotMatrix); 
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
 
 		/*
-		float2 coord1 = reflect(vec[j], rand) * radius;
-		float2 coord2 = float2(coord1.x*0.7071 - coord1.y*0.7071, 
-							   coord1.x*0.7071 + coord1.y*0.7071);
+		i++;
 
-		ao += doAmbientOcclusion(FGFlag, input.uv, coord1 * 0.25, p, n);
-		ao += doAmbientOcclusion(FGFlag, input.uv, coord2 * 0.5,  p, n);
-		ao += doAmbientOcclusion(FGFlag, input.uv, coord1 * 0.75, p, n);
-		ao += doAmbientOcclusion(FGFlag, input.uv, coord2, p, n);
+		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
+		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
+		i++;
+
+		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
+		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
+		i++;
+
+		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
+		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
+		i++;
 		*/
 	}
 
-	ao = 1 - ao / ((float)iterations * 4.0);
+	ao = 1 - ao / (float)samples;
 	output.ssao.xyz *= lerp(black_level, ao, ao);
 	//output.bentNormal = float4(normalize(bentNormal), 1);
 	return output;

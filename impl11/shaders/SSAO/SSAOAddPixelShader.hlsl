@@ -51,10 +51,15 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float  ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).x;
 	float  mask     = max(dot(0.333, bloom.xyz), ssaoMask);
 	
+	// Overlay blending mode:
+	//(Target > 0.5) * (1 - (1 - 2 * (Target - 0.5)) * (1 - Blend)) +
+	//	(Target <= 0.5) * ((2 * Target) * Blend)
+
 	return float4(lerp(color * ssao, color, mask), 1);
 	
-	/*float3 HSV = RGBtoHSV(color);
-	HSV.z *= ssao.r;
-	color = HSVtoRGB(HSV);
-	return float4(color, 1);*/
+	//float3 HSV = RGBtoHSV(color);
+	//HSV.z *= ssao.r;
+	//HSV.z = ssao.r;
+	//color = HSVtoRGB(HSV);
+	//return float4(color, 1);
 }

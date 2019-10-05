@@ -1961,8 +1961,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Resolve offscreenBuf
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	ID3D11ShaderResourceView *srvs_pass1[5] = {
-		resources->_randomBufSRV.Get(),
+	ID3D11ShaderResourceView *srvs_pass1[4] = {
 		resources->_depthBufSRV.Get(),
 		resources->_depthBuf2SRV.Get(),
 		resources->_normBufSRV.Get(),
@@ -1976,7 +1975,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		};
 		context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->PSSetShaderResources(0, 5, srvs_pass1);
+		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 		goto out;
 	}
@@ -2067,8 +2066,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
-		ID3D11ShaderResourceView *srvs_pass1[5] = {
-			resources->_randomBufSRV.Get(),
+		ID3D11ShaderResourceView *srvs_pass1[4] = {
 			resources->_depthBufSRV_R.Get(),
 			resources->_depthBuf2SRV_R.Get(),
 			resources->_normBufSRV_R.Get(),
@@ -2082,7 +2080,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs_pass1);
+			context->PSSetShaderResources(0, 4, srvs_pass1);
 			context->Draw(6, 0);
 			goto out;
 		}

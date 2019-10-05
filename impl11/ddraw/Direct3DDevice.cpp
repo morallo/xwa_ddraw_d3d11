@@ -1584,6 +1584,16 @@ bool LoadSSAOParams() {
 	FILE *file;
 	int error = 0, line = 0;
 
+	// Provide some default values in case they are missing in the config file
+	g_SSAO_PSCBuffer.bias = 0.05f;
+	g_SSAO_PSCBuffer.scale = 0.001f;
+	g_SSAO_PSCBuffer.intensity = 2.0f;
+	g_SSAO_PSCBuffer.power = 1.0f;
+	g_SSAO_PSCBuffer.black_level = 0.1f;
+	g_SSAO_PSCBuffer.sample_radius = 0.0035f;
+	g_SSAO_PSCBuffer.z_division = 0;
+	g_SSAO_PSCBuffer.samples = 16;
+
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -1599,8 +1609,6 @@ bool LoadSSAOParams() {
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
 	float fValue = 0.0f;
-	g_BloomConfig.uvStepSize1 = 3.0f;
-	g_BloomConfig.uvStepSize2 = 2.0f;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1631,8 +1639,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "sample_radius") == 0) {
 				g_SSAO_PSCBuffer.sample_radius = fValue;
 			}
-			else if (_stricmp(param, "iterations") == 0) {
-				g_SSAO_PSCBuffer.iterations = (int )fValue;
+			else if (_stricmp(param, "samples") == 0) {
+				g_SSAO_PSCBuffer.samples = (int )fValue;
 			}
 			/*else if (_stricmp(param, "z_scale") == 0) {
 				g_SSAO_PSCBuffer.z_scale = fValue;
@@ -1670,7 +1678,7 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO bias: %0.3f", g_SSAO_PSCBuffer.bias);
 	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
-	log_debug("[DBG] [AO] SSAO iterations: %d", g_SSAO_PSCBuffer.iterations);
+	log_debug("[DBG] [AO] SSAO samples: %d", g_SSAO_PSCBuffer.samples);
 	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
 	//log_debug("[DBG] [AO] SSAO z_scale: %f", g_SSAO_PSCBuffer.z_scale);
 	return true;
