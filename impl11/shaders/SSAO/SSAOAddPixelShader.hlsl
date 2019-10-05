@@ -7,6 +7,8 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\HSV.h"
+
 // The color buffer
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -50,4 +52,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float  mask     = max(dot(0.333, bloom.xyz), ssaoMask);
 	
 	return float4(lerp(color * ssao, color, mask), 1);
+	
+	/*float3 HSV = RGBtoHSV(color);
+	HSV.z *= ssao.r;
+	color = HSVtoRGB(HSV);
+	return float4(color, 1);*/
 }

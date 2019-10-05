@@ -2076,20 +2076,28 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		};
 		resources->InitPixelShader(resources->_ssaoPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
+			ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewR.Get(),
+			//resources->_renderTargetViewBentBuf.Get(),
+			};
 			context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 			goto out;
 		}
 		else {
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewSSAO_R.Get(),
+				//resources->_renderTargetViewBentBuf.Get()
+			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO_R.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 		}
 
-		// Copy the SSAO buffer to offscreenBufferAsInput -- we'll reuse the latter as a temp
+		// Copy the SSAO buffer to offscreenBufferAsInputR -- we'll reuse the latter as a temp
 		// buffer to do the blur
 		context->CopyResource(resources->_offscreenBufferAsInputR, resources->_ssaoBufR);
 
@@ -2107,8 +2115,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 		// SSAO Blur
-		// input: offscreenAsInput (with a copy of the ssaoBuf)
-		// output: ssaoBuf
+		// input: offscreenAsInputR (with a copy of the ssaoBufR)
+		// output: ssaoBufR
 		if (g_bBlurSSAO) {
 			resources->InitPixelShader(resources->_ssaoBlurPS);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
@@ -2562,7 +2570,7 @@ HRESULT PrimarySurface::Flip(
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,

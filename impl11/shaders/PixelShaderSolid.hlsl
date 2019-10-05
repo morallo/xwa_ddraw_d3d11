@@ -7,9 +7,9 @@ SamplerState sampler0 : register(s0);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
+	float4 pos   : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD0;
+	float2 tex   : TEXCOORD0;
 	float3 pos3D : TEXCOORD1;
 };
 

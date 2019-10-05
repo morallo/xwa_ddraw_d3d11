@@ -47,4 +47,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="HSV.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>
