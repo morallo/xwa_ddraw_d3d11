@@ -1511,6 +1511,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			*/
 			if (_randomBufSRV == nullptr) {
 				hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\SSAO-random.jpg", NULL,
+				//hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\SSAO-random-32.jpg", NULL,
+				//hr = DirectX::CreateWICTextureFromFile(this->_d3dDevice, L".\\SSAO\\ssdonoise.png", NULL,
 					&this->_randomBufSRV);
 				if (FAILED(hr)) {
 					log_err("Could not load SSAO-random.jpg");

@@ -2568,19 +2568,19 @@ HRESULT PrimarySurface::Flip(
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
 				context->PSSetSamplers(1, 1, &tempSampler);*/
 
-				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_bloomMask.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_offscreenBuf.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_ssaoMask.jpg");
-					log_debug("[DBG] [AO] Captured debug buffers");
-				}
+				//if (g_bDumpSSAOBuffers) {
+				//	DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+				//	//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+				//	DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
+				//	DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
+				//	DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
+				//		L"C:\\Temp\\_bloomMask.jpg");
+				//	DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+				//		L"C:\\Temp\\_offscreenBuf.jpg");
+				//	DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+				//		L"C:\\Temp\\_ssaoMask.jpg");
+				//	log_debug("[DBG] [AO] Captured debug buffers");
+				//}
 
 				// Input: depthBufAsInput (already resolved during Execute())
 				// Output: normalsBuf
@@ -2590,9 +2590,9 @@ HRESULT PrimarySurface::Flip(
 				// Output: _bloom1
 				SSAOPass(g_fSSAOZoomFactor);
 
-				if (g_bDumpSSAOBuffers) {
+				/*if (g_bDumpSSAOBuffers) {
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
-				}
+				}*/
 			}
 
 			// Apply the Bloom effect
@@ -2775,6 +2775,7 @@ HRESULT PrimarySurface::Flip(
 			//*g_playerInHangar = 0;
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
+
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
