@@ -39,7 +39,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//float depth = DepthTex.Sample(DepthSampler, input.uv).z;
 	//float depth_sample;
 	float2 delta = uvStepSize * float2(pixelSizeX, pixelSizeY);
-	float2 uv_outer_scaled = input_uv_scaled - BLUR_SIZE * delta;
+	float2 uv_outer_scaled = input_uv_scaled; // -BLUR_SIZE * delta;
 	//float2 uv_outer        = input.uv - BLUR_SIZE * delta;
 	float2 uv_inner_scaled;
 	//float2 uv_inner;
@@ -47,11 +47,11 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	int counter = 0;
 
 	[unroll]
-	for (int i = -BLUR_SIZE; i <= BLUR_SIZE; i++) {
+	for (int i = 0; i <= 4; i++) {
 		uv_inner_scaled = uv_outer_scaled;
 		//uv_inner = uv_outer;
 		[unroll]
-		for (int j = -BLUR_SIZE; j <= BLUR_SIZE; j++) {
+		for (int j = 0; j <= 4; j++) {
 			ssao += SSAOTex.Sample(SSAOsampler, uv_inner_scaled).xyz;
 			/*
 			depth_sample = DepthTex.Sample(DepthSampler, uv_inner).z;
