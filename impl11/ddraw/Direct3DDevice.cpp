@@ -272,7 +272,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 // SSAO
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
-float g_fSSAOZoomFactor = 2.0f;
+float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
 bool g_bDisableDualSSAO = false;
@@ -1668,6 +1668,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "enable_dual_ssao") == 0) {
 				g_bDisableDualSSAO = !(bool)fValue;
+			}
+			else if (_stricmp(param, "white_point") == 0) {
+				g_fSSAOWhitePoint = fValue;
 			}
 		}
 	}

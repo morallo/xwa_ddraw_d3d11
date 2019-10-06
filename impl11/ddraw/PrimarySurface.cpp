@@ -87,7 +87,7 @@ int g_iBloomPasses[8] = {
 };
 
 // SSAO
-extern float g_fSSAOZoomFactor;
+extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
 extern bool g_bShowSSAODebug; // , g_bShowNormBufDebug;
 extern bool g_bDumpSSAOBuffers;
@@ -2002,8 +2002,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp  / fZoomFactor;
 	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-	g_BloomPSCBuffer.bloomStrength = 1.0f;
-	g_BloomPSCBuffer.saturationStrength = 1.0f;
+	g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
 	g_BloomPSCBuffer.uvStepSize = 1.5f;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
@@ -2016,7 +2015,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			// Enable the following line to display the bent normals:
+			// DEBUG: Enable the following line to display the bent normals:
 			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 			context->Draw(6, 0);
 			goto out;
@@ -2107,8 +2106,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
 		g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
 		g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-		g_BloomPSCBuffer.bloomStrength = 1.0f;
-		g_BloomPSCBuffer.saturationStrength = 1.0f;
+		g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
 		g_BloomPSCBuffer.uvStepSize = 1.5f;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 

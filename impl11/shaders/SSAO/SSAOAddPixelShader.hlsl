@@ -30,7 +30,7 @@ SamplerState samplerSSAOMask : register(s3);
 // it was rendered at half the resolution, for instance)
 cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
+	float pixelSizeX, pixelSizeY, white_point, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength, unused2;
 	// 32 bytes
@@ -51,11 +51,13 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float  ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).x;
 	float  mask     = max(dot(0.333, bloom.xyz), ssaoMask);
 	
-	// Overlay blending mode:
-	//(Target > 0.5) * (1 - (1 - 2 * (Target - 0.5)) * (1 - Blend)) +
-	//	(Target <= 0.5) * ((2 * Target) * Blend)
+	float3 mult_layer = lerp(color * ssao, color, mask);
+	return float4(mult_layer, 1);
 
-	return float4(lerp(color * ssao, color, mask), 1);
+	// Let's use SSAO to also lighten some areas:
+	//float3 screen_layer = 1 - (1 - color) * (1 - ssao * white_point);
+	//float3 mix = lerp(mult_layer, screen_layer, ssao.r);
+	//return float4(mix, 1);
 	
 	//float3 HSV = RGBtoHSV(color);
 	//HSV.z *= ssao.r;

@@ -82,7 +82,7 @@ inline float3 doAmbientOcclusion(bool FGFlag, in float2 uv, in float3 P, in floa
 	// v: Normalized (occluder - P) vector
 	const float3 v = diff / L;
 	const float  d = L * scale;
-	//if (zdist < 0) BentNormal += v;
+	//if (zdist < 0) BentNormal += float3(v.xy, -v.z);
 	//BentNormal += v;
 	return intensity * pow(max(0.0, dot(Normal, v) - bias), power) / (1.0 + d);
 }
@@ -91,12 +91,12 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = float4(1, 1, 1, 1);
-	//float3 dummy = float3(0, 0, 0);
+	float3 dummy = float3(0, 0, 0);
 	
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
-	//float3 bentNormal = n;
+	float3 bentNormal = n;
 	float3 ao = float3(0.0, 0.0, 0.0);
 	float radius = sample_radius;
 	float3 p;
@@ -128,26 +128,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix); 
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
-
-		/*
-		i++;
-
-		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
-		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
-		i++;
-
-		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
-		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
-		i++;
-
-		sample_uv = input.uv + sample_direction.xy * (i + sample_jitter);
-		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
-		i++;
-		*/
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n /*, bentNormal */);
 	}
 
 	ao = 1 - ao / (float)samples;
