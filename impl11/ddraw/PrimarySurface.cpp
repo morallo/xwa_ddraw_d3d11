@@ -1969,24 +1969,26 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	};
 	resources->InitPixelShader(resources->_ssaoPS);
 	if (!g_bBlurSSAO && g_bShowSSAODebug) {
-		ID3D11RenderTargetView *rtvs[1] = {
+		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetView.Get(),
-			//resources->_renderTargetViewBentBuf.Get(),
+			resources->_renderTargetViewBentBuf.Get(),
 		};
 		context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-		context->OMSetRenderTargets(1, rtvs, NULL);
+		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+		context->OMSetRenderTargets(2, rtvs, NULL);
 		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 		goto out;
 	}
 	else {
-		ID3D11RenderTargetView *rtvs[1] = {
+		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetViewSSAO.Get(),
-			//resources->_renderTargetViewBentBuf.Get()
+			resources->_renderTargetViewBentBuf.Get()
 		};
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->PSSetShaderResources(0, 5, srvs_pass1);
+		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+		context->OMSetRenderTargets(2, rtvs, NULL);
+		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 	}
 
@@ -2015,8 +2017,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			// DEBUG: Enable the following line to display the bent normals:
-			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+			context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 			context->Draw(6, 0);
 			goto out;
 		}
@@ -2074,8 +2076,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		resources->InitPixelShader(resources->_ssaoPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
 			ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewR.Get(),
-			//resources->_renderTargetViewBentBuf.Get(),
+				resources->_renderTargetViewR.Get(),
+				//resources->_renderTargetViewBentBuf.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
@@ -2090,7 +2092,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs_pass1);
+			context->PSSetShaderResources(0, 4, srvs_pass1);
 			context->Draw(6, 0);
 		}
 
@@ -2564,19 +2566,19 @@ HRESULT PrimarySurface::Flip(
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
 				context->PSSetSamplers(1, 1, &tempSampler);*/
 
-				//if (g_bDumpSSAOBuffers) {
-				//	DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-				//	//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-				//	DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
-				//	DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
-				//	DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
-				//		L"C:\\Temp\\_bloomMask.jpg");
-				//	DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
-				//		L"C:\\Temp\\_offscreenBuf.jpg");
-				//	DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
-				//		L"C:\\Temp\\_ssaoMask.jpg");
-				//	log_debug("[DBG] [AO] Captured debug buffers");
-				//}
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_bloomMask.jpg");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_offscreenBuf.jpg");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_ssaoMask.jpg");
+					log_debug("[DBG] [AO] Captured debug buffers");
+				}
 
 				// Input: depthBufAsInput (already resolved during Execute())
 				// Output: normalsBuf
@@ -2586,9 +2588,9 @@ HRESULT PrimarySurface::Flip(
 				// Output: _bloom1
 				SSAOPass(g_fSSAOZoomFactor);
 
-				/*if (g_bDumpSSAOBuffers) {
+				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
-				}*/
+				}
 			}
 
 			// Apply the Bloom effect

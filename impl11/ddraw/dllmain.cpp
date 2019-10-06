@@ -159,7 +159,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				return 0;
 			case 'X':
-				//g_bDumpSSAOBuffers = true;
+				g_bDumpSSAOBuffers = true;
 				return 0;
 			// DEBUG
 			case 'A':

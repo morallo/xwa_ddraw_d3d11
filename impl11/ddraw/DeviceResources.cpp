@@ -735,16 +735,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_depthBuf2.Release();
 		this->_depthBuf2AsInput.Release();
 		this->_normBuf.Release();
-		//this->_bentBuf.Release();
+		this->_bentBuf.Release();
 		this->_ssaoBuf.Release();
 		this->_ssaoMask.Release();
 		this->_renderTargetViewDepthBuf.Release();
 		this->_depthBufSRV.Release();
 		this->_depthBuf2SRV.Release();
 		this->_normBufSRV.Release();
-		//this->_bentBufSRV.Release();
+		this->_bentBufSRV.Release();
 		this->_renderTargetViewNormBuf.Release();
-		//this->_renderTargetViewBentBuf.Release();
+		this->_renderTargetViewBentBuf.Release();
 		this->_renderTargetViewSSAO.Release();
 		this->_renderTargetViewSSAOMask.Release();
 		this->_ssaoBufSRV.Release();
@@ -757,14 +757,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_ssaoBufR.Release();
 			this->_ssaoMaskR.Release();
 			this->_normBufR.Release();
-			//this->_bentBufR.Release();
+			this->_bentBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
 			this->_depthBufSRV_R.Release();
 			this->_depthBuf2SRV_R.Release();
 			this->_normBufSRV_R.Release();
-			//this->_bentBufSRV_R.Release();
+			this->_bentBufSRV_R.Release();
 			this->_renderTargetViewNormBufR.Release();
-			//this->_renderTargetViewBentBufR.Release();
+			this->_renderTargetViewBentBufR.Release();
 			this->_renderTargetViewSSAO_R.Release(); 
 			this->_renderTargetViewSSAOMaskR.Release();
 			this->_ssaoBufSRV_R.Release();
@@ -1276,13 +1276,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			/*step = "_bentBuf";
+			step = "_bentBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBuf);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
-			}*/
+			}
 
 			desc.Format = oldFormat;
 			step = "_ssaoBuf";
@@ -1312,13 +1312,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				/*step = "_bentBufR";
+				step = "_bentBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
-				}*/
+				}
 
 				desc.Format = oldFormat;
 				step = "_ssaoBufR";
@@ -1476,13 +1476,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			/*step = "_bentBufSRV";
+			step = "_bentBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
-			}*/
+			}
 
 			shaderResourceViewDesc.Format = oldFormat;
 			step = "_ssaoBufSRV";
@@ -1530,13 +1530,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				/*step = "_bentBufSRV_R";
+				step = "_bentBufSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
-				}*/
+				}
 
 				shaderResourceViewDesc.Format = oldFormat;
 				step = "_ssaoBufSRV_R";
@@ -1727,9 +1727,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_normBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBuf);
 			if (FAILED(hr)) goto out;
 
-			/*step = "_renderTargetViewBentBuf";
+			step = "_renderTargetViewBentBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
-			if (FAILED(hr)) goto out;*/
+			if (FAILED(hr)) goto out;
 
 			renderTargetViewDescNoMSAA.Format = oldFormat;
 			step = "_renderTargetViewSSAO";

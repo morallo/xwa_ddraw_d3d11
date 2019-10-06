@@ -373,8 +373,8 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
 	ComPtr<ID3D11Texture2D> _normBuf;    // No MSAA so that it can be both bound to RTV and SRV
 	ComPtr<ID3D11Texture2D> _normBufR;   // No MSAA
-	//ComPtr<ID3D11Texture2D> _bentBuf;    // No MSAA
-	//ComPtr<ID3D11Texture2D> _bentBufR;   // No MSAA
+	ComPtr<ID3D11Texture2D> _bentBuf;    // No MSAA
+	ComPtr<ID3D11Texture2D> _bentBufR;   // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;    // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMask;	 // No MSAA
@@ -408,8 +408,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
@@ -437,8 +437,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
 	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
 	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
-	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
-	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask

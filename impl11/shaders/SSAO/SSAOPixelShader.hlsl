@@ -31,7 +31,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0;
-	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
+	float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
 cbuffer ConstantBuffer : register(b3)
@@ -69,20 +69,27 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
 }
 
-inline float3 doAmbientOcclusion(bool FGFlag, in float2 uv, in float3 P, in float3 Normal /*, inout float3 BentNormal */)
+inline float3 doAmbientOcclusion(bool FGFlag, in float2 input_uv, in float2 sample_uv, float radius, in float3 P, in float3 Normal, inout float3 BentNormal)
 {
 	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
 	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
-	float3 occluder = FGFlag ? getPositionFG(uv) : getPositionBG(uv);
+	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (p) to sampled neighbor
-	float3 diff = occluder - P;
-	//float zdist     = -diff.z;
+	float3 diff		= occluder - P;
+	float zdist     = diff.z;
 	// L: Distance from current pos (P) to the occluder
 	const float  L = length(diff);
 	// v: Normalized (occluder - P) vector
 	const float3 v = diff / L;
 	const float  d = L * scale;
-	//if (zdist < 0) BentNormal += float3(v.xy, -v.z);
+	if (zdist > 0.0) {
+		float2 uv_diff = sample_uv - input_uv;
+		// x*x + y*y + z*z = radius^2
+		// z*z = radius^2 - x*x - y*y
+		// z = sqrt(radius^2 - x*x - y*y)
+		float3 B = float3(uv_diff.x, -uv_diff.y, sqrt(radius*radius - uv_diff.x*uv_diff.x - uv_diff.y*uv_diff.y));
+		BentNormal += normalize(B);
+	}
 	//BentNormal += v;
 	return intensity * pow(max(0.0, dot(Normal, v) - bias), power) / (1.0 + d);
 }
@@ -91,15 +98,16 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = float4(1, 1, 1, 1);
-	float3 dummy = float3(0, 0, 0);
+	output.bentNormal = float4(0, 0, 0, 0);
+	//float3 dummy = float3(0, 0, 0);
 	
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
-	float3 bentNormal = n;
+	float3 bentNormal = float3(0, 0, 0);
 	float3 ao = float3(0.0, 0.0, 0.0);
-	float radius = sample_radius;
 	float3 p;
+	float radius = sample_radius;
 	bool FGFlag;
 	
 	if (P1.z < P2.z) {
@@ -128,11 +136,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix); 
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n /*, bentNormal */);
+		ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, radius * (float)(j + sample_jitter), p, n, bentNormal);
 	}
 
 	ao = 1 - ao / (float)samples;
 	output.ssao.xyz *= lerp(black_level, ao, ao);
-	//output.bentNormal = float4(normalize(bentNormal), 1);
+
+	float B = length(bentNormal);
+	if (B > 0.01) {
+		bentNormal = bentNormal / B;
+		//output.bentNormal = float4(bentNormal * 0.5 + 0.5, 1);
+		output.bentNormal = float4(bentNormal.xxx * 0.5 + 0.5, 1);
+	}
+	//output.bentNormal = float4(bentNormal, 1);
 	return output;
 }
