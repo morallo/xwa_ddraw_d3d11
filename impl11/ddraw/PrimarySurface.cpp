@@ -1942,6 +1942,21 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 
+	// Compute the full rotation
+	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(-roll);
+	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+	PixelShaderMatrixCB matrixCB;
+	//rotMatrixFull.invert();
+	matrixCB.viewMat = rotMatrixFull;
+	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
+
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -1991,10 +2006,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		context->PSSetShaderResources(0, 4, srvs_pass1);
 		context->Draw(6, 0);
 	}
-
-	// Copy the SSAO buffer to offscreenBufferAsInput -- we'll reuse the latter as a temp
-	// buffer to do the blur
-	context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
 	
 	// Blur the SSAO buffer
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
@@ -2009,22 +2020,34 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSAO Blur
-	// input: offscreenAsInput (with a copy of the ssaoBuf)
+	// input: offscreenAsInput (with a copy of the ssaoBuf), bentBufR (with a copy of bentBuf)
 	// output: ssaoBuf
 	if (g_bBlurSSAO) {
+		// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
+		// to blur the SSAO buffer
+		context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
 		resources->InitPixelShader(resources->_ssaoBlurPS);
-		context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
+		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
+		//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
-			context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 			context->Draw(6, 0);
 			goto out;
 		}
 		else {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewSSAO.Get(),
+				//resources->_renderTargetViewBentBuf.Get()
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			//context->PSSetShaderResources(2, 1, resources->_bentBufSRV_R.GetAddressOf());
 			context->Draw(6, 0);
 		}
 	}
@@ -2049,13 +2072,14 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Resolve offscreenBuf
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	ID3D11ShaderResourceView *srvs_pass2[4] = {
+	ID3D11ShaderResourceView *srvs_pass2[5] = {
 		resources->_offscreenAsInputShaderResourceView.Get(),
 		resources->_offscreenAsInputBloomMaskSRV.Get(),
 		resources->_ssaoBufSRV.Get(),
-		resources->_ssaoMaskSRV.Get()
+		resources->_ssaoMaskSRV.Get(),
+		resources->_bentBufSRV.Get(),
 	};
-	context->PSSetShaderResources(0, 4, srvs_pass2);
+	context->PSSetShaderResources(0, 5, srvs_pass2);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -2568,7 +2592,6 @@ HRESULT PrimarySurface::Flip(
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
@@ -2589,6 +2612,7 @@ HRESULT PrimarySurface::Flip(
 				SSAOPass(g_fSSAOZoomFactor);
 
 				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
 				}
 			}

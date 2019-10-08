@@ -206,6 +206,12 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
+typedef struct PixelShaderMatrixCBStruct {
+	Matrix4 projEye;
+	Matrix4 viewMat;
+	Matrix4 fullViewMat;
+} PixelShaderMatrixCB;
+
 typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
@@ -301,6 +307,7 @@ public:
 	void InitViewport(D3D11_VIEWPORT* viewport);
 	void InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer);
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);
+	void InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
@@ -490,6 +497,7 @@ public:
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
+	ComPtr<ID3D11Buffer> _PSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;

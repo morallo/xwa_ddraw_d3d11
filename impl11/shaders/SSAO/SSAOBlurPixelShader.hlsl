@@ -12,6 +12,10 @@ SamplerState SSAOsampler : register(s0);
 Texture2D DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
+// The Bent Normals
+Texture2D BentTex : register(t2);
+SamplerState BentSampler : register(s2);
+
 // I'm reusing the constant buffer from the bloom blur shader; but
 // we're only using the amplifyFactor here.
 cbuffer ConstantBuffer : register(b2)
@@ -28,13 +32,21 @@ struct PixelShaderInput
 	float2 uv : TEXCOORD;
 };
 
+struct PixelShaderOutput
+{
+	float4 ssao : SV_TARGET0;
+	float4 bent : SV_TARGET1;
+};
+
 #define Z_THRESHOLD 20
 #define BLUR_SIZE 1
 
-float4 main(PixelShaderInput input) : SV_TARGET
+PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_scaled = input.uv * amplifyFactor;
-	float3 ssao = float3(0, 0, 0);
+	PixelShaderOutput output;
+	output.ssao = float4(0, 0, 0, 1);
+	output.bent = float4(0, 0, 0, 1);
 	//float3 ssao_sample;
 	//float depth = DepthTex.Sample(DepthSampler, input.uv).z;
 	//float depth_sample;
@@ -52,7 +64,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		//uv_inner = uv_outer;
 		[unroll]
 		for (int j = 0; j < 4; j++) {
-			ssao += SSAOTex.Sample(SSAOsampler, uv_inner_scaled).xyz;
+			output.ssao.xyz += SSAOTex.Sample(SSAOsampler, uv_inner_scaled).xyz;
+			//output.bent.xyz += BentTex.Sample(BentSampler, uv_inner_scaled).xyz;
 			/*
 			depth_sample = DepthTex.Sample(DepthSampler, uv_inner).z;
 			zdiff = abs(depth_sample - depth);
@@ -67,5 +80,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		uv_outer_scaled.y += delta.y;
 		//uv_outer += delta.y;
 	}
-	return float4(ssao / 16.0, 1);
+	output.ssao.xyz /= 16.0;
+	//output.bent.xyz /= 16.0;
+	return output;
 }

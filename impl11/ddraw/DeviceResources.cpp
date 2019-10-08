@@ -736,6 +736,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_depthBuf2AsInput.Release();
 		this->_normBuf.Release();
 		this->_bentBuf.Release();
+		this->_bentBufR.Release();
 		this->_ssaoBuf.Release();
 		this->_ssaoMask.Release();
 		this->_renderTargetViewDepthBuf.Release();
@@ -743,6 +744,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_depthBuf2SRV.Release();
 		this->_normBufSRV.Release();
 		this->_bentBufSRV.Release();
+		this->_bentBufSRV_R.Release();
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewBentBuf.Release();
 		this->_renderTargetViewSSAO.Release();
@@ -757,12 +759,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_ssaoBufR.Release();
 			this->_ssaoMaskR.Release();
 			this->_normBufR.Release();
-			this->_bentBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
 			this->_depthBufSRV_R.Release();
 			this->_depthBuf2SRV_R.Release();
 			this->_normBufSRV_R.Release();
-			this->_bentBufSRV_R.Release();
 			this->_renderTargetViewNormBufR.Release();
 			this->_renderTargetViewBentBufR.Release();
 			this->_renderTargetViewSSAO_R.Release(); 
@@ -1284,6 +1284,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_bentBufR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
 			desc.Format = oldFormat;
 			step = "_ssaoBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf);
@@ -1306,14 +1314,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_normBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
-
-				step = "_bentBufR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1484,6 +1484,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_bentBufSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
 			shaderResourceViewDesc.Format = oldFormat;
 			step = "_ssaoBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
@@ -1530,13 +1538,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				step = "_bentBufSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
+				
 
 				shaderResourceViewDesc.Format = oldFormat;
 				step = "_ssaoBufSRV_R";
@@ -2174,6 +2176,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
+		return hr;
+
 	// Create the constant buffer for the (3D) textured pixel shader
 	constantBufferDesc.ByteWidth = 48;
 	static_assert(sizeof(PixelShaderCBuffer) == 48, "sizeof(PixelShaderCBuffer) must be 48");
@@ -2427,6 +2432,12 @@ void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const Ve
 {
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
 	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
+}
+
+void DeviceResources::InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer)
+{
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(4, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
