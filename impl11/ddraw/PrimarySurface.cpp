@@ -2023,17 +2023,22 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// input: offscreenAsInput (with a copy of the ssaoBuf), bentBufR (with a copy of bentBuf)
 	// output: ssaoBuf
 	if (g_bBlurSSAO) {
+		resources->InitPixelShader(resources->_ssaoBlurPS);
 		// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
 		// to blur the SSAO buffer
 		context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
-		resources->InitPixelShader(resources->_ssaoBlurPS);
 		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
-		//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+		context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+		ID3D11ShaderResourceView *srvs[3] = {
+				resources->_offscreenAsInputShaderResourceView.Get(),
+				resources->_depthBufSRV.Get(),
+				resources->_bentBufSRV_R.Get(),
+		};
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			context->PSSetShaderResources(0, 3, srvs);
 			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 			context->Draw(6, 0);
@@ -2041,13 +2046,13 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		}
 		else {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-			ID3D11RenderTargetView *rtvs[1] = {
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
+			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetViewSSAO.Get(),
-				//resources->_renderTargetViewBentBuf.Get()
+				resources->_renderTargetViewBentBuf.Get()
 			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-			//context->PSSetShaderResources(2, 1, resources->_bentBufSRV_R.GetAddressOf());
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 3, srvs);
 			context->Draw(6, 0);
 		}
 	}

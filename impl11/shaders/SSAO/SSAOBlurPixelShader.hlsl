@@ -29,7 +29,7 @@ cbuffer ConstantBuffer : register(b2)
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
 
 struct PixelShaderOutput
@@ -65,7 +65,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		[unroll]
 		for (int j = 0; j < 4; j++) {
 			output.ssao.xyz += SSAOTex.Sample(SSAOsampler, uv_inner_scaled).xyz;
-			//output.bent.xyz += BentTex.Sample(BentSampler, uv_inner_scaled).xyz;
+			output.bent.xyz += BentTex.Sample(BentSampler, uv_inner_scaled).xyz;
 			/*
 			depth_sample = DepthTex.Sample(DepthSampler, uv_inner).z;
 			zdiff = abs(depth_sample - depth);
@@ -81,6 +81,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//uv_outer += delta.y;
 	}
 	output.ssao.xyz /= 16.0;
-	//output.bent.xyz /= 16.0;
+	output.bent.xyz /= 16.0;
 	return output;
 }
