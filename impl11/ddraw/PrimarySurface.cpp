@@ -87,10 +87,10 @@ int g_iBloomPasses[8] = {
 };
 
 // SSAO
-extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint;
+extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
 extern bool g_bShowSSAODebug; // , g_bShowNormBufDebug;
-extern bool g_bDumpSSAOBuffers;
+extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -1404,7 +1404,6 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-	//float fPixelScale = 4.0f;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
 
@@ -1838,7 +1837,7 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	D3D11_VIEWPORT viewport{};
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = screen_res_x / (1.0f * fZoomFactor);
+	viewport.Width  = screen_res_x / (1.0f * fZoomFactor);
 	viewport.Height = screen_res_y / (1.0f * fZoomFactor);
 
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
@@ -1863,6 +1862,136 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	//};
 	//context->OMSetRenderTargets(2, rtvs, NULL);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		// TODO: Check that this works in SteamVR
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _depthAsInputR
+		// Output _normBufR
+		context->PSSetShaderResources(0, 1, resources->_depthBufSRV_R.GetAddressOf());
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewNormBufR.GetAddressOf(), NULL);
+		context->Draw(6, 0);
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Set the constants used by the ComputeNormals shader
+	/*
+	float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+	*/
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width  = screen_res_x / (1.0f * fZoomFactor);
+	viewport.Height = screen_res_y / (1.0f * fZoomFactor);
+
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	float fPixelScale = 2.0f, fFirstPassZoomFactor = fZoomFactor / 2.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
+	g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+	g_BloomPSCBuffer.norm_weight = g_fNormWeight;
+	g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
+	g_BloomPSCBuffer.normal_blur_radius = g_fNormalBlurRadius;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _depthAsInput
+	// Output _normBuf
+	resources->InitPixelShader(resources->_computeNormalsPS);
+	// Copy bentBuf <- normBuf temporarily...
+	context->CopyResource(resources->_bentBuf, resources->_normBuf);
+	ID3D11ShaderResourceView *srvs[2] = {
+		resources->_depthBufSRV.Get(),
+		resources->_bentBufSRV.Get()
+	};
+	//ID3D11RenderTargetView *rtvs[2] = {
+	//			resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+	//			resources->_renderTargetViewNormBuf.Get()
+	//};
+	//context->OMSetRenderTargets(2, rtvs, NULL);
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL); // DEBUG
+
+	context->PSSetShaderResources(0, 2, srvs);
+	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
+	
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -1960,7 +2089,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-
+	// Set the SSAO pixel shader constant buffer
 	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
@@ -2011,12 +2140,16 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
 	// with a zoom factor:
-	float fPixelScale = 2.0f, fFirstPassZoomFactor = fZoomFactor / 2.0f;
-	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp  / fZoomFactor;
-	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
+	float fPixelScale = fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX    = fPixelScale * g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY    = fPixelScale * g_fCurScreenHeightRcp;
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-	g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
-	g_BloomPSCBuffer.uvStepSize = 1.5f;
+	g_BloomPSCBuffer.white_point   = g_fSSAOWhitePoint;
+	g_BloomPSCBuffer.uvStepSize    = 1.0f;
+	g_BloomPSCBuffer.enableSSAO    = g_bEnableSSAOInShader;
+	g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+	g_BloomPSCBuffer.norm_weight   = g_fNormWeight;
+	g_BloomPSCBuffer.depth_weight  = g_SSAO_PSCBuffer.max_dist;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSAO Blur
@@ -2030,17 +2163,20 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 		context->CopyResource(resources->_bentBufR, resources->_bentBuf);
-		ID3D11ShaderResourceView *srvs[3] = {
+		ID3D11ShaderResourceView *srvs[4] = {
 				resources->_offscreenAsInputShaderResourceView.Get(),
 				resources->_depthBufSRV.Get(),
 				resources->_bentBufSRV_R.Get(),
+				resources->_normBufSRV.Get()
 		};
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			context->PSSetShaderResources(0, 3, srvs);
+			context->PSSetShaderResources(0, 4, srvs);
 			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+			// DEBUG: Enable the following line to display the normals
+			//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
 			context->Draw(6, 0);
 			goto out;
 		}
@@ -2077,14 +2213,15 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Resolve offscreenBuf
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	ID3D11ShaderResourceView *srvs_pass2[5] = {
+	ID3D11ShaderResourceView *srvs_pass2[6] = {
 		resources->_offscreenAsInputShaderResourceView.Get(),
 		resources->_offscreenAsInputBloomMaskSRV.Get(),
 		resources->_ssaoBufSRV.Get(),
 		resources->_ssaoMaskSRV.Get(),
 		resources->_bentBufSRV.Get(),
+		resources->_normBufSRV.Get()
 	};
-	context->PSSetShaderResources(0, 5, srvs_pass2);
+	context->PSSetShaderResources(0, 6, srvs_pass2);
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
@@ -2610,7 +2747,7 @@ HRESULT PrimarySurface::Flip(
 
 				// Input: depthBufAsInput (already resolved during Execute())
 				// Output: normalsBuf
-				//ComputeNormalsPass(1.0f);
+				//SmoothNormalsPass(1.0f);
 
 				// Input: depthBuf, normBuf, randBuf
 				// Output: _bloom1

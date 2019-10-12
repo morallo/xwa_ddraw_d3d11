@@ -158,19 +158,21 @@ typedef struct MainShadersCBStruct {
 
 typedef struct BarrelPixelShaderCBStruct {
 	float k1, k2, k3;
+	int unused;
 } BarrelPixelShaderCBuffer;
 
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
-//#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
-#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R32G32B32A32_FLOAT
+#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
+//#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R32G32B32A32_FLOAT
 //#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 
 typedef struct BloomConfigStruct {
-	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength;
+	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength, fSparksStrength;
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
 	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
+	float fCockpitSparksStrength, fMissileStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;
@@ -178,8 +180,12 @@ typedef struct BloomConfigStruct {
 typedef struct BloomPixelShaderCBStruct {
 	float pixelSizeX, pixelSizeY, white_point, amplifyFactor;
 	// 16 bytes
-	float bloomStrength, uvStepSize, saturationStrength, unused2;
+	float bloomStrength, uvStepSize, saturationStrength;
+	int enableSSAO;
 	// 32 bytes
+	int enableBentNormals;
+	float norm_weight, depth_weight, normal_blur_radius;
+	// 48 bytes
 } BloomPixelShaderCBuffer;
 
 typedef struct SSAOPixelShaderCBStruct {
@@ -189,8 +195,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	int samples;
 	// 32 bytes
 	int z_division;
-	float area, falloff, power;
+	float bentNormalInit, max_dist, power;
 	// 48 bytes
+	int debug, unused1, unused2, unused3;
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */
@@ -230,8 +237,10 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsHyperspaceStreak;
 	// 16 bytes
 
-	float fBloomStrength, fPosNormalAlpha, fSSAOMaskVal;
-	float unused3;
+	float fBloomStrength;
+	float fPosNormalAlpha;
+	float fSSAOMaskVal;
+	float unused;
 	// 16 bytes
 
 	// 48 bytes total
@@ -468,6 +477,7 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
+	ComPtr<ID3D11PixelShader> _computeNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;

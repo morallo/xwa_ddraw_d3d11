@@ -3,6 +3,7 @@
 // This shader should only be called for destination textures when DC is
 // enabled. For regular textures or when the Dynamic Cockpit is disabled,
 // use "PixelShader.hlsl" instead.
+#include "HSV.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -64,40 +65,6 @@ cbuffer ConstantBuffer : register(b1)
 	// unused1, unused2, unused3
 };
 
-// From http://www.chilliant.com/rgb2hsv.html
-static float Epsilon = 1e-10;
-
-float3 HUEtoRGB(in float H)
-{
-	float R = abs(H * 6 - 3) - 1;
-	float G = 2 - abs(H * 6 - 2);
-	float B = 2 - abs(H * 6 - 4);
-	return saturate(float3(R, G, B));
-}
-
-float3 RGBtoHCV(in float3 RGB)
-{
-	// Based on work by Sam Hocevar and Emil Persson
-	float4 P = (RGB.g < RGB.b) ? float4(RGB.bg, -1.0, 2.0 / 3.0) : float4(RGB.gb, 0.0, -1.0 / 3.0);
-	float4 Q = (RGB.r < P.x) ? float4(P.xyw, RGB.r) : float4(RGB.r, P.yzx);
-	float C = Q.x - min(Q.w, Q.y);
-	float H = abs((Q.w - Q.y) / (6 * C + Epsilon) + Q.z);
-	return float3(H, C, Q.x);
-}
-
-float3 RGBtoHSV(in float3 RGB)
-{
-	float3 HCV = RGBtoHCV(RGB);
-	float S = HCV.y / (HCV.z + Epsilon);
-	return float3(HCV.x, S, HCV.z);
-}
-
-float3 HSVtoRGB(in float3 HSV)
-{
-	float3 RGB = HUEtoRGB(HSV.x);
-	return ((RGB - 1) * HSV.y + 1) * HSV.z;
-}
-
 float4 uintColorToFloat4(uint color) {
 	return float4(
 		((color >> 16) & 0xFF) / 255.0,
@@ -140,7 +107,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	output.normal = float4(N, 1);
 
-	output.ssaoMask = float4(0, 0, 0, 1);
+	output.ssaoMask = 0;
 	
 	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
 	// The code returns a color from this path
@@ -187,13 +154,14 @@ PixelShaderOutput main(PixelShaderInput input)
 			float brightness = ct_brightness;
 			if (HSV.z * alpha >= 0.8) {
 				// The cover texture is bright enough, go shadeless and make it brighter
-				diffuse = float3(1, 1, 1);
+				diffuse = 1;
 				// Increase the brightness:
 				HSV = RGBtoHSV(texelColor.xyz);
 				HSV.z *= 1.2;
 				texelColor.xyz = HSVtoRGB(HSV);
 				output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 				brightness = 1.0;
+				output.ssaoMask = 1;
 			}
 			// Display the dynamic cockpit texture only where the texture cover is transparent:
 			// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
@@ -202,12 +170,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 			diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
-			output.ssaoMask.xyz = float3(1, 1, 1) * (1 - alpha);
-		}
-		else {
+			output.ssaoMask = max(output.ssaoMask, (1 - alpha));
+		} else {
 			texelColor = hud_texelColor;
 			diffuse = float3(1, 1, 1);
-			output.ssaoMask.xyz = float3(1, 1, 1);
+			output.ssaoMask = 1;
 		}
 		output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 		return output;

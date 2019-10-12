@@ -272,10 +272,10 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 // SSAO
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
-float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f;
+float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
-bool g_bDisableDualSSAO = false;
+bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -315,8 +315,8 @@ bool g_bDirectSBSInitialized = false;
 D3D11_VIEWPORT g_nonVRViewport{};
 
 VertexShaderMatrixCB g_VSMatrixCB;
-VertexShaderCBuffer g_VSCBuffer;
-PixelShaderCBuffer g_PSCBuffer;
+VertexShaderCBuffer  g_VSCBuffer;
+PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
@@ -1413,9 +1413,13 @@ bool LoadBloomParams() {
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
 	float fValue = 0.0f;
+	// Set some default values
 	g_BloomConfig.uvStepSize1 = 3.0f;
 	g_BloomConfig.uvStepSize2 = 2.0f;
-
+	g_BloomConfig.fLasersStrength     = 4.0f;
+	g_BloomConfig.fEngineGlowStrength = 0.5f;
+	g_BloomConfig.fSparksStrength	  = 0.5f;
+	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
@@ -1473,6 +1477,15 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "explosions_strength") == 0) {
 				g_BloomConfig.fExplosionsStrength = fValue;
+			}
+			else if (_stricmp(param, "sparks_strength") == 0) {
+				g_BloomConfig.fSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "cockpit_sparks_strength") == 0) {
+				g_BloomConfig.fCockpitSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "missile_strength") == 0) {
+				g_BloomConfig.fMissileStrength = fValue;
 			}
 			else if (_stricmp(param, "hyper_streak_strength") == 0) {
 				g_BloomConfig.fHyperStreakStrength = fValue;
@@ -1657,11 +1670,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "perspective_correct") == 0) {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
-			else if (_stricmp(param, "area") == 0) {
-				g_SSAO_PSCBuffer.area = fValue;
+			else if (_stricmp(param, "bent_normal_init") == 0) {
+				g_SSAO_PSCBuffer.bentNormalInit = fValue;
 			}
-			else if (_stricmp(param, "falloff") == 0) {
-				g_SSAO_PSCBuffer.falloff = fValue;
+			else if (_stricmp(param, "max_dist") == 0) {
+				g_SSAO_PSCBuffer.max_dist = fValue;
 			}
 			else if (_stricmp(param, "power") == 0) {
 				g_SSAO_PSCBuffer.power = fValue;
@@ -1671,6 +1684,24 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "white_point") == 0) {
 				g_fSSAOWhitePoint = fValue;
+			}
+			else if (_stricmp(param, "enable_ssao_in_shader") == 0) {
+				g_bEnableSSAOInShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "enable_bent_normals_in_shader") == 0) {
+				g_bEnableBentNormalsInShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug") == 0) {
+				g_SSAO_PSCBuffer.debug = (int)fValue;
+			}
+			else if (_stricmp(param, "norm_weight") == 0) {
+				g_fNormWeight = fValue;
+			}
+			/* else if (_stricmp(param, "depth_weight") == 0) {
+				g_fDepthWeight = fValue;
+			} */
+			else if (_stricmp(param, "normal_blur_radius") == 0) {
+				g_fNormalBlurRadius = fValue;
 			}
 		}
 	}
@@ -1683,7 +1714,6 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
 	log_debug("[DBG] [AO] SSAO samples: %d", g_SSAO_PSCBuffer.samples);
 	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
-	//log_debug("[DBG] [AO] SSAO z_scale: %f", g_SSAO_PSCBuffer.z_scale);
 	return true;
 }
 
@@ -3301,7 +3331,7 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
 	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
-
+	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
 
@@ -4231,10 +4261,32 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Apply the SSAO mask
-				if (g_bAOEnabled && (bIsAimingHUD || bIsText || g_bIsTrianglePointer)) {
+				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
 					bModifiedShaders = true;
-					g_PSCBuffer.fSSAOMaskVal = 1.0f;
-					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer) 
+					{
+						g_PSCBuffer.fSSAOMaskVal = 1.0f;
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
+						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
+						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
+						lastTextureSelected->is_Missile) 
+					{
+						//if (lastTextureSelected->is_Missile) {
+						//	// DEBUG
+						//	D3D11_DEPTH_STENCIL_DESC desc = this->_renderStates->GetDepthStencilDesc();
+						//	//this->_renderStates->ZWriteEnabled
+						//	//this->_renderStates->AlphaBlendEnabled
+						//	log_debug("[DBG] [AO] Missile AlphaEnabled: %d, ZEnabled: %d, name: %s",
+						//		this->_renderStates->AlphaBlendEnabled,
+						//		this->_renderStates->ZEnabled,
+						//		lastTextureSelected->_surface->_name);
+						//}
+						g_PSCBuffer.fSSAOMaskVal = 0.0f;
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+						//if (lastTextureSelected->is_Missile)
+						//	log_debug("[DBG] [AO] Setting fPosNormalAlpha to 0 for missile: %s", lastTextureSelected->_surface->_name);
+					}
 				}
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
@@ -4337,6 +4389,28 @@ HRESULT Direct3DDevice::Execute(
 					else if (bIsSun) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_Spark) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_CockpitSpark) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_Chaff)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_Missile)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 				}
@@ -5131,18 +5205,20 @@ HRESULT Direct3DDevice::BeginScene()
 	if (g_bAOEnabled) {
 		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 		// on the sides of the screen
-		float infinity[4] = { 0, 0, 655350.0f, 0 };
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf, infinity);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf2, infinity);
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBufR, infinity);
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDepthBuf2R, infinity);
-		}
-
+		float infinity[4] = { 0, 0, 32000.0f, 0 };
 		float zero[4] = { 0, 0, 0, 0 };
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewNormBuf, infinity);
-		if (g_bUseSteamVR)
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewNormBufR, infinity);
+		auto &resources = this->_deviceResources;
+
+		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+		}
 	}
 
 	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);

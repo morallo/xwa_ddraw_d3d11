@@ -19,14 +19,17 @@ struct PixelShaderOutput
 	float4 bloom  : SV_TARGET1;
 	float4 pos3D  : SV_TARGET2;
 	float4 normal : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color  = input.color;
-	output.bloom  = float4(0, 0, 0, 0);
-	output.pos3D  = float4(0, 0, 0, 0);
-	output.normal = float4(0, 0, 0, 0);
+	output.bloom = 0;
+	output.pos3D = 0;
+	output.normal = 0;
+	output.normal = 0;
+	output.ssaoMask = 1;
 	return output;
 }

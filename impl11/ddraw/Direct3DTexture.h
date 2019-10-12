@@ -48,6 +48,18 @@ public:
 	bool is_LensFlare;
 	// True for suns in the backdrop dat files
 	bool is_Sun;
+	// True for space debris (used to inhibit them for SSAO)
+	bool is_Debris;
+	// True for warhead trails (used to inhibit SSAO)
+	bool is_Trail;
+	// True for sparks (to control Bloom)
+	bool is_Spark;
+	// True for cockpit sparks (to control Bloom)
+	bool is_CockpitSpark;
+	// True for the chaff dat
+	bool is_Chaff;
+	// True for all sorts of missiles. Used for Bloom and SSAO
+	bool is_Missile;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures

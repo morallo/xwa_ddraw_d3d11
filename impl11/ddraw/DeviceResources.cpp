@@ -1931,8 +1931,8 @@ HRESULT DeviceResources::LoadMainResources()
 	}
 
 	if (g_bAOEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-		//	return hr;
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;
@@ -2131,8 +2131,8 @@ HRESULT DeviceResources::LoadResources()
 	}
 
 	if (g_bAOEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-		//	return hr;
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;
@@ -2193,16 +2193,19 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the constant buffer for the barrel pixel shader
 	constantBufferDesc.ByteWidth = 16;
+	static_assert(sizeof(BarrelPixelShaderCBuffer) == 16, "sizeof(BarrelPixelShaderCBuffer) must be 16");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_barrelConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the bloom pixel shader
-	constantBufferDesc.ByteWidth = 32;
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(BloomPixelShaderCBuffer) == 48, "sizeof(BloomPixelShaderCBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader
-	constantBufferDesc.ByteWidth = 48;
+	constantBufferDesc.ByteWidth = 64;
+	static_assert(sizeof(SSAOPixelShaderCBuffer) == 64, "sizeof(SSAOPixelShaderCBuffer) must be 64");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_ssaoConstantBuffer)))
 		return hr;
 

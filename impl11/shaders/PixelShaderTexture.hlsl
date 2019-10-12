@@ -1,6 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
+#include "HSV.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -41,8 +42,11 @@ cbuffer ConstantBuffer : register(b0)
 	float fBloomStrength;		// General multiplier for the bloom effect
 	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
 	float fSSAOMaskVal;			// SSAO mask value
+	float unused;
+	// 48 bytes
 };
 
+/*
 // From http://www.chilliant.com/rgb2hsv.html
 static float Epsilon = 1e-10;
 
@@ -76,6 +80,7 @@ float3 HSVtoRGB(in float3 HSV)
 	float3 RGB = HUEtoRGB(HSV.x);
 	return ((RGB - 1) * HSV.y + 1) * HSV.z;
 }
+*/
 
 PixelShaderOutput main(PixelShaderInput input)
 {
@@ -84,7 +89,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
 	// Zero-out the bloom mask.
-	output.bloom = float4(0, 0, 0, 0);
+	output.bloom = 0;
 	output.color = texelColor;
 
 	float3 P = float3(input.pos3D.xyz);
@@ -140,14 +145,14 @@ PixelShaderOutput main(PixelShaderInput input)
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * color, 1);
-				output.ssaoMask = float4(1, 1, 1, 1);
+				output.ssaoMask = 1;
 			}
 			output.color = float4(color, alpha);
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * texelColor.rgb, 1);
-				output.ssaoMask = float4(1, 1, 1, 1);
+				output.ssaoMask = 1;
 			}
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
