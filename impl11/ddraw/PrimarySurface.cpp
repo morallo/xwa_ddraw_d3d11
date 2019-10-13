@@ -220,8 +220,8 @@ BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
-BloomPixelShaderCBStruct g_BloomPSCBuffer;
-SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
+BloomPixelShaderCBuffer g_BloomPSCBuffer;
+SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
@@ -2163,6 +2163,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 		context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+		// Clear the destination buffers: the blur will re-populate them
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
+		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
 		ID3D11ShaderResourceView *srvs[4] = {
 				resources->_offscreenAsInputShaderResourceView.Get(),
 				resources->_depthBufSRV.Get(),
@@ -2181,14 +2184,12 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			goto out;
 		}
 		else {
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetViewSSAO.Get(),
 				resources->_renderTargetViewBentBuf.Get()
 			};
 			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 3, srvs);
+			context->PSSetShaderResources(0, 4, srvs);
 			context->Draw(6, 0);
 		}
 	}

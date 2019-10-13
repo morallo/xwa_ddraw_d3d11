@@ -1599,7 +1599,7 @@ bool LoadSSAOParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
-	g_SSAO_PSCBuffer.scale = 0.001f;
+	//g_SSAO_PSCBuffer.scale = 0.001f;
 	g_SSAO_PSCBuffer.intensity = 2.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.1f;
@@ -1640,9 +1640,9 @@ bool LoadSSAOParams() {
 				g_bAOEnabled = state;
 			}
 
-			else if (_stricmp(param, "scale") == 0) {
+			/* else if (_stricmp(param, "scale") == 0) {
 				g_SSAO_PSCBuffer.scale = fValue;
-			}
+			} */
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
 			}
@@ -1682,9 +1682,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enable_dual_ssao") == 0) {
 				g_bDisableDualSSAO = !(bool)fValue;
 			}
-			else if (_stricmp(param, "white_point") == 0) {
+			/* else if (_stricmp(param, "white_point") == 0) {
 				g_fSSAOWhitePoint = fValue;
-			}
+			} */
 			else if (_stricmp(param, "enable_ssao_in_shader") == 0) {
 				g_bEnableSSAOInShader = (bool)fValue;
 			}
@@ -1694,9 +1694,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "debug") == 0) {
 				g_SSAO_PSCBuffer.debug = (int)fValue;
 			}
-			else if (_stricmp(param, "norm_weight") == 0) {
+			/* else if (_stricmp(param, "norm_weight") == 0) {
 				g_fNormWeight = fValue;
-			}
+			} */
 			/* else if (_stricmp(param, "depth_weight") == 0) {
 				g_fDepthWeight = fValue;
 			} */
@@ -1708,7 +1708,6 @@ bool LoadSSAOParams() {
 	fclose(file);
 
 	log_debug("[DBG] [AO] SSAO Enabled: %d", g_bAOEnabled);
-	log_debug("[DBG] [AO] SSAO scale: %0.3f", g_SSAO_PSCBuffer.scale);
 	log_debug("[DBG] [AO] SSAO bias: %0.3f", g_SSAO_PSCBuffer.bias);
 	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
@@ -4262,9 +4261,10 @@ HRESULT Direct3DDevice::Execute(
 
 				// Apply the SSAO mask
 				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
-					bModifiedShaders = true;
+					
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer) 
 					{
+						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 1.0f;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
@@ -4272,20 +4272,9 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
 						lastTextureSelected->is_Missile) 
 					{
-						//if (lastTextureSelected->is_Missile) {
-						//	// DEBUG
-						//	D3D11_DEPTH_STENCIL_DESC desc = this->_renderStates->GetDepthStencilDesc();
-						//	//this->_renderStates->ZWriteEnabled
-						//	//this->_renderStates->AlphaBlendEnabled
-						//	log_debug("[DBG] [AO] Missile AlphaEnabled: %d, ZEnabled: %d, name: %s",
-						//		this->_renderStates->AlphaBlendEnabled,
-						//		this->_renderStates->ZEnabled,
-						//		lastTextureSelected->_surface->_name);
-						//}
+						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 0.0f;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-						//if (lastTextureSelected->is_Missile)
-						//	log_debug("[DBG] [AO] Setting fPosNormalAlpha to 0 for missile: %s", lastTextureSelected->_surface->_name);
 					}
 				}
 

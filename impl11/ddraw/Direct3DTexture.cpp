@@ -99,7 +99,7 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,22000,",
 	"dat,22003,",
 	"dat,22005,",
-	//"dat,22007,", // Cockpit sparks?
+	//"dat,22007,", // Cockpit sparks
 };
 
 std::vector<char *> Sparks_ResNames = {
@@ -107,6 +107,7 @@ std::vector<char *> Sparks_ResNames = {
 	"dat,3001,",
 	"dat,3002,",
 	"dat,3003,",
+	"dat,3004,",
 };
 
 // List of Lens Flare effects

@@ -111,9 +111,9 @@ float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 {
 	if (tap.pos.z > 30000.0) return 0;
 	const float depth_term  = saturate(depth_weight - abs(tap.pos.z - center.pos.z));
-	return depth_term;
-	//float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 16 - 15);
-	//return depth_term * normal_term;
+	//return depth_term;
+	float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 16 - 15);
+	return depth_term * normal_term;
 	
 	//float depth_term = saturate(1 - abs(tap.pos.z - center.pos.z));
 	//float normal_term = pow(saturate(dot(tap.normal.xyz, center.normal.xyz)), norm_weight);
@@ -125,20 +125,23 @@ float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 	//return depth_term;
 }
 
+#define BLUR_SAMPLES 8
 PixelShaderOutput main(PixelShaderInput input) {
-	static const float2 offsets[8] =
+	static const float2 offsets[16] =
 	{
 		float2(1.5,0.5), float2(-1.5,-0.5), float2(-0.5,1.5), float2(0.5,-1.5),
-		float2(1.5,2.5), float2(-1.5,-2.5), float2(-2.5,1.5), float2(2.5,-1.5)
+		float2(1.5,2.5), float2(-1.5,-2.5), float2(-2.5,1.5), float2(2.5,-1.5),
+		float2(-1.5,0.5), float2(1.5,-0.5), float2(0.5,1.5), float2(-0.5,-1.5),
+		float2(-1.5,2.5), float2(1.5,-2.5), float2(2.5,1.5), float2(-2.5,-1.5),
 	};
 	/*static const float2 offsets[4] =
 	{
 		float2(1.0, 0.0),float2(-1.0, 0.0),float2(0.0, 1.0),float2(0.0, -1.0),
 	};*/
-	float2 cur_offset;
+	float2 cur_offset, cur_offset_scaled;
 	float2 pixelSize = float2(pixelSizeX, pixelSizeY);
-	float blurweight = 0, tap_weight;
 	float2 input_uv_scaled = input.uv * amplifyFactor;
+	float  blurweight = 0, tap_weight;
 	BlurData center, tap;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
 	float3 tap_bent, bent_sum, bent_sum_noweight;
@@ -155,23 +158,21 @@ PixelShaderOutput main(PixelShaderInput input) {
 	bent_sum_noweight = bent_sum;
 	
 	[unroll]
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < BLUR_SAMPLES; i++)
 	//for (int i = 0; i < 4; i++)
 	//int i = 0;
 	{
-		cur_offset = amplifyFactor * pixelSize * offsets[i];
-		//cur_offset = pixelSize * offsets[i];
-		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset).xyz;
-		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset).xyz;
+		//cur_offset = amplifyFactor * pixelSize * offsets[i];
+		cur_offset = pixelSize * offsets[i];
+		cur_offset_scaled = amplifyFactor * cur_offset;
+		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
 		
 		tap_weight = compute_spatial_tap_weight(center, tap);
-		//output.ssao = float4(tap_weight, tap_weight, tap_weight, 1);
-		//return output;
 
 		blurweight        += tap_weight;
-
 		ssao_sum          += tap_ssao * tap_weight;
 		ssao_sum_noweight += tap_ssao;
 		bent_sum          += tap_bent * tap_weight;
@@ -180,8 +181,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	
 	ssao_sum /= blurweight;
 	bent_sum /= blurweight;
-	ssao_sum_noweight /= 8.0;
-	bent_sum_noweight /= 8.0;
+	ssao_sum_noweight /= BLUR_SAMPLES;
+	bent_sum_noweight /= BLUR_SAMPLES;
 	
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);

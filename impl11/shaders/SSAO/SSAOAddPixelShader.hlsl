@@ -68,7 +68,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float4 bloom		= texBloom.Sample(samplerBloom, input.uv);
 	float3 ssao		= texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float  mask     = max(dot(0.333, bloom.xyz), ssaoMask);
+	float  mask     = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 
 	//float3 light  = normalize(float3(1, 1, -0.5));
 	//light = mul(viewMatrix, float4(light, 0)).xyz;
@@ -79,9 +79,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//if (enableBentNormals) color = saturate((ambient + diffuse) * color);
 	//ssao = enableSSAO ? ssao : 1.0f;
 	
-	float3 mult_layer = lerp(color * ssao, color, mask);
-	return float4(mult_layer, 1);
-	//return float4(ssaoMask, 1);
+	ssao = lerp(ssao, 1, mask);
+	return float4(color * ssao, 1);
+	//return float4(ssao, 1);
 
 	// Let's use SSAO to also lighten some areas:
 	//float3 screen_layer = 1 - (1 - color) * (1 - ssao * white_point);

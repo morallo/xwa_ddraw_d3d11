@@ -85,11 +85,12 @@ inline float3 doAmbientOcclusion(bool FGFlag, /* in float2 input_uv, */ in float
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (p) to sampled neighbor
 	float3 diff		= occluder - P;
-	// L: Distance from current pos (P) to the occluder
-	const float  L = length(diff);
+	const float diff_sqr = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
-	const float3 v = diff / L;
-	const float weight = smoothstep(0, 1, saturate(max_dist - abs(occluder.z - P.z)));
+	const float3 v = diff * rsqrt(diff_sqr);
+	const float max_dist_sqr = max_dist * max_dist;
+	//const float weight = smoothstep(0, 1, saturate(max_dist - abs(occluder.z - P.z)));
+	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
 	//const float  d = L * scale;
 
 	/*if (zdist > 0.0) {
@@ -133,7 +134,7 @@ inline float3 doAmbientOcclusion(bool FGFlag, /* in float2 input_uv, */ in float
 	}
 	*/
 	
-	return intensity * ao_factor;
+	return intensity * pow(ao_factor, power);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
