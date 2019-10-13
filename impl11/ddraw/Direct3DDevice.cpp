@@ -142,7 +142,6 @@ const char *MAX_POSITIONAL_Y_VRPARAM = "max_positional_track_y";
 const char *MIN_POSITIONAL_Z_VRPARAM = "min_positional_track_z";
 const char *MAX_POSITIONAL_Z_VRPARAM = "max_positional_track_z";
 const char *STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
-const char *BLOOM_ENABLED_VRPARAM = "bloom_enabled";
 // Cockpitlook params
 const char *YAW_MULTIPLIER_CLPARAM   = "yaw_multiplier";
 const char *PITCH_MULTIPLIER_CLPARAM = "pitch_multiplier";
@@ -769,9 +768,6 @@ void SaveVRParams() {
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
-
-	fprintf(file, "\n; Enable the Bloom effect\n");
-	fprintf(file, "%s = %d\n", BLOOM_ENABLED_VRPARAM, g_bBloomEnabled);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -1432,7 +1428,7 @@ bool LoadBloomParams() {
 			fValue = (float)atof(svalue);
 
 			// ReShade state
-			if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
+			if (_stricmp(param, "bloom_enabled") == 0) {
 				bool state = (bool)fValue;
 				g_bReshadeEnabled |= state;
 				g_bBloomEnabled = state;
@@ -4668,7 +4664,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4685,7 +4683,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
@@ -4739,14 +4739,17 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
-								resources->_renderTargetViewDepthBufR.Get(),
-								//resources->_renderTargetViewNormBufR.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
+								//resources->_renderTargetViewDepthBufR.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBufR.Get() : 
+									resources->_renderTargetViewDepthBuf2R.Get(),
+								resources->_renderTargetViewNormBufR.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
 						}
 					} else {
+						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
 							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
@@ -4755,9 +4758,11 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								resources->_renderTargetViewDepthBuf.Get(),
-								//resources->_renderTargetViewNormBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
