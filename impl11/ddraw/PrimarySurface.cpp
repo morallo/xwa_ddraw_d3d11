@@ -2147,7 +2147,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
-	g_BloomPSCBuffer.white_point			= g_fSSAOWhitePoint;
+	//g_BloomPSCBuffer.white_point			= g_fSSAOWhitePoint;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
 	g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
 	g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
@@ -2234,6 +2234,14 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 out1:
 	// Draw the right image when SteamVR is enabled
 	if (g_bUseSteamVR) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = screen_res_x / fZoomFactor;
+		viewport.Height = screen_res_y / fZoomFactor;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
 		// SSAO Computation, right eye
 		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 		// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
@@ -2282,7 +2290,7 @@ out1:
 		g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp;
 		g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp;
 		g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-		g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
+		//g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
 		g_BloomPSCBuffer.uvStepSize = 1.0f;
 		g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
 		g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
@@ -2774,15 +2782,15 @@ HRESULT PrimarySurface::Flip(
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
 				context->PSSetSamplers(1, 1, &tempSampler);*/
 
-				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg,
+				if (g_bDumpSSAOBuffers && g_bUseSteamVR) {
+					DirectX::SaveDDSTextureToFile(context, resources->_normBufR, L"C:\\Temp\\_normBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBufR, L"C:\\Temp\\_depthBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2R, L"C:\\Temp\\_depthBuf2.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMaskR, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_bloomMask.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferR, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoMaskR, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_ssaoMask.jpg");
 					log_debug("[DBG] [AO] Captured debug buffers");
 				}
@@ -2795,9 +2803,9 @@ HRESULT PrimarySurface::Flip(
 				// Output: _bloom1
 				SSAOPass(g_fSSAOZoomFactor);
 
-				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
+				if (g_bDumpSSAOBuffers && g_bUseSteamVR) {
+					DirectX::SaveDDSTextureToFile(context, resources->_bentBufR, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
 				}
 			}
 

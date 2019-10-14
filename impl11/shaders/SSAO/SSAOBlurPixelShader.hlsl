@@ -40,6 +40,7 @@ cbuffer ConstantBuffer : register(b2)
 	// 32 bytes
 	uint enableBentNormals;
 	float norm_weight, depth_weight, unused3;
+	// 48 bytes
 };
 
 struct PixelShaderInput
@@ -53,63 +54,6 @@ struct PixelShaderOutput
 	float4 ssao : SV_TARGET0;
 	float4 bent : SV_TARGET1;
 };
-
-#define Z_THRESHOLD 20
-#define BLUR_SIZE 1
-
-/*
-PixelShaderOutput main_old(PixelShaderInput input)
-{
-	float2 input_uv_scaled = input.uv * amplifyFactor;
-	PixelShaderOutput output;
-	output.ssao = float4(0, 0, 0, 1);
-	output.bent = float4(0, 0, 0, 1);
-	//float3 ssao_sample;
-	//float depth = DepthTex.Sample(DepthSampler, input.uv).z;
-	//float depth_sample;
-	float2 delta = amplifyFactor * uvStepSize * float2(pixelSizeX, pixelSizeY);
-	//float2 delta_scaled = amplifyFactor * delta;	
-	float2 delta_scaled = delta;
-	float2 uv_outer_scaled = input_uv_scaled; // -BLUR_SIZE * delta;
-	float2 uv_outer		   = input.uv; // -BLUR_SIZE * delta;
-	float2 uv_inner_scaled;
-	float2 uv_inner;
-	//float zdiff;
-	//int counter = 0;
-	float center_depth = DepthTex.Sample(DepthSampler, input.uv).z;
-	float sample_depth = 0;
-
-	[unroll]
-	for (int i = 0; i < 4; i++) {
-		uv_inner_scaled = uv_outer_scaled;
-		uv_inner = uv_outer;
-		[unroll]
-		for (int j = 0; j < 4; j++) {
-			//sample_depth = DepthTex.Sample(DepthSampler, uv_inner).z;
-			//if (abs(sample_depth - center_depth) < 3)
-			{
-				output.ssao.xyz += SSAOTex.Sample(SSAOSampler, uv_inner_scaled).xyz;
-				output.bent.xyz += BentTex.Sample(BentSampler, uv_inner_scaled).xyz;
-			}
-			
-			//depth_sample = DepthTex.Sample(DepthSampler, uv_inner).z;
-			//zdiff = abs(depth_sample - depth);
-			//if (zdiff < Z_THRESHOLD) {
-			//	ssao += ssao_sample;
-			//	counter++;
-			//}
-			uv_inner_scaled.x += delta_scaled.x;
-			uv_inner += delta.x;
-			//counter++;
-		}
-		uv_outer_scaled.y += delta_scaled.y;
-		uv_outer += delta.y;
-	}
-	output.ssao.xyz /= 16.0;
-	output.bent.xyz /= 16.0;
-	return output;
-}
-*/
 
 float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 {
@@ -163,10 +107,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	
 	[unroll]
 	for (int i = 0; i < BLUR_SAMPLES; i++)
-	//for (int i = 0; i < 4; i++)
-	//int i = 0;
 	{
-		//cur_offset = amplifyFactor * pixelSize * offsets[i];
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
 		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
@@ -193,11 +134,76 @@ PixelShaderOutput main(PixelShaderInput input) {
 	
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
-	//output.ssao = float4(ssao_sum_noweight, 1);
-	//output.bent = float4(bent_sum_noweight, 1);
-	
-	//output.ssao = float4(ssao_sum, 1);
-	//blurweight /= 4;
-	//output.ssao = float4(blurweight, blurweight, blurweight, 1);
 	return output;
 }
+
+/*
+#define BLUR_SAMPLES_2 9
+PixelShaderOutput main(PixelShaderInput input) {
+	static const float2 offsets[9] =
+	{
+		float2(-1.5,-1.5), float2(0.0,-1.5), float2(1.5,-1.5),
+		float2(-1.5, 0.0), float2(0.0, 0.0), float2(1.5, 0.0),
+		float2(-1.5, 1.5), float2(0.0, 1.5), float2(1.5, 1.5),
+	};
+	float2 cur_offset, cur_offset_scaled;
+	float2 pixelSize = float2(pixelSizeX, pixelSizeY);
+	float2 input_uv_scaled = input.uv * amplifyFactor;
+	float  blurweight = 0, tap_weight;
+	BlurData center, tap;
+	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
+	float3 tap_bent, bent_sum, bent_sum_noweight;
+	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
+	float3 Q = DepthTex2.Sample(DepthSampler2, input.uv).xyz;
+	float3 tapFG, tapBG;
+	bool FGFlag = true;
+	center.pos = P;
+	if (Q.z < P.z) {
+		FGFlag = false;
+		center.pos = Q;
+	}
+
+	PixelShaderOutput output;
+	output.ssao = float4(0, 0, 0, 1);
+	output.bent = float4(0, 0, 0, 1);
+
+	ssao_sum = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
+	bent_sum = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
+	//center.pos    = DepthTex.Sample(DepthSampler, input.uv).xyz;
+	center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
+	blurweight = 1;
+	ssao_sum_noweight = ssao_sum;
+	bent_sum_noweight = bent_sum;
+
+	[unroll]
+	for (int i = 0; i < BLUR_SAMPLES_2; i++)
+	{
+		cur_offset = pixelSize * offsets[i];
+		cur_offset_scaled = amplifyFactor * cur_offset;
+		tap_ssao = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap_bent = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		if (FGFlag)
+			tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
+		else
+			tap.pos = DepthTex2.Sample(DepthSampler2, input.uv + cur_offset).xyz;
+		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
+
+		tap_weight = compute_spatial_tap_weight(center, tap);
+
+		blurweight += tap_weight;
+		ssao_sum += tap_ssao * tap_weight;
+		ssao_sum_noweight += tap_ssao;
+		bent_sum += tap_bent * tap_weight;
+		bent_sum_noweight += tap_bent;
+	}
+
+	ssao_sum /= blurweight;
+	bent_sum /= blurweight;
+	ssao_sum_noweight /= BLUR_SAMPLES_2;
+	bent_sum_noweight /= BLUR_SAMPLES_2;
+
+	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
+	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
+	return output;
+}
+*/
