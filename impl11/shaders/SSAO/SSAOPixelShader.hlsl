@@ -31,7 +31,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0;
-	float4 bentNormal  : SV_TARGET1; // Bent normal map output
+	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
 cbuffer ConstantBuffer : register(b3)
@@ -141,8 +141,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = float4(1, 1, 1, 1);
-	output.bentNormal = float4(0, 0, 0, 0);
-	//float3 dummy = float3(0, 0, 0);
+	//output.bentNormal = float4(0, 0, 0, 0);
 	
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);

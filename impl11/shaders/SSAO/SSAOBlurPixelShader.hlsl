@@ -52,7 +52,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 ssao : SV_TARGET0;
-	float4 bent : SV_TARGET1;
+	//float4 bent : SV_TARGET1;
 };
 
 float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
@@ -82,7 +82,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float  blurweight = 0, tap_weight;
 	BlurData center, tap;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
-	float3 tap_bent, bent_sum, bent_sum_noweight;
+	//float3 tap_bent, bent_sum, bent_sum_noweight;
 	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
 	float3 Q = DepthTex2.Sample(DepthSampler2, input.uv).xyz;
 	float3 tapFG, tapBG;
@@ -95,15 +95,15 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	PixelShaderOutput output;
 	output.ssao = float4(0, 0, 0, 1);
-	output.bent = float4(0, 0, 0, 1);
+	//output.bent = float4(0, 0, 0, 1);
 	
 	ssao_sum      = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
-	bent_sum      = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
+	//bent_sum      = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
 	//center.pos    = DepthTex.Sample(DepthSampler, input.uv).xyz;
 	center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
 	blurweight    = 1;
 	ssao_sum_noweight = ssao_sum;
-	bent_sum_noweight = bent_sum;
+	//bent_sum_noweight = bent_sum;
 	
 	[unroll]
 	for (int i = 0; i < BLUR_SAMPLES; i++)
@@ -111,7 +111,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
 		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		//tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		if (FGFlag)
 			tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
 		else
@@ -123,17 +123,17 @@ PixelShaderOutput main(PixelShaderInput input) {
 		blurweight        += tap_weight;
 		ssao_sum          += tap_ssao * tap_weight;
 		ssao_sum_noweight += tap_ssao;
-		bent_sum          += tap_bent * tap_weight;
-		bent_sum_noweight += tap_bent;
+		//bent_sum          += tap_bent * tap_weight;
+		//bent_sum_noweight += tap_bent;
 	}
 	
 	ssao_sum /= blurweight;
-	bent_sum /= blurweight;
+	//bent_sum /= blurweight;
 	ssao_sum_noweight /= BLUR_SAMPLES;
-	bent_sum_noweight /= BLUR_SAMPLES;
+	//bent_sum_noweight /= BLUR_SAMPLES;
 	
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
-	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
+	//output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	return output;
 }
 
