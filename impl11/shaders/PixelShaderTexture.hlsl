@@ -19,10 +19,11 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
+	float4 diffuse  : SV_TARGET1;
+	float4 bloom    : SV_TARGET2;
+	float4 pos3D    : SV_TARGET3;
+	float4 normal   : SV_TARGET4;
+	float4 ssaoMask : SV_TARGET5;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -92,19 +93,26 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.color = texelColor;
 
+	//float3 light = normalize(float3(1, 1, -0.5));
+	//light = normalize(mul(viewMatrix, float4(light, 0)).xyz);
+
 	float3 P = float3(input.pos3D.xyz);
 	output.pos3D  = float4(P, fPosNormalAlpha);
-
+	
 	float3 N = normalize(cross(ddx(P), ddy(P)));
+	//N = normalize(lerp(N, light, diffuse.x));
 	output.normal = float4(N, fPosNormalAlpha);
 
 	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
+
+	output.diffuse = input.color;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
+		output.diffuse = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
@@ -132,7 +140,9 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Process light textures (make them brighter in 32-bit mode)
 	if (bIsLightTexture) {
-		// output.pos3D.a = 0;
+		//output.pos3D = 0;
+		//output.normal = 0;
+		//output.diffuse = 0;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		float val = HSV.z;
@@ -166,6 +176,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		output.diffuse = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -186,15 +197,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsHyperspaceAnim) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		//output.diffuse = 0;
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
 	}
 
 	if (bIsHyperspaceStreak) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		//output.diffuse = 0;
 		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
 	}
 
-	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	output.color = float4(texelColor.xyz, texelColor.w);
 	return output;
 }

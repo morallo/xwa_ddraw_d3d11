@@ -271,10 +271,12 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 // SSAO
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
+float4 g_LightVector = { 0, 0, -1, 0 };
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1588,6 +1590,30 @@ bool LoadBloomParams() {
 	return true;
 }
 
+bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
+{
+	int res = 0;
+	char *c = NULL;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f",
+				x, y, z);
+			if (res < 3) {
+				log_debug("[DBG] [AO] ERROR (skipping), expected at least 3 elements in '%s'", c);
+				return false;
+			}
+		}
+		catch (...) {
+			log_debug("[DBG] [AO] Could not read 3D from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
 bool LoadSSAOParams() {
 	log_debug("[DBG] Loading SSAO params...");
 	FILE *file;
@@ -1678,9 +1704,6 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enable_dual_ssao") == 0) {
 				g_bDisableDualSSAO = !(bool)fValue;
 			}
-			/* else if (_stricmp(param, "white_point") == 0) {
-				g_fSSAOWhitePoint = fValue;
-			} */
 			else if (_stricmp(param, "enable_ssao_in_shader") == 0) {
 				g_bEnableSSAOInShader = (bool)fValue;
 			}
@@ -1690,15 +1713,31 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "debug") == 0) {
 				g_SSAO_PSCBuffer.debug = (int)fValue;
 			}
-			/* else if (_stricmp(param, "norm_weight") == 0) {
-				g_fNormWeight = fValue;
-			} */
-			/* else if (_stricmp(param, "depth_weight") == 0) {
-				g_fDepthWeight = fValue;
-			} */
-			else if (_stricmp(param, "normal_blur_radius") == 0) {
-				g_fNormalBlurRadius = fValue;
+			else if (_stricmp(param, "ssdo_area") == 0) {
+				g_SSAO_PSCBuffer.ssdo_area = fValue;
 			}
+			/*else if (_stricmp(param, "normal_blur_radius") == 0) {
+				g_fNormalBlurRadius = fValue;
+			}*/
+			else if (_stricmp(param, "debug_ssao") == 0) {
+				g_iSSDODebug = (int)fValue;
+			}
+			else if (_stricmp(param, "blur_passes") == 0) {
+				g_iSSAOBlurPasses = (int)fValue;
+			}
+			else if (_stricmp(param, "light_vector") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				float L = sqrt(x*x + y * y + z * z);
+				if (L < 0.001) L = 1.0f;
+
+				g_LightVector.x = x / L;
+				g_LightVector.y = y / L;
+				g_LightVector.z = z / L;
+				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
+					g_LightVector.x, g_LightVector.y, g_LightVector.z);
+			}
+			
 		}
 	}
 	fclose(file);
@@ -4507,15 +4546,16 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[5] = {
+						ID3D11RenderTargetView *rtvs[6] = {
 							resources->_renderTargetView.Get(),
+							resources->_renderTargetViewDiffuse.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
 							bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),
 							resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
 						};
-						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4660,8 +4700,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								resources->_renderTargetView.Get(),
+								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4670,7 +4711,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						// Direct SBS mode
@@ -4679,8 +4720,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								resources->_renderTargetView.Get(),
+								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4689,7 +4731,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4736,8 +4778,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								resources->_renderTargetViewR.Get(),
+								resources->_renderTargetViewDiffuseR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4746,7 +4789,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBufR.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 						}
 					} else {
 						// DirectSBS Mode
@@ -4755,8 +4798,9 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								resources->_renderTargetView.Get(),
+								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4765,7 +4809,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -5185,8 +5229,11 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& context = this->_deviceResources->_d3dDeviceContext;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	if (g_bUseSteamVR)
+	context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuse, this->_deviceResources->clearColor);
+	if (g_bUseSteamVR) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuseR, this->_deviceResources->clearColor);
+	}
 
 	// Clear the Bloom Mask RTVs
 	if (g_bBloomEnabled) {

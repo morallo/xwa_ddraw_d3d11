@@ -178,18 +178,19 @@ typedef struct BloomConfigStruct {
 } BloomConfig;
 
 typedef struct BloomPixelShaderCBStruct {
-	float pixelSizeX, pixelSizeY, white_point, amplifyFactor;
+	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength;
 	int enableSSAO;
 	// 32 bytes
 	int enableBentNormals;
-	float norm_weight, depth_weight, normal_blur_radius;
+	float unused1, depth_weight;
+	int debug;
 	// 48 bytes
 } BloomPixelShaderCBuffer;
 
 typedef struct SSAOPixelShaderCBStruct {
-	float screenSizeX, screenSizeY, unused1, bias;
+	float screenSizeX, screenSizeY, ssdo_area, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	int samples;
@@ -213,16 +214,20 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
-typedef struct PixelShaderMatrixCBStruct {
-	Matrix4 projEye;
-	Matrix4 viewMat;
-	Matrix4 fullViewMat;
-} PixelShaderMatrixCB;
+typedef struct float3_struct {
+	float x, y, z;
+} float3;
 
 typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
+typedef struct PixelShaderMatrixCBStruct {
+	Matrix4 projEye;
+	Matrix4 viewMat;
+	Matrix4 fullViewMat;
+	float4  LightVector;
+} PixelShaderMatrixCB;
 
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
@@ -387,14 +392,16 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBuf2R;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _normBuf;    // No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;   // No MSAA
-	ComPtr<ID3D11Texture2D> _bentBuf;    // No MSAA
-	ComPtr<ID3D11Texture2D> _bentBufR;   // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBuf;    // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBufR;   // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMask;	 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMaskR;	 // No MSAA
+	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
+	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _diffuseBuf;		// No MSAA
+	ComPtr<ID3D11Texture2D> _diffuseBufR;	// No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -430,6 +437,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuse;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuseR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -459,6 +468,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
+	ComPtr<ID3D11ShaderResourceView> _diffuseSRV;
+	ComPtr<ID3D11ShaderResourceView> _diffuseSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

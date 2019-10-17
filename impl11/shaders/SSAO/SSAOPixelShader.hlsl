@@ -20,6 +20,10 @@ SamplerState sampNorm  : register(s2);
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
 
+// The diffuse buffer
+Texture2D    texDiff  : register(t4);
+SamplerState sampDiff : register(s4);
+
 #define INFINITY_Z 10000
 
 struct PixelShaderInput
@@ -31,12 +35,12 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0;
-	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
+	float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
 cbuffer ConstantBuffer : register(b3)
 {
-	float screenSizeX, screenSizeY, scale, bias;
+	float screenSizeX, screenSizeY, ssdo_area, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	uint samples;
@@ -46,6 +50,14 @@ cbuffer ConstantBuffer : register(b3)
 	// 48 bytes
 	uint debug, unused1, unused2, unused3;
 	// 64 bytes
+};
+
+cbuffer ConstantBuffer : register(b4)
+{
+	matrix projEyeMatrix;
+	matrix viewMatrix;
+	matrix fullViewMatrix;
+	float4 LightVector;
 };
 
 struct BlurData {
@@ -76,7 +88,7 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
 }
 
-inline float3 doAmbientOcclusion(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv, 
+inline float3 doAmbientOcclusion_old(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv, 
 	//float cur_radius, float max_radius, 
 	in float3 P, in float3 Normal /*, inout float3 BentNormal */)
 {
@@ -137,21 +149,93 @@ inline float3 doAmbientOcclusion(bool FGFlag, /* in float2 input_uv, */ in float
 	return intensity * pow(ao_factor, power);
 }
 
+inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
+	in float3 P, in float3 Normal, in float3 light, 
+	in float cur_radius, in float max_radius,
+	inout float3 BentNormal)
+{
+	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
+	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+	// diff: Vector from current pos (P) to the sampled neighbor
+	const float3 diff = occluder - P;
+	const float diff_sqr = dot(diff, diff);
+	// v: Normalized (occluder - P) vector
+	const float3 v = diff * rsqrt(diff_sqr);
+	const float max_dist_sqr = max_dist * max_dist;
+	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+
+	float ao_dot = max(0.0, dot(Normal, v) - bias);
+	float ao_factor = ao_dot * weight;
+	// This formula is wrong; but it worked pretty well:
+	//float visibility = saturate(1 - step(bias, ao_factor));
+	float visibility = 1 - ao_dot;
+	float2 uv_diff = sample_uv - input_uv;
+	float3 B = float3(0, 0, 0);
+	float3 result = color * 0.2;
+	if (diff.z > 0.0) {
+		B.x =  uv_diff.x;
+		B.y = -uv_diff.y;
+		//B.z =  -(max_radius - cur_radius);
+		B.z =  0.01 * (max_radius - cur_radius) / max_radius;
+		//B = -v;
+		BentNormal += B;
+		B = normalize(B);
+	}
+	if (debug == -1) return visibility;
+	float3 N = (debug == 1) ? Normal : B;
+	if (debug == 2) {
+		return visibility * intensity * saturate(dot(N, light));
+	}
+	//return result + color * visibility * intensity * saturate(dot(B, light));
+	return result + color * visibility * intensity * saturate(dot(N, light));
+	//return visibility;
+	//return result + color * ao_factor * saturate(dot(Normal, light));
+	//return color * saturate(dot(Normal, light));
+
+	/*
+	//float3 ao = ao_factor;
+	//if (ao_factor > 0.1)
+	{
+		float3 occluder_col = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+		float3 occluder_N	= texNorm.SampleLevel(sampNorm, sample_uv, 0).xyz;
+		float3 diffuse		= texDiff.SampleLevel(sampDiff, sample_uv, 0).xyz;
+		float occ_normal_factor = saturate(dot(Normal, occluder_N));
+		//float occ_light_factor = dot(occluder_N, light);
+		//float diff_factor = dot(0.333, diffuse);
+		float diff_factor = diffuse.r;
+		//occluder_col *= saturate(ssdo_area * occ_normal_factor * occ_light_factor * rsqrt(diff_sqr));
+		//ssdo += occluder_col * occ_normal_factor * (1 - ao_dot) * weight * diff_factor;
+		//ssdo += occluder_col * occ_normal_factor * weight * diff_factor;
+		//ssdo += occluder_col * ao_factor * occ_normal_factor * diff_factor;
+		ssdo += occluder_col * ao_factor * diff_factor;
+	}
+	ssdo = ssdo_area * ssdo;
+	return intensity * ao;
+	//float3 ssdo = intensity * ssdo_area * ao_factor * occ_light_factor * occ_cur_factor * occluder_col;
+	//return intensity * lerp(ao, ssdo, ao_factor);
+	//return intensity * pow(ao_factor, power);
+	*/
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.ssao = float4(1, 1, 1, 1);
-	//output.bentNormal = float4(0, 0, 0, 0);
+	output.ssao = float4(0, 0, 0, 1);
+	output.bentNormal = float4(0, 0, 0, 1);
 	
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n  = getNormal(input.uv);
+	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	float3 diff  = texDiff.SampleLevel(sampDiff, input.uv, 0).xyz;
 	//float3 bentNormal = float3(0, 0, 0);
-	//float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
-	float3 ao = float3(0.0, 0.0, 0.0);
+	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
+	float3 ao = 0;
+	float3 ssdo = 0;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
+	float DiffAtCenter = saturate((diff - 0.5) * 2.0).r;
 	
 	if (P1.z < P2.z) {
 		p = P1;
@@ -167,13 +251,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
+	//float3 light = 1;
+	//float3 light  = normalize(float3(1, 1, -0.5));
+	//float3 light = normalize(float3(-1, 1, -0.5));
+	float3 light = LightVector.xyz;
+	//light = mul(viewMatrix, float4(light, 0)).xyz;
+
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
 	float max_radius = radius * (float)(samples - 1 + sample_jitter);
-	//float max_radius = radius;
 
 	// SSAO Calculation
 	//bentNormal = n;
@@ -182,15 +271,21 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix); 
-		ao += doAmbientOcclusion(FGFlag, /* input.uv, */ sample_uv, /* max_radius, */ p, n /*, bentNormal */);
+		ao += doSSDODirect(FGFlag, input.uv, sample_uv, color,
+			p, n, light, 
+			radius * (j + sample_jitter), max_radius, 
+			bentNormal);
 		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, max_radius, p, n, bentNormal);
 		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, 
 		//	radius * (j + sample_jitter), max_radius, 
 		//	p, n, bentNormal);
 	}
-
-	ao = 1 - ao / (float)samples;
-	output.ssao.xyz *= lerp(black_level, ao, ao);
+	//ao = 1 - ao / (float)samples;
+	ao = ao / (float)samples;
+	//ssdo = saturate(ssdo / (float)samples);
+	//output.ssao.xyz *= lerp(black_level, ao, ao);
+	output.ssao.xyz = ao;
+	output.bentNormal.xyz = normalize(bentNormal);
 	
 	/*
 	float B = length(bentNormal);

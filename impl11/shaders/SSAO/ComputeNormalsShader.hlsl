@@ -32,7 +32,7 @@ cbuffer ConstantBuffer : register(b2)
 	uint enableSSAO;
 	// 32 bytes
 	uint enableBentNormals;
-	float norm_weight, depth_weight, normal_blur_radius;
+	float unused1, depth_weight, normal_blur_radius;
 };
 
 PixelShaderOutput main_old(PixelShaderInput input)

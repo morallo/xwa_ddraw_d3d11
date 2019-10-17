@@ -35,7 +35,7 @@ extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEna
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
-extern bool g_bDumpSSAOBuffers;
+extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug;
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -159,7 +159,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				return 0;
 			case 'X':
-				//g_bDumpSSAOBuffers = true;
+				g_bDumpSSAOBuffers = true;
+				return 0;
+			case 'P':
+				g_bEnableBentNormalsInShader = !g_bEnableBentNormalsInShader;
 				return 0;
 			// DEBUG
 			case 'A':
@@ -196,6 +199,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				ToggleCockpitPZHack();
 				return 0;
 
+			/*
 			case 'P': 
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
@@ -215,6 +219,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
 				}
 				break;
+			*/
 
 			case 0xbb:
 				IncreaseScreenScale(0.1f);
