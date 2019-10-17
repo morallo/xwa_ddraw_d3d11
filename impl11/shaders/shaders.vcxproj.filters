@@ -26,7 +26,6 @@
     <FxCompile Include="SBSVertexShader.hlsl" />
     <FxCompile Include="BarrelPixelShader.hlsl" />
     <FxCompile Include="SingleBarrelPixelShader.hlsl" />
-    <FxCompile Include="bloom\BloomPrePassPS.hlsl" />
     <FxCompile Include="bloom\BloomHGaussPS.hlsl" />
     <FxCompile Include="bloom\BloomVGaussPS.hlsl" />
     <FxCompile Include="bloom\BloomCombinePS.hlsl" />
@@ -41,6 +40,7 @@
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
     <FxCompile Include="PixelShaderEmptyDC.hlsl" />
+    <FxCompile Include="SSDO\SSDOIndirect.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

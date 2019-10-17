@@ -274,7 +274,7 @@ bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false; /* , g_bShowNormBufDebug = false; */
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 float4 g_LightVector = { 0, 0, -1, 0 };
 
@@ -1724,6 +1724,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "blur_passes") == 0) {
 				g_iSSAOBlurPasses = (int)fValue;
+			}
+			else if (_stricmp(param, "enable_indirect_ssdo") == 0) {
+				g_bEnableIndirectSSDO = (bool)fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;

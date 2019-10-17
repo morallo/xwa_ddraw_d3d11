@@ -31,6 +31,7 @@
 #include "../Debug/SSAOPixelShader.h"
 #include "../Debug/SSAOBlurPixelShader.h"
 #include "../Debug/SSAOAddPixelShader.h"
+#include "../Debug/SSDOIndirect.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -57,6 +58,7 @@
 #include "../Release/SSAOPixelShader.h"
 #include "../Release/SSAOBlurPixelShader.h"
 #include "../Release/SSAOAddPixelShader.h"
+#include "../Release/SSDOIndirect.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -1986,6 +1988,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -2185,6 +2190,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 	}
 

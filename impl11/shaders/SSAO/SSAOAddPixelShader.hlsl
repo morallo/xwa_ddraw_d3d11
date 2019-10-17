@@ -57,6 +57,7 @@ cbuffer ConstantBuffer : register(b4)
 	matrix projEyeMatrix;
 	matrix viewMatrix;
 	matrix fullViewMatrix;
+	float4 LightVector;
 };
 
 struct PixelShaderInput
@@ -113,43 +114,3 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//color = HSVtoRGB(HSV);
 	//return float4(color, 1);
 }
-
-/*
-float4 main(PixelShaderInput input) : SV_TARGET
-{
-	float2 input_uv_sub = input.uv * amplifyFactor;
-	float3 color = texture0.Sample(sampler0, input.uv).xyz;
-	float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
-	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
-	float4 ssdo = texSSAO.Sample(samplerSSAO, input_uv_sub);
-	float  ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).x;
-	float  mask = max(dot(0.333, bloom.xyz), ssaoMask);
-	
-	float3 light = normalize(float3(1, 1, -0.5));
-	//light = mul(viewMatrix, float4(light, 0)).xyz;
-	//float light_occlusion = 1 - saturate(dot(float4(light, 1), ssdo));
-	float ssao = (enableSSAO) ? lerp(ssdo.r, 1, mask) : 1;
-	float diffuse = (enableBentNormals) ? saturate(dot(bentN, light)) : 1;
-	diffuse *= white_point * ssao;
-	//float diffuse = white_point * saturate(dot(Normal, light));
-	float ambient = 0.2;
-
-	color = saturate((ambient + diffuse) * color);
-	//ssao = enableSSAO ? ssao : 1.0f;
-	float3 mult_layer = lerp(color * ssao, color, mask);
-	return float4(mult_layer, 1);
-	//return float4(color, 1);
-
-	// Let's use SSAO to also lighten some areas:
-	//float3 screen_layer = 1 - (1 - color) * (1 - ssao * white_point);
-	//float3 mix = lerp(mult_layer, screen_layer, ssao.r);
-	//return float4(mix, 1);
-
-	//float3 HSV = RGBtoHSV(color);
-	//HSV.z *= ssao.r;
-	//HSV.z = ssao.r;
-	//color = HSVtoRGB(HSV);
-	//return float4(color, 1);
-}
-*/

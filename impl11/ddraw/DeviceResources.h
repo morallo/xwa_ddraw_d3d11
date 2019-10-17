@@ -492,6 +492,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssaoPS;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
+	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

@@ -31,12 +31,38 @@ void IncreaseFocalDist(float Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
 
+// Debug functions
+void log_debug(const char *format, ...);
+
+typedef struct float4_struct {
+	float x, y, z, w;
+} float4;
+
+void Normalize(float4 *Vector) {
+	float x = Vector->x;
+	float y = Vector->y;
+	float z = Vector->z;
+	float L = sqrt(x*x + y * y + z * z);
+	if (L < 0.001) L = 1.0f;
+
+	Vector->x = x / L;
+	Vector->y = y / L;
+	Vector->z = z / L;
+}
+
+void PrintVector(const float4 &Vector) {
+	log_debug("[DBG] Vector: %0.3f, %0.3f, %0.3f",
+		Vector.x, Vector.y, Vector.z);
+}
+
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled;
 extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug;
+extern float4 g_LightVector;
+
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -70,9 +96,6 @@ extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
 void ShutDownSteamVR();
 
-// Debug functions
-void log_debug(const char *format, ...);
-
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)	  & 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
@@ -92,17 +115,25 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
+				g_LightVector.x += 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
 			case VK_LEFT:
+				g_LightVector.x -= 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
 
 			case VK_UP:
-				// DBG HACK REMOVE LATER
-				//IncreaseNoDrawAfterHUD(1);
+				g_LightVector.y += 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
 			case VK_DOWN:
-				// DBG HACK REMOVE LATER
-				//IncreaseNoDrawAfterHUD(-1);
+				g_LightVector.y -= 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
 			}
 		}
@@ -259,13 +290,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 #endif
 
-			case VK_RIGHT:
-				//IncreaseSkipNonZBufferDrawIdx(1);
+			// Ctrl + Up
+			case VK_UP:
+				g_LightVector.z += 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
-			case VK_LEFT:
-				//IncreaseSkipNonZBufferDrawIdx(-1);
+			// Ctrl + Down
+			case VK_DOWN:
+				g_LightVector.z -= 0.1f;
+				Normalize(&g_LightVector);
+				PrintVector(g_LightVector);
 				return 0;
-
 			}
 		}
 
@@ -341,6 +377,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				if (g_bUseSteamVR)
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
+				g_LightVector.x = 1;
+				g_LightVector.y = 1;
+				g_LightVector.z = -1;
+				Normalize(&g_LightVector);
+				log_debug("[DBG] Reset Light Vector");
+				PrintVector(g_LightVector);
 				break;
 			}
 		}
