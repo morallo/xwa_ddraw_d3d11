@@ -48,7 +48,8 @@ cbuffer ConstantBuffer : register(b3)
 	uint z_division;
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
-	uint debug, unused1, unused2, unused3;
+	uint debug;
+	float moire_offset, unused2, unused3;
 	// 64 bytes
 };
 
@@ -157,6 +158,8 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (P) to the sampled neighbor
+	//       If the occluder is farther than P, then diff.z will be positive
+	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
 	const float diff_sqr = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
@@ -172,7 +175,7 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	float2 uv_diff = sample_uv - input_uv;
 	float3 B = 0;
 	float3 result = color * 0.15;
-	if (diff.z > 0.0)
+	if (diff.z > 0.0) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
@@ -180,16 +183,23 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 		B.z =  0.01 * (max_radius - cur_radius) / max_radius;
 		//B = -v;
 		//B *= step(0, visibility);
-		BentNormal += B;
+		// Adding the normalized B to BentNormal seems to yield better normals
+		// if B is added to BentNormal before normalization, the resulting normals
+		// look more faceted
 		B = normalize(B);
+		BentNormal += B;
+		// I think we can get rid of the visibility term and just return the following
+		// from this case or 0 outside this "if" block.
+		//if (debug == 2)
+		//	return intensity * saturate(dot(B, light));
+		//return result + color * intensity * saturate(dot(B, light));
 	}
 	if (debug == -1) return visibility;
-	float3 N = (debug == 1) ? Normal : B;
+	//float3 N = (debug == 1) ? Normal : B;
 	if (debug == 2) {
 		return visibility * intensity * saturate(dot(B, light));
 	}
-	return result + color * visibility * intensity * saturate(dot(N, light));
-	//return result + color * visibility * intensity * saturate(dot(N, light));
+	return result + color * visibility * intensity * saturate(dot(B, light));
 
 	//return visibility;
 	//return result + color * ao_factor * saturate(dot(Normal, light));
@@ -222,10 +232,7 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 
 PixelShaderOutput main(PixelShaderInput input)
 {
-	PixelShaderOutput output;
-	output.ssao = float4(0, 0, 0, 1);
-	output.bentNormal = float4(0, 0, 0, 1);
-	
+	PixelShaderOutput output;	
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n  = getNormal(input.uv);
@@ -240,6 +247,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius = sample_radius;
 	bool FGFlag;
 	float DiffAtCenter = saturate((diff - 0.5) * 2.0).r;
+
+	//output.ssao = float4(0, 0, 0, 1); // SSAO
+	output.ssao = float4(color, 1); // SSDO
+	output.bentNormal = float4(0, 0, 0, 1);
 	
 	if (P1.z < P2.z) {
 		p = P1;
@@ -249,17 +260,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		FGFlag = false;
 	}
 	// This apparently helps prevent z-fighting noise
-	p += 0.01 * n;
+	//p += 0.01 * n;
+	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
+	//p += m_offset * n;
+	p.z -= m_offset;
 	
 	// Early exit: do not compute SSAO for objects at infinity
-	if (p.z > INFINITY_Z) return output;
+	if (p.z > INFINITY_Z) return output; // SSAO
 
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
-	//float3 light = 1;
-	//float3 light  = normalize(float3(1, 1, -0.5));
-	//float3 light = normalize(float3(-1, 1, -0.5));
 	float3 light = LightVector.xyz;
 	//light = mul(viewMatrix, float4(light, 0)).xyz;
 
@@ -276,7 +287,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
-		sample_direction.xy = mul(sample_direction.xy, rotMatrix); 
+		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ao += doSSDODirect(FGFlag, input.uv, sample_uv, color,
 			p, n, light, 
 			radius * (j + sample_jitter), max_radius, 

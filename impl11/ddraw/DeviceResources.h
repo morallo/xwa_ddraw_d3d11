@@ -198,7 +198,8 @@ typedef struct SSAOPixelShaderCBStruct {
 	int z_division;
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
-	int debug, unused3, unused4, unused5;
+	int debug;
+	float moire_offset, unused4, unused5;
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

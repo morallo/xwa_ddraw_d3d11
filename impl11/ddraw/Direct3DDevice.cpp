@@ -1628,6 +1628,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.sample_radius = 0.0035f;
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 16;
+	g_SSAO_PSCBuffer.moire_offset = 0.01f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -1727,6 +1728,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "enable_indirect_ssdo") == 0) {
 				g_bEnableIndirectSSDO = (bool)fValue;
+			}
+			else if (_stricmp(param, "moire_offset") == 0) {
+				g_SSAO_PSCBuffer.moire_offset = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;

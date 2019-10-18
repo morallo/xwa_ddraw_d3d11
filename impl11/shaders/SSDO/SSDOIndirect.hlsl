@@ -48,7 +48,8 @@ cbuffer ConstantBuffer : register(b3)
 	uint z_division;
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
-	uint debug, unused1, unused2, unused3;
+	uint debug;
+	float moire_offset, unused2, unused3;
 	// 64 bytes
 };
 
@@ -173,7 +174,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		FGFlag = false;
 	}
 	// This apparently helps prevent z-fighting noise
-	p += 0.01 * n;
+	//p += 0.01 * n;
+	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
+	//p += m_offset * n;
+	p.z -= m_offset;
 
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z) return output;
