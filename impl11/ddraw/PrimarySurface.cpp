@@ -87,6 +87,7 @@ int g_iBloomPasses[8] = {
 };
 
 // SSAO
+extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
@@ -2472,7 +2473,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	resources->InitVertexShader(resources->_mainVertexShader);
 
 	
-	// SSAO Computation, Left Image
+	// SSDO Direct Lighting, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
 	// Output _ssaoBuf, _bentBuf
@@ -2487,7 +2488,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			resources->_offscreenAsInputShaderResourceView.Get(),
 			resources->_diffuseSRV.Get(),
 		};
-		resources->InitPixelShader(resources->_ssaoPS);
+		resources->InitPixelShader(resources->_ssdoDirectPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
@@ -2524,17 +2525,16 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
 	g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
 	g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
-	//g_BloomPSCBuffer.norm_weight			= g_fNormWeight;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 	g_BloomPSCBuffer.debug				= g_iSSDODebug;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-	// SSAO Blur, Left Image
+	// SSDO Blur, Left Image
 	// input: offscreenAsInput (with a copy of the ssaoBuf), depthBuf, bentBufR (with a copy of bentBuf), normBuf
 	// output: ssaoBuf, bentBuf
 	if (g_bBlurSSAO) 
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-			resources->InitPixelShader(resources->_ssaoBlurPS);
+			resources->InitPixelShader(resources->_ssdoBlurPS);
 			// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
 			// to blur the SSAO buffer
 			context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
@@ -2610,7 +2610,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 
 	if (g_bEnableIndirectSSDO && g_bBlurSSAO)
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-			resources->InitPixelShader(resources->_ssaoBlurPS);
+			resources->InitPixelShader(resources->_ssdoBlurPS);
 			// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
 			// to blur the SSAO buffer
 			context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
@@ -2671,7 +2671,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 		// so that it can be used as an SRV
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-		resources->InitPixelShader(resources->_ssaoAddPS);
+		resources->InitPixelShader(resources->_ssdoAddPS);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
@@ -3260,7 +3260,14 @@ HRESULT PrimarySurface::Flip(
 
 				// Input: depthBuf, normBuf, randBuf
 				// Output: _bloom1
-				SSAOPass(g_fSSAOZoomFactor);
+				switch (g_SSAO_Type) {
+					case SSO_AMBIENT:
+						SSAOPass(g_fSSAOZoomFactor);
+						break;
+					case SSO_DIRECTIONAL:
+						SSDOPass(g_fSSAOZoomFactor);
+						break;
+				}
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");

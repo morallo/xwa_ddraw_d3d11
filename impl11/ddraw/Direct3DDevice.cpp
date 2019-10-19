@@ -269,6 +269,7 @@ extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_P
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
+SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
@@ -1663,9 +1664,14 @@ bool LoadSSAOParams() {
 				g_bAOEnabled = state;
 			}
 
-			/* else if (_stricmp(param, "scale") == 0) {
-				g_SSAO_PSCBuffer.scale = fValue;
-			} */
+			else if (_stricmp(param, "ssao_type") == 0) {
+				if (_stricmp(svalue, "ambient") == 0) {
+					g_SSAO_Type = SSO_AMBIENT;
+				}
+				else if (_stricmp(svalue, "directional") == 0) {
+					g_SSAO_Type = SSO_DIRECTIONAL;
+				}
+			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
 			}
@@ -1714,8 +1720,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "debug") == 0) {
 				g_SSAO_PSCBuffer.debug = (int)fValue;
 			}
-			else if (_stricmp(param, "ssdo_area") == 0) {
-				g_SSAO_PSCBuffer.ssdo_area = fValue;
+			else if (_stricmp(param, "indirect_intensity") == 0) {
+				g_SSAO_PSCBuffer.indirect_intensity = fValue;
 			}
 			/*else if (_stricmp(param, "normal_blur_radius") == 0) {
 				g_fNormalBlurRadius = fValue;

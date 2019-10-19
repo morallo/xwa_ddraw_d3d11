@@ -40,7 +40,7 @@ struct PixelShaderOutput
 
 cbuffer ConstantBuffer : register(b3)
 {
-	float screenSizeX, screenSizeY, ssdo_area, bias;
+	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	uint samples;
@@ -121,17 +121,17 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 		B = normalize(B);
 		//return 0; // Center is occluded
 		if (debug == 3) {
-			//return (1 - visibility) * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-			//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-			return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
+			//return (1 - visibility) * saturate(dot(B, -occluder_Normal)) * weight;
+			//return occluder_color * saturate(dot(B, -occluder_Normal)) * weight;
+			return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
 
 			// This returns something that looks like a nice Z-component normal:
 			// (maybe I can use this to compute the bent normal's z component!)
 			//return float3(0, 1, 0);
 		}
 		// According to the reference SSDO implementation, we should be doing something like:
-		return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
-		//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
+		return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
+		//return occluder_color * saturate(dot(B, -occluder_Normal)) * weight;
 	}
 	return 0; // Center is not occluded
 
@@ -153,9 +153,6 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.ssao = float4(0, 0, 0, 1);
-	//output.bentNormal = float4(0, 0, 0, 1);
-
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
@@ -168,6 +165,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
+	output.ssao = float4(color, 1);
+	//output.bentNormal = float4(0, 0, 0, 1);
 
 	if (P1.z < P2.z) {
 		p = P1;
@@ -206,12 +205,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo += doSSDOIndirect(FGFlag, input.uv, sample_uv, color,
-			p, n, light,
-			radius * (j + sample_jitter), max_radius
-			/* bentNormal */ );
+			p, n, light, radius * (j + sample_jitter), max_radius);
 	}
 	//ao = 1 - ao / (float)samples;
-	ssdo = ssdo / (float)samples;
+	ssdo = indirect_intensity * ssdo / (float)samples;
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);
 	if (debug == 3)

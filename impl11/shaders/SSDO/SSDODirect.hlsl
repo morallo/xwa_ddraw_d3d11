@@ -89,73 +89,11 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
 }
 
-inline float3 doAmbientOcclusion_old(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv,
-	//float cur_radius, float max_radius, 
-	in float3 P, in float3 Normal /*, inout float3 BentNormal */)
-{
-	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
-	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
-	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
-	// diff: Vector from current pos (p) to sampled neighbor
-	float3 diff = occluder - P;
-	const float diff_sqr = dot(diff, diff);
-	// v: Normalized (occluder - P) vector
-	const float3 v = diff * rsqrt(diff_sqr);
-	const float max_dist_sqr = max_dist * max_dist;
-	//const float weight = smoothstep(0, 1, saturate(max_dist - abs(occluder.z - P.z)));
-	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
-	//const float  d = L * scale;
-
-	/*if (zdist > 0.0) {
-		float2 uv_diff = sample_uv - input_uv;
-		float cur_radius2 = cur_radius * cur_radius;
-		float3 B = float3(uv_diff.x, -uv_diff.y, sqrt(cur_radius2 - dot(uv_diff, uv_diff)));
-		B = normalize(B);
-		//float weight = dot(Normal, B);
-		//BentNormal += weight * B;
-		BentNormal += B;
-	}*/
-
-	float ao_dot = max(0.0, dot(Normal, v) - bias);
-	float ao_factor = ao_dot * weight;
-	//float ao_factor = ao_dot / (1.0 + d);
-	//BentNormal += (1 - ao_dot) * v;
-
-	/*
-	float2 uv_diff = sample_uv - input_uv;
-	float cur_radius2 = max_radius * max_radius;
-	//float3 B = float3(uv_diff.x, uv_diff.y, sqrt(cur_radius2 - dot(uv_diff, uv_diff)));
-	//float3 B = float3(uv_diff.x, uv_diff.y, -0.1 * min(abs(uv_diff.x), abs(uv_diff.y)));
-	float3 B = float3(uv_diff.x, uv_diff.y, 0.1);
-	B = normalize(B);
-	BentNormal += (1 - ao_factor) * B;
-	*/
-
-	// This one works more-or-less OK-ish:
-
-	/*
-	float2 uv_diff = sample_uv - input_uv;
-	float3 B = float3(0, 0, 0);
-	if (diff.z > 0.0) {
-		//B.x = -uv_diff.x;
-		//B.y =  uv_diff.y;
-		//B.z =  -(max_radius - cur_radius);
-		//B.z = -0.01 * (max_radius - cur_radius) / max_radius;
-		//B = normalize(B);
-		B = -v;
-		BentNormal += B;
-	}
-	*/
-
-	return intensity * pow(ao_factor, power);
-}
-
 inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal, in float3 light,
 	in float cur_radius, in float max_radius,
 	inout float3 BentNormal)
 {
-	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (P) to the sampled neighbor
 	//       If the occluder is farther than P, then diff.z will be positive
@@ -177,12 +115,11 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	float3 result = color * 0.15;
 	if (diff.z > 0.0) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
-		B.x = uv_diff.x;
+		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
 		//B.z =  -(max_radius - cur_radius);
 		B.z = 0.01 * (max_radius - cur_radius) / max_radius;
 		//B = -v;
-		//B *= step(0, visibility);
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
@@ -197,9 +134,9 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	if (debug == -1) return visibility;
 	//float3 N = (debug == 1) ? Normal : B;
 	if (debug == 2) {
-		return visibility * intensity * saturate(dot(B, light));
+		return visibility * saturate(dot(B, light));
 	}
-	return result + color * visibility * intensity * saturate(dot(B, light));
+	return result + color * visibility * saturate(dot(B, light));
 
 	//return visibility;
 	//return result + color * ao_factor * saturate(dot(Normal, light));
@@ -299,7 +236,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//	p, n, bentNormal);
 	}
 	//ao = 1 - ao / (float)samples;
-	ao = ao / (float)samples;
+	ao = intensity * ao / (float)samples;
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);
 	output.ssao.xyz = ao;

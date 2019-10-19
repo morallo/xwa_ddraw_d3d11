@@ -190,7 +190,7 @@ typedef struct BloomPixelShaderCBStruct {
 } BloomPixelShaderCBuffer;
 
 typedef struct SSAOPixelShaderCBStruct {
-	float screenSizeX, screenSizeY, ssdo_area, bias;
+	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	int samples;
@@ -295,6 +295,12 @@ typedef struct move_region_coords_struct {
 	uvfloat4 dst[MAX_HUD_BOXES];
 	int numCoords;
 } move_region_coords;
+
+// SSAO Type
+typedef enum {
+	SSO_AMBIENT,
+	SSO_DIRECTIONAL,
+} SSAOTypeEnum;
 
 class DeviceResources
 {
