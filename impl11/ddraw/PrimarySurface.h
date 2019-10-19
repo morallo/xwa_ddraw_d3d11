@@ -67,6 +67,8 @@ public:
 
 	void SSAOPass(float fZoomFactor);
 
+	void SSDOPass(float fZoomFactor);
+
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
 	STDMETHOD(GetAttachedSurface)(THIS_ LPDDSCAPS, LPDIRECTDRAWSURFACE FAR *);

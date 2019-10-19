@@ -41,6 +41,9 @@
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
     <FxCompile Include="PixelShaderEmptyDC.hlsl" />
     <FxCompile Include="SSDO\SSDOIndirect.hlsl" />
+    <FxCompile Include="SSDO\SSDODirect.hlsl" />
+    <FxCompile Include="SSDO\SSDOAdd.hlsl" />
+    <FxCompile Include="SSDO\SSDOBlur.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

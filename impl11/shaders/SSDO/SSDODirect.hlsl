@@ -1,9 +1,9 @@
-// Based on Pascal Gilcher's MXAO implementation and on
-// the following:
-// https://www.gamedev.net/articles/programming/graphics/a-simple-and-practical-approach-to-ssao-r2753/
-// Adapted for XWA by Leo Reyes.
-// Licensed under the MIT license. See LICENSE.txt
-
+/*
+ * Screen-Space Directional Occlusion, based on Ritschel's paper with
+ * code adapted from Pascal Gilcher's MXAO.
+ * Adapted for XWA by Leo Reyes.
+ * Licensed under the MIT license. See LICENSE.txt
+ */
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
@@ -16,13 +16,13 @@ SamplerState sampPos2 : register(s1);
 Texture2D    texNorm   : register(t2);
 SamplerState sampNorm  : register(s2);
 
-// The color buffer (with the accumulated first pass SSDO)
+// The color buffer
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
 
 // The diffuse buffer
-//Texture2D    texDiff  : register(t4);
-//SamplerState sampDiff : register(s4);
+Texture2D    texDiff  : register(t4);
+SamplerState sampDiff : register(s4);
 
 #define INFINITY_Z 10000
 
@@ -35,7 +35,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0;
-	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
+	float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
 cbuffer ConstantBuffer : register(b3)
@@ -86,18 +86,80 @@ float3 getPositionBG(in float2 uv) {
 //};
 
 inline float3 getNormal(in float2 uv) {
-	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
+	return texNorm.Sample(sampNorm, uv).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal, in float3 light,
-	in float cur_radius, in float max_radius
-/* inout float3 BentNormal */)
+inline float3 doAmbientOcclusion_old(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv,
+	//float cur_radius, float max_radius, 
+	in float3 P, in float3 Normal /*, inout float3 BentNormal */)
 {
-	float3 occluder_Normal = getNormal(sample_uv); // I can probably read this normal off of the bent buffer later (?)
-	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+	//float3 color   = texColor.Sample(sampColor, tcoord + uv).xyz;
+	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
+	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+	// diff: Vector from current pos (p) to sampled neighbor
+	float3 diff = occluder - P;
+	const float diff_sqr = dot(diff, diff);
+	// v: Normalized (occluder - P) vector
+	const float3 v = diff * rsqrt(diff_sqr);
+	const float max_dist_sqr = max_dist * max_dist;
+	//const float weight = smoothstep(0, 1, saturate(max_dist - abs(occluder.z - P.z)));
+	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+	//const float  d = L * scale;
+
+	/*if (zdist > 0.0) {
+		float2 uv_diff = sample_uv - input_uv;
+		float cur_radius2 = cur_radius * cur_radius;
+		float3 B = float3(uv_diff.x, -uv_diff.y, sqrt(cur_radius2 - dot(uv_diff, uv_diff)));
+		B = normalize(B);
+		//float weight = dot(Normal, B);
+		//BentNormal += weight * B;
+		BentNormal += B;
+	}*/
+
+	float ao_dot = max(0.0, dot(Normal, v) - bias);
+	float ao_factor = ao_dot * weight;
+	//float ao_factor = ao_dot / (1.0 + d);
+	//BentNormal += (1 - ao_dot) * v;
+
+	/*
+	float2 uv_diff = sample_uv - input_uv;
+	float cur_radius2 = max_radius * max_radius;
+	//float3 B = float3(uv_diff.x, uv_diff.y, sqrt(cur_radius2 - dot(uv_diff, uv_diff)));
+	//float3 B = float3(uv_diff.x, uv_diff.y, -0.1 * min(abs(uv_diff.x), abs(uv_diff.y)));
+	float3 B = float3(uv_diff.x, uv_diff.y, 0.1);
+	B = normalize(B);
+	BentNormal += (1 - ao_factor) * B;
+	*/
+
+	// This one works more-or-less OK-ish:
+
+	/*
+	float2 uv_diff = sample_uv - input_uv;
+	float3 B = float3(0, 0, 0);
+	if (diff.z > 0.0) {
+		//B.x = -uv_diff.x;
+		//B.y =  uv_diff.y;
+		//B.z =  -(max_radius - cur_radius);
+		//B.z = -0.01 * (max_radius - cur_radius) / max_radius;
+		//B = normalize(B);
+		B = -v;
+		BentNormal += B;
+	}
+	*/
+
+	return intensity * pow(ao_factor, power);
+}
+
+inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
+	in float3 P, in float3 Normal, in float3 light,
+	in float cur_radius, in float max_radius,
+	inout float3 BentNormal)
+{
+	//float3 occluderNormal = getNormal(uv + uv_offset).xyz;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (P) to the sampled neighbor
+	//       If the occluder is farther than P, then diff.z will be positive
+	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
 	const float diff_sqr = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
@@ -106,68 +168,89 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
-	//float ao_factor = ao_dot * weight;
+	float ao_factor = ao_dot * weight;
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
 	float visibility = 1 - ao_dot;
 	float2 uv_diff = sample_uv - input_uv;
-	float ssdo_dist = min(1, diff_sqr);
 	float3 B = 0;
-	if (diff.z < 0.0) { // If there's occlusion, then compute B
-		B.x =  uv_diff.x;
+	float3 result = color * 0.15;
+	if (diff.z > 0.0) // occluder is farther than P -- no occlusion, visibility is 1.
+	{
+		B.x = uv_diff.x;
 		B.y = -uv_diff.y;
 		//B.z =  -(max_radius - cur_radius);
 		B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+		//B = -v;
+		//B *= step(0, visibility);
+		// Adding the normalized B to BentNormal seems to yield better normals
+		// if B is added to BentNormal before normalization, the resulting normals
+		// look more faceted
 		B = normalize(B);
-		//return 0; // Center is occluded
-		if (debug == 3) {
-			//return (1 - visibility) * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-			//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-			return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
-
-			// This returns something that looks like a nice Z-component normal:
-			// (maybe I can use this to compute the bent normal's z component!)
-			//return float3(0, 1, 0);
-		}
-		// According to the reference SSDO implementation, we should be doing something like:
-		return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
-		//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
+		BentNormal += B;
+		// I think we can get rid of the visibility term and just return the following
+		// from this case or 0 outside this "if" block.
+		//if (debug == 2)
+		//	return intensity * saturate(dot(B, light));
+		//return result + color * intensity * saturate(dot(B, light));
 	}
-	return 0; // Center is not occluded
-
-	
-	//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-	/*else {
-		if (debug == 3)
-			return 0;
-		else
-			return 0;
-	}*/
-	
+	if (debug == -1) return visibility;
+	//float3 N = (debug == 1) ? Normal : B;
+	if (debug == 2) {
+		return visibility * intensity * saturate(dot(B, light));
+	}
+	return result + color * visibility * intensity * saturate(dot(B, light));
 
 	//return visibility;
 	//return result + color * ao_factor * saturate(dot(Normal, light));
 	//return color * saturate(dot(Normal, light));
+
+	/*
+	//float3 ao = ao_factor;
+	//if (ao_factor > 0.1)
+	{
+		float3 occluder_col = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+		float3 occluder_N	= texNorm.SampleLevel(sampNorm, sample_uv, 0).xyz;
+		float3 diffuse		= texDiff.SampleLevel(sampDiff, sample_uv, 0).xyz;
+		float occ_normal_factor = saturate(dot(Normal, occluder_N));
+		//float occ_light_factor = dot(occluder_N, light);
+		//float diff_factor = dot(0.333, diffuse);
+		float diff_factor = diffuse.r;
+		//occluder_col *= saturate(ssdo_area * occ_normal_factor * occ_light_factor * rsqrt(diff_sqr));
+		//ssdo += occluder_col * occ_normal_factor * (1 - ao_dot) * weight * diff_factor;
+		//ssdo += occluder_col * occ_normal_factor * weight * diff_factor;
+		//ssdo += occluder_col * ao_factor * occ_normal_factor * diff_factor;
+		ssdo += occluder_col * ao_factor * diff_factor;
+	}
+	ssdo = ssdo_area * ssdo;
+	return intensity * ao;
+	//float3 ssdo = intensity * ssdo_area * ao_factor * occ_light_factor * occ_cur_factor * occluder_col;
+	//return intensity * lerp(ao, ssdo, ao_factor);
+	//return intensity * pow(ao_factor, power);
+	*/
 }
 
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.ssao = float4(0, 0, 0, 1);
-	//output.bentNormal = float4(0, 0, 0, 1);
-
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
-	//float3 diff =  texDiff.SampleLevel(sampDiff, input.uv, 0).xyz;
+	float3 diff = texDiff.SampleLevel(sampDiff, input.uv, 0).xyz;
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
-	//float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
+	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
+	float3 ao = 0;
 	float3 ssdo = 0;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
+	float DiffAtCenter = saturate((diff - 0.5) * 2.0).r;
+
+	//output.ssao = float4(0, 0, 0, 1); // SSAO
+	output.ssao = float4(color, 1); // SSDO
+	output.bentNormal = float4(0, 0, 0, 1);
 
 	if (P1.z < P2.z) {
 		p = P1;
@@ -184,11 +267,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	p.z -= m_offset;
 
 	// Early exit: do not compute SSAO for objects at infinity
-	if (p.z > INFINITY_Z) return output;
+	if (p.z > INFINITY_Z) return output; // SSAO
 
-	//float3 light = 1;
-	//float3 light  = normalize(float3(1, 1, -0.5));
-	//float3 light = normalize(float3(-1, 1, -0.5));
+	// Enable perspective-correct radius
+	if (z_division) 	radius /= p.z;
+
 	float3 light = LightVector.xyz;
 	//light = mul(viewMatrix, float4(light, 0)).xyz;
 
@@ -199,27 +282,50 @@ PixelShaderOutput main(PixelShaderInput input)
 	sample_direction *= radius;
 	float max_radius = radius * (float)(samples - 1 + sample_jitter);
 
-	// SSDO Indirect Calculation
+	// SSAO Calculation
+	//bentNormal = n;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, input.uv, sample_uv, color,
+		ao += doSSDODirect(FGFlag, input.uv, sample_uv, color,
 			p, n, light,
-			radius * (j + sample_jitter), max_radius
-			/* bentNormal */ );
+			radius * (j + sample_jitter), max_radius,
+			bentNormal);
+		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, max_radius, p, n, bentNormal);
+		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, 
+		//	radius * (j + sample_jitter), max_radius, 
+		//	p, n, bentNormal);
 	}
 	//ao = 1 - ao / (float)samples;
-	ssdo = ssdo / (float)samples;
+	ao = ao / (float)samples;
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);
-	if (debug == 3)
-		output.ssao.xyz = ssdo;
-	else
-		output.ssao.xyz = saturate(color + ssdo);
-	//output.bentNormal.xyz = normalize(bentNormal);
+	output.ssao.xyz = ao;
+	output.bentNormal.xyz = normalize(bentNormal);
 
+	/*
+	float B = length(bentNormal);
+	if (B > 0.001) {
+		// The version that worked did the following:
+		bentNormal = -bentNormal / B;
+
+		//bentNormal = bentNormal / B;
+		//output.bentNormal = float4(bentNormal, 1);
+		//output.bentNormal = float4(bentNormal * 0.5 + 0.5, 1);
+		output.bentNormal = float4(bentNormal, 1);
+		if (debug == 1)
+			output.bentNormal = float4(bentNormal.xxx * 0.5 + 0.5, 1);
+		else if (debug == 2)
+			output.bentNormal = float4(bentNormal.yyy * 0.5 + 0.5, 1);
+		else if (debug == 3)
+			output.bentNormal = float4(bentNormal.zzz * 0.5 + 0.5, 1);
+		else if (debug == 4)
+			output.bentNormal = float4(bentNormal * 0.5 + 0.5, 1);
+	}
+	//output.bentNormal = float4(bentNormal, 1);
+	*/
 	return output;
 }
 
