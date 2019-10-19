@@ -122,12 +122,16 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 		//return 0; // Center is occluded
 		if (debug == 3) {
 			//return (1 - visibility) * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
-			return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
+			//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
+			return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
+
 			// This returns something that looks like a nice Z-component normal:
 			// (maybe I can use this to compute the bent normal's z component!)
 			//return float3(0, 1, 0);
 		}
-		return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
+		// According to the reference SSDO implementation, we should be doing something like:
+		return occluder_color * ssdo_area * saturate(dot(occluder_Normal, -v)) * weight;
+		//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
 	}
 	return 0; // Center is not occluded
 
