@@ -13,17 +13,17 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-// The diffuse buffer -- this one I most definitely won't need
-//Texture2D texDiff : register(t1);
-//SamplerState samplerDiff : register(s1);
-
 // The bloom mask buffer
-Texture2D texBloom : register(t2);
-SamplerState samplerBloom : register(s2);
+Texture2D texBloom : register(t1);
+SamplerState samplerBloom : register(s1);
 
-// The SSAO buffer
-Texture2D texSSAO : register(t3);
-SamplerState samplerSSAO : register(s3);
+// The SSDO Direct buffer
+Texture2D texSSDO : register(t2);
+SamplerState samplerSSDO : register(s2);
+
+// The SSDO Indirect buffer
+Texture2D texSSDOInd : register(t3);
+SamplerState samplerSSDOInd : register(s3);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t4);
@@ -74,24 +74,26 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
 	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
-	float3 ssao = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
+	float3 ssdo    = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	
 	// TODO: Make the ambient component configurable
-	ssao = 0.15 + ssao; // Add the ambient component 
-	ssao = lerp(ssao, 1, mask);
-	return float4(color * ssao, 1);
+	const float ambient = 0.15;
+	ssdo = ambient + ssdo; // Add the ambient component 
+	ssdo = lerp(ssdo, 1, mask);
+	ssdoInd = lerp(ssdoInd, 0, mask);
 
+	if (debug == 4)
+		return float4(ssdoInd, 1);
+	return float4(color * ssdo + ssdoInd, 1);
+	//return float4(color * ssdo, 1);
+	
 	//color = saturate((ambient + diffuse) * color);
 	//ssao = enableSSAO ? ssao : 1.0f;
 
-	/*ssao = lerp(ssao, 1, mask);
-	if (!enableBentNormals) 	bentN = 0;
-	color = color * diffuse.xyz * ssao + bentN;
-	return float4(color, 1);*/
-
-	return float4(ssao, 1);
+	//return float4(ssdo, 1);
 
 	//return float4(color * ssao, 1);
 	//return float4(saturate(color * ssao + bentN * light_factor), 1);

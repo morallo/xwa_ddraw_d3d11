@@ -38,6 +38,7 @@ struct PixelShaderOutput
 	float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
+// SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, ssdo_area, bias;
@@ -49,7 +50,8 @@ cbuffer ConstantBuffer : register(b3)
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
 	uint debug;
-	float moire_offset, unused2, unused3;
+	float moire_offset, amplifyFactor;
+	uint addSSDO;
 	// 64 bytes
 };
 

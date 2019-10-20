@@ -199,7 +199,8 @@ typedef struct SSAOPixelShaderCBStruct {
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
 	int debug;
-	float moire_offset, amplifyFactor, unused5;
+	float moire_offset, amplifyFactor;
+	int addSSDO;
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

@@ -16,13 +16,13 @@ SamplerState sampPos2 : register(s1);
 Texture2D    texNorm   : register(t2);
 SamplerState sampNorm  : register(s2);
 
-// The color buffer (with the accumulated first pass SSDO)
+// The original color buffer 
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
 
-// The diffuse buffer
-//Texture2D    texDiff  : register(t4);
-//SamplerState sampDiff : register(s4);
+// The SSDO buffer with direct lighting from the previous pass
+Texture2D    texSSDO  : register(t4);
+SamplerState sampSSDO : register(s4);
 
 #define INFINITY_Z 10000
 
@@ -40,6 +40,7 @@ struct PixelShaderOutput
 	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
+// SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
@@ -51,7 +52,8 @@ cbuffer ConstantBuffer : register(b3)
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
 	uint debug;
-	float moire_offset, amplifyFactor, unused3;
+	float moire_offset, amplifyFactor;
+	uint addSSDO;
 	// 64 bytes
 };
 
@@ -91,7 +93,7 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv_sub, in float2 sample_uv, in float3 color,
+inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal /*, in float3 light,
 	in float cur_radius, in float max_radius */)
 {
@@ -111,7 +113,7 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv_sub, in float2 samp
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
 	//float visibility = 1 - ao_dot;
-	//float2 uv_diff = sample_uv - input_uv_sub;
+	//float2 uv_diff = sample_uv - input_uv;
 	//float ssdo_dist = min(1, diff_sqr);
 	//float3 B = 0;
 	if (diff.z < 0.0) { // If there's occlusion, then compute B and indirect lighting
@@ -157,20 +159,20 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float2 input_uv_sub = amplifyFactor * input.uv;
-	float3 P1 = getPositionFG(input_uv_sub);
-	float3 P2 = getPositionBG(input_uv_sub);
-	float3 n = getNormal(input_uv_sub);
-	float3 color = texColor.SampleLevel(sampColor, input_uv_sub, 0).xyz;
-	//float3 diff =  texDiff.SampleLevel(sampDiff, input_uv_sub, 0).xyz;
-	//float3 bentNormal = float3(0, 0, 0);
-	// A value of bentNormalInit == 0.2 seems to work fine.
-	//float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
-	float3 ssdo = 0;
+	float3 P1 = getPositionFG(input.uv);
+	float3 P2 = getPositionBG(input.uv);
+	float3 n = getNormal(input.uv);
+	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
+	const float ambient = 0.15;
+	if (addSSDO)
+		color *= ssdo;
+		//color = (ambient + ssdo) * color;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
-	output.ssao = float4(color, 1);
-	//output.bentNormal = float4(0, 0, 0, 1);
+	output.ssao = float4(0, 0, 0, 1);
+	ssdo = 0;
 
 	if (P1.z < P2.z) {
 		p = P1;
@@ -206,7 +208,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
-		sample_uv = input_uv_sub + sample_direction.xy * (j + sample_jitter);
+		sample_uv = saturate(input_uv_sub + sample_direction.xy * (j + sample_jitter));
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo += doSSDOIndirect(FGFlag, input_uv_sub, sample_uv, color,
 			p, n /*, light, radius * (j + sample_jitter), max_radius */);

@@ -1719,6 +1719,7 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_SSAO_PSCBuffer.debug = (int)fValue;
+				g_BloomPSCBuffer.debug = (int)fValue;
 			}
 			else if (_stricmp(param, "indirect_intensity") == 0) {
 				g_SSAO_PSCBuffer.indirect_intensity = fValue;
@@ -1737,6 +1738,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "moire_offset") == 0) {
 				g_SSAO_PSCBuffer.moire_offset = fValue;
+			}
+			else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
+				g_SSAO_PSCBuffer.addSSDO = (int)fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
