@@ -13,9 +13,9 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-// The diffuse buffer
-Texture2D texDiff : register(t1);
-SamplerState samplerDiff : register(s1);
+// The diffuse buffer -- this one I most definitely won't need
+//Texture2D texDiff : register(t1);
+//SamplerState samplerDiff : register(s1);
 
 // The bloom mask buffer
 Texture2D texBloom : register(t2);
@@ -29,13 +29,13 @@ SamplerState samplerSSAO : register(s3);
 Texture2D texSSAOMask : register(t4);
 SamplerState samplerSSAOMask : register(s4);
 
-// The Bent Normals buffer
-Texture2D texBent : register(t5);
-SamplerState samplerBent : register(s5);
+// The Bent Normals buffer... I might need this later when I enable fake normal mapping?
+//Texture2D texBent : register(t5);
+//SamplerState samplerBent : register(s5);
 
 // The Normals buffer
-Texture2D texNormal : register(t6);
-SamplerState samplerNormal : register(s6);
+//Texture2D texNormal : register(t6);
+//SamplerState samplerNormal : register(s6);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if

@@ -4559,16 +4559,15 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[6] = {
+						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
-							resources->_renderTargetViewDiffuse.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
 							bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),
 							resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
 						};
-						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
@@ -4713,9 +4712,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[6] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4724,7 +4722,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						// Direct SBS mode
@@ -4733,9 +4731,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[6] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4744,7 +4741,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4791,9 +4788,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[6] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetViewR.Get(),
-								resources->_renderTargetViewDiffuseR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4802,7 +4798,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBufR.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
-							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
 						}
 					} else {
 						// DirectSBS Mode
@@ -4811,9 +4807,8 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[6] = {
+							ID3D11RenderTargetView *rtvs[5] = {
 								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewDiffuse.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -4822,7 +4817,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
-							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -5242,10 +5237,10 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& context = this->_deviceResources->_d3dDeviceContext;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuse, this->_deviceResources->clearColor);
+	//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuse, this->_deviceResources->clearColor);
 	if (g_bUseSteamVR) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuseR, this->_deviceResources->clearColor);
+		//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuseR, this->_deviceResources->clearColor);
 	}
 
 	// Clear the Bloom Mask RTVs

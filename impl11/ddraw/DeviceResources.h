@@ -407,8 +407,8 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _diffuseBuf;		// No MSAA
-	ComPtr<ID3D11Texture2D> _diffuseBufR;	// No MSAA
+	//ComPtr<ID3D11Texture2D> _diffuseBuf;		// No MSAA
+	//ComPtr<ID3D11Texture2D> _diffuseBufR;	// No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -444,8 +444,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuse;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuseR;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuse;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuseR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -475,8 +475,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
-	ComPtr<ID3D11ShaderResourceView> _diffuseSRV;
-	ComPtr<ID3D11ShaderResourceView> _diffuseSRV_R;
+	//ComPtr<ID3D11ShaderResourceView> _diffuseSRV;
+	//ComPtr<ID3D11ShaderResourceView> _diffuseSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

@@ -2487,7 +2487,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			resources->_depthBuf2SRV.Get(),
 			resources->_normBufSRV.Get(),
 			resources->_offscreenAsInputShaderResourceView.Get(),
-			resources->_diffuseSRV.Get(),
+			NULL, // resources->_diffuseSRV.Get(),
 		};
 		resources->InitPixelShader(resources->_ssdoDirectPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
@@ -2684,7 +2684,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
 		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
-			resources->_diffuseSRV.Get(),
+			NULL, //resources->_diffuseSRV.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
 			resources->_ssaoBufSRV.Get(),
 			resources->_ssaoMaskSRV.Get(),
@@ -3254,8 +3254,8 @@ HRESULT PrimarySurface::Flip(
 						L"C:\\Temp\\_bloomMask.jpg");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_diffuseBuf, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_diffuseBuf.jpg");
+					/*DirectX::SaveWICTextureToFile(context, resources->_diffuseBuf, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_diffuseBuf.jpg");*/
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_ssaoMask.jpg");
 					log_debug("[DBG] [AO] Captured debug buffers");

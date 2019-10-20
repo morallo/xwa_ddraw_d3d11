@@ -30,11 +30,10 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 diffuse  : SV_TARGET1;
-	float4 bloom    : SV_TARGET2;
-	float4 pos3D    : SV_TARGET3;
-	float4 normal   : SV_TARGET4;
-	float4 ssaoMask : SV_TARGET5;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -98,7 +97,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
-	output.diffuse = float4(diffuse, 1);
+	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
@@ -178,7 +177,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		diffuse = float3(1, 1, 1);
 		output.ssaoMask = 1;
 	}
-	output.diffuse = float4(diffuse, 1);
+	//output.diffuse = float4(diffuse, 1);
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 	//output.color = float4(texelColor.xyz, texelColor.w);
 	return output;

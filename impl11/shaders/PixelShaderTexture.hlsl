@@ -19,11 +19,10 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 diffuse  : SV_TARGET1;
-	float4 bloom    : SV_TARGET2;
-	float4 pos3D    : SV_TARGET3;
-	float4 normal   : SV_TARGET4;
-	float4 ssaoMask : SV_TARGET5;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -68,14 +67,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, fPosNormalAlpha);
 	
 	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
-	output.diffuse = input.color;
+	//output.diffuse = input.color;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
-		output.diffuse = 0;
+		//output.diffuse = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		if (bIsLaser > 1) {
@@ -139,7 +138,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
 		output.normal.a = 0;
-		output.diffuse = 0;
+		//output.diffuse = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {

@@ -744,9 +744,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_depthBuf2AsInput.Release();
 		this->_normBuf.Release();
 		this->_bentBuf.Release();
-		this->_bentBufR.Release();
-		this->_diffuseBuf.Release();
+		this->_bentBufR.Release(); // bentBufR is used to hold a copy of bentBuf to blur it (and viceversa)
+		//this->_diffuseBuf.Release();
 		this->_ssaoBuf.Release();
+		this->_ssaoBufR.Release(); // ssaoBufR will be used to store SSDO Indirect (and viceversa)
 		this->_ssaoMask.Release();
 		this->_renderTargetViewDepthBuf.Release();
 		this->_depthBufSRV.Release();
@@ -757,18 +758,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewBentBuf.Release();
 		this->_renderTargetViewSSAO.Release();
+		this->_renderTargetViewSSAO_R.Release();
 		this->_renderTargetViewSSAOMask.Release();
-		this->_renderTargetViewDiffuse.Release();
+		//this->_renderTargetViewDiffuse.Release();
 		this->_ssaoBufSRV.Release();
+		this->_ssaoBufSRV_R.Release();
 		this->_ssaoMaskSRV.Release();
-		this->_diffuseSRV.Release();
+		//this->_diffuseSRV.Release();
 		if (g_bUseSteamVR) {
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
 			this->_depthBuf2R.Release();
 			this->_depthBuf2AsInputR.Release();
-			this->_diffuseBufR.Release();
-			this->_ssaoBufR.Release();
+			//this->_diffuseBufR.Release();
 			this->_ssaoMaskR.Release();
 			this->_normBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
@@ -777,12 +779,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_normBufSRV_R.Release();
 			this->_renderTargetViewNormBufR.Release();
 			this->_renderTargetViewBentBufR.Release();
-			this->_renderTargetViewSSAO_R.Release(); 
 			this->_renderTargetViewSSAOMaskR.Release();
-			this->_renderTargetViewDiffuseR.Release();
-			this->_ssaoBufSRV_R.Release();
+			//this->_renderTargetViewDiffuseR.Release();
 			this->_ssaoMaskSRV_R.Release();
-			this->_diffuseSRV_R.Release();
+			//this->_diffuseSRV_R.Release();
 		}
 	}
 
@@ -1315,13 +1315,22 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			step = "_diffuseBuf";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_diffuseBuf);
+			desc.Format = oldFormat;
+			step = "_ssaoBufR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
+
+			/*step = "_diffuseBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_diffuseBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}*/
 
 			desc.Format = AO_MASK_FORMAT;
 			step = "_ssaoMask";
@@ -1342,22 +1351,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				desc.Format = oldFormat;
-				step = "_ssaoBufR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
-
-				step = "_diffuseBufR";
+				/*step = "_diffuseBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_diffuseBufR);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
-				}
+				}*/
 
 				desc.Format = AO_MASK_FORMAT;
 				step = "_ssaoMaskR";
@@ -1531,13 +1531,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			step = "_diffuseSRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_diffuseBuf, &shaderResourceViewDesc, &this->_diffuseSRV);
+			step = "_ssaoBufSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+
+			/*step = "_diffuseSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_diffuseBuf, &shaderResourceViewDesc, &this->_diffuseSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}*/
 
 			shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 			step = "_ssaoMaskSRV";
@@ -1577,21 +1585,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				shaderResourceViewDesc.Format = oldFormat;
-				step = "_ssaoBufSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
 
-				step = "_diffuseSRV_R";
+				/*step = "_diffuseSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_diffuseBufR, &shaderResourceViewDesc, &this->_diffuseSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
-				}
+				}*/
 
 				shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 				step = "_ssaoMaskSRV_R";
@@ -1782,9 +1783,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO);
 			if (FAILED(hr)) goto out;
 
-			step = "_renderTargetViewDiffuse";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_diffuseBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewDiffuse);
+			step = "_renderTargetViewSSAO_R";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
 			if (FAILED(hr)) goto out;
+
+			/*step = "_renderTargetViewDiffuse";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_diffuseBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewDiffuse);
+			if (FAILED(hr)) goto out;*/
 
 			renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 			step = "_renderTargetViewSSAOMask";
@@ -1809,14 +1814,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBufR);
 				if (FAILED(hr)) goto out;*/
 
-				renderTargetViewDescNoMSAA.Format = oldFormat;
-				step = "_renderTargetViewSSAO_R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
-				if (FAILED(hr)) goto out;
+				/* RTV ssaoBuf_R */
 
-				step = "_renderTargetViewDiffuseR";
+				/*step = "_renderTargetViewDiffuseR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_diffuseBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewDiffuseR);
-				if (FAILED(hr)) goto out;
+				if (FAILED(hr)) goto out;*/
 
 				renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 				step = "_renderTargetViewSSAOMask_R";

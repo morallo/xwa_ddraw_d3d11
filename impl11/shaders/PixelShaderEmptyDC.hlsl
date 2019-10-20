@@ -30,11 +30,10 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 diffuse  : SV_TARGET1;
-	float4 bloom    : SV_TARGET2;
-	float4 pos3D    : SV_TARGET3;
-	float4 normal   : SV_TARGET4;
-	float4 ssaoMask : SV_TARGET5;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -97,7 +96,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, 1);
 
 	output.ssaoMask = 0;
-	output.diffuse = input.color;
+	//output.diffuse = input.color;
 
 	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
 	// The code returns a color from this path
