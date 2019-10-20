@@ -112,7 +112,7 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	float visibility = 1 - ao_dot;
 	float2 uv_diff = sample_uv - input_uv;
 	float3 B = 0;
-	float3 result = color * 0.15;
+	//float3 result = color * 0.15;
 	if (diff.z > 0.0) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
 		B.x =  uv_diff.x;
@@ -136,7 +136,8 @@ inline float3 doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv,
 	if (debug == 2) {
 		return visibility * saturate(dot(B, light));
 	}
-	return result + color * visibility * saturate(dot(B, light));
+	//return result + color * visibility * saturate(dot(B, light));
+	return visibility * saturate(dot(B, light));
 
 	//return visibility;
 	//return result + color * ao_factor * saturate(dot(Normal, light));
@@ -178,15 +179,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
-	float3 ao = 0;
 	float3 ssdo = 0;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
 	float DiffAtCenter = saturate((diff - 0.5) * 2.0).r;
 
-	//output.ssao = float4(0, 0, 0, 1); // SSAO
-	output.ssao = float4(color, 1); // SSDO
+	output.ssao = 1;
+	//output.ssao = float4(color, 1); // SSDO
 	output.bentNormal = float4(0, 0, 0, 1);
 
 	if (P1.z < P2.z) {
@@ -219,28 +219,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	sample_direction *= radius;
 	float max_radius = radius * (float)(samples - 1 + sample_jitter);
 
-	// SSAO Calculation
-	//bentNormal = n;
+	// SSDO Direct Calculation
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doSSDODirect(FGFlag, input.uv, sample_uv, color,
+		ssdo += intensity * doSSDODirect(FGFlag, input.uv, sample_uv, color,
 			p, n, light,
 			radius * (j + sample_jitter), max_radius,
 			bentNormal);
-		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, max_radius, p, n, bentNormal);
-		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, 
-		//	radius * (j + sample_jitter), max_radius, 
-		//	p, n, bentNormal);
 	}
-	//ao = 1 - ao / (float)samples;
-	ao = intensity * ao / (float)samples;
-	//ssdo = saturate(ssdo / (float)samples);
-	//output.ssao.xyz *= lerp(black_level, ao, ao);
-	output.ssao.xyz = ao;
+	output.ssao.xyz = ssdo / (float)samples;
 	output.bentNormal.xyz = normalize(bentNormal);
+	return output;
 
 	/*
 	float B = length(bentNormal);
@@ -263,7 +255,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	//output.bentNormal = float4(bentNormal, 1);
 	*/
-	return output;
 }
 
 /*

@@ -59,7 +59,9 @@ float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 {
 	if (tap.pos.z > 30000.0) return 0;
 	const float depth_term = saturate(depth_weight - abs(tap.pos.z - center.pos.z));
-	const float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 16 - 15);
+	//const float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 16 - 15);
+	//const float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 8 - 7);
+	const float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz) * 24 - 23);
 	return depth_term * normal_term;
 }
 
