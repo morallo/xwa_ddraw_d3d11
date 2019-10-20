@@ -93,12 +93,13 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
+inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, /* in float3 color, */
 	in float3 P, in float3 Normal /*, in float3 light,
 	in float cur_radius, in float max_radius */)
 {
 	float3 occluder_Normal = getNormal(sample_uv); // I can probably read this normal off of the bent buffer later (?)
 	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv, 0).xyz;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (P) to the sampled neighbor
 	const float3 diff = occluder - P;
@@ -107,6 +108,12 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 	const float3 v = diff * rsqrt(diff_sqr);
 	const float max_dist_sqr = max_dist * max_dist;
 	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+	// TODO: Make ambient a configurable parameter
+	const float ambient = 0.15;
+	if (addSSDO) {
+		occluder_color = (ambient + occluder_ssdo) * occluder_color;
+		//occluder_color *= occluder_ssdo;
+	}
 
 	//float ao_dot = max(0.0, dot(Normal, v) - bias);
 	//float ao_factor = ao_dot * weight;
@@ -162,17 +169,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P1 = getPositionFG(input.uv);
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
-	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
-	float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
-	const float ambient = 0.15;
-	if (addSSDO)
-		color *= ssdo;
-		//color = (ambient + ssdo) * color;
+	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	//float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
+	float3 ssdo = 0;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
 	output.ssao = float4(0, 0, 0, 1);
-	ssdo = 0;
 
 	if (P1.z < P2.z) {
 		p = P1;
@@ -210,15 +213,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		sample_uv = saturate(input_uv_sub + sample_direction.xy * (j + sample_jitter));
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, input_uv_sub, sample_uv, color,
+		ssdo += doSSDOIndirect(FGFlag, input_uv_sub, sample_uv, /* color, */
 			p, n /*, light, radius * (j + sample_jitter), max_radius */);
 	}
 	//ao = 1 - ao / (float)samples;
 	ssdo = indirect_intensity * ssdo / (float)samples;
+	output.ssao.xyz = ssdo;
+
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);
 	//if (debug == 3)
-	output.ssao.xyz = ssdo;
+	//output.ssao.xyz = ssdo;
 	//else
 	//	output.ssao.xyz = saturate(color + ssdo);
 	//output.bentNormal.xyz = normalize(bentNormal);

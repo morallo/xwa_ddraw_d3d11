@@ -2431,7 +2431,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	// Create a new viewport to render the offscreen buffer as a texture
 	float screen_res_x = (float)resources->_backbufferWidth;
 	float screen_res_y = (float)resources->_backbufferHeight;
-	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float black[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	D3D11_VIEWPORT viewport{};
 	viewport.TopLeftX = 0.0f;
@@ -2493,8 +2493,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 				resources->_renderTargetView.Get(),
 				resources->_renderTargetViewBentBuf.Get(),
 			};
-			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetView, black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
@@ -2505,8 +2505,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 				resources->_renderTargetViewSSAO.Get(),
 				resources->_renderTargetViewBentBuf.Get()
 			};
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
@@ -2541,8 +2541,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 			// Clear the destination buffers: the blur will re-populate them
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
 			ID3D11ShaderResourceView *srvs[5] = {
 					resources->_offscreenAsInputShaderResourceView.Get(),
 					resources->_depthBufSRV.Get(),
@@ -2551,7 +2551,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 					resources->_bentBufSRV_R.Get(),
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
-				context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetView, black);
 				//context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
@@ -2578,23 +2578,32 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		}
 
 	// SSDO Indirect Lighting, Left Image
+
+	// Clear the Indirect SSDO buffer -- we have to do this regardless of whether the indirect
+	// illumination is computed or not.
+	context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
+
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Input: _depthBuf, _depthBuf2, _normBuf, offscreenAsInput (with a copy of _ssaoBuf -- not anymore! Should I fix this?)
 	// Output _ssaoBufR
 	if (g_bEnableIndirectSSDO)
 	{
+		resources->InitPixelShader(resources->_ssdoIndirectPS);
 		// Set the SSDO pixel shader constant buffer
 		//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
 		//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
 		g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 		resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
-		resources->InitPixelShader(resources->_ssdoIndirectPS);
 
 		// Copy the SSAO buffer to offscreenBufferAsInput -- this is the accumulated
 		// color + SSDO buffer
 		// Not anymore! The accumulation of color + SSDO is now done in the Add shader.
 		// What happens if I just send the regular color buffer instead?
 		//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+		// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
+		// in the previous steps
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
 		ID3D11ShaderResourceView *srvs[5] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
 			resources->_depthBuf2SRV.Get(), // BG Depth Buffer
@@ -2605,14 +2614,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		
 		// DEBUG
 		if (g_bShowSSAODebug && !g_bBlurSSAO && g_bEnableIndirectSSDO) {
-			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetView, black);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetView.Get(),
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
+		// DEBUG
 		else {
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO_R.Get(),
 			};
@@ -2623,9 +2633,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		
 	}
 
-	if (g_bEnableIndirectSSDO && g_bBlurSSAO)
+	// Blur the Indirect SSDO buffer
+	if (g_bEnableIndirectSSDO && g_bBlurSSAO) {
+		resources->InitPixelShader(resources->_ssdoBlurPS);
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-			resources->InitPixelShader(resources->_ssdoBlurPS);
 			// Copy the SSDO Indirect Buffer (ssaoBufR) to offscreenBufferAsInput -- we'll use it as temp buffer
 			// to blur the SSAO buffer
 			context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBufR);
@@ -2633,7 +2644,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 			// Clear the destination buffers: the blur will re-populate them
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
 			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
 			ID3D11ShaderResourceView *srvs[4] = {
 					resources->_offscreenAsInputShaderResourceView.Get(), // ssaoBufR
@@ -2643,7 +2654,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 					//resources->_bentBufSRV_R.Get(),
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1) {
-				context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetView, black);
 				//context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO_R.GetAddressOf(), NULL);
 				ID3D11RenderTargetView *rtvs[2] = {
 					//resources->_renderTargetViewSSAO_R.Get(),
@@ -2669,6 +2680,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 				context->Draw(6, 0);
 			}
 		}
+	}
 
 	// Final combine, Left Image
 	{
@@ -2739,8 +2751,8 @@ out1:
 					resources->_renderTargetViewR.Get(),
 					resources->_renderTargetViewBentBufR.Get(),
 				};
-				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 4, srvs_pass1);
 				context->Draw(6, 0);
@@ -2751,8 +2763,8 @@ out1:
 					resources->_renderTargetViewSSAO_R.Get(),
 					resources->_renderTargetViewBentBufR.Get()
 				};
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 4, srvs_pass1);
 				context->Draw(6, 0);
@@ -2788,8 +2800,8 @@ out1:
 			// This is just to avoid having to make a temporary buffer to blur the bent normals.
 			context->CopyResource(resources->_bentBuf, resources->_bentBufR);
 			// Clear the destination buffers: the blur will re-populate them
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
 			ID3D11ShaderResourceView *srvs[5] = {
 					resources->_offscreenAsInputShaderResourceViewR.Get(),
 					resources->_depthBufSRV_R.Get(),
@@ -2798,7 +2810,7 @@ out1:
 					resources->_bentBufSRV.Get(),
 			};
 			if (g_bShowSSAODebug) {
-				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
 				context->PSSetShaderResources(0, 5, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
@@ -3267,8 +3279,6 @@ HRESULT PrimarySurface::Flip(
 						L"C:\\Temp\\_bloomMask.jpg");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
-					/*DirectX::SaveWICTextureToFile(context, resources->_diffuseBuf, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_diffuseBuf.jpg");*/
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_ssaoMask.jpg");
 					log_debug("[DBG] [AO] Captured debug buffers");

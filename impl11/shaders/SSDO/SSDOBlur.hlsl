@@ -135,3 +135,15 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	return output;
 }
+
+
+/*
+PixelShaderOutput main(PixelShaderInput input) {
+	PixelShaderOutput output;
+	output.bent = 0;
+	float3 ssao = SSAOTex.Sample(SSAOSampler, input.uv).xyz;
+
+	output.ssao = float4(ssao, 1);
+	return output;
+}
+*/
