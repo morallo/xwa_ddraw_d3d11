@@ -2463,9 +2463,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-	// Set the SSAO pixel shader constant buffer
-	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
-	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+	// Set the SSDO pixel shader constant buffer
+	g_SSAO_PSCBuffer.screenSizeX   = g_fCurScreenWidth;
+	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
+	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -2584,6 +2585,12 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	// Output _ssaoBuf
 	if (g_bEnableIndirectSSDO)
 	{
+		// Set the SSDO pixel shader constant buffer
+		//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
+		//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
+		g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+		resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
 		// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
 		// to blur the SSAO buffer
 		context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);

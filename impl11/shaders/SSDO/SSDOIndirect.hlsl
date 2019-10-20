@@ -34,6 +34,8 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
+	// The output of this stage should probably be another temporary RGB buffer -- not the SSAO buffer
+	// ...maybe the ssaoBufR from SteamVR? (and viceversa when the right eye is being shaded?)
 	float4 ssao        : SV_TARGET0;
 	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
@@ -49,7 +51,7 @@ cbuffer ConstantBuffer : register(b3)
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
 	uint debug;
-	float moire_offset, unused2, unused3;
+	float moire_offset, amplifyFactor, unused3;
 	// 64 bytes
 };
 
@@ -89,10 +91,9 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal, in float3 light,
-	in float cur_radius, in float max_radius
-/* inout float3 BentNormal */)
+inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv_sub, in float2 sample_uv, in float3 color,
+	in float3 P, in float3 Normal /*, in float3 light,
+	in float cur_radius, in float max_radius */)
 {
 	float3 occluder_Normal = getNormal(sample_uv); // I can probably read this normal off of the bent buffer later (?)
 	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
@@ -105,35 +106,37 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 	const float max_dist_sqr = max_dist * max_dist;
 	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
 
-	float ao_dot = max(0.0, dot(Normal, v) - bias);
+	//float ao_dot = max(0.0, dot(Normal, v) - bias);
 	//float ao_factor = ao_dot * weight;
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
-	float visibility = 1 - ao_dot;
-	float2 uv_diff = sample_uv - input_uv;
-	float ssdo_dist = min(1, diff_sqr);
-	float3 B = 0;
-	if (diff.z < 0.0) { // If there's occlusion, then compute B
-		B.x =  uv_diff.x;
-		B.y = -uv_diff.y;
-		//B.z =  -(max_radius - cur_radius);
-		B.z = 0.01 * (max_radius - cur_radius) / max_radius;
-		B = normalize(B);
+	//float visibility = 1 - ao_dot;
+	//float2 uv_diff = sample_uv - input_uv_sub;
+	//float ssdo_dist = min(1, diff_sqr);
+	//float3 B = 0;
+	if (diff.z < 0.0) { // If there's occlusion, then compute B and indirect lighting
+		// The bent normal is probably not needed for indirect lighting. Only the actual
+		// normal in the center point and the occluder's normal
+		//B.x =  uv_diff.x;
+		//B.y = -uv_diff.y;
+		////B.z =  -(max_radius - cur_radius);
+		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+		//B = normalize(B);
 		//return 0; // Center is occluded
-		if (debug == 3) {
+		//if (debug == 3) {
 			//return (1 - visibility) * saturate(dot(B, -occluder_Normal)) * weight;
 			//return occluder_color * saturate(dot(B, -occluder_Normal)) * weight;
-			return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
+			//return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
 
 			// This returns something that looks like a nice Z-component normal:
 			// (maybe I can use this to compute the bent normal's z component!)
 			//return float3(0, 1, 0);
-		}
-		// According to the reference SSDO implementation, we should be doing something like:
+		//}
+		// According to the reference SSDO implementation, we should be doing something like this:
 		return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
 		//return occluder_color * saturate(dot(B, -occluder_Normal)) * weight;
 	}
-	return 0; // Center is not occluded
+	return 0; // Center is not occluded, no indirect lighting
 
 	
 	//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
@@ -153,11 +156,12 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float3 P1 = getPositionFG(input.uv);
-	float3 P2 = getPositionBG(input.uv);
-	float3 n = getNormal(input.uv);
-	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
-	//float3 diff =  texDiff.SampleLevel(sampDiff, input.uv, 0).xyz;
+	float2 input_uv_sub = amplifyFactor * input.uv;
+	float3 P1 = getPositionFG(input_uv_sub);
+	float3 P2 = getPositionBG(input_uv_sub);
+	float3 n = getNormal(input_uv_sub);
+	float3 color = texColor.SampleLevel(sampColor, input_uv_sub, 0).xyz;
+	//float3 diff =  texDiff.SampleLevel(sampDiff, input_uv_sub, 0).xyz;
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	//float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
@@ -196,25 +200,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
-	float max_radius = radius * (float)(samples - 1 + sample_jitter);
+	//float max_radius = radius * (float)(samples - 1 + sample_jitter);
 
 	// SSDO Indirect Calculation
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
-		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
+		sample_uv = input_uv_sub + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, input.uv, sample_uv, color,
-			p, n, light, radius * (j + sample_jitter), max_radius);
+		ssdo += doSSDOIndirect(FGFlag, input_uv_sub, sample_uv, color,
+			p, n /*, light, radius * (j + sample_jitter), max_radius */);
 	}
 	//ao = 1 - ao / (float)samples;
 	ssdo = indirect_intensity * ssdo / (float)samples;
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);
-	if (debug == 3)
-		output.ssao.xyz = ssdo;
-	else
-		output.ssao.xyz = saturate(color + ssdo);
+	//if (debug == 3)
+	output.ssao.xyz = ssdo;
+	//else
+	//	output.ssao.xyz = saturate(color + ssdo);
 	//output.bentNormal.xyz = normalize(bentNormal);
 
 	return output;

@@ -70,9 +70,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	float3 color = texture0.Sample(sampler0, input.uv).xyz;
-	float4 diffuse = texDiff.Sample(samplerDiff, input.uv);
-	float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
+	//float4 diffuse = texDiff.Sample(samplerDiff, input.uv);
+	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
+	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssao = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
