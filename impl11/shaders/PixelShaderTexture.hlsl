@@ -62,8 +62,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P = float3(input.pos3D.xyz);
 	output.pos3D  = float4(P, fPosNormalAlpha);
 	
-	float3 N = normalize(cross(ddx(P), ddy(P)));
+	//float3 N = cross(ddx(P), ddy(P));
+	//float NL = length(N);
+	//if (NL > 0.01) N /= NL; // Avoid divisions by 0.
 	//N = normalize(lerp(N, light, diffuse.x));
+	float3 N = normalize(cross(ddx(P), ddy(P)));
+	if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	output.normal = float4(N, fPosNormalAlpha);
 	
 	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);

@@ -106,6 +106,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, 1);
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
+	if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	output.normal = float4(N, 1);
 
 	output.ssaoMask = 0;
