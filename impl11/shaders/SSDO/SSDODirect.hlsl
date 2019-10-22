@@ -41,7 +41,7 @@ struct PixelShaderOutput
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
-	float screenSizeX, screenSizeY, ssdo_area, bias;
+	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	uint samples;
@@ -51,8 +51,10 @@ cbuffer ConstantBuffer : register(b3)
 	// 48 bytes
 	uint debug;
 	float moire_offset, amplifyFactor;
-	uint addSSDO;
+	uint fn_enable;
 	// 64 bytes
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
+	// 80 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -101,21 +103,22 @@ struct ColNorm {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
-float3 get_normal_from_color(float2 uv, float2 offset, float scale, float sharpness)
+float3 get_normal_from_color(float2 uv, float2 offset)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * scale;
+	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
 
 	float dpx = getPositionFG(uv + offset_swiz.xz).z;
 	float dmx = getPositionFG(uv - offset_swiz.xz).z;
 	float dpy = getPositionFG(uv + offset_swiz.zy).z;
 	float dmy = getPositionFG(uv - offset_swiz.zy).z;
 
-	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * sharpness;
-	xymult = saturate(1.0 - xymult);
+	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
+	//xymult = saturate(1.0 - xymult);
+	xymult = saturate(fn_max_xymult - xymult);
 
 	float3 normal;
 	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
@@ -127,7 +130,7 @@ float3 get_normal_from_color(float2 uv, float2 offset, float scale, float sharpn
 float3 blend_normals(float3 n1, float3 n2)
 {
 	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-	n1 += float3(0, 0, 1);
+	n1 += float3( 0,  0, 1);
 	n2 *= float3(-1, -1, 1);
 	return n1 * dot(n1, n2) / n1.z - n2;
 }
@@ -170,7 +173,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
-		B = blend_normals(0.4 * FakeNormal, B);
+		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B);
 		B = normalize(B);
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
@@ -259,7 +262,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//light = mul(viewMatrix, float4(light, 0)).xyz;
 
 	float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
-	float3 FakeNormal = get_normal_from_color(input.uv, 1.0 * offset, 1, 1);
+	float3 FakeNormal = 0; 
+	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
@@ -284,7 +288,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		bentNormal += ssdo_aux.N;
 	}
 	output.ssao.xyz = ssdo / (float)samples;
-	bentNormal = blend_normals(0.1 * FakeNormal, bentNormal);
+	if (fn_enable)
+		bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	float BLength = length(bentNormal);
 	//if (BLength > 0.01) bentNormal /= BLength;
 	bentNormal /= BLength;

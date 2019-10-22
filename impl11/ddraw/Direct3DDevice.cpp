@@ -275,7 +275,7 @@ bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 float4 g_LightVector = { 0, 0, -1, 0 };
 
@@ -1739,8 +1739,24 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "moire_offset") == 0) {
 				g_SSAO_PSCBuffer.moire_offset = fValue;
 			}
-			else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
+			/* else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
 				g_SSAO_PSCBuffer.addSSDO = (int)fValue;
+			} */
+			else if (_stricmp(param, "normal_mapping_enable") == 0) {
+				g_SSAO_PSCBuffer.fn_enable = (int)fValue;
+				g_bFNEnable = g_SSAO_PSCBuffer.fn_enable;
+			}
+			else if (_stricmp(param, "nm_max_xymult") == 0) {
+				g_SSAO_PSCBuffer.fn_max_xymult = fValue;
+			}
+			else if (_stricmp(param, "nm_scale") == 0) {
+				g_SSAO_PSCBuffer.fn_scale = fValue;
+			}
+			else if (_stricmp(param, "nm_sharpness") == 0) {
+				g_SSAO_PSCBuffer.fn_sharpness = fValue;
+			}
+			else if (_stricmp(param, "nm_intensity") == 0) {
+				g_SSAO_PSCBuffer.nm_intensity = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;

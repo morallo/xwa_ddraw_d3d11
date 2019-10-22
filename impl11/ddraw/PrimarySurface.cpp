@@ -91,7 +91,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern float4 g_LightVector;
 
@@ -2465,6 +2465,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	g_SSAO_PSCBuffer.screenSizeX   = g_fCurScreenWidth;
 	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -2593,6 +2594,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
 		//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
 		g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+		g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
 		resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 		// Copy the SSAO buffer to offscreenBufferAsInput -- this is the accumulated

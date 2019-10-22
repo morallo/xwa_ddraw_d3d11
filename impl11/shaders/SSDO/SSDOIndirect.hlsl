@@ -53,8 +53,10 @@ cbuffer ConstantBuffer : register(b3)
 	// 48 bytes
 	uint debug;
 	float moire_offset, amplifyFactor;
-	uint addSSDO;
+	uint fn_enable;
 	// 64 bytes
+	float max_xymult, fn_scale, fn_sharpness, unused1;
+	// 80 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -110,10 +112,8 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_u
 	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
 	// TODO: Make ambient a configurable parameter
 	const float ambient = 0.15;
-	if (addSSDO) {
-		occluder_color = (ambient + occluder_ssdo) * occluder_color;
-		//occluder_color *= occluder_ssdo;
-	}
+	//if (addSSDO)
+	occluder_color = (ambient + occluder_ssdo) * occluder_color;
 
 	//float ao_dot = max(0.0, dot(Normal, v) - bias);
 	//float ao_factor = ao_dot * weight;
