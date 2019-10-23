@@ -11,6 +11,12 @@
 
 #include <stdio.h>
 #include <vector>
+#include "Vectors.h"
+#include "Matrices.h"
+
+#include "XWAObject.h"
+extern PlayerDataEntry* PlayerDataTable;
+Matrix4 ComputeRotationMatrixFromXWAView();
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -50,7 +56,7 @@ void Normalize(float4 *Vector) {
 	Vector->z = z / L;
 }
 
-void PrintVector(const float4 &Vector) {
+void PrintVector(const Vector4 &Vector) {
 	log_debug("[DBG] Vector: %0.3f, %0.3f, %0.3f",
 		Vector.x, Vector.y, Vector.z);
 }
@@ -61,7 +67,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 // extern bool g_bDumpBloomBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable;
-extern float4 g_LightVector;
+extern Vector4 g_LightVector;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -116,23 +122,22 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_RIGHT:
 				g_LightVector.x += 0.1f;
-				Normalize(&g_LightVector);
+				g_LightVector.normalize();
 				PrintVector(g_LightVector);
 				return 0;
 			case VK_LEFT:
 				g_LightVector.x -= 0.1f;
-				Normalize(&g_LightVector);
 				PrintVector(g_LightVector);
 				return 0;
 
 			case VK_UP:
 				g_LightVector.y += 0.1f;
-				Normalize(&g_LightVector);
+				g_LightVector.normalize();
 				PrintVector(g_LightVector);
 				return 0;
 			case VK_DOWN:
 				g_LightVector.y -= 0.1f;
-				Normalize(&g_LightVector);
+				g_LightVector.normalize();
 				PrintVector(g_LightVector);
 				return 0;
 			}
@@ -297,13 +302,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Up
 			case VK_UP:
 				g_LightVector.z += 0.1f;
-				Normalize(&g_LightVector);
+				g_LightVector.normalize();
 				PrintVector(g_LightVector);
 				return 0;
 			// Ctrl + Down
 			case VK_DOWN:
 				g_LightVector.z -= 0.1f;
-				Normalize(&g_LightVector);
+				g_LightVector.normalize();
 				PrintVector(g_LightVector);
 				return 0;
 			}
@@ -381,12 +386,20 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				if (g_bUseSteamVR)
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
-				g_LightVector.x = 1;
-				g_LightVector.y = 1;
-				g_LightVector.z = -1;
-				Normalize(&g_LightVector);
-				log_debug("[DBG] Reset Light Vector");
+				//g_LightVector.x = 1;
+				//g_LightVector.y = 1;
+				//g_LightVector.z = -1;
+				//g_LightVector.normalize();
+				//log_debug("[DBG] Reset Light Vector");
 				PrintVector(g_LightVector);
+				// Compute the full rotation
+				float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+				float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+				float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+				Matrix4 rotMatrixFull = ComputeRotationMatrixFromXWAView();
+				Vector4 light = rotMatrixFull * g_LightVector;
+				log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light.x, light.y, light.z);
+				log_debug("[DBG] yaw: %0.3f, pitch: %0.3f, roll: %0.3f", yaw, pitch, roll);
 				break;
 			}
 		}

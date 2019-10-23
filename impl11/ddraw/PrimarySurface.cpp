@@ -93,7 +93,7 @@ extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved;
 extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
-extern float4 g_LightVector;
+extern Vector4 g_LightVector;
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -177,6 +177,24 @@ Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t &mat) {
 		mat.m[0][2], mat.m[1][2], mat.m[2][2]
 	);
 	return matrixObj;
+}
+
+// TODO: Load the signs from a config file so that it's easier to test this:
+Matrix4 ComputeRotationMatrixFromXWAView() {
+	// Compute the full rotation
+	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+	/*while (yaw < 0) yaw += 360.0f;
+	while (pitch < 0) pitch += 360.0f;
+	while (roll < 0) roll += 360.0f;*/
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(-roll);
+	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+	return rotMatrixFull;
 }
 
 void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
@@ -2442,20 +2460,14 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 
-	// Compute the full rotation
-	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-	rotMatrixFull.identity();
-	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(-roll);
-	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+	
 	PixelShaderMatrixCB matrixCB;
 	//rotMatrixFull.invert();
-	matrixCB.viewMat = rotMatrixFull;
-	matrixCB.LightVector = g_LightVector;
+	matrixCB.viewMat = ComputeRotationMatrixFromXWAView();
+	Vector4 light = matrixCB.viewMat * g_LightVector;
+	matrixCB.LightVector.x = light.x;
+	matrixCB.LightVector.y = light.y;
+	matrixCB.LightVector.z = light.z;
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
 	// Set the constant buffers

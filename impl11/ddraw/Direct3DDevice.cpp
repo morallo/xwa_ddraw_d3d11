@@ -277,7 +277,8 @@ float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, 
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-float4 g_LightVector = { 0, 0, -1, 0 };
+//float4 g_LightVector = { 0, 0, -1, 0 };
+Vector4 g_LightVector = { 1, 1, 0, 0 };
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
