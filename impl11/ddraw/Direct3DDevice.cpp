@@ -277,6 +277,7 @@ float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, 
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
+bool g_bOverrideLightPos = false;
 //float4 g_LightVector = { 0, 0, -1, 0 };
 Vector4 g_LightVector = { 1, 1, 0, 0 };
 
@@ -1631,6 +1632,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 16;
 	g_SSAO_PSCBuffer.moire_offset = 0.01f;
+	g_SSAO_Type = SSO_AMBIENT;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -1666,12 +1668,10 @@ bool LoadSSAOParams() {
 			}
 
 			else if (_stricmp(param, "ssao_type") == 0) {
-				if (_stricmp(svalue, "ambient") == 0) {
+				if (_stricmp(svalue, "ambient") == 0)
 					g_SSAO_Type = SSO_AMBIENT;
-				}
-				else if (_stricmp(svalue, "directional") == 0) {
+				else if (_stricmp(svalue, "directional") == 0)
 					g_SSAO_Type = SSO_DIRECTIONAL;
-				}
 			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
@@ -1759,15 +1759,16 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "nm_intensity") == 0) {
 				g_SSAO_PSCBuffer.nm_intensity = fValue;
 			}
+			else if (_stricmp(param, "override_game_light_pos") == 0) {
+				g_bOverrideLightPos = (bool)fValue;
+			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
-				float L = sqrt(x*x + y * y + z * z);
-				if (L < 0.001) L = 1.0f;
-
-				g_LightVector.x = x / L;
-				g_LightVector.y = y / L;
-				g_LightVector.z = z / L;
+				g_LightVector.x = x;
+				g_LightVector.y = y;
+				g_LightVector.z = z;
+				g_LightVector.normalize();
 				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
 					g_LightVector.x, g_LightVector.y, g_LightVector.z);
 			}
@@ -1782,6 +1783,10 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
 	log_debug("[DBG] [AO] SSAO samples: %d", g_SSAO_PSCBuffer.samples);
 	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
+	if (g_SSAO_Type == SSO_AMBIENT)
+		log_debug("[DBG] [AO] SSO: AMBIENT OCCLUSION");
+	else if (g_SSAO_Type == SSO_DIRECTIONAL)
+		log_debug("[DBG] [AO] SSO: DIRECTIONAL OCCLUSION");
 	return true;
 }
 
@@ -4339,7 +4344,7 @@ HRESULT Direct3DDevice::Execute(
 					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
 						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
-						lastTextureSelected->is_Missile) 
+						lastTextureSelected->is_Missile || lastTextureSelected->is_GenericSSAOTransparent) 
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 0.0f;

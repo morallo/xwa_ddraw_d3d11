@@ -60,6 +60,8 @@ public:
 	bool is_Chaff;
 	// True for all sorts of missiles. Used for Bloom and SSAO
 	bool is_Missile;
+	// True for all textures that should not render SSAO
+	bool is_GenericSSAOTransparent;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures

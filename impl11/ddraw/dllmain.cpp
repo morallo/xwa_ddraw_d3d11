@@ -393,13 +393,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//log_debug("[DBG] Reset Light Vector");
 				PrintVector(g_LightVector);
 				// Compute the full rotation
-				float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
-				float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-				float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-				Matrix4 rotMatrixFull = ComputeRotationMatrixFromXWAView();
-				Vector4 light = rotMatrixFull * g_LightVector;
-				log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light.x, light.y, light.z);
-				log_debug("[DBG] yaw: %0.3f, pitch: %0.3f, roll: %0.3f", yaw, pitch, roll);
+				//float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+				//float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+				//float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+				//Matrix4 rotMatrixFull = ComputeRotationMatrixFromXWAView();
+				//Vector4 light = rotMatrixFull * g_LightVector;
+				//log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light.x, light.y, light.z);
+				//log_debug("[DBG] yaw: %0.3f, pitch: %0.3f, roll: %0.3f", yaw, pitch, roll);
 				break;
 			}
 		}

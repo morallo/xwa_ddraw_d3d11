@@ -15,6 +15,8 @@
 
 #define DBG_MAX_PRESENT_LOGS 0
 
+const float DEG2RAD = 3.141593f / 180;
+
 #include <vector>
 
 #include "XWAObject.h"
@@ -90,10 +92,110 @@ int g_iBloomPasses[8] = {
 extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
-extern bool g_bBlurSSAO, g_bDepthBufferResolved;
+extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
 extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector;
+
+// S0x07D4FA0
+struct XwaGlobalLight
+{
+	/* 0x0000 */ int PositionX;
+	/* 0x0004 */ int PositionY;
+	/* 0x0008 */ int PositionZ;
+	/* 0x000C */ float DirectionX;
+	/* 0x0010 */ float DirectionY;
+	/* 0x0014 */ float DirectionZ;
+	/* 0x0018 */ float Intensity;
+	/* 0x001C */ float XwaGlobalLight_m1C;
+	/* 0x0020 */ float ColorR;
+	/* 0x0024 */ float ColorB;
+	/* 0x0028 */ float ColorG;
+	/* 0x002C */ float BlendStartIntensity;
+	/* 0x0030 */ float BlendStartColor1C;
+	/* 0x0034 */ float BlendStartColorR;
+	/* 0x0038 */ float BlendStartColorB;
+	/* 0x003C */ float BlendStartColorG;
+	/* 0x0040 */ float BlendEndIntensity;
+	/* 0x0044 */ float BlendEndColor1C;
+	/* 0x0048 */ float BlendEndColorR;
+	/* 0x004C */ float BlendEndColorB;
+	/* 0x0050 */ float BlendEndColorG;
+};
+
+// V0x00782848
+DWORD *XwaGlobalLightsCount = (DWORD *)0x00782848;
+
+// V0x007D4FA0
+XwaGlobalLight *XwaGlobalLights = (XwaGlobalLight *)0x007D4FA0; // Maximum 8 lights
+
+struct XwaVector3
+{
+	/* 0x0000 */ float x;
+	/* 0x0004 */ float y;
+	/* 0x0008 */ float z;
+};
+
+// S0x0000002
+struct XwaMatrix3x3
+{
+	/* 0x0000 */ float _11;
+	/* 0x0004 */ float _12;
+	/* 0x0008 */ float _13;
+	/* 0x000C */ float _21;
+	/* 0x0010 */ float _22;
+	/* 0x0014 */ float _23;
+	/* 0x0018 */ float _31;
+	/* 0x001C */ float _32;
+	/* 0x0020 */ float _33;
+};
+
+// S0x0000012
+struct XwaTransform
+{
+	/* 0x0000 */ XwaVector3 Position;
+	/* 0x000C */ XwaMatrix3x3 Rotation;
+};
+
+// S0x0000001
+// L00439B30
+void XwaVector3Transform(XwaVector3* A4, const XwaMatrix3x3* A8)
+{
+	float A4_00 = A8->_31 * A4->z + A8->_21 * A4->y + A8->_11 * A4->x;
+	float A4_04 = A8->_32 * A4->z + A8->_22 * A4->y + A8->_12 * A4->x;
+	float A4_08 = A8->_33 * A4->z + A8->_23 * A4->y + A8->_13 * A4->x;
+
+	A4->x = A4_00;
+	A4->y = A4_04;
+	A4->z = A4_08;
+}
+
+void DumpGlobalLights()
+{
+	std::ostringstream str;
+
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+
+	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
+	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
+
+	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
+	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);
+
+	for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+	{
+		str << std::endl;
+		str << "\t\t" << s_XwaGlobalLights[i].PositionX << ";" << s_XwaGlobalLights[i].PositionY << ";" << s_XwaGlobalLights[i].PositionZ;
+		str << "\t\t" << s_XwaGlobalLights[i].DirectionX << ";" << s_XwaGlobalLights[i].DirectionY << ";" << s_XwaGlobalLights[i].DirectionZ;
+
+		XwaVector3 viewDir = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
+		XwaVector3Transform(&viewDir, &ViewTransform->Rotation);
+		str << "\t\t" << viewDir.x << ";" << viewDir.y << ";" << viewDir.z;
+	}
+
+	//LogText(str.str());
+}
 
 /*
  * Convert a rotation matrix to a normalized quaternion.
@@ -140,6 +242,38 @@ vr::HmdQuaternionf_t rotationToQuaternion(vr::HmdMatrix34_t m) {
 }
 
 /*
+ * From http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+ */
+vr::HmdMatrix33_t quatToMatrix(vr::HmdQuaternionf_t q) {
+	vr::HmdMatrix33_t m;
+	float sqw = q.w*q.w;
+	float sqx = q.x*q.x;
+	float sqy = q.y*q.y;
+	float sqz = q.z*q.z;
+
+	// invs (inverse square length) is only required if quaternion is not already normalised
+	float invs = 1 / (sqx + sqy + sqz + sqw);
+	m.m[0][0] = (sqx - sqy - sqz + sqw) * invs; // since sqw + sqx + sqy + sqz =1/invs*invs
+	m.m[1][1] = (-sqx + sqy - sqz + sqw) * invs;
+	m.m[2][2] = (-sqx - sqy + sqz + sqw) * invs;
+
+	float tmp1 = q.x*q.y;
+	float tmp2 = q.z*q.w;
+	m.m[1][0] = 2.0f * (tmp1 + tmp2)*invs;
+	m.m[0][1] = 2.0f * (tmp1 - tmp2)*invs;
+
+	tmp1 = q.x*q.z;
+	tmp2 = q.y*q.w;
+	m.m[2][0] = 2.0f * (tmp1 - tmp2)*invs;
+	m.m[0][2] = 2.0f * (tmp1 + tmp2)*invs;
+	tmp1 = q.y*q.z;
+	tmp2 = q.x*q.w;
+	m.m[2][1] = 2.0f * (tmp1 + tmp2)*invs;
+	m.m[1][2] = 2.0f * (tmp1 - tmp2)*invs;
+	return m;
+}
+
+/*
    From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
    yaw: left = +90, right = -90
    pitch: up = +90, down = -90
@@ -170,6 +304,27 @@ void quatToEuler(vr::HmdQuaternionf_t q, float *yaw, float *roll, float *pitch) 
 	*roll = atan2(2.0f * q.x*q.w - 2.0f * q.y*q.z, 1.0f - 2.0f * sqx - 2.0f * sqz);
 }
 
+/*
+ * From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
+ */
+vr::HmdQuaternionf_t eulerToQuat(float yaw, float pitch, float roll) {
+	vr::HmdQuaternionf_t q;
+	// Assuming the angles are in radians.
+	float c1 = cos(yaw / 2.0f);
+	float s1 = sin(yaw / 2.0f);
+	float c2 = cos(pitch / 2.0f);
+	float s2 = sin(pitch / 2.0f);
+	float c3 = cos(roll / 2.0f);
+	float s3 = sin(roll / 2.0f);
+	float c1c2 = c1 * c2;
+	float s1s2 = s1 * s2;
+	q.w = c1c2 * c3 - s1s2 * s3;
+	q.x = c1c2 * s3 + s1s2 * c3;
+	q.y = s1 * c2*c3 + c1 * s2*s3;
+	q.z = c1 * s2*c3 - s1 * c2*s3;
+	return q;
+}
+
 Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t &mat) {
 	Matrix3 matrixObj(
 		mat.m[0][0], mat.m[1][0], mat.m[2][0],
@@ -179,21 +334,160 @@ Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t &mat) {
 	return matrixObj;
 }
 
+Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t &mat) {
+	Matrix3 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0],
+		mat.m[0][1], mat.m[1][1], mat.m[2][1],
+		mat.m[0][2], mat.m[1][2], mat.m[2][2]
+	);
+	return matrixObj;
+}
+
 // TODO: Load the signs from a config file so that it's easier to test this:
-Matrix4 ComputeRotationMatrixFromXWAView() {
+Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
+	Vector3 tmplight;
 	// Compute the full rotation
 	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
 	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-	/*while (yaw < 0) yaw += 360.0f;
+
+	/*
+	while (yaw < 0) yaw += 360.0f;
 	while (pitch < 0) pitch += 360.0f;
-	while (roll < 0) roll += 360.0f;*/
+	while (roll < 0) roll += 360.0f;
+	*/
+	//vr::HmdQuaternionf_t q = eulerToQuat(yaw * DEG2RAD, pitch * DEG2RAD, roll * DEG2RAD);
+	//vr::HmdQuaternionf_t q = eulerToQuat(pitch * DEG2RAD, yaw * DEG2RAD, roll * DEG2RAD);
+	//vr::HmdQuaternionf_t q = eulerToQuat(roll * DEG2RAD, pitch * DEG2RAD, yaw * DEG2RAD);
+	//vr::HmdQuaternionf_t q = eulerToQuat(roll * DEG2RAD, yaw * DEG2RAD, pitch * DEG2RAD);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); q-wxyz: [%0.3f, %0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, q.w, q.x, q.y, q.z);
+	//vr::HmdMatrix33_t m = quatToMatrix(q);
+	//Matrix3 m3 = HmdMatrix33toMatrix3(m);
+	
+	
+	/*
+	tmplight.x = g_LightVector.x;
+	tmplight.y = g_LightVector.y;
+	tmplight.z = g_LightVector.z;
+	tmplight = m3 * tmplight;
+	light->x = tmplight.x;
+	light->y = tmplight.y;
+	light->z = tmplight.z;
+	*/
+
+	/*light.x = XwaGlobalLights[0].PositionX / 32768.0f;
+	light.y = XwaGlobalLights[0].PositionY / 32768.0f;
+	light.z = XwaGlobalLights[0].PositionZ / 32768.0f;
+	light.normalize();*/
+	/*light.x = XwaGlobalLights[0].DirectionX;
+	light.y = XwaGlobalLights[0].DirectionY;
+	light.z = XwaGlobalLights[0].DirectionZ;*/
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); lights: %d, [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, *XwaGlobalLightsCount, tmplight.x, tmplight.y, tmplight.z);
+
+	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
+	// When pitch == 90, the craft is actually seeing the horizon
+	// When pitch == 0, the craft is looking towards the sun
+
+	float cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+	float cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+	float z = cosTheta * sinPhi;
+	float x = sinTheta * sinPhi;
+	float y = cosPhi;
+
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	rotMatrixFull.identity();
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(-roll);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll); // Z or Y?
 	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); pos: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, x, y, z);
+
+	rotMatrixFull = rotMatrixFull.invert();
+
+	g_LightVector.normalize();
+	tmplight.x = g_LightVector.x;
+	tmplight.y = g_LightVector.y;
+	tmplight.z = g_LightVector.z;
+
+	tmplight = rotMatrixFull * tmplight;
+	light->x = tmplight.z;
+	light->y = tmplight.x;
+	light->z = tmplight.y;
+
+	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
+	float viewyaw, viewpitch;
+	if (PlayerDataTable[0].externalCamera) {
+		viewyaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewpitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+	}
+	else {
+		viewyaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewpitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+	}
+
+	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	viewMatrixYaw.identity();
+	viewMatrixPitch.identity();
+	viewMatrixYaw.rotateY(-viewyaw);
+	viewMatrixYaw.rotateX(-viewpitch);
+	tmplight.x =  light->x;
+	tmplight.y = -light->y;
+	tmplight.z =  light->z;
+	tmplight = viewMatrixPitch * viewMatrixYaw * tmplight;
+	light->x = tmplight.x;
+	light->y = tmplight.y;
+	light->z = tmplight.z;
+	
+	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
+	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
+	// so the remaining rotation must be around the y axis (?)
+	//rotMatrixPitch.rotateX(-asin(y) / DEG2RAD);
+	/*tmplight.x = x;
+	tmplight.y = y;
+	tmplight.z = z;*/
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, x, y, z, light->x, light->y, light->z);
+
+	//Vector4 tmplight = *light;
+	//*light = rotMatrixFull * tmplight;
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, light->x, light->y, light->z);
+
+	/*
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+
+	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
+	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
+
+	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
+	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);
+	*/
+
+	/*
+	XwaVector3 tmplight;
+	//tmplight.x = light->x; tmplight.y = light->y; tmplight.z = light->z;
+	int i = 0;
+	tmplight.x = s_XwaGlobalLights[i].DirectionX;
+	tmplight.y = s_XwaGlobalLights[i].DirectionY;
+	tmplight.z = s_XwaGlobalLights[i].DirectionZ;
+	XwaVector3Transform(&tmplight, &WorldTransform->Rotation);
+	XwaVector3Transform(&tmplight, &ViewTransform->Rotation);
+	light->x = tmplight.x;
+	light->y = tmplight.y;
+	light->z = tmplight.z;
+	*/
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
+
 	return rotMatrixFull;
 }
 
@@ -2090,6 +2384,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 
+	/*
 	// Compute the full rotation
 	float yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
 	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
@@ -2104,6 +2399,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	//rotMatrixFull.invert();
 	matrixCB.viewMat = rotMatrixFull;
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
+	*/
 
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -2463,11 +2759,39 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	
 	PixelShaderMatrixCB matrixCB;
 	//rotMatrixFull.invert();
-	matrixCB.viewMat = ComputeRotationMatrixFromXWAView();
-	Vector4 light = matrixCB.viewMat * g_LightVector;
-	matrixCB.LightVector.x = light.x;
-	matrixCB.LightVector.y = light.y;
-	matrixCB.LightVector.z = light.z;
+	Vector4 light;
+	light.x = g_LightVector.x;
+	light.y = g_LightVector.y;
+	light.z = g_LightVector.z;
+	light.w = 0;
+	matrixCB.viewMat = ComputeRotationMatrixFromXWAView(&light);
+
+	//light = matrixCB.viewMat * g_LightVector;
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); q-wxyz: [%0.3f, %0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, q.w, q.x, q.y, q.z);
+
+	//matrixCB.LightVector.x = light.x;
+	//matrixCB.LightVector.y = light.y;
+	//matrixCB.LightVector.z = light.z;
+	
+	/*light.x = XwaGlobalLights[0].DirectionX;
+	light.y = XwaGlobalLights[0].DirectionY;
+	light.z = XwaGlobalLights[0].DirectionZ;*/
+	/*light.x = XwaGlobalLights[0].PositionX / 32768.0f;
+	light.y = XwaGlobalLights[0].PositionY / 32768.0f;
+	light.z = XwaGlobalLights[0].PositionZ / 32768.0f;
+	light.normalize();*/
+
+	if (g_bOverrideLightPos) {
+		matrixCB.LightVector.x = g_LightVector.x;
+		matrixCB.LightVector.y = g_LightVector.y;
+		matrixCB.LightVector.z = g_LightVector.z;
+	}
+	else {
+		matrixCB.LightVector.x = light.x;
+		matrixCB.LightVector.y = light.y;
+		matrixCB.LightVector.z = light.z;
+	}
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
 	// Set the constant buffers

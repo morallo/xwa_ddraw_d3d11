@@ -313,6 +313,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_CockpitSpark = false;
 	this->is_Chaff = false;
 	this->is_Missile = false;
+	this->is_GenericSSAOTransparent = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -592,6 +593,7 @@ void Direct3DTexture::TagTexture() {
 		}
 	}
 
+	// Tag Lasers, Missiles, Cockpit textures, Exterior textures, light textures
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		// Catch the laser-related textures and mark them
@@ -628,6 +630,28 @@ void Direct3DTexture::TagTexture() {
 		// Catch light textures and mark them appropriately
 		if (strstr(surface->_name, ",light,") != NULL)
 			this->is_LightTexture = true;
+
+		//if (strstr(surface->_name, "color-transparent") != NULL) {
+			//this->is_ColorTransparent = true;
+			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
+		//}
+
+		if (strstr(surface->_name, "YavinAlberi.opt,TEX00001,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00026,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00027,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00011,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00020,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00021,") != NULL ||
+			strstr(surface->_name, "YavinLand.opt,TEX00037,") != NULL ||
+			strstr(surface->_name, "YavinPiramed.opt,TEX00004,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00000,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00007,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00015,") != NULL
+		   )
+		{
+			//log_debug("[DBG] [DC] [%s]", surface->_name);
+			this->is_GenericSSAOTransparent = true;
+		}
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
@@ -741,6 +765,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_CockpitSpark = d3dTexture->is_CockpitSpark;
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
+	this->is_GenericSSAOTransparent = d3dTexture->is_GenericSSAOTransparent;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
