@@ -39,10 +39,10 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
 	// 32 bytes
 
-	float fBloomStrength;		// General multiplier for the bloom effect
-	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
-	float fSSAOMaskVal;			// SSAO mask value
-	float unused;
+	float fBloomStrength;	// General multiplier for the bloom effect
+	float fPosNormalAlpha;	// Override for pos3D and normal output alpha
+	float fSSAOMaskVal;		// SSAO mask value
+	float fSSAOAlphaOfs;		// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 	// 48 bytes
 };
 
@@ -52,23 +52,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
+	float3 P = input.pos3D.xyz;
+	float SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
 	output.bloom = 0;
 	output.color = texelColor;
-
-	//float3 light = normalize(float3(1, 1, -0.5));
-	//light = normalize(mul(viewMatrix, float4(light, 0)).xyz);
-
-	float3 P = float3(input.pos3D.xyz);
-	output.pos3D  = float4(P, fPosNormalAlpha);
+	output.pos3D = float4(P, SSAOAlpha);
 	
-	//float3 N = cross(ddx(P), ddy(P));
-	//float NL = length(N);
-	//if (NL > 0.01) N /= NL; // Avoid divisions by 0.
-	//N = normalize(lerp(N, light, diffuse.x));
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
-	output.normal = float4(N, fPosNormalAlpha);
+	output.normal = float4(N, SSAOAlpha);
 	
 	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
 	//output.diffuse = input.color;

@@ -274,6 +274,7 @@ extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
+float g_fSSAOAlphaOfs = 0.75f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -1624,7 +1625,6 @@ bool LoadSSAOParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
-	//g_SSAO_PSCBuffer.scale = 0.001f;
 	g_SSAO_PSCBuffer.intensity = 2.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.1f;
@@ -1761,6 +1761,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "override_game_light_pos") == 0) {
 				g_bOverrideLightPos = (bool)fValue;
+			}
+			else if (_stricmp(param, "alpha_to_solid_offset") == 0) {
+				g_fSSAOAlphaOfs = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
@@ -3404,6 +3407,7 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
 	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
@@ -4910,6 +4914,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
 					g_PSCBuffer.fBloomStrength	= 1.0f;
 					g_PSCBuffer.fPosNormalAlpha = 1.0f;
+					g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };

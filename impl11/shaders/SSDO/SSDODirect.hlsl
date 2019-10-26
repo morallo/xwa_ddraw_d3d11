@@ -153,16 +153,17 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	// v: Normalized (occluder - P) vector
 	const float3 v = diff * rsqrt(diff_sqr);
 	const float max_dist_sqr = max_dist * max_dist;
-	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+	const float weight = saturate(diff_sqr / max_dist_sqr);
 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
 	float ao_factor = ao_dot * weight;
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
-	float visibility = 1 - ao_dot;
+	float visibility = (1 - ao_dot);
 	float2 uv_diff = sample_uv - input_uv;
 	float3 B = 0;
-	if (diff.z > 0.0) // occluder is farther than P -- no occlusion, visibility is 1.
+	if (diff.z > 0.0 || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
+	//if (diff.z > 0.0 || weight) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
@@ -178,13 +179,14 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
-		//if (debug == 2)
-		//	return intensity * saturate(dot(B, light));
-		//return result + color * intensity * saturate(dot(B, light));
+		output.N = B;
+		output.col = saturate(dot(B, light));
+		return output;
 	}
 	output.N = B;
-	output.col = visibility * saturate(dot(B, light));
-	if (debug == -1) output.col = visibility;
+	//output.col = visibility * saturate(dot(B, light));
+	output.col = 0;
+	//if (debug == -1) output.col = visibility;
 	//return visibility * saturate(dot(B, light));
 	return output;
 
@@ -230,7 +232,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
 	//float3 bentNormal = float3(0, 0, 0.01);
-	float3 ssdo = 0;
+	float3 ssdo;
 	float3 p;
 	float radius = sample_radius;
 	bool FGFlag;
@@ -251,9 +253,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
 	//p += m_offset * n;
 	p.z -= m_offset;
+	//p += m_offset * n;
 
-	// Early exit: do not compute SSAO for objects at infinity
-	if (p.z > INFINITY_Z) return output; // SSAO
+	// Early exit: do not compute SSDO for objects at infinity
+	if (p.z > INFINITY_Z) return output;
 
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
@@ -275,6 +278,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float max_radius = radius * (float)(samples + sample_jitter);
 
 	// SSDO Direct Calculation
+	ssdo = 0;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
@@ -288,13 +292,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		bentNormal += ssdo_aux.N;
 	}
 	output.ssao.xyz = ssdo / (float)samples;
+	//ssdo = intensity * saturate(dot(bentNormal, light));
+	//output.ssao.rgb = ssdo;
+	//float BLength = length(bentNormal);
 	if (fn_enable)
 		bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
-	float BLength = length(bentNormal);
-	//if (BLength > 0.01) bentNormal /= BLength;
-	bentNormal /= BLength;
-	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
-	//output.bentNormal.xyz = bentNormal;
+	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
+	//output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	output.bentNormal.xyz = bentNormal;
+	//output.bentNormal.xyz = float3(BLength, BLength, BLength);
 	return output;
 
 	/*

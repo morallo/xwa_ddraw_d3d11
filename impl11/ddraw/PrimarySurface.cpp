@@ -400,12 +400,22 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	rotMatrixFull.identity();
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll); // Z or Y?
+	// Performing a rotateX(-pitch) aligns the (x,y,z) from spherical coords with the Y+ axis
+	// Performing a rotateX(90 - pitch) aligns the (x,y,z) from spherical coords with the Z+ axis
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch - 90);
+	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
 	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); pos: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, x, y, z);
+	
+	/*
+	// Test the matrices
+	tmplight.x = x;
+	tmplight.y = y;
+	tmplight.z = z;
+	tmplight = rotMatrixPitch * rotMatrixYaw * tmplight;
+	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); pos: [%0.3f, %0.3f, %0.3f]",
+		yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
+	*/
 
 	rotMatrixFull = rotMatrixFull.invert();
 
@@ -415,38 +425,42 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	tmplight.z = g_LightVector.z;
 
 	tmplight = rotMatrixFull * tmplight;
-	light->x = tmplight.z;
-	light->y = tmplight.x;
-	light->z = tmplight.y;
+	light->x = tmplight.x;
+	light->y = tmplight.y;
+	light->z = tmplight.z;
+
+	//light->x = tmplight.x;
+	//light->y = tmplight.y;
+	//light->z = tmplight.z;
 
 	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
-	float viewyaw, viewpitch;
+	float viewYaw, viewPitch;
 	if (PlayerDataTable[0].externalCamera) {
-		viewyaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
-		viewpitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+		viewYaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewyaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-		viewpitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+		viewYaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
 	}
 
-	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	Matrix4 viewMatrixYaw, viewMatrixPitch, viewMatrix;
 	viewMatrixYaw.identity();
 	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(-viewyaw);
-	viewMatrixYaw.rotateX(-viewpitch);
+	viewMatrixYaw.rotateY(-viewYaw);
+	viewMatrixYaw.rotateX( viewPitch);
+	viewMatrix = viewMatrixPitch * viewMatrixYaw;
+	viewMatrix.invert();
 	tmplight.x =  light->x;
-	tmplight.y = -light->y;
+	tmplight.y =  light->y;
 	tmplight.z =  light->z;
-	tmplight = viewMatrixPitch * viewMatrixYaw * tmplight;
+	tmplight = viewMatrix * tmplight;
 	light->x = tmplight.x;
 	light->y = tmplight.y;
 	light->z = tmplight.z;
 	
 	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
 	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
-	// so the remaining rotation must be around the y axis (?)
-	//rotMatrixPitch.rotateX(-asin(y) / DEG2RAD);
 	/*tmplight.x = x;
 	tmplight.y = y;
 	tmplight.z = z;*/
@@ -486,7 +500,7 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	*/
 
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
+	//	yaw, pitch, roll, light->x, light->y, light->z);
 
 	return rotMatrixFull;
 }
@@ -2807,7 +2821,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
-
 	
 	// SSDO Direct Lighting, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
@@ -3589,14 +3602,14 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				/*
-				D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
+				//resources->_d3dDevice->render
+				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
 				D3D11_SAMPLER_DESC samplerDesc;
 				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
-				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
 				samplerDesc.MipLODBias = 0.0f;
 				samplerDesc.MinLOD = 0;
 				samplerDesc.MaxLOD = FLT_MAX;
@@ -3607,7 +3620,7 @@ HRESULT PrimarySurface::Flip(
 				samplerDesc.BorderColor[3] = 0.0f;
 				ComPtr<ID3D11SamplerState> tempSampler;
 				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
-				context->PSSetSamplers(1, 1, &tempSampler);*/
+				context->PSSetSamplers(1, 1, &tempSampler);
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
@@ -3638,7 +3651,7 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				if (g_bDumpSSAOBuffers) {
-					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");

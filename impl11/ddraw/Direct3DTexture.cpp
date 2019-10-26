@@ -636,6 +636,7 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
 		//}
 
+		/*
 		if (strstr(surface->_name, "YavinAlberi.opt,TEX00001,") != NULL ||
 			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00026,") != NULL ||
 			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00027,") != NULL ||
@@ -652,6 +653,7 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] [DC] [%s]", surface->_name);
 			this->is_GenericSSAOTransparent = true;
 		}
+		*/
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit

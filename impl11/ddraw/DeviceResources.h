@@ -250,7 +250,7 @@ typedef struct PixelShaderCBStruct {
 	float fBloomStrength;
 	float fPosNormalAlpha;
 	float fSSAOMaskVal;
-	float unused;
+	float fSSAOAlphaMult;
 	// 16 bytes
 
 	// 48 bytes total

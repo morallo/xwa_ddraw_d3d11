@@ -35,7 +35,7 @@ struct PixelShaderOutput
 
 cbuffer ConstantBuffer : register(b3)
 {
-	float screenSizeX, screenSizeY, scale, bias;
+	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
 	float intensity, sample_radius, black_level;
 	uint samples;
@@ -43,8 +43,12 @@ cbuffer ConstantBuffer : register(b3)
 	uint z_division;
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
-	uint debug, unused1, unused2, unused3;
+	uint debug;
+	float moire_offset, amplifyFactor;
+	int fn_enable;
 	// 64 bytes
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
+	// 80 bytes
 };
 
 struct BlurData {
@@ -107,9 +111,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z) return output;
 
+	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
+	//p.z -= m_offset;
+	p += m_offset * n;
+
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
-
+	
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
