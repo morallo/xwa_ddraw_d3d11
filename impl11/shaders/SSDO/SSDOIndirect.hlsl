@@ -95,13 +95,13 @@ inline float3 getNormal(in float2 uv) {
 	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, /* in float3 color, */
-	in float3 P, in float3 Normal /*, in float3 light,
-	in float cur_radius, in float max_radius */)
+inline float3 doSSDOIndirect(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv, 
+	in float3 P, in float3 Normal)
 {
+	float2 sample_uv_sub = sample_uv * amplifyFactor;
 	float3 occluder_Normal = getNormal(sample_uv); // I can probably read this normal off of the bent buffer later (?)
 	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
-	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv, 0).xyz;
+	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xyz;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
 	// diff: Vector from current pos (P) to the sampled neighbor
 	const float3 diff = occluder - P;
@@ -211,9 +211,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
-		sample_uv = saturate(input_uv_sub + sample_direction.xy * (j + sample_jitter));
+		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, input_uv_sub, sample_uv, /* color, */
+		ssdo += doSSDOIndirect(FGFlag, /* input_uv,*/ sample_uv, /* color, */
 			p, n /*, light, radius * (j + sample_jitter), max_radius */);
 	}
 	//ao = 1 - ao / (float)samples;

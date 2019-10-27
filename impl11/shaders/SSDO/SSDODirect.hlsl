@@ -174,20 +174,18 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
-		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B);
 		B = normalize(B);
+		output.N = B;
+		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
-		output.N = B;
 		output.col = saturate(dot(B, light));
 		return output;
 	}
 	output.N = B;
 	//output.col = visibility * saturate(dot(B, light));
 	output.col = 0;
-	//if (debug == -1) output.col = visibility;
-	//return visibility * saturate(dot(B, light));
 	return output;
 
 	//return visibility;
@@ -227,7 +225,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P2 = getPositionBG(input.uv);
 	float3 n = getNormal(input.uv);
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
-	//float3 diff = texDiff.SampleLevel(sampDiff, input.uv, 0).xyz;
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
@@ -292,15 +289,16 @@ PixelShaderOutput main(PixelShaderInput input)
 		bentNormal += ssdo_aux.N;
 	}
 	output.ssao.xyz = ssdo / (float)samples;
+	//bentNormal /= (float)samples;
+	//float BLength = length(bentNormal);
 	//ssdo = intensity * saturate(dot(bentNormal, light));
 	//output.ssao.rgb = ssdo;
-	//float BLength = length(bentNormal);
-	if (fn_enable)
-		bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
+	
+	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
-	//output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
-	output.bentNormal.xyz = bentNormal;
-	//output.bentNormal.xyz = float3(BLength, BLength, BLength);
+	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	//output.bentNormal.xyz = bentNormal;
+	//output.bentNormal.xyz = BLength;
 	return output;
 
 	/*
