@@ -43,7 +43,7 @@ cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
-	float intensity, sample_radius, black_level;
+	float intensity, near_sample_radius, black_level;
 	uint samples;
 	// 32 bytes
 	uint z_division;
@@ -55,6 +55,8 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
 	// 80 bytes
+	float far_sample_radius, unused1, unused2, unused3;
+	// 96 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -159,7 +161,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	float ao_factor = ao_dot * weight;
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
-	float visibility = (1 - ao_dot);
+	//float visibility = (1 - ao_dot);
 	float2 uv_diff = sample_uv - input_uv;
 	float3 B = 0;
 	if (diff.z > 0.0 || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
@@ -231,7 +233,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 bentNormal = float3(0, 0, 0.01);
 	float3 ssdo;
 	float3 p;
-	float radius = sample_radius;
+	float radius;
 	bool FGFlag;
 	
 	output.ssao = 1;
@@ -255,6 +257,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Early exit: do not compute SSDO for objects at infinity
 	if (p.z > INFINITY_Z) return output;
 
+	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
+	// We need to use saturate() here or we actually get negative numbers!
+	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
+	//radius = far_sample_radius;
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
@@ -282,13 +288,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, light,
-			radius * (j + sample_jitter), max_radius,
-			FakeNormal);
-		ssdo += intensity * ssdo_aux.col;
+			p, n, light, radius * (j + sample_jitter), max_radius, FakeNormal);
+		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 	}
-	output.ssao.xyz = ssdo / (float)samples;
+	ssdo = intensity * ssdo / (float)samples;
+	output.ssao.xyz = pow(ssdo, power);
 	//bentNormal /= (float)samples;
 	//float BLength = length(bentNormal);
 	//ssdo = intensity * saturate(dot(bentNormal, light));
@@ -297,6 +302,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
 	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	//output.bentNormal.xyz = radius * 100; // DEBUG! Use this to visualize the radius
 	//output.bentNormal.xyz = bentNormal;
 	//output.bentNormal.xyz = BLength;
 	return output;

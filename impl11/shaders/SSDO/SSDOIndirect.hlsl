@@ -45,7 +45,7 @@ cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
-	float intensity, sample_radius, black_level;
+	float intensity, near_sample_radius, black_level;
 	uint samples;
 	// 32 bytes
 	uint z_division;
@@ -55,8 +55,10 @@ cbuffer ConstantBuffer : register(b3)
 	float moire_offset, amplifyFactor;
 	uint fn_enable;
 	// 64 bytes
-	float max_xymult, fn_scale, fn_sharpness, unused1;
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
 	// 80 bytes
+	float far_sample_radius, unused1, unused2, unused3;
+	// 96 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -171,9 +173,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 n = getNormal(input.uv);
 	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	//float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
-	float3 ssdo = 0;
+	float3 ssdo;
 	float3 p;
-	float radius = sample_radius;
+	float radius;
 	bool FGFlag;
 	output.ssao = float4(0, 0, 0, 1);
 
@@ -194,6 +196,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z) return output;
 
+	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
+	// We need to use saturate() here or we actually get negative numbers!
+	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
+
 	//float3 light = 1;
 	//float3 light  = normalize(float3(1, 1, -0.5));
 	//float3 light = normalize(float3(-1, 1, -0.5));
@@ -208,13 +214,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float max_radius = radius * (float)(samples - 1 + sample_jitter);
 
 	// SSDO Indirect Calculation
+	ssdo = 0;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, /* input_uv,*/ sample_uv, /* color, */
-			p, n /*, light, radius * (j + sample_jitter), max_radius */);
+		ssdo += doSSDOIndirect(FGFlag, sample_uv, p, n);
 	}
 	//ao = 1 - ao / (float)samples;
 	ssdo = indirect_intensity * ssdo / (float)samples;

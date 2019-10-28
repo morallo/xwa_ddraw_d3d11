@@ -1628,7 +1628,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.intensity = 2.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.1f;
-	g_SSAO_PSCBuffer.sample_radius = 0.0035f;
+	g_SSAO_PSCBuffer.near_sample_radius = 0.0035f;
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 16;
 	g_SSAO_PSCBuffer.moire_offset = 0.01f;
@@ -1679,8 +1679,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "intensity") == 0) {
 				g_SSAO_PSCBuffer.intensity = fValue;
 			}
-			else if (_stricmp(param, "sample_radius") == 0) {
-				g_SSAO_PSCBuffer.sample_radius = fValue;
+			else if (_stricmp(param, "near_sample_radius") == 0) {
+				g_SSAO_PSCBuffer.near_sample_radius = fValue;
+			}
+			else if (_stricmp(param, "far_sample_radius") == 0) {
+				g_SSAO_PSCBuffer.far_sample_radius = fValue;
 			}
 			else if (_stricmp(param, "samples") == 0) {
 				g_SSAO_PSCBuffer.samples = (int )fValue;
@@ -1783,7 +1786,8 @@ bool LoadSSAOParams() {
 	log_debug("[DBG] [AO] SSAO Enabled: %d", g_bAOEnabled);
 	log_debug("[DBG] [AO] SSAO bias: %0.3f", g_SSAO_PSCBuffer.bias);
 	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
-	log_debug("[DBG] [AO] SSAO sample_radius: %0.3f", g_SSAO_PSCBuffer.sample_radius);
+	log_debug("[DBG] [AO] SSAO near_sample_radius: %0.6f", g_SSAO_PSCBuffer.near_sample_radius);
+	log_debug("[DBG] [AO] SSAO far_sample_radius: %0.6f", g_SSAO_PSCBuffer.far_sample_radius);
 	log_debug("[DBG] [AO] SSAO samples: %d", g_SSAO_PSCBuffer.samples);
 	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
 	if (g_SSAO_Type == SSO_AMBIENT)

@@ -192,7 +192,7 @@ typedef struct BloomPixelShaderCBStruct {
 typedef struct SSAOPixelShaderCBStruct {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
-	float intensity, sample_radius, black_level;
+	float intensity, near_sample_radius, black_level;
 	int samples;
 	// 32 bytes
 	int z_division;
@@ -204,6 +204,8 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
 	// 80 bytes
+	float far_sample_radius, unused1, unused2, unused3;
+	// 96 bytes
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */
