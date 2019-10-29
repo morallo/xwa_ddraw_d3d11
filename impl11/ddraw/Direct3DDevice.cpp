@@ -1759,8 +1759,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "nm_sharpness") == 0) {
 				g_SSAO_PSCBuffer.fn_sharpness = fValue;
 			}
-			else if (_stricmp(param, "nm_intensity") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity = fValue;
+			else if (_stricmp(param, "nm_intensity_near") == 0) {
+				g_SSAO_PSCBuffer.nm_intensity_near = fValue;
+			}
+			else if (_stricmp(param, "nm_intensity_far") == 0) {
+				g_SSAO_PSCBuffer.nm_intensity_far = fValue;
 			}
 			else if (_stricmp(param, "override_game_light_pos") == 0) {
 				g_bOverrideLightPos = (bool)fValue;
@@ -1778,7 +1781,6 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
 					g_LightVector.x, g_LightVector.y, g_LightVector.z);
 			}
-			
 		}
 	}
 	fclose(file);

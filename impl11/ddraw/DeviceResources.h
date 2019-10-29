@@ -202,9 +202,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	float moire_offset, amplifyFactor;
 	int fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, unused1, unused2, unused3;
+	float far_sample_radius, nm_intensity_far, unused2, unused3;
 	// 96 bytes
 } SSAOPixelShaderCBuffer;
 

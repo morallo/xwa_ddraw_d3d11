@@ -20,9 +20,13 @@ SamplerState sampNorm  : register(s2);
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
 
-// The diffuse buffer
-//Texture2D    texDiff  : register(t4);
-//SamplerState sampDiff : register(s4);
+// The ssao mask
+Texture2D    texSSAOMask  : register(t4);
+SamplerState sampSSAOMask : register(s4);
+
+// The bloom mask
+Texture2D    texBloomMask  : register(t5);
+SamplerState sampBloomMask : register(s5);
 
 #define INFINITY_Z 10000
 
@@ -53,9 +57,9 @@ cbuffer ConstantBuffer : register(b3)
 	float moire_offset, amplifyFactor;
 	uint fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, unused1, unused2, unused3;
+	float far_sample_radius, nm_intensity_far, unused2, unused3;
 	// 96 bytes
 };
 
@@ -77,28 +81,23 @@ struct BlurData {
 //};
 
 //class ForegroundPos : IPosition {
-float3 getPositionFG(in float2 uv) {
+float3 getPositionFG(in float2 uv, in int level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, 0).xyz;
+	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 //};
 
 //class BackgroundPos : IPosition {
-float3 getPositionBG(in float2 uv) {
-	return texPos2.SampleLevel(sampPos2, uv, 0).xyz;
+float3 getPositionBG(in float2 uv, in int level) {
+	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 //};
 
 inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
 }
-
-struct ColNorm {
-	float3 col;
-	float3 N;
-};
 
 /*
  * From Pascal Gilcher's SSR shader.
@@ -108,16 +107,19 @@ struct ColNorm {
 float3 get_normal_from_color(float2 uv, float2 offset)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
+	// Luminosity samples
 	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
 	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
 	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
 
-	float dpx = getPositionFG(uv + offset_swiz.xz).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy).z;
+	// Depth samples
+	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
+	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
+	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
+	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
 
+	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
 	//xymult = saturate(1.0 - xymult);
 	xymult = saturate(fn_max_xymult - xymult);
@@ -137,55 +139,71 @@ float3 blend_normals(float3 n1, float3 n2)
 	return n1 * dot(n1, n2) / n1.z - n2;
 }
 
-// inline
+struct ColNorm {
+	float3 col;
+	float3 N;
+	//uint was_sampled;
+};
+
 inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal, in float3 light,
 	in float cur_radius, in float max_radius,
-	in float3 FakeNormal)
+	in float3 FakeNormal, in float nm_intensity)
 {
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
-	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+	float2 uv_diff = sample_uv - input_uv;
+	float L = length(uv_diff);
+	float x = max_radius - cur_radius;
+	float z = sqrt(L * L - x * x);
+	float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
+
+	//output.was_sampled = 0;
+	float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
+	//if (occluder.z > INFINITY_Z) // The sample is at infinity, don't compute any SSDO
+	//	return output;
+	//output.was_sampled = occluder.z < INFINITY_Z;
 	// diff: Vector from current pos (P) to the sampled neighbor
 	//       If the occluder is farther than P, then diff.z will be positive
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
-	const float diff_sqr = dot(diff, diff);
+	//const float diff_sqr = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
-	const float3 v = diff * rsqrt(diff_sqr);
-	const float max_dist_sqr = max_dist * max_dist;
-	const float weight = saturate(diff_sqr / max_dist_sqr);
+	//const float3 v = diff * rsqrt(diff_sqr);
+	//const float max_dist_sqr = max_dist * max_dist;
+	//const float weight = saturate(1 - diff_sqr / max_dist_sqr);
 
-	float ao_dot = max(0.0, dot(Normal, v) - bias);
-	float ao_factor = ao_dot * weight;
+	//float ao_dot = max(0.0, dot(Normal, v) - bias);
+	//float ao_factor = ao_dot * weight;
 	// This formula is wrong; but it worked pretty well:
 	//float visibility = saturate(1 - step(bias, ao_factor));
 	//float visibility = (1 - ao_dot);
-	float2 uv_diff = sample_uv - input_uv;
+	
 	float3 B = 0;
-	if (diff.z > 0.0 || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
+	if (diff.z > 0.0 || abs(diff.z) > max_dist)
+	//if (diff.z > 0.0 || weight < 0.1) // || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
 	//if (diff.z > 0.0 || weight) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
-		//B.z =  -(max_radius - cur_radius);
-		B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+		B.z = L; // I think this formula is even better than the simple difference. Can I use L to sample other miplevels?
 		//B.z = 0.1;
 		//B = -v;
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
 		B = normalize(B);
-		output.N = B;
 		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
 		//BentNormal += B;
+		output.N = B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
 		output.col = saturate(dot(B, light));
 		return output;
 	}
-	output.N = B;
+	output.N = 0;
 	//output.col = visibility * saturate(dot(B, light));
 	output.col = 0;
 	return output;
@@ -223,10 +241,13 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	ColNorm ssdo_aux;
-	float3 P1 = getPositionFG(input.uv);
-	float3 P2 = getPositionBG(input.uv);
+	float3 P1 = getPositionFG(input.uv, 0);
+	float3 P2 = getPositionBG(input.uv, 0);
 	float3 n = getNormal(input.uv);
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
+	float3 bloom_mask_rgb = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0).rgb;
+	float bloom_mask = dot(0.333, bloom_mask_rgb);
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
@@ -260,6 +281,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
 	// We need to use saturate() here or we actually get negative numbers!
 	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
+	float nm_intensity = (1 - ssao_mask) * lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
 	//radius = far_sample_radius;
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
@@ -282,18 +304,24 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// SSDO Direct Calculation
 	ssdo = 0;
+	//uint num_samples = 0;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, light, radius * (j + sample_jitter), max_radius, FakeNormal);
+			p, n, light, radius * (j + sample_jitter), max_radius,
+			FakeNormal, nm_intensity);
+		//if (ssdo_aux.was_sampled) {
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
+		//num_samples++;
 	}
+	//num_samples = max(1, num_samples);
 	ssdo = intensity * ssdo / (float)samples;
-	output.ssao.xyz = pow(ssdo, power);
+	ssdo = lerp(ssdo, 1, bloom_mask);
+	output.ssao.xyz = pow(abs(ssdo), power);
 	//bentNormal /= (float)samples;
 	//float BLength = length(bentNormal);
 	//ssdo = intensity * saturate(dot(bentNormal, light));

@@ -2830,12 +2830,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
-		ID3D11ShaderResourceView *srvs_pass1[5] = {
+		ID3D11ShaderResourceView *srvs_pass1[6] = {
 			resources->_depthBufSRV.Get(),
 			resources->_depthBuf2SRV.Get(),
 			resources->_normBufSRV.Get(),
 			resources->_offscreenAsInputShaderResourceView.Get(),
-			NULL, // resources->_diffuseSRV.Get(),
+			resources->_ssaoMaskSRV.Get(),
+			resources->_offscreenAsInputBloomMaskSRV.Get(),
 		};
 		resources->InitPixelShader(resources->_ssdoDirectPS);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
@@ -2846,7 +2847,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs_pass1);
+			context->PSSetShaderResources(0, 6, srvs_pass1);
 			context->Draw(6, 0);
 			goto out1;
 		}
@@ -2858,7 +2859,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs_pass1);
+			context->PSSetShaderResources(0, 6, srvs_pass1);
 			context->Draw(6, 0);
 		}
 	}
