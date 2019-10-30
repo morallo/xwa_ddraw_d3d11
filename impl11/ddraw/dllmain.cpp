@@ -68,6 +68,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable;
 extern Vector4 g_LightVector;
+bool g_bShowXWARotation = false;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -210,6 +211,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'N':
 				// Toggle Normal Mapping
 				g_bFNEnable = !g_bFNEnable;
+				return 0;
+			case 'M':
+				g_bShowXWARotation = true;
 				return 0;
 
 			case 'B':

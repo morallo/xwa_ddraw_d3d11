@@ -79,42 +79,43 @@ struct BlurData {
 //};
 
 //class ForegroundPos : IPosition {
-float3 getPositionFG(in float2 uv) {
+float3 getPositionFG(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, 0).xyz;
+	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 //};
 
 //class BackgroundPos : IPosition {
-float3 getPositionBG(in float2 uv) {
-	return texPos2.SampleLevel(sampPos2, uv, 0).xyz;
+float3 getPositionBG(in float2 uv, in float level) {
+	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 //};
 
-inline float3 getNormal(in float2 uv) {
-	return texNorm.SampleLevel(sampNorm, uv, 0).xyz;
+inline float3 getNormal(in float2 uv, in float level) {
+	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
 }
 
-inline float3 doSSDOIndirect(bool FGFlag, /* in float2 input_uv, */ in float2 sample_uv, 
-	in float3 P, in float3 Normal)
+inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal,
+	in float cur_radius, in float max_radius)
 {
+	float miplevel = cur_radius / max_radius * 4;
 	float2 sample_uv_sub = sample_uv * amplifyFactor;
-	float3 occluder_Normal = getNormal(sample_uv); // I can probably read this normal off of the bent buffer later (?)
-	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
-	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xyz;
-	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+	float3 occluder_Normal = getNormal(sample_uv, miplevel); // I can probably read this normal off of the bent buffer later (?)
+	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, miplevel).xyz;
+	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, miplevel).xyz;
+	float3 occluder = FGFlag ? getPositionFG(sample_uv, 0) : getPositionBG(sample_uv, miplevel);
 	// diff: Vector from current pos (P) to the sampled neighbor
 	const float3 diff = occluder - P;
 	const float diff_sqr = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
 	const float3 v = diff * rsqrt(diff_sqr);
-	const float max_dist_sqr = max_dist * max_dist;
-	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+	//const float max_dist_sqr = max_dist * max_dist;
+	//const float weight = saturate(1 - diff_sqr / max_dist_sqr);
+	const float weight = (1 - cur_radius * cur_radius / (max_radius * max_radius));
 	// TODO: Make ambient a configurable parameter
 	const float ambient = 0.15;
-	//if (addSSDO)
 	occluder_color = (ambient + occluder_ssdo) * occluder_color;
 
 	//float ao_dot = max(0.0, dot(Normal, v) - bias);
@@ -168,9 +169,9 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float2 input_uv_sub = amplifyFactor * input.uv;
-	float3 P1 = getPositionFG(input.uv);
-	float3 P2 = getPositionBG(input.uv);
-	float3 n = getNormal(input.uv);
+	float3 P1 = getPositionFG(input.uv, 0);
+	float3 P2 = getPositionBG(input.uv, 0);
+	float3 n = getNormal(input.uv, 0);
 	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	//float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
 	float3 ssdo;
@@ -199,6 +200,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
 	// We need to use saturate() here or we actually get negative numbers!
 	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
+	//float nm_intensity = (1 - ssao_mask) * lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
 
 	//float3 light = 1;
 	//float3 light  = normalize(float3(1, 1, -0.5));
@@ -211,7 +213,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
-	//float max_radius = radius * (float)(samples - 1 + sample_jitter);
+	float max_radius = radius * (float)(samples + sample_jitter);
 
 	// SSDO Indirect Calculation
 	ssdo = 0;
@@ -220,7 +222,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, sample_uv, p, n);
+		ssdo += doSSDOIndirect(FGFlag, sample_uv, p, n, 
+			radius * (j + sample_jitter), max_radius);
 	}
 	//ao = 1 - ao / (float)samples;
 	ssdo = indirect_intensity * ssdo / (float)samples;

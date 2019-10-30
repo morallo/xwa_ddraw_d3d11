@@ -81,7 +81,7 @@ struct BlurData {
 //};
 
 //class ForegroundPos : IPosition {
-float3 getPositionFG(in float2 uv, in int level) {
+float3 getPositionFG(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
@@ -90,7 +90,7 @@ float3 getPositionFG(in float2 uv, in int level) {
 //};
 
 //class BackgroundPos : IPosition {
-float3 getPositionBG(in float2 uv, in int level) {
+float3 getPositionBG(in float2 uv, in float level) {
 	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 //};
@@ -154,10 +154,11 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	output.col = 0;
 	output.N   = 0;
 	float2 uv_diff = sample_uv - input_uv;
-	float L = length(uv_diff);
-	float x = max_radius - cur_radius;
-	float z = sqrt(L * L - x * x);
-	float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
+	//float L = length(uv_diff);
+	//float x = max_radius - cur_radius;
+	
+	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
+	float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
 
 	//output.was_sampled = 0;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
@@ -188,16 +189,17 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
 		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
-		B.z = L; // I think this formula is even better than the simple difference. Can I use L to sample other miplevels?
+		//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
+		B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
 		//B.z = 0.1;
 		//B = -v;
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
 		B = normalize(B);
+		output.N = B;
 		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
 		//BentNormal += B;
-		output.N = B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
 		output.col = saturate(dot(B, light));
@@ -300,7 +302,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// After sincos, sample_direction is unitary and 2D
 	sample_direction *= radius;
 	// Then we multiply it by "radius", so now sample_direction has length "radius"
-	float max_radius = radius * (float)(samples + sample_jitter);
+	float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
 
 	// SSDO Direct Calculation
 	ssdo = 0;
