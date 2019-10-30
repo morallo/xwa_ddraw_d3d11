@@ -1679,7 +1679,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "intensity") == 0) {
 				g_SSAO_PSCBuffer.intensity = fValue;
 			}
-			else if (_stricmp(param, "near_sample_radius") == 0) {
+			else if (_stricmp(param, "near_sample_radius") == 0 ||
+				     _stricmp(param, "sample_radius") == 0) {
 				g_SSAO_PSCBuffer.near_sample_radius = fValue;
 			}
 			else if (_stricmp(param, "far_sample_radius") == 0) {

@@ -60,11 +60,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, SSAOAlpha);
 	
 	float3 N = normalize(cross(ddx(P), ddy(P)));
-	if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
+	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
+	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
 	
 	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
-	//output.diffuse = input.color;
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {

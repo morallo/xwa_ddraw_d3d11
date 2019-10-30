@@ -56,24 +56,24 @@ struct BlurData {
 	float3 normal;
 };
 
-float3 getPositionFG(in float2 uv) {
+float3 getPositionFG(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, 0).xyz;
+	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 
-float3 getPositionBG(in float2 uv) {
-	return texPos2.SampleLevel(sampPos2, uv, 0).xyz;
+float3 getPositionBG(in float2 uv, in float level) {
+	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 
-inline float3 getNormal(in float2 uv) {
-	return texNorm.Sample(sampNorm, uv).xyz;
+inline float3 getNormal(in float2 uv, in float level) {
+	return texNorm.Sample(sampNorm, uv, level).xyz;
 }
 
-inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal)
+inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal, in float level)
 {
-	float3 occluder = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+	float3 occluder = FGFlag ? getPositionFG(sample_uv, level) : getPositionBG(sample_uv, level);
 	// diff: Vector from current pos (p) to sampled neighbor
 	float3 diff = occluder - P;
 	const float diff_sqr = dot(diff, diff);
@@ -91,9 +91,9 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = 1;
-	float3 P1 = getPositionFG(input.uv);
-	float3 P2 = getPositionBG(input.uv);
-	float3 n  = getNormal(input.uv);
+	float3 P1 = getPositionFG(input.uv, 0);
+	float3 P2 = getPositionBG(input.uv, 0);
+	float3 n  = getNormal(input.uv, 0);
 	float3 ao = 0;
 	float3 p;
 	float radius = sample_radius;
@@ -111,8 +111,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z) return output;
 
-	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
-	//p.z -= m_offset;
+	// This is probably OK; but we didn't have this in the previous release, so
+	// should I activate this?
+	float m_offset = moire_offset * (p.z * 0.1);
 	p += m_offset * n;
 
 	// Enable perspective-correct radius
@@ -123,15 +124,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
-	//float max_radius = radius * (float)(samples - 1 + sample_jitter);
+	float cur_radius;
+	float max_radius = radius * (float)(samples - 1 + sample_jitter);
+	float miplevel = 0;
 
 	// SSAO Calculation
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
+		cur_radius = radius * (j + sample_jitter);
+		miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n);
+		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
 	}
 
 	ao = 1 - ao / (float)samples;

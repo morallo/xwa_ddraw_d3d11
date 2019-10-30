@@ -106,7 +106,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, 1);
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
-	if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
+	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
+	// Don't flip N.z -- that causes more artifacts: flat unoccluded surfaces become shaded in SSAO
 	output.normal = float4(N, 1);
 
 	output.ssaoMask = 0;

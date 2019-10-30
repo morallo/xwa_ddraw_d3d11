@@ -85,8 +85,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);
 
-	if (debug == 4)
-		return float4(ssdoInd, 1);
+	//if (debug == 4)
+	//	return float4(ssdoInd, 1);
 	return float4(color * ssdo + ssdoInd, 1);
 	//return float4(color * ssdo, 1);
 	

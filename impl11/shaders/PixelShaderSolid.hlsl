@@ -26,7 +26,6 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color		= input.color;
-	//output.diffuse  = 0;
 	output.bloom		= 0;
 	output.pos3D		= 0;
 	output.normal	= 0;
