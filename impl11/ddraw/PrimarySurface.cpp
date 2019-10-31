@@ -2549,6 +2549,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Set the SSAO pixel shader constant buffer
 	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+	g_SSAO_PSCBuffer.fn_enable   = g_bFNEnable;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout

@@ -33,11 +33,12 @@ struct PixelShaderOutput
 	float4 ssao        : SV_TARGET0;
 };
 
+// SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
-	float intensity, sample_radius, black_level;
+	float intensity, near_sample_radius, black_level;
 	uint samples;
 	// 32 bytes
 	uint z_division;
@@ -45,10 +46,12 @@ cbuffer ConstantBuffer : register(b3)
 	// 48 bytes
 	uint debug;
 	float moire_offset, amplifyFactor;
-	int fn_enable;
+	uint fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity;
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
+	float far_sample_radius, nm_intensity_far, unused2, unused3;
+	// 96 bytes
 };
 
 struct BlurData {
@@ -69,6 +72,41 @@ float3 getPositionBG(in float2 uv, in float level) {
 
 inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.Sample(sampNorm, uv, level).xyz;
+}
+
+float3 get_normal_from_color(float2 uv, float2 offset)
+{
+	float3 offset_swiz = float3(offset.xy, 0);
+	// Luminosity samples
+	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+
+	// Depth samples
+	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
+	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
+	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
+	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+
+	// Depth differences in the x and y axes
+	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
+	//xymult = saturate(1.0 - xymult);
+	xymult = saturate(fn_max_xymult - xymult);
+
+	float3 normal;
+	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
+	normal.z = 1.0;
+
+	return normalize(normal);
+}
+
+float3 blend_normals(float3 n1, float3 n2)
+{
+	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
+	n1 += float3(0, 0, 1);
+	n2 *= float3(-1, -1, 1);
+	return n1 * dot(n1, n2) / n1.z - n2;
 }
 
 inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal, in float level)
@@ -94,9 +132,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P1 = getPositionFG(input.uv, 0);
 	float3 P2 = getPositionBG(input.uv, 0);
 	float3 n  = getNormal(input.uv, 0);
+	float3 FakeNormal = 0;
 	float3 ao = 0;
 	float3 p;
-	float radius = sample_radius;
+	float radius = near_sample_radius;
 	bool FGFlag;
 
 	if (P1.z < P2.z) {
@@ -138,8 +177,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
 	}
-
 	ao = 1 - ao / (float)samples;
+	if (fn_enable) {
+		float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
+		float nm_intensity = lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
+		FakeNormal = get_normal_from_color(input.uv, offset);
+		n = blend_normals(nm_intensity * FakeNormal, n);
+		ao *= (1 - n.z);
+	}
 	output.ssao.xyz *= lerp(black_level, ao, ao);
 
 	return output;
