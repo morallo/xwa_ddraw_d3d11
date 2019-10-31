@@ -361,22 +361,7 @@ Matrix4 ComputeRotationMatrixFromXWAView_bad(Vector4 *light) {
 	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
 	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-
-	/*
-	while (yaw < 0) yaw += 360.0f;
-	while (pitch < 0) pitch += 360.0f;
-	while (roll < 0) roll += 360.0f;
-	*/
-	//vr::HmdQuaternionf_t q = eulerToQuat(yaw * DEG2RAD, pitch * DEG2RAD, roll * DEG2RAD);
-	//vr::HmdQuaternionf_t q = eulerToQuat(pitch * DEG2RAD, yaw * DEG2RAD, roll * DEG2RAD);
-	//vr::HmdQuaternionf_t q = eulerToQuat(roll * DEG2RAD, pitch * DEG2RAD, yaw * DEG2RAD);
-	//vr::HmdQuaternionf_t q = eulerToQuat(roll * DEG2RAD, yaw * DEG2RAD, pitch * DEG2RAD);
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); q-wxyz: [%0.3f, %0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, q.w, q.x, q.y, q.z);
-	//vr::HmdMatrix33_t m = quatToMatrix(q);
-	//Matrix3 m3 = HmdMatrix33toMatrix3(m);
-	
-	
+		
 	/*
 	tmplight.x = g_LightVector.x;
 	tmplight.y = g_LightVector.y;
@@ -534,26 +519,17 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
 	float roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
 
-	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
-	// When pitch == 90, the craft is actually seeing the horizon
-	// When pitch == 0, the craft is looking towards the sun
-
-	float cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
-	float cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
-	float z = cosTheta * sinPhi;
-	float x = sinTheta * sinPhi;
-	float y = cosPhi;
-
+	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	rotMatrixFull.identity();
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
 	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll); // Z or Y?
-	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-	rotMatrixFull = rotMatrixFull.invert();
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll); // Z or Y?
+	//rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+	//rotMatrixFull = rotMatrixFull.invert();
 
 	g_LightVector.normalize();
-	tmplight.x = g_LightVector.x;
+	/*tmplight.x = g_LightVector.x;
 	tmplight.y = g_LightVector.y;
 	tmplight.z = g_LightVector.z;
 	tmplight.w = 0;
@@ -561,46 +537,92 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	tmplight = rotMatrixFull * tmplight;
 	light->x = tmplight.z;
 	light->y = tmplight.x;
-	light->z = tmplight.y;
-
-	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
-	float viewyaw, viewpitch;
-	if (PlayerDataTable[0].externalCamera) {
-		viewyaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
-		viewpitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
-	}
-	else {
-		viewyaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-		viewpitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
-	}
-
-	Matrix4 viewMatrixYaw, viewMatrixPitch;
-	viewMatrixYaw.identity();
-	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(-viewyaw);
-	viewMatrixYaw.rotateX(-viewpitch);
-	tmplight.x =  light->x;
-	tmplight.y = -light->y;
-	tmplight.z =  light->z;
-	tmplight = viewMatrixPitch * viewMatrixYaw * tmplight;
-	light->x = tmplight.x;
-	light->y = tmplight.y;
-	light->z = tmplight.z;
+	light->z = tmplight.y;*/
 
 	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
 	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
 	// so the remaining rotation must be around the y axis (?)
-	// DEBUG
+	// DEBUG, x = z, y = x, z = y;
+	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
+	// When pitch == 90, the craft is actually seeing the horizon
+	// When pitch == 0, the craft is looking towards the sun
+	// New approach: let's build a TBN system here to avoid the gimbal lock problem
+	Vector4 tmp, tmpL, N, B, T;
+	float cosTheta, cosPhi, sinTheta, sinPhi;
+	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+	cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+	N.z = cosTheta * sinPhi;
+	N.x = sinTheta * sinPhi;
+	N.y = cosPhi;
+	N.w = 0;
+
 	/*
-	tmplight.x = z;
-	tmplight.y = x;
-	tmplight.z = y;
-	tmplight.w = 0;
-	tmplight = rotMatrixPitch * tmplight;
-	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
-		yaw, pitch, roll, x, y, z, tmplight.x, tmplight.y, tmplight.z);
-	// DEBUG
+	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+	cosPhi = cos((pitch + 90) * DEG2RAD), sinPhi = sin((pitch + 90) * DEG2RAD);
+	B.z = cosTheta * sinPhi;
+	B.x = sinTheta * sinPhi;
+	B.y = cosPhi;
+	B.w = 0;
 	*/
+
+	// This transform chain will always transform (x,y,z) into (0, 1, 0):
+	// To make an orthonormal basis, we need x+ and z+
+	N = rotMatrixPitch * rotMatrixYaw * N;
+	B.x = 0; B.y = 0; B.z = 1; B.w = 0;
+	T.x = 1; T.y = 0; T.z = 0; T.w = 0;
+	// In this space we now need to rotate B and T around the Y axis by "roll" degrees
+	B = rotMatrixRoll * B;
+	T = rotMatrixRoll * T;
+	// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	rotMatrixFull.invert();
+	T = rotMatrixFull * T;
+	B = rotMatrixFull * B;
+	N = rotMatrixFull * N;
+	// Our TBN basis is now in absolute coordinates
+	rotMatrixFull.identity();
+	rotMatrixFull.set(
+		T.x, B.x, N.x, 0,
+		T.y, B.y, N.y, 0,
+		T.z, B.z, N.z, 0,
+		0, 0, 0, 1
+	);
+
+	tmplight.x = g_LightVector.x;
+	tmplight.y = g_LightVector.y;
+	tmplight.z = g_LightVector.z;
+	tmplight.w = 0;
+	tmpL = rotMatrixFull * tmplight;
+
+	// tmpL is now the light's direction in view space. We need to further transform this
+	// to compensate for camera rotation
+
+	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
+	float viewYaw, viewPitch;
+	if (PlayerDataTable[0].externalCamera) {
+		viewYaw   = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+	}
+	else {
+		viewYaw   = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+	}
+	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	viewMatrixYaw.identity();
+	viewMatrixPitch.identity();
+	viewMatrixYaw.rotateY(-viewYaw);
+	viewMatrixYaw.rotateX(-viewPitch);
+	tmpL = viewMatrixPitch * viewMatrixYaw * tmpL;
+	light->x = tmpL.x;
+	light->y = tmpL.y;
+	light->z = tmpL.z;
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, x, y, z, tmp.x, tmp.y, tmp.z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, light->x, light->y, light->z);
+	// DEBUG
 
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
 	//	yaw, pitch, roll, light->x, light->y, light->z);
