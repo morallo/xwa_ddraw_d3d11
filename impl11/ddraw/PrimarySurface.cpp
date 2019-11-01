@@ -40,7 +40,10 @@ extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
+
+void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 
 #include <headers/openvr.h>
 const float PI = 3.141592f;
@@ -2842,6 +2845,21 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
+
+	float left = 0.0f, top = 0.0f, width = 1.0f, height = 1.0f;
+	if (!g_bEnableVR) {
+		left   = g_nonVRViewport.TopLeftX;
+		top    = g_nonVRViewport.TopLeftY;
+		width  = g_nonVRViewport.Width;
+		height = g_nonVRViewport.Height;
+		float x, y;
+		InGameToScreenCoords(left, top, width, height, 0, 0, &x, &y);
+		g_SSAO_PSCBuffer.x0 = x / g_fCurScreenWidth;
+		g_SSAO_PSCBuffer.y0 = y / g_fCurScreenHeight;
+		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
+		g_SSAO_PSCBuffer.x1 = x / g_fCurScreenWidth;
+		g_SSAO_PSCBuffer.y1 = y / g_fCurScreenHeight;
+	}
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {

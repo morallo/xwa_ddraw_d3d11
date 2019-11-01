@@ -61,6 +61,8 @@ cbuffer ConstantBuffer : register(b3)
 	// 80 bytes
 	float far_sample_radius, nm_intensity_far, unused2, unused3;
 	// 96 bytes
+	float x0, y0, x1, y1; // Viewport limits in uv space
+	// 112 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -156,6 +158,12 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	float2 uv_diff = sample_uv - input_uv;
 	//float L = length(uv_diff);
 	//float x = max_radius - cur_radius;
+
+	// Early exit: obscure the edges of the effective viewport
+	if (sample_uv.x < x0 || sample_uv.x > x1 ||
+		sample_uv.y < y0 || sample_uv.y > y1) {
+		return output;
+	}
 	
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
 	float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?

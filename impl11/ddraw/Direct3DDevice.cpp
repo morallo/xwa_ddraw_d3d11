@@ -3419,12 +3419,6 @@ HRESULT Direct3DDevice::Execute(
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
 
-	//g_PSCBuffer.DynCockpitSlots  = 0;
-	//g_PSCBuffer.bUseCoverTexture = 0;
-	//g_PSCBuffer.bRenderHUD		 = 0;
-	//g_PSCBuffer.bEnhaceLasers	 = 0;
-	//g_PSCBuffer.bAlphaOnly		 = 0;
-
 	// Save the current viewMatrix: if the Dynamic Cockpit is enabled, we'll need it later to restore the transform
 	//Matrix4 currentViewMat = g_VSMatrixCB.viewMat;
 	//bool bModifiedViewMatrix = false;
@@ -3718,8 +3712,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width = (float)width;
-				g_nonVRViewport.Height = (float)height;
+				g_nonVRViewport.Width    = (float)width;
+				g_nonVRViewport.Height   = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
