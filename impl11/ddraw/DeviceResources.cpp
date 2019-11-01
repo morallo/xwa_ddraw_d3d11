@@ -745,7 +745,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_normBuf.Release();
 		this->_bentBuf.Release();
 		this->_bentBufR.Release(); // bentBufR is used to hold a copy of bentBuf to blur it (and viceversa)
-		//this->_diffuseBuf.Release();
 		this->_ssaoBuf.Release();
 		this->_ssaoBufR.Release(); // ssaoBufR will be used to store SSDO Indirect (and viceversa)
 		this->_ssaoMask.Release();
@@ -760,17 +759,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewSSAO.Release();
 		this->_renderTargetViewSSAO_R.Release();
 		this->_renderTargetViewSSAOMask.Release();
-		//this->_renderTargetViewDiffuse.Release();
 		this->_ssaoBufSRV.Release();
 		this->_ssaoBufSRV_R.Release();
 		this->_ssaoMaskSRV.Release();
-		//this->_diffuseSRV.Release();
 		if (g_bUseSteamVR) {
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
 			this->_depthBuf2R.Release();
 			this->_depthBuf2AsInputR.Release();
-			//this->_diffuseBufR.Release();
 			this->_ssaoMaskR.Release();
 			this->_normBufR.Release();
 			this->_renderTargetViewDepthBufR.Release();
@@ -780,9 +776,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_renderTargetViewNormBufR.Release();
 			this->_renderTargetViewBentBufR.Release();
 			this->_renderTargetViewSSAOMaskR.Release();
-			//this->_renderTargetViewDiffuseR.Release();
 			this->_ssaoMaskSRV_R.Release();
-			//this->_diffuseSRV_R.Release();
 		}
 	}
 

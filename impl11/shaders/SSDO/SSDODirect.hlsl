@@ -156,10 +156,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	output.col = 0;
 	output.N   = 0;
 	float2 uv_diff = sample_uv - input_uv;
-	//float L = length(uv_diff);
-	//float x = max_radius - cur_radius;
 
-	// Early exit: obscure the edges of the effective viewport
+	// Early exit: darken the edges of the effective viewport
 	if (sample_uv.x < x0 || sample_uv.x > x1 ||
 		sample_uv.y < y0 || sample_uv.y > y1) {
 		return output;

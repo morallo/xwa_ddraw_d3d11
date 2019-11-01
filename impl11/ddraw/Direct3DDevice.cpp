@@ -5267,19 +5267,18 @@ HRESULT Direct3DDevice::BeginScene()
 
 	auto& device = this->_deviceResources->_d3dDevice;
 	auto& context = this->_deviceResources->_d3dDeviceContext;
+	auto& resources = this->_deviceResources;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuse, this->_deviceResources->clearColor);
-	if (g_bUseSteamVR) {
+	if (g_bUseSteamVR)
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-		//context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDiffuseR, this->_deviceResources->clearColor);
-	}
 
-	// Clear the Bloom Mask RTVs
-	if (g_bBloomEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
+	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them
+	// even if the Bloom effect is disabled
+	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) {
+		context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
 		if (g_bUseSteamVR)
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
 	}
 
 	// Clear the AO RTVs
@@ -5288,7 +5287,6 @@ HRESULT Direct3DDevice::BeginScene()
 		// on the sides of the screen
 		float infinity[4] = { 0, 0, 32000.0f, 0 };
 		float zero[4] = { 0, 0, 0, 0 };
-		auto &resources = this->_deviceResources;
 
 		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
 		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
@@ -5302,11 +5300,12 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 	}
 
-	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	if (g_bUseSteamVR)
-		context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+		context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 
-	if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
+	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
+		resources->_displayHeight, resources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;
 
 	if (this->_deviceResources->_displayBpp == 2)
