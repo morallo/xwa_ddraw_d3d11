@@ -29,7 +29,7 @@ SamplerState samplerSSDOInd : register(s3);
 Texture2D texSSAOMask : register(t4);
 SamplerState samplerSSAOMask : register(s4);
 
-// The Bent Normals buffer... I might need this later when I enable fake normal mapping?
+// The Bent Normals buffer... I can use this later to compute the shading here
 //Texture2D texBent : register(t5);
 //SamplerState samplerBent : register(s5);
 
@@ -50,6 +50,32 @@ cbuffer ConstantBuffer : register(b2)
 	uint enableBentNormals;
 	float unused1, depth_weight;
 	uint debug;
+};
+
+// SSAOPixelShaderCBuffer
+cbuffer ConstantBuffer : register(b3)
+{
+	float screenSizeX, screenSizeY, indirect_intensity, bias;
+	// 16 bytes
+	float intensity, near_sample_radius, black_level;
+	uint samples;
+	// 32 bytes
+	uint z_division;
+	float bentNormalInit, max_dist, power;
+	// 48 bytes
+	uint ssao_debug;
+	float moire_offset, ssao_amplifyFactor;
+	uint fn_enable;
+	// 64 bytes
+	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
+	// 80 bytes
+	float far_sample_radius, nm_intensity_far, ambient, unused3;
+	// 96 bytes
+	float x0, y0, x1, y1; // Viewport limits in uv space
+	// 112 bytes
+	float3 invLightColor;
+	float unused4;
+	// 128 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -80,7 +106,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	
 	// TODO: Make the ambient component configurable
-	const float ambient = 0.15;
+	//const float ambient = 0.15;
 	ssdo = ambient + ssdo; // Add the ambient component 
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);

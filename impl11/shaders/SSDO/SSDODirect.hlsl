@@ -30,6 +30,9 @@ SamplerState sampBloomMask : register(s5);
 
 #define INFINITY_Z 10000
 
+//static float3 invLightColor = float3(0.058279, 0.069624, 0.085897);
+//static float3 invLightColor = float3(1, 0, 0);
+
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
@@ -59,10 +62,13 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, unused2, unused3;
+	float far_sample_radius, nm_intensity_far, ambient, unused3;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
+	float3 invLightColor;
+	float unused4;
+	// 128 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -155,13 +161,13 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
-	float2 uv_diff = sample_uv - input_uv;
 
 	// Early exit: darken the edges of the effective viewport
 	if (sample_uv.x < x0 || sample_uv.x > x1 ||
 		sample_uv.y < y0 || sample_uv.y > y1) {
 		return output;
 	}
+	float2 uv_diff = sample_uv - input_uv;
 	
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
 	float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
@@ -208,7 +214,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
-		output.col = saturate(dot(B, light));
+		output.col = saturate(dot(B, light)) + invLightColor * saturate(dot(B, -light));
 		return output;
 	}
 	output.N = 0;

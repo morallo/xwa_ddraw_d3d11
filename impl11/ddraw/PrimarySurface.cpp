@@ -2936,14 +2936,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	//matrixCB.LightVector.x = light.x;
 	//matrixCB.LightVector.y = light.y;
 	//matrixCB.LightVector.z = light.z;
-	
-	/*light.x = XwaGlobalLights[0].DirectionX;
-	light.y = XwaGlobalLights[0].DirectionY;
-	light.z = XwaGlobalLights[0].DirectionZ;*/
-	/*light.x = XwaGlobalLights[0].PositionX / 32768.0f;
-	light.y = XwaGlobalLights[0].PositionY / 32768.0f;
-	light.z = XwaGlobalLights[0].PositionZ / 32768.0f;
-	light.normalize();*/
 
 	if (g_bOverrideLightPos) {
 		matrixCB.LightVector.x = g_LightVector.x;

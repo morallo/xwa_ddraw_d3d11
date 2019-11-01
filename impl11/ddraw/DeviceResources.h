@@ -204,10 +204,12 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, unused2, unused3;
+	float far_sample_radius, nm_intensity_far, ambient, unused3;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
+	float invLightR, invLightG, invLightB, unused4;
+	// 128 bytes
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

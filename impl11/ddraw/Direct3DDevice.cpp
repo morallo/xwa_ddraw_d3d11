@@ -1625,14 +1625,30 @@ bool LoadSSAOParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
-	g_SSAO_PSCBuffer.intensity = 2.0f;
+	g_SSAO_PSCBuffer.intensity = 3.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.1f;
-	g_SSAO_PSCBuffer.near_sample_radius = 0.0035f;
+	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
+	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
 	g_SSAO_PSCBuffer.z_division = 0;
-	g_SSAO_PSCBuffer.samples = 16;
-	g_SSAO_PSCBuffer.moire_offset = 0.01f;
+	g_SSAO_PSCBuffer.samples = 8;
+	g_SSAO_PSCBuffer.moire_offset = 0.02f;
+	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
+	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
+	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
+	g_SSAO_PSCBuffer.fn_scale = 1.0f;
+	g_SSAO_PSCBuffer.fn_max_xymult = 100.0f;
+	g_SSAO_PSCBuffer.ambient = 0.15f;
+	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
+	// Default position of the global light (the sun)
+	g_LightVector.x = 0;
+	g_LightVector.y = 1;
+	g_LightVector.z = 0;
+	// Default color of the shadow
+	g_SSAO_PSCBuffer.invLightR = 0.2666f;
+	g_SSAO_PSCBuffer.invLightG = 0.2941f;
+	g_SSAO_PSCBuffer.invLightB = 0.3254f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -1772,6 +1788,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "alpha_to_solid_offset") == 0) {
 				g_fSSAOAlphaOfs = fValue;
 			}
+			else if (_stricmp(param, "ssdo_ambient") == 0) {
+				g_SSAO_PSCBuffer.ambient = fValue;
+			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
@@ -1781,6 +1800,13 @@ bool LoadSSAOParams() {
 				g_LightVector.normalize();
 				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
 					g_LightVector.x, g_LightVector.y, g_LightVector.z);
+			}
+			else if (_stricmp(param, "shadow_color") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_SSAO_PSCBuffer.invLightR = x;
+				g_SSAO_PSCBuffer.invLightG = y;
+				g_SSAO_PSCBuffer.invLightB = z;
 			}
 		}
 	}
