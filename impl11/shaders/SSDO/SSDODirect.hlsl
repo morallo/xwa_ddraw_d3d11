@@ -182,7 +182,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//float visibility = (1 - ao_dot);
 	
 	float3 B = 0;
-	if (diff.z > 0.0 || abs(diff.z) > max_dist)
+	if (diff.z > 0.0 /* || abs(diff.z) > max_dist */) // the abs() > max_dist term creates a white halo when foreground objects occlude shaded areas!
 	//if (diff.z > 0.0 || weight < 0.1) // || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
 	//if (diff.z > 0.0 || weight) // occluder is farther than P -- no occlusion, visibility is 1.
 	{
@@ -208,6 +208,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	output.N = 0;
 	//output.col = visibility * saturate(dot(B, light));
 	output.col = 0;
+	//output.col = saturate(dot(Normal, light)); // Computing this causes illumination artifacts, set col = 0 instead to have consistent results
 	return output;
 
 	//return visibility;

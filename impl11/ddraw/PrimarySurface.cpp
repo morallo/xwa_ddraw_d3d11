@@ -1180,7 +1180,11 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 
 	resources->InitViewport(&viewport);
@@ -1256,7 +1260,6 @@ void PrimarySurface::barrelEffect3D() {
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_barrelPixelShader);
 	
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	// Set the lens distortion constants for the barrel shader
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
@@ -1265,7 +1268,12 @@ void PrimarySurface::barrelEffect3D() {
 	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// Clear the render target
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
+	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
 	context->Draw(6, 0);
@@ -1393,14 +1401,17 @@ void PrimarySurface::barrelEffectSteamVR() {
 	context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 	context->IASetInputLayout(resources->_mainInputLayout);
 
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-		//resources->_depthStencilViewL.Get());
 	context->Draw(6, 0);
 
+	rtvs[0] = resources->_renderTargetViewPostR.Get();
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-		//resources->_depthStencilViewR.Get());
 	context->Draw(6, 0);
 
 #ifdef DBG_VR
@@ -2525,23 +2536,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
-
-	/*
-	// Compute the full rotation
-	float yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	float roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
-	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-	rotMatrixFull.identity();
-	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(-roll);
-	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-	PixelShaderMatrixCB matrixCB;
-	//rotMatrixFull.invert();
-	matrixCB.viewMat = rotMatrixFull;
-	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
-	*/
 
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
