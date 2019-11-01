@@ -2846,12 +2846,20 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	float left = 0.0f, top = 0.0f, width = 1.0f, height = 1.0f;
+	if (g_bEnableVR) {
+		// In VR mode we can't see the edges of the screen anyway, so don't bother
+		// computing the effective viewport for the left and right eyes... or the
+		// viewport for the SteamVR mode.
+		g_SSAO_PSCBuffer.x0 = 0.0f;
+		g_SSAO_PSCBuffer.y0 = 0.0f;
+		g_SSAO_PSCBuffer.x1 = 1.0f;
+		g_SSAO_PSCBuffer.y1 = 1.0f;
+	}
 	if (!g_bEnableVR) {
-		left   = g_nonVRViewport.TopLeftX;
-		top    = g_nonVRViewport.TopLeftY;
-		width  = g_nonVRViewport.Width;
-		height = g_nonVRViewport.Height;
+		UINT left   = (UINT)g_nonVRViewport.TopLeftX;
+		UINT top    = (UINT)g_nonVRViewport.TopLeftY;
+		UINT width  = (UINT)g_nonVRViewport.Width;
+		UINT height = (UINT)g_nonVRViewport.Height;
 		float x, y;
 		InGameToScreenCoords(left, top, width, height, 0, 0, &x, &y);
 		g_SSAO_PSCBuffer.x0 = x / g_fCurScreenWidth;
