@@ -99,6 +99,7 @@ extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWA
 extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector;
+extern float g_fViewYawSign, g_fViewPitchSign;
 
 // S0x07D4FA0
 struct XwaGlobalLight
@@ -431,24 +432,24 @@ Matrix4 ComputeRotationMatrixFromXWAView_bad(Vector4 *light) {
 	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
 	float viewYaw, viewPitch;
 	if (PlayerDataTable[0].externalCamera) {
-		viewYaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
 		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewYaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
 		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
 	}
 
 	Matrix4 viewMatrixYaw, viewMatrixPitch, viewMatrix;
 	viewMatrixYaw.identity();
 	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(-viewYaw);
-	viewMatrixYaw.rotateX( viewPitch);
+	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
+	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
 	viewMatrix = viewMatrixPitch * viewMatrixYaw;
-	viewMatrix.invert();
-	tmplight.x =  light->x;
-	tmplight.y =  light->y;
-	tmplight.z =  light->z;
+	//viewMatrix.invert();
+	tmplight.x = light->x;
+	tmplight.y = light->y;
+	tmplight.z = light->z;
 	tmplight = viewMatrix * tmplight;
 	light->x = tmplight.x;
 	light->y = tmplight.y;
@@ -460,8 +461,8 @@ Matrix4 ComputeRotationMatrixFromXWAView_bad(Vector4 *light) {
 	tmplight.y = y;
 	tmplight.z = z;*/
 
-	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
-		yaw, pitch, roll, light->x, light->y, light->z);
+	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); camYP: (%0.3f, %0.3f), light: [%0.3f, %0.3f, %0.3f]",
+		yaw, pitch, roll, viewYaw, viewPitch, light->x, light->y, light->z);
 
 	//Vector4 tmplight = *light;
 	//*light = rotMatrixFull * tmplight;
@@ -528,19 +529,8 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
 	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
 	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll); // Z or Y?
-	//rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-	//rotMatrixFull = rotMatrixFull.invert();
 
 	g_LightVector.normalize();
-	/*tmplight.x = g_LightVector.x;
-	tmplight.y = g_LightVector.y;
-	tmplight.z = g_LightVector.z;
-	tmplight.w = 0;
-
-	tmplight = rotMatrixFull * tmplight;
-	light->x = tmplight.z;
-	light->y = tmplight.x;
-	light->z = tmplight.y;*/
 
 	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
 	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
@@ -613,8 +603,8 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	Matrix4 viewMatrixYaw, viewMatrixPitch;
 	viewMatrixYaw.identity();
 	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(-viewYaw);
-	viewMatrixYaw.rotateX(-viewPitch);
+	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
+	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
 	tmpL = viewMatrixPitch * viewMatrixYaw * tmpL;
 	light->x = tmpL.x;
 	light->y = tmpL.y;
@@ -625,6 +615,8 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	//	yaw, pitch, roll, T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
 	//	yaw, pitch, roll, light->x, light->y, light->z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); camYP: (%0.3f, %0.3f), light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, viewYaw, viewPitch, light->x, light->y, light->z);
 	// DEBUG
 
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
@@ -632,6 +624,8 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
 	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
+
+	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
 
 	return rotMatrixFull;
 }

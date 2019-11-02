@@ -274,7 +274,7 @@ extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
-float g_fSSAOAlphaOfs = 0.75f;
+float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -1649,6 +1649,9 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.invLightR = 0.2666f;
 	g_SSAO_PSCBuffer.invLightG = 0.2941f;
 	g_SSAO_PSCBuffer.invLightB = 0.3254f;
+	// Default view-yaw/pitch signs
+	g_fViewYawSign = 1.0f;
+	g_fViewPitchSign = -1.0f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -1790,6 +1793,12 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "ssdo_ambient") == 0) {
 				g_SSAO_PSCBuffer.ambient = fValue;
+			}
+			else if (_stricmp(param, "viewYawSign") == 0) {
+				g_fViewYawSign = fValue;
+			}
+			else if (_stricmp(param, "viewPitchSign") == 0) {
+				g_fViewPitchSign = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
