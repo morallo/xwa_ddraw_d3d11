@@ -167,6 +167,7 @@ typedef struct BarrelPixelShaderCBStruct {
 //#define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R32G32B32A32_FLOAT
 //#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 
 typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength, fSparksStrength;
@@ -234,10 +235,17 @@ typedef struct float4_struct {
 } float4;
 
 typedef struct PixelShaderMatrixCBStruct {
-	Matrix4 projEye;
-	Matrix4 viewMat;
-	Matrix4 fullViewMat;
+	//Matrix4 projEye;
+	//Matrix4 viewMat;
+	//Matrix4 fullViewMat;
 	float4  LightVector;
+	// 16 bytes
+	float4  LightColor;
+	// 32 bytes
+	float4  LightVector2;
+	// 48 bytes
+	float4  LightColor2;
+	// 64 bytes
 } PixelShaderMatrixCB;
 
 typedef struct PixelShaderCBStruct {

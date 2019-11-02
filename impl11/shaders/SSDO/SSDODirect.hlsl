@@ -73,10 +73,13 @@ cbuffer ConstantBuffer : register(b3)
 
 cbuffer ConstantBuffer : register(b4)
 {
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
+	//matrix projEyeMatrix;
+	//matrix viewMatrix;
+	//matrix fullViewMatrix;
 	float4 LightVector;
+	float4 LightColor;
+	float4 LightVector2;
+	float4 LightColor2;
 };
 
 struct BlurData {
@@ -84,24 +87,16 @@ struct BlurData {
 	float3 normal;
 };
 
-//interface IPosition {
-//	float3 getPosition(in float2 uv);
-//};
-
-//class ForegroundPos : IPosition {
 float3 getPositionFG(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
-//};
 
-//class BackgroundPos : IPosition {
 float3 getPositionBG(in float2 uv, in float level) {
 	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
-//};
 
 inline float3 getNormal(in float2 uv) {
 	return texNorm.Sample(sampNorm, uv).xyz;
@@ -150,11 +145,10 @@ float3 blend_normals(float3 n1, float3 n2)
 struct ColNorm {
 	float3 col;
 	float3 N;
-	//uint was_sampled;
 };
 
 inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal, in float3 light,
+	in float3 P, in float3 Normal,
 	in float cur_radius, in float max_radius,
 	in float3 FakeNormal, in float nm_intensity)
 {
@@ -214,7 +208,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
-		output.col = saturate(dot(B, light)) + invLightColor * saturate(dot(B, -light));
+		output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz))  + invLightColor * saturate(dot(B, -LightVector.xyz));
+		output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
 		return output;
 	}
 	output.N = 0;
@@ -301,9 +296,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
-	float3 light = LightVector.xyz;
-	//light = mul(viewMatrix, float4(light, 0)).xyz;
-
 	float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
 	float3 FakeNormal = 0; 
 	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
@@ -326,7 +318,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, light, radius * (j + sample_jitter), max_radius,
+			p, n, radius * (j + sample_jitter), max_radius,
 			FakeNormal, nm_intensity);
 		//if (ssdo_aux.was_sampled) {
 		ssdo += ssdo_aux.col;

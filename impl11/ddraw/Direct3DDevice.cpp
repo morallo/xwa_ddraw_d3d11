@@ -279,8 +279,8 @@ bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolv
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false;
-//float4 g_LightVector = { 0, 0, -1, 0 };
-Vector4 g_LightVector = { 1, 1, 0, 0 };
+Vector4 g_LightVector[2];
+Vector4 g_LightColor[2];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -1642,9 +1642,18 @@ bool LoadSSAOParams() {
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
-	g_LightVector.x = 0;
-	g_LightVector.y = 1;
-	g_LightVector.z = 0;
+	g_LightVector[0].x = 0;
+	g_LightVector[0].y = 1;
+	g_LightVector[0].z = 0;
+	g_LightVector[0].w = 0;
+	g_LightVector[0].normalize();
+
+	g_LightVector[1].x = 1;
+	g_LightVector[1].y = 1;
+	g_LightVector[1].z = 0;
+	g_LightVector[1].w = 0;
+	g_LightVector[0].normalize();
+
 	// Default color of the shadow
 	g_SSAO_PSCBuffer.invLightR = 0.2666f;
 	g_SSAO_PSCBuffer.invLightG = 0.2941f;
@@ -1803,12 +1812,44 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
-				g_LightVector.x = x;
-				g_LightVector.y = y;
-				g_LightVector.z = z;
-				g_LightVector.normalize();
+				g_LightVector[0].x = x;
+				g_LightVector[0].y = y;
+				g_LightVector[0].z = z;
+				g_LightVector[0].w = 0.0f;
+				g_LightVector[0].normalize();
 				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
-					g_LightVector.x, g_LightVector.y, g_LightVector.z);
+					g_LightVector[0].x, g_LightVector[0].y, g_LightVector[0].z);
+			}
+			else if (_stricmp(param, "light_vector2") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightVector[1].x = x;
+				g_LightVector[1].y = y;
+				g_LightVector[1].z = z;
+				g_LightVector[1].w = 0.0f;
+				g_LightVector[1].normalize();
+				log_debug("[DBG] [AO] Light vec2: [%0.3f, %0.3f, %0.3f]",
+					g_LightVector[1].x, g_LightVector[1].y, g_LightVector[1].z);
+			}
+			else if (_stricmp(param, "light_color") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightColor[0].x = x;
+				g_LightColor[0].y = y;
+				g_LightColor[0].z = z;
+				g_LightColor[0].w = 0.0f;
+				log_debug("[DBG] [AO] Light Color: [%0.3f, %0.3f, %0.3f]",
+					g_LightColor[0].x, g_LightColor[0].y, g_LightColor[0].z);
+			}
+			else if (_stricmp(param, "light_color2") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightColor[1].x = x;
+				g_LightColor[1].y = y;
+				g_LightColor[1].z = z;
+				g_LightColor[1].w = 0.0f;
+				log_debug("[DBG] [AO] Light Color2: [%0.3f, %0.3f, %0.3f]",
+					g_LightColor[1].x, g_LightColor[1].y, g_LightColor[1].z);
 			}
 			else if (_stricmp(param, "shadow_color") == 0) {
 				float x, y, z;

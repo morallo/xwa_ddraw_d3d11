@@ -1345,14 +1345,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				/*step = "_diffuseBufR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_diffuseBufR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}*/
-
 				desc.Format = AO_MASK_FORMAT;
 				step = "_ssaoMaskR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskR);
@@ -2249,9 +2241,10 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 192 + 16; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	//constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
 	// 192 bytes is 3 matrices
-	static_assert(sizeof(PixelShaderMatrixCB) == 192 + 16, "sizeof(PixelShaderCBuffer) must be 208");
+	static_assert(sizeof(PixelShaderMatrixCB) == 64, "sizeof(PixelShaderCBuffer) must be 64");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
 		return hr;
 

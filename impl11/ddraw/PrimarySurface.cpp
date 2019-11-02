@@ -98,7 +98,8 @@ extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWARotation;
 extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
-extern Vector4 g_LightVector;
+extern Vector4 g_LightVector[2];
+extern Vector4 g_LightColor[2];
 extern float g_fViewYawSign, g_fViewPitchSign;
 
 // S0x07D4FA0
@@ -359,169 +360,13 @@ void ShowXWAVector(char *msg, const XwaVector3 &v) {
 	log_debug("[DBG] %s [%0.4f, %0.4f, %0.4f]", msg, v.x, v.y, v.z);
 }
 
-Matrix4 ComputeRotationMatrixFromXWAView_bad(Vector4 *light) {
-	Vector3 tmplight;
+//Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
+void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
+	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
 	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
 	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-		
-	/*
-	tmplight.x = g_LightVector.x;
-	tmplight.y = g_LightVector.y;
-	tmplight.z = g_LightVector.z;
-	tmplight = m3 * tmplight;
-	light->x = tmplight.x;
-	light->y = tmplight.y;
-	light->z = tmplight.z;
-	*/
-
-	/*light.x = XwaGlobalLights[0].PositionX / 32768.0f;
-	light.y = XwaGlobalLights[0].PositionY / 32768.0f;
-	light.z = XwaGlobalLights[0].PositionZ / 32768.0f;
-	light.normalize();*/
-	/*light.x = XwaGlobalLights[0].DirectionX;
-	light.y = XwaGlobalLights[0].DirectionY;
-	light.z = XwaGlobalLights[0].DirectionZ;*/
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); lights: %d, [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, *XwaGlobalLightsCount, tmplight.x, tmplight.y, tmplight.z);
-
-	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
-	// When pitch == 90, the craft is actually seeing the horizon
-	// When pitch == 0, the craft is looking towards the sun
-
-	float cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
-	float cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
-	float z = cosTheta * sinPhi;
-	float x = sinTheta * sinPhi;
-	float y = cosPhi;
-
-	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-	rotMatrixFull.identity();
-	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-	// Performing a rotateX(-pitch) aligns the (x,y,z) from spherical coords with the Y+ axis
-	// Performing a rotateX(90 - pitch) aligns the (x,y,z) from spherical coords with the Z+ axis
-	//rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch - 90);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-	rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-	
-	/*
-	// Test the matrices
-	tmplight.x = x;
-	tmplight.y = y;
-	tmplight.z = z;
-	tmplight = rotMatrixPitch * rotMatrixYaw * tmplight;
-	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); pos: [%0.3f, %0.3f, %0.3f]",
-		yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
-	*/
-	rotMatrixFull = rotMatrixFull.invert();
-
-	g_LightVector.normalize();
-	tmplight.x = g_LightVector.x;
-	tmplight.y = g_LightVector.y;
-	tmplight.z = g_LightVector.z;
-
-	tmplight = rotMatrixFull * tmplight;
-	light->x = tmplight.x;
-	light->y = tmplight.y;
-	light->z = tmplight.z;
-
-	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
-	float viewYaw, viewPitch;
-	if (PlayerDataTable[0].externalCamera) {
-		viewYaw   = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
-	}
-	else {
-		viewYaw   = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
-	}
-
-	Matrix4 viewMatrixYaw, viewMatrixPitch, viewMatrix;
-	viewMatrixYaw.identity();
-	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
-	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
-	viewMatrix = viewMatrixPitch * viewMatrixYaw;
-	//viewMatrix.invert();
-	tmplight.x = light->x;
-	tmplight.y = light->y;
-	tmplight.z = light->z;
-	tmplight = viewMatrix * tmplight;
-	light->x = tmplight.x;
-	light->y = tmplight.y;
-	light->z = tmplight.z;
-	
-	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
-	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
-	/*tmplight.x = x;
-	tmplight.y = y;
-	tmplight.z = z;*/
-
-	log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); camYP: (%0.3f, %0.3f), light: [%0.3f, %0.3f, %0.3f]",
-		yaw, pitch, roll, viewYaw, viewPitch, light->x, light->y, light->z);
-
-	//Vector4 tmplight = *light;
-	//*light = rotMatrixFull * tmplight;
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, light->x, light->y, light->z);
-
-	/*
-	int s_XwaGlobalLightsCount = *(int*)0x00782848;
-	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
-	/*
-	int s_XwaCurrentSceneCompData = 0x009B6CF8;
-	int s_XwaSceneCompDatasOffset = *(int*)0x009B6D02;
-	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaCurrentSceneCompData + s_XwaSceneCompDatasOffset * 284 + 0x0008);
-	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaCurrentSceneCompData + s_XwaSceneCompDatasOffset * 284 + 0x0038);
-	*/
-
-	/*
-	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
-	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
-	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
-	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);
-
-	XwaVector3 xwalight;
-	//tmplight.x = light->x; tmplight.y = light->y; tmplight.z = light->z;
-	int i = 0;
-	xwalight.x = s_XwaGlobalLights[i].DirectionX;
-	xwalight.y = s_XwaGlobalLights[i].DirectionY;
-	xwalight.z = s_XwaGlobalLights[i].DirectionZ;
-
-	if (g_bShowXWARotation) {
-		log_debug("[DBG] **** ypr: %0.3f, %0.3f, %0.3f", yaw, pitch, roll);
-		ShowXWAVector("before:", xwalight);
-		ShowXWAMatrix(*ViewTransform);
-	}
-	//XwaVector3Transform(&tmplight, &WorldTransform->Rotation);
-	XwaVector3Transform(&xwalight, &ViewTransform->Rotation);
-	if (g_bShowXWARotation)
-		ShowXWAVector("after:", xwalight);
-	light->x = xwalight.x;
-	light->y = xwalight.y;
-	light->z = xwalight.z;
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, light->x, light->y, light->z);
-	g_bShowXWARotation = false;
-	*/
-
-	return rotMatrixFull;
-}
-
-// TODO: Load the signs from a config file so that it's easier to test this:
-Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
-	Vector4 tmplight;
-	// Compute the full rotation
-	float yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	float roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -529,8 +374,6 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
 	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
 	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll); // Z or Y?
-
-	g_LightVector.normalize();
 
 	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
 	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
@@ -540,7 +383,6 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	// When pitch == 90, the craft is actually seeing the horizon
 	// When pitch == 0, the craft is looking towards the sun
 	// New approach: let's build a TBN system here to avoid the gimbal lock problem
-	Vector4 tmp, tmpL, N, B, T;
 	float cosTheta, cosPhi, sinTheta, sinPhi;
 	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
 	cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
@@ -548,15 +390,6 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	N.x = sinTheta * sinPhi;
 	N.y = cosPhi;
 	N.w = 0;
-
-	/*
-	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
-	cosPhi = cos((pitch + 90) * DEG2RAD), sinPhi = sin((pitch + 90) * DEG2RAD);
-	B.z = cosTheta * sinPhi;
-	B.x = sinTheta * sinPhi;
-	B.y = cosPhi;
-	B.w = 0;
-	*/
 
 	// This transform chain will always transform (x,y,z) into (0, 1, 0):
 	// To make an orthonormal basis, we need x+ and z+
@@ -581,11 +414,8 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 		0, 0, 0, 1
 	);
 
-	tmplight.x = g_LightVector.x;
-	tmplight.y = g_LightVector.y;
-	tmplight.z = g_LightVector.z;
-	tmplight.w = 0;
-	tmpL = rotMatrixFull * tmplight;
+	for (int i = 0; i < num_lights; i++)
+		tmpL[i] = rotMatrixFull * g_LightVector[i];
 
 	// tmpL is now the light's direction in view space. We need to further transform this
 	// to compensate for camera rotation
@@ -605,10 +435,9 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	viewMatrixPitch.identity();
 	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
 	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
-	tmpL = viewMatrixPitch * viewMatrixYaw * tmpL;
-	light->x = tmpL.x;
-	light->y = tmpL.y;
-	light->z = tmpL.z;
+	for (int i = 0; i < num_lights; i++)
+		light[i] = viewMatrixPitch * viewMatrixYaw * tmpL[i];
+
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
 	//	yaw, pitch, roll, x, y, z, tmp.x, tmp.y, tmp.z);
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
@@ -626,8 +455,6 @@ Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
 	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
 
 	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
-
-	return rotMatrixFull;
 }
 
 void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
@@ -2916,12 +2743,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	
 	PixelShaderMatrixCB matrixCB;
 	//rotMatrixFull.invert();
-	Vector4 light;
-	light.x = g_LightVector.x;
-	light.y = g_LightVector.y;
-	light.z = g_LightVector.z;
-	light.w = 0;
-	matrixCB.viewMat = ComputeRotationMatrixFromXWAView(&light);
+	Vector4 light[2];
+	ComputeRotationMatrixFromXWAView(light, 2);
+	matrixCB.LightColor.x = g_LightColor[0].x;
+	matrixCB.LightColor.y = g_LightColor[0].y;
+	matrixCB.LightColor.z = g_LightColor[0].z;
+
+	matrixCB.LightColor2.x = g_LightColor[1].x;
+	matrixCB.LightColor2.y = g_LightColor[1].y;
+	matrixCB.LightColor2.z = g_LightColor[1].z;
 
 	//light = matrixCB.viewMat * g_LightVector;
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); q-wxyz: [%0.3f, %0.3f, %0.3f, %0.3f]",
@@ -2932,14 +2762,22 @@ void PrimarySurface::SSDOPass(float fZoomFactor) {
 	//matrixCB.LightVector.z = light.z;
 
 	if (g_bOverrideLightPos) {
-		matrixCB.LightVector.x = g_LightVector.x;
-		matrixCB.LightVector.y = g_LightVector.y;
-		matrixCB.LightVector.z = g_LightVector.z;
+		matrixCB.LightVector.x = g_LightVector[0].x;
+		matrixCB.LightVector.y = g_LightVector[0].y;
+		matrixCB.LightVector.z = g_LightVector[0].z;
+
+		matrixCB.LightVector2.x = g_LightVector[1].x;
+		matrixCB.LightVector2.y = g_LightVector[1].y;
+		matrixCB.LightVector2.z = g_LightVector[1].z;
 	}
 	else {
-		matrixCB.LightVector.x = light.x;
-		matrixCB.LightVector.y = light.y;
-		matrixCB.LightVector.z = light.z;
+		matrixCB.LightVector.x = light[0].x;
+		matrixCB.LightVector.y = light[0].y;
+		matrixCB.LightVector.z = light[0].z;
+
+		matrixCB.LightVector2.x = light[1].x;
+		matrixCB.LightVector2.y = light[1].y;
+		matrixCB.LightVector2.z = light[1].z;
 	}
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
