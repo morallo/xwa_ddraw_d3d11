@@ -273,7 +273,7 @@ SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
-float g_fSSAOZoomFactor = 2.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
+float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
@@ -1722,6 +1722,9 @@ bool LoadSSAOParams() {
 			}*/
 			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor = (float)fValue;
+			}
+			else if (_stricmp(param, "ssao2_buffer_scale_divisor") == 0) {
+				g_fSSAOZoomFactor2 = (float)fValue;
 			}
 			else if (_stricmp(param, "enable_blur") == 0) {
 				g_bBlurSSAO = (bool)fValue;

@@ -57,7 +57,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, unused3;
+	float far_sample_radius, nm_intensity_far, ambient, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -173,12 +173,9 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in f
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float2 input_uv_sub = amplifyFactor * input.uv;
 	float3 P1 = getPositionFG(input.uv, 0);
 	float3 P2 = getPositionBG(input.uv, 0);
 	float3 n = getNormal(input.uv, 0);
-	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
-	//float3 ssdo = texSSDO.SampleLevel(sampSSDO, input_uv_sub, 0).xyz;
 	float3 ssdo;
 	float3 p;
 	float radius;

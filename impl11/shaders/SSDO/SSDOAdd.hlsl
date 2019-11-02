@@ -69,7 +69,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, unused3;
+	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -95,13 +95,15 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
+	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
+	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color = texture0.Sample(sampler0, input.uv).xyz;
 	//float4 diffuse = texDiff.Sample(samplerDiff, input.uv);
 	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
 	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssdo    = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub).rgb;
+	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	
