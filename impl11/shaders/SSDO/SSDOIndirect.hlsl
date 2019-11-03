@@ -24,7 +24,9 @@ SamplerState sampColor : register(s3);
 Texture2D    texSSDO  : register(t4);
 SamplerState sampSSDO : register(s4);
 
-#define INFINITY_Z 10000
+#define INFINITY_Z0 10000
+#define INFINITY_Z1 15000
+#define INFINITY_FADEOUT_RANGE 5000
 
 struct PixelShaderInput
 {
@@ -197,7 +199,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	p.z -= m_offset;
 
 	// Early exit: do not compute SSAO for objects at infinity
-	if (p.z > INFINITY_Z) return output;
+	if (p.z > INFINITY_Z1) return output;
 
 	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
 	// We need to use saturate() here or we actually get negative numbers!
@@ -227,9 +229,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		ssdo += doSSDOIndirect(FGFlag, sample_uv, p, n, 
 			radius * (j + sample_jitter), max_radius);
 	}
-	//ao = 1 - ao / (float)samples;
 	ssdo = indirect_intensity * ssdo / (float)samples;
-	output.ssao.xyz = ssdo;
+	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	output.ssao.xyz = lerp(ssdo, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	//output.ssao.xyz = ssdo;
 
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);

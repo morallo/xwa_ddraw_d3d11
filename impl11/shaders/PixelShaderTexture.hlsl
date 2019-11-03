@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
 		output.normal.a = 0;
-		//output.diffuse = 0;
+		output.ssaoMask.a = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -156,6 +156,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsHyperspaceAnim) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		output.ssaoMask.a = 0;
 		//output.diffuse = 0;
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
 	}
@@ -163,6 +164,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsHyperspaceStreak) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
+		output.ssaoMask.a = 0;
 		//output.diffuse = 0;
 		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
 	}

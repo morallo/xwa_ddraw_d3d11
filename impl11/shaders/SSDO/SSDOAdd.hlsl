@@ -105,7 +105,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float3 ssdo    = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
+	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
+	float mask = dot(0.333, ssaoMask);
 	
 	// TODO: Make the ambient component configurable
 	//const float ambient = 0.15;

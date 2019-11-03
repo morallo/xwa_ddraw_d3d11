@@ -28,7 +28,9 @@ SamplerState sampSSAOMask : register(s4);
 Texture2D    texBloomMask  : register(t5);
 SamplerState sampBloomMask : register(s5);
 
-#define INFINITY_Z 10000
+#define INFINITY_Z0 10000
+#define INFINITY_Z1 15000
+#define INFINITY_FADEOUT_RANGE 5000
 
 //static float3 invLightColor = float3(0.058279, 0.069624, 0.085897);
 //static float3 invLightColor = float3(1, 0, 0);
@@ -286,7 +288,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//p += m_offset * n;
 
 	// Early exit: do not compute SSDO for objects at infinity
-	if (p.z > INFINITY_Z) return output;
+	if (p.z > INFINITY_Z1) return output;
 
 	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
 	// We need to use saturate() here or we actually get negative numbers!
@@ -327,8 +329,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	//num_samples = max(1, num_samples);
 	ssdo = intensity * ssdo / (float)samples;
+	if (bloom_mask < 0.95) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.95
 	ssdo = lerp(ssdo, 1, bloom_mask);
-	output.ssao.xyz = pow(abs(ssdo), power);
+	ssdo = pow(abs(ssdo), power);
+	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 	//bentNormal /= (float)samples;
 	//float BLength = length(bentNormal);
 	//ssdo = intensity * saturate(dot(bentNormal, light));
