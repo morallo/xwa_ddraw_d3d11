@@ -2434,9 +2434,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// output: ssaoBuf, bentBuf
 	if (g_bBlurSSAO) {
 		resources->InitPixelShader(resources->_ssaoBlurPS);
-		// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
+		// Copy the SSAO buffer to offscreenBufferAsInput/bloom1(HDR) -- we'll use it as temp buffer
 		// to blur the SSAO buffer
-		context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+		//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+		context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
 		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 		context->CopyResource(resources->_bentBufR, resources->_bentBuf);
@@ -2444,7 +2445,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
 		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
 		ID3D11ShaderResourceView *srvs[5] = {
-				resources->_offscreenAsInputShaderResourceView.Get(),
+				//resources->_offscreenAsInputShaderResourceView.Get(),
+				resources->_bloomOutput1SRV.Get(),
 				resources->_depthBufSRV.Get(),
 				resources->_depthBuf2SRV.Get(),
 				resources->_normBufSRV.Get(),
@@ -2578,9 +2580,10 @@ out1:
 		if (g_bBlurSSAO)
 		{
 			resources->InitPixelShader(resources->_ssaoBlurPS);
-			// Copy the SSAO buffer to offscreenBufferAsInput -- we'll use it as temp buffer
+			// Copy the SSAO buffer to offscreenBufferAsInput/bloom1(HDR) -- we'll use it as temp buffer
 			// to blur the SSAO buffer
-			context->CopyResource(resources->_offscreenBufferAsInputR, resources->_ssaoBufR);
+			//context->CopyResource(resources->_offscreenBufferAsInputR, resources->_ssaoBufR);
+			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
 			// Here I'm reusing bentBuf as a temporary buffer for bentBufR
 			// This is just to avoid having to make a temporary buffer to blur the bent normals.
 			context->CopyResource(resources->_bentBuf, resources->_bentBufR);
@@ -2588,7 +2591,8 @@ out1:
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
 			ID3D11ShaderResourceView *srvs[5] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					//resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_bloomOutput1SRV.Get(),
 					resources->_depthBufSRV_R.Get(),
 					resources->_depthBuf2SRV_R.Get(),
 					resources->_normBufSRV_R.Get(),
