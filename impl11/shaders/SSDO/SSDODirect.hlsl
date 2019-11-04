@@ -329,7 +329,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	//num_samples = max(1, num_samples);
 	ssdo = intensity * ssdo / (float)samples;
-	if (bloom_mask < 0.95) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.95
+	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
 	ssdo = lerp(ssdo, 1, bloom_mask);
 	ssdo = pow(abs(ssdo), power);
 	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1

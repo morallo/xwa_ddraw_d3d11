@@ -622,8 +622,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
-	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
+	DXGI_FORMAT oldFormat;
+
 	//log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
@@ -706,25 +706,40 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
 	}
 
-	if (g_bBloomEnabled) {
+	// offscreenBufferBloomMask/AsInputBloomMask/SRV/RTVs are used for SSDO (and SSAO?)
+	// _bloomOutput1 is used as temp buff during SSDO
+	if (g_bReshadeEnabled) {
 		this->_offscreenBufferBloomMask.Release();
 		this->_offscreenBufferAsInputBloomMask.Release();
 		this->_offscreenAsInputBloomMaskSRV.Release();
 		this->_renderTargetViewBloomMask.Release();
-		this->_renderTargetViewBloom1.Release();
-		this->_renderTargetViewBloom2.Release();
-		this->_renderTargetViewBloomSum.Release();
 		this->_bloomOutput1.Release();
-		this->_bloomOutput2.Release();
-		this->_bloomOutputSum.Release();
 		this->_bloomOutput1SRV.Release();
-		this->_bloomOutput2SRV.Release();
-		this->_bloomOutputSumSRV.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
 			this->_renderTargetViewBloomMaskR.Release();
+		}
+	}
+
+	if (g_bBloomEnabled) {
+		//this->_offscreenAsInputBloomMaskSRV.Release();
+		//this->_renderTargetViewBloomMask.Release();
+		this->_renderTargetViewBloom1.Release();
+		this->_renderTargetViewBloom2.Release();
+		this->_renderTargetViewBloomSum.Release();
+		//this->_bloomOutput1.Release();
+		this->_bloomOutput2.Release();
+		this->_bloomOutputSum.Release();
+		//this->_bloomOutput1SRV.Release();
+		this->_bloomOutput2SRV.Release();
+		this->_bloomOutputSumSRV.Release();
+		if (g_bUseSteamVR) {
+			/*this->_offscreenBufferBloomMaskR.Release();
+			this->_offscreenBufferAsInputBloomMaskR.Release();
+			this->_offscreenAsInputBloomMaskSRV_R.Release();
+			this->_renderTargetViewBloomMaskR.Release();*/
 			this->_bloomOutput1R.Release();
 			this->_bloomOutput2R.Release();
 			this->_bloomOutputSumR.Release();
@@ -906,6 +921,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_sampleDesc.Count,
 			this->_sampleDesc.Quality,
 			0);
+		oldFormat = desc.Format;
 
 		step = "OffscreenBuffer";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBuffer);
@@ -972,9 +988,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bBloomEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
-
+		if (g_bReshadeEnabled) {
 			step = "_offscreenBufferBloomMask";
 			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
 			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
@@ -1000,7 +1014,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bAOEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
 			desc.Format = AO_DEPTH_BUFFER_FORMAT;
 			
 			// _depthBuf will be used as a renderTarget
@@ -1019,15 +1032,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
-
-			// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
-			/*step = "_normBuf";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBuf);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
-			}*/
 
 			if (g_bUseSteamVR) {
 				// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
@@ -1082,8 +1086,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		if (g_bBloomEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
+		if (g_bReshadeEnabled) {
 			desc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenBufferAsInputBloomMask";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMask);
@@ -1102,11 +1105,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
-			//desc.Format = oldFormat;
+			desc.Format = oldFormat;
+		}
 
+		{
 			// These guys should be the last to be created because they modify the BindFlags to
 			// add D3D11_BIND_RENDER_TARGET
 			UINT curFlags = desc.BindFlags;
+			desc.Format = BLOOM_BUFFER_FORMAT;
 			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 			log_err("Flags: 0x%x\n", desc.BindFlags);
@@ -1123,6 +1129,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			else {
 				log_err("Successfully created _reshadeOutput1 with combined flags\n");
 			}
+			desc.Format = oldFormat;
+		}
+
+		if (g_bBloomEnabled) {
+			// These guys should be the last to be created because they modify the BindFlags to
+			// add D3D11_BIND_RENDER_TARGET
+			desc.Format = BLOOM_BUFFER_FORMAT;
+			UINT curFlags = desc.BindFlags;
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
+			log_err("Flags: 0x%x\n", desc.BindFlags);
 
 			step = "_bloomOutput2";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2);
@@ -1189,6 +1206,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _bloomOutputSumR with combined flags\n");
 				}
 			}
+			
 			// Restore the previous bind flags, just in case there is a dependency on these later on
 			desc.BindFlags = curFlags;
 			// Restore the non-float format
@@ -1234,7 +1252,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// Create Non-MSAA AO Buffers
 		if (g_bAOEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
 			UINT oldFlags = desc.BindFlags;
 			desc.SampleDesc.Count = 1;
 			desc.SampleDesc.Quality = 0;
@@ -1300,7 +1317,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			desc.Format = oldFormat;
+			desc.Format = HDR_FORMAT;
 			step = "_ssaoBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf);
 			if (FAILED(hr)) {
@@ -1309,7 +1326,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			desc.Format = oldFormat;
+			desc.Format = HDR_FORMAT;
 			step = "_ssaoBufR";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
 			if (FAILED(hr)) {
@@ -1317,14 +1334,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
-
-			/*step = "_diffuseBuf";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_diffuseBuf);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
-			}*/
 
 			desc.Format = AO_MASK_FORMAT;
 			step = "_ssaoMask";
@@ -1379,8 +1388,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		// Bloom SRVs
-		if (g_bBloomEnabled) {
-			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+		//DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+		if (g_bReshadeEnabled) 
+		{
 			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenAsInputBloomMaskSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
@@ -1390,7 +1400,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
-			
+
+			if (g_bUseSteamVR)
+			{
+				step = "_offscreenAsInputBloomSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
+					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
+		
 			step = "_bloomOutput1SRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1,
 				&shaderResourceViewDesc, &this->_bloomOutput1SRV);
@@ -1399,7 +1421,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+			shaderResourceViewDesc.Format = oldFormat;
+		}
 
+		if (g_bBloomEnabled) {
+			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_bloomOutput2SRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2,
 				&shaderResourceViewDesc, &this->_bloomOutput2SRV);
@@ -1419,17 +1445,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			if (g_bUseSteamVR) {
-				//shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
-				step = "_offscreenAsInputBloomSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
-					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-				//shaderResourceViewDesc.Format = oldFormat;
-
+				shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
+				
 				step = "_bloomOutput1SRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
 					&shaderResourceViewDesc, &this->_bloomOutput1SRV_R);
@@ -1457,13 +1474,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
-
 			shaderResourceViewDesc.Format = oldFormat;
 		}
 
 		// AO SRVs
 		if (g_bAOEnabled) {
-			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 
 			step = "_depthBufSRV";
@@ -1507,8 +1522,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
-
-			shaderResourceViewDesc.Format = oldFormat;
+			
+			shaderResourceViewDesc.Format = HDR_FORMAT;
 			step = "_ssaoBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
 			if (FAILED(hr)) {
@@ -1694,11 +1709,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		// Bloom RTVs
-		if (g_bBloomEnabled) {
-			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
-
-			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+		if (g_bReshadeEnabled) {
 			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_renderTargetViewBloomMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
@@ -1709,8 +1720,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 			}
-			//renderTargetViewDesc.Format = oldFormat;
-			
+			renderTargetViewDesc.Format = oldFormat;
+		}
+
+		// Bloom RTVs
+		if (g_bBloomEnabled) {
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
+						
 			// These RTVs render to non-MSAA buffers
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			step = "_renderTargetViewBloom1";
@@ -1743,7 +1760,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bAOEnabled) {
-			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
 			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
@@ -1764,7 +1780,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
 			if (FAILED(hr)) goto out;
 
-			renderTargetViewDescNoMSAA.Format = oldFormat;
+			renderTargetViewDescNoMSAA.Format = HDR_FORMAT;
 			step = "_renderTargetViewSSAO";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO);
 			if (FAILED(hr)) goto out;
@@ -1783,7 +1799,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 
 			if (g_bUseSteamVR) {
-				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_renderTargetViewDepthBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
 				if (FAILED(hr)) goto out;
