@@ -258,8 +258,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 n = getNormal(input.uv);
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
-	float3 bloom_mask_rgb = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0).rgb;
-	float bloom_mask = dot(0.333, bloom_mask_rgb);
+	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
+	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
