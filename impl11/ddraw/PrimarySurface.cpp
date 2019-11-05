@@ -2368,6 +2368,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.fn_enable   = g_bFNEnable;
+	g_SSAO_PSCBuffer.debug		 = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -2420,13 +2421,13 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
 	// with a zoom factor:
 	float fPixelScale = fZoomFactor;
-	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp;
-	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp;
-	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-	g_BloomPSCBuffer.uvStepSize = 1.0f;
-	g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
-	g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
-	g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
+	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
+	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.uvStepSize			= 1.0f;
+	g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
+	g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
+	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSAO Blur, Left Image
@@ -2452,6 +2453,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 				resources->_normBufSRV.Get(),
 				resources->_bentBufSRV_R.Get(),
 		};
+		/* // This case is no longer needed, the SSAO + NM are displayed in 
+		// SSAOAddPixelShader using the debug constant buffer flag
 		if (g_bShowSSAODebug) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
@@ -2463,7 +2466,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			context->Draw(6, 0);
 			goto out1;
 		}
-		else {
+		else */ 
+		{
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetViewSSAO.Get(),
 				resources->_renderTargetViewBentBuf.Get()
@@ -2599,6 +2603,9 @@ out1:
 					resources->_normBufSRV_R.Get(),
 					resources->_bentBufSRV.Get(),
 			};
+			/*
+			// No longer needed, SSAO debug + NM are displayed in SSAOAddPixelShader when
+			// the debug flag is set
 			if (g_bShowSSAODebug) {
 				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
@@ -2608,10 +2615,10 @@ out1:
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
 				context->Draw(6, 0);
-
 				goto out2;
 			}
-			else {
+ 			else */
+			{
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO_R.Get(),
 					resources->_renderTargetViewBentBufR.Get()
@@ -2634,8 +2641,7 @@ out1:
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			resources->InitViewport(&viewport);
-			ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
-			context->PSSetShaderResources(0, 4, null_srvs4);
+	
 			// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 			// so that it can be used as an SRV
 			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);

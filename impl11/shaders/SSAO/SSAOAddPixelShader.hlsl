@@ -132,7 +132,6 @@ float3 get_normal_from_color(float2 uv, float2 offset)
 
 float3 blend_normals(float3 n1, float3 n2)
 {
-	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
 	n1 += float3(0, 0, 1);
 	n2 *= float3(-1, -1, 1);
 	return n1 * dot(n1, n2) / n1.z - n2;
@@ -171,5 +170,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	}
 
 	ssao = lerp(ssao, 1, mask);
-	return float4(color * ssao, 1);
+	if (debug)
+		return float4(ssao, 1);
+	else
+		return float4(color * ssao, 1);
 }
