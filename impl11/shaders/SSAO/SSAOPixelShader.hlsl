@@ -20,7 +20,7 @@ SamplerState sampNorm  : register(s2);
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
 
-#define INFINITY_Z 10000
+#define INFINITY_Z 20000
 
 struct PixelShaderInput
 {
@@ -74,6 +74,12 @@ inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.Sample(sampNorm, uv, level).xyz;
 }
 
+/*
+ * From Pascal Gilcher's SSR shader.
+ * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
+ * (Used with permission from the author)
+ */
+/*
 float3 get_normal_from_color(float2 uv, float2 offset)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
@@ -108,6 +114,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	n2 *= float3(-1, -1, 1);
 	return n1 * dot(n1, n2) / n1.z - n2;
 }
+*/
 
 inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal, in float level)
 {
@@ -178,6 +185,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
 	}
 	ao = 1 - ao / (float)samples;
+	
+	/*
+	// Normal mapping should be applied *after* blurring the AO buffer or the normal map will also
+	// get blurred
 	if (fn_enable) {
 		float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
 		float nm_intensity = lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
@@ -185,6 +196,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		n = blend_normals(nm_intensity * FakeNormal, n);
 		ao *= (1 - n.z);
 	}
+	*/
 	output.ssao.xyz *= lerp(black_level, ao, ao);
 
 	return output;

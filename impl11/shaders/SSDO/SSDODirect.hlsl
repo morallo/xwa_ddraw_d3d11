@@ -28,8 +28,8 @@ SamplerState sampSSAOMask : register(s4);
 Texture2D    texBloomMask  : register(t5);
 SamplerState sampBloomMask : register(s5);
 
-#define INFINITY_Z0 10000
-#define INFINITY_Z1 15000
+#define INFINITY_Z0 15000
+#define INFINITY_Z1 20000
 #define INFINITY_FADEOUT_RANGE 5000
 
 //static float3 invLightColor = float3(0.058279, 0.069624, 0.085897);

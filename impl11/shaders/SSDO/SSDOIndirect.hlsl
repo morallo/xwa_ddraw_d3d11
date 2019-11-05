@@ -24,8 +24,8 @@ SamplerState sampColor : register(s3);
 Texture2D    texSSDO  : register(t4);
 SamplerState sampSSDO : register(s4);
 
-#define INFINITY_Z0 10000
-#define INFINITY_Z1 15000
+#define INFINITY_Z0 15000
+#define INFINITY_Z1 20000
 #define INFINITY_FADEOUT_RANGE 5000
 
 struct PixelShaderInput

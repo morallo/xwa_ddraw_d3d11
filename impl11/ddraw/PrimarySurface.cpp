@@ -2495,15 +2495,16 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
-		ID3D11ShaderResourceView *srvs_pass2[6] = {
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
 			resources->_ssaoBufSRV.Get(),
 			resources->_ssaoMaskSRV.Get(),
-			resources->_bentBufSRV.Get(),
-			resources->_normBufSRV.Get()
+			resources->_normBufSRV.Get(),
+			resources->_depthBufSRV.Get(),
+			resources->_depthBuf2SRV.Get(),
 		};
-		context->PSSetShaderResources(0, 6, srvs_pass2);
+		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -2642,15 +2643,16 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, DXGI_FORMAT_B8G8R8A8_UNORM);
-			ID3D11ShaderResourceView *srvs_pass2[6] = {
+			ID3D11ShaderResourceView *srvs_pass2[7] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
 				resources->_ssaoBufSRV_R.Get(),
 				resources->_ssaoMaskSRV_R.Get(),
-				resources->_bentBufSRV_R.Get(),
-				resources->_normBufSRV_R.Get()
+				resources->_normBufSRV_R.Get(),
+				resources->_depthBufSRV_R.Get(),
+				resources->_depthBuf2SRV_R.Get(),
 			};
-			context->PSSetShaderResources(0, 6, srvs_pass2);
+			context->PSSetShaderResources(0, 7, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
