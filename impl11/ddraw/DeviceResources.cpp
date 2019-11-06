@@ -32,8 +32,10 @@
 #include "../Debug/SSAOBlurPixelShader.h"
 #include "../Debug/SSAOAddPixelShader.h"
 #include "../Debug/SSDODirect.h"
+#include "../Debug/SSDODirectHDR.h"
 #include "../Debug/SSDOIndirect.h"
 #include "../Debug/SSDOAdd.h"
+#include "../Debug/SSDOAddHDR.h"
 #include "../Debug/SSDOBlur.h"
 #else
 #include "../Release/MainVertexShader.h"
@@ -62,8 +64,10 @@
 #include "../Release/SSAOBlurPixelShader.h"
 #include "../Release/SSAOAddPixelShader.h"
 #include "../Release/SSDODirect.h"
+#include "../Release/SSDODirectHDR.h"
 #include "../Release/SSDOIndirect.h"
 #include "../Release/SSDOAdd.h"
+#include "../Release/SSDOAddHDR.h"
 #include "../Release/SSDOBlur.h"
 #endif
 
@@ -2001,10 +2005,16 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
@@ -2213,10 +2223,16 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))

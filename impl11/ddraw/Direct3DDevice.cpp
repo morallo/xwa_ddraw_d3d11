@@ -278,7 +278,7 @@ float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false;
+bool g_bOverrideLightPos = false, g_bHDREnabled = false;
 Vector4 g_LightVector[2];
 Vector4 g_LightColor[2];
 
@@ -1717,9 +1717,6 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "samples") == 0) {
 				g_SSAO_PSCBuffer.samples = (int )fValue;
 			}
-			/*else if (_stricmp(param, "z_scale") == 0) {
-				g_SSAO_PSCBuffer.z_scale = fValue;
-			}*/
 			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor = (float)fValue;
 			}
@@ -1811,6 +1808,12 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "viewPitchSign") == 0) {
 				g_fViewPitchSign = fValue;
+			}
+			else if (_stricmp(param, "HDR_enabled") == 0) {
+				g_bHDREnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "gamma") == 0) {
+				g_SSAO_PSCBuffer.gamma = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;

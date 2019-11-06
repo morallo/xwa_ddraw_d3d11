@@ -96,7 +96,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWARotation;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
@@ -2813,7 +2813,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_ssaoMaskSRV.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
 		};
-		resources->InitPixelShader(resources->_ssdoDirectPS);
+		resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
@@ -3016,7 +3016,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	{
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
-		resources->InitPixelShader(resources->_ssdoAddPS);
+		resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX	= 0.0f;
 		viewport.TopLeftY	= 0.0f;
@@ -3035,16 +3035,16 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
-		ID3D11ShaderResourceView *srvs_pass2[5] = {
+		ID3D11ShaderResourceView *srvs_pass2[6] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
-			resources->_ssaoBufSRV.Get(),							// SSDO Direct
+			g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get(), // Bent Normals (HDR) / SSDO Direct
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
-			//resources->_bentBufSRV.Get(),
-			//resources->_normBufSRV.Get()
+			resources->_depthBufSRV.Get(),							// Depth buffer
+			//resources->_depthBuf2SRV.Get()
 		};
-		context->PSSetShaderResources(0, 5, srvs_pass2);
+		context->PSSetShaderResources(0, 6, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3075,7 +3075,7 @@ out1:
 				resources->_ssaoMaskSRV_R.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
 			};
-			resources->InitPixelShader(resources->_ssdoDirectPS);
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
 			if (!g_bBlurSSAO && g_bShowSSAODebug) {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewR.Get(),
@@ -3278,7 +3278,7 @@ out1:
 		{
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
-			resources->InitPixelShader(resources->_ssdoAddPS);
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 			// Reset the viewport for the final SSAO combine
 			viewport.TopLeftX	= 0.0f;
 			viewport.TopLeftY	= 0.0f;
@@ -3746,9 +3746,10 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBuf.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 				}
 			}

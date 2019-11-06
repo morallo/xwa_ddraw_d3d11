@@ -74,7 +74,7 @@ cbuffer ConstantBuffer : register(b3)
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
 	float3 invLightColor;
-	float unused4;
+	float gamma;
 	// 128 bytes
 };
 

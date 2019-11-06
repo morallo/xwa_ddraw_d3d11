@@ -209,7 +209,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
-	float invLightR, invLightG, invLightB, unused4;
+	float invLightR, invLightG, invLightB, gamma;
 	// 128 bytes
 } SSAOPixelShaderCBuffer;
 
@@ -518,8 +518,10 @@ public:
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
+	ComPtr<ID3D11PixelShader> _ssdoDirectHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
+	ComPtr<ID3D11PixelShader> _ssdoAddHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
