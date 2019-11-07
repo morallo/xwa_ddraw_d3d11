@@ -156,6 +156,29 @@ inline float3 ACESFilm(float3 x)
 	return saturate((x*(a*x + b)) / (x*(c*x + d) + e));
 }
 
+inline float Reinhard4(float Lin, float Lwhite_sqr) {
+	return Lin * (1 + Lin / Lwhite_sqr) / (1 + Lin);
+}
+
+inline float3 Reinhard4b(float3 Lin, float Lwhite_sqr) {
+	return Lin * (1 + Lin / Lwhite_sqr) / (1 + Lin);
+}
+
+inline float3 ReinhardFull(float3 rgb, float Lwhite_sqr) {
+	//float3 hsv = RGBtoHSV(rgb);
+	//hsv.z = Reinhard4(hsv.z, Lwhite_sqr);
+	//return HSVtoRGB(hsv);
+	return Reinhard4b(rgb, Lwhite_sqr);
+}
+
+float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt)
+{
+	float4 vh = float4(hdr, whitePt);
+	float4 va = (1.425 * vh) + 0.05f;
+	float4 vf = ((vh * va + 0.004f) / ((vh * (va + 0.55f) + 0.0491f))) - 0.0821f;
+	return vf.rgb / vf.www;
+}
+
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
@@ -184,14 +207,20 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	}
 
 	float3 temp = ambient;
-	temp += LightColor.rgb * saturate(dot(bentN, LightVector.xyz));
-	temp += invLightColor * saturate(dot(bentN, -LightVector.xyz));
-	temp += LightColor2.rgb * saturate(dot(bentN, LightVector2.xyz));
+	temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
+	temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
+	temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
 	color = color * temp;
 	// Apply tone-mapping:
 	//color = color / (color + 1);
-	color = pow(abs(color), 1.0 / gamma);
-	color = ACESFilm(color);
+	
+	//color = pow(abs(color), 1.0 / gamma);
+	//color = ACESFilm(color);
+
+	color = ReinhardFull(color, gamma*gamma);
+	//color = pow(abs(color), 1.0 / gamma);
+
+	//color = ToneMapFilmic_Hejl2015(color, gamma);
 	return float4(color, 1);
 	//ssdo = ambient + ssdo; // Add the ambient component
 	// Apply tone mapping:

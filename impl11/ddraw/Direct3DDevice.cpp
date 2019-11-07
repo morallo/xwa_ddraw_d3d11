@@ -1627,7 +1627,8 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.bias = 0.05f;
 	g_SSAO_PSCBuffer.intensity = 3.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
-	g_SSAO_PSCBuffer.black_level = 0.1f;
+	g_SSAO_PSCBuffer.black_level = 0.2f;
+	g_SSAO_PSCBuffer.bentNormalInit = 0.2f;
 	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
 	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
 	g_SSAO_PSCBuffer.z_division = 0;
