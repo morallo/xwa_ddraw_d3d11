@@ -2255,8 +2255,8 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize = 1.0f;
-	g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
-	g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+	//g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
+	//g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
 	//g_BloomPSCBuffer.norm_weight = g_fNormWeight;
 	g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
@@ -2425,8 +2425,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
-	g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
-	g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
+	//g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
+	//g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
@@ -2573,8 +2573,8 @@ out1:
 		g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 		//g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
 		g_BloomPSCBuffer.uvStepSize = 1.0f;
-		g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
-		g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+		//g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
+		//g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
 		//g_BloomPSCBuffer.norm_weight = g_fNormWeight;
 		g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
@@ -2700,6 +2700,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
 		g_SSAO_PSCBuffer.x1 = x / g_fCurScreenWidth;
 		g_SSAO_PSCBuffer.y1 = y / g_fCurScreenHeight;
+		if (g_bDumpSSAOBuffers)
+			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3)-(%0.3f, %0.3f)",
+				g_SSAO_PSCBuffer.x0, g_SSAO_PSCBuffer.y0, g_SSAO_PSCBuffer.x1, g_SSAO_PSCBuffer.x1);
 	}
 
 	// Create the VertexBuffer if necessary
@@ -2813,7 +2816,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_ssaoMaskSRV.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
 		};
-		resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
+		else
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
@@ -2848,8 +2854,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
-	g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader; // Do I still use this?
-	g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader; // Do I still use this?
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 	g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
@@ -3016,7 +3020,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	{
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
-		resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+		else
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX	= 0.0f;
 		viewport.TopLeftY	= 0.0f;
@@ -3035,10 +3042,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *ssdoSRV = NULL;
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			ssdoSRV = resources->_bentBufSRV.Get();
+		else
+			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
 		ID3D11ShaderResourceView *srvs_pass2[6] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
-			g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get(), // Bent Normals (HDR) / SSDO Direct
+			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
@@ -3110,8 +3122,6 @@ out1:
 		g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
 		g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 		g_BloomPSCBuffer.uvStepSize			= 1.0f;
-		g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader; // Do I still use this?
-		g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader; // Do I still use this?
 		g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 		g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
@@ -3739,6 +3749,7 @@ HRESULT PrimarySurface::Flip(
 						SSAOPass(g_fSSAOZoomFactor);
 						break;
 					case SSO_DIRECTIONAL:
+					case SSO_BENT_NORMALS:
 						SSDOPass(g_fSSAOZoomFactor, g_fSSAOZoomFactor2);
 						break;
 				}

@@ -1701,6 +1701,8 @@ bool LoadSSAOParams() {
 					g_SSAO_Type = SSO_AMBIENT;
 				else if (_stricmp(svalue, "directional") == 0)
 					g_SSAO_Type = SSO_DIRECTIONAL;
+				else if (_stricmp(svalue, "bent_normals") == 0)
+					g_SSAO_Type = SSO_BENT_NORMALS;
 			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;

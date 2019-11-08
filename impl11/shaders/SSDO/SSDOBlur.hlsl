@@ -33,13 +33,13 @@ struct BlurData {
 // we're only using the amplifyFactor here.
 cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, white_point, amplifyFactor;
+	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength;
-	uint enableSSAO;
+	uint unused1;
 	// 32 bytes
-	uint enableBentNormals;
-	float unused1, depth_weight, unused3;
+	uint unused2;
+	float unused3, depth_weight, unused4;
 	// 48 bytes
 };
 

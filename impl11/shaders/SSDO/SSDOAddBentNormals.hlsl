@@ -210,16 +210,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
 	temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
-	float3 color = albedo * temp;
-	// Apply tone-mapping:
-	//color = color / (color + 1);
-	
-	//color = ReinhardFull(color, gamma*gamma);
-	//color = ToneMapFilmic_Hejl2015(color, gamma);
-	color = ACESFilm(color);
-	color = pow(abs(color), 1.0 / gamma);
+	float3 color = saturate(albedo * temp);
 	color = lerp(color, albedo, mask * 0.75);
-	
 	return float4(color, 1);
 	//ssdo = ambient + ssdo; // Add the ambient component
 	// Apply tone mapping:
@@ -233,7 +225,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//return float4(ssdo, 1);
 
 	/*
-	
+
 	if (level >= 0.5)
 		//color = 1 - (1 - color) * (1 - ssdo);
 		color = 1 - 2 * (1 - color) * (1 - ssdo);

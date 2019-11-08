@@ -182,10 +182,10 @@ typedef struct BloomPixelShaderCBStruct {
 	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength;
-	int enableSSAO;
+	int unused1;
 	// 32 bytes
-	int enableBentNormals;
-	float unused1, depth_weight;
+	int unused2;
+	float unused3, depth_weight;
 	int debug;
 	// 48 bytes
 } BloomPixelShaderCBuffer;
@@ -318,6 +318,7 @@ typedef struct move_region_coords_struct {
 typedef enum {
 	SSO_AMBIENT,
 	SSO_DIRECTIONAL,
+	SSO_BENT_NORMALS,
 } SSAOTypeEnum;
 
 class DeviceResources
@@ -518,10 +519,12 @@ public:
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
+	ComPtr<ID3D11PixelShader> _ssdoDirectBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddHDRPS;
+	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;

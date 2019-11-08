@@ -46,6 +46,8 @@
     <FxCompile Include="SSDO\SSDOBlur.hlsl" />
     <FxCompile Include="SSDO\SSDODirectHDR.hlsl" />
     <FxCompile Include="SSDO\SSDOAddHDR.hlsl" />
+    <FxCompile Include="SSDO\SSDOAddBentNormals.hlsl" />
+    <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

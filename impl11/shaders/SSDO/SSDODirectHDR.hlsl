@@ -159,6 +159,9 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	// Early exit: darken the edges of the effective viewport
 	if (sample_uv.x < x0 || sample_uv.x > x1 ||
 		sample_uv.y < y0 || sample_uv.y > y1) {
+		//output.N = -Normal / (float)samples; // Darken this sample
+		//output.N = -Normal;
+		output.col = -1;
 		return output;
 	}
 	float2 uv_diff = sample_uv - input_uv;
@@ -204,7 +207,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// look more faceted
 		B = normalize(B);
 		output.N = B;
-		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
+		//if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
@@ -217,34 +220,6 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	output.col = 0;
 	//output.col = saturate(dot(Normal, light)); // Computing this causes illumination artifacts, set col = 0 instead to have consistent results
 	return output;
-
-	//return visibility;
-	//return result + color * ao_factor * saturate(dot(Normal, light));
-	//return color * saturate(dot(Normal, light));
-
-	/*
-	//float3 ao = ao_factor;
-	//if (ao_factor > 0.1)
-	{
-		float3 occluder_col = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
-		float3 occluder_N	= texNorm.SampleLevel(sampNorm, sample_uv, 0).xyz;
-		float3 diffuse		= texDiff.SampleLevel(sampDiff, sample_uv, 0).xyz;
-		float occ_normal_factor = saturate(dot(Normal, occluder_N));
-		//float occ_light_factor = dot(occluder_N, light);
-		//float diff_factor = dot(0.333, diffuse);
-		float diff_factor = diffuse.r;
-		//occluder_col *= saturate(ssdo_area * occ_normal_factor * occ_light_factor * rsqrt(diff_sqr));
-		//ssdo += occluder_col * occ_normal_factor * (1 - ao_dot) * weight * diff_factor;
-		//ssdo += occluder_col * occ_normal_factor * weight * diff_factor;
-		//ssdo += occluder_col * ao_factor * occ_normal_factor * diff_factor;
-		ssdo += occluder_col * ao_factor * diff_factor;
-	}
-	ssdo = ssdo_area * ssdo;
-	return intensity * ao;
-	//float3 ssdo = intensity * ssdo_area * ao_factor * occ_light_factor * occ_cur_factor * occluder_col;
-	//return intensity * lerp(ao, ssdo, ao_factor);
-	//return intensity * pow(ao_factor, power);
-	*/
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -298,7 +273,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
 	float3 FakeNormal = 0;
-	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
+	//if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
@@ -320,18 +295,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
 			p, n, radius * (j + sample_jitter), max_radius,
 			FakeNormal, nm_intensity);
-		//if (ssdo_aux.was_sampled) {
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
-		//num_samples++;
 	}
-	//num_samples = max(1, num_samples);
 	ssdo = intensity * ssdo / (float)samples;
 	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
 	ssdo = lerp(ssdo, 1, bloom_mask);
 	ssdo = pow(abs(ssdo), power);
 	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
-	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	ssdo = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	float S = dot(0.333, ssdo);
+	output.ssao.xyz = S;
 	//bentNormal /= (float)samples;
 	//float BLength = length(bentNormal);
 	//ssdo = intensity * saturate(dot(bentNormal, light));
@@ -339,8 +313,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
-	output.bentNormal.xyz = bentNormal;
-	//output.bentNormal.xyz = radius * 100; // DEBUG! Use this to visualize the radius
+	output.bentNormal.xyz = S * bentNormal;
 	return output;
 }
 
