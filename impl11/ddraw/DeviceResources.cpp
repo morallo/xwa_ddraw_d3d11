@@ -2320,8 +2320,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader
-	constantBufferDesc.ByteWidth = 160;
-	static_assert(sizeof(SSAOPixelShaderCBuffer) == 160, "sizeof(SSAOPixelShaderCBuffer) must be 160");
+	constantBufferDesc.ByteWidth = 176;
+	static_assert(sizeof(SSAOPixelShaderCBuffer) == 176, "sizeof(SSAOPixelShaderCBuffer) must be 176");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_ssaoConstantBuffer)))
 		return hr;
 

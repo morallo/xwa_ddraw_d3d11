@@ -278,7 +278,7 @@ float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bHDREnabled = false;
+bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
 Vector4 g_LightVector[2];
 Vector4 g_LightColor[2];
 
@@ -1823,6 +1823,13 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "shadow_steps") == 0) {
 				g_SSAO_PSCBuffer.shadow_steps = fValue;
+			}
+			else if (_stricmp(param, "shadow_k") == 0) {
+				g_SSAO_PSCBuffer.shadow_k = fValue;
+			}
+			else if (_stricmp(param, "shadow_enable") == 0) {
+				g_bShadowEnable = (bool)fValue;
+				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
 			}
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;

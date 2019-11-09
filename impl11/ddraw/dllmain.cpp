@@ -66,7 +66,7 @@ extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUp
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable;
+extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
 bool g_bShowXWARotation = false;
 
@@ -201,6 +201,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// DEBUG
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
+				return 0;
+			case 'I':
+				g_bShadowEnable = !g_bShadowEnable;
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;

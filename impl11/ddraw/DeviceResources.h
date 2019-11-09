@@ -215,6 +215,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 144 bytes
 	float vpScale[4];
 	// 160 bytes
+	int shadow_enable;
+	float shadow_k, ssao_unused1, ssao_unused2;
+	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

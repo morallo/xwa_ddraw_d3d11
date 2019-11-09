@@ -34,9 +34,9 @@ SamplerState samplerSSAOMask : register(s4);
 Texture2D texPos : register(t5);
 SamplerState sampPos : register(s5);
 
-// The Normals buffer
-//Texture2D texNormal : register(t6);
-//SamplerState samplerNormal : register(s6);
+// The (Flat) Normals buffer
+Texture2D texNormal : register(t6);
+SamplerState samplerNormal : register(s6);
 
 #define INFINITY_Z 20000
 
@@ -83,6 +83,9 @@ cbuffer ConstantBuffer : register(b3)
 	// 144 bytes
 	float4 vpScale;
 	// 160 bytes
+	uint shadow_enable;
+	float shadow_k, ssao_unused1, ssao_unused2;
+	// 176 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -228,7 +231,7 @@ inline float2 projectToUV(in float3 pos3D) {
 	// We now have P = input.pos
 	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
 	P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
-	//P *= 1.0f / w; // Don't know if this is 100% necessary
+	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
 
 	// Now convert to UV coords: (0, 1)-(1, 0):
 	P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
@@ -243,23 +246,35 @@ float shadow_factor(in float3 P) {
 	int steps = (int)shadow_steps;
 	float shadow_length = shadow_step_size * shadow_steps;
 	float cur_length = 0;
+	float res = 1.0;
 
+	// Handle samples that land outside the bounds of the image
+	// "negative" cur_diff should be ignored
 	[loop]
-	for (int i = 0; i < steps; i++) {
-		cur_pos    += ray_step;
-		cur_length += shadow_step_size;
+	for (int i = 1; i <= steps; i++) {
+		//cur_pos    += ray_step;
+		//cur_length += shadow_step_size;
 		cur_uv      = projectToUV(cur_pos);
 		depth       = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		cur_diff    = abs(cur_pos.z - depth.z);
-		if (cur_diff < smallest_diff) {
+		cur_diff    = abs(depth.z - cur_pos.z);
+		if (cur_diff < 0.01)
+			return 0;
+		res = min(res, saturate(shadow_k * cur_diff / cur_length));
+		/*if (cur_diff < smallest_diff) {
+			if (cur_diff < 0.01)
+				return 0;
+			res = min(res, 2 * cur_diff / cur_length);
 			smallest_diff = cur_diff;
 			nearest_pos   = cur_pos;
 			length_at_nearest_pos = cur_length;
-		}
+		}*/
+		cur_pos += ray_step;
+		cur_length += shadow_step_size;
 	}
-	float attenuation = 1 - length_at_nearest_pos / shadow_length; // Attenuate shadow with distance
-	float intensity   = max(1 - smallest_diff / 10, 0);
-	return attenuation * intensity;
+	return res;
+	//float attenuation = 1 - length_at_nearest_pos / shadow_length; // Attenuate shadow with distance
+	//float intensity   = max(1 - smallest_diff / 10, 0);
+	//return attenuation * intensity;
 	//return 1.0f - smallest_diff;
 	//return attenuation;
 }
@@ -269,10 +284,10 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 albedo = texColor.Sample(sampColor, input.uv).xyz;
+	float3 albedo = pow(abs(texColor.Sample(sampColor, input.uv).xyz), gamma);
 	float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz; // Looks like bentN is already normalized
 	float3 pos3D = texPos.Sample(sampPos, input.uv).xyz;
-	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
+	float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
 	//float3 ssdo = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb; // HDR
 	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
@@ -281,7 +296,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z) return float4(albedo, 1);
+	if (pos3D.z > INFINITY_Z) return float4(pow(abs(albedo), 1 / gamma), 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {
@@ -293,20 +308,26 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	// Compute shadows
 	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
-	pos3D.z -= m_offset;
+	//pos3D.z -= m_offset;
+	pos3D += Normal * m_offset;
 
-	float shadow = shadow_factor(pos3D);
+	float shadow = max(ambient, shadow_factor(pos3D));
+	if (!shadow_enable)
+		shadow = 1;
+	//if (shadow > 0.01)
+	//	return float4(1, 0, 0, 1);
 	//return float4(shadow, 0, 0, 1);
 
 	float3 temp = ambient;
-	temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
-	temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
-	temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
-	temp *= shadow;
+	//temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
+	//temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
+	//temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
+	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow;
+	//temp *= shadow;
 	//if (shadow > 0) temp = float3(1, 0, 0);
 	float3 color = saturate(albedo * temp);
 	color = lerp(color, albedo, mask * 0.75);
-	return float4(color, 1);
+	return float4(pow(abs(color), 1 / gamma), 1);
 	//return float4(projectToUV(pos3D), 0, 1);
 
 	//ssdo = ambient + ssdo; // Add the ambient component
@@ -319,19 +340,4 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//hsv.z = saturate(level);
 	//color = HSVtoRGB(hsv);
 	//return float4(ssdo, 1);
-
-	/*
-
-	if (level >= 0.5)
-		//color = 1 - (1 - color) * (1 - ssdo);
-		color = 1 - 2 * (1 - color) * (1 - ssdo);
-	else
-		//color = color * ssdo;
-		color = 2 * color * ssdo;
-	*/
-
-	//ssdo = lerp(ssdo, 1, mask);
-	//ssdoInd = lerp(ssdoInd, 0, mask);
-	//color = color * ssdo + ssdoInd;
-	//return float4(color, 1);
 }

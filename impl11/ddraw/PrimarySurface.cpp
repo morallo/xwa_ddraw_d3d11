@@ -96,7 +96,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWARotation;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled, g_bShadowEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
@@ -2794,6 +2794,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
+	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -3047,7 +3048,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			ssdoSRV = resources->_bentBufSRV.Get();
 		else
 			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[6] = {
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
 			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct
@@ -3055,8 +3056,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			//resources->_depthBuf2SRV.Get()
+			g_SSAO_Type == SSO_BENT_NORMALS ? resources->_normBufSRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 6, srvs_pass2);
+		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
