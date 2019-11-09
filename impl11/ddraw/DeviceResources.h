@@ -211,6 +211,10 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 112 bytes
 	float invLightR, invLightG, invLightB, gamma;
 	// 128 bytes
+	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
+	// 144 bytes
+	float vpScale[4];
+	// 160 bytes
 } SSAOPixelShaderCBuffer;
 
 /* 3D Constant Buffers */

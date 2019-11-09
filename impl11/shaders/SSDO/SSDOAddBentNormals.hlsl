@@ -30,6 +30,7 @@ SamplerState samplerSSDOInd : register(s3);
 Texture2D texSSAOMask : register(t4);
 SamplerState samplerSSAOMask : register(s4);
 
+// The position/depth buffer
 Texture2D texPos : register(t5);
 SamplerState sampPos : register(s5);
 
@@ -78,6 +79,10 @@ cbuffer ConstantBuffer : register(b3)
 	float3 invLightColor;
 	float gamma;
 	// 128 bytes
+	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
+	// 144 bytes
+	float4 vpScale;
+	// 160 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -91,7 +96,7 @@ cbuffer ConstantBuffer : register(b4)
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
 
 float3 getPositionFG(in float2 uv, in float level) {
@@ -179,6 +184,86 @@ float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt)
 	return vf.rgb / vf.www;
 }
 
+/*
+
+temp = input.pos.xyz;
+
+temp.xy = input.pos.xy;
+temp.xy *= vpScale.xy;
+temp.xy += float2(-0.5, 0.5);
+temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+temp.z = METRIC_SCALE_FACTOR * w;
+P = float3(temp.z * temp.xy, temp.z)
+
+temp.xy = input.pos.xy;
+temp.xy = temp.xy * vpScale.xy;
+temp.xy = input.pos.xy * vpScale.xy;
+
+temp.xy = temp.xy + float2(-0.5, 0.5);
+temp.xy = input.pos.xy * vpScale.xy + float2(0.5, 0.5)
+
+temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+temp.xy = (input.pos.xy * vpScale.xy + float2(0.5, 0.5)) * vpScale.z * float2(aspect_ratio, 1)
+
+temp.xy / (vpScale.z * float2(aspect_ratio, 1)) = input.pos.xy * vpScale.xy + float2(-0.5, 0.5)
+
+temp.xy / (vpScale.z * float2(aspect_ratio, 1)) - float2(-0.5, 0.5) = input.pos.xy * vpScale.xy
+input.pos.xy = (temp.xy / (vpScale.z * float2(aspect_ratio, 1)) - float2(0.5, 0.5)) / vpScale.xy
+
+temp.z = METRIC_SCALE_FACTOR * w;
+*/
+
+static float METRIC_SCALE_FACTOR = 25.0;
+
+inline float2 projectToUV(in float3 pos3D) {
+	float3 P = pos3D;
+	float w = P.z / METRIC_SCALE_FACTOR;
+	P.xy = P.xy / P.z;
+	// Convert to vertex pos:
+	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
+	// (-1,-1)-(1, 1)
+	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+	P.xy -= float2(-0.5, 0.5);
+	P.xy /= vpScale.xy;
+	// We now have P = input.pos
+	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
+	P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
+	//P *= 1.0f / w; // Don't know if this is 100% necessary
+
+	// Now convert to UV coords: (0, 1)-(1, 0):
+	P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
+	return P.xy;
+}
+
+float shadow_factor(in float3 P) {
+	float smallest_diff = INFINITY_Z, length_at_nearest_pos, cur_diff;
+	float3 cur_pos = P, depth, nearest_pos;
+	float2 cur_uv;
+	float3 ray_step = shadow_step_size * LightVector.xyz;
+	int steps = (int)shadow_steps;
+	float shadow_length = shadow_step_size * shadow_steps;
+	float cur_length = 0;
+
+	[loop]
+	for (int i = 0; i < steps; i++) {
+		cur_pos    += ray_step;
+		cur_length += shadow_step_size;
+		cur_uv      = projectToUV(cur_pos);
+		depth       = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
+		cur_diff    = abs(cur_pos.z - depth.z);
+		if (cur_diff < smallest_diff) {
+			smallest_diff = cur_diff;
+			nearest_pos   = cur_pos;
+			length_at_nearest_pos = cur_length;
+		}
+	}
+	float attenuation = 1 - length_at_nearest_pos / shadow_length; // Attenuate shadow with distance
+	float intensity   = max(1 - smallest_diff / 10, 0);
+	return attenuation * intensity;
+	//return 1.0f - smallest_diff;
+	//return attenuation;
+}
+
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
@@ -206,13 +291,24 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		bentN = blend_normals(nm_intensity * FakeNormal, bentN);
 	}
 
+	// Compute shadows
+	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
+	pos3D.z -= m_offset;
+
+	float shadow = shadow_factor(pos3D);
+	//return float4(shadow, 0, 0, 1);
+
 	float3 temp = ambient;
 	temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
 	temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
+	temp *= shadow;
+	//if (shadow > 0) temp = float3(1, 0, 0);
 	float3 color = saturate(albedo * temp);
 	color = lerp(color, albedo, mask * 0.75);
 	return float4(color, 1);
+	//return float4(projectToUV(pos3D), 0, 1);
+
 	//ssdo = ambient + ssdo; // Add the ambient component
 	// Apply tone mapping:
 	//ssdo = ssdo / (ssdo + 1);

@@ -1818,6 +1818,15 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "gamma") == 0) {
 				g_SSAO_PSCBuffer.gamma = fValue;
 			}
+			else if (_stricmp(param, "shadow_step_size") == 0) {
+				g_SSAO_PSCBuffer.shadow_step_size = fValue;
+			}
+			else if (_stricmp(param, "shadow_steps") == 0) {
+				g_SSAO_PSCBuffer.shadow_steps = fValue;
+			}
+			else if (_stricmp(param, "white_point") == 0) {
+				g_SSAO_PSCBuffer.white_point = fValue;
+			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
@@ -3488,6 +3497,7 @@ HRESULT Direct3DDevice::Execute(
 
 	g_VSCBuffer = { 0 };
 	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override = -1.0f;
 	g_VSCBuffer.sz_override = -1.0f;
 	g_VSCBuffer.mult_z_override = -1.0f;
@@ -3608,10 +3618,16 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
-		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold;
+		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
 		g_VSCBuffer.z_override = -1.0f;
 		g_VSCBuffer.sz_override = -1.0f;
 		g_VSCBuffer.mult_z_override = -1.0f;
+
+		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
+		g_SSAO_PSCBuffer.vpScale[0] = g_VSCBuffer.viewportScale[0];
+		g_SSAO_PSCBuffer.vpScale[1] = g_VSCBuffer.viewportScale[1];
+		g_SSAO_PSCBuffer.vpScale[2] = g_VSCBuffer.viewportScale[2];
+		g_SSAO_PSCBuffer.vpScale[3] = g_VSCBuffer.viewportScale[3];
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		//g_fXWAScale = scale; // Store the current scale, the Dynamic Cockpit will use this value

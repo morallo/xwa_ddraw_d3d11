@@ -78,6 +78,8 @@ cbuffer ConstantBuffer : register(b3)
 	float3 invLightColor;
 	float gamma;
 	// 128 bytes
+	float white_point, shadow_step, shadow_length, ssao_unused1;
+	// 144 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)

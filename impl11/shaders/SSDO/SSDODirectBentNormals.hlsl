@@ -44,6 +44,16 @@ struct PixelShaderOutput
 	float4 bentNormal  : SV_TARGET1;
 };
 
+// These are the values from the VertexShader CB, we need them here again!
+/*
+cbuffer ConstantBuffer : register(b0)
+{
+	float4 vpScale;
+	float aspect_ratio, cockpit_threshold, z_override, sz_override;
+	float mult_z_override, bPreventTransform, bFullTransform;
+};
+*/
+
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
