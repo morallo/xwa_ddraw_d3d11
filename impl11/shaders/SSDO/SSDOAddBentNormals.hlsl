@@ -234,13 +234,17 @@ inline float2 projectToUV(in float3 pos3D) {
 	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
 
 	// Now convert to UV coords: (0, 1)-(1, 0):
-	P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
+	//P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
+	// The viewport used to render the original offscreenBuffer may not cover the full
+	// screen, so the uv coords have to be adjusted to the limits of the viewport within
+	// the full-screen quad:
+	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
 	return P.xy;
 }
 
-float shadow_factor(in float3 P) {
-	float smallest_diff = INFINITY_Z, length_at_nearest_pos, cur_diff;
-	float3 cur_pos = P, depth, nearest_pos;
+float3 shadow_factor(in float3 P) {
+	//float smallest_diff = INFINITY_Z;
+	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
 	float3 ray_step = shadow_step_size * LightVector.xyz;
 	int steps = (int)shadow_steps;
@@ -252,31 +256,27 @@ float shadow_factor(in float3 P) {
 	// "negative" cur_diff should be ignored
 	[loop]
 	for (int i = 1; i <= steps; i++) {
-		//cur_pos    += ray_step;
-		//cur_length += shadow_step_size;
-		cur_uv      = projectToUV(cur_pos);
-		depth       = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		cur_diff    = abs(depth.z - cur_pos.z);
-		if (cur_diff < 0.01)
-			return 0;
-		res = min(res, saturate(shadow_k * cur_diff / cur_length));
-		/*if (cur_diff < smallest_diff) {
-			if (cur_diff < 0.01)
-				return 0;
-			res = min(res, 2 * cur_diff / cur_length);
-			smallest_diff = cur_diff;
-			nearest_pos   = cur_pos;
-			length_at_nearest_pos = cur_length;
-		}*/
-		cur_pos += ray_step;
+		cur_pos    += ray_step;
 		cur_length += shadow_step_size;
+		cur_uv		= projectToUV(cur_pos);
+
+		// If the ray has exited the current viewport, we're done:
+		if (cur_uv.x < x0 || cur_uv.x > x1 ||
+			cur_uv.y < y0 || cur_uv.y > y1)
+			return float3(res, cur_length / shadow_length, 1);
+
+		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
+		diff		 = occluder - cur_pos;
+		if (diff.z > 0) { // Ignore negative z-diffs: the occluder is behind the ray
+			//if (diff.z < 0.01)
+			//	return float3(0, cur_length / shadow_length, 0);
+			res = min(res, saturate(shadow_k * diff.z / (cur_length + 0.00001)));
+		}
+
+		//cur_pos += ray_step;
+		//cur_length += shadow_step_size;
 	}
-	return res;
-	//float attenuation = 1 - length_at_nearest_pos / shadow_length; // Attenuate shadow with distance
-	//float intensity   = max(1 - smallest_diff / 10, 0);
-	//return attenuation * intensity;
-	//return 1.0f - smallest_diff;
-	//return attenuation;
+	return float3(res, cur_length / shadow_length, 0);
 }
 
 float4 main(PixelShaderInput input) : SV_TARGET
@@ -306,23 +306,39 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		bentN = blend_normals(nm_intensity * FakeNormal, bentN);
 	}
 
-	// Compute shadows
 	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
 	//pos3D.z -= m_offset;
 	pos3D += Normal * m_offset;
 
-	float shadow = max(ambient, shadow_factor(pos3D));
+	// Compute shadows
+	float3 shadow = max(ambient, shadow_factor(pos3D));
 	if (!shadow_enable)
 		shadow = 1;
-	//if (shadow > 0.01)
-	//	return float4(1, 0, 0, 1);
-	//return float4(shadow, 0, 0, 1);
 
+	if (ssao_debug) {
+		float res = shadow.x;
+		res = 1 - res;
+		//float3 color = float3(res, shadow.y, 0) * albedo;
+		float3 color = float3(0, res * shadow.y, 0);
+		return float4(pow(abs(color), 1 / gamma), 1);
+		// Display the uv coords:
+		//float2 uv = projectToUV(pos3D);
+		//return float4(uv, 0.5, 1);
+	}
+	else
+		shadow = shadow.xxx;
+
+	//float3 reflected = reflect(-LightVector.xyz, Normal);
+	//float3 eyeVector = 0 - pos3D;
+	//float3 eyeVector = float3(0, 0, -1);
+	//float spec = saturate(dot(reflected, eyeVector));
+	//spec = pow(abs(spec), white_point); // TODO: Use something different for the specular highlight
+	//float3 specColor = float3(1, 1, 0);
 	float3 temp = ambient;
 	//temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
 	//temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	//temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
-	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow;
+	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp *= shadow;
 	//if (shadow > 0) temp = float3(1, 0, 0);
 	float3 color = saturate(albedo * temp);

@@ -2701,8 +2701,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		g_SSAO_PSCBuffer.x1 = x / g_fCurScreenWidth;
 		g_SSAO_PSCBuffer.y1 = y / g_fCurScreenHeight;
 		if (g_bDumpSSAOBuffers)
-			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3)-(%0.3f, %0.3f)",
-				g_SSAO_PSCBuffer.x0, g_SSAO_PSCBuffer.y0, g_SSAO_PSCBuffer.x1, g_SSAO_PSCBuffer.x1);
+			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				g_SSAO_PSCBuffer.x0, g_SSAO_PSCBuffer.y0, g_SSAO_PSCBuffer.x1, g_SSAO_PSCBuffer.y1);
 	}
 
 	// Create the VertexBuffer if necessary
@@ -2795,6 +2795,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
 	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -2821,6 +2822,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
 		else
 			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
@@ -2876,14 +2878,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
 			ID3D11ShaderResourceView *srvs[5] = {
-					//resources->_offscreenAsInputShaderResourceView.Get(),
+					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_depthBuf2SRV.Get(),
 					resources->_normBufSRV.Get(),
 					resources->_bentBufSRV_R.Get(),
 			};
-			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
+			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 
+				g_SSAO_Type != SSO_BENT_NORMALS) {
 				context->ClearRenderTargetView(resources->_renderTargetView, black);
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
@@ -2895,6 +2898,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
+				// DEBUG
 				context->Draw(6, 0);
 				goto out1;
 			}
