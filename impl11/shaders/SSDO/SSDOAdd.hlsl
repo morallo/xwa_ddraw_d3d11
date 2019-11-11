@@ -29,13 +29,13 @@ SamplerState samplerSSDOInd : register(s3);
 Texture2D texSSAOMask : register(t4);
 SamplerState samplerSSAOMask : register(s4);
 
-// The Bent Normals buffer... I can use this later to compute the shading here
-//Texture2D texBent : register(t5);
-//SamplerState samplerBent : register(s5);
+// The position/depth buffer
+Texture2D texPos : register(t5);
+SamplerState sampPos : register(s5);
 
-// The Normals buffer
-//Texture2D texNormal : register(t6);
-//SamplerState samplerNormal : register(s6);
+// The (Flat) Normals buffer
+Texture2D texNormal : register(t6);
+SamplerState samplerNormal : register(s6);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -76,6 +76,13 @@ cbuffer ConstantBuffer : register(b3)
 	float3 invLightColor;
 	float gamma;
 	// 128 bytes
+	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
+	// 144 bytes
+	float4 vpScale;
+	// 160 bytes
+	uint shadow_enable;
+	float shadow_k, ssao_unused1, ssao_unused2;
+	// 176 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -92,25 +99,95 @@ struct PixelShaderInput
 	float2 uv : TEXCOORD;
 };
 
+static float METRIC_SCALE_FACTOR = 25.0;
+
+inline float2 projectToUV(in float3 pos3D) {
+	float3 P = pos3D;
+	float w = P.z / METRIC_SCALE_FACTOR;
+	P.xy = P.xy / P.z;
+	// Convert to vertex pos:
+	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
+	// (-1,-1)-(1, 1)
+	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+	P.xy -= float2(-0.5, 0.5);
+	P.xy /= vpScale.xy;
+	// We now have P = input.pos
+	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
+	P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
+	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
+
+	// Now convert to UV coords: (0, 1)-(1, 0):
+	//P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
+	// The viewport used to render the original offscreenBuffer may not cover the full
+	// screen, so the uv coords have to be adjusted to the limits of the viewport within
+	// the full-screen quad:
+	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	return P.xy;
+}
+
+float3 shadow_factor(in float3 P) {
+	//float smallest_diff = INFINITY_Z;
+	float3 cur_pos = P, occluder, diff;
+	float2 cur_uv;
+	float3 ray_step = shadow_step_size * LightVector.xyz;
+	int steps = (int)shadow_steps;
+	float shadow_length = shadow_step_size * shadow_steps;
+	float cur_length = 0;
+	float res = 1.0;
+
+	// Handle samples that land outside the bounds of the image
+	// "negative" cur_diff should be ignored
+	[loop]
+	for (int i = 1; i <= steps; i++) {
+		cur_pos += ray_step;
+		cur_length += shadow_step_size;
+		cur_uv = projectToUV(cur_pos);
+
+		// If the ray has exited the current viewport, we're done:
+		if (cur_uv.x < x0 || cur_uv.x > x1 ||
+			cur_uv.y < y0 || cur_uv.y > y1)
+			return float3(res, cur_length / shadow_length, 1);
+
+		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
+		diff = occluder - cur_pos;
+		if (diff.z > 0) { // Ignore negative z-diffs: the occluder is behind the ray
+			//if (diff.z < 0.01)
+			//	return float3(0, cur_length / shadow_length, 0);
+			res = min(res, saturate(shadow_k * diff.z / (cur_length + 0.00001)));
+		}
+
+		//cur_pos += ray_step;
+		//cur_length += shadow_step_size;
+	}
+	return float3(res, cur_length / shadow_length, 0);
+}
+
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color = texture0.Sample(sampler0, input.uv).xyz;
-	//float4 diffuse = texDiff.Sample(samplerDiff, input.uv);
 	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
-	float4 bloom = texBloom.Sample(samplerBloom, input.uv);
-	float3 ssdo    = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 Normal   = texNormal.Sample(samplerNormal, input.uv).xyz;
+	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
+	float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
+	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float mask = dot(0.333, ssaoMask);
 	
-	// TODO: Make the ambient component configurable
-	//const float ambient = 0.15;
-	ssdo = ambient + ssdo; // Add the ambient component 
+	// Compute shadows
+	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
+	//pos3D.z -= m_offset;
+	pos3D += Normal * m_offset;
+	float3 shadow = max(ambient, shadow_factor(pos3D));
+	shadow = shadow.xxx;
+	if (!shadow_enable)
+		shadow = 1;
+
+	ssdo = ambient + min(ssdo, shadow); // Add the ambient component 
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);
 

@@ -2787,6 +2787,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	}
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
+#ifdef DEATH_STAR
 	static float iTime = 0.0f;
 	g_DeathStarBuffer.iMouse[0] = 0;
 	g_DeathStarBuffer.iMouse[1] = 0;
@@ -2795,6 +2796,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_DeathStarBuffer.iResolution[1] = g_fCurScreenHeight;
 	resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_DeathStarBuffer);
 	iTime += 0.1f;
+#endif
 
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3037,8 +3039,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
-			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+#ifndef DEATH_STAR
+			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+#else
 			resources->InitPixelShader(resources->_deathStarPS);
+#endif
 		else
 			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine
@@ -3067,12 +3072,12 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
-			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct
+			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			//resources->_depthBuf2SRV.Get()
-			g_SSAO_Type == SSO_BENT_NORMALS ? resources->_normBufSRV.Get() : NULL,
+			resources->_normBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);

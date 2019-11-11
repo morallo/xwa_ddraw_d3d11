@@ -187,35 +187,6 @@ float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt)
 	return vf.rgb / vf.www;
 }
 
-/*
-
-temp = input.pos.xyz;
-
-temp.xy = input.pos.xy;
-temp.xy *= vpScale.xy;
-temp.xy += float2(-0.5, 0.5);
-temp.xy *= vpScale.z * float2(aspect_ratio, 1);
-temp.z = METRIC_SCALE_FACTOR * w;
-P = float3(temp.z * temp.xy, temp.z)
-
-temp.xy = input.pos.xy;
-temp.xy = temp.xy * vpScale.xy;
-temp.xy = input.pos.xy * vpScale.xy;
-
-temp.xy = temp.xy + float2(-0.5, 0.5);
-temp.xy = input.pos.xy * vpScale.xy + float2(0.5, 0.5)
-
-temp.xy *= vpScale.z * float2(aspect_ratio, 1);
-temp.xy = (input.pos.xy * vpScale.xy + float2(0.5, 0.5)) * vpScale.z * float2(aspect_ratio, 1)
-
-temp.xy / (vpScale.z * float2(aspect_ratio, 1)) = input.pos.xy * vpScale.xy + float2(-0.5, 0.5)
-
-temp.xy / (vpScale.z * float2(aspect_ratio, 1)) - float2(-0.5, 0.5) = input.pos.xy * vpScale.xy
-input.pos.xy = (temp.xy / (vpScale.z * float2(aspect_ratio, 1)) - float2(0.5, 0.5)) / vpScale.xy
-
-temp.z = METRIC_SCALE_FACTOR * w;
-*/
-
 static float METRIC_SCALE_FACTOR = 25.0;
 
 inline float2 projectToUV(in float3 pos3D) {
@@ -339,6 +310,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	//temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
 	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
+	//temp += LightColor.rgb * saturate(dot(bentN, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp *= shadow;
 	//if (shadow > 0) temp = float3(1, 0, 0);
 	float3 color = saturate(albedo * temp);
