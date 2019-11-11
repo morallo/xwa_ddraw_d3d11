@@ -503,6 +503,7 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 // Bloom
 BloomPixelShaderCBuffer g_BloomPSCBuffer;
 SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+DeathStarCBStruct g_DeathStarBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
@@ -2786,6 +2787,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	}
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
+	static float iTime = 0.0f;
+	g_DeathStarBuffer.iMouse[0] = 0;
+	g_DeathStarBuffer.iMouse[1] = 0;
+	g_DeathStarBuffer.iTime = iTime;
+	g_DeathStarBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_DeathStarBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_DeathStarBuffer);
+	iTime += 0.1f;
+
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -2820,6 +2830,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		};
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
 			resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
+			//resources->InitPixelShader(resources->_deathStarPS);
 		else
 			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
 
@@ -3026,7 +3037,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
-			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			resources->InitPixelShader(resources->_deathStarPS);
 		else
 			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine

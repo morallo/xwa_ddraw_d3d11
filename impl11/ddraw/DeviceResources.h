@@ -220,6 +220,15 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
+typedef struct DeathStarCBStruct {
+	float iMouse[3];
+	float iTime;
+	// 16 bytes
+	float iResolution[2];
+	float unused1, unused2;
+	// 32 bytes
+} DeathStarCBuffer;
+
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
@@ -362,6 +371,7 @@ public:
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
+	void InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const DeathStarCBStruct * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -533,6 +543,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssdoAddHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
+	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -565,6 +576,7 @@ public:
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
+	ComPtr<ID3D11Buffer> _deathStarConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;

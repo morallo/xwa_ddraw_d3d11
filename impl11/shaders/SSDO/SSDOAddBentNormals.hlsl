@@ -328,10 +328,10 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	else
 		shadow = shadow.xxx;
 
-	//float3 reflected = reflect(-LightVector.xyz, Normal);
-	//float3 eyeVector = 0 - pos3D;
+	float3 reflected = reflect(LightVector.xyz, Normal);
+	float3 eyeVector = 0 - pos3D;
 	//float3 eyeVector = float3(0, 0, -1);
-	//float spec = saturate(dot(reflected, eyeVector));
+	float spec = saturate(dot(reflected, eyeVector));
 	//spec = pow(abs(spec), white_point); // TODO: Use something different for the specular highlight
 	//float3 specColor = float3(1, 1, 0);
 	float3 temp = ambient;

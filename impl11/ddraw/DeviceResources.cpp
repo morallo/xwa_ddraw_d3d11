@@ -39,6 +39,7 @@
 #include "../Debug/SSDOAddHDR.h"
 #include "../Debug/SSDOAddBentNormals.h"
 #include "../Debug/SSDOBlur.h"
+#include "../Debug/DeathStarShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -73,6 +74,7 @@
 #include "../Release/SSDOAddHDR.h"
 #include "../Release/SSDOAddBentNormals.h"
 #include "../Release/SSDOBlur.h"
+#include "../Release/DeathStarShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2029,6 +2031,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -2253,6 +2258,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+			return hr;
 	}
 
 	D3D11_RASTERIZER_DESC rsDesc;
@@ -2317,6 +2325,12 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.ByteWidth = 48;
 	static_assert(sizeof(BloomPixelShaderCBuffer) == 48, "sizeof(BloomPixelShaderCBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
+		return hr;
+
+	// Create the Death Star constant buffer
+	constantBufferDesc.ByteWidth = 32;
+	static_assert(sizeof(DeathStarCBuffer) == 32, "sizeof(DeathStarCBuffer) must be 32");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_deathStarConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader
@@ -2682,6 +2696,16 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 		this->_d3dDeviceContext->PSSetConstantBuffers(3, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_SSAO;
+}
+
+void DeviceResources::InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const DeathStarCBStruct * psConstants)
+{
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static DeathStarCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(DeathStarCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)
