@@ -179,13 +179,14 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 	
 	// Compute shadows
-	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
+	//float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
 	//pos3D.z -= m_offset;
-	pos3D += Normal * m_offset;
-	float3 shadow = max(ambient, shadow_factor(pos3D));
-	shadow = shadow.xxx;
-	if (!shadow_enable)
-		shadow = 1;
+	//pos3D += Normal * m_offset;
+	//float3 shadow = max(ambient, shadow_factor(pos3D));
+	//shadow = shadow.xxx;
+	//if (!shadow_enable)
+	//	shadow = 1;
+	float3 shadow = 1;
 
 	ssdo = ambient + min(ssdo, shadow); // Add the ambient component 
 	ssdo = lerp(ssdo, 1, mask);
