@@ -196,8 +196,6 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
 		//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
 		B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
-		//B.z = 0.1;
-		//B = -v;
 		// Adding the normalized B to BentNormal seems to yield better normals
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted

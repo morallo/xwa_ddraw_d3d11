@@ -40,6 +40,7 @@ SamplerState samplerNormal : register(s6);
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
+// Bloom Constant Buffer
 cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
@@ -87,10 +88,10 @@ cbuffer ConstantBuffer : register(b3)
 
 cbuffer ConstantBuffer : register(b4)
 {
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
 	float4 LightVector;
+	float4 LightColor;
+	float4 LightVector2;
+	float4 LightColor2;
 };
 
 struct PixelShaderInput
@@ -126,7 +127,6 @@ inline float2 projectToUV(in float3 pos3D) {
 }
 
 float3 shadow_factor(in float3 P) {
-	//float smallest_diff = INFINITY_Z;
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
 	float3 ray_step = shadow_step_size * LightVector.xyz;
@@ -179,16 +179,15 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 	
 	// Compute shadows
-	//float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
-	//pos3D.z -= m_offset;
-	//pos3D += Normal * m_offset;
-	//float3 shadow = max(ambient, shadow_factor(pos3D));
-	//shadow = shadow.xxx;
-	//if (!shadow_enable)
-	//	shadow = 1;
-	float3 shadow = 1;
+	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
+	pos3D.z -= m_offset;
+	pos3D += Normal * m_offset;
+	float3 shadow = shadow_factor(pos3D);
+	shadow = shadow.xxx;
+	if (!shadow_enable)
+		shadow = 1;
 
-	ssdo = ambient + min(ssdo, shadow); // Add the ambient component 
+	ssdo = ambient + ssdo * shadow; // Add the ambient component 
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);
 

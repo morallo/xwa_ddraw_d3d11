@@ -213,14 +213,15 @@ inline float2 projectToUV(in float3 pos3D) {
 	return P.xy;
 }
 
-float3 shadow_factor(in float3 P) {
-	//float smallest_diff = INFINITY_Z;
+float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
 	float3 ray_step = shadow_step_size * LightVector.xyz;
 	int steps = (int)shadow_steps;
-	float shadow_length = shadow_step_size * shadow_steps;
-	float cur_length = 0;
+	float max_shadow_length = shadow_step_size * shadow_steps;
+	float max_shadow_length_sqr = max_shadow_length * 0.75; // Cutoff the shadow a little before it reaches a hard edge
+	max_shadow_length_sqr *= max_shadow_length_sqr;
+	float cur_length = 0, length_at_res = INFINITY_Z;
 	float res = 1.0;
 
 	// Handle samples that land outside the bounds of the image
@@ -233,21 +234,32 @@ float3 shadow_factor(in float3 P) {
 
 		// If the ray has exited the current viewport, we're done:
 		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1)
-			return float3(res, cur_length / shadow_length, 1);
+			cur_uv.y < y0 || cur_uv.y > y1) {
+			float weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+			res = lerp(1, res, weight);
+			return float3(res, cur_length / max_shadow_length, 1);
+		}
 
 		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
 		diff		 = occluder - cur_pos;
-		if (diff.z > 0) { // Ignore negative z-diffs: the occluder is behind the ray
-			//if (diff.z < 0.01)
-			//	return float3(0, cur_length / shadow_length, 0);
-			res = min(res, saturate(shadow_k * diff.z / (cur_length + 0.00001)));
+		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+			// If diff.z is too large, ignore it. Or rather, fade with distance
+			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
+			//float dist = saturate(lerp(1, diff.z), weight);
+			float cur_res = saturate(shadow_k * diff.z / (cur_length + 0.00001));
+			//cur_res = saturate(lerp(1, cur_res, weight)); // Fadeout if diff.z is too big
+			if (cur_res < res) {
+				res = cur_res;
+				length_at_res = cur_length;
+			}
 		}
 
 		//cur_pos += ray_step;
 		//cur_length += shadow_step_size;
 	}
-	return float3(res, cur_length / shadow_length, 0);
+	float weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+	res = lerp(1, res, weight);
+	return float3(res, cur_length / max_shadow_length, 0);
 }
 
 float4 main(PixelShaderInput input) : SV_TARGET
@@ -282,16 +294,18 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	pos3D += Normal * m_offset;
 
 	// Compute shadows
-	float3 shadow = max(ambient, shadow_factor(pos3D));
+	float max_dist_sqr = max_dist * max_dist;
+	float3 shadow = max(ambient, shadow_factor(pos3D, max_dist_sqr));
 	if (!shadow_enable)
 		shadow = 1;
 
 	if (ssao_debug) {
-		float res = shadow.x;
-		res = 1 - res;
+		//float res = shadow.x;
+		//res = 1 - res;
 		//float3 color = float3(res, shadow.y, 0) * albedo;
-		float3 color = float3(0, res * shadow.y, 0);
-		return float4(pow(abs(color), 1 / gamma), 1);
+		//float3 color = float3(0, res * shadow.y, 0);
+		//return float4(pow(abs(color), 1 / gamma), 1);
+		return float4(shadow.xxx, 1);
 		// Display the uv coords:
 		//float2 uv = projectToUV(pos3D);
 		//return float4(uv, 0.5, 1);
