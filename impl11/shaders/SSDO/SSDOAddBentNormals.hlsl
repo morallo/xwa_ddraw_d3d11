@@ -219,10 +219,12 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 ray_step = shadow_step_size * LightVector.xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
-	float max_shadow_length_sqr = max_shadow_length * 0.75; // Cutoff the shadow a little before it reaches a hard edge
+	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
 	max_shadow_length_sqr *= max_shadow_length_sqr;
 	float cur_length = 0, length_at_res = INFINITY_Z;
 	float res = 1.0;
+	float weight = 1.0;
+	//float occ_dot;
 
 	// Handle samples that land outside the bounds of the image
 	// "negative" cur_diff should be ignored
@@ -235,13 +237,16 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		// If the ray has exited the current viewport, we're done:
 		if (cur_uv.x < x0 || cur_uv.x > x1 ||
 			cur_uv.y < y0 || cur_uv.y > y1) {
-			float weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 			res = lerp(1, res, weight);
 			return float3(res, cur_length / max_shadow_length, 1);
 		}
 
 		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
 		diff		 = occluder - cur_pos;
+		//v        = normalize(diff);
+		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
+
 		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
 			// If diff.z is too large, ignore it. Or rather, fade with distance
 			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
@@ -257,7 +262,7 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		//cur_pos += ray_step;
 		//cur_length += shadow_step_size;
 	}
-	float weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 	res = lerp(1, res, weight);
 	return float3(res, cur_length / max_shadow_length, 0);
 }

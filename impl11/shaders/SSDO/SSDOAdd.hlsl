@@ -126,6 +126,7 @@ inline float2 projectToUV(in float3 pos3D) {
 	return P.xy;
 }
 
+/*
 float3 shadow_factor(in float3 P) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
@@ -161,6 +162,7 @@ float3 shadow_factor(in float3 P) {
 	}
 	return float3(res, cur_length / shadow_length, 0);
 }
+*/
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
@@ -169,7 +171,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color = texture0.Sample(sampler0, input.uv).xyz;
 	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	float3 Normal   = texNormal.Sample(samplerNormal, input.uv).xyz;
+	//float3 Normal   = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
 	float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
@@ -178,16 +180,18 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float mask = dot(0.333, ssaoMask);
 	
+	/*
 	// Compute shadows
 	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
-	pos3D.z -= m_offset;
+	//pos3D.z -= m_offset;
 	pos3D += Normal * m_offset;
 	float3 shadow = shadow_factor(pos3D);
 	shadow = shadow.xxx;
 	if (!shadow_enable)
 		shadow = 1;
+	*/
 
-	ssdo = ambient + ssdo * shadow; // Add the ambient component 
+	ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);
 

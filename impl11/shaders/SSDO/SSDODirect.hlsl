@@ -31,6 +31,7 @@ SamplerState sampBloomMask : register(s5);
 #define INFINITY_Z0 15000
 #define INFINITY_Z1 20000
 #define INFINITY_FADEOUT_RANGE 5000
+static float METRIC_SCALE_FACTOR = 25.0;
 
 struct PixelShaderInput
 {
@@ -55,19 +56,26 @@ cbuffer ConstantBuffer : register(b3)
 	uint z_division;
 	float bentNormalInit, max_dist, power;
 	// 48 bytes
-	uint debug;
-	float moire_offset, amplifyFactor;
+	uint ssao_debug;
+	float moire_offset, ssao_amplifyFactor;
 	uint fn_enable;
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, unused3;
+	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
 	float3 invLightColor;
-	float unused4;
+	float gamma;
 	// 128 bytes
+	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
+	// 144 bytes
+	float4 vpScale;
+	// 160 bytes
+	uint shadow_enable;
+	float shadow_k, ssao_unused1, ssao_unused2;
+	// 176 bytes
 };
 
 cbuffer ConstantBuffer : register(b4)
@@ -174,17 +182,6 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//       If the occluder is farther than P, then diff.z will be positive
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
-	//const float diff_sqr = dot(diff, diff);
-	// v: Normalized (occluder - P) vector
-	//const float3 v = diff * rsqrt(diff_sqr);
-	//const float max_dist_sqr = max_dist * max_dist;
-	//const float weight = saturate(1 - diff_sqr / max_dist_sqr);
-
-	//float ao_dot = max(0.0, dot(Normal, v) - bias);
-	//float ao_factor = ao_dot * weight;
-	// This formula is wrong; but it worked pretty well:
-	//float visibility = saturate(1 - step(bias, ao_factor));
-	//float visibility = (1 - ao_dot);
 	
 	float3 B = 0;
 	if (diff.z > 0.0 /* || abs(diff.z) > max_dist */) // the abs() > max_dist term creates a white halo when foreground objects occlude shaded areas!
@@ -214,34 +211,84 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	output.col = 0;
 	//output.col = saturate(dot(Normal, light)); // Computing this causes illumination artifacts, set col = 0 instead to have consistent results
 	return output;
+}
 
-	//return visibility;
-	//return result + color * ao_factor * saturate(dot(Normal, light));
-	//return color * saturate(dot(Normal, light));
+inline float2 projectToUV(in float3 pos3D) {
+	float3 P = pos3D;
+	float w = P.z / METRIC_SCALE_FACTOR;
+	P.xy = P.xy / P.z;
+	// Convert to vertex pos:
+	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
+	// (-1,-1)-(1, 1)
+	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+	P.xy -= float2(-0.5, 0.5);
+	P.xy /= vpScale.xy;
+	// We now have P = input.pos
+	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
+	P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
+	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
 
-	/*
-	//float3 ao = ao_factor;
-	//if (ao_factor > 0.1)
-	{
-		float3 occluder_col = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
-		float3 occluder_N	= texNorm.SampleLevel(sampNorm, sample_uv, 0).xyz;
-		float3 diffuse		= texDiff.SampleLevel(sampDiff, sample_uv, 0).xyz;
-		float occ_normal_factor = saturate(dot(Normal, occluder_N));
-		//float occ_light_factor = dot(occluder_N, light);
-		//float diff_factor = dot(0.333, diffuse);
-		float diff_factor = diffuse.r;
-		//occluder_col *= saturate(ssdo_area * occ_normal_factor * occ_light_factor * rsqrt(diff_sqr));
-		//ssdo += occluder_col * occ_normal_factor * (1 - ao_dot) * weight * diff_factor;
-		//ssdo += occluder_col * occ_normal_factor * weight * diff_factor;
-		//ssdo += occluder_col * ao_factor * occ_normal_factor * diff_factor;
-		ssdo += occluder_col * ao_factor * diff_factor;
+	// Now convert to UV coords: (0, 1)-(1, 0):
+	//P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
+	// The viewport used to render the original offscreenBuffer may not cover the full
+	// screen, so the uv coords have to be adjusted to the limits of the viewport within
+	// the full-screen quad:
+	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	return P.xy;
+}
+
+float3 shadow_factor(in float3 P, float max_dist_sqr) {
+	float3 cur_pos = P, occluder, diff;
+	float2 cur_uv;
+	float3 ray_step = shadow_step_size * LightVector.xyz;
+	int steps = (int)shadow_steps;
+	float max_shadow_length = shadow_step_size * shadow_steps;
+	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
+	max_shadow_length_sqr *= max_shadow_length_sqr;
+	float cur_length = 0, length_at_res = INFINITY_Z1;
+	float res = 1.0;
+	float weight = 1.0;
+	//float occ_dot;
+
+	// Handle samples that land outside the bounds of the image
+	// "negative" cur_diff should be ignored
+	[loop]
+	for (int i = 1; i <= steps; i++) {
+		cur_pos += ray_step;
+		cur_length += shadow_step_size;
+		cur_uv = projectToUV(cur_pos);
+
+		// If the ray has exited the current viewport, we're done:
+		if (cur_uv.x < x0 || cur_uv.x > x1 ||
+			cur_uv.y < y0 || cur_uv.y > y1) {
+			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+			res = lerp(1, res, weight);
+			return float3(res, cur_length / max_shadow_length, 1);
+		}
+
+		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
+		diff = occluder - cur_pos;
+		//v        = normalize(diff);
+		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
+
+		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+			// If diff.z is too large, ignore it. Or rather, fade with distance
+			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
+			//float dist = saturate(lerp(1, diff.z), weight);
+			float cur_res = saturate(shadow_k * diff.z / (cur_length + 0.00001));
+			//cur_res = saturate(lerp(1, cur_res, weight)); // Fadeout if diff.z is too big
+			if (cur_res < res) {
+				res = cur_res;
+				length_at_res = cur_length;
+			}
+		}
+
+		//cur_pos += ray_step;
+		//cur_length += shadow_step_size;
 	}
-	ssdo = ssdo_area * ssdo;
-	return intensity * ao;
-	//float3 ssdo = intensity * ssdo_area * ao_factor * occ_light_factor * occ_cur_factor * occluder_col;
-	//return intensity * lerp(ao, ssdo, ao_factor);
-	//return intensity * pow(ao_factor, power);
-	*/
+	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+	res = lerp(1, res, weight);
+	return float3(res, cur_length / max_shadow_length, 0);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -297,6 +344,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 FakeNormal = 0; 
 	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
+	/*
+	// Compute shadows
+	float max_dist_sqr = max_dist * max_dist;
+	m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
+	p += n * m_offset;
+	float3 shadow = shadow_factor(p, max_dist_sqr);
+	shadow = shadow.xxx;
+	if (!shadow_enable)
+		shadow = 1;
+	*/
+
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
@@ -317,13 +375,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
 			p, n, radius * (j + sample_jitter), max_radius,
 			FakeNormal, nm_intensity);
-		//if (ssdo_aux.was_sampled) {
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
-		//num_samples++;
 	}
-	//num_samples = max(1, num_samples);
-	ssdo = saturate(intensity * ssdo / (float)samples);
+	ssdo = saturate(intensity * ssdo / (float)samples); // * shadow;
 	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
 	ssdo = lerp(ssdo, 1, bloom_mask);
 	ssdo = pow(abs(ssdo), power);
