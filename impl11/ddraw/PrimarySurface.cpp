@@ -2798,6 +2798,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	iTime += 0.1f;
 #endif
 
+	static float iTime = 0.0f;
+	g_DeathStarBuffer.iMouse[0] = 0;
+	g_DeathStarBuffer.iMouse[1] = 0;
+	g_DeathStarBuffer.iTime = iTime;
+	g_DeathStarBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_DeathStarBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_DeathStarBuffer);
+	iTime += 0.025f;
+
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -3039,8 +3048,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			resources->InitPixelShader(resources->_hyperspacePS);
 #ifndef DEATH_STAR
-			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
 #else
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif

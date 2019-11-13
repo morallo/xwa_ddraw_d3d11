@@ -49,6 +49,7 @@
     <FxCompile Include="SSDO\SSDOAddBentNormals.hlsl" />
     <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
     <FxCompile Include="DeathStarShader.hlsl" />
+    <FxCompile Include="Hyperspace.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -57,6 +58,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HSV.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderToyDefs.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

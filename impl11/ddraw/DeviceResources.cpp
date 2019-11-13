@@ -40,6 +40,7 @@
 #include "../Debug/SSDOAddBentNormals.h"
 #include "../Debug/SSDOBlur.h"
 #include "../Debug/DeathStarShader.h"
+#include "../Debug/Hyperspace.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -75,6 +76,7 @@
 #include "../Release/SSDOAddBentNormals.h"
 #include "../Release/SSDOBlur.h"
 #include "../Release/DeathStarShader.h"
+#include "../Release/Hyperspace.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2025,6 +2027,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_Hyperspace, sizeof(g_Hyperspace), nullptr, &_hyperspacePS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -2251,6 +2256,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_Hyperspace, sizeof(g_Hyperspace), nullptr, &_hyperspacePS)))
 			return hr;
 	}
 

@@ -412,7 +412,7 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
 	// Barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPost; // This is the output of the barrel effect
+	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// Bloom
@@ -443,8 +443,6 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
-	//ComPtr<ID3D11Texture2D> _diffuseBuf;		// No MSAA
-	//ComPtr<ID3D11Texture2D> _diffuseBufR;	// No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -480,8 +478,6 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuse;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDiffuseR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -511,8 +507,6 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
-	//ComPtr<ID3D11ShaderResourceView> _diffuseSRV;
-	//ComPtr<ID3D11ShaderResourceView> _diffuseSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -544,6 +538,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
+	ComPtr<ID3D11PixelShader> _hyperspacePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
