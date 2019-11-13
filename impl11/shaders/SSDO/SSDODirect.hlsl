@@ -102,8 +102,8 @@ float3 getPositionBG(in float2 uv, in float level) {
 	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 
-inline float3 getNormal(in float2 uv) {
-	return texNorm.Sample(sampNorm, uv).xyz;
+inline float3 getNormal(in float2 uv, in float level) {
+	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
 }
 
 /*
@@ -173,8 +173,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
 	float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
 
-	//output.was_sampled = 0;
 	float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
+	//float3 occluder_normal = getNormal(sample_uv, 0);
 	//if (occluder.z > INFINITY_Z) // The sample is at infinity, don't compute any SSDO
 	//	return output;
 	//output.was_sampled = occluder.z < INFINITY_Z;
@@ -182,11 +182,18 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//       If the occluder is farther than P, then diff.z will be positive
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
+	//const float dist = length(diff);
+	//const float3 v = normalize(diff);
+	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
+	//const float weight = 1.0 - saturate((diff.z*diff.z) / (max_dist*max_dist));
+	//const float weight = 1.0 - saturate(dist / max_dist);
+	//const float weight = 1.0 - saturate(diff.z / max_dist);
+
 	
+	//const float occ_dot = dot(Normal, v);
+	//if (occ_dot < bias)
 	float3 B = 0;
-	if (diff.z > 0.0 /* || abs(diff.z) > max_dist */) // the abs() > max_dist term creates a white halo when foreground objects occlude shaded areas!
-	//if (diff.z > 0.0 || weight < 0.1) // || abs(diff.z) > max_dist) // occluder is farther than P -- no occlusion; distance between points is too big -- no occlusion, visibility is 1.
-	//if (diff.z > 0.0 || weight) // occluder is farther than P -- no occlusion, visibility is 1.
+	if (diff.z > 0.0) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
 	{
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;
@@ -197,19 +204,45 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// if B is added to BentNormal before normalization, the resulting normals
 		// look more faceted
 		B = normalize(B);
+
+		// If weight == 0, use the current point's Normal to compute shading
+		// If weight == 1, use the Bent Normal
+		// Vary between these two values depending on 'weight':
+		//B = lerp(Normal, B, weight);
+		//B = Normal;
 		output.N = B;
 		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
-		//BentNormal += B;
-		// I think we can get rid of the visibility term and just return the following
-		// from this case or 0 outside this "if" block.
-		output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz))  + invLightColor * saturate(dot(B, -LightVector.xyz));
+		output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
 		output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
-		return output;
+		//output.col = weight;
+		//return output;
+		//output.col = float3(0, 1, 0);
+	} else { // The occluder is in front of the current point: i.e. The occluder *is* occluding the current point
+		// This is where we would be computing AO if this were SSAO.
+		// This is where the black/white halos appear around the foreground objects
+		//output.N = Normal;
+		//B = lerp(Normal, 0, weight);
+		//output.N = B;
+		//output.col = float3(1, 0, 0); // DEBUG
+		//output.col = lerp(1, 0, weight);
+
+		output.N = 0;
+		output.col = 0;
+
+		//B = lerp(-Normal, 0, weight);
+		//B = occluder_normal;
+		//B = Normal;
+		//output.N = B;
+
+		//if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
+		//output.col  =  LightColor.rgb * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
+		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+		
+		//output.col  = lerp(output.col, 0, weight);
+		//return output;
+		//output.col = float3(1, 0, 0);
 	}
-	output.N = 0;
-	//output.col = visibility * saturate(dot(B, light));
-	output.col = 0;
-	//output.col = saturate(dot(Normal, light)); // Computing this causes illumination artifacts, set col = 0 instead to have consistent results
+	
 	return output;
 }
 
@@ -297,7 +330,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	ColNorm ssdo_aux;
 	float3 P1 = getPositionFG(input.uv, 0);
 	float3 P2 = getPositionBG(input.uv, 0);
-	float3 n = getNormal(input.uv);
+	float3 n = getNormal(input.uv, 0);
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
 	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
@@ -325,7 +358,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// This apparently helps prevent z-fighting noise
 	//p += 0.01 * n;
 	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
-	//p += m_offset * n;
 	p.z -= m_offset;
 	//p += m_offset * n;
 

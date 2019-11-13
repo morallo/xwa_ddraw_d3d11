@@ -299,10 +299,11 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	pos3D += Normal * m_offset;
 
 	// Compute shadows
-	float max_dist_sqr = max_dist * max_dist;
-	float3 shadow = max(ambient, shadow_factor(pos3D, max_dist_sqr));
-	if (!shadow_enable)
-		shadow = 1;
+	//float max_dist_sqr = max_dist * max_dist;
+	//float3 shadow = max(ambient, shadow_factor(pos3D, max_dist_sqr));
+	//if (!shadow_enable)
+	//	shadow = 1;
+	float3 shadow = 1;
 
 	if (ssao_debug) {
 		//float res = shadow.x;

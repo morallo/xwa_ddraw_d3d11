@@ -1799,16 +1799,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
 			if (FAILED(hr)) goto out;
 
-			/*step = "_renderTargetViewDiffuse";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_diffuseBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewDiffuse);
-			if (FAILED(hr)) goto out;*/
-
 			renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 			step = "_renderTargetViewSSAOMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoMask, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAOMask);
 			if (FAILED(hr)) goto out;
 
 			if (g_bUseSteamVR) {
+				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_renderTargetViewDepthBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
 				if (FAILED(hr)) goto out;
@@ -1823,12 +1820,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				/*step = "_renderTargetViewBentBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBufR);
-				if (FAILED(hr)) goto out;*/
-
-				/* RTV ssaoBuf_R */
-
-				/*step = "_renderTargetViewDiffuseR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_diffuseBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewDiffuseR);
 				if (FAILED(hr)) goto out;*/
 
 				renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
