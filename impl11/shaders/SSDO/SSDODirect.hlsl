@@ -186,14 +186,29 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//const float3 v = normalize(diff);
 	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
 	//const float weight = 1.0 - saturate((diff.z*diff.z) / (max_dist*max_dist));
-	//const float weight = 1.0 - saturate(dist / max_dist);
 	//const float weight = 1.0 - saturate(diff.z / max_dist);
-
+	//const float weight = 1 - saturate(diff.z / max_dist);
+	//weight = 1 - weight * weight;
 	
+	/*
+	  The right way to fix this is probably going to be as follows:
+	  Compute the equation of the plane with normal n passing through p:
+	  if n = [A,B,C] and |n| = 1, then the eqn is:
+	  Ax + By + Cz - (A*p.x + B*p.y + C*p.z) = 0;
+	  Then compute the ray passing through the eye (0,0,0)? into the current sample's 3D position
+	  in parametric form: L = p0 + t*ray_dir
+	  Compute the intersection of this ray with the plane and get the Z_int value
+	  If weight is close to 0 (that is, if the occluder is too far away), then
+	  consider this sample as a non-occluder and use the first path below, the one we
+	  use to add to the bent normal (if (diff.z > 0.0)) and compute the color with the new
+	  intersection we just computed.
+	  If weight is close to 1, consider this a regular occluder and take the second path
+	  below.
+	 */
 	//const float occ_dot = dot(Normal, v);
 	//if (occ_dot < bias)
 	float3 B = 0;
-	if (diff.z > 0.0) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
+	if (diff.z > 0.0 /* || weight < 0.5 */) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
 	{
 		B.x =  uv_diff.x;
 		B.y = -uv_diff.y;

@@ -37,6 +37,8 @@ SamplerState sampPos : register(s5);
 Texture2D texNormal : register(t6);
 SamplerState samplerNormal : register(s6);
 
+#define INFINITY_Z 20000
+
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -180,6 +182,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float mask = dot(0.333, ssaoMask);
 	
+	if (pos3D.z > INFINITY_Z || mask > 0.9)
+		return float4(color, 1);
+
 	/*
 	// Compute shadows
 	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
@@ -197,7 +202,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	//if (debug == 4)
 	//	return float4(ssdoInd, 1);
-	return float4(color * ssdo + ssdoInd, 1);
+	return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
 	//return float4(color * ssdo, 1);
 	
 	//color = saturate((ambient + diffuse) * color);
