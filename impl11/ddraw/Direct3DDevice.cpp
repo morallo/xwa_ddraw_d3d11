@@ -3929,6 +3929,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
 					// The skybox just finished, capture it, replace it, etc
 					g_bSkyBoxJustFinished = true;
+					// Capture the background:
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 						resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 					if (g_bUseSteamVR) {
@@ -3936,11 +3937,27 @@ HRESULT Direct3DDevice::Execute(
 							resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 					}
 
-					static bool bDumpBuffers = true;
-					if (g_iPresentCounter == 100 && bDumpBuffers) {
-						bDumpBuffers = false;
-						DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
-					}
+					// Render the hyperspace effect:
+					viewport.TopLeftX = (float)left;
+					viewport.TopLeftY = (float)top;
+					viewport.Width = (float)width;
+					viewport.Height = (float)height;
+					viewport.MinDepth = D3D11_MIN_DEPTH;
+					viewport.MaxDepth = D3D11_MAX_DEPTH;
+					resources->InitViewport(&viewport);
+
+					// Temporarily disable ZWrite: we won't need it for this effect
+					D3D11_DEPTH_STENCIL_DESC desc;
+					ComPtr<ID3D11DepthStencilState> depthState;
+					desc.DepthEnable = FALSE;
+					desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+					desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+					desc.StencilEnable = FALSE;
+					resources->InitDepthStencilState(depthState, &desc);
+
+					// Set the Vertex Shader Constant buffers
+					resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+						0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 
 					static float iTime = 0.0f;
 					g_ShadertoyBuffer.iMouse[0] = 0;
@@ -3971,17 +3988,17 @@ HRESULT Direct3DDevice::Execute(
 					UINT stride = sizeof(MainVertex);
 					UINT offset = 0;
 					resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
-
-					// Set Primitive Topology
-					// Opportunity for optimization? Make all draw calls use the same topology?
+					// Set Primitive Topology & Layout
 					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					resources->InitInputLayout(resources->_mainInputLayout);
 
-					// Set the Pixel Shader:
+					// Set the Vertex and Pixel shaders:
+					resources->InitVertexShader(resources->_mainVertexShader);
 					resources->InitPixelShader(resources->_hyperspacePS);
 					// Set the RTV:
 					ID3D11RenderTargetView *rtvs[1] = {
-						resources->_shadertoyRTV.Get(),
+						//resources->_shadertoyRTV.Get(),
+						resources->_renderTargetViewPost.Get(),
 					};
 					context->OMSetRenderTargets(1, rtvs, NULL);
 					// Set the SRV...
@@ -3991,11 +4008,30 @@ HRESULT Direct3DDevice::Execute(
 					// Copy result to offscreenBuffer...
 					// TODO: shadertoyBuf needs to be MSAA so that it can be copied on offscreenBuf
 					// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
-					context->CopyResource(resources->_offscreenBuffer, resources->_shadertoyBuf);
-					// Restore VertexBuffer, topology, etc...
+					context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+					// Restore VertexBuffer, topology, Z-Buffer state, etc...
+					// TODO: None of these functions will actually *apply* any changes if they don't internally see
+					//       any difference. The fix is to use a proper InitXXX() above to update the internal state
+					//	     of these functions.
 					resources->InitInputLayout(resources->_inputLayout);
+					if (g_bEnableVR)
+						this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+					else
+						// The original code used _vertexShader:
+						this->_deviceResources->InitVertexShader(resources->_vertexShader);
 					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					resources->InitPixelShader(lastPixelShader);
+					resources->InitRasterizerState(resources->_rasterizerState);
+					resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+					static bool bDumpBuffers = true;
+					if (g_iPresentCounter == 100 && bDumpBuffers) {
+						bDumpBuffers = false;
+						DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+						DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBufferPost.jpg");
+					}
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
