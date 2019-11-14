@@ -666,6 +666,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_shadertoyBuf.Release();
+	this->_shadertoyAuxBuf.Release();
+	this->_shadertoyRTV.Release();
+	this->_shadertoySRV.Release();
+	this->_shadertoyAuxSRV.Release();
 	if (g_bUseSteamVR) {
 		this->_offscreenBufferR.Release();
 		this->_offscreenBufferAsInputR.Release();
@@ -675,7 +680,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_shadertoyBufR.Release();
+		this->_shadertoyAuxBufR.Release();
+		this->_shadertoyRTV_R.Release();
+		this->_shadertoySRV_R.Release();
+		this->_shadertoyAuxSRV_R.Release();
 	}
+
 	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 		if (g_bDynCockpitEnabled) {
 			// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
@@ -935,7 +946,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			0);
 		oldFormat = desc.Format;
 
-		step = "OffscreenBuffer";
+		step = "_offscreenBuffer";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBuffer);
 		if (FAILED(hr)) {
 			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -944,7 +955,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bUseSteamVR) {
-			step = "OffscreenBufferR";
+			step = "_offscreenBufferR";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -1077,10 +1088,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// No MSAA after this point
 		// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
-		step = "offscreenBufferAsInput";
 		desc.SampleDesc.Count = 1;
 		desc.SampleDesc.Quality = 0;
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+		step = "offscreenBufferAsInput";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInput);
 		if (FAILED(hr)) {
 			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -1125,7 +1137,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// add D3D11_BIND_RENDER_TARGET
 			UINT curFlags = desc.BindFlags;
 			desc.Format = BLOOM_BUFFER_FORMAT;
-			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET; // SRV + RTV
 			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 			log_err("Flags: 0x%x\n", desc.BindFlags);
 
@@ -1142,6 +1154,40 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Successfully created _reshadeOutput1 with combined flags\n");
 			}
 			desc.Format = oldFormat;
+
+			step = "_shadertoyBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_shadertoyAuxBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				step = "_shadertoyBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_shadertoyAuxBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
 		}
 
 		if (g_bBloomEnabled) {
@@ -1389,6 +1435,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		shaderResourceViewDesc.Texture2D.MipLevels = 1;
 		D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
 
+		/* SRVs */
 		// Create the shader resource view for offscreenBufferAsInput
 		step = "offscreenAsInputShaderResourceView";
 		hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInput,
@@ -1399,8 +1446,51 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
+		step = "_shadertoySRV";
+		hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);
+		if (FAILED(hr)) {
+			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+			log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+			goto out;
+		}
+
+		step = "_shadertoyAuxSRV";
+		hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyAuxBuf, &shaderResourceViewDesc, &this->_shadertoyAuxSRV);
+		if (FAILED(hr)) {
+			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+			log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+			goto out;
+		}
+
+		if (g_bUseSteamVR) {
+			// Create the shader resource view for offscreenBufferAsInputR
+			step = "offscreenAsInputShaderResourceViewR";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputR,
+				&shaderResourceViewDesc, &this->_offscreenAsInputShaderResourceViewR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_shadertoySRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBufR, &shaderResourceViewDesc, &this->_shadertoySRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_shadertoyAuxSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyAuxBufR, &shaderResourceViewDesc, &this->_shadertoyAuxSRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+		}
+
 		// Bloom SRVs
-		//DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 		if (g_bReshadeEnabled) 
 		{
 			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
@@ -1552,14 +1642,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			/*step = "_diffuseSRV";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_diffuseBuf, &shaderResourceViewDesc, &this->_diffuseSRV);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-				goto out;
-			}*/
-
 			shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 			step = "_ssaoMaskSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMask, &shaderResourceViewDesc, &this->_ssaoMaskSRV);
@@ -1599,13 +1681,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				shaderResourceViewDesc.Format = oldFormat;
 
-				/*step = "_diffuseSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_diffuseBufR, &shaderResourceViewDesc, &this->_diffuseSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}*/
 
 				shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 				step = "_ssaoMaskSRV_R";
@@ -1617,18 +1692,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 			shaderResourceViewDesc.Format = oldFormat;
-		}
-
-		if (g_bUseSteamVR) {
-			// Create the shader resource view for offscreenBufferAsInputR
-			step = "offscreenAsInputShaderResourceViewR";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputR,
-				&shaderResourceViewDesc, &this->_offscreenAsInputShaderResourceViewR);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-				goto out;
-			}
 		}
 
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1660,9 +1723,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		g_fCurInGameHeight = (float)_displayHeight;
 	}
 
+	/* RTVs */
 	if (SUCCEEDED(hr))
 	{
 		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc(this->_useMultisampling ? D3D11_RTV_DIMENSION_TEXTURE2DMS : D3D11_RTV_DIMENSION_TEXTURE2D);
+		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 
 		step = "_renderTargetView";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBuffer, &renderTargetViewDesc, &this->_renderTargetView);
@@ -1671,6 +1736,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "_renderTargetViewPost";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &renderTargetViewDesc, &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
+
+		step = "_shadertoyRTV";
+		// This RTV writes to a non-MSAA texture
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBuf, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV);
+		if (FAILED(hr)) {
+			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
+			goto out;
+		}
 
 		if (g_bUseSteamVR) {
 			step = "RenderTargetViewR";
@@ -1684,6 +1757,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			step = "renderTargetViewSteamVRResize";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVRResize);
 			if (FAILED(hr)) goto out;
+
+			step = "_shadertoyRTV_R";
+			// This RTV writes to a non-MSAA texture
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBufR, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV_R);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [ST] _shadertoyRTV_R FAILED");
+				goto out;
+			}
 		}
 
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1700,8 +1781,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitBG FAILED");
 				goto out;
 			}
-
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
+			
 			step = "_renderTargetViewDynCockpitAsInput";
 			// This RTV writes to a non-MSAA texture
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpit, &renderTargetViewDescNoMSAA,
@@ -2328,7 +2408,7 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the Death Star constant buffer
 	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(DeathStarCBuffer) == 32, "sizeof(DeathStarCBuffer) must be 32");
+	static_assert(sizeof(ShadertoyCBuffer) == 32, "sizeof(DeathStarCBuffer) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_deathStarConstantBuffer)))
 		return hr;
 
@@ -2697,11 +2777,11 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_SSAO;
 }
 
-void DeviceResources::InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const DeathStarCBStruct * psConstants)
+void DeviceResources::InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
-	static DeathStarCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(DeathStarCBuffer);
+	static ShadertoyCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(ShadertoyCBuffer);
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);

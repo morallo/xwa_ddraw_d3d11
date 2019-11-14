@@ -161,6 +161,7 @@ typedef struct BarrelPixelShaderCBStruct {
 	int unused;
 } BarrelPixelShaderCBuffer;
 
+#define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
@@ -220,14 +221,14 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
-typedef struct DeathStarCBStruct {
+typedef struct ShadertoyCBStruct {
 	float iMouse[3];
 	float iTime;
 	// 16 bytes
 	float iResolution[2];
 	float unused1, unused2;
 	// 32 bytes
-} DeathStarCBuffer;
+} ShadertoyCBuffer;
 
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
@@ -371,7 +372,7 @@ public:
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
-	void InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const DeathStarCBStruct * psConstants);
+	void InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -397,9 +398,7 @@ public:
 	D3D_DRIVER_TYPE _d3dDriverType;
 	D3D_FEATURE_LEVEL _d3dFeatureLevel;
 	ComPtr<ID3D11Device> _d3dDevice;
-	//ComPtr<ID3D11Device1> _d3dDevice1;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
-	//ComPtr<ID3D11DeviceContext1> _d3dDeviceContext1;
 	ComPtr<IDXGISwapChain> _swapChain;
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
@@ -415,6 +414,11 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
+	// ShaderToy effects
+	ComPtr<ID3D11Texture2D> _shadertoyBuf;  // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufR; // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;  // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
 	// Bloom
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
@@ -456,6 +460,9 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
+	// ShaderToy
+	ComPtr<ID3D11RenderTargetView> _shadertoyRTV;
+	ComPtr<ID3D11RenderTargetView> _shadertoyRTV_R;
 	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask  = NULL; // Renders to _offscreenBufferBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR = NULL; // Renders to _offscreenBufferBloomMaskR
@@ -485,6 +492,11 @@ public:
 	// Dynamic Cockpit
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
+	// Shadertoy
+	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
+	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
+	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV;
+	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV_R;
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;

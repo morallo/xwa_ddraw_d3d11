@@ -27,7 +27,7 @@ extern uint32_t *g_playerInHangar;
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
-extern bool g_bYawPitchFromMouseOverride;
+extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -502,8 +502,8 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
 BloomPixelShaderCBuffer g_BloomPSCBuffer;
-SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
-DeathStarCBStruct g_DeathStarBuffer;
+SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
+extern ShadertoyCBuffer g_ShadertoyBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
@@ -2798,15 +2798,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	iTime += 0.1f;
 #endif
 
-	static float iTime = 0.0f;
-	g_DeathStarBuffer.iMouse[0] = 0;
-	g_DeathStarBuffer.iMouse[1] = 0;
-	g_DeathStarBuffer.iTime = iTime;
-	g_DeathStarBuffer.iResolution[0] = g_fCurScreenWidth;
-	g_DeathStarBuffer.iResolution[1] = g_fCurScreenHeight;
-	resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_DeathStarBuffer);
-	iTime += 0.025f;
-
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -3048,9 +3039,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
 		// output: offscreenBuf
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
-			resources->InitPixelShader(resources->_hyperspacePS);
+			//resources->InitPixelShader(resources->_hyperspacePS);
 #ifndef DEATH_STAR
-			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
 #else
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif
@@ -3970,6 +3961,7 @@ HRESULT PrimarySurface::Flip(
 			g_bIsTrianglePointer = false;
 			g_bLastTrianglePointer = false;
 			g_iHUDOffscreenCommandsRendered = 0;
+			g_bSkyBoxJustFinished = false;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;

@@ -218,6 +218,7 @@ int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold fo
 // g_iSkyBoxExecIndex is compared against g_iExecBufCounter to determine when the SkyBox is rendered
 // This is important because in XWAU the SkyBox is *not* rendered at infinity and causes a lot of
 // visual contention if not handled properly.
+bool g_bIsSkyBox = false, g_bPrevIsSkyBox = false, g_bSkyBoxJustFinished = false;
 
 bool g_bFixSkyBox = true; // Fix the skybox (send it to infinity: use original vertices without parallax)
 bool g_bSkipSkyBox = false;
@@ -323,6 +324,19 @@ VertexShaderMatrixCB g_VSMatrixCB;
 VertexShaderCBuffer  g_VSCBuffer;
 PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
+ShadertoyCBuffer		 g_ShadertoyBuffer;
+
+struct MainVertex
+{
+	float pos[2];
+	float tex[2];
+	MainVertex() {}
+	MainVertex(float x, float y, float tx, float ty) {
+		pos[0] = x; pos[1] = y;
+		tex[0] = tx; tex[1] = ty;
+	}
+};
+extern MainVertex g_BarrelEffectVertices[6];
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -2341,17 +2355,6 @@ void Test2DMesh() {
 	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
 }
 
-struct MainVertex
-{
-	float pos[2];
-	float tex[2];
-	MainVertex() {}
-	MainVertex(float x, float y, float tx, float ty) {
-		pos[0] = x; pos[1] = y;
-		tex[0] = tx; tex[1] = ty;
-	}
-};
-
 bool InitSteamVR()
 {
 	char *strDriver = NULL;
@@ -3877,8 +3880,9 @@ HRESULT Direct3DDevice::Execute(
 				bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
 				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
-				bool bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
 				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
 				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
@@ -3921,6 +3925,78 @@ HRESULT Direct3DDevice::Execute(
 					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
 					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				//}
+
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+						resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+					if (g_bUseSteamVR) {
+						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+							resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+					}
+
+					static bool bDumpBuffers = true;
+					if (g_iPresentCounter == 100 && bDumpBuffers) {
+						bDumpBuffers = false;
+						DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+					}
+
+					static float iTime = 0.0f;
+					g_ShadertoyBuffer.iMouse[0] = 0;
+					g_ShadertoyBuffer.iMouse[1] = 0;
+					g_ShadertoyBuffer.iTime = iTime;
+					g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+					g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+					resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+					iTime += 0.025f;
+					// Set/Create the VertexBuffer and set the topology, etc
+					if (resources->_barrelEffectVertBuffer == nullptr) {
+						D3D11_BUFFER_DESC vertexBufferDesc;
+						ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+						vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+						vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+						vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+						vertexBufferDesc.CPUAccessFlags = 0;
+						vertexBufferDesc.MiscFlags = 0;
+
+						D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+						ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+						vertexBufferData.pSysMem = g_BarrelEffectVertices;
+						device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+					}
+
+					UINT stride = sizeof(MainVertex);
+					UINT offset = 0;
+					resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+					// Set Primitive Topology
+					// Opportunity for optimization? Make all draw calls use the same topology?
+					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					resources->InitInputLayout(resources->_mainInputLayout);
+
+					// Set the Pixel Shader:
+					resources->InitPixelShader(resources->_hyperspacePS);
+					// Set the RTV:
+					ID3D11RenderTargetView *rtvs[1] = {
+						resources->_shadertoyRTV.Get(),
+					};
+					context->OMSetRenderTargets(1, rtvs, NULL);
+					// Set the SRV...
+					// Draw...
+					context->Draw(6, 0);
+					// Handle SteamVR case...
+					// Copy result to offscreenBuffer...
+					// TODO: shadertoyBuf needs to be MSAA so that it can be copied on offscreenBuf
+					// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
+					context->CopyResource(resources->_offscreenBuffer, resources->_shadertoyBuf);
+					// Restore VertexBuffer, topology, etc...
+					resources->InitInputLayout(resources->_inputLayout);
+					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					resources->InitPixelShader(lastPixelShader);
+				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
@@ -4423,7 +4499,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
-				if (g_bStartedGUI || bIsSkyBox || bIsBracket) {
+				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 				}
@@ -4434,7 +4510,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
-				if (bIsSkyBox) {
+				if (g_bIsSkyBox) {
 					bModifiedShaders = true;
 					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
 					//DisplayCoords(instruction, currentIndexLocation);
@@ -5379,8 +5455,11 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& resources = this->_deviceResources;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	if (g_bUseSteamVR)
+	context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColor);
+	if (g_bUseSteamVR) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColor);
+	}
 
 	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them
 	// even if the Bloom effect is disabled
