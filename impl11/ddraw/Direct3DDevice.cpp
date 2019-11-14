@@ -3946,7 +3946,9 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 
+					/*
 					// Temporarily disable ZWrite: we won't need it for this effect
+					// ZWrite seems to be disabled at this point
 					D3D11_DEPTH_STENCIL_DESC desc;
 					ComPtr<ID3D11DepthStencilState> depthState;
 					desc.DepthEnable = FALSE;
@@ -3954,6 +3956,7 @@ HRESULT Direct3DDevice::Execute(
 					desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
 					desc.StencilEnable = FALSE;
 					resources->InitDepthStencilState(depthState, &desc);
+					*/
 
 					// Set the Vertex Shader Constant buffers
 					resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3997,19 +4000,18 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPixelShader(resources->_hyperspacePS);
 					// Set the RTV:
 					ID3D11RenderTargetView *rtvs[1] = {
-						//resources->_shadertoyRTV.Get(),
 						resources->_renderTargetViewPost.Get(),
 					};
 					context->OMSetRenderTargets(1, rtvs, NULL);
 					// Set the SRV...
 					// Draw...
 					context->Draw(6, 0);
-					// Handle SteamVR case...
+					// Handle DirectSBS/SteamVR cases...
 					// Copy result to offscreenBuffer...
-					// TODO: shadertoyBuf needs to be MSAA so that it can be copied on offscreenBuf
 					// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
 					context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-					// Restore VertexBuffer, topology, Z-Buffer state, etc...
+
+					// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
 					// TODO: None of these functions will actually *apply* any changes if they don't internally see
 					//       any difference. The fix is to use a proper InitXXX() above to update the internal state
 					//	     of these functions.
@@ -4017,7 +4019,6 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bEnableVR)
 						this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
 					else
-						// The original code used _vertexShader:
 						this->_deviceResources->InitVertexShader(resources->_vertexShader);
 					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					resources->InitPixelShader(lastPixelShader);
@@ -4026,12 +4027,14 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 
+					/*
 					static bool bDumpBuffers = true;
 					if (g_iPresentCounter == 100 && bDumpBuffers) {
 						bDumpBuffers = false;
 						DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 						DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBufferPost.jpg");
 					}
+					*/
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
