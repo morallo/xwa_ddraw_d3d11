@@ -56,7 +56,6 @@ float simplexNoise(vec3 p)
 	return dot(31.316, n);
 }
 
-
 float linearstep(float low, float high, float val)
 {
 	return clamp((val - low) / (high - low), 0.0, 1.0);
@@ -182,7 +181,7 @@ struct PixelShaderOutput
 	float4 color : SV_TARGET0;
 };
 
-PixelShaderOutput main(PixelShaderInput input)
+PixelShaderOutput main1(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
@@ -211,8 +210,110 @@ PixelShaderOutput main(PixelShaderInput input)
 	return output;
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
 
+// Based on theGiallo's https://www.shadertoy.com/view/MttSz2
+#define TAU   6.28318
+static const float period = 3.7;
+static const float speed = 1.6;
+// The focal_depth controls how "deep" the tunnel looks. Lower values
+// provide more depth.
+static const float focal_depth = 0.15;
+
+
+// Perlin noise from Dave_Hoskins' https://www.shadertoy.com/view/4dlGW2
+//----------------------------------------------------------------------------------------
+float Hash(in vec2 p, in float scale)
+{
+	// This is tiling part, adjusts with the scale...
+	p = p % scale;
+	return fract(sin(dot(p, vec2(27.16898, 38.90563))) * 5151.5473453);
+}
+
+//----------------------------------------------------------------------------------------
+float Noise(in vec2 p, in float scale)
+{
+	vec2 f;
+	p *= scale;
+	f = fract(p);		// Separate integer from fractional
+
+	p = floor(p);
+	f = f * f*(3.0 - 2.0*f);	// Cosine interpolation approximation
+
+	float res = mix(mix(Hash(p, scale),
+		Hash(p + vec2(1.0, 0.0), scale), f.x),
+		mix(Hash(p + vec2(0.0, 1.0), scale),
+			Hash(p + vec2(1.0, 1.0), scale), f.x), f.y);
+	return res;
+}
+
+//----------------------------------------------------------------------------------------
+float fBm(in vec2 p)
+{
+	//p += vec2(sin(iTime * .7), cos(iTime * .45))*(.1) + iMouse.xy*.1/iResolution.xy;
+	float f = 0.0;
+	// Change starting scale to any integer value...
+	float scale = 10.;
+	p = mod(p, scale);
+	float amp = 0.6;
+
+	for (int i = 0; i < 5; i++)
+	{
+		f += Noise(p, scale) * amp;
+		amp *= .5;
+		// Scale must be multiplied by an integer value...
+		scale *= 2.0;
+	}
+	// Clamp it just in case....
+	return min(f, 1.0);
+}
+
+PixelShaderOutput main(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
+	vec2 fragCoord = input.uv * iResolution.xy;
+
+	vec2 q = fragCoord.xy / iResolution.xy;
+	vec2 qc = 2.0 * q - 1.0;
+	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
+	vec4 col = vec4(0, 0, 0, 0);
+
+	vec2 cp;
+	vec2 dp = p;
+	float a = abs(atan2(dp.y, dp.x));
+	cp = vec2(cos(a), sin(a)) / length(dp);
+	//a -= iTime * 2.5;
+	a = a % TAU;
+	float dp_len = length(dp);
+	cp.y = focal_depth / dp_len + iTime * speed;
+	// Remove the seam by reflecting the u coordinate around 0.5:
+	float x = a / TAU;
+	//if (x >= 0.5) x = 1.0 - x;
+	cp.x = x * period; // Original period: 4
+
+	float val = fBm(0.75 * cp);
+	col.rgb = vec3(0.15, 0.25, 1.0) * vec3(val, val, val);
+
+	// Add white spots
+	vec3 white = 0.3 * smoothstep(0.65, 1.0, val);
+	col.rgb += white;
+
+	// Add the white disk at the center
+	float disk_size = 0.125;
+	float disk_col = exp(-(dp_len - disk_size) * 3.0);
+	//col.rgb += mix(col.xyz, vec3(1,1,1), disk_col);
+	col.rgb += vec3(disk_col, disk_col, disk_col);
+
+	//vec4 fog_color = vec4(1.0,1.0,1.0,1.0);
+	//float b = 2.0;
+	//col = col*(1.0 - exp(-l*b)) + fog_color*exp(-l*b);
+
+	fragColor = vec4(col.rgb, 1);
+	output.color = fragColor;
+	return output;
+}
 
 /* https://www.shadertoy.com/view/XsX3zB
  *

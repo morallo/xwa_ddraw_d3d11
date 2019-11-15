@@ -11,6 +11,8 @@
 #define mix lerp
 #define fract frac
 
+#define mod(x, y) (x % y)
+
 cbuffer ConstantBuffer : register(b7)
 {
 	float3 iMouse;
