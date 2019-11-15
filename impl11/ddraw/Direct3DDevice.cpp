@@ -3946,18 +3946,6 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 
-					/*
-					// Temporarily disable ZWrite: we won't need it for this effect
-					// ZWrite seems to be disabled at this point
-					D3D11_DEPTH_STENCIL_DESC desc;
-					ComPtr<ID3D11DepthStencilState> depthState;
-					desc.DepthEnable = FALSE;
-					desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-					desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-					desc.StencilEnable = FALSE;
-					resources->InitDepthStencilState(depthState, &desc);
-					*/
-
 					// Set the Vertex Shader Constant buffers
 					resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 						0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -4004,6 +3992,7 @@ HRESULT Direct3DDevice::Execute(
 					};
 					context->OMSetRenderTargets(1, rtvs, NULL);
 					// Set the SRV...
+					context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
 					// Draw...
 					context->Draw(6, 0);
 					// Handle DirectSBS/SteamVR cases...
