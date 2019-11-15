@@ -216,7 +216,8 @@ PixelShaderOutput main1(PixelShaderInput input)
 // Based on theGiallo's https://www.shadertoy.com/view/MttSz2
 #define TAU   6.28318
 static const float period = 3.7;
-static const float speed = 1.6;
+static const float rotation_speed = 2.3;
+static const float speed = 2.0;
 // The focal_depth controls how "deep" the tunnel looks. Lower values
 // provide more depth.
 static const float focal_depth = 0.15;
@@ -282,15 +283,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	vec2 cp;
 	vec2 dp = p;
-	float a = abs(atan2(dp.y, dp.x));
-	cp = vec2(cos(a), sin(a)) / length(dp);
-	//a -= iTime * 2.5;
-	a = a % TAU;
 	float dp_len = length(dp);
 	cp.y = focal_depth / dp_len + iTime * speed;
 	// Remove the seam by reflecting the u coordinate around 0.5:
-	float x = a / TAU;
-	//if (x >= 0.5) x = 1.0 - x;
+	float a = atan2(dp.y, dp.x) + PI; // a is now in [0..2*PI]
+	a -= iTime * rotation_speed;
+	float x = frac(a / TAU);
+	if (x >= 0.5) x = 1.0 - x;
 	cp.x = x * period; // Original period: 4
 
 	float val = fBm(0.75 * cp);

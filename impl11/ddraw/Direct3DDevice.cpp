@@ -4004,6 +4004,11 @@ HRESULT Direct3DDevice::Execute(
 					// TODO: None of these functions will actually *apply* any changes if they don't internally see
 					//       any difference. The fix is to use a proper InitXXX() above to update the internal state
 					//	     of these functions.
+					if (bLastTextureSelectedNotNULL) {
+						lastTextureSelected->_refCount++;
+						context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+						lastTextureSelected->_refCount--;
+					}
 					resources->InitInputLayout(resources->_inputLayout);
 					if (g_bEnableVR)
 						this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
