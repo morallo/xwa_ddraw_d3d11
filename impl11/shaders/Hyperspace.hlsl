@@ -215,6 +215,7 @@ PixelShaderOutput main1(PixelShaderInput input)
 
 // Based on theGiallo's https://www.shadertoy.com/view/MttSz2
 #define TAU   6.28318
+static const float3 blue_color = float3(0.15, 0.35, 0.9);
 static const float period = 3.7;
 static const float rotation_speed = 2.3;
 static const float speed = 2.0;
@@ -279,7 +280,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec2 q = fragCoord.xy / iResolution.xy;
 	vec2 qc = 2.0 * q - 1.0;
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
-	vec4 col = vec4(0, 0, 0, 0);
+	vec4 col = vec4(0, 0, 0, 1);
 
 	vec2 cp;
 	vec2 dp = p;
@@ -293,7 +294,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	cp.x = x * period; // Original period: 4
 
 	float val = fBm(0.75 * cp);
-	col.rgb = vec3(0.15, 0.25, 1.0) * vec3(val, val, val);
+	col.rgb = val * blue_color;
 
 	// Add white spots
 	vec3 white = 0.3 * smoothstep(0.65, 1.0, val);
