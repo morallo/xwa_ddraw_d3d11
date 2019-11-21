@@ -38,7 +38,7 @@ public:
 	bool is_Explosion;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
-	// True if this texture belongs to an Exterior OPT
+	// True if this texture belongs to an Exterior OPT (the player's craft when external camera is on)
 	bool is_Exterior;
 	// True when displaying the hyperspace animation
 	bool is_HyperspaceAnim;

@@ -234,6 +234,7 @@ bool g_bTargetCompDrawn = false; // Becomes true after the targetting computer h
 bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloatingGUI3DObject -- useful to detect when the targeted craft is about to be drawn
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
+bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
@@ -3429,6 +3430,40 @@ inline float lerp(float x, float y, float s) {
 }
 
 /*
+ * Compute the effective screen limits in uv coords when rendering effects using a
+ * full-screen quad. This is used in SSDO to get the effective viewport limits in
+ * uv-coords. Pixels outside the uv-coords computed here should be black.
+ */
+void GetScreenLimitsInUV(float *x0, float *y0, float *x1, float *y1) 
+{
+	if (g_bEnableVR) {
+		// In VR mode we can't see the edges of the screen anyway, so don't bother
+		// computing the effective viewport for the left and right eyes... or the
+		// viewport for the SteamVR mode.
+		*x0 = 0.0f;
+		*y0 = 0.0f;
+		*x1 = 1.0f;
+		*y1 = 1.0f;
+	}
+	else {
+		UINT left   = (UINT)g_nonVRViewport.TopLeftX;
+		UINT top    = (UINT)g_nonVRViewport.TopLeftY;
+		UINT width  = (UINT)g_nonVRViewport.Width;
+		UINT height = (UINT)g_nonVRViewport.Height;
+		float x, y;
+		InGameToScreenCoords(left, top, width, height, 0, 0, &x, &y);
+		*x0 = x / g_fCurScreenWidth;
+		*y0 = y / g_fCurScreenHeight;
+		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
+		*x1 = x / g_fCurScreenWidth;
+		*y1 = y / g_fCurScreenHeight;
+		if (g_bDumpSSAOBuffers)
+			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				*x0, *y0, *x1, *y1);
+	}
+}
+
+/*
  * Converts normalized uv_coords with respect to a HUD texture into actual pixel
  * coordinates.
  */
@@ -3892,7 +3927,8 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
 				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
 				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
-				bool bIsPlayerObject = bIsCockpit || bIsExterior;
+				g_bPrevIsPlayerObject = g_bIsPlayerObject;
+				g_bIsPlayerObject = bIsCockpit || bIsExterior;
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -3926,24 +3962,43 @@ HRESULT Direct3DDevice::Execute(
 					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				//}
 
+				/*
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
 					// The skybox just finished, capture it, replace it, etc
 					g_bSkyBoxJustFinished = true;
 					// Capture the background:
-					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-						resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-					if (g_bUseSteamVR) {
-						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-							resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+					// ...
+				}
+				*/
+
+				// Detect when the player's craft (exterior or cockpit) is about to be rendered
+				// and capture the screen
+				//if (g_bIsPlayerObject && !g_bPrevIsPlayerObject) {
+				//if (false) {
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					// Capture the background; but only if we're not in hyperspace -- we don't want to
+					// capture the black background used by the game!
+					if (PlayerDataTable->hyperspacePhase == 0) {
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						}
 					}
 
 					// Render the hyperspace effect:
-					viewport.TopLeftX = (float)left;
-					viewport.TopLeftY = (float)top;
-					viewport.Width = (float)width;
-					viewport.Height = (float)height;
-					viewport.MinDepth = D3D11_MIN_DEPTH;
+
+					// Set the new viewport (a full quad covering the full screen)
+					D3D11_VIEWPORT viewport{};
+					viewport.TopLeftX = 0.0f;
+					viewport.TopLeftY = 0.0f;
+					viewport.Width    = g_fCurScreenWidth;
+					viewport.Height   = g_fCurScreenHeight;
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
+					viewport.MinDepth = D3D11_MIN_DEPTH;
 					resources->InitViewport(&viewport);
 
 					// Set the Vertex Shader Constant buffers
@@ -3951,12 +4006,18 @@ HRESULT Direct3DDevice::Execute(
 						0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 
 					static float iTime = 0.0f;
+					float x0, y0, x1, y1;
+					GetScreenLimitsInUV(&x0, &y0, &x1, &y1);
+					g_ShadertoyBuffer.x0 = x0;
+					g_ShadertoyBuffer.y0 = y0;
+					g_ShadertoyBuffer.x1 = x1;
+					g_ShadertoyBuffer.y1 = y1;
 					g_ShadertoyBuffer.iMouse[0] = 0;
 					g_ShadertoyBuffer.iMouse[1] = 0;
 					g_ShadertoyBuffer.iTime = iTime;
 					g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 					g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-					resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+					resources->InitPSConstantBufferDeathStar(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 					iTime += 0.025f;
 					// Set/Create the VertexBuffer and set the topology, etc
 					if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -4001,6 +4062,13 @@ HRESULT Direct3DDevice::Execute(
 					context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
 
 					// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
+					viewport.TopLeftX = (float)left;
+					viewport.TopLeftY = (float)top;
+					viewport.Width    = (float)width;
+					viewport.Height   = (float)height;
+					viewport.MinDepth = D3D11_MIN_DEPTH;
+					viewport.MaxDepth = D3D11_MAX_DEPTH;
+					resources->InitViewport(&viewport);
 					// TODO: None of these functions will actually *apply* any changes if they don't internally see
 					//       any difference. The fix is to use a proper InitXXX() above to update the internal state
 					//	     of these functions.
@@ -4703,6 +4771,8 @@ HRESULT Direct3DDevice::Execute(
 
 				// Set the hyperspace flags
 				if (PlayerDataTable->hyperspacePhase) {
+					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
+					//	PlayerDataTable->hyperspacePhase, PlayerDataTable->timeInHyperspace, PlayerDataTable->_hyperspaceRelated_);
 					// 2: Entering hyperspace
 					// 4: Traveling through hyperspace (animation plays back at this point)
 					// 3: Exiting hyperspace
@@ -4811,7 +4881,7 @@ HRESULT Direct3DDevice::Execute(
 						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
+							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),
 							resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
@@ -4965,7 +5035,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
@@ -4984,7 +5054,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),
@@ -5041,7 +5111,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewR.Get(),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBufR.Get() : 
 									resources->_renderTargetViewDepthBuf2R.Get(),
 								resources->_renderTargetViewNormBufR.Get(),
@@ -5060,7 +5130,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewNormBuf.Get(),

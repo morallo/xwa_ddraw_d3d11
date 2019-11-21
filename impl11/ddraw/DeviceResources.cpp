@@ -2406,10 +2406,10 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
 		return hr;
 
-	// Create the Death Star constant buffer
-	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(ShadertoyCBuffer) == 32, "sizeof(DeathStarCBuffer) must be 32");
-	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_deathStarConstantBuffer)))
+	// Create the Hyperspace (ShaderToy) constant buffer
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(ShadertoyCBuffer) == 48, "sizeof(ShadertoyCBuffer) must be 48");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceStarConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader

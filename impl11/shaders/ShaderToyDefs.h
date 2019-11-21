@@ -19,7 +19,8 @@ cbuffer ConstantBuffer : register(b7)
 	float  iTime;
 	// 16 bytes
 	float2 iResolution;
-	float unused1, unused2;
+	float disk_size, unused2;
 	// 32 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 }
 

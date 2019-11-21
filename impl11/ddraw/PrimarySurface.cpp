@@ -28,6 +28,7 @@ extern uint32_t *g_playerInHangar;
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
+extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -44,6 +45,7 @@ extern float g_fCurInGameWidth, g_fCurInGameHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
+void GetScreenLimitsInUV(float *x0, float *y0, float *x1, float *y1);
 
 #include <headers/openvr.h>
 const float PI = 3.141592f;
@@ -2679,32 +2681,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
 
-	if (g_bEnableVR) {
-		// In VR mode we can't see the edges of the screen anyway, so don't bother
-		// computing the effective viewport for the left and right eyes... or the
-		// viewport for the SteamVR mode.
-		g_SSAO_PSCBuffer.x0 = 0.0f;
-		g_SSAO_PSCBuffer.y0 = 0.0f;
-		g_SSAO_PSCBuffer.x1 = 1.0f;
-		g_SSAO_PSCBuffer.y1 = 1.0f;
-	}
-	if (!g_bEnableVR) {
-		UINT left   = (UINT)g_nonVRViewport.TopLeftX;
-		UINT top    = (UINT)g_nonVRViewport.TopLeftY;
-		UINT width  = (UINT)g_nonVRViewport.Width;
-		UINT height = (UINT)g_nonVRViewport.Height;
-		float x, y;
-		InGameToScreenCoords(left, top, width, height, 0, 0, &x, &y);
-		g_SSAO_PSCBuffer.x0 = x / g_fCurScreenWidth;
-		g_SSAO_PSCBuffer.y0 = y / g_fCurScreenHeight;
-		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
-		g_SSAO_PSCBuffer.x1 = x / g_fCurScreenWidth;
-		g_SSAO_PSCBuffer.y1 = y / g_fCurScreenHeight;
-		if (g_bDumpSSAOBuffers)
-			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-				g_SSAO_PSCBuffer.x0, g_SSAO_PSCBuffer.y0, g_SSAO_PSCBuffer.x1, g_SSAO_PSCBuffer.y1);
-	}
+	GetScreenLimitsInUV(&x0, &y0, &x1, &y1);
+	g_SSAO_PSCBuffer.x0 = x0;
+	g_SSAO_PSCBuffer.y0 = y0;
+	g_SSAO_PSCBuffer.x1 = x1;
+	g_SSAO_PSCBuffer.y1 = y1;
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -3962,6 +3945,8 @@ HRESULT PrimarySurface::Flip(
 			g_bLastTrianglePointer = false;
 			g_iHUDOffscreenCommandsRendered = 0;
 			g_bSkyBoxJustFinished = false;
+			g_bPrevIsPlayerObject = false;
+			g_bIsPlayerObject = false;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;

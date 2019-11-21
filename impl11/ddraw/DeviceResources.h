@@ -226,8 +226,10 @@ typedef struct ShadertoyCBStruct {
 	float iTime;
 	// 16 bytes
 	float iResolution[2];
-	float unused1, unused2;
+	float disk_size, unused2;
 	// 32 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	// 48 bytes
 } ShadertoyCBuffer;
 
 /* 3D Constant Buffers */
@@ -583,7 +585,7 @@ public:
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
-	ComPtr<ID3D11Buffer> _deathStarConstantBuffer;
+	ComPtr<ID3D11Buffer> _hyperspaceStarConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;
