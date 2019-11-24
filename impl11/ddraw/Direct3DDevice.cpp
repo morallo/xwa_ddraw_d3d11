@@ -3434,7 +3434,7 @@ inline float lerp(float x, float y, float s) {
  * full-screen quad. This is used in SSDO to get the effective viewport limits in
  * uv-coords. Pixels outside the uv-coords computed here should be black.
  */
-void GetScreenLimitsInUV(float *x0, float *y0, float *x1, float *y1) 
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1) 
 {
 	if (g_bEnableVR) {
 		// In VR mode we can't see the edges of the screen anyway, so don't bother
@@ -3498,6 +3498,117 @@ void ComputeCoordsFromUV(UINT left, UINT top, UINT width, UINT height,
 void DisplayBox(char *name, Box box) {
 	log_debug("[DBG] %s (%0.3f, %0.3f)-(%0.3f, %0.3f)", name,
 		box.x0, box.y0, box.x1, box.y1);
+}
+
+void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
+	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
+	UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Render the hyperspace effect:
+	// Set the new viewport (a full quad covering the full screen)
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = g_fCurScreenWidth;
+	viewport.Height   = g_fCurScreenHeight;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+	static float iTime = 0.0f;
+	float x0, y0, x1, y1;
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	g_ShadertoyBuffer.iMouse[0] = 0;
+	g_ShadertoyBuffer.iMouse[1] = 0;
+	g_ShadertoyBuffer.iTime = iTime;
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferDeathStar(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	iTime += 0.025f;
+	// Set/Create the VertexBuffer and set the topology, etc
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	// Set Primitive Topology & Layout
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Set the Vertex and Pixel shaders:
+	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitPixelShader(resources->_hyperspacePS);
+	// Set the RTV:
+	ID3D11RenderTargetView *rtvs[1] = {
+		resources->_renderTargetViewPost.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+	// Set the SRV...
+	context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
+	// Draw...
+	context->Draw(6, 0);
+	// Handle DirectSBS/SteamVR cases...
+	// Copy result to offscreenBuffer...
+	// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+
+	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
+	resources->InitViewport(lastViewport);
+	// TODO: None of these functions will actually *apply* any changes if they don't internally see
+	//       any difference. The fix is to use a proper InitXXX() above to update the internal state
+	//	     of these functions.
+	if (lastTextureSelected != NULL) {
+		lastTextureSelected->_refCount++;
+		context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+		lastTextureSelected->_refCount--;
+	}
+	resources->InitInputLayout(resources->_inputLayout);
+	if (g_bEnableVR)
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+	else
+		this->_deviceResources->InitVertexShader(resources->_vertexShader);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitPixelShader(lastPixelShader);
+	resources->InitRasterizerState(resources->_rasterizerState);
+	resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), lastVertexBufStride, lastVertexBufOffset);
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	/*
+	static bool bDumpBuffers = true;
+	if (g_iPresentCounter == 100 && bDumpBuffers) {
+		bDumpBuffers = false;
+		DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBufferPost.jpg");
+	}
+	*/
 }
 
 HRESULT Direct3DDevice::Execute(
@@ -3989,114 +4100,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					// Render the hyperspace effect:
-
-					// Set the new viewport (a full quad covering the full screen)
-					D3D11_VIEWPORT viewport{};
-					viewport.TopLeftX = 0.0f;
-					viewport.TopLeftY = 0.0f;
-					viewport.Width    = g_fCurScreenWidth;
-					viewport.Height   = g_fCurScreenHeight;
-					viewport.MaxDepth = D3D11_MAX_DEPTH;
-					viewport.MinDepth = D3D11_MIN_DEPTH;
-					resources->InitViewport(&viewport);
-
-					// Set the Vertex Shader Constant buffers
-					resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-						0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-
-					static float iTime = 0.0f;
-					float x0, y0, x1, y1;
-					GetScreenLimitsInUV(&x0, &y0, &x1, &y1);
-					g_ShadertoyBuffer.x0 = x0;
-					g_ShadertoyBuffer.y0 = y0;
-					g_ShadertoyBuffer.x1 = x1;
-					g_ShadertoyBuffer.y1 = y1;
-					g_ShadertoyBuffer.iMouse[0] = 0;
-					g_ShadertoyBuffer.iMouse[1] = 0;
-					g_ShadertoyBuffer.iTime = iTime;
-					g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
-					g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-					resources->InitPSConstantBufferDeathStar(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-					iTime += 0.025f;
-					// Set/Create the VertexBuffer and set the topology, etc
-					if (resources->_barrelEffectVertBuffer == nullptr) {
-						D3D11_BUFFER_DESC vertexBufferDesc;
-						ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-						vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-						vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-						vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-						vertexBufferDesc.CPUAccessFlags = 0;
-						vertexBufferDesc.MiscFlags = 0;
-
-						D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-						ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-						vertexBufferData.pSysMem = g_BarrelEffectVertices;
-						device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-					}
-
-					UINT stride = sizeof(MainVertex);
-					UINT offset = 0;
-					resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
-					// Set Primitive Topology & Layout
-					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					resources->InitInputLayout(resources->_mainInputLayout);
-
-					// Set the Vertex and Pixel shaders:
-					resources->InitVertexShader(resources->_mainVertexShader);
-					resources->InitPixelShader(resources->_hyperspacePS);
-					// Set the RTV:
-					ID3D11RenderTargetView *rtvs[1] = {
-						resources->_renderTargetViewPost.Get(),
-					};
-					context->OMSetRenderTargets(1, rtvs, NULL);
-					// Set the SRV...
-					context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
-					// Draw...
-					context->Draw(6, 0);
-					// Handle DirectSBS/SteamVR cases...
-					// Copy result to offscreenBuffer...
-					// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
-					context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-
-					// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
-					viewport.TopLeftX = (float)left;
-					viewport.TopLeftY = (float)top;
-					viewport.Width    = (float)width;
-					viewport.Height   = (float)height;
-					viewport.MinDepth = D3D11_MIN_DEPTH;
-					viewport.MaxDepth = D3D11_MAX_DEPTH;
-					resources->InitViewport(&viewport);
-					// TODO: None of these functions will actually *apply* any changes if they don't internally see
-					//       any difference. The fix is to use a proper InitXXX() above to update the internal state
-					//	     of these functions.
-					if (bLastTextureSelectedNotNULL) {
-						lastTextureSelected->_refCount++;
-						context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
-						lastTextureSelected->_refCount--;
-					}
-					resources->InitInputLayout(resources->_inputLayout);
-					if (g_bEnableVR)
-						this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
-					else
-						this->_deviceResources->InitVertexShader(resources->_vertexShader);
-					resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					resources->InitPixelShader(lastPixelShader);
-					resources->InitRasterizerState(resources->_rasterizerState);
-					resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
-					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-
-					/*
-					static bool bDumpBuffers = true;
-					if (g_iPresentCounter == 100 && bDumpBuffers) {
-						bDumpBuffers = false;
-						DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
-						DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBufferPost.jpg");
-					}
-					*/
+					RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {

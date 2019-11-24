@@ -45,7 +45,7 @@ extern float g_fCurInGameWidth, g_fCurInGameHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
-void GetScreenLimitsInUV(float *x0, float *y0, float *x1, float *y1);
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1);
 
 #include <headers/openvr.h>
 const float PI = 3.141592f;
@@ -2683,7 +2683,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	auto& context = resources->_d3dDeviceContext;
 	float x0, y0, x1, y1;
 
-	GetScreenLimitsInUV(&x0, &y0, &x1, &y1);
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_SSAO_PSCBuffer.x0 = x0;
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;

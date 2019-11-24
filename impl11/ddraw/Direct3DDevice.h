@@ -6,6 +6,8 @@
 
 class RenderStates;
 
+class Direct3DTexture;
+
 class Direct3DDevice : IDirect3DDevice
 {
 public:
@@ -44,6 +46,10 @@ public:
 		bool debug=false);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
+
+	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
+		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
+		UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
 
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
