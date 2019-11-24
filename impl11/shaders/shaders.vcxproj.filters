@@ -49,7 +49,7 @@
     <FxCompile Include="SSDO\SSDOAddBentNormals.hlsl" />
     <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
     <FxCompile Include="DeathStarShader.hlsl" />
-    <FxCompile Include="Hyperspace.hlsl" />
+    <FxCompile Include="HyperEntry.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

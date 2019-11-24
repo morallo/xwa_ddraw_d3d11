@@ -18,11 +18,11 @@ Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
 
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
-static const float t2 = 1.5;
-static const float t3 = t2 + 0.3;
+static const float t2 = 2.0;
+//static const float t3 = t2 + 0.3;
 
 inline float getTime() {
-	return mod(iTime, t3);
+	return mod(iTime, t2);
 }
 
 vec2 cart2polar(vec2 cart) {
@@ -61,11 +61,7 @@ float simplexNoise(vec3 p)
 	return dot(31.316, n);
 }
 
-float linearstep(float low, float high, float val)
-{
-	return saturate((val - low) / (high - low));
-}
-
+/*
 float jumpstep(float low, float high, float val)
 {
 	if (2.0 * val < high + low)
@@ -73,7 +69,26 @@ float jumpstep(float low, float high, float val)
 	else
 		return (10.0 * (val - low) / (high - low) - 5.0) / (2.0 * ATAN5) + 0.5;
 }
+*/
 
+float jumpstep(float low, float high, float val)
+{
+	/*
+	 The curve is plotted here:
+	 https://www.iquilezles.org/apps/graphtoy/?f1(x)=atan(10%20*%20x%20-%205.0)%20/%20(2%20*%20atan(5.0))%20+%200.5&f2(x)=clamp(f1(x),%200,%201)&f3(x)=(10%20*%20x%20-%205.0)%20/%20(2%20*%20atan(5.0))%20+%200.5
+	*/
+	// This part of the curve looks like a smoothstep going from 0
+	// to halfway up the curve
+	float f1 = clamp(
+		atan(8.0 * (val - low) / (high - low) - 5.0) / (2.0 * ATAN5) + 0.5,
+		0.0, 1.0
+	);
+	// This is a linear curve
+	float f2 = (8.0 * (val - low) / (high - low) - 5.0) / (2.0 * ATAN5) + 0.5;
+	return max(f1, f2);
+}
+
+/*
 // Render the hyperspace streaks
 vec3 pixelVal(vec2 coord)
 {
@@ -131,6 +146,74 @@ vec3 pixelVal(vec2 coord)
 	// Negative fallofs will make a black disk surrounded by a halo
 	disk_col = exp(-(ad.y - disk_size) * falloff);
 	col += disk_size * disk_col * vec3(0.913, 0.964, 0.980);
+	return col;
+}
+*/
+
+// Render the hyperspace streaks
+vec3 pixelVal(vec2 coord)
+{
+	// Pixel to point (the center of the screen is at (0,0))
+	vec2 resolution = iResolution * 4.0;
+	vec2 uv = (2.0 * coord - resolution.xy) / resolution.x;
+	vec2 ad = cart2polar(uv);
+	// ad: polar coords
+	// ad.x = angle
+	// ad.y = radius
+
+	// Loop forever
+	float time = mod(iTime, t2);
+	// Uncomment this line to revert the effect
+	//time = t2 - time;
+
+	//time = 0.5 * t2; // DEBUG
+	float t = time / t2; // normalized [0..1] time
+
+	vec3 bg = 0.0;
+	vec3 fg = 0.75 * vec3(0.082, 0.443, 0.7);
+	vec3 col = mix(bg, fg, t);
+	// whiteout:
+	col = mix(col, 1.0, smoothstep(0.5, 0.9, t));
+
+	//time = 1.25; // DEBUG
+	float intensity = 1.0;
+	// Smaller r's produce longer streaks
+	float r = ad.y;
+	r = r * 40.0 / (5.0 + 60.0 * jumpstep(0.0, t2, 0.5*pow(abs(time), 3.5)));
+
+	// Lower values in the multiplier for ad.x yield thicker streaks
+	float noiseVal = simplexNoise(vec3(60.0 * ad.x, r, 0.0));
+	float noiseGain = 1.0 + 2.0 * smoothstep(0.5, 0.9, t);
+	noiseVal *= noiseGain;
+	// Let's remove a few streaks (but let's remove less streaks as time
+	// progresses):
+	float lo_t = clamp(mix(0.25, 0.0, t), 0.0, 1.0);
+	noiseVal = smoothstep(lo_t, 1.0, noiseVal);
+
+	intensity = mix(0.0, 10.0, t * 1.5);
+	// Multiplying by ad.y darkens the center streaks a little bit
+	noiseVal *= ad.y * intensity * noiseVal;
+	float white_level = smoothstep(0.0, 1.0, noiseVal);
+	white_level *= white_level;
+
+	col += intensity * blue_col * noiseVal + white_level;
+
+	///////////////////////////////////////
+	// Add the white disk in the center
+	///////////////////////////////////////
+	float disk_size = 0.025, falloff, disk_col;
+	float disk_intensity;
+	//disk_size = clamp(1.7*(t - 0.25), 0.0, 0.5);
+	disk_intensity = smoothstep(0.25, 0.65, t);
+
+	//disk_size = jumpstep(0.0, t2 - 0.3, 0.5*pow(time, 3.5));
+
+	//falloff = mix(250.0, 3.0, time/t2); // 100 = short fallof, 3.0 = big falloff
+	falloff = 3.0;
+	// Negative fallofs will make a black disk surrounded by a halo
+	disk_col = exp(-(ad.y - disk_size) * falloff);
+	col += disk_intensity * disk_col * vec3(0.913, 0.964, 0.980);
+
 	return col;
 }
 
