@@ -234,7 +234,7 @@ bool g_bTargetCompDrawn = false; // Becomes true after the targetting computer h
 bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloatingGUI3DObject -- useful to detect when the targeted craft is about to be drawn
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
-bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false;
+bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
@@ -3507,6 +3507,48 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+	static float iTime = 0.0f;
+	float timeInHyperspace = (float )PlayerDataTable->timeInHyperspace;
+
+	/*
+		Hyperspace Data:
+			2: Entering hyperspace
+				max time: 489, 553
+			4: Traveling through hyperspace (animation plays back at this point)
+				max time: 1291, 1290
+			3: Exiting hyperspace
+				max time: 236, 231
+	*/
+	if (PlayerDataTable->hyperspacePhase == 4)
+		return;
+
+	// Adjust the time according to the current hyperspace phase
+	switch (PlayerDataTable->hyperspacePhase) {
+	// Entering Hyperspace
+	case 2:
+		// Max internal time: ~500
+		// Max shader time: 2.0 (t2)
+		resources->InitPixelShader(resources->_hyperspacePS);
+		timeInHyperspace = timeInHyperspace / 450.0f;
+		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
+		break;
+	// Travelling through Hyperspace
+	case 4:
+		// Max internal time: ~1290
+		// Max shader time: 4.0? (arbitrary?)
+		timeInHyperspace = timeInHyperspace / 1290.0f;
+		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
+		break;
+	// Exiting Hyperspace
+	case 3:
+		// Max internal time: ~236
+		// Max shader time: 2.0? (t2, TBD?)
+		resources->InitPixelShader(resources->_hyperspacePS);
+		timeInHyperspace = timeInHyperspace / 230.0f;
+		iTime = lerp(2.0f, 1.0f, timeInHyperspace);
+		break;
+	}
 
 	// Render the hyperspace effect:
 	// Set the new viewport (a full quad covering the full screen)
@@ -3522,9 +3564,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-
-	static float iTime = 0.0f;
-	float x0, y0, x1, y1;
+	
+	
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
@@ -3562,14 +3603,14 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
-	// Set the Vertex and Pixel shaders:
+	// Set the Vertex Shader (the pixel shader is set in the switch above):
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_hyperspacePS);
 	// Set the RTV:
-	ID3D11RenderTargetView *rtvs[1] = {
+	ID3D11RenderTargetView *rtvs[5] = {
 		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL
 	};
-	context->OMSetRenderTargets(1, rtvs, NULL);
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	// Set the SRV...
 	context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
 	// Draw...
@@ -3577,6 +3618,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Handle DirectSBS/SteamVR cases...
 	// Copy result to offscreenBuffer...
 	// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
+	//		 Is the state handling fixed now?
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
@@ -4100,7 +4142,8 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					if (PlayerDataTable->hyperspacePhase == 2)
+						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -4773,7 +4816,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				// Set the hyperspace flags
+				// Set the Hyperspace Bloom flags
 				if (PlayerDataTable->hyperspacePhase) {
 					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
 					//	PlayerDataTable->hyperspacePhase, PlayerDataTable->timeInHyperspace, PlayerDataTable->_hyperspaceRelated_);
@@ -4781,11 +4824,22 @@ HRESULT Direct3DDevice::Execute(
 					// 4: Traveling through hyperspace (animation plays back at this point)
 					// 3: Exiting hyperspace
 					if (bLastTextureSelectedNotNULL) {
+						// Set the Bloom strength for the hyperspace streaks
 						if (lastTextureSelected->is_FlatLightEffect) {
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_PSCBuffer.bIsHyperspaceStreak = 1;
+							// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
+							if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
+								// The game renders several streaks per frame, let's make sure we only render the new effect
+								// exactly once per frame
+								g_bHyperspaceEffectRenderedOnCurrentFrame = true;
+								RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							}
+							goto out; // Don't render the hyperspace streaks anymore
 						}
+
+						// Set the Bloom strength for the hyperspace tunnel
 						if (lastTextureSelected->is_HyperspaceAnim) {
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
@@ -4879,8 +4933,7 @@ HRESULT Direct3DDevice::Execute(
 						// The original 2D vertices are already in the GPU, so just render as usual
 						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
-					}
-					else {
+					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[5] = {
 							resources->_renderTargetView.Get(),
@@ -4894,13 +4947,19 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					//if (bIsHyperspaceTunnel) {
-					//	UINT stride = sizeof(D3DTLVERTEX);
-					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-					//	resources->InitInputLayout(resources->_inputLayout);
-					//	context->Draw(3, 0);
-					//	// TODO: Restore the original input layout here
+						//	UINT stride = sizeof(D3DTLVERTEX);
+						//	UINT offset = 0;
+						//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+						//	resources->InitInputLayout(resources->_inputLayout);
+						//	context->Draw(3, 0);
+						//	// TODO: Restore the original input layout here
+						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					//} else
+					//if (PlayerDataTable->hyperspacePhase != 0)
+					//if (PlayerDataTable->hyperspacePhase == 2 && !g_bIsPlayerObject) {
+						//	RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					//}
+					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}

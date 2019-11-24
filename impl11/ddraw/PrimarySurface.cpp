@@ -28,7 +28,7 @@ extern uint32_t *g_playerInHangar;
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
-extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject;
+extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -3950,6 +3950,7 @@ HRESULT PrimarySurface::Flip(
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;
+			g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 			//*g_playerInHangar = 0;
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
@@ -4188,7 +4189,7 @@ HRESULT PrimarySurface::Flip(
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
-			//log_debug("[DBG] Present 3D");
+			log_debug("[DBG] **************** Present 3D **************** ");
 			g_iPresentCounter++;
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))

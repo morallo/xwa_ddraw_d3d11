@@ -22,7 +22,8 @@ static const float t2 = 2.0;
 //static const float t3 = t2 + 0.3;
 
 inline float getTime() {
-	return mod(iTime, t2);
+	//return mod(iTime, t2);
+	return min(iTime, t2);
 }
 
 vec2 cart2polar(vec2 cart) {
@@ -61,16 +62,6 @@ float simplexNoise(vec3 p)
 	return dot(31.316, n);
 }
 
-/*
-float jumpstep(float low, float high, float val)
-{
-	if (2.0 * val < high + low)
-		return saturate(atan(10.0 * (val - low) / (high - low) - 5.0) / (2.0 * ATAN5) + 0.5);
-	else
-		return (10.0 * (val - low) / (high - low) - 5.0) / (2.0 * ATAN5) + 0.5;
-}
-*/
-
 float jumpstep(float low, float high, float val)
 {
 	/*
@@ -88,68 +79,6 @@ float jumpstep(float low, float high, float val)
 	return max(f1, f2);
 }
 
-/*
-// Render the hyperspace streaks
-vec3 pixelVal(vec2 coord)
-{
-	// Pixel to point (the center of the screen is at (0,0)
-	vec2 resolution = iResolution * 4.0;
-	vec2 uv = (2.0 * coord - resolution.xy) / resolution.x;
-	vec2 ad = cart2polar(uv);
-	// ad: polar coords
-	// ad.x = angle
-	// ad.y = radius
-
-	// Loop forever
-	float time = getTime();
-	// Uncomment this line to revert the effect
-	//time = t3 - time;
-
-	vec3 bg = 0.0;
-	vec3 fg = 0.75 * vec3(0.082, 0.443, 0.7);
-	vec3 col = mix(bg, fg, time / t2);
-
-	//time = 1.25; // DEBUG
-	float intensity = 1.0;
-	// Smaller r's produce longer streaks
-	float r = ad.y;
-	
-	r = r / (1.0 + 0.15 * linearstep(0.0, t2 / 2.0, time)) *
-				(40.0 / (3.0 + 20.0 *
-							jumpstep(0.0, t2, 0.5 * pow(abs(time), 1.5))
-						)
-				);
-
-	// Lower values in the multiplier for ad.x yield thicker streaks
-	float noiseVal = simplexNoise(vec3(60.0 * ad.x, r, 0.0));
-	// This line removes a few streaks, but keeps streaks thin:
-	noiseVal = smoothstep(0.0, 1.0, noiseVal);
-
-	intensity = mix(0.5, 10.0, time / t2);
-	noiseVal *= intensity * noiseVal;
-	float white_level = smoothstep(0.0, 1.0, noiseVal);
-	white_level *= white_level;
-
-	col += intensity * blue_col * noiseVal + white_level;
-
-	// Add the white disk in the center
-	float disk_size, falloff, disk_col;
-	float t = time / t2 - t2 * 0.166;
-	t = clamp(t, 0.0, 1.0);
-	disk_size = mix(0.0, 1.0, t);
-	//disk_size = pow(disk_size, 2.0);
-	disk_size = 1.5 * pow(disk_size, 2.5);
-	//if (disk_size < 0.01) disk_size = 0.0;
-	disk_size = clamp(disk_size, 0.0, 1.0);
-
-	falloff = 3.0;
-	// Negative fallofs will make a black disk surrounded by a halo
-	disk_col = exp(-(ad.y - disk_size) * falloff);
-	col += disk_size * disk_col * vec3(0.913, 0.964, 0.980);
-	return col;
-}
-*/
-
 // Render the hyperspace streaks
 vec3 pixelVal(vec2 coord)
 {
@@ -162,7 +91,7 @@ vec3 pixelVal(vec2 coord)
 	// ad.y = radius
 
 	// Loop forever
-	float time = mod(iTime, t2);
+	float time = getTime();
 	// Uncomment this line to revert the effect
 	//time = t2 - time;
 
@@ -206,10 +135,7 @@ vec3 pixelVal(vec2 coord)
 	//disk_size = clamp(1.7*(t - 0.25), 0.0, 0.5);
 	disk_intensity = smoothstep(0.25, 0.65, t);
 
-	//disk_size = jumpstep(0.0, t2 - 0.3, 0.5*pow(time, 3.5));
-
-	//falloff = mix(250.0, 3.0, time/t2); // 100 = short fallof, 3.0 = big falloff
-	falloff = 3.0;
+	falloff = 3.0; // 100 = short falloff, 3.0 = big fallof
 	// Negative fallofs will make a black disk surrounded by a halo
 	disk_col = exp(-(ad.y - disk_size) * falloff);
 	col += disk_intensity * disk_col * vec3(0.913, 0.964, 0.980);
@@ -266,37 +192,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = fragColor;
 	return output;
 }
-
-/*
-PixelShaderOutput main(PixelShaderInput input)
-{
-	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
-	vec2 fragCoord = input.uv * iResolution.xy;
-	vec3 avgcol = 0;
-	float4 col = colorTex.Sample(colorSampler, input.uv);
-	// Fade the background color
-	float time = iTime % 2.2;
-	//time = 4.4;
-	col = lerp(col, 0, time / (t1 * 0.5));
-
-	for (int i = 0; i < AA; i++)
-		for (int j = 0; j < AA; j++)
-			avgcol += pixelVal(float(AA)*fragCoord + vec2(i, j));
-
-	avgcol /= float(AA*AA);
-
-	// Output to screen
-	fragColor = vec4(avgcol, 1.0);
-	//fragColor = fragColor / (1 + fragColor);
-	float L = dot(0.333, fragColor);
-	// Mix the background color with the streaks
-	fragColor = lerp(col, fragColor, L);
-	//fragColor = col + fragColor;
-	output.color = fragColor;
-	return output;
-}
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
