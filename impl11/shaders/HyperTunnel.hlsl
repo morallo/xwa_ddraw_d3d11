@@ -6,9 +6,9 @@
 #include "ShaderToyDefs.h"
 
 static const float3 blue_color = float3(0.15, 0.35, 0.9);
-static const float period = 3.7;
+static const float period = 2.7;
 static const float rotation_speed = 2.3;
-static const float speed = 4.0;
+static const float speed = 5.0;
 static const float t2 = 4.0;
 
 // Perlin noise from Dave_Hoskins' https://www.shadertoy.com/view/4dlGW2
@@ -66,7 +66,11 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -79,6 +83,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec2 qc = 2.0 * q - 1.0;
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
 	vec4 col = vec4(0, 0, 0, 1);
+
+	output.pos3D = 0;
+	output.normal = 0;
+	output.ssaoMask = 1;
+	output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -109,12 +118,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	col.rgb = val * blue_color;
 
 	// Add white spots
-	vec3 white = 0.3 * smoothstep(0.55, 1.0, val);
-	col.rgb += white;
-
-	// Add white spots
 	float white_spot = 0.3 * smoothstep(0.65, 1.0, val);
 	col.rgb += white_spot;
+	output.bloom = white_spot;
+	output.bloom.rgb *= 2.5;
 
 	float w_total = 0.0, w_out = 0.0, w_in;
 	// Fade in and out from white every t2 seconds

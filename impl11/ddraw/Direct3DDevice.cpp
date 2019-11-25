@@ -3544,7 +3544,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max internal time: ~236
 		// Max shader time: 2.0 (t2)
 		resources->InitPixelShader(resources->_hyperExitPS);
-		timeInHyperspace = timeInHyperspace / 230.0f;
+		timeInHyperspace = timeInHyperspace / 200.0f;
 		iTime = lerp(2.0f, 1.0f, timeInHyperspace);
 		break;
 	}
@@ -3605,11 +3605,25 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Set the Vertex Shader (the pixel shader is set in the switch above):
 	resources->InitVertexShader(resources->_mainVertexShader);
 	// Set the RTV:
-	ID3D11RenderTargetView *rtvs[5] = {
-		resources->_renderTargetViewPost.Get(),
-		NULL, NULL, NULL, NULL
-	};
-	context->OMSetRenderTargets(5, rtvs, NULL);
+	if (!g_bReshadeEnabled) {
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewPost.Get(),
+			NULL, NULL, NULL, NULL
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
+	else {
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+			resources->_renderTargetViewBloomMask.Get(),
+			g_bIsPlayerObject || g_bDisableDualSSAO ?
+				resources->_renderTargetViewDepthBuf.Get() :
+				resources->_renderTargetViewDepthBuf2.Get(),
+			resources->_renderTargetViewNormBuf.Get(),
+			resources->_renderTargetViewSSAOMask.Get()
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
 	// Set the SRV...
 	context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
 	// Draw...

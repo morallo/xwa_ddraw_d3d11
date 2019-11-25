@@ -77,7 +77,7 @@ float jumpstep(float low, float high, float val)
 }
 
 // Render the hyperspace streaks
-vec3 pixelVal(vec2 coord)
+vec3 pixelVal(vec2 coord, out float bloom)
 {
 	// Pixel to point (the center of the screen is at (0,0))
 	vec2 resolution = iResolution * 4.0;
@@ -121,6 +121,7 @@ vec3 pixelVal(vec2 coord)
 	noiseVal *= ad.y * intensity * noiseVal;
 	float white_level = smoothstep(0.0, 1.0, noiseVal);
 	white_level *= white_level;
+	bloom = white_level;
 
 	col += intensity * blue_col * noiseVal + white_level;
 
@@ -149,7 +150,11 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
 };
 
 // Hyperspace streaks
@@ -161,6 +166,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec3 avgcol = 0.0;
 	float time = getTime();
 	float4 col = colorTex.Sample(colorSampler, input.uv);
+	float bloom = 0.0, white_level;
+
+	output.pos3D = 0;
+	output.normal = 0;
+	output.ssaoMask = 1;
+	output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -174,9 +185,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	col = lerp(col, 0, 1.1 * fract(time / t2));
 
 	for (int i = -1; i <= 1; i++)
-		for (int j = -1; j <= 1; j++)
-			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j));
+		for (int j = -1; j <= 1; j++) {
+			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
+			bloom += white_level;
+		}
 	avgcol /= 9.0;
+	bloom /= 9.0;
+	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
 
 	// Output to screen
 	fragColor = vec4(avgcol, 1.0);
