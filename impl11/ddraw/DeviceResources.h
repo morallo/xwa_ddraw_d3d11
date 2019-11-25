@@ -340,6 +340,18 @@ typedef enum {
 	SSO_BENT_NORMALS,
 } SSAOTypeEnum;
 
+// In order to blend the background with the hyperspace effect when exiting, we need to extend the
+// effect for a few more frames. To do that, we need to track the current state of the effect and
+// that's why we need a small state machine:
+enum HyperspacePhaseEnum {
+	HS_INIT_ST,				// Initial state, we're not even in Hyperspace
+	HS_HYPER_ENTER_ST,		// We're entering hyperspace
+	HS_HYPER_TUNNEL_ST,		// Traveling through the blue Hyperspace tunnel
+	HS_HYPER_EXIT_ST,		// HyperExit streaks are being rendered
+	HS_POST_HYPER_EXIT_ST   // HyperExit streaks have finished rendering; but now we're blending with the backround
+};
+#define MAX_POST_HYPER_EXIT_FRAMES 15
+
 class DeviceResources
 {
 public:

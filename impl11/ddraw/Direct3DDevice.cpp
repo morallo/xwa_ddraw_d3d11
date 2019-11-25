@@ -242,6 +242,9 @@ int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = 
 // It's reset to false every time the backbuffer is swapped.
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
+HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
+int g_iHyperExitPostFrames = 0;
+
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
@@ -3522,9 +3525,11 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 
 	// Adjust the time according to the current hyperspace phase
-	switch (PlayerDataTable->hyperspacePhase) {
+	//switch (PlayerDataTable->hyperspacePhase) 
+	switch (g_HyperspacePhaseFSM)
+	{
 	// Entering Hyperspace
-	case 2:
+	case HS_HYPER_ENTER_ST:
 		// Max internal time: ~500
 		// Max shader time: 2.0 (t2)
 		resources->InitPixelShader(resources->_hyperEntryPS);
@@ -3532,7 +3537,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
 		break;
 	// Travelling through Hyperspace
-	case 4:
+	case HS_HYPER_TUNNEL_ST:
 		// Max internal time: ~1290
 		// Max shader time: 4.0 (arbitrary)
 		resources->InitPixelShader(resources->_hyperTunnelPS);
@@ -3540,12 +3545,20 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
 		break;
 	// Exiting Hyperspace
-	case 3:
+	case HS_HYPER_EXIT_ST:
 		// Max internal time: ~236
-		// Max shader time: 2.0 (t2)
+		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
-		timeInHyperspace = timeInHyperspace / 200.0f;
-		iTime = lerp(2.0f, 1.0f, timeInHyperspace);
+		timeInHyperspace = timeInHyperspace / 200.0f; // 200.0f
+		//iTime = lerp(1.5f, 0.0f, timeInHyperspace);
+		iTime = lerp(2.0f, 0.0f, timeInHyperspace);
+		break;
+	case HS_POST_HYPER_EXIT_ST:
+		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
+		// Max shader time: 1.5 (t2 minus a small fraction)
+		resources->InitPixelShader(resources->_hyperExitPS);
+		timeInHyperspace = (float )g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
+		iTime = lerp(2.0f, 1.5f, timeInHyperspace);
 		break;
 	}
 
@@ -4829,6 +4842,31 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
+				// Update the Hyperspace FSM
+				switch (g_HyperspacePhaseFSM) {
+				case HS_INIT_ST:
+					if (PlayerDataTable->hyperspacePhase == 2)
+						g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+					break;
+				case HS_HYPER_ENTER_ST:
+					if (PlayerDataTable->hyperspacePhase == 4)
+						g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+					break;
+				case HS_HYPER_TUNNEL_ST:
+					if (PlayerDataTable->hyperspacePhase == 3)
+						g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+					break;
+				case HS_HYPER_EXIT_ST:
+					if (PlayerDataTable->hyperspacePhase == 0)
+						//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+						g_HyperspacePhaseFSM = HS_INIT_ST;
+					break;
+				case HS_POST_HYPER_EXIT_ST:
+					if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES)
+						g_HyperspacePhaseFSM = HS_INIT_ST;
+					break;
+				}
+
 				// Set the Hyperspace Bloom flags
 				if (PlayerDataTable->hyperspacePhase) {
 					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
@@ -4867,7 +4905,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 				}
-
+				
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
