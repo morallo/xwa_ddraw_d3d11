@@ -50,6 +50,8 @@
     <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
     <FxCompile Include="DeathStarShader.hlsl" />
     <FxCompile Include="HyperEntry.hlsl" />
+    <FxCompile Include="HyperTunnel.hlsl" />
+    <FxCompile Include="HyperExit.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

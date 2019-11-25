@@ -552,7 +552,9 @@ public:
 	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
-	ComPtr<ID3D11PixelShader> _hyperspacePS;
+	ComPtr<ID3D11PixelShader> _hyperEntryPS;
+	ComPtr<ID3D11PixelShader> _hyperExitPS;
+	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

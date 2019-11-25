@@ -10,7 +10,7 @@
 
 #include "ShaderToyDefs.h"
 
-// The Color Buffer
+ // The Color Buffer
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
 
@@ -132,10 +132,11 @@ vec3 pixelVal(vec2 coord)
 	//disk_size = clamp(1.7*(t - 0.25), 0.0, 0.5);
 	disk_intensity = smoothstep(0.25, 0.65, t);
 
-	falloff = 3.0; // 100 = short falloff, 3.0 = big fallof
+	// Don't render the disk when exiting hyperspace
+	//falloff = 3.0; // 100 = short falloff, 3.0 = big fallof
 	// Negative fallofs will make a black disk surrounded by a halo
-	disk_col = exp(-(ad.y - disk_size) * falloff);
-	col += disk_intensity * disk_col * vec3(0.913, 0.964, 0.980);
+	//disk_col = exp(-(ad.y - disk_size) * falloff);
+	//col += disk_intensity * disk_col * vec3(0.913, 0.964, 0.980);
 
 	return col;
 }
@@ -176,7 +177,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		for (int j = -1; j <= 1; j++)
 			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j));
 	avgcol /= 9.0;
-	
+
 	// Output to screen
 	fragColor = vec4(avgcol, 1.0);
 	float lightness = dot(0.333, fragColor);

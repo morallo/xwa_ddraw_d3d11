@@ -13,6 +13,10 @@
 
 #define mod(x, y) (x % y)
 
+#define PI 3.14159265
+#define ATAN5 1.37340076695
+#define TAU 6.28318
+
 cbuffer ConstantBuffer : register(b7)
 {
 	float3 iMouse;

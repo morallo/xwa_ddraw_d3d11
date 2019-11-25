@@ -3520,8 +3520,6 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			3: Exiting hyperspace
 				max time: 236, 231
 	*/
-	if (PlayerDataTable->hyperspacePhase == 4)
-		return;
 
 	// Adjust the time according to the current hyperspace phase
 	switch (PlayerDataTable->hyperspacePhase) {
@@ -3529,22 +3527,23 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	case 2:
 		// Max internal time: ~500
 		// Max shader time: 2.0 (t2)
-		resources->InitPixelShader(resources->_hyperspacePS);
-		timeInHyperspace = timeInHyperspace / 450.0f;
+		resources->InitPixelShader(resources->_hyperEntryPS);
+		timeInHyperspace = timeInHyperspace / 800.0f;
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
 		break;
 	// Travelling through Hyperspace
 	case 4:
 		// Max internal time: ~1290
-		// Max shader time: 4.0? (arbitrary?)
+		// Max shader time: 4.0 (arbitrary)
+		resources->InitPixelShader(resources->_hyperTunnelPS);
 		timeInHyperspace = timeInHyperspace / 1290.0f;
 		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
 		break;
 	// Exiting Hyperspace
 	case 3:
 		// Max internal time: ~236
-		// Max shader time: 2.0? (t2, TBD?)
-		resources->InitPixelShader(resources->_hyperspacePS);
+		// Max shader time: 2.0 (t2)
+		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = timeInHyperspace / 230.0f;
 		iTime = lerp(2.0f, 1.0f, timeInHyperspace);
 		break;
@@ -4142,8 +4141,8 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					if (PlayerDataTable->hyperspacePhase == 2)
-						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					//if (PlayerDataTable->hyperspacePhase == 2)
+					//	RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -4844,6 +4843,13 @@ HRESULT Direct3DDevice::Execute(
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							g_PSCBuffer.bIsHyperspaceAnim = 1;
+							if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
+								// The game renders several streaks per frame, let's make sure we only render the new effect
+								// exactly once per frame
+								g_bHyperspaceEffectRenderedOnCurrentFrame = true;
+								RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							}
+							goto out; // Don't render the original hyperspace tunnel
 						}
 					}
 				}

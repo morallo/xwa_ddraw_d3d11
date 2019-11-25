@@ -41,6 +41,8 @@
 #include "../Debug/SSDOBlur.h"
 #include "../Debug/DeathStarShader.h"
 #include "../Debug/HyperEntry.h"
+#include "../Debug/HyperExit.h"
+#include "../Debug/HyperTunnel.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -77,6 +79,8 @@
 #include "../Release/SSDOBlur.h"
 #include "../Release/DeathStarShader.h"
 #include "../Release/HyperEntry.h"
+#include "../Release/HyperExit.h"
+#include "../Release/HyperTunnel.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2108,7 +2112,13 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperspacePS)))
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+			return hr;
+		
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 			return hr;
 	}
 
@@ -2338,7 +2348,13 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperspacePS)))
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 			return hr;
 	}
 
