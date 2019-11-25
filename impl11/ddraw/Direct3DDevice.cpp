@@ -4849,8 +4849,20 @@ HRESULT Direct3DDevice::Execute(
 						g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
 					break;
 				case HS_HYPER_ENTER_ST:
-					if (PlayerDataTable->hyperspacePhase == 4)
+					if (PlayerDataTable->hyperspacePhase == 4) {
 						g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+
+						// Clear the aux buffer so that we don't display the old background when exiting hyperspace
+						float black[4] = { 0.0, 0.0, 0.0, 0.0 };						
+						// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the RTV and then resolve it
+						//       I should fix this later by creating an RTV for the shaderToyAuxBuf directly
+						context->ClearRenderTargetView(resources->_shadertoyRTV, black);
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ClearRenderTargetView(resources->_shadertoyRTV_R, black);
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_shadertoyBufR, 0, BACKBUFFER_FORMAT);
+						}
+					}
 					break;
 				case HS_HYPER_TUNNEL_ST:
 					if (PlayerDataTable->hyperspacePhase == 3)
