@@ -235,6 +235,7 @@ bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloa
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
 bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
+bool g_bSwitchedToPlayerObject = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
@@ -3507,6 +3508,19 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
+	/*
+	TODO: Identify the draw call where we switch between rendering external objects to
+	      rendering the cockpit/HUD. This should be a single draw call per frame. If the
+		  cockpit is not displayed, then identify the call right before we start rendering
+		  the HUD.
+
+		  If the current FSM state is HS_POST_HYPER_EXIT, then this draw call should be hijacked
+		  to render the post-hyper-exit effect.
+
+		  Look at this video:
+		  https://youtu.be/GLZoDkbTakg?t=197
+
+	*/
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -4108,6 +4122,12 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
 				g_bIsPlayerObject = bIsCockpit || bIsExterior;
+				if (!g_bSwitchedToPlayerObject) {
+					g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
+					if (g_bSwitchedToPlayerObject) {
+						//log_debug("[DBG] SwitchedToPlayerObject (1)");
+					}
+				}
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -4202,6 +4222,13 @@ HRESULT Direct3DDevice::Execute(
 
 				 if (g_bAOEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					 g_bDepthBufferResolved = true;
+					 // If the cockpit is disabled, then this is the only spot where we know that we
+					 // have finished rendering external craft, so let's flip the bSwitchedToPlayerObject
+					 // flag here:
+					 if (!g_bSwitchedToPlayerObject) {
+						 //log_debug("[DBG] SwitchedToPlayerObject (2)");
+						 g_bSwitchedToPlayerObject = true;
+					 }
 					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					 // This is where we can capture the current frame for post-processing effects
 					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
@@ -4854,7 +4881,8 @@ HRESULT Direct3DDevice::Execute(
 
 						// Clear the aux buffer so that we don't display the old background when exiting hyperspace
 						float black[4] = { 0.0, 0.0, 0.0, 0.0 };						
-						// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the RTV and then resolve it
+						// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the shaderToyBuf RTV 
+						//		 and then resolve it to the aux buf...
 						//       I should fix this later by creating an RTV for the shaderToyAuxBuf directly
 						context->ClearRenderTargetView(resources->_shadertoyRTV, black);
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);

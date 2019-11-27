@@ -29,7 +29,7 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered, g_iHyperExitPostFrames;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
-extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bHyperspaceEffectRenderedOnCurrentFrame;
+extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bHyperspaceEffectRenderedOnCurrentFrame, g_bSwitchedToPlayerObject;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -3938,7 +3938,6 @@ HRESULT PrimarySurface::Flip(
 			g_bTargetCompDrawn = false;
 			g_bPrevIsFloatingGUI3DObject = false;
 			g_bIsFloating3DObject = false;
-			//log_debug("[DBG] g_bStartedGUI at end-of-frame: %d", g_bStartedGUI);
 			g_bStartedGUI = false;
 			g_bPrevStartedGUI = false;
 			g_bIsScaleableGUIElem = false;
@@ -3953,7 +3952,7 @@ HRESULT PrimarySurface::Flip(
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;
-			g_bHyperspaceEffectRenderedOnCurrentFrame = false;
+			g_bHyperspaceEffectRenderedOnCurrentFrame = false; g_bSwitchedToPlayerObject = false;
 			// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 			if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 				g_iHyperExitPostFrames++;
