@@ -3504,6 +3504,28 @@ void DisplayBox(char *name, Box box) {
 		box.x0, box.y0, box.x1, box.y1);
 }
 
+/*
+ If the game is post-exiting hyperspace, this function will select shaderToyBuf
+ when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
+ */
+inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye = false) {
+	auto& resources = this->_deviceResources;
+	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
+		// Normal output buffer (_offscreenBuffer)
+		return regularRTV;
+	else
+		// If we reach this point, then the game is in post-exit-hyperspace state AND this is a cockpit texture
+		return shadertoyRTV;
+}
+
+/*
+Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
+       _shaderToyBuf (already resolved): Contains the foreground (only the cockpit) when exiting hyperspace.
+					 Unused in all other circumstances.
+Output: Renders over _offscreenBufferPost and copies to _offscreenBuffer.
+*/
 void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
@@ -3572,9 +3594,15 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = (float )g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
-		iTime = lerp(2.0f, 1.5f, timeInHyperspace);
+		//iTime = lerp(2.0f, 1.5f, timeInHyperspace);
 		break;
 	}
+
+#define T2_ZOOM 2.0
+	// DEBUG Test the hyperzoom
+	iTime += 0.1f;
+	if (iTime > T2_ZOOM) iTime = 0.0f;
+	// DEBUG
 
 	// Render the hyperspace effect:
 	// Set the new viewport (a full quad covering the full screen)
@@ -3591,7 +3619,6 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	
-	
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
@@ -3602,8 +3629,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	resources->InitPSConstantBufferDeathStar(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-	iTime += 0.025f;
+	resources->InitPSConstantBufferShaderToy(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	// Set/Create the VertexBuffer and set the topology, etc
 	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
@@ -3628,6 +3654,11 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Set Primitive Topology & Layout
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
+
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+	if (g_bUseSteamVR)
+		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 
 	// Set the Vertex Shader (the pixel shader is set in the switch above):
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -3656,9 +3687,81 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Draw...
 	context->Draw(6, 0);
 	// Handle DirectSBS/SteamVR cases...
-	// Copy result to offscreenBuffer...
 	// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
 	//		 Is the state handling fixed now?
+	
+	// Second render: compose the cockpit over the zoomed background if we're post-exiting
+	// hyperspace
+	const int CAPTURE_FRAME = 111;
+	if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) 
+	{
+		resources->InitPixelShader(resources->_hyperZoomComposePS);
+
+		ID3D11RenderTargetView *rtvs_null[5] = {
+			NULL, // Main RTV
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+		};
+		context->OMSetRenderTargets(5, rtvs_null, NULL);
+
+		/*
+		// DEBUG
+		if (g_iPresentCounter == CAPTURE_FRAME) {
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBuf-0.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBufferPost-0.jpg");
+		}
+		// DEBUG
+		*/
+
+		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+		// to _shadertoyAuxBuf again to re-use in the next step:
+		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+		// DEBUG
+		if (g_iPresentCounter == CAPTURE_FRAME) {
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyAuxBuf-0.jpg");
+			//DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+			//	L"C:\\Temp\\_shadertoyBuf-0.jpg");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf,
+				L"C:\\Temp\\_shadertoyBuf-0.dds");
+		}
+		// DEBUG
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		if (g_bUseSteamVR)
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[2] = {
+			resources->_shadertoySRV.Get(),		// Foreground
+			resources->_shadertoyAuxSRV.Get(),	// Background
+		};
+		context->PSSetShaderResources(0, 2, srvs);
+		context->Draw(6, 0);
+	}
+	
+	// DEBUG
+	if (g_iPresentCounter == CAPTURE_FRAME) {
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+			L"C:\\Temp\\_offscreenBufferPost-1.jpg");
+	}
+	// DEBUG
+
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
@@ -3682,15 +3785,6 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), lastVertexBufStride, lastVertexBufOffset);
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-
-	/*
-	static bool bDumpBuffers = true;
-	if (g_iPresentCounter == 100 && bDumpBuffers) {
-		bDumpBuffers = false;
-		DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBufferPost.jpg");
-	}
-	*/
 }
 
 HRESULT Direct3DDevice::Execute(
@@ -3720,6 +3814,11 @@ HRESULT Direct3DDevice::Execute(
 #if LOGGER
 	DumpExecuteBuffer(executeBuffer);
 #endif
+
+	// DEBUG
+	g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+	g_iHyperExitPostFrames = 0;
+	// DEBUG
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -4052,8 +4151,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width    = (float)width;
-				g_nonVRViewport.Height   = (float)height;
+				g_nonVRViewport.Width = (float)width;
+				g_nonVRViewport.Height = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
@@ -4122,12 +4221,21 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
 				g_bIsPlayerObject = bIsCockpit || bIsExterior;
-				if (!g_bSwitchedToPlayerObject) {
-					g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
-					if (g_bSwitchedToPlayerObject) {
+				//if (!g_bSwitchedToPlayerObject) {
+				//	g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
+					//if (g_bSwitchedToPlayerObject) {
 						//log_debug("[DBG] SwitchedToPlayerObject (1)");
-					}
-				}
+						/*
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						}
+						*/
+						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					//}
+				//}
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -4180,12 +4288,14 @@ HRESULT Direct3DDevice::Execute(
 					// Capture the background; but only if we're not in hyperspace -- we don't want to
 					// capture the black background used by the game!
 					if (PlayerDataTable->hyperspacePhase == 0) {
+						/*
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						if (g_bUseSteamVR) {
 							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
 								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 						}
+						*/
 					}
 
 					//if (PlayerDataTable->hyperspacePhase == 2)
@@ -4220,38 +4330,57 @@ HRESULT Direct3DDevice::Execute(
 					State management ends here
 				 *************************************************************************/
 
-				 if (g_bAOEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
-					 g_bDepthBufferResolved = true;
-					 // If the cockpit is disabled, then this is the only spot where we know that we
-					 // have finished rendering external craft, so let's flip the bSwitchedToPlayerObject
-					 // flag here:
-					 if (!g_bSwitchedToPlayerObject) {
-						 //log_debug("[DBG] SwitchedToPlayerObject (2)");
-						 g_bSwitchedToPlayerObject = true;
-					 }
-					 // We're about to start rendering *ALL* the GUI: including the triangle pointer and text
-					 // This is where we can capture the current frame for post-processing effects
-					 context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					 context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-					 //context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					 if (g_bUseSteamVR) {
-						 context->ResolveSubresource(resources->_depthBufAsInputR, 0,
-							 resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
-						 context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
-							 resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-						 //context->ResolveSubresource(resources->_normBufAsInputR, 0,
-						 //	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
-					 }
-					 // DEBUG
-					 //if (g_iPresentCounter == 100) {
-						////DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
-						////	L"c:\\temp\\_depthBuf.jpg");
-						//// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
-						//// //	 L"c:\\temp\\_normBuf.jpg");
-						//DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
-						//log_debug("[DBG] [AO] _depthBuf.dds dumped");
-					 //}
-					 // DEBUG
+				if (!g_bPrevStartedGUI && g_bStartedGUI) {
+					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
+					// This is where we can capture the current frame for post-processing effects
+			
+					// Resolve the Depth Buffers (we have dual SSAO, so there are two depth buffers)
+					if (g_bAOEnabled) {
+						g_bDepthBufferResolved = true;
+						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+						context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
+						//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
+								resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
+							//context->ResolveSubresource(resources->_normBufAsInputR, 0,
+							//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						}
+						// DEBUG
+						//if (g_iPresentCounter == 100) {
+						   ////DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
+						   ////	L"c:\\temp\\_depthBuf.jpg");
+						   //// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
+						   //// //	 L"c:\\temp\\_normBuf.jpg");
+						   //DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
+						   //log_debug("[DBG] [AO] _depthBuf.dds dumped");
+						//}
+						// DEBUG
+					}
+
+					// If the cockpit is disabled, then this is the only spot where we know that we
+					// have finished rendering external craft, so let's flip the bSwitchedToPlayerObject
+					// flag here:
+					//if (!g_bSwitchedToPlayerObject)
+					// Only capture the background if we're not travelling through hyperspace
+					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_INIT_ST)
+					{
+						//log_debug("[DBG] SwitchedToPlayerObject (2)");
+						g_bSwitchedToPlayerObject = true;
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						}
+					}
+
+					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
+						// This is the right spot to render the post-hyper-exit effect
+						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					}
 				}
 
 				//if (PlayerDataTable[0].cockpitDisplayed)
@@ -5034,7 +5163,8 @@ HRESULT Direct3DDevice::Execute(
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[5] = {
-							resources->_renderTargetView.Get(),
+							//resources->_renderTargetView.Get(),
+							SelectOffscreenBuffer(bIsCockpit),
 							resources->_renderTargetViewBloomMask.Get(),
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),

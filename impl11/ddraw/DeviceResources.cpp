@@ -43,6 +43,7 @@
 #include "../Debug/HyperEntry.h"
 #include "../Debug/HyperExit.h"
 #include "../Debug/HyperTunnel.h"
+#include "../Debug/HyperZoomCompose.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -81,6 +82,7 @@
 #include "../Release/HyperEntry.h"
 #include "../Release/HyperExit.h"
 #include "../Release/HyperTunnel.h"
+#include "../Release/HyperZoomCompose.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2120,6 +2122,9 @@ HRESULT DeviceResources::LoadMainResources()
 		
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -2355,6 +2360,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
 			return hr;
 	}
 
@@ -2793,7 +2801,7 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_SSAO;
 }
 
-void DeviceResources::InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
+void DeviceResources::InitPSConstantBufferShaderToy(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
 	static ShadertoyCBuffer currentPSConstants = { 0 };

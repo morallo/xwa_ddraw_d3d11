@@ -52,6 +52,7 @@
     <FxCompile Include="HyperEntry.hlsl" />
     <FxCompile Include="HyperTunnel.hlsl" />
     <FxCompile Include="HyperExit.hlsl" />
+    <FxCompile Include="HyperZoomCompose.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

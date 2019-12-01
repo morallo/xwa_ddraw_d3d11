@@ -386,7 +386,7 @@ public:
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
-	void InitPSConstantBufferDeathStar(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+	void InitPSConstantBufferShaderToy(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -567,6 +567,7 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
 	ComPtr<ID3D11PixelShader> _hyperExitPS;
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
+	ComPtr<ID3D11PixelShader> _hyperZoomComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

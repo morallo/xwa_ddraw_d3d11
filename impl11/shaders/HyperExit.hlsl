@@ -16,7 +16,7 @@ SamplerState colorSampler : register(s0);
 
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
 static const float t2 = 2.0;
-//static const float t3 = t2 + 0.3;
+static const float t2_zoom = 2.0;
 
 inline float getTime() {
 	//return mod(iTime, t2);
@@ -142,6 +142,41 @@ vec3 pixelVal(vec2 coord, out float bloom)
 	return col;
 }
 
+//////////////////////////////////////////////////////////////////
+// Hyperzoom effect from https://www.shadertoy.com/view/wdyXW1
+//////////////////////////////////////////////////////////////////
+// Loosely based on Inigo Quilez's shader: https://www.shadertoy.com/view/4sfGRn
+// MIT License
+// Inspired by the hyperzoom (when exiting out of hyperspace) seen here:
+// https://loiter.co/i/best-hyperspace-scene-in-any-star-wars/
+
+static const vec2 scr_center = vec2(0.5, 0.5);
+static const float speed = 1.0; // 100 is super-fast, 50 is fast, 25 is good
+
+// Distort effect based on: https://stackoverflow.com/questions/6030814/add-fisheye-effect-to-images-at-runtime-using-opengl-es
+vec3 distort(in vec2 uv, in float distortion,
+	in float dist_apply, in float fade_apply)
+{
+	vec2 uv_scaled = uv - scr_center;
+	float r = length(uv_scaled);
+	float fade_t = 0.25, fade = 1.0;
+	vec2 dist_uv = uv_scaled * r * distortion;
+
+	uv_scaled = mix(uv_scaled, dist_uv, dist_apply) + scr_center;
+	
+	if (uv_scaled.x < 0.0 || uv_scaled.x > 1.0 ||
+		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
+		return 0.0;
+
+	vec3 col = colorTex.SampleLevel(colorSampler, uv_scaled, 0).rgb;
+	if (r > fade_t) {
+		fade = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
+		fade *= fade;
+		fade = mix(1.0, fade, fade_apply);
+	}
+	return fade * col;
+}
+
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
@@ -157,8 +192,104 @@ struct PixelShaderOutput
 	float4 ssaoMask : SV_TARGET4;
 };
 
-// Hyperspace streaks
+// Hyperspace Zoom
 PixelShaderOutput main(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
+	vec2 fragCoord = input.uv * iResolution.xy;
+
+	vec3  col = 0.0;
+	vec3  res = 0.0;
+	uint  index;
+
+	output.pos3D = 0;
+	output.normal = 0;
+	output.ssaoMask = 1;
+	output.bloom = 0;
+
+	// Early exit: avoid rendering outside the original viewport edges
+	if (input.uv.x < x0 || input.uv.x > x1 ||
+		input.uv.y < y0 || input.uv.y > y1)
+	{
+		output.color = 0.0;
+		return output;
+	}
+	//col = colorTex.SampleLevel(colorSampler, input.uv, 0).rgb;
+	//col.b += 0.5;
+	//output.color = float4(col, 1);
+	//return output;
+
+	// Convert pixel coord into uv centered at the origin
+	vec2 uv = fragCoord / iResolution.xy - scr_center;
+
+	/*
+	Frame: Effect
+
+	0: No effect
+	1: Very small
+	2: Small; but visible
+	3: 1/4 of the screen
+	4: 1/2 of the screen
+	5: Full screen, blurred
+	6: Full screen
+	*/
+
+	float dist_apply[7], dist[7];
+	float factors[7], fade[7], d_scale[7];
+	int iters[7];
+	factors[0] = 900.0; dist[0] = 5.00; dist_apply[0] = 1.0; fade[0] = 1.0;
+	factors[1] = 60.0;  dist[1] = 5.00; dist_apply[1] = 1.0; fade[1] = 1.0;
+	factors[2] = 10.0;  dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
+	factors[3] = 5.0;   dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
+	factors[4] = 3.0;   dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
+	factors[5] = 1.5;   dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
+	factors[6] = 1.0;   dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
+	iters[0] = 32; iters[1] = 32; iters[2] = 32;
+	iters[3] = 32; iters[4] = 32; iters[5] = 32;
+	iters[6] = 1;
+	d_scale[0] = 1.0; d_scale[1] = 1.0; d_scale[2] = 0.8;
+	d_scale[3] = 0.8; d_scale[4] = 0.75; d_scale[5] = 0.4;
+	d_scale[6] = 1.0;
+
+	// The higher the uv multipler, the smaller the image
+	//fragColor = texture(iChannel0, uv * 3.0 + scr_center);
+	//return;
+
+	//uv  = uv / mod(iTime, 5.0);
+	//uv += scr_center;
+
+	float t = iTime / t2_zoom; // Normalize time in [0..1]
+	t = (6.0 * t) % 7.0;
+	index = uint(t);
+	//index = 5; // DEBUG
+	//index = index % 7;
+
+	vec2  d = -uv / float(iters[index]) * d_scale[index];
+
+	//time_d = iTime;
+	//time_d = 1.8;
+
+	//d *= 0.75; // Smaller factors = less blur
+	[loop]
+	for (int i = 0; i < iters[index]; i++)
+	{
+		vec2 uv_scaled = uv * factors[index] + 0.5;
+		res = distort(uv_scaled, dist[index],
+			dist_apply[index], fade[index]);
+		col += res;
+		uv += d;
+	}
+	col = col / float(iters[index]);
+	col.b += 0.01;
+	fragColor = vec4(col, 1.0);
+
+	output.color = fragColor;
+	return output;
+}
+
+// Hyperspace streaks
+PixelShaderOutput mainStreaks(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
