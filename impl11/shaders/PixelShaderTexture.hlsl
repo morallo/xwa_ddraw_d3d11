@@ -170,6 +170,5 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	//output.color = float4(texelColor.xyz, texelColor.w); // No diffuse component
 	return output;
 }

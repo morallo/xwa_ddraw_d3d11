@@ -623,6 +623,7 @@ public:
 	DWORD _mainDisplayTextureBpp;
 
 	float clearColor[4];
+	float clearColorRGBA[4];
 	float clearDepth;
 	bool sceneRendered;
 	bool sceneRenderedEmpty;

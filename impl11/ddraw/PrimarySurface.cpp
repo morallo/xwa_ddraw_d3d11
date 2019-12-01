@@ -3385,16 +3385,21 @@ HRESULT PrimarySurface::Flip(
 	LogText(str.str());
 #endif
 
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	auto &device = resources->_d3dDevice;
 	this->_deviceResources->sceneRenderedEmpty = this->_deviceResources->sceneRendered == false;
 	this->_deviceResources->sceneRendered = false;
-	auto &context = this->_deviceResources->_d3dDeviceContext;
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
-		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
+		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPostR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
+			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
 		/*
 		if (g_bDynCockpitEnabled) {
@@ -3404,10 +3409,8 @@ HRESULT PrimarySurface::Flip(
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
 		}
 		*/
-		// Do we need to clear renderTargetViewPost?
-		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPost, this->_deviceResources->clearColor);
-		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
 	/* Present 2D content */

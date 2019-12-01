@@ -317,6 +317,9 @@ DeviceResources::DeviceResources()
 	const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	memcpy(this->clearColor, &color, sizeof(color));
 
+	const float colorRGBA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	memcpy(this->clearColorRGBA, &colorRGBA, sizeof(colorRGBA));
+
 	this->clearDepth = 1.0f;
 
 	this->sceneRendered = false;

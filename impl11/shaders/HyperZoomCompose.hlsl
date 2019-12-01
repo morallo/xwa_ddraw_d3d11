@@ -67,15 +67,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 bgColor = texture1.Sample(sampler1, input.uv);
 	
 	float lightness = dot(0.333, fgColor.rgb);
-	output.color.rgb = lerp(bgColor.rgb, fgColor.rgb, lightness);
-
-	// DEBUG
-
-	//output.color = float4(0, 0, 0.5, 1.0);
-	//output.color = float4(input.tex, 0.05, 1);
-	//output.color = bgColor;
-	//output.color.b += 0.1;
-	// DEBUG
+	output.color.rgb = lerp(bgColor.rgb, fgColor.rgb, fgColor.w);
+	//output.color.rgb = lerp(bgColor.rgb, fgColor.rgb, lightness);
 	output.color.a = 1.0;
 	return output;
 }

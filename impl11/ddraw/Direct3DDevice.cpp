@@ -3510,6 +3510,17 @@ void DisplayBox(char *name, Box box) {
  */
 inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye = false) {
 	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	// DEBUG
+	static bool bFirstTime = true;
+	if (bFirstTime) {
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferPost,
+			L"C:\\Temp\\_offscreenBufferPost-First-Time.dds");
+		bFirstTime = false;
+	}
+	// DEBUG
+
 	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
 	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
 	if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
@@ -4287,7 +4298,7 @@ HRESULT Direct3DDevice::Execute(
 					g_bSkyBoxJustFinished = true;
 					// Capture the background; but only if we're not in hyperspace -- we don't want to
 					// capture the black background used by the game!
-					if (PlayerDataTable->hyperspacePhase == 0) {
+					//if (PlayerDataTable->hyperspacePhase == 0) {
 						/*
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -4296,7 +4307,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 						}
 						*/
-					}
+					//}
 
 					//if (PlayerDataTable->hyperspacePhase == 2)
 					//	RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
@@ -4872,6 +4883,13 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
+				// When exiting hyperspace, the light textures will overwrite the alpha component. Fixing this
+				// requires changing the alpha blend state; but if I modify that, chances are something else will
+				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
+				// to be a few frames after exiting hyperspace.
+				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
+					goto out;
+
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
@@ -5009,14 +5027,13 @@ HRESULT Direct3DDevice::Execute(
 						g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
 
 						// Clear the aux buffer so that we don't display the old background when exiting hyperspace
-						float black[4] = { 0.0, 0.0, 0.0, 0.0 };						
 						// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the shaderToyBuf RTV 
 						//		 and then resolve it to the aux buf...
 						//       I should fix this later by creating an RTV for the shaderToyAuxBuf directly
-						context->ClearRenderTargetView(resources->_shadertoyRTV, black);
+						context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);
 						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(resources->_shadertoyRTV_R, black);
+							context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_shadertoyBufR, 0, BACKBUFFER_FORMAT);
 						}
 					}
@@ -5849,10 +5866,10 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& resources = this->_deviceResources;
 
 	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColor);
+	context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 	if (g_bUseSteamVR) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColor);
+		context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 	}
 
 	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them
