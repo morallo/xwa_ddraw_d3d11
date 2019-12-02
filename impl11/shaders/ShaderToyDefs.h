@@ -17,14 +17,16 @@
 #define ATAN5 1.37340076695
 #define TAU 6.28318
 
+// ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
 	float3 iMouse;
 	float  iTime;
 	// 16 bytes
 	float2 iResolution;
-	float disk_size, unused2;
+	uint bUseHyperZoom, unused0; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
-}
+	// 48 bytes
+};
 

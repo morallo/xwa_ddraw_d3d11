@@ -10,7 +10,7 @@
 
 #include "ShaderToyDefs.h"
 
- // The Color Buffer
+ // The Color Buffer (_shadertoyAuxBuf)
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
 
@@ -21,7 +21,7 @@ static const float t_overlap = 1.0;
 
 inline float getTime() {
 	//return mod(iTime, t2);
-	return clamp(iTime - t2_zoom + t_overlap, 0.0, t2);
+	return iTime - t2_zoom + t_overlap;
 }
 
 vec2 cart2polar(vec2 cart) {
@@ -90,6 +90,8 @@ vec3 pixelVal(vec2 coord, out float bloom)
 
 	// Loop forever
 	float time = getTime();
+	if (time < 0.0)
+		return float3(0.0, 0.0, 0.0);
 	// Uncomment this line to revert the effect
 	//time = t2 - time;
 
@@ -234,7 +236,7 @@ float3 HyperZoom(float2 uv) {
 	//uv  = uv / mod(iTime, 5.0);
 	//uv += scr_center;
 
-	float t = min(1.0, iTime / t2_zoom); // Normalize time in [0..1]
+	float t = min(1.0, clamp(iTime, 0.0, 100.0) / t2_zoom); // Normalize time in [0..1]
 	t = 1.0 - t; // Time is reversed in this shader so that we can shrink the streaks
 	t = (6.0 * t) % 7.0;
 	index = floor(t);
@@ -314,10 +316,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec2 uv;
-	vec3 avgcol = 0.0;
-	float time = getTime();
-	//float4 col = colorTex.Sample(colorSampler, input.uv);
-	float4 col;
+	vec3 streakcol = 0.0;
+	float4 bgcol;
 	float bloom = 0.0, white_level;
 
 	output.pos3D = 0;
@@ -336,31 +336,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Render the streaks
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
-			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
+			streakcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
 			bloom += white_level;
 		}
-	avgcol /= 9.0;
+	streakcol /= 9.0;
 	//bloom /= 9.0;
 	bloom = 0.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
 
+	if (bUseHyperZoom)
+		streakcol *= float3(1.0, 0.0, 0.0);
+	else
+		streakcol *= float3(0.0, 0.0, 1.0);
+
 	// Convert pixel coord into uv centered at the origin
 	uv = fragCoord / iResolution.xy - scr_center;
 	// Apply the zoom effect
-	col = 0.0;
-	if (iTime <= t2_zoom) col.rgb = HyperZoom(uv);
-	//if (iTime < t2_zoom) col.rgb = float3(1.0, 0.0, 0.0);
-	col.a = 1.0;
+	bgcol = 0.0;
+	if (bUseHyperZoom) bgcol.rgb = HyperZoom(uv);
+	bgcol.a = 1.0;
 
 	// Output to screen
-	fragColor = vec4(avgcol, 1.0);
-	float lightness = dot(0.333, fragColor);
+	fragColor = vec4(streakcol, 1.0);
+	float lightness = dot(0.333, fragColor.rgb);
 	// Mix the background color with the streaks
-	fragColor = lerp(col, fragColor, lightness);
+	fragColor = lerp(bgcol, fragColor, lightness);
 
-	// DEBUG
-	//fragColor = col;
-	// DEBUG
 	output.color = fragColor;
 	return output;
 }

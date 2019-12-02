@@ -162,9 +162,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-	vec3 avgcol = 0.0;
+	vec3 streakcol = 0.0;
 	float time = getTime();
-	float4 col = colorTex.Sample(colorSampler, input.uv);
+	float4 bgcol = colorTex.Sample(colorSampler, input.uv);
 	float bloom = 0.0, white_level;
 
 	output.pos3D = 0;
@@ -181,26 +181,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Fade the background color to black
-	col = lerp(col, 0, 1.1 * fract(time / t2));
+	bgcol = lerp(bgcol, 0, 1.1 * fract(time / t2));
 
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
-			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
+			streakcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
 			bloom += white_level;
 		}
-	avgcol /= 9.0;
+	streakcol /= 9.0;
 	bloom /= 9.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
 	
 	// Output to screen
-	fragColor = vec4(avgcol, 1.0);
-	float lightness = dot(0.333, fragColor);
+	fragColor = vec4(streakcol, 1.0);
+	float lightness = dot(0.333, fragColor.rgb);
 	// Mix the background color with the streaks
-	fragColor = lerp(col, fragColor, lightness);
+	fragColor = lerp(bgcol, fragColor, lightness);
 
-	// DEBUG
-	//fragColor = col;
-	// DEBUG
 	output.color = fragColor;
 	return output;
 }
