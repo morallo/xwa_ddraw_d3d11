@@ -239,12 +239,16 @@ bool g_bSwitchedToPlayerObject = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
-// The following flag tells us when the main GUI elements (HUD, radars, etc) have been rendered
-// It's reset to false every time the backbuffer is swapped.
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
+const int MAX_POST_HYPER_EXIT_FRAMES = 7;
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
+// DEBUG
+//#define HYPER_OVERRIDE
+float g_fHyperTimeOverride = 2.5f; // Only used to debug the post-hyper-exit effect. I should remove this later.
+int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
+// DEBUG
 
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
@@ -3512,6 +3516,7 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 	auto& resources = this->_deviceResources;
 	auto& context = resources->_d3dDeviceContext;
 
+	/*
 	// DEBUG
 	static bool bFirstTime = true;
 	if (bFirstTime) {
@@ -3520,6 +3525,7 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 		bFirstTime = false;
 	}
 	// DEBUG
+	*/
 
 	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
 	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
@@ -3571,6 +3577,9 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				max time: 236, 231
 	*/
 
+	const float T2_ZOOM = 1.5f;
+	const float OVERLAP = 1.0f;
+	
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable->hyperspacePhase) 
 	switch (g_HyperspacePhaseFSM)
@@ -3597,22 +3606,36 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = timeInHyperspace / 200.0f; // 200.0f
-		//iTime = lerp(1.5f, 0.0f, timeInHyperspace);
-		iTime = lerp(2.0f, 0.0f, timeInHyperspace);
+		iTime = lerp(2.0f + T2_ZOOM - OVERLAP, T2_ZOOM, timeInHyperspace);
+		// DEBUG
+#ifdef HYPER_OVERRIDE
+		iTime = g_fHyperTimeOverride;
+#endif
+		// DEBUG
 		break;
 	case HS_POST_HYPER_EXIT_ST:
 		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = (float )g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
-		//iTime = lerp(2.0f, 1.5f, timeInHyperspace);
+		iTime = lerp(T2_ZOOM, 0.0f, timeInHyperspace);
+		// DEBUG
+		//iTime = T2_ZOOM - OVERLAP / 2.0f;
+#ifdef HYPER_OVERRIDE
+		iTime = g_fHyperTimeOverride;
+#endif
+		// DEBUG
 		break;
 	}
 
-#define T2_ZOOM 2.0
 	// DEBUG Test the hyperzoom
-	iTime += 0.1f;
-	if (iTime > T2_ZOOM) iTime = 0.0f;
+	static bool bDump = false;
+	if (!bDump) {
+		log_debug("[DBG] iTime: %f", iTime);
+		bDump = true;
+	}
+	//iTime += 0.1f;
+	//if (iTime > T2_ZOOM) iTime = 0.0f;
 	// DEBUG
 
 	// Render the hyperspace effect:
@@ -3827,14 +3850,18 @@ HRESULT Direct3DDevice::Execute(
 #endif
 
 	// DEBUG
-	g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
-	g_iHyperExitPostFrames = 0;
+	//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+#ifdef HYPER_OVERRIDE
+	g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
+	if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST && g_HyperspacePhaseFSM != HS_HYPER_EXIT_ST)
+		log_debug("[DBG] UNKNOWN OVERRIDE STATE: %d", g_HyperspacePhaseFSM);
+#endif
+	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	//auto& context1 = resources->_d3dDeviceContext1;
 
 	HRESULT hr = S_OK;
 	UINT width, height, left, top;
@@ -4388,7 +4415,15 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
+					
+#ifdef HYPER_OVERRIDE
+					// DEBUG
+					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
+					// DEBUG
+#else
+					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+#endif
+					{
 						// This is the right spot to render the post-hyper-exit effect
 						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					}
@@ -5043,15 +5078,22 @@ HRESULT Direct3DDevice::Execute(
 						g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
 					break;
 				case HS_HYPER_EXIT_ST:
-					if (PlayerDataTable->hyperspacePhase == 0)
-						//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
-						g_HyperspacePhaseFSM = HS_INIT_ST;
+					if (PlayerDataTable->hyperspacePhase == 0) {
+						g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+						g_iHyperExitPostFrames = 0;
+						//g_HyperspacePhaseFSM = HS_INIT_ST;
+					}
 					break;
 				case HS_POST_HYPER_EXIT_ST:
 					if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES)
 						g_HyperspacePhaseFSM = HS_INIT_ST;
 					break;
 				}
+#ifdef HYPER_OVERRIDE
+				// DEBUG
+				g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
+				// DEBUG
+#endif
 
 				// Set the Hyperspace Bloom flags
 				if (PlayerDataTable->hyperspacePhase) {

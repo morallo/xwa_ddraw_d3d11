@@ -16,11 +16,12 @@ SamplerState colorSampler : register(s0);
 
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
 static const float t2 = 2.0;
-static const float t2_zoom = 2.0;
+static const float t2_zoom = 1.5;
+static const float t_overlap = 1.0;
 
 inline float getTime() {
 	//return mod(iTime, t2);
-	return min(iTime, t2);
+	return clamp(iTime - t2_zoom + t_overlap, 0.0, t2);
 }
 
 vec2 cart2polar(vec2 cart) {
@@ -192,36 +193,10 @@ struct PixelShaderOutput
 	float4 ssaoMask : SV_TARGET4;
 };
 
-// Hyperspace Zoom
-PixelShaderOutput main(PixelShaderInput input)
-{
-	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
-	vec2 fragCoord = input.uv * iResolution.xy;
-
+float3 HyperZoom(float2 uv) {
 	vec3  col = 0.0;
 	vec3  res = 0.0;
 	uint  index;
-
-	output.pos3D = 0;
-	output.normal = 0;
-	output.ssaoMask = 1;
-	output.bloom = 0;
-
-	// Early exit: avoid rendering outside the original viewport edges
-	if (input.uv.x < x0 || input.uv.x > x1 ||
-		input.uv.y < y0 || input.uv.y > y1)
-	{
-		output.color = 0.0;
-		return output;
-	}
-	//col = colorTex.SampleLevel(colorSampler, input.uv, 0).rgb;
-	//col.b += 0.5;
-	//output.color = float4(col, 1);
-	//return output;
-
-	// Convert pixel coord into uv centered at the origin
-	vec2 uv = fragCoord / iResolution.xy - scr_center;
 
 	/*
 	Frame: Effect
@@ -243,8 +218,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	factors[2] = 10.0;  dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
 	factors[3] = 5.0;   dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
 	factors[4] = 3.0;   dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
-	factors[5] = 1.5;   dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
-	factors[6] = 1.0;   dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
+	factors[5] = 2.0;   dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
+	factors[6] = 1.5;   dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
 	iters[0] = 32; iters[1] = 32; iters[2] = 32;
 	iters[3] = 32; iters[4] = 32; iters[5] = 32;
 	iters[6] = 1;
@@ -259,29 +234,73 @@ PixelShaderOutput main(PixelShaderInput input)
 	//uv  = uv / mod(iTime, 5.0);
 	//uv += scr_center;
 
-	float t = iTime / t2_zoom; // Normalize time in [0..1]
+	float t = min(1.0, iTime / t2_zoom); // Normalize time in [0..1]
+	t = 1.0 - t; // Time is reversed in this shader so that we can shrink the streaks
 	t = (6.0 * t) % 7.0;
-	index = uint(t);
+	index = floor(t);
+	float t1 = frac(t);
+	float dist_apply_mix = dist_apply[index], dist_mix = dist[index];
+	float factors_mix = factors[index], fade_mix = fade[index], d_scale_mix = d_scale[index];
+	int iters_mix = iters[index];
+	if (index < 6) {
+		factors_mix = lerp(factors[index], factors[index + 1], t1);
+		dist_mix = lerp(dist[index], dist[index + 1], t1);
+		dist_apply_mix = lerp(dist_apply[index], dist_apply[index + 1], t1);
+		fade_mix = lerp(fade[index], fade[index + 1], t1);
+		iters_mix = round(lerp(iters[index], iters[index + 1], t1));
+		d_scale_mix = lerp(d_scale[index], d_scale[index + 1], t1);
+	}
 	//index = 5; // DEBUG
 	//index = index % 7;
 
-	vec2  d = -uv / float(iters[index]) * d_scale[index];
+	//vec2  d = -uv / float(iters[index]) * d_scale[index];
+	vec2  d = -uv / float(iters_mix) * d_scale_mix;
 
 	//time_d = iTime;
 	//time_d = 1.8;
 
 	//d *= 0.75; // Smaller factors = less blur
 	[loop]
-	for (int i = 0; i < iters[index]; i++)
+	for (int i = 0; i < iters_mix; i++)
+	//for (int i = 0; i < iters[index]; i++)
 	{
-		vec2 uv_scaled = uv * factors[index] + 0.5;
-		res = distort(uv_scaled, dist[index],
-			dist_apply[index], fade[index]);
+		//vec2 uv_scaled = uv * factors[index] + 0.5;
+		vec2 uv_scaled = uv * factors_mix + 0.5;
+		//res = distort(uv_scaled, dist[index],
+		//	dist_apply[index], fade[index]);
+		res = distort(uv_scaled, dist_mix,
+			dist_apply_mix, fade_mix);
 		col += res;
 		uv += d;
 	}
-	col = col / float(iters[index]);
-	col.b += 0.01;
+	//col = 1.2 * col / float(iters[index]);
+	col = 1.2 * col / float(iters_mix);
+	return col;
+}
+
+// Hyperspace Zoom
+PixelShaderOutput mainZoom(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
+	vec2 fragCoord = input.uv * iResolution.xy;
+
+	output.pos3D = 0;
+	output.normal = 0;
+	output.ssaoMask = 1;
+	output.bloom = 0;
+
+	// Early exit: avoid rendering outside the original viewport edges
+	if (input.uv.x < x0 || input.uv.x > x1 ||
+		input.uv.y < y0 || input.uv.y > y1)
+	{
+		output.color = 0.0;
+		return output;
+	}
+	
+	// Convert pixel coord into uv centered at the origin
+	vec2 uv = fragCoord / iResolution.xy - scr_center;
+	vec3 col = HyperZoom(uv);
 	fragColor = vec4(col, 1.0);
 
 	output.color = fragColor;
@@ -289,14 +308,16 @@ PixelShaderOutput main(PixelShaderInput input)
 }
 
 // Hyperspace streaks
-PixelShaderOutput mainStreaks(PixelShaderInput input)
+PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
+	vec2 uv;
 	vec3 avgcol = 0.0;
 	float time = getTime();
-	float4 col = colorTex.Sample(colorSampler, input.uv);
+	//float4 col = colorTex.Sample(colorSampler, input.uv);
+	float4 col;
 	float bloom = 0.0, white_level;
 
 	output.pos3D = 0;
@@ -312,17 +333,24 @@ PixelShaderOutput mainStreaks(PixelShaderInput input)
 		return output;
 	}
 
-	// Fade the background color to black
-	col = lerp(col, 0, 1.1 * fract(time / t2));
-
+	// Render the streaks
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
 			avgcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
 			bloom += white_level;
 		}
 	avgcol /= 9.0;
-	bloom /= 9.0;
+	//bloom /= 9.0;
+	bloom = 0.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
+
+	// Convert pixel coord into uv centered at the origin
+	uv = fragCoord / iResolution.xy - scr_center;
+	// Apply the zoom effect
+	col = 0.0;
+	if (iTime <= t2_zoom) col.rgb = HyperZoom(uv);
+	//if (iTime < t2_zoom) col.rgb = float3(1.0, 0.0, 0.0);
+	col.a = 1.0;
 
 	// Output to screen
 	fragColor = vec4(avgcol, 1.0);

@@ -26,6 +26,10 @@ const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+//#define HYPER_OVERRIDE
+extern float g_fHyperTimeOverride; // DEBUG, remove later
+extern int g_iHyperStateOverride; // DEBUG, remove later
+
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered, g_iHyperExitPostFrames;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
@@ -3965,6 +3969,17 @@ HRESULT PrimarySurface::Flip(
 			//*g_playerInHangar = 0;
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
+
+#ifdef HYPER_OVERRIDE
+			g_fHyperTimeOverride -= 0.1f;
+			if (g_fHyperTimeOverride < 0.0f)
+				g_fHyperTimeOverride = 2.5f;
+			// Update the state
+			if (g_fHyperTimeOverride >= 1.5f)
+				g_iHyperStateOverride = 3; // HYPER_EXIT
+			else
+				g_iHyperStateOverride = 4; // POST_HYPER_EXIT
+#endif
 
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {

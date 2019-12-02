@@ -16,7 +16,7 @@
 
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
-Matrix4 ComputeRotationMatrixFromXWAView();
+//Matrix4 ComputeRotationMatrixFromXWAView();
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -70,6 +70,12 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
 bool g_bShowXWARotation = false;
 
+// DEBUG
+enum HyperspacePhaseEnum;
+extern float g_fHyperTimeOverride;
+extern int g_iHyperStateOverride;
+// DEBUG
+
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
@@ -122,13 +128,29 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
-				g_LightVector[0].x += 0.1f;
-				g_LightVector[0].normalize();
+				//g_LightVector[0].x += 0.1f;
+				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
+				g_fHyperTimeOverride += 0.1f;
+				if (g_fHyperTimeOverride > 2.5f)
+					g_fHyperTimeOverride = 2.5f;
+				if (g_fHyperTimeOverride >= 1.5f)
+					g_iHyperStateOverride = 3; // HYPER_EXIT
+				else
+					g_iHyperStateOverride = 4; // POST_HYPER_EXIT
+				log_debug("[DBG] State: %d, g_fHyperTimeOverride: %0.3f", g_iHyperStateOverride, g_fHyperTimeOverride);
 				return 0;
 			case VK_LEFT:
-				g_LightVector[0].x -= 0.1f;
+				//g_LightVector[0].x -= 0.1f;
 				//PrintVector(g_LightVector[0]);
+				g_fHyperTimeOverride -= 0.1f;
+				if (g_fHyperTimeOverride < 0.0f)
+					g_fHyperTimeOverride = 0.0f;
+				if (g_fHyperTimeOverride >= 1.5f)
+					g_iHyperStateOverride = 3; // HYPER_EXIT
+				else
+					g_iHyperStateOverride = 4; // POST_HYPER_EXIT
+				log_debug("[DBG] State: %d, g_fHyperTimeOverride: %0.3f", g_iHyperStateOverride, g_fHyperTimeOverride);
 				return 0;
 
 			case VK_UP:
