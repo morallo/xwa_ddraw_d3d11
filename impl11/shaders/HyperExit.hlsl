@@ -84,14 +84,16 @@ vec3 pixelVal(vec2 coord, out float bloom)
 	vec2 resolution = iResolution * 4.0;
 	vec2 uv = (2.0 * coord - resolution.xy) / resolution.x;
 	vec2 ad = cart2polar(uv);
+	bloom = 0.0;
 	// ad: polar coords
 	// ad.x = angle
 	// ad.y = radius
 
 	// Loop forever
 	float time = getTime();
-	if (time < 0.0)
-		return float3(0.0, 0.0, 0.0);
+	if (time < 0.0) {
+		return float3(0.0, 0.1, 0.0);
+	}
 	// Uncomment this line to revert the effect
 	//time = t2 - time;
 
@@ -333,6 +335,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
+	/*
+	// DEBUG
+	float time = getTime();
+	if (time < 0.0)
+		output.color = float4(0, 1, 0, 1);
+	else
+		output.color.rgb = time / t2;
+	output.color.a = 1.0;
+	return output;
+	// DEBUG
+	*/
+
 	// Render the streaks
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
@@ -344,10 +358,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	bloom = 0.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
 
+	/*
 	if (bUseHyperZoom)
 		streakcol *= float3(1.0, 0.0, 0.0);
 	else
 		streakcol *= float3(0.0, 0.0, 1.0);
+	*/
 
 	// Convert pixel coord into uv centered at the origin
 	uv = fragCoord / iResolution.xy - scr_center;

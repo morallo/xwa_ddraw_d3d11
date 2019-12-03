@@ -83,6 +83,7 @@ vec3 pixelVal(vec2 coord, out float bloom)
 	vec2 resolution = iResolution * 4.0;
 	vec2 uv = (2.0 * coord - resolution.xy) / resolution.x;
 	vec2 ad = cart2polar(uv);
+	bloom = 0.0;
 	// ad: polar coords
 	// ad.x = angle
 	// ad.y = radius

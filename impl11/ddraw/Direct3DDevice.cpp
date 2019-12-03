@@ -3529,12 +3529,13 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 
 	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
 	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
-	if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
-		// Normal output buffer (_offscreenBuffer)
-		return regularRTV;
-	else
+	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
+	if ((g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST) && bIsCockpit)
 		// If we reach this point, then the game is in post-exit-hyperspace state AND this is a cockpit texture
 		return shadertoyRTV;
+	else
+		// Normal output buffer (_offscreenBuffer)
+		return regularRTV;
 }
 
 /*
@@ -3584,7 +3585,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 
 	const float T2_ZOOM = 1.5f;
-	const float OVERLAP = 1.0f;
+	const float T_OVERLAP = 1.0f;
 	
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable->hyperspacePhase) 
@@ -3612,9 +3613,10 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = timeInHyperspace / 200.0f; // 200.0f
-		iTime = lerp(2.0f + T2_ZOOM - OVERLAP, T2_ZOOM, timeInHyperspace);
+		iTime = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
 		//iTime = lerp(2.0f + T2_ZOOM - OVERLAP, 0.0, timeInHyperspace);
-		iTimeAtHyperExit = lerp(2.0f + T2_ZOOM - OVERLAP, T2_ZOOM, timeInHyperspace + 5.0f/200.0f);
+		//iTimeAtHyperExit = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace + 5.0f/200.0f);
+		iTimeAtHyperExit = iTime;
 		break;
 	case HS_POST_HYPER_EXIT_ST:
 		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
@@ -3632,9 +3634,11 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 #ifdef HYPER_OVERRIDE
 	iTime = g_fHyperTimeOverride;
 #endif
-	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-		log_debug("[DBG] FSM %d, iTime: %0.3f, bUseHyperZoom: %d, g_iHyperExitPostFrames: %d",
-			g_HyperspacePhaseFSM, iTime, bUseHyperZoom, g_iHyperExitPostFrames);
+	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
+		float fGetTime = iTime - T2_ZOOM + T_OVERLAP;
+		log_debug("[DBG] FSM %d, iTime: %0.3f, getTime: %0.3f, bUseHyperZoom: %d, g_iHyperExitPostFrames: %d",
+			g_HyperspacePhaseFSM, iTime, fGetTime, bUseHyperZoom, g_iHyperExitPostFrames);
+	}
 	// DEBUG
 
 	// Render the hyperspace effect:
@@ -3727,7 +3731,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Second render: compose the cockpit over the zoomed background if we're post-exiting
 	// hyperspace
 	//const int CAPTURE_FRAME = 111;
-	if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) 
+	if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
 	//if (false)
 	{
 		resources->InitPixelShader(resources->_hyperZoomComposePS);
@@ -4485,7 +4489,8 @@ HRESULT Direct3DDevice::Execute(
 					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
 					// DEBUG
 #else
-					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST ||
+						(g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST && !g_bHyperspaceEffectRenderedOnCurrentFrame))
 #endif
 					{
 						// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
@@ -5144,7 +5149,15 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 				}
-				
+
+				/*
+				if (g_HyperspacePhaseFSM != HS_INIT_ST) {
+					// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
+					RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					goto out; // Don't render the hyperspace streaks anymore
+				}
+				*/
+
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
