@@ -11,6 +11,14 @@ static const float rotation_speed = 2.3;
 static const float speed = 5.0;
 static const float t2 = 4.0;
 
+// The Foreground Color Buffer (_shadertoyBuf)
+Texture2D fgColorTex : register(t0);
+SamplerState fgColorSampler : register(s0);
+
+// The Background Color Buffer (_shadertoyAuxBuf)
+Texture2D bgColorTex : register(t1);
+SamplerState bgColorSampler : register(s1);
+
 // Perlin noise from Dave_Hoskins' https://www.shadertoy.com/view/4dlGW2
 //----------------------------------------------------------------------------------------
 float Hash(in vec2 p, in float scale)
@@ -97,6 +105,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
+	float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
 	float t = mod(iTime, t2) / t2; // Normalized time
 	// The focal_depth controls how "deep" the tunnel looks. Lower values
 	// provide more depth.
@@ -137,6 +146,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	// Whiteout
 	col.rgb = mix(col.rgb, 1.0, w_total);
+
+	// Mask the bloom
+	output.bloom *= (1.0 - fgcol.a);
 
 	fragColor = vec4(col.rgb, 1);
 	output.color = fragColor;

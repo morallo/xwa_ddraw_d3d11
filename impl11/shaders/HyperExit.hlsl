@@ -10,9 +10,13 @@
 
 #include "ShaderToyDefs.h"
 
- // The Color Buffer (_shadertoyAuxBuf)
-Texture2D colorTex : register(t0);
-SamplerState colorSampler : register(s0);
+// The Foreground Color Buffer (_shadertoyBuf)
+Texture2D fgColorTex : register(t0);
+SamplerState fgColorSampler : register(s0);
+
+// The Background Color Buffer (_shadertoyAuxBuf)
+Texture2D bgColorTex : register(t1);
+SamplerState bgColorSampler : register(s1);
 
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
 static const float t2 = 2.0;
@@ -173,7 +177,7 @@ vec3 distort(in vec2 uv, in float distortion,
 		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
 		return 0.0;
 
-	vec3 col = colorTex.SampleLevel(colorSampler, uv_scaled, 0).rgb;
+	vec3 col = bgColorTex.SampleLevel(bgColorSampler, uv_scaled, 0).rgb;
 	if (r > fade_t) {
 		fade = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
 		fade *= fade;
@@ -217,19 +221,23 @@ float3 HyperZoom(float2 uv) {
 	float dist_apply[7], dist[7];
 	float factors[7], fade[7], d_scale[7];
 	int iters[7];
-	factors[0] = 900.0; dist[0] = 5.00; dist_apply[0] = 1.0; fade[0] = 1.0;
-	factors[1] = 60.0;  dist[1] = 5.00; dist_apply[1] = 1.0; fade[1] = 1.0;
-	factors[2] = 10.0;  dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
-	factors[3] = 5.0;   dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
-	factors[4] = 3.0;   dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
-	factors[5] = 2.0;   dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
-	factors[6] = 1.5;   dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
+	factors[0] = 40.0; dist[0] = 5.00; dist_apply[0] = 1.0; fade[0] = 1.0;
+	factors[1] = 25.0; dist[1] = 5.00; dist_apply[1] = 1.0; fade[1] = 1.0;
+	factors[2] = 8.0;  dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
+	factors[3] = 5.0;  dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
+	factors[4] = 3.0;  dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
+	factors[5] = 1.5;  dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
+	factors[6] = 1.0;  dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
 	iters[0] = 32; iters[1] = 32; iters[2] = 32;
 	iters[3] = 32; iters[4] = 32; iters[5] = 32;
 	iters[6] = 1;
-	d_scale[0] = 1.0; d_scale[1] = 1.0; d_scale[2] = 0.8;
-	d_scale[3] = 0.8; d_scale[4] = 0.75; d_scale[5] = 0.4;
-	d_scale[6] = 1.0;
+	d_scale[0] = 1.00; 
+	d_scale[1] = 1.00; 
+	d_scale[2] = 0.80;
+	d_scale[3] = 0.80; 
+	d_scale[4] = 0.75; 
+	d_scale[5] = 0.40;
+	d_scale[6] = 0.00;
 
 	// The higher the uv multipler, the smaller the image
 	//fragColor = texture(iChannel0, uv * 3.0 + scr_center);
@@ -319,6 +327,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec2 uv;
 	vec3 streakcol = 0.0;
+	float4 fgcol = fgColorTex.SampleLevel(fgColorSampler, input.uv, 0); // Use this texture to mask the bloom effect
 	float4 bgcol;
 	float bloom = 0.0, white_level;
 
@@ -354,9 +363,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			bloom += white_level;
 		}
 	streakcol /= 9.0;
-	//bloom /= 9.0;
-	bloom = 0.0;
+	bloom /= 9.0;
+	//bloom = 0.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
+	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 
 	/*
 	if (bUseHyperZoom)

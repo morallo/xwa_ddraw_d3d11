@@ -3558,8 +3558,9 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
 	float timeInHyperspace = (float )PlayerDataTable->timeInHyperspace;
-	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
-		(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	//bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
+	//	(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 
 	// Prevent rendering the hyperspace effect multiple times per frame:
 	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
@@ -3604,10 +3605,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max internal time: ~236
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
-		timeInHyperspace = timeInHyperspace / 200.0f; // 200.0f
+		timeInHyperspace = timeInHyperspace / 200.0f;
 		iTime = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
-		//iTime = lerp(2.0f + T2_ZOOM - OVERLAP, 0.0, timeInHyperspace);
-		//iTimeAtHyperExit = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace + 5.0f/200.0f);
 		iTimeAtHyperExit = iTime;
 		break;
 	case HS_POST_HYPER_EXIT_ST:
@@ -3626,11 +3625,13 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 #ifdef HYPER_OVERRIDE
 	iTime = g_fHyperTimeOverride;
 #endif
+	/*
 	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
 		float fGetTime = iTime - T2_ZOOM + T_OVERLAP;
 		log_debug("[DBG] FSM %d, iTime: %0.3f, getTime: %0.3f, bUseHyperZoom: %d, g_iHyperExitPostFrames: %d",
 			g_HyperspacePhaseFSM, iTime, fGetTime, bBGTextureAvailable, g_iHyperExitPostFrames);
 	}
+	*/
 	// DEBUG
 
 	// Render the hyperspace effect:
@@ -3712,8 +3713,12 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 	}
-	// Set the SRV...
-	context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
+	// Set the SRVs...
+	ID3D11ShaderResourceView *srvs[2] = {
+		resources->_shadertoySRV.Get(),
+		resources->_shadertoyAuxSRV.Get(),
+	};
+	context->PSSetShaderResources(0, 2, srvs);
 	// Draw...
 	context->Draw(6, 0);
 	// Handle DirectSBS/SteamVR cases...
@@ -3750,6 +3755,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shadertoyAuxBuf again to re-use in the next step:
+		// BUG: I'm obliterating the shadertoyAuxBuf here, which contains the previous background, I think I need
+		//      to store it somewhere else during hyperspace entry so that the blending can be applied properly
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
 			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
@@ -4335,10 +4342,10 @@ HRESULT Direct3DDevice::Execute(
 								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 						}
 						*/
-					//}
+						//}
 
-					//if (PlayerDataTable->hyperspacePhase == 2)
-					//	RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+						//if (PlayerDataTable->hyperspacePhase == 2)
+						//	RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -4389,21 +4396,20 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_TUNNEL_ST:
 						if (PlayerDataTable->hyperspacePhase == 3) {
-							log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
+							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
 						}
 						break;
 					case HS_HYPER_EXIT_ST:
 						if (PlayerDataTable->hyperspacePhase == 0) {
-							log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
-							g_iHyperExitPostFrames = 1;
+							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
+							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
-							//g_HyperspacePhaseFSM = HS_INIT_ST;
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
-							log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
+							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;
 						}
 						break;
@@ -4423,7 +4429,7 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
-			
+
 					// Resolve the Depth Buffers (we have dual SSAO, so there are two depth buffers)
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
@@ -4452,7 +4458,7 @@ HRESULT Direct3DDevice::Execute(
 
 					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
-					if (g_HyperspacePhaseFSM != HS_INIT_ST)
+					if (g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					{
 						g_bSwitchedToPlayerObject = true;
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
@@ -4473,15 +4479,13 @@ HRESULT Direct3DDevice::Execute(
 						*/
 						// DEBUG
 					}
-					
+
 					// Render the hyperspace effect *after* the original hyperspace effect has already finished.
 #ifdef HYPER_OVERRIDE
 					// DEBUG
 					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
-					// DEBUG
+						// DEBUG
 #else
-					//if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST ||
-					//	(g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST && !g_bHyperspaceEffectRenderedOnCurrentFrame))
 					if (g_HyperspacePhaseFSM != HS_INIT_ST)
 #endif
 					{
@@ -4489,7 +4493,7 @@ HRESULT Direct3DDevice::Execute(
 						//				  shadertoyBuf has a copy of the cockpit
 
 						// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-						// shadertoyAuxBuf, so it's populated and we're no longer in the original hyperspace effect.
+						// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
 						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					}
 				}
@@ -4506,368 +4510,371 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				// Capture the bounds for the left sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
+				// Capture the bounds for all the Dynamic Cockpit Elements
 				{
-					if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the left sensor:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Left Radar Region captured");
-
-						// Get the limits for the left radar:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the laser recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LASER_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the shield recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELD_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
-						//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	box.x0, box.y0, box.x1, box.y1);
-						//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
-						//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
-						//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
-						//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
-					}
-				}
-
-				// Capture the bounds for the right sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
-				{
-					if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Right Radar Region limits captured");
-
-						// Get the limits for the right radar:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_RADAR_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the engine recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[ENGINE_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the beam recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the shields:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
-				{
-					if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Shields Region limits captured");
-
-						// Get the limits for the shields:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the tractor beam:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
-				{
-					if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Beam Region limits captured");
-
-						// Get the limits for the shields:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the targeting computer:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Target Comp Region limits captured");
-
-						// Get the limits for the targeting computer:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, left side:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, left side:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, both sides:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the dual lasers:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the B-Wing lasers
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[B_WING_LASERS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the TIE-Defender lasers
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the left/right message boxes:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
-				{
-					//if (lastTextureSelected->is_DC_BorderMsgSrc ||
-					//	)
-
-					DCHUDRegion *dcSrcBoxL = &g_DCHUDRegions.boxes[LEFT_MSG_HUD_BOX_IDX];
-					DCHUDRegion *dcSrcBoxR = &g_DCHUDRegions.boxes[RIGHT_MSG_HUD_BOX_IDX];
-					if (!dcSrcBoxL->bLimitsComputed || !dcSrcBoxR->bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = NULL;
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						bool bLeft = false;
-						float midX, minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box = { 0 };
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						// This HUD is used for both the left and right message boxes, so we need to check
-						// which one is being rendered
-						midX = (minX + maxX) / 2.0f;
-						if (midX < g_fCurInGameWidth / 2.0f && !dcSrcBoxL->bLimitsComputed) {
-							bLeft = true;
-							dcSrcBox = dcSrcBoxL;
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_MSG_DC_ELEM_SRC_IDX];
-							//log_debug("[DBG] [DC] Left Msg Region captured");
-						}
-						else if (midX > g_fCurInGameWidth / 2.0f && !dcSrcBoxR->bLimitsComputed) {
-							bLeft = false;
-							dcSrcBox = dcSrcBoxR;
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_MSG_DC_ELEM_SRC_IDX];
-							//log_debug("[DBG] [DC] Right Msg Region captured");
-						}
-
-						if (dcSrcBox != NULL) {
+						if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
 							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
 							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-							//if (bLeft) DisplayBox("LEFT MSG: ", box); else DisplayBox("RIGHT MSG: ", box);
 							// Store the pixel coordinates
 							dcSrcBox->coords = box;
 							// Compute and store the erase coordinates for this HUD Box
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Left Radar Region captured");
 
-							// Get the limits for the text contents itself
+							// Get the limits for the left radar:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the laser recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LASER_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the shield recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELD_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
+							//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	box.x0, box.y0, box.x1, box.y1);
+							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
+							//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
+							//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
+							//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
+						}
+					}
+
+					// Capture the bounds for the right sensor:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
+					{
+						if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Right Radar Region limits captured");
+
+							// Get the limits for the right radar:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_RADAR_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the engine recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[ENGINE_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the beam recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_RECHARGE_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 						}
 					}
-				}
 
-				// Capture the bounds for the top-left bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the shields:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Top Left Region captured");
+						if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Shields Region limits captured");
 
-						// Get the limits for Speed & Throttle
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for Missiles
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+							// Get the limits for the shields:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
 					}
-				}
 
-				// Capture the bounds for the top-right bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the tractor beam:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Top Right Region captured");
+						if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Beam Region limits captured");
 
-						// Get the limits for Name & Time
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NAME_TIME_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+							// Get the limits for the shields:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
 
-						// Get the limits for Number of Crafts
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+					// Capture the bounds for the targeting computer:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Target Comp Region limits captured");
+
+							// Get the limits for the targeting computer:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, left side:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, left side:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, both sides:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the dual lasers:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the B-Wing lasers
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[B_WING_LASERS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the TIE-Defender lasers
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
+
+					// Capture the bounds for the left/right message boxes:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
+					{
+						//if (lastTextureSelected->is_DC_BorderMsgSrc ||
+						//	)
+
+						DCHUDRegion *dcSrcBoxL = &g_DCHUDRegions.boxes[LEFT_MSG_HUD_BOX_IDX];
+						DCHUDRegion *dcSrcBoxR = &g_DCHUDRegions.boxes[RIGHT_MSG_HUD_BOX_IDX];
+						if (!dcSrcBoxL->bLimitsComputed || !dcSrcBoxR->bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = NULL;
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							bool bLeft = false;
+							float midX, minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box = { 0 };
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							// This HUD is used for both the left and right message boxes, so we need to check
+							// which one is being rendered
+							midX = (minX + maxX) / 2.0f;
+							if (midX < g_fCurInGameWidth / 2.0f && !dcSrcBoxL->bLimitsComputed) {
+								bLeft = true;
+								dcSrcBox = dcSrcBoxL;
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_MSG_DC_ELEM_SRC_IDX];
+								//log_debug("[DBG] [DC] Left Msg Region captured");
+							}
+							else if (midX > g_fCurInGameWidth / 2.0f && !dcSrcBoxR->bLimitsComputed) {
+								bLeft = false;
+								dcSrcBox = dcSrcBoxR;
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_MSG_DC_ELEM_SRC_IDX];
+								//log_debug("[DBG] [DC] Right Msg Region captured");
+							}
+
+							if (dcSrcBox != NULL) {
+								InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+								InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+								//if (bLeft) DisplayBox("LEFT MSG: ", box); else DisplayBox("RIGHT MSG: ", box);
+								// Store the pixel coordinates
+								dcSrcBox->coords = box;
+								// Compute and store the erase coordinates for this HUD Box
+								ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+									dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+								dcSrcBox->bLimitsComputed = true;
+
+								// Get the limits for the text contents itself
+								dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+									uv_minmax, box, dcElemSrcBox->uv_coords);
+								dcElemSrcBox->bComputed = true;
+							}
+						}
+					}
+
+					// Capture the bounds for the top-left bracket:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Top Left Region captured");
+
+							// Get the limits for Speed & Throttle
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Missiles
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
+
+					// Capture the bounds for the top-right bracket:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Top Right Region captured");
+
+							// Get the limits for Name & Time
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NAME_TIME_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Number of Crafts
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
 					}
 				}
 
@@ -5144,14 +5151,6 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 				}
-
-				/*
-				if (g_HyperspacePhaseFSM != HS_INIT_ST) {
-					// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
-					RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-					goto out; // Don't render the hyperspace streaks anymore
-				}
-				*/
 
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)

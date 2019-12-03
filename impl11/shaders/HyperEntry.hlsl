@@ -10,9 +10,13 @@
 
 #include "ShaderToyDefs.h"
 
-// The Color Buffer
-Texture2D colorTex : register(t0);
-SamplerState colorSampler : register(s0);
+// Color buffer (foreground/cockpit)
+Texture2D fgColorTex : register(t0);
+SamplerState fgColorSampler : register(s0);
+
+// Color buffer (background)
+Texture2D bgColorTex : register(t1);
+SamplerState bgColorSampler : register(s1);
 
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
 static const float t2 = 2.0;
@@ -165,7 +169,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec3 streakcol = 0.0;
 	float time = getTime();
-	float4 bgcol = colorTex.Sample(colorSampler, input.uv);
+	float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
+	float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
 	float bloom = 0.0, white_level;
 
 	output.pos3D = 0;
@@ -181,8 +186,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	// Fade the background color to black
-	bgcol = lerp(bgcol, 0, 1.1 * fract(time / t2));
+	// Fade the background color
+	//bgcol = lerp(bgcol, 0.75 * bgcol, fract(time / t2));
 
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
@@ -192,12 +197,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	streakcol /= 9.0;
 	bloom /= 9.0;
 	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
+	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 	
 	// Output to screen
 	fragColor = vec4(streakcol, 1.0);
 	float lightness = dot(0.333, fragColor.rgb);
 	// Mix the background color with the streaks
 	fragColor = lerp(bgcol, fragColor, lightness);
+
+	// DEBUG
+	//fragColor = bgcol;
+	// DEBUG
 
 	output.color = fragColor;
 	return output;
