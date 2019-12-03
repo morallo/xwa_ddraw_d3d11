@@ -3509,7 +3509,7 @@ void DisplayBox(char *name, Box box) {
 }
 
 /*
- If the game is post-exiting hyperspace, this function will select shaderToyBuf
+ If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
 inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye = false) {
@@ -3530,7 +3530,7 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
 	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
 	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
-	if ((g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST) && bIsCockpit)
+	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsCockpit)
 		// If we reach this point, then the game is in post-exit-hyperspace state AND this is a cockpit texture
 		return shadertoyRTV;
 	else
@@ -3549,17 +3549,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
 	/*
-	TODO: Identify the draw call where we switch between rendering external objects to
-	      rendering the cockpit/HUD. This should be a single draw call per frame. If the
-		  cockpit is not displayed, then identify the call right before we start rendering
-		  the HUD.
-
-		  If the current FSM state is HS_POST_HYPER_EXIT, then this draw call should be hijacked
-		  to render the post-hyper-exit effect.
-
-		  Look at this video:
-		  https://youtu.be/GLZoDkbTakg?t=197
-
+	  Jedi Fallen Order sample hyperspace entry effect:
+	  https://youtu.be/GLZoDkbTakg?t=197
 	*/
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -3567,7 +3558,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
 	float timeInHyperspace = (float )PlayerDataTable->timeInHyperspace;
-	bool bUseHyperZoom = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
+		(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 
 	// Prevent rendering the hyperspace effect multiple times per frame:
 	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
@@ -3637,7 +3629,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
 		float fGetTime = iTime - T2_ZOOM + T_OVERLAP;
 		log_debug("[DBG] FSM %d, iTime: %0.3f, getTime: %0.3f, bUseHyperZoom: %d, g_iHyperExitPostFrames: %d",
-			g_HyperspacePhaseFSM, iTime, fGetTime, bUseHyperZoom, g_iHyperExitPostFrames);
+			g_HyperspacePhaseFSM, iTime, fGetTime, bBGTextureAvailable, g_iHyperExitPostFrames);
 	}
 	// DEBUG
 
@@ -3664,7 +3656,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iMouse[0] = 0;
 	g_ShadertoyBuffer.iMouse[1] = 0;
 	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.bUseHyperZoom = bUseHyperZoom;
+	g_ShadertoyBuffer.bBGTextureAvailable = bBGTextureAvailable;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	resources->InitPSConstantBufferShaderToy(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -3731,7 +3723,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// Second render: compose the cockpit over the zoomed background if we're post-exiting
 	// hyperspace
 	//const int CAPTURE_FRAME = 111;
-	if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
+	//if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
 	//if (false)
 	{
 		resources->InitPixelShader(resources->_hyperZoomComposePS);
@@ -4383,17 +4375,16 @@ HRESULT Direct3DDevice::Execute(
 					case HS_HYPER_ENTER_ST:
 						if (PlayerDataTable->hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
-
 							// Clear the aux buffer so that we don't display the old background when exiting hyperspace
 							// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the shaderToyBuf RTV 
 							//		 and then resolve it to the aux buf...
 							//       I should fix this later by creating an RTV for the shaderToyAuxBuf directly
-							context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
-							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);
-							if (g_bUseSteamVR) {
-								context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_shadertoyBufR, 0, BACKBUFFER_FORMAT);
-							}
+							//context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+							//context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);
+							//if (g_bUseSteamVR) {
+							//	context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+							//	context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_shadertoyBufR, 0, BACKBUFFER_FORMAT);
+							//}
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
@@ -4461,7 +4452,7 @@ HRESULT Direct3DDevice::Execute(
 
 					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
-					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_INIT_ST)
+					if (g_HyperspacePhaseFSM != HS_INIT_ST)
 					{
 						g_bSwitchedToPlayerObject = true;
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
@@ -4489,10 +4480,14 @@ HRESULT Direct3DDevice::Execute(
 					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
 					// DEBUG
 #else
-					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST ||
-						(g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST && !g_bHyperspaceEffectRenderedOnCurrentFrame))
+					//if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST ||
+					//	(g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST && !g_bHyperspaceEffectRenderedOnCurrentFrame))
+					if (g_HyperspacePhaseFSM != HS_INIT_ST)
 #endif
 					{
+						// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+						//				  shadertoyBuf has a copy of the cockpit
+
 						// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 						// shadertoyAuxBuf, so it's populated and we're no longer in the original hyperspace effect.
 						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
@@ -4992,7 +4987,7 @@ HRESULT Direct3DDevice::Execute(
 				// requires changing the alpha blend state; but if I modify that, chances are something else will
 				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
 				// to be a few frames after exiting hyperspace.
-				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
+				if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
 					goto out;
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
@@ -5135,7 +5130,7 @@ HRESULT Direct3DDevice::Execute(
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_PSCBuffer.bIsHyperspaceStreak = 1;
 							// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
-							RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 							goto out; // Don't render the hyperspace streaks anymore
 						}
 
@@ -5144,7 +5139,7 @@ HRESULT Direct3DDevice::Execute(
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							g_PSCBuffer.bIsHyperspaceAnim = 1;
-							RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 							goto out; // Don't render the original hyperspace tunnel
 						}
 					}

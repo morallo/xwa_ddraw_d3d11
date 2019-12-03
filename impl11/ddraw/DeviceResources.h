@@ -226,7 +226,7 @@ typedef struct ShadertoyCBStruct {
 	float iTime;
 	// 16 bytes
 	float iResolution[2];
-	int bUseHyperZoom, unused0;    // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	int bBGTextureAvailable, unused0;    // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 48 bytes

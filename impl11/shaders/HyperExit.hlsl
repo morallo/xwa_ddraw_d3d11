@@ -369,7 +369,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	uv = fragCoord / iResolution.xy - scr_center;
 	// Apply the zoom effect
 	bgcol = 0.0;
-	if (bUseHyperZoom) bgcol.rgb = HyperZoom(uv);
+	if (bBGTextureAvailable) bgcol.rgb = HyperZoom(uv);
 	bgcol.a = 1.0;
 
 	// Output to screen
