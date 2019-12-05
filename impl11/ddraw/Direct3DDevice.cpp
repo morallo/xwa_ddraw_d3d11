@@ -241,7 +241,7 @@ unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
-const int MAX_POST_HYPER_EXIT_FRAMES = 7;
+const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 // DEBUG
@@ -289,8 +289,8 @@ bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolv
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
-Vector4 g_LightVector[2];
-Vector4 g_LightColor[2];
+Vector4 g_LightVector[2], g_TempLightVector[2];
+Vector4 g_LightColor[2], g_TempLightColor[2];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -3557,10 +3557,12 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	auto& context = resources->_d3dDeviceContext;
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
+	static float fLightRotationAngle = 0.0f;
 	float timeInHyperspace = (float )PlayerDataTable->timeInHyperspace;
 	//bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
 	//	(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	float fShakeAmplitude = 0.0f;
 
 	// Prevent rendering the hyperspace effect multiple times per frame:
 	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
@@ -3578,7 +3580,13 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 
 	const float T2_ZOOM = 1.5f;
-	const float T_OVERLAP = 1.0f;
+	const float T_OVERLAP = 1.5f;
+	fLightRotationAngle -= 25.0f;
+
+	static float fXRotationAngle = 0.0f, fYRotationAngle = 0.0f, fZRotationAngle = 0.0f;
+	fXRotationAngle += 25.0f;
+	fYRotationAngle += 30.0f;
+	fZRotationAngle += 35.0f;
 	
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable->hyperspacePhase) 
@@ -3591,6 +3599,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitPixelShader(resources->_hyperEntryPS);
 		timeInHyperspace = timeInHyperspace / 800.0f;
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
+		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
 		break;
 	// Travelling through Hyperspace
 	case HS_HYPER_TUNNEL_ST:
@@ -3599,6 +3608,13 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitPixelShader(resources->_hyperTunnelPS);
 		timeInHyperspace = timeInHyperspace / 1290.0f;
 		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
+		// Rotate the lights while travelling through the hyper-tunnel:
+		for (int i = 0; i < 2; i++) {
+			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
+			g_LightVector[i].y = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
+			g_LightVector[i].z = 0.0f;
+		}
+		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		break;
 	// Exiting Hyperspace
 	case HS_HYPER_EXIT_ST:
@@ -3608,6 +3624,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		timeInHyperspace = timeInHyperspace / 200.0f;
 		iTime = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
 		iTimeAtHyperExit = iTime;
+		fShakeAmplitude = lerp(7.0f, 0.0f, timeInHyperspace);
 		break;
 	case HS_POST_HYPER_EXIT_ST:
 		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
@@ -3618,6 +3635,20 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
 		break;
 	}
+
+	// Shake the cockpit a little bit:
+	//float fShakeX = (float)(rand() / RAND_MAX) - 0.5f;
+	//float fShakeZ = (float)(rand() / RAND_MAX) - 0.5f;
+	float fShakeX = cos(fXRotationAngle * 0.01745f);
+	float fShakeZ = sin(fZRotationAngle * 0.01745f);
+	float fShakeY = cos(fYRotationAngle * 0.01745f);;
+	int iShakeX = (int)(fShakeAmplitude * fShakeX);
+	int iShakeY = (int)(fShakeAmplitude * fShakeY);
+	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
+	PlayerDataTable[0].cockpitXReference = iShakeX;
+	PlayerDataTable[0].cockpitYReference = iShakeY;
+	PlayerDataTable[0].cockpitZReference = iShakeZ;
+	//PlayerDataTable[0].cockpitXReference = (int)(4.0f * fShakeAmplitude * fShakeX);
 
 	// DEBUG Test the hyperzoom
 	//iTime += 0.1f;
@@ -3702,16 +3733,16 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->OMSetRenderTargets(5, rtvs, NULL);
 	}
 	else {
-		ID3D11RenderTargetView *rtvs[5] = {
+		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 			resources->_renderTargetViewBloomMask.Get(),
-			g_bIsPlayerObject || g_bDisableDualSSAO ?
+			/*g_bIsPlayerObject || g_bDisableDualSSAO ?
 				resources->_renderTargetViewDepthBuf.Get() :
 				resources->_renderTargetViewDepthBuf2.Get(),
 			resources->_renderTargetViewNormBuf.Get(),
-			resources->_renderTargetViewSSAOMask.Get()
+			resources->_renderTargetViewSSAOMask.Get()*/
 		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
+		context->OMSetRenderTargets(2, rtvs, NULL);
 	}
 	// Set the SRVs...
 	ID3D11ShaderResourceView *srvs[2] = {
@@ -4382,22 +4413,26 @@ HRESULT Direct3DDevice::Execute(
 					case HS_HYPER_ENTER_ST:
 						if (PlayerDataTable->hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
-							// Clear the aux buffer so that we don't display the old background when exiting hyperspace
-							// HACK: I didn't create an RTV for the shaderToyAuxBuf, so let's clear the shaderToyBuf RTV 
-							//		 and then resolve it to the aux buf...
-							//       I should fix this later by creating an RTV for the shaderToyAuxBuf directly
-							//context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
-							//context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_shadertoyBuf, 0, BACKBUFFER_FORMAT);
-							//if (g_bUseSteamVR) {
-							//	context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
-							//	context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_shadertoyBufR, 0, BACKBUFFER_FORMAT);
-							//}
+							// We're about to enter the hyperspace tunnel, change the color of the lights:
+							float fade = 1.0f;
+							for (int i = 0; i < 2; i++, fade *= 0.5f) {
+								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
+								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
+								g_LightColor[i].x = fade * 0.4f;
+								g_LightColor[i].y = fade * 0.5f;
+								g_LightColor[i].z = fade * 0.8f;
+							}
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
 						if (PlayerDataTable->hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+							// Restore the previous color of the lights
+							for (int i = 0; i < 2; i++) {
+								memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
+								memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
+							}
 						}
 						break;
 					case HS_HYPER_EXIT_ST:

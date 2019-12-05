@@ -5,10 +5,10 @@
 
 #include "ShaderToyDefs.h"
 
-static const float3 blue_color = float3(0.15, 0.35, 0.9);
-static const float period = 2.7;
+static const float3 blue_color = float3(0.15, 0.35, 0.8);
+static const float period = 2.5; // 2.7;
 static const float rotation_speed = 2.3;
-static const float speed = 5.0;
+static const float speed = 5.5; // 5.0;
 static const float t2 = 4.0;
 
 // The Foreground Color Buffer (_shadertoyBuf)
@@ -76,9 +76,6 @@ struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
 	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -86,15 +83,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-
+	
 	vec2 q = fragCoord.xy / iResolution.xy;
 	vec2 qc = 2.0 * q - 1.0;
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
 	vec4 col = vec4(0, 0, 0, 1);
-
-	output.pos3D = 0;
-	output.normal = 0;
-	output.ssaoMask = 1;
 	output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges

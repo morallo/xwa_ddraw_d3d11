@@ -3045,11 +3045,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		resources->InitViewport(&viewport);
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 		// so that it can be used as an SRV
-		ID3D11RenderTargetView *rtvs[4] = {
+		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
-			NULL, NULL, NULL
+			NULL, NULL, NULL, NULL,
 		};
-		context->OMSetRenderTargets(4, rtvs, NULL);
+		context->OMSetRenderTargets(5, rtvs, NULL);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, DXGI_FORMAT_B8G8R8A8_UNORM);
@@ -3311,9 +3311,9 @@ out1:
 			resources->InitViewport(&viewport);
 			// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
 			// so that it can be used as an SRV
-			ID3D11RenderTargetView *rtvs[4] = {
+			ID3D11RenderTargetView *rtvs[5] = {
 				resources->_renderTargetViewR.Get(),
-				NULL, NULL, NULL
+				NULL, NULL, NULL, NULL
 			};
 			context->OMSetRenderTargets(4, rtvs, NULL);
 			// Resolve offscreenBuf
@@ -3665,7 +3665,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Resolve the Bloom mask before the SSAO and Bloom effects.
 			if (g_bReshadeEnabled) {
-				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
+				// Resolve whatever is in the _offscreenBufferBloomMask into _offscreenBufferAsInputBloomMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
@@ -3811,8 +3811,11 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				int HyperspacePhase = PlayerDataTable->hyperspacePhase;
-				bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
+				//int HyperspacePhase = PlayerDataTable->hyperspacePhase;
+				//bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
+				bool bHyperStreaks = g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST ||
+					g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST ||
+					g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST;
 
 				// DEBUG
 				//static int CaptureCounter = 1;

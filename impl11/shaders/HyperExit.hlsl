@@ -21,7 +21,7 @@ SamplerState bgColorSampler : register(s1);
 static const vec3 blue_col = vec3(0.5, 0.7, 1);
 static const float t2 = 2.0;
 static const float t2_zoom = 1.5;
-static const float t_overlap = 1.0;
+static const float t_overlap = 1.5;
 
 inline float getTime() {
 	//return mod(iTime, t2);
@@ -131,8 +131,11 @@ vec3 pixelVal(vec2 coord, out float bloom)
 	float white_level = smoothstep(0.0, 1.0, noiseVal);
 	white_level *= white_level;
 	bloom = white_level;
+	//bloom = white_level * (1.0 - t);
 
 	col += intensity * blue_col * noiseVal + white_level;
+	//bloom = dot(0.333, col);
+	//bloom = noiseVal; // +white_level;
 
 	///////////////////////////////////////
 	// Add the white disk in the center
@@ -196,9 +199,6 @@ struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
 	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
 };
 
 float3 HyperZoom(float2 uv) {
@@ -296,10 +296,6 @@ PixelShaderOutput mainZoom(PixelShaderInput input)
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-
-	output.pos3D = 0;
-	output.normal = 0;
-	output.ssaoMask = 1;
 	output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges
@@ -331,9 +327,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 bgcol;
 	float bloom = 0.0, white_level;
 
-	output.pos3D = 0;
-	output.normal = 0;
-	output.ssaoMask = 1;
+	//output.pos3D = 0;
+	//output.normal = 0;
+	//output.ssaoMask = 1;
 	output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges
@@ -357,6 +353,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	*/
 
 	// Render the streaks
+	bloom = 0.0;
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) {
 			streakcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
