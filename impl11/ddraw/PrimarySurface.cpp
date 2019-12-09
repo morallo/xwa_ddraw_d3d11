@@ -4006,6 +4006,25 @@ HRESULT PrimarySurface::Flip(
 			animTickY();
 			animTickZ();
 
+			// Discarded: yaw, yaw2, pitch, pitch2, cockpitCameraYaw/Pitch
+			/*
+			log_debug("[DBG] yp: %0.3f, %0.3f",
+				PlayerDataTable->cam  / 65535.0f * 360.f,
+				PlayerDataTable->cockpitCameraYaw / 65535.0f * 360.f
+				);
+			*/
+			
+			/*
+			if (PlayerDataTable->gunnerTurretActive)
+			{
+				short *Turret = (short *)(0x8B94E0 + 0x21E);
+				log_debug("[DBG] F: [%0.3f, %0.3f, %0.3f], R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f]",
+					Turret[0] / 32767.0f, Turret[1] / 32767.0f, Turret[2] / 32767.0f,
+					Turret[3] / 32767.0f, Turret[4] / 32767.0f, Turret[5] / 32767.0f,
+					Turret[6] / 32767.0f, Turret[7] / 32767.0f, Turret[8] / 32767.0f);
+			}
+			*/
+
 			// Enable 6dof
 			if (g_bUseSteamVR) {
 				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;

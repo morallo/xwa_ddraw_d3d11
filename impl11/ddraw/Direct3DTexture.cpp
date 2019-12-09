@@ -302,6 +302,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
 	this->is_CockpitTex = false;
+	this->is_GunnerTex = false;
 	this->is_Exterior = false;
 	this->is_HyperspaceAnim = false;
 	this->is_FlatLightEffect = false;
@@ -623,6 +624,10 @@ void Direct3DTexture::TagTexture() {
 			this->is_CockpitTex = true;
 		}
 
+		if (strstr(surface->_name, "Gunner") != NULL) {
+			this->is_GunnerTex = true;
+		}
+
 		if (strstr(surface->_name, "Exterior") != NULL) {
 			this->is_Exterior = true;
 		}
@@ -756,6 +761,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
+	this->is_GunnerTex = d3dTexture->is_GunnerTex;
 	this->is_Exterior = d3dTexture->is_Exterior;
 	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;

@@ -99,7 +99,7 @@ copy /Y $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Star Wars X
     </Link>
     <PostBuildEvent>
       <Command>copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance"
-copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance - Yavin"</Command>
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

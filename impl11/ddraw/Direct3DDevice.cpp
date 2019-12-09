@@ -1925,6 +1925,56 @@ bool LoadSSAOParams() {
 	return true;
 }
 
+bool LoadHyperParams() {
+	log_debug("[DBG] Loading Hyperspace params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	// Provide some default values in case they are missing in the config file
+	g_ShadertoyBuffer.y_center = -0.2f;
+	g_ShadertoyBuffer.viewMat.identity();
+	g_ShadertoyBuffer.bDisneyStyle = 0;
+
+	try {
+		error = fopen_s(&file, "./hyperspace.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hyperspace.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hyperspace.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "y_center") == 0) {
+				g_ShadertoyBuffer.y_center = fValue;
+			}
+			else if (_stricmp(param, "disney_style") == 0) {
+				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
 	log_debug("[DBG] Loading view params...");
@@ -2138,6 +2188,8 @@ next:
 	LoadBloomParams();
 	// Load the SSAO params
 	LoadSSAOParams();
+	// Load the Hyperspace params
+	LoadHyperParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3597,7 +3649,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max internal time: ~500
 		// Max shader time: 2.0 (t2)
 		resources->InitPixelShader(resources->_hyperEntryPS);
-		timeInHyperspace = timeInHyperspace / 800.0f;
+		timeInHyperspace = timeInHyperspace / 550.0f;
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
 		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
 		break;
@@ -4295,9 +4347,10 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
 				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
 				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
+				bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
 				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
-				g_bIsPlayerObject = bIsCockpit || bIsExterior;
+				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
 				//if (!g_bSwitchedToPlayerObject) {
 				//	g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
 					//if (g_bSwitchedToPlayerObject) {
@@ -5276,7 +5329,7 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[5] = {
 							//resources->_renderTargetView.Get(),
-							SelectOffscreenBuffer(bIsCockpit),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner),
 							resources->_renderTargetViewBloomMask.Get(),
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),

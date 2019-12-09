@@ -226,10 +226,17 @@ typedef struct ShadertoyCBStruct {
 	float iTime;
 	// 16 bytes
 	float iResolution[2];
-	int bBGTextureAvailable, unused0;    // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	int bBGTextureAvailable; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	float y_center;
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 48 bytes
+	Matrix3 viewMat; // The view rotation matrix
+	// 3*3 = 9 elements, 9 * 4 = 36 bytes
+	// 48 + 36 = 84 bytes
+	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
+	float unused1, unused2;
+	// 96 bytes
 } ShadertoyCBuffer;
 
 /* 3D Constant Buffers */

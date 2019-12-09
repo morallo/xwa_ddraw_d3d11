@@ -13,6 +13,8 @@
 
 #define mod(x, y) (x % y)
 
+#define mat3 float3x3
+
 #define PI 3.14159265
 #define ATAN5 1.37340076695
 #define TAU 6.28318
@@ -24,9 +26,15 @@ cbuffer ConstantBuffer : register(b7)
 	float  iTime;
 	// 16 bytes
 	float2 iResolution;
-	uint bBGTextureAvailable, unused0; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	uint bBGTextureAvailable; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	float y_center; 
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 48 bytes
+	float3x3 mat;
+	// 84 bytes
+	uint bDisneyStyle;
+	float unused[2];
+	// 96 bytes
 };
 
