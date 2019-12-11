@@ -3657,6 +3657,7 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		Vector4 X(1,  0,  0,  0);
 		Vector4 Y(0,  1,  0,  0);
 		Vector4 Z(0,  0, -1,  0);
+
 		X = viewMat * X;
 		Y = viewMat * Y;
 		Z = viewMat * Z;
@@ -3669,9 +3670,10 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 			Z.x, Z.y, Z.z, 0.0,
 			0.0, 0.0, 0.0, 1.0
 		);
+		Matrix4 rotX;
+		rotX.rotateX(90.0);
 
-
-		g_ShadertoyBuffer.viewMat = finalMat;
+		g_ShadertoyBuffer.viewMat = rotX * finalMat;
 	} else {
 		/*
 		Camera Looking forward (?)
