@@ -231,12 +231,12 @@ typedef struct ShadertoyCBStruct {
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 48 bytes
-	Matrix3 viewMat; // The view rotation matrix
-	// 3*3 = 9 elements, 9 * 4 = 36 bytes
-	// 48 + 36 = 84 bytes
+	Matrix4 viewMat; // The view rotation matrix
+	// 4*4 = 16 elements, 16 * 4 = 64 bytes
+	// 48 + 64 = 112 bytes
 	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
-	float unused1, unused2;
-	// 96 bytes
+	float unused[3];
+	// 128 bytes
 } ShadertoyCBuffer;
 
 /* 3D Constant Buffers */
@@ -392,7 +392,7 @@ public:
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
-	void InitPSConstantBufferShaderToy(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -606,7 +606,7 @@ public:
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
-	ComPtr<ID3D11Buffer> _hyperspaceStarConstantBuffer;
+	ComPtr<ID3D11Buffer> _hyperspaceConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;

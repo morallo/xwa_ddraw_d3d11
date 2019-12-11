@@ -244,10 +244,11 @@ float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value i
 const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
+Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
 // DEBUG
-//#define HYPER_OVERRIDE
-float g_fHyperTimeOverride = 2.5f; // Only used to debug the post-hyper-exit effect. I should remove this later.
-int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
+#define HYPER_OVERRIDE
+float g_fHyperTimeOverride = 1.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
+int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 // DEBUG
 
 char g_sCurrentCockpit[128] = { 0 };
@@ -1931,7 +1932,7 @@ bool LoadHyperParams() {
 	int error = 0, line = 0;
 
 	// Provide some default values in case they are missing in the config file
-	g_ShadertoyBuffer.y_center = -0.2f;
+	g_ShadertoyBuffer.y_center = 0.15f;
 	g_ShadertoyBuffer.viewMat.identity();
 	g_ShadertoyBuffer.bDisneyStyle = 0;
 
@@ -2240,7 +2241,7 @@ void DumpMatrix4(FILE *file, const Matrix4 &mat) {
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[0], mat[4], mat[8], mat[12]);
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[1], mat[5], mat[9], mat[13]);
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[2], mat[6], mat[10], mat[14]);
-	fprintf(file, " %0.6f, %0.6f, %0.6f, %0.6f\n", mat[3], mat[7], mat[11], mat[15]);
+	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[3], mat[7], mat[11], mat[15]);
 }
 
 void ShowMatrix4(const Matrix4 &mat, char *name) {
@@ -3590,11 +3591,189 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 		return regularRTV;
 }
 
+void Direct3DDevice::GetHyperspaceViewMatrix() {
+	if (PlayerDataTable->gunnerTurretActive)
+	{
+		// This is what the matrix looks like when looking front:
+		// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
+		short *Turret = (short *)(0x8B94E0 + 0x21E);
+		float factor = 32768.0f;
+		Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
+		Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
+		Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
+		/*
+		Matrix4 viewMat(
+			// X-axis			  Y-axis					Z-axis
+			Turret[6] / 32768.0f, Turret[0] / 32768.0f, Turret[3] / 32768.0f, 0.0,
+			Turret[7] / 32768.0f, Turret[1] / 32768.0f, Turret[4] / 32768.0f, 0.0,
+			Turret[8] / 32768.0f, Turret[2] / 32768.0f, Turret[5] / 32768.0f, 0.0,
+			0.0, 0.0, 0.0, 1.0
+		);
+		*/
+
+		/*
+		Matrix4 viewMat(
+			// X-axis			  Y-axis					Z-axis
+			Turret[3] / 32768.0f, Turret[6] / 32768.0f, Turret[0] / 32768.0f, 0.0,
+			Turret[4] / 32768.0f, Turret[7] / 32768.0f, Turret[1] / 32768.0f, 0.0,
+			Turret[5] / 32768.0f, Turret[8] / 32768.0f, Turret[2] / 32768.0f, 0.0,
+			0.0, 0.0, 0.0, 1.0
+		);
+		*/
+
+		// Pointing straight at the sun or "straight up":
+		// [4344] [DBG] F: [-0.015, -0.003, 1.000], R: [0.000, 1.000, 0.002], U: [-1.000, 0.000, -0.015]
+		// [12316] [DBG] F: [-0.004, 0.146, 0.989], R: [0.000, 0.989, -0.146], U: [-1.000, -0.000, -0.004]
+		// Pointing up again. ship looking at 90 to the right:
+		// [12316] [DBG] F: [0.020, 0.001, 0.999], R: [0.984, -0.177, -0.020], U: [0.177, 0.984, -0.004]
+		// Pointing up again, ship looking at 45 in the horizon:
+		// [12316] [DBG] F: [0.004, 0.061, 0.998], R: [0.691, 0.721, -0.047], U: [-0.723, 0.690, -0.039]
+		// Pointing up again; ship looking backwards:
+		// [12316] [DBG] F: [0.040, -0.013, 0.999], R: [-0.030, -0.999, -0.011], U: [0.998, -0.030, -0.040]
+		// Pointing up again, ship looking -90 left:
+		// [12316] [DBG] F: [-0.060, 0.003, 0.998], R: [-0.993, 0.097, -0.060], U: [-0.097, -0.995, -0.002]
+
+		// Pointing forward:
+		// [12316] [DBG] F: [0.001, 0.996, 0.076], R: [0.090, 0.076, -0.992], U: [-0.995, 0.008, -0.090]
+		// Pointing right:
+		// [12316][DBG] F: [0.992, -0.101, 0.071], R : [0.069, -0.028, -0.997], U : [0.102, 0.994, -0.021]
+		// Pointing backwards:
+		// [12316] [DBG] F: [-0.019, -0.992, -0.116], R: [-0.179, -0.110, 0.977], U: [-0.983, 0.039, -0.176]
+		// Pointing right because the ship rolled 90 deg right:
+		// [12316] [DBG] F: [0.974, 0.022, 0.221], R: [-0.002, 0.995, -0.089], U: [-0.222, 0.087, 0.970]
+		// Pointing left because the ship rolled 90 deg left:
+		// [12316] [DBG] F: [-0.998, 0.000, 0.043], R: [-0.004, 0.995, -0.090], U: [-0.043, -0.090, -0.995]
+
+		// Ship facing down from starting position, so that turret looks straight ahead:
+		// [16224][DBG] F: [0.000, 0.997, 0.069], R : [0.000, 0.069, -0.997], U : [-1.000, 0.000, 0.000]
+
+
+		Matrix4 viewMat(
+			 R.x,  R.y,  R.z,  0.0,
+			 U.x,  U.y,  U.z,  0.0,
+			 F.x,  F.y,  F.z,  0.0,
+			 0.0,  0.0,  0.0,  1.0
+		);
+		Vector4 X(1,  0,  0,  0);
+		Vector4 Y(0,  1,  0,  0);
+		Vector4 Z(0,  0, -1,  0);
+		X = viewMat * X;
+		Y = viewMat * Y;
+		Z = viewMat * Z;
+		//log_debug("[DBG] X: [%0.3f, %0.3f, %0.3f], Y: [%0.3f, %0.3f, %0.3f], Z: [%0.3f, %0.3f, %0.3f]",
+		//	X.x, X.y, X.z, Y.x, Y.y, Y.z, Z.x, Z.y, Z.z);
+
+		Matrix4 finalMat(
+			X.x, X.y, X.z, 0.0,
+			Y.x, Y.y, Y.z, 0.0,
+			Z.x, Z.y, Z.z, 0.0,
+			0.0, 0.0, 0.0, 1.0
+		);
+
+
+		g_ShadertoyBuffer.viewMat = finalMat;
+	} else {
+		/*
+		Camera Looking forward (?)
+		[1428] [DBG] -----------------------------------------
+		[1428] [DBG] Camera
+		[1428] [DBG] -1.000000, 0.000000, -0.000000, 0.000000
+		[1428] [DBG]  0.000000, 1.000000,  0.000000, 0.000000
+		[1428] [DBG]  0.000000, 0.000000, -1.000000, 0.000000
+		[1428] [DBG]  0.000000, 0.000000,  0.000000, 1.000000
+		[1428] [DBG] =========================================
+
+		*/
+
+		/*
+		float yaw   = (float)PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f + 180.0f;
+		float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+		float roll  = 0.0f;
+
+		//float yaw = (float)PlayerDataTable[0].yaw / 65536.0f * 360.0f + 180.0f;
+		//float pitch = (float)PlayerDataTable[0].pitch / 65536.0f * 360.0f + 180.0f;
+		//float roll = (float)PlayerDataTable[0].roll / 65536.0f * 360.0f;
+
+		Matrix4 transIn, transOut;
+		transIn.translate(-g_fCameraCenter);
+		transOut.translate(g_fCameraCenter);
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * transIn;
+		//log_debug("[DBG] Ref: %d, %d, %d",
+		//	PlayerDataTable->cockpitYawReference, PlayerDataTable->cockpitPitchReference, PlayerDataTable->cockpitRollReference);
+		g_ShadertoyBuffer.viewMat = rotMatrixFull.invert();
+		log_debug("[DBG] Yaw: %0.3f, Pitch: %0.3f", 
+			PlayerDataTable->yaw / 65536.0f * 360.0f, 
+			PlayerDataTable->pitch / 65536.0f * 360.0f);
+		ShowMatrix4(rotMatrixFull, "Camera");
+		*/
+
+		const float DEG2RAD = 3.141593f / 180;
+		Vector4 T, B, N;
+		// Compute the full rotation
+		float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+		float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+		float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+
+		// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll); // Z or Y?
+
+		// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
+		// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
+		// so the remaining rotation must be around the y axis (?)
+		// DEBUG, x = z, y = x, z = y;
+		// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
+		// When pitch == 90, the craft is actually seeing the horizon
+		// When pitch == 0, the craft is looking towards the sun
+		// New approach: let's build a TBN system here to avoid the gimbal lock problem
+		float cosTheta, cosPhi, sinTheta, sinPhi;
+		cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+		cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+		N.z = cosTheta * sinPhi;
+		N.x = sinTheta * sinPhi;
+		N.y = cosPhi;
+		N.w = 0;
+
+		// This transform chain will always transform (x,y,z) into (0, 1, 0):
+		// To make an orthonormal basis, we need x+ and z+
+		N = rotMatrixPitch * rotMatrixYaw * N;
+		B.x = 0; B.y = 0; B.z = 1; B.w = 0;
+		T.x = 1; T.y = 0; T.z = 0; T.w = 0;
+		// In this space we now need to rotate B and T around the Y axis by "roll" degrees
+		B = rotMatrixRoll * B;
+		T = rotMatrixRoll * T;
+		// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
+		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+		rotMatrixFull.invert();
+		T = rotMatrixFull * T;
+		B = rotMatrixFull * B;
+		N = rotMatrixFull * N;
+		// Our TBN basis is now in absolute coordinates
+		rotMatrixFull.identity();
+		rotMatrixFull.set(
+			 T.x,  T.y,  T.z, 0,
+			 B.x,  B.y,  B.z, 0,
+			-N.x, -N.y,- N.z, 0,
+			0, 0, 0, 1
+		);
+		g_ShadertoyBuffer.viewMat = rotMatrixFull;
+	}
+}
+
 /*
 Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
        _shaderToyBuf (already resolved): Contains the foreground (only the cockpit) when exiting hyperspace.
 					 Unused in all other circumstances.
 Output: Renders over _offscreenBufferPost and copies to _offscreenBuffer.
+	    Overwrites _offscreenBufferAsInputShaderResourceView
 */
 void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
@@ -3631,6 +3810,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				max time: 236, 231
 	*/
 
+	// Constants for the post-hyper-exit effect:
 	const float T2_ZOOM = 1.5f;
 	const float T_OVERLAP = 1.5f;
 	fLightRotationAngle -= 25.0f;
@@ -3651,6 +3831,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitPixelShader(resources->_hyperEntryPS);
 		timeInHyperspace = timeInHyperspace / 550.0f;
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
+		if (iTime > 2.0f) iTime = 2.0f;
 		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
 		break;
 	// Travelling through Hyperspace
@@ -3688,6 +3869,12 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		break;
 	}
 
+#ifdef HYPER_OVERRIDE
+	//iTime += 0.1f;
+	//if (iTime > 2.0f) iTime = 0.0f;
+	iTime = g_fHyperTimeOverride;
+#endif
+
 	// Shake the cockpit a little bit:
 	//float fShakeX = (float)(rand() / RAND_MAX) - 0.5f;
 	//float fShakeZ = (float)(rand() / RAND_MAX) - 0.5f;
@@ -3700,14 +3887,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	PlayerDataTable[0].cockpitXReference = iShakeX;
 	PlayerDataTable[0].cockpitYReference = iShakeY;
 	PlayerDataTable[0].cockpitZReference = iShakeZ;
-	//PlayerDataTable[0].cockpitXReference = (int)(4.0f * fShakeAmplitude * fShakeX);
 
 	// DEBUG Test the hyperzoom
-	//iTime += 0.1f;
-	//if (iTime > T2_ZOOM) iTime = 0.0f;
-#ifdef HYPER_OVERRIDE
-	iTime = g_fHyperTimeOverride;
-#endif
 	/*
 	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
 		float fGetTime = iTime - T2_ZOOM + T_OVERLAP;
@@ -3733,6 +3914,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetHyperspaceViewMatrix();
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -3743,7 +3925,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.bBGTextureAvailable = bBGTextureAvailable;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	resources->InitPSConstantBufferShaderToy(resources->_hyperspaceStarConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	// Set/Create the VertexBuffer and set the topology, etc
 	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
@@ -3798,21 +3980,18 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 	// Set the SRVs...
 	ID3D11ShaderResourceView *srvs[2] = {
-		resources->_shadertoySRV.Get(),
-		resources->_shadertoyAuxSRV.Get(),
+		resources->_shadertoySRV.Get(),		// Foreground (cockpit)
+		resources->_shadertoyAuxSRV.Get(),  // Background
 	};
 	context->PSSetShaderResources(0, 2, srvs);
 	// Draw...
 	context->Draw(6, 0);
 	// Handle DirectSBS/SteamVR cases...
-	// TODO: handle state better, I'm seeing some artifacts when the Calamari Cruiser is on the screen
-	//		 Is the state handling fixed now?
 	
 	// Second render: compose the cockpit over the zoomed background if we're post-exiting
 	// hyperspace
 	//const int CAPTURE_FRAME = 111;
 	//if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
-	//if (false)
 	{
 		resources->InitPixelShader(resources->_hyperZoomComposePS);
 
@@ -3837,12 +4016,10 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		*/
 
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
-		// to _shadertoyAuxBuf again to re-use in the next step:
-		// BUG: I'm obliterating the shadertoyAuxBuf here, which contains the previous background, I think I need
-		//      to store it somewhere else during hyperspace entry so that the blending can be applied properly
-		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		// to _offscreenBufferAsInput to re-use in the next step:
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 		/*
 		// DEBUG
@@ -3871,7 +4048,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[2] = {
 			resources->_shadertoySRV.Get(),		// Foreground
-			resources->_shadertoyAuxSRV.Get(),	// Background
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			//resources->_shadertoyAuxSRV.Get(),	// Background
 		};
 		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
@@ -3944,8 +4122,6 @@ HRESULT Direct3DDevice::Execute(
 	//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
 #ifdef HYPER_OVERRIDE
 	g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
-	if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST && g_HyperspacePhaseFSM != HS_HYPER_EXIT_ST)
-		log_debug("[DBG] UNKNOWN OVERRIDE STATE: %d", g_HyperspacePhaseFSM);
 #endif
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
@@ -4429,7 +4605,7 @@ HRESULT Direct3DDevice::Execute(
 						//}
 
 						//if (PlayerDataTable->hyperspacePhase == 2)
-						//	RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -4546,7 +4722,9 @@ HRESULT Direct3DDevice::Execute(
 
 					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
+#ifndef HYPER_OVERRIDE
 					if (g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+#endif
 					{
 						g_bSwitchedToPlayerObject = true;
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
@@ -4569,13 +4747,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-#ifdef HYPER_OVERRIDE
-					// DEBUG
-					if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
-						// DEBUG
-#else
 					if (g_HyperspacePhaseFSM != HS_INIT_ST)
-#endif
 					{
 						// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
 						//				  shadertoyBuf has a copy of the cockpit

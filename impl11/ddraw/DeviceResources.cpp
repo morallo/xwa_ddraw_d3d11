@@ -2434,9 +2434,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the Hyperspace (ShaderToy) constant buffer
-	constantBufferDesc.ByteWidth = 96;
-	static_assert(sizeof(ShadertoyCBuffer) == 96, "sizeof(ShadertoyCBuffer) must be 96");
-	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceStarConstantBuffer)))
+	constantBufferDesc.ByteWidth = 128;
+	static_assert(sizeof(ShadertoyCBuffer) == 128, "sizeof(ShadertoyCBuffer) must be 128");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader
@@ -2804,7 +2804,7 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_SSAO;
 }
 
-void DeviceResources::InitPSConstantBufferShaderToy(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
+void DeviceResources::InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
 	static ShadertoyCBuffer currentPSConstants = { 0 };

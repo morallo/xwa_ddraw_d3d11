@@ -49,6 +49,8 @@ public:
 
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
 
+	void GetHyperspaceViewMatrix();
+
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 		UINT *lastVertexBufStride, UINT *lastVertexBufOffset);

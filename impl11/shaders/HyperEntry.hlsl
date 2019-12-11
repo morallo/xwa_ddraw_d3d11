@@ -302,8 +302,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//float ta = TAU * mod(iTime, 8.0) / 8.0;
 	//ta = 12.0 * 0.01745;
 
-	/*
+	
 	float ay = 0.0, ax = 0.0, az = 0.0;
+	//ay = t * TAU * 0.4;
 	mat3 mY = mat3(
 		 cos(ay), 0.0, sin(ay),
 		 0.0,     1.0,     0.0,
@@ -316,6 +317,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		0.0, -sin(ax), cos(ax)
 	);
 
+	/*
 	mat3 mZ = mat3(
 		cos(az), sin(az), 0.0,
 	   -sin(az), cos(az), 0.0,
@@ -325,8 +327,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	*/
 
 	float p_len = length(p);
-	vec3 v = vec3(p, 1.0);
-	//v = mul(mat, v);
+	vec3 v = vec3(p, -1.0);
+	v = mul(viewMat, vec4(v, 0.0)).xyz;
 
 	float trail_start, trail_end;
 	// Fade all the trails into view from black to a little above full-white:
@@ -419,7 +421,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	color = lerp(bgcol.rgb, color, lightness);
 	output.color = vec4(color, 1.0);
 	// Fix the final bloom and mask it with the cockpit alpha
-	output.bloom = float4(2.5 * float3(0.5, 0.5, 1) * bloom, bloom);
+	output.bloom = float4(1.0 * float3(0.5, 0.5, 1) * bloom, bloom);
 	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

@@ -31,10 +31,10 @@ cbuffer ConstantBuffer : register(b7)
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 48 bytes
-	float3x3 mat;
-	// 84 bytes
+	matrix viewMat;
+	// 112 bytes
 	uint bDisneyStyle;
-	float unused[2];
-	// 96 bytes
+	float unused[3];
+	// 128 bytes
 };
 

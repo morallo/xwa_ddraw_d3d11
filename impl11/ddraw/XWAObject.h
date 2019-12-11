@@ -873,22 +873,8 @@ struct PlayerDataEntry
 	*/
 	int cockpitZReference;
 
-	/*
-	char cockpitPitchReference;
-	char field_B75;
-	*/
 	__int16 cockpitPitchReference;
-
-	/*
-	char cockpitYawReference;
-	char field_B77;
-	*/
 	__int16 cockpitYawReference;
-
-	/*
-	char cockpitRollReference;
-	char field_B79;
-	*/
 	__int16 cockpitRollReference;
 
 	char field_B7A;

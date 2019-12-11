@@ -3963,7 +3963,8 @@ HRESULT PrimarySurface::Flip(
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;
-			g_bHyperspaceEffectRenderedOnCurrentFrame = false; g_bSwitchedToPlayerObject = false;
+			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
+			g_bSwitchedToPlayerObject = false;
 			// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 			if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 				g_iHyperExitPostFrames++;
@@ -3973,15 +3974,19 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
 
+//#define HYPER_OVERRIDE
 #ifdef HYPER_OVERRIDE
-			g_fHyperTimeOverride -= 0.1f;
-			if (g_fHyperTimeOverride < 0.0f)
-				g_fHyperTimeOverride = 2.5f;
+			//g_fHyperTimeOverride += 0.05f;
+			g_fHyperTimeOverride = 1.0f;
+			if (g_fHyperTimeOverride > 2.0f)
+				g_fHyperTimeOverride = 0.0f;
+			/*
 			// Update the state
-			if (g_fHyperTimeOverride >= 1.5f)
+			if (g_fHyperTimeOverride >= 2.0f)
 				g_iHyperStateOverride = 3; // HYPER_EXIT
 			else
 				g_iHyperStateOverride = 4; // POST_HYPER_EXIT
+			*/
 #endif
 
 
@@ -4014,17 +4019,18 @@ HRESULT PrimarySurface::Flip(
 				);
 			*/
 			
-			/*
 			if (PlayerDataTable->gunnerTurretActive)
 			{
 				short *Turret = (short *)(0x8B94E0 + 0x21E);
+				float factor = 32768.0f;
+				Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
+				Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
+				Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
 				log_debug("[DBG] F: [%0.3f, %0.3f, %0.3f], R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f]",
-					Turret[0] / 32767.0f, Turret[1] / 32767.0f, Turret[2] / 32767.0f,
-					Turret[3] / 32767.0f, Turret[4] / 32767.0f, Turret[5] / 32767.0f,
-					Turret[6] / 32767.0f, Turret[7] / 32767.0f, Turret[8] / 32767.0f);
+					F.x, F.y, F.z, R.x, R.y, R.z, U.x, U.y, U.z);
+				//log_debug("[DBG] Dot %0.3f, %0.3f, %0.3f", F.dot(R), F.dot(U), R.dot(U));
 			}
-			*/
-
+			
 			// Enable 6dof
 			if (g_bUseSteamVR) {
 				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
