@@ -3974,11 +3974,11 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
 
-//#define HYPER_OVERRIDE
+#define HYPER_OVERRIDE 1
 #ifdef HYPER_OVERRIDE
 			//g_fHyperTimeOverride += 0.05f;
 			g_fHyperTimeOverride = 1.0f;
-			if (g_fHyperTimeOverride > 2.0f)
+			if (g_fHyperTimeOverride > 4.0f)
 				g_fHyperTimeOverride = 0.0f;
 			/*
 			// Update the state
@@ -4011,14 +4011,7 @@ HRESULT PrimarySurface::Flip(
 			animTickY();
 			animTickZ();
 
-			// Discarded: yaw, yaw2, pitch, pitch2, cockpitCameraYaw/Pitch
 			/*
-			log_debug("[DBG] yp: %0.3f, %0.3f",
-				PlayerDataTable->cam  / 65535.0f * 360.f,
-				PlayerDataTable->cockpitCameraYaw / 65535.0f * 360.f
-				);
-			*/
-			
 			if (PlayerDataTable->gunnerTurretActive)
 			{
 				short *Turret = (short *)(0x8B94E0 + 0x21E);
@@ -4028,8 +4021,8 @@ HRESULT PrimarySurface::Flip(
 				Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
 				log_debug("[DBG] F: [%0.3f, %0.3f, %0.3f], R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f]",
 					F.x, F.y, F.z, R.x, R.y, R.z, U.x, U.y, U.z);
-				//log_debug("[DBG] Dot %0.3f, %0.3f, %0.3f", F.dot(R), F.dot(U), R.dot(U));
 			}
+			*/
 			
 			// Enable 6dof
 			if (g_bUseSteamVR) {

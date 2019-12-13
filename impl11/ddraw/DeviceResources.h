@@ -235,7 +235,7 @@ typedef struct ShadertoyCBStruct {
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 48 + 64 = 112 bytes
 	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
-	float unused[3];
+	float tunnel_speed, unused[2];
 	// 128 bytes
 } ShadertoyCBuffer;
 

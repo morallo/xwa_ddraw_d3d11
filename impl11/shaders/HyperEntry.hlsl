@@ -264,9 +264,9 @@ vec3 lensflare(vec3 uv, vec3 pos, float flare_size, float ang_offset)
 
 	float f0 = 1.0 / (dist * inv_size + 1.0);
 	f0 = f0 + f0 * (0.1 * sin((sin(ang*2.0 + pos.x)*4.0 - cos(ang*3.0 + pos.y)) * num_points) + disk_size);
-	if (z < 0.0)
-		return clamp(mix(f0, 0.0, 0.75 * fade), 0.0, 1.0);
-	else
+	//if (z < 0.0) // Remove the flare on the back
+	//	return clamp(mix(f0, 0.0, 0.75 * fade), 0.0, 1.0);
+	//else
 		return f0;
 }
 
@@ -296,7 +296,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
 	float t = mod(iTime, T_MAX) / T_MAX;
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
-	//p += vec2(0, -0.078); // In XWA the aiming HUD is not at the screen's center
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	//float ta = TAU * mod(iTime, 8.0) / 8.0;
