@@ -3974,11 +3974,11 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
 
-#define HYPER_OVERRIDE 1
+//#define HYPER_OVERRIDE 1
 #ifdef HYPER_OVERRIDE
-			g_fHyperTimeOverride += 0.01f;
+			g_fHyperTimeOverride += 0.025f;
 			//g_fHyperTimeOverride = 1.0f;
-			if (g_fHyperTimeOverride > 4.0f)
+			if (g_fHyperTimeOverride > 2.0f) // 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
 				g_fHyperTimeOverride = 0.0f;
 			/*
 			// Update the state

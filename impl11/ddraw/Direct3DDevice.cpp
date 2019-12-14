@@ -246,10 +246,13 @@ HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
 // DEBUG
-#define HYPER_OVERRIDE
-float g_fHyperTimeOverride = 1.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
+//#define HYPER_OVERRIDE
+float g_fHyperTimeOverride = 0.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
+float g_fTimeAtHyperExitOverride = 1.5f; // Replacement for iTimeAtHyperExit
 //int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
-int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
+//int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
+//int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
+int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
 
 char g_sCurrentCockpit[128] = { 0 };
@@ -3818,6 +3821,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 
 	// Constants for the post-hyper-exit effect:
+	const float T2 = 2.0f;
 	const float T2_ZOOM = 1.5f;
 	const float T_OVERLAP = 1.5f;
 	fLightRotationAngle -= 25.0f;
@@ -3826,6 +3830,10 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	fXRotationAngle += 25.0f;
 	fYRotationAngle += 30.0f;
 	fZRotationAngle += 35.0f;
+
+//#ifdef HYPER_OVERRIDE
+//	iTimeAtHyperExit = g_fTimeAtHyperExitOverride;
+//#endif
 	
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable->hyperspacePhase) 
@@ -3862,7 +3870,8 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
 		timeInHyperspace = timeInHyperspace / 200.0f;
-		iTime = lerp(2.0f + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
+		iTime = lerp(T2 + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
+		//iTime = lerp(0.0f, T2 - T_OVERLAP, timeInHyperspace);
 		iTimeAtHyperExit = iTime;
 		fShakeAmplitude = lerp(7.0f, 0.0f, timeInHyperspace);
 		break;
@@ -3873,6 +3882,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		timeInHyperspace = (float )g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
 		if (timeInHyperspace > 1.0f) timeInHyperspace = 1.0f;
 		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
+		//iTime = lerp(iTimeAtHyperExit, T2 + T2_ZOOM - T_OVERLAP, timeInHyperspace);
 		break;
 	}
 

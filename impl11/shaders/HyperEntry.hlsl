@@ -118,25 +118,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
-	//float ta = TAU * mod(iTime, 8.0) / 8.0;
-	//ta = 12.0 * 0.01745;
-
-	/*
-	float ay = 0.0, ax = 0.0, az = 0.0;
-	//ay = t * TAU * 0.4;
-	mat3 mY = mat3(
-		 cos(ay), 0.0, sin(ay),
-		 0.0,     1.0,     0.0,
-		-sin(ay), 0.0, cos(ay)
-	);
-
-	mat3 mX = mat3(
-		1.0,      0.0,     0.0,
-		0.0,  cos(ax), sin(ax),
-		0.0, -sin(ax), cos(ax)
-	);
-	*/
-
 	float p_len = length(p);
 	vec3 v = vec3(p, -1.0);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
