@@ -3633,7 +3633,7 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		// Ship facing down from starting position, so that turret looks straight ahead:
 		// [16224][DBG] F: [0.000, 0.997, 0.069], R : [0.000, 0.069, -0.997], U : [-1.000, 0.000, 0.000]
 
-
+		/*
 		Matrix4 viewMat(
 			 R.x,  R.y,  R.z,  0.0,
 			 U.x,  U.y,  U.z,  0.0,
@@ -3660,53 +3660,71 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		// at all times, which means we can compensate for the turret motion and ship orientation at all times.
 		//g_ShadertoyBuffer.viewMat = fixedMat;
 		//return;
+		*/
 
 		// Use the following to transform the ship's orientation into a TBN matrix:
-		const float DEG2RAD = 3.141593f / 180;
-		Vector4 T, B, N;
+		const float PI = 3.141592f;
+		const float DEG2RAD = PI / 180;
+		Vector4 T, B, N, Fs, Us, Rs;
 		// Compute the full rotation
 		float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 		float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
 		float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
-
+		Matrix4 rotX, rotXinv, rotYaw;
 		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-		
-		/*
-		// This *almost* worked:
+		/*/
 		rotMatrixFull.identity();
 		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll); // This would normally be rotateY; but axes are flipped
-		g_ShadertoyBuffer.viewMat = rotMatrixRoll * rotMatrixYaw * rotMatrixPitch * fixedMat;
-		*/
-		rotMatrixFull.identity();
-		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch); // OK
 		rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll); // Z or Y?
-
 		float cosTheta, cosPhi, sinTheta, sinPhi;
-		cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
-		cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
-		N.z = cosTheta * sinPhi;
-		N.x = sinTheta * sinPhi;
-		N.y = cosPhi;
-		N.w = 0;
-		N = -1.0f * N;
+		cosTheta = cos(pitch * DEG2RAD), sinTheta = sin(pitch * DEG2RAD);
+		cosPhi = cos(yaw * DEG2RAD), sinPhi = sin(yaw * DEG2RAD);
+		Fs.y = sinTheta * cosPhi;
+		Fs.x = sinTheta * sinPhi;
+		Fs.z = cosTheta;
+		Fs.w = 0;
+		*/
 
-		N = rotMatrixPitch * rotMatrixYaw * N;
-		B.x = 0; B.y = 0; B.z = 1; B.w = 0;
-		T.x = 1; T.y = 0; T.z = 0; T.w = 0;
-		// Our TBN basis has T = [1,0,0], B = [0,0,1] and N = [0,1,0].
-		B = rotMatrixRoll * B;
-		T = rotMatrixRoll * T;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch); // OK
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll); // Z or Y?
+		float cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+		float cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+		Fs.z =  cosTheta * sinPhi;
+		Fs.x = -sinTheta * sinPhi;
+		Fs.y = -cosPhi;
+		Fs.w = 0;
+		Fs = -1.0f * Fs;
+		rotX.rotateX(90.0f);
+		rotXinv.rotateX(-90.0f);
+		Fs = rotX * Fs;
+		// Fs is [0,0,1] when looking up, [0,1,0] when looking forward and [1,0,0] when looking right
+
+		// Fs is now in XWA's coord system. If ypr = 0, then Fs = [0, 0, 1]
+		log_debug("[DBG] [GUN] Fs: [%0.3f, %0.3f, %0.3f] ypr: %0.3f, %0.3f, %0.3f ***********", Fs.x, Fs.y, Fs.z, yaw, pitch, roll);
+
+		// This transform will move the ship's heading to [0, 0, 1]:
+		rotMatrixPitch.rotateX(pitch);
+		Fs = rotMatrixPitch * rotMatrixYaw * rotXinv * Fs;
+		log_debug("[DBG] [GUN] Fs: [%0.3f, %0.3f, %0.3f] ypr: %0.3f, %0.3f, %0.3f ***********", Fs.x, Fs.y, Fs.z, yaw, pitch, roll);
+		
+		// Let's build a TBN matrix:
+		Rs.x = 1; Rs.y = 0; Rs.z =  0; Rs.w = 0;
+		Us.x = 0; Us.y = 0; Us.z = -1; Us.w = 0;
+		// Apply the roll:
+		Rs = rotMatrixRoll * Rs;
+		Us = rotMatrixRoll * Us;
 		// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
 		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
 		rotMatrixFull.invert();
-		T = rotMatrixFull * T;
-		B = rotMatrixFull * B;
-		N = rotMatrixFull * N;
-		log_debug("[DBG] T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
-			T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
+		Fs = rotMatrixFull * Fs;
+		Us = rotMatrixFull * Us;
+		Rs = rotMatrixFull * Rs;
+		// T,B,N is now in global coords.
+		log_debug("[DBG] [GUN] Rs: [%0.3f, %0.3f, %0.3f], Us: [%0.3f, %0.3f, %0.3f], Fs: [%0.3f, %0.3f, %0.3f]",
+			Rs.x, Rs.y, Rs.z, Us.x, Us.y, Us.z, Fs.x, Fs.y, Fs.z);
 
 		rotMatrixFull.identity();
 		rotMatrixFull.set(
@@ -3715,14 +3733,47 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 			N.x, N.y, N.z, 0,
 			0, 0, 0, 1
 		); // Places the "forward" view at the horizon
-		Matrix4 rotX, rotYaw;
+
+		/*
+		rotMatrixFull.set(
+			N.x, N.y, N.z, 0,
+			T.x, T.y, T.z, 0,
+			B.x, B.y, B.z, 0,
+			0, 0, 0, 1
+		);
+		*/
+		// Invert the matrix, now this matrix will map the ship's heading to the canonical axes
+		// [1360] [DBG] [GUN] (2) T: [1.000, 0.000, 0.000], B: [-0.000, 1.000, 0.000], N: [0.000, -0.000, 1.000]
+		//rotMatrixFull.invert();
+
+		//T = rotMatrixFull * T;
+		//B = rotMatrixFull * B;
+		//N = rotMatrixFull * N;
+		
+		// Transform the turret's orientation into the canonical x-y-z axes
+		log_debug("[DBG] [GUN] R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+			R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+		R = rotMatrixFull * R;
+		U = rotMatrixFull * U;
+		F = rotMatrixFull * F;
+		//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+		//	R.x, R.y, R.z,  U.x, U.y, U.z,  F.x, F.y, F.z);
+		float r = sqrt(F.x*F.x + F.y*F.y + F.z*F.z);
+		float tpitch = atan2(F.z, F.x); // .. range?
+		float tyaw = acos(F.y / r); // 0..PI
+
+		//log_debug("[DBG] [GUN] tpitch: %0.3f, tyaw: %0.3f", 	tpitch / DEG2RAD, tyaw / DEG2RAD);
+
+		// F,U,R is now aligned with the canonical axes, compute yaw, pitch in this system
+
 		rotX.rotateX(-90.0f);
 		// The X axis is vertical in the turret when the turret is looking in the same direction as the ship
 		// The Y axis is horizontal in the turret when the turret is looking in the same direction as the ship
 		//static float test = 0.0f;
 		//test += 5.0f;
 		//rotYaw.rotateY(-2.0f * yaw);
-		g_ShadertoyBuffer.viewMat = rotMatrixFull * rotX * fixedMat;
+		//g_ShadertoyBuffer.viewMat = rotMatrixFull * rotX * fixedMat;
+		g_ShadertoyBuffer.viewMat = rotMatrixFull;
 
 		/*
 		rotMatrixFull.set(
@@ -3800,7 +3851,7 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		// Use the following to transform the ship's orientation into a view
 		// matrix:
 		const float DEG2RAD = 3.141593f / 180;
-		Vector4 T, B, N;
+		Vector4 T, B, N, Rs, Us, Fs;
 		// Compute the full rotation
 		yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 		pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
@@ -3828,14 +3879,14 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		N.x = sinTheta * sinPhi;
 		N.y = cosPhi;
 		N.w = 0;
-		N = -1.0f * N;
+		//N = -1.0f * N;
 
 		// This transform chain will always transform (N.x,N.y,N.z) into (0, 1, 0)
 		// or (0, -1, 0) if N is multiplied by -1.
 		// To make an orthonormal basis, we need x+ and z+
 		N = rotMatrixPitch * rotMatrixYaw * N;
-		log_debug("[DBG] N(DEBUG): %0.3f, %0.3f, %0.3f", N.x, N.y, N.z); // --> displays (0,1,0) or (0,-1,0)
-		B.x = 0; B.y = 0; B.z = 1; B.w = 0;
+		//log_debug("[DBG] N(DEBUG): %0.3f, %0.3f, %0.3f", N.x, N.y, N.z); // --> displays (0,1,0) or (0,-1,0)
+		B.x = 0; B.y = 0; B.z = -1; B.w = 0;
 		T.x = 1; T.y = 0; T.z = 0; T.w = 0;
 		// Our TBN basis has T = [1,0,0], B = [0,0,1] and N = [0,1,0]. So N is the Y axis and B is the Z axis.
 		// By flipping the Y and Z axes we're placing the "forward" view in the Y+ axis, otherwise, the
@@ -3850,21 +3901,33 @@ void Direct3DDevice::GetHyperspaceViewMatrix() {
 		B = rotMatrixFull * B;
 		N = rotMatrixFull * N;
 		// Our TBN basis is now in absolute coordinates
+		Matrix4 rotX, refl;
+		rotX.identity();
+		rotX.rotateX(90.0f);
+		refl.set(1, 0, 0, 0,
+			0, -1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1);
+		Fs = refl * rotX * N;
+		Us = refl * rotX * B;
+		Rs = refl * rotX * T;
+		// This transform chain gets us the orientation of the craft in XWA's coord system:
+		// [1,0,0] is right, [0,1,0] is forward, [0,0,1] is up
+		log_debug("[DBG] [GUN] Fs: [%0.3f, %0.3f, %0.3f] ypr: %0.3f, %0.3f, %0.3f ***********", Fs.x, Fs.y, Fs.z, yaw, pitch, roll);
 		
 		// Facing forward: T: [1, 0, 0], B: [0, -1, 0], N: [0, 0, -1]
-		log_debug("[DBG] T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
-			T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
+		log_debug("[DBG] Rs: [%0.3f, %0.3f, %0.3f], Us: [%0.3f, %0.3f, %0.3f], Fs: [%0.3f, %0.3f, %0.3f]",
+			Rs.x, Rs.y, Rs.z, Us.x, Us.y, Us.z, Fs.x, Fs.y, Fs.z);
 
 		rotMatrixFull.identity();
 		rotMatrixFull.set(
-			 T.x,  T.y,  T.z, 0,
-			 B.x,  B.y,  B.z, 0,
-			 N.x,  N.y,  N.z, 0,
+			 Rs.x,  Rs.y, Rs.z, 0,
+			 Us.x,  Us.y, Us.z, 0,
+			 Fs.x,  Fs.y, Fs.z, 0,
 			 0,    0,    0,   1
 		); // Places the "forward" view at the horizon
-		Matrix4 rotX;
-		rotX.rotateX(90.0f); // Adding rotX(90) places the "forward" view on the Z+ axis (the Sun)
-		g_ShadertoyBuffer.viewMat = rotX * rotMatrixFull;
+		
+		g_ShadertoyBuffer.viewMat = rotX * rotMatrixFull; // Adding rotX(90) places the "forward" view on the Z+ axis (the Sun)
 	}
 }
 
