@@ -3976,8 +3976,8 @@ HRESULT PrimarySurface::Flip(
 
 #define HYPER_OVERRIDE 1
 #ifdef HYPER_OVERRIDE
-			//g_fHyperTimeOverride += 0.05f;
-			g_fHyperTimeOverride = 1.0f;
+			g_fHyperTimeOverride += 0.01f;
+			//g_fHyperTimeOverride = 1.0f;
 			if (g_fHyperTimeOverride > 4.0f)
 				g_fHyperTimeOverride = 0.0f;
 			/*
