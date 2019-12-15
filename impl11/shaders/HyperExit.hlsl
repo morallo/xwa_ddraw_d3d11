@@ -72,12 +72,13 @@ static const float speed = 1.0; // 100 is super-fast, 50 is fast, 25 is good
 vec3 distort(in vec2 uv, in float distortion,
 	in float dist_apply, in float fade_apply)
 {
-	vec2 uv_scaled = uv - scr_center;
+	vec2 proj_center = scr_center - vec2(0, y_center);
+	vec2 uv_scaled = uv - proj_center;
 	float r = length(uv_scaled);
 	float fade_t = 0.25, fade = 1.0;
 	vec2 dist_uv = uv_scaled * r * distortion;
 
-	uv_scaled = mix(uv_scaled, dist_uv, dist_apply) + scr_center;
+	uv_scaled = mix(uv_scaled, dist_uv, dist_apply) + proj_center;
 	
 	if (uv_scaled.x < 0.0 || uv_scaled.x > 1.0 ||
 		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
@@ -314,7 +315,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec3 v = vec3(p, -1.0);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
 
-	float trail_start, trail_end, trail_length = 0.5;
+	float trail_start, trail_end, trail_length = 0.5, trail_x;
 	// Fade all the trails into view from black to a little above full-white:
 	float fade = mix(1.4, 0.0, smoothstep(0.65, 0.95, t));
 	float bloom = 0.0;
@@ -331,29 +332,41 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// Don't center the trail in the slice: wiggle it a little bit:
 		float slice_offset = MAX_SLICE_OFFSET *
 			rand(vec2(slice, 4.0 + i * 25.0)) - (MAX_SLICE_OFFSET / 2.0);
-		// This is the speed of the current slice
-		float fspeed = 1.0 * rand(vec2(slice, 1.0 + i * 0.1)) + i * 0.01;
-
 		// Without dist, all trails get stuck to the walls of the
-		// tunnel.
-		float dist = rand(vec2(slice, 1.0 + i * 2.0)) * (1.0 + i);
+		// tunnel. Allowing dist to be negative gives a more homogeneous 
+		// coverage of all the space, both in front and behind the 
+		// camera.
+		float dist = 10.0 * rand(vec2(slice, 1.0 + i * 2.0)) - 5.0;
 		float z = dist * v.z / length(v.xy);
+		// When dist is negative we have to invert a number of things:
+		float f = sign(dist);
+		if (f == 0.0) f = 1.0;
+		float fspeed = f * (rand(vec2(slice, 1.0 + i * 0.1)) + i * 0.01);
+		float fjump_speed = f * jump_speed;
+		float ftrail_length = f * trail_length;
 
-		trail_end = 2.0 * rand(vec2(slice, i + 10.0));
-		// Make half the trails appear behind the camera, so that
-		// there's something behind the camera if we look at it:
-		if (i > 30.0) trail_end = 4.0 * rand(vec2(slice, i + 10.0)) - 3.5;
+		trail_end = 10.0 * rand(vec2(slice, i + 10.0)) - 5.0;
 		trail_end -= t * fspeed;
 
 		// Adding to the trail pushes it "back": Z+ is into the screen
-		// away from the camera
+		// away from the camera... unless f is negative, then we invert
+		// the rules
 		trail_start = trail_end + trail_length;
 		// Shrink the trails into their ends:
-		trail_start = max(trail_end,
-			trail_start - (t * fspeed) -
-			mix(0.0, jump_speed,
-				smoothstep(0.5, 1.0, t))
-		);
+		if (f >= 0.0) {
+			trail_start = max(trail_end,
+							trail_start - (t * fspeed) -
+							mix(0.0, fjump_speed,
+								smoothstep(0.5, 1.0, t))
+			);
+		}
+		else {
+			trail_start = min(trail_end,
+							trail_start - (t * fspeed) -
+							mix(0.0, fjump_speed,
+								smoothstep(0.5, 1.0, t))
+			);
+		}
 
 		float trail_x = smoothstep(trail_start, trail_end, z);
 		trail_color = mix(blue_col, white_col, trail_x);

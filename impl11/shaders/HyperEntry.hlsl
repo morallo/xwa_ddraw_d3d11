@@ -129,35 +129,35 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
-	for (float i = 0.0; i < 40.0; i++)
+	for (float i = 0.0; i < 80.0; i++)
 	{
 		vec3 trail_color = 0.0;
 		float angle = atan2(v.y, v.x) / 3.141592 / 2.0 + 0.13 * i;
 
 		float slice = floor(angle * NUM_SLICES);
 		float slice_fract = fract(angle * NUM_SLICES);
-
 		// Don't center the trail in the slice: wiggle it a little bit:
 		float slice_offset = MAX_SLICE_OFFSET *
 			rand(vec2(slice, 4.0 + i * 25.0)) - (MAX_SLICE_OFFSET / 2.0);
-		// This is the speed of the current slice
-		float speed = 5.0 * rand(vec2(slice, 1.0 + i * 10.0)) + i * 0.01;
 
 		// Without dist, all trails get stuck to the walls of the
 		// tunnel.
-		float dist = rand(vec2(slice, 1.0 + i * 10.0)) * (2.0 + i);
+		float dist = 10.0 * rand(vec2(slice, 1.0 + i * 10.0)) - 5.0;
 		float z = dist * v.z / length(v.xy);
 
-		trail_start = 5.0 + 2.0 * rand(vec2(slice, 0.0 + i * 10.0));
-		// Make half the trails appear behind the camera, so that
-		// there's something behind the camera if we look at it:
-		if (i > 20.0)
-			trail_start = 10.0 * rand(vec2(slice, 0.0 + i * 10.0)) - 5.0;
-		// Accelerate the trail_start:
-		trail_start -= mix(0.0, jump_speed, smoothstep(T_JUMP, 1.0, t));
-		trail_end = trail_start - t * speed; // + 0.01;
+		// When dist is negative we have to invert a number of things:
+		float f = sign(dist);
+		if (f == 0.0) f = 1.0;
 
-		float val = 0.0;
+		// This is the speed of the current slice
+		float fspeed = f * (0.1 * rand(vec2(slice, 1.0 + i * 10.0)) + i * 0.01);
+		float fjump_speed = f * jump_speed;
+		trail_start = 10.0 * rand(vec2(slice, 0.0 + i * 10.0)) - 5.0;
+		// Accelerate the trail_start:
+		trail_start -= mix(0.0, fjump_speed, smoothstep(T_JUMP, 1.0, t));
+		trail_end = trail_start - t * fspeed;
+
+		//float val = 0.0;
 		//float trail_x = smoothstep(trail_start, trail_end, p_len);
 		float trail_x = smoothstep(trail_start, trail_end, z);
 		trail_color = mix(blue_col, white_col, trail_x);
@@ -197,15 +197,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// tunnel
 		float flare_size = mix(0.0, 0.1, smoothstep(0.35, T_JUMP + 0.2, t));
 		flare_size += mix(0.0, 20.0, smoothstep(T_JUMP + 0.05, 1.0, t));
-		vec3 flare = flare_col *
-			lensflare(v, 0.0, flare_size, 0.1 * flare_size * t);
+		vec3 flare = flare_col * lensflare(v, 0.0, flare_size, t);
 		color += cc(flare, 0.5, 0.1);
 		// Whiteout
 		color += mix(0.0, 1.0, smoothstep(T_JUMP + 0.1, 1.0, t));
 	}
 	else {
 		// Whiteout
-		color += mix(0.0, 1.0, smoothstep(T_JUMP - 0.2, 1.0, t));
+		color += mix(0.0, 1.0, smoothstep(T_JUMP, 1.0, t));
 	}
 
 	// Blend the trails with the current background

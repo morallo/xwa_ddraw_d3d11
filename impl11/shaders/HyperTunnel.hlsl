@@ -8,9 +8,7 @@
 
 //static const float3 blue_color = float3(0.15, 0.35, 0.8);
 static const float3 blue_color = float3(0.15, 0.4, 0.9);
-//static const float period = 2.5; // 2.7;
 static const float rotation_speed = 2.3;
-//static const float forward_speed = 2.0; // 5.0;
 static const float t2 = 4.0;
 
 // The Foreground Color Buffer (_shadertoyBuf)
