@@ -2060,6 +2060,21 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2112,21 +2127,6 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
-			return hr;
-		
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
 			return hr;
 	}
 
@@ -2302,6 +2302,21 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SingleBarrelPixelShader, sizeof(g_SingleBarrelPixelShader), nullptr, &_singleBarrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -2351,21 +2366,6 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
 			return hr;
 	}
 

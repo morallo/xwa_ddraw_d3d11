@@ -1,7 +1,7 @@
 /*
- * Hyperspace trails. MIT License.
+ * Hyperspace jump trails.
  *
- * You can use it under the terms of the MIT license
+ * You can use it under the terms of the MIT license, see LICENSE.TXT
  * (free to use even in commercial projects, attribution required)
  *
  * Adapted from 	https://www.shadertoy.com/view/MlKBWw by Leo Reyes
@@ -119,7 +119,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	float p_len = length(p);
-	vec3 v = vec3(p, -1.0);
+	//vec3 v = vec3(p, 1.0 - length(p) * 0.2);
+	//vec3 v = vec3(p, -1.0);
+	vec3 v = vec3(p, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
 
 	float trail_start, trail_end;

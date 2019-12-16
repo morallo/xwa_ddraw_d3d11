@@ -245,14 +245,18 @@ const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
+float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
+short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false;
 // DEBUG
 //#define HYPER_OVERRIDE
+bool g_bHyperDebugMode = false;
 float g_fHyperTimeOverride = 0.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
-float g_fTimeAtHyperExitOverride = 1.5f; // Replacement for iTimeAtHyperExit
+//float g_fTimeAtHyperExitOverride = 1.5f; // Replacement for iTimeAtHyperExit
 //int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
-//int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
+int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
 //int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
-int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
+//int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
 
 char g_sCurrentCockpit[128] = { 0 };
@@ -1937,9 +1941,12 @@ bool LoadHyperParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_ShadertoyBuffer.y_center = 0.15f;
+	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
-	g_ShadertoyBuffer.bDisneyStyle = 0;
+	g_ShadertoyBuffer.bDisneyStyle = 1;
 	g_ShadertoyBuffer.tunnel_speed = 5.0f;
+	g_fHyperLightRotationSpeed = 50.0f;
+	g_fHyperShakeRotationSpeed = 50.0f;
 
 	try {
 		error = fopen_s(&file, "./hyperspace.cfg", "rt");
@@ -1976,6 +1983,18 @@ bool LoadHyperParams() {
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
 				g_ShadertoyBuffer.tunnel_speed = fValue;
+			}
+			else if (_stricmp(param, "FOV_scale") == 0) {
+				g_ShadertoyBuffer.FOVscale = fValue;
+			}
+			else if (_stricmp(param, "debug_mode") == 0) {
+				g_bHyperDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "light_rotation_speed") == 0) {
+				g_fHyperLightRotationSpeed = fValue;
+			}
+			else if (_stricmp(param, "shake_speed") == 0) {
+				g_fHyperShakeRotationSpeed = fValue;
 			}
 		}
 	}
@@ -3526,9 +3545,9 @@ void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1)
 		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
 		*x1 = x / g_fCurScreenWidth;
 		*y1 = y / g_fCurScreenHeight;
-		if (g_bDumpSSAOBuffers)
-			log_debug("[DBG] [SSDO] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-				*x0, *y0, *x1, *y1);
+		//if (g_bDumpSSAOBuffers)
+		//log_debug("[DBG] [DBG] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+		//	*x0, *y0, *x1, *y1);
 	}
 }
 
@@ -3592,7 +3611,7 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsCoc
 	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
 	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsCockpit)
-		// If we reach this point, then the game is in post-exit-hyperspace state AND this is a cockpit texture
+		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
 	else
 		// Normal output buffer (_offscreenBuffer)
@@ -3800,6 +3819,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
 	static float fLightRotationAngle = 0.0f;
 	float timeInHyperspace = (float )PlayerDataTable->timeInHyperspace;
+	float iLinearTime = 0.0f; // We need a "linear" time that we can use to control the speed of the shake and light rotation
 	//bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
 	//	(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
@@ -3821,20 +3841,12 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 
 	// Constants for the post-hyper-exit effect:
-	const float T2 = 2.0f;
-	const float T2_ZOOM = 1.5f;
-	const float T_OVERLAP = 1.5f;
-	fLightRotationAngle -= 25.0f;
+	const float T2 = 2.0f; // Time in seconds for the trails
+	const float T2_ZOOM = 1.5f; // Time in seconds for the hyperzoom
+	const float T_OVERLAP = 1.5f; // Overlap between the trails and the zoom
 
 	static float fXRotationAngle = 0.0f, fYRotationAngle = 0.0f, fZRotationAngle = 0.0f;
-	fXRotationAngle += 25.0f;
-	fYRotationAngle += 30.0f;
-	fZRotationAngle += 35.0f;
 
-//#ifdef HYPER_OVERRIDE
-//	iTimeAtHyperExit = g_fTimeAtHyperExitOverride;
-//#endif
-	
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable->hyperspacePhase) 
 	switch (g_HyperspacePhaseFSM)
@@ -3848,6 +3860,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
 		if (iTime > 2.0f) iTime = 2.0f;
 		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
+		iLinearTime = iTime;
 		break;
 	// Travelling through Hyperspace
 	case HS_HYPER_TUNNEL_ST:
@@ -3856,6 +3869,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitPixelShader(resources->_hyperTunnelPS);
 		timeInHyperspace = timeInHyperspace / 1290.0f;
 		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
+		
 		// Rotate the lights while travelling through the hyper-tunnel:
 		for (int i = 0; i < 2; i++) {
 			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
@@ -3863,6 +3877,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_LightVector[i].z = 0.0f;
 		}
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
+		iLinearTime = 2.0f + iTime;
 		break;
 	// Exiting Hyperspace
 	case HS_HYPER_EXIT_ST:
@@ -3873,6 +3888,7 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(T2 + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
 		//iTime = lerp(0.0f, T2 - T_OVERLAP, timeInHyperspace);
 		iTimeAtHyperExit = iTime;
+		iLinearTime = 6.0f + ((T2 + T2_ZOOM - T_OVERLAP) - iTime);
 		fShakeAmplitude = lerp(7.0f, 0.0f, timeInHyperspace);
 		break;
 	case HS_POST_HYPER_EXIT_ST:
@@ -3882,19 +3898,24 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		timeInHyperspace = (float )g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
 		if (timeInHyperspace > 1.0f) timeInHyperspace = 1.0f;
 		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
+		iLinearTime = ((T2 + T2_ZOOM - T_OVERLAP) - iTimeAtHyperExit) + timeInHyperspace;
 		//iTime = lerp(iTimeAtHyperExit, T2 + T2_ZOOM - T_OVERLAP, timeInHyperspace);
 		break;
 	}
 
-#ifdef HYPER_OVERRIDE
+//#ifdef HYPER_OVERRIDE
 	//iTime += 0.1f;
 	//if (iTime > 2.0f) iTime = 0.0f;
-	iTime = g_fHyperTimeOverride;
-#endif
+	if (g_bHyperDebugMode)
+		iTime = g_fHyperTimeOverride;
+//#endif
+
+	fXRotationAngle = 25.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fYRotationAngle = 30.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fZRotationAngle = 35.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fLightRotationAngle = -25.0f * iLinearTime * g_fHyperLightRotationSpeed;
 
 	// Shake the cockpit a little bit:
-	//float fShakeX = (float)(rand() / RAND_MAX) - 0.5f;
-	//float fShakeZ = (float)(rand() / RAND_MAX) - 0.5f;
 	float fShakeX = cos(fXRotationAngle * 0.01745f);
 	float fShakeZ = sin(fZRotationAngle * 0.01745f);
 	float fShakeY = cos(fYRotationAngle * 0.01745f);;
@@ -3942,7 +3963,10 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.bBGTextureAvailable = bBGTextureAvailable;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	//float FOVscale = g_ShadertoyBuffer.FOVscale;
+	//g_ShadertoyBuffer.FOVscale = FOVscale + g_fCameraCenter.z;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	//g_ShadertoyBuffer.FOVscale = FOVscale;
 	// Set/Create the VertexBuffer and set the topology, etc
 	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
@@ -3977,21 +4001,16 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitVertexShader(resources->_mainVertexShader);
 	// Set the RTV:
 	if (!g_bReshadeEnabled) {
-		ID3D11RenderTargetView *rtvs[5] = {
+		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(),
-			NULL, NULL, NULL, NULL
+			//NULL, NULL, NULL, NULL
 		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
+		context->OMSetRenderTargets(1, rtvs, NULL);
 	}
 	else {
 		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 			resources->_renderTargetViewBloomMask.Get(),
-			/*g_bIsPlayerObject || g_bDisableDualSSAO ?
-				resources->_renderTargetViewDepthBuf.Get() :
-				resources->_renderTargetViewDepthBuf2.Get(),
-			resources->_renderTargetViewNormBuf.Get(),
-			resources->_renderTargetViewSSAOMask.Get()*/
 		};
 		context->OMSetRenderTargets(2, rtvs, NULL);
 	}
@@ -4002,16 +4021,14 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	};
 	context->PSSetShaderResources(0, 2, srvs);
 	// Draw...
-	context->Draw(6, 0);
 	// Handle DirectSBS/SteamVR cases...
+	context->Draw(6, 0);
 	
 	// Second render: compose the cockpit over the zoomed background if we're post-exiting
 	// hyperspace
-	//const int CAPTURE_FRAME = 111;
-	//if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST)
 	{
 		resources->InitPixelShader(resources->_hyperZoomComposePS);
-
+		// Clear all the render target views
 		ID3D11RenderTargetView *rtvs_null[5] = {
 			NULL, // Main RTV
 			NULL, // Bloom
@@ -4054,21 +4071,31 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-		ID3D11RenderTargetView *rtvs[5] = {
-			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-			NULL, // Bloom
-			NULL, // Depth
-			NULL, // Norm Buf
-			NULL, // SSAO Mask
-		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
+
+		if (!g_bReshadeEnabled) {
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPost.Get(),
+				//NULL, NULL, NULL, NULL
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+		}
+		else {
+			ID3D11RenderTargetView *rtvs[5] = {
+				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+				NULL, // Bloom
+				NULL, // Depth
+				NULL, // Norm Buf
+				NULL, // SSAO Mask
+			};
+			context->OMSetRenderTargets(5, rtvs, NULL);
+		}
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[2] = {
-			resources->_shadertoySRV.Get(),		// Foreground
-			resources->_offscreenAsInputShaderResourceView.Get(),
-			//resources->_shadertoyAuxSRV.Get(),	// Background
+			resources->_shadertoySRV.Get(),		// Foreground (cockpit)
+			resources->_offscreenAsInputShaderResourceView.Get(), // Background (previous render: trails or tunnel)
 		};
 		context->PSSetShaderResources(0, 2, srvs);
+		// TODO: Handle SteamVR cases
 		context->Draw(6, 0);
 	}
 	
@@ -4137,9 +4164,10 @@ HRESULT Direct3DDevice::Execute(
 
 	// DEBUG
 	//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
-#ifdef HYPER_OVERRIDE
-	g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
-#endif
+//#ifdef HYPER_OVERRIDE
+	if (g_bHyperDebugMode)
+		g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
+//#endif
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
@@ -4473,8 +4501,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width = (float)width;
-				g_nonVRViewport.Height = (float)height;
+				g_nonVRViewport.Width    = (float)width;
+				g_nonVRViewport.Height   = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
@@ -4548,15 +4576,6 @@ HRESULT Direct3DDevice::Execute(
 				//	g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
 					//if (g_bSwitchedToPlayerObject) {
 						//log_debug("[DBG] SwitchedToPlayerObject (1)");
-						/*
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR) {
-							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-						}
-						*/
-						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					//}
 				//}
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
@@ -4601,28 +4620,11 @@ HRESULT Direct3DDevice::Execute(
 				}
 				*/
 
-				// Detect when the player's craft (exterior or cockpit) is about to be rendered
-				// and capture the screen
-				//if (g_bIsPlayerObject && !g_bPrevIsPlayerObject) {
-				//if (false) {
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
 					// The skybox just finished, capture it, replace it, etc
 					g_bSkyBoxJustFinished = true;
 					// Capture the background; but only if we're not in hyperspace -- we don't want to
 					// capture the black background used by the game!
-					//if (PlayerDataTable->hyperspacePhase == 0) {
-						/*
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR) {
-							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-						}
-						*/
-						//}
-
-						//if (PlayerDataTable->hyperspacePhase == 2)
-							//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -4653,8 +4655,20 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
-						if (PlayerDataTable->hyperspacePhase == 2)
+						if (PlayerDataTable->hyperspacePhase == 2) {
+							// Hyperspace has *just* been engaged.
+							g_bHyperspaceFirstFrame = true;
+							log_debug("[DBG] Set bHyperspaceFirstFrame = true");
+							log_debug("[DBG] last yp (%d, %d): cur yp: (%d, %d)",
+								g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch, 
+								PlayerDataTable->cockpitCameraPitch, PlayerDataTable->cockpitCameraYaw);
+							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
+								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
+								g_bHyperHeadSnapped = true;
+							PlayerDataTable->cockpitCameraYaw = g_fLastCockpitCameraYaw;
+							PlayerDataTable->cockpitCameraPitch = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+						}
 						break;
 					case HS_HYPER_ENTER_ST:
 						if (PlayerDataTable->hyperspacePhase == 4) {
@@ -4696,11 +4710,12 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					}
 
-#ifdef HYPER_OVERRIDE
+//#ifdef HYPER_OVERRIDE
 					// DEBUG
-					g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
+					if (g_bHyperDebugMode)
+						g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
 					// DEBUG
-#endif
+//#endif
 				}
 
 				/*************************************************************************
@@ -4739,11 +4754,17 @@ HRESULT Direct3DDevice::Execute(
 
 					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
-#ifndef HYPER_OVERRIDE
-					if (g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-#endif
+//#ifndef HYPER_OVERRIDE
+					//if (g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+//#endif
+					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					{
+						g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+						g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+						
 						g_bSwitchedToPlayerObject = true;
+						//if (g_bHyperspaceFirstFrame)
+						//	log_debug("[DBG] bHyperspaceFirstFrame --> Capture frame");
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						if (g_bUseSteamVR) {
@@ -5503,6 +5524,11 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
 
+					// Don't render the very first frame when entering hyperspace if we were not looking forward:
+					// the game resets the yaw/pitch on the first frame and we don't want that
+					if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
+						goto out;
+
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
@@ -5512,8 +5538,12 @@ HRESULT Direct3DDevice::Execute(
 
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
-						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
+						ID3D11RenderTargetView *rtvs[1] = {
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner),
+						};
+						context->OMSetRenderTargets(1, 
+							//resources->_renderTargetView.GetAddressOf(),
+							rtvs, resources->_depthStencilViewL.Get());
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[5] = {

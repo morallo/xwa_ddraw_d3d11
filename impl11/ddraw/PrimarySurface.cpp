@@ -26,9 +26,11 @@ const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
-//#define HYPER_OVERRIDE
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
+extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
+extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
+extern bool g_bHyperHeadSnapped;
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered, g_iHyperExitPostFrames;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
@@ -3970,16 +3972,20 @@ HRESULT PrimarySurface::Flip(
 				g_iHyperExitPostFrames++;
 			else
 				g_iHyperExitPostFrames = 0;
+			g_bHyperspaceFirstFrame = false;
+			g_bHyperHeadSnapped = false;
 			//*g_playerInHangar = 0;
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
 
 //#define HYPER_OVERRIDE 1
-#ifdef HYPER_OVERRIDE
-			g_fHyperTimeOverride += 0.025f;
-			//g_fHyperTimeOverride = 1.0f;
-			if (g_fHyperTimeOverride > 2.0f) // 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
-				g_fHyperTimeOverride = 0.0f;
+//#ifdef HYPER_OVERRIDE
+			//g_fHyperTimeOverride += 0.025f;
+			if (g_bHyperDebugMode) {
+				g_fHyperTimeOverride = 1.0f;
+				if (g_fHyperTimeOverride > 2.0f) // 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
+					g_fHyperTimeOverride = 0.0f;
+			}
 			/*
 			// Update the state
 			if (g_fHyperTimeOverride >= 2.0f)
@@ -3987,7 +3993,7 @@ HRESULT PrimarySurface::Flip(
 			else
 				g_iHyperStateOverride = 4; // POST_HYPER_EXIT
 			*/
-#endif
+//#endif
 
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {

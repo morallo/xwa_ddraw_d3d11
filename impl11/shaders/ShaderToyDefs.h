@@ -34,7 +34,7 @@ cbuffer ConstantBuffer : register(b7)
 	matrix viewMat;
 	// 112 bytes
 	uint bDisneyStyle;
-	float tunnel_speed, unused[2];
+	float tunnel_speed, FOVscale, unused0;
 	// 128 bytes
 };
 
