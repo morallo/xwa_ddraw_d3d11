@@ -69,7 +69,6 @@ extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; //
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
 bool g_bShowXWARotation = false;
-extern Vector3 g_fCameraCenter;
 
 // DEBUG
 enum HyperspacePhaseEnum;
@@ -129,8 +128,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
-				//g_LightVector[0].x += 0.1f;
-				//g_LightVector[0].normalize();
+				g_LightVector[0].x += 0.1f;
+				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
 				/*
@@ -143,13 +142,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_iHyperStateOverride = 4; // POST_HYPER_EXIT
 				log_debug("[DBG] State: %d, g_fHyperTimeOverride: %0.3f", g_iHyperStateOverride, g_fHyperTimeOverride);
 				*/
-
-				g_fCameraCenter.z += 0.1f;
-				log_debug("[DBG] g_fCameraCenter.z: %0.3f", g_fCameraCenter.z);
 				return 0;
 			case VK_LEFT:
-				//g_LightVector[0].x -= 0.1f;
-				//PrintVector(g_LightVector[0]);
+				g_LightVector[0].x -= 0.1f;
+				PrintVector(g_LightVector[0]);
 				/*
 				g_fHyperTimeOverride -= 0.1f;
 				if (g_fHyperTimeOverride < 0.0f)
@@ -161,8 +157,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] State: %d, g_fHyperTimeOverride: %0.3f", g_iHyperStateOverride, g_fHyperTimeOverride);
 				*/
 
-				g_fCameraCenter.z -= 0.1f;
-				log_debug("[DBG] g_fCameraCenter.z: %0.3f", g_fCameraCenter.z);
 				return 0;
 
 			case VK_UP:

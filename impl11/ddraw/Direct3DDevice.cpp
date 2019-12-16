@@ -244,7 +244,7 @@ float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value i
 const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
-Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
+//Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
 float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
@@ -253,7 +253,6 @@ bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAux
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
 float g_fHyperTimeOverride = 0.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
-//float g_fTimeAtHyperExitOverride = 1.5f; // Replacement for iTimeAtHyperExit
 //int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
 //int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
@@ -4656,13 +4655,9 @@ HRESULT Direct3DDevice::Execute(
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
 						if (PlayerDataTable->hyperspacePhase == 2) {
-							// Hyperspace has *just* been engaged.
+							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
 							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
-							//log_debug("[DBG] Set bHyperspaceFirstFrame = true");
-							//log_debug("[DBG] last yp (%d, %d): cur yp: (%d, %d)",
-							//	g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch, 
-							//	PlayerDataTable->cockpitCameraPitch, PlayerDataTable->cockpitCameraYaw);
 							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
 								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
 								g_bHyperHeadSnapped = true;

@@ -31,6 +31,7 @@ extern int g_iHyperStateOverride; // DEBUG, remove later
 extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
 extern bool g_bHyperHeadSnapped;
+extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered, g_iHyperExitPostFrames;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
@@ -4016,19 +4017,6 @@ HRESULT PrimarySurface::Flip(
 			animTickX();
 			animTickY();
 			animTickZ();
-
-			/*
-			if (PlayerDataTable->gunnerTurretActive)
-			{
-				short *Turret = (short *)(0x8B94E0 + 0x21E);
-				float factor = 32768.0f;
-				Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
-				Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
-				Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
-				log_debug("[DBG] F: [%0.3f, %0.3f, %0.3f], R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f]",
-					F.x, F.y, F.z, R.x, R.y, R.z, U.x, U.y, U.z);
-			}
-			*/
 			
 			// Enable 6dof
 			if (g_bUseSteamVR) {
@@ -4211,6 +4199,7 @@ HRESULT PrimarySurface::Flip(
 			}
 #endif
 
+			// Submit images to SteamVR
 			if (g_bUseSteamVR) {
 				//if (!g_pHMD->GetTimeSinceLastVsync(&seconds, &frame))
 				//	log_debug("[DBG] No Vsync info available");
@@ -4239,6 +4228,21 @@ HRESULT PrimarySurface::Flip(
 			//if (timeRemaining < 0.005) WaitGetPoses();
 
 			// We're about to show 3D content, so let's set the corresponding flag
+			if (!g_bRendering3D) {
+				// We were presenting 2D content and now we're about to show 3D content. If we were in
+				// hyperspace, we might need to reset the hyperspace FSM and restore any settings we
+				// changed previously
+				if (g_HyperspacePhaseFSM != HS_INIT_ST && PlayerDataTable->hyperspacePhase == 0) {
+					if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST) {
+						// Restore the previous color of the lights
+						for (int i = 0; i < 2; i++) {
+							memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
+							memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
+						}
+					}
+					g_HyperspacePhaseFSM = HS_INIT_ST;
+				}
+			}
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
