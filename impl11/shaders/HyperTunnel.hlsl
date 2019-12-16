@@ -19,34 +19,6 @@ SamplerState fgColorSampler : register(s0);
 Texture2D bgColorTex : register(t1);
 SamplerState bgColorSampler : register(s1);
 
-/*
-// Perlin noise from Dave_Hoskins' https://www.shadertoy.com/view/4dlGW2
-//----------------------------------------------------------------------------------------
-float Hash(in vec2 p, in float scale)
-{
-	// This is tiling part, adjusts with the scale...
-	p = p % scale;
-	return fract(sin(dot(p, vec2(27.16898, 38.90563))) * 5151.5473453);
-}
-
-//----------------------------------------------------------------------------------------
-float Noise(in vec2 p, in float scale)
-{
-	vec2 f;
-	p *= scale;
-	f = fract(p);		// Separate integer from fractional
-
-	p = floor(p);
-	f = f * f * (3.0 - 2.0 * f);	 // Cosine interpolation approximation
-
-	float res = mix(mix(Hash(p, scale),
-		Hash(p + vec2(1.0, 0.0), scale), f.x),
-		mix(Hash(p + vec2(0.0, 1.0), scale),
-			Hash(p + vec2(1.0, 1.0), scale), f.x), f.y);
-	return res;
-}
-*/
-
 // From https://www.shadertoy.com/view/4sc3z2
 // and https://www.shadertoy.com/view/XsX3zB
 #define MOD3 vec3(.1031,.11369,.13787)

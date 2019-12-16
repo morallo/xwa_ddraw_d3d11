@@ -4658,10 +4658,10 @@ HRESULT Direct3DDevice::Execute(
 						if (PlayerDataTable->hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged.
 							g_bHyperspaceFirstFrame = true;
-							log_debug("[DBG] Set bHyperspaceFirstFrame = true");
-							log_debug("[DBG] last yp (%d, %d): cur yp: (%d, %d)",
-								g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch, 
-								PlayerDataTable->cockpitCameraPitch, PlayerDataTable->cockpitCameraYaw);
+							//log_debug("[DBG] Set bHyperspaceFirstFrame = true");
+							//log_debug("[DBG] last yp (%d, %d): cur yp: (%d, %d)",
+							//	g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch, 
+							//	PlayerDataTable->cockpitCameraPitch, PlayerDataTable->cockpitCameraYaw);
 							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
 								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
 								g_bHyperHeadSnapped = true;
@@ -6213,6 +6213,17 @@ HRESULT Direct3DDevice::BeginScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
+	bool bTransitionToHyperspace = false;
+	bPrevHyperspaceState = bCurHyperspaceState;
+	bCurHyperspaceState = PlayerDataTable->hyperspacePhase != 0;
+	bTransitionToHyperspace = !bPrevHyperspaceState && bCurHyperspaceState;
+	// We want to capture the transition to hyperspace because we don't want to clear some buffers
+	// when this happens. The problem is that the game snaps the camera to the forward position as soon
+	// as we jump into hyperspace; but that causes glitches with the new hyperspace effect. To solve this
+	// I'm storing the heading of the camera right before the jump and then I restore it as soon as possible
+	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
+	// clearing these buffers on that same frame or the effect will "blink"
 
 	//log_debug("[DBG] BeginScene");
 	if (!this->_deviceResources->_renderTargetView)
@@ -6232,43 +6243,49 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& context = this->_deviceResources->_d3dDeviceContext;
 	auto& resources = this->_deviceResources;
 
-	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
-	if (g_bUseSteamVR) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+	if (!bTransitionToHyperspace) {
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+		}
 	}
 
 	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them
 	// even if the Bloom effect is disabled
-	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) {
-		context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
-		if (g_bUseSteamVR)
-			context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
-	}
+	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) 
+		if (!bTransitionToHyperspace) {
+			context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
+			if (g_bUseSteamVR)
+				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
+		}
 
 	// Clear the AO RTVs
-	if (g_bAOEnabled) {
-		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
-		// on the sides of the screen
-		float infinity[4] = { 0, 0, 32000.0f, 0 };
-		float zero[4] = { 0, 0, 0, 0 };
+	if (g_bAOEnabled) 
+		if (!bTransitionToHyperspace) {
+			// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
+			// on the sides of the screen
+			float infinity[4] = { 0, 0, 32000.0f, 0 };
+			float zero[4] = { 0, 0, 0, 0 };
 
-		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
-		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
-		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
-		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+			}
 		}
-	}
 
-	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-	if (g_bUseSteamVR)
-		context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+	if (!bTransitionToHyperspace) {
+		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		if (g_bUseSteamVR)
+			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+	}
 
 	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
 		resources->_displayHeight, resources->_displayBpp)))
