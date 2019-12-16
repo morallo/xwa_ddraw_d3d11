@@ -47,6 +47,8 @@ SamplerState bgColorSampler : register(s1);
 static const vec3 blue_col = vec3(0.3, 0.3, 0.5);
 static const vec3 white_col = vec3(0.85, 0.85, 0.9);
 static const vec3 flare_col = vec3(0.9, 0.9, 1.4);
+static const vec3 bloom_col = vec3(0.5, 0.5, 1);
+#define bloom_strength 2.0
 
 struct PixelShaderInput
 {
@@ -131,7 +133,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
-	for (float i = 0.0; i < 80.0; i++)
+	for (float i = 0.0; i < 100.0; i++)
 	{
 		vec3 trail_color = 0.0;
 		float angle = atan2(v.y, v.x) / 3.141592 / 2.0 + 0.13 * i;
@@ -214,7 +216,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	color = lerp(bgcol.rgb, color, lightness);
 	output.color = vec4(color, 1.0);
 	// Fix the final bloom and mask it with the cockpit alpha
-	output.bloom = float4(1.0 * float3(0.5, 0.5, 1) * bloom, bloom);
+	output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
 	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

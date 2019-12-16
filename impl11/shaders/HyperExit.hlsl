@@ -322,7 +322,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
-	for (float i = 0.0; i < 60.0; i++)
+	for (float i = 0.0; i < 80.0; i++)
 	{
 		vec3 trail_color = 0.0;
 		float angle = atan2(v.y, v.x) / 3.141592 / 2.0 + 0.13 * i;
