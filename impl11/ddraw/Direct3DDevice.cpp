@@ -246,8 +246,9 @@ HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
 float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
+float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
-bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false;
+bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false;
 // DEBUG
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
@@ -3879,7 +3880,6 @@ void Direct3DDevice::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
 		break;
-	// Exiting Hyperspace
 	case HS_HYPER_EXIT_ST:
 		// Max internal time: ~236
 		// Max shader time: 1.5 (t2 minus a small fraction)
@@ -4658,6 +4658,7 @@ HRESULT Direct3DDevice::Execute(
 						if (PlayerDataTable->hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged.
 							g_bHyperspaceFirstFrame = true;
+							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
 							//log_debug("[DBG] Set bHyperspaceFirstFrame = true");
 							//log_debug("[DBG] last yp (%d, %d): cur yp: (%d, %d)",
 							//	g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch, 
@@ -4667,10 +4668,27 @@ HRESULT Direct3DDevice::Execute(
 								g_bHyperHeadSnapped = true;
 							PlayerDataTable->cockpitCameraYaw = g_fLastCockpitCameraYaw;
 							PlayerDataTable->cockpitCameraPitch = g_fLastCockpitCameraPitch;
+							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
+							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
+						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
+						// it had when entering hyperspace
+						if (!g_bClearedAuxBuffer &&
+							(PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							 PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame)) {
+							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+							g_bClearedAuxBuffer = true;
+							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+							if (g_bUseSteamVR) {
+								//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+							}
+						}
+
 						if (PlayerDataTable->hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
 							// We're about to enter the hyperspace tunnel, change the color of the lights:
