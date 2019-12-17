@@ -253,8 +253,8 @@ bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAux
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
 float g_fHyperTimeOverride = 0.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
-//int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
-int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
+int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
+//int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
 //int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
 //int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
