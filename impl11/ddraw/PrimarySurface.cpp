@@ -26,17 +26,19 @@ const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+//extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
 extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
-extern bool g_bHyperHeadSnapped;
+extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
+extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
-extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered, g_iHyperExitPostFrames;
+extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
-extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bHyperspaceEffectRenderedOnCurrentFrame, g_bSwitchedToPlayerObject;
+extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -3687,9 +3689,9 @@ HRESULT PrimarySurface::Flip(
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
 			if (g_bAOEnabled) {
 				if (!g_bDepthBufferResolved) {
-					// If an external camera is used, then the depth buf will be resolved here
-					//log_debug("[DBG] [AO] Resolving depth Buf in PrimarySurface Flip()");
-					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here
+					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here.
+					// This may happen if there is no GUI (all HUD indicators were switched off) or the
+					// external camera is active.
 					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
 					//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
@@ -3967,7 +3969,7 @@ HRESULT PrimarySurface::Flip(
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
 			g_bDepthBufferResolved = false;
 			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
-			g_bSwitchedToPlayerObject = false;
+			g_bSwitchedToGUI = false;
 			// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 			if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 				g_iHyperExitPostFrames++;
@@ -3995,7 +3997,6 @@ HRESULT PrimarySurface::Flip(
 				g_iHyperStateOverride = 4; // POST_HYPER_EXIT
 			*/
 //#endif
-
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -4227,7 +4228,7 @@ HRESULT PrimarySurface::Flip(
 			//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
 			//if (timeRemaining < 0.005) WaitGetPoses();
 
-			// We're about to show 3D content, so let's set the corresponding flag
+			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
 			if (!g_bRendering3D) {
 				// We were presenting 2D content and now we're about to show 3D content. If we were in
 				// hyperspace, we might need to reset the hyperspace FSM and restore any settings we
@@ -4243,6 +4244,7 @@ HRESULT PrimarySurface::Flip(
 					g_HyperspacePhaseFSM = HS_INIT_ST;
 				}
 			}
+			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system

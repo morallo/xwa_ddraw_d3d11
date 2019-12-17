@@ -235,7 +235,6 @@ bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloa
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
 bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
-bool g_bSwitchedToPlayerObject = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
@@ -248,7 +247,7 @@ int g_iHyperExitPostFrames = 0;
 float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
-bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false;
+bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
 // DEBUG
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
@@ -4571,12 +4570,6 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
 				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
-				//if (!g_bSwitchedToPlayerObject) {
-				//	g_bSwitchedToPlayerObject = !g_bPrevIsPlayerObject && g_bIsPlayerObject;
-					//if (g_bSwitchedToPlayerObject) {
-						//log_debug("[DBG] SwitchedToPlayerObject (1)");
-					//}
-				//}
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -4736,6 +4729,7 @@ HRESULT Direct3DDevice::Execute(
 				 *************************************************************************/
 
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
+					g_bSwitchedToGUI = true;
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 
@@ -4765,47 +4759,33 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 
-					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-					// not travelling through hyperspace:
-//#ifndef HYPER_OVERRIDE
-					//if (g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-//#endif
-					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+					// Process/Render the hyperspace effect
 					{
-						g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-						g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
-						
-						g_bSwitchedToPlayerObject = true;
-						//if (g_bHyperspaceFirstFrame)
-						//	log_debug("[DBG] bHyperspaceFirstFrame --> Capture frame");
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR) {
-							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+						// not travelling through hyperspace:
+						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+						{
+							g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+							g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+							if (g_bUseSteamVR) {
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+							}
 						}
 
-						// DEBUG
-						/*
-						static bool bDumped = false;
-						if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST && !bDumped) {
-							DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
-								L"C:\\Temp\\_shadertoyAuxBuf-post-exit.jpg");
-							bDumped = true;
+						// Render the hyperspace effect *after* the original hyperspace effect has already finished.
+						if (g_HyperspacePhaseFSM != HS_INIT_ST)
+						{
+							// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+							//				  shadertoyBuf has a copy of the cockpit
+
+							// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+							// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+							RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 						}
-						*/
-						// DEBUG
-					}
-
-					// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-					if (g_HyperspacePhaseFSM != HS_INIT_ST)
-					{
-						// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-						//				  shadertoyBuf has a copy of the cockpit
-
-						// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-						// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-						RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					}
 				}
 
@@ -6238,7 +6218,6 @@ HRESULT Direct3DDevice::BeginScene()
 	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
 	// clearing these buffers on that same frame or the effect will "blink"
 
-	//log_debug("[DBG] BeginScene");
 	if (!this->_deviceResources->_renderTargetView)
 	{
 #if LOGGER
@@ -6335,7 +6314,42 @@ HRESULT Direct3DDevice::EndScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-	//log_debug("[DBG] EndScene");
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Render the hyperspace effect when no GUI is present
+	if (g_bRendering3D && !g_bSwitchedToGUI) 
+	{
+		g_bSwitchedToGUI = true;
+		// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+		// not travelling through hyperspace:
+		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+		{
+			g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+			g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+
+			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR) {
+				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+					resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+			}
+		}
+
+		// Render the hyperspace effect *after* the original hyperspace effect has already finished.
+		if (g_HyperspacePhaseFSM != HS_INIT_ST)
+		{
+			UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+			// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+			//				  shadertoyBuf has a copy of the cockpit
+
+			// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+			// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+			// TODO: Fix the effect for VR
+			RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, &vertexBufferStride, &vertexBufferOffset);
+		}
+	}
+
 	this->_deviceResources->sceneRendered = true;
 
 	this->_deviceResources->inScene = false;
