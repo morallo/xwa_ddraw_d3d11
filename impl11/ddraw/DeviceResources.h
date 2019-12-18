@@ -357,6 +357,7 @@ enum HyperspacePhaseEnum {
 	HS_HYPER_EXIT_ST = 3,		// HyperExit streaks are being rendered
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
+const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 
 class DeviceResources
 {
