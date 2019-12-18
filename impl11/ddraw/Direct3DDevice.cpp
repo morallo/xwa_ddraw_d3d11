@@ -5082,7 +5082,7 @@ HRESULT Direct3DDevice::Execute(
 				// Enable the full transform for the hyperspace tunnel
 				if (bIsHyperspaceTunnel) {
 					bModifiedShaders = true;
-					g_VSCBuffer.bFullTransform = 1.0f;
+					//g_VSCBuffer.bFullTransform = 1.0f;
 					//g_VSCBuffer.sz_override = 0.01f;
 					//g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 				}

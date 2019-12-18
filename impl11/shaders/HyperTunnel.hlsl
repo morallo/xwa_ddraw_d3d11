@@ -71,10 +71,20 @@ float fBm3(in vec3 p)
 	return min(f, 1.0);
 }
 
+/*
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
+};
+*/
+
+struct PixelShaderInput
+{
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 uv     : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 };
 
 struct PixelShaderOutput

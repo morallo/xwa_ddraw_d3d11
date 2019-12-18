@@ -3559,8 +3559,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	static float fLightRotationAngle = 0.0f;
 	float timeInHyperspace = (float)PlayerDataTable->timeInHyperspace;
 	float iLinearTime = 0.0f; // We need a "linear" time that we can use to control the speed of the shake and light rotation
-	//bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ||
-	//	(g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
 	float fShakeAmplitude = 0.0f;
 
@@ -3678,8 +3676,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	D3D11_VIEWPORT viewport{};
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = g_fCurScreenWidth;
-	viewport.Height = g_fCurScreenHeight;
+	viewport.Width    = g_fCurScreenWidth;
+	viewport.Height   = g_fCurScreenHeight;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
@@ -3699,7 +3697,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	//if (!g_bEnableVR) 
-	if (true)
+	if (false)
 	{
 		// Set the Vertex Shader Constant buffers
 		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3745,14 +3743,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
 		}
 		else {
-			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
-		//g_VSCBuffer.viewportScale[2] = 1.0f; // scale;
-		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-
-		// Reduce the scale for GUI elements, except for the HUD
-		g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
+		g_VSCBuffer.viewportScale[2] = 1.0f; // scale;
+		g_VSCBuffer.viewportScale[3] = 1.0f;
 		// Enable/Disable the fixed GUI
 		g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
 		// Since the HUD is all rendered on a flat surface, we lose vrparams that make the 3D object
@@ -3761,13 +3756,17 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		g_PSCBuffer.brightness = 1.0f;
 		g_PSCBuffer.bUseCoverTexture = 0;
-		g_PSCBuffer.DynCockpitSlots = 0;
+		g_PSCBuffer.DynCockpitSlots = 0; 
 
-		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		//resources->InitVertexBuffer(resources->_HUDVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
 			resources->InitVertexShader(resources->_sbsVertexShader);
@@ -3776,6 +3775,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->InitVertexShader(resources->_vertexShader);
 	}
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitRasterizerState(resources->_rasterizerState);
 
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -3823,7 +3823,13 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		/*
 		// DEBUG
-		if (g_iPresentCounter == CAPTURE_FRAME) {
+		const int CAPTURE_FRAME = 110;
+		if (g_iPresentCounter == CAPTURE_FRAME) 
+		{
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyBuf.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 				L"C:\\Temp\\_offscreenBuf-0.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
@@ -4259,7 +4265,7 @@ HRESULT PrimarySurface::Flip(
 					}
 				}
 
-				// Render the hyperspace effect *after* the original hyperspace effect has already finished.
+				// Render the new hyperspace effect
 				if (g_HyperspacePhaseFSM != HS_INIT_ST)
 				{
 					UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;

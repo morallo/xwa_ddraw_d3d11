@@ -50,10 +50,20 @@ static const vec3 flare_col = vec3(0.9, 0.9, 1.4);
 static const vec3 bloom_col = vec3(0.5, 0.5, 1);
 #define bloom_strength 2.0
 
+/*
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
+};
+*/
+
+struct PixelShaderInput
+{
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 uv     : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 };
 
 struct PixelShaderOutput

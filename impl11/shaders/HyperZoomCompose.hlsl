@@ -12,10 +12,20 @@ SamplerState sampler0 : register(s0);
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
 
+/*
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+};
+*/
+
+struct PixelShaderInput
+{
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 uv     : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 };
 
 struct PixelShaderOutput
