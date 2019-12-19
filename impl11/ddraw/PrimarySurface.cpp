@@ -3690,7 +3690,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// First render: Render the hyperspace effect itself
 	{
 		//if (!g_bEnableVR) 
-		if (false)
+		/* if (false)
 		{
 			// Set the Vertex Shader Constant buffers
 			resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3719,10 +3719,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->InitInputLayout(resources->_mainInputLayout);
 			// Set the Vertex Shader (the pixel shader is set in the switch above):
 			resources->InitVertexShader(resources->_mainVertexShader);
-		}
-		else {
+		} else */
+		{
 			// Set the new viewport (a full quad covering the full screen)
 			viewport.Width = g_fCurScreenWidth;
+			viewport.Height = g_fCurScreenHeight;
 			// VIEWPORT-LEFT
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR)
@@ -3730,7 +3731,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				else
 					viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 			}
-			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftX = 0.0f;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
@@ -3747,7 +3747,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_VSCBuffer.cockpit_threshold	= -1.0f;
 			g_VSCBuffer.bPreventTransform	=  0.0f;
 			g_VSCBuffer.bFullTransform		=  0.0f;
-			if (g_bEnableVR) {
+			if (g_bEnableVR) 
+			{
 				g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
 				g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
 			}
@@ -3756,7 +3757,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 				g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 			}
-			//g_VSCBuffer.viewportScale[2] = 1.0f; // scale;
 			//g_VSCBuffer.viewportScale[3] = 1.0f;
 			//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
 
@@ -3784,28 +3784,16 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				resources->InitVertexShader(resources->_vertexShader);
 		}
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		//resources->InitRasterizerState(resources->_rasterizerState);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (g_bUseSteamVR)
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 
 		// Set the RTV:
-		if (!g_bReshadeEnabled) {
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewPost.Get(),
-				//NULL, NULL, NULL, NULL
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-		}
-		else {
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-				//resources->_renderTargetViewBloomMask.Get(),
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-		}
-		// Handle DirectSBS/SteamVR cases...
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
 		context->Draw(6, 0);
 
 		// Render the right image
@@ -3907,8 +3895,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		};
 		context->OMSetRenderTargets(5, rtvs_null, NULL);
 
+		/*
 		// DEBUG
-		/*const int CAPTURE_FRAME = 15;
+		const int CAPTURE_FRAME = 15;
 		if (g_iPresentCounter == CAPTURE_FRAME) 
 		{
 			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
@@ -3919,8 +3908,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				L"C:\\Temp\\_offscreenBuf-0.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
 				L"C:\\Temp\\_offscreenBufferPost-0.jpg");
-		}*/
+		}
 		// DEBUG
+		*/
 
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _offscreenBufferAsInput to re-use in the next step:
@@ -3948,7 +3938,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		if (!g_bReshadeEnabled) {
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewPost.Get(),
-				//NULL, NULL, NULL, NULL
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
@@ -3971,6 +3960,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->PSSetShaderResources(0, 3, srvs);
 		// TODO: Handle SteamVR cases
 		context->Draw(6, 0);
+
+		/*
+		// DEBUG
+		if (g_iPresentCounter == CAPTURE_FRAME) {
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBufferPost-1.jpg");
+		}
+		// DEBUG
+		*/
 	}
 
 	/*
