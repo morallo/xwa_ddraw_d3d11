@@ -14,13 +14,13 @@
 
 #define TAU 6.28318
 
-// The Foreground Color Buffer (_shadertoyBuf)
-Texture2D fgColorTex : register(t0);
-SamplerState fgColorSampler : register(s0);
-
-// The Background Color Buffer (_shadertoyAuxBuf)
-Texture2D bgColorTex : register(t1);
-SamplerState bgColorSampler : register(s1);
+//// The Foreground Color Buffer (_shadertoyBuf)
+//Texture2D fgColorTex : register(t0);
+//SamplerState fgColorSampler : register(s0);
+//
+//// The Background Color Buffer (_shadertoyAuxBuf)
+//Texture2D bgColorTex : register(t1);
+//SamplerState bgColorSampler : register(s1);
 
 // The way this shader works is by looking at the screen as if it were a disk and then
 // this disk is split into a number of slices centered at the origin. Each slice renders
@@ -68,30 +68,7 @@ inline float getTime() {
 static const vec2 scr_center = vec2(0.5, 0.5);
 static const float speed = 1.0; // 100 is super-fast, 50 is fast, 25 is good
 
-// Distort effect based on: https://stackoverflow.com/questions/6030814/add-fisheye-effect-to-images-at-runtime-using-opengl-es
-vec3 distort(in vec2 uv, in float distortion,
-	in float dist_apply, in float fade_apply)
-{
-	vec2 proj_center = scr_center - vec2(0, y_center);
-	vec2 uv_scaled = uv - proj_center;
-	float r = length(uv_scaled);
-	float fade_t = 0.25, fade = 1.0;
-	vec2 dist_uv = uv_scaled * r * distortion;
 
-	uv_scaled = mix(uv_scaled, dist_uv, dist_apply) + proj_center;
-	
-	if (uv_scaled.x < 0.0 || uv_scaled.x > 1.0 ||
-		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
-		return 0.0;
-
-	vec3 col = bgColorTex.SampleLevel(bgColorSampler, uv_scaled, 0).rgb;
-	if (r > fade_t) {
-		fade = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
-		fade *= fade;
-		fade = mix(1.0, fade, fade_apply);
-	}
-	return fade * col;
-}
 
 /*
 struct PixelShaderInput
@@ -112,25 +89,39 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
+	//float4 bloom    : SV_TARGET1;
 };
+
+/*
+// Distort effect based on: https://stackoverflow.com/questions/6030814/add-fisheye-effect-to-images-at-runtime-using-opengl-es
+vec3 distort(in vec2 uv, in float distortion,
+	in float dist_apply, in float fade_apply)
+{
+	vec2 proj_center = scr_center - vec2(0, y_center);
+	vec2 uv_scaled = uv - proj_center;
+	float r = length(uv_scaled);
+	float fade_t = 0.25, fade = 1.0;
+	vec2 dist_uv = uv_scaled * r * distortion;
+
+	uv_scaled = mix(uv_scaled, dist_uv, dist_apply) + proj_center;
+
+	if (uv_scaled.x < 0.0 || uv_scaled.x > 1.0 ||
+		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
+		return 0.0;
+
+	vec3 col = bgColorTex.SampleLevel(bgColorSampler, uv_scaled, 0).rgb;
+	if (r > fade_t) {
+		fade = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
+		fade *= fade;
+		fade = mix(1.0, fade, fade_apply);
+	}
+	return fade * col;
+}
 
 float3 HyperZoom(float2 uv) {
 	vec3  col = 0.0;
 	vec3  res = 0.0;
 	uint  index;
-
-	/*
-	Frame: Effect
-
-	0: No effect
-	1: Very small
-	2: Small; but visible
-	3: 1/4 of the screen
-	4: 1/2 of the screen
-	5: Full screen, blurred
-	6: Full screen
-	*/
 
 	float dist_apply[7], dist[7];
 	float factors[7], fade[7], d_scale[7];
@@ -153,13 +144,6 @@ float3 HyperZoom(float2 uv) {
 	d_scale[5] = 0.40;
 	d_scale[6] = 0.00;
 
-	// The higher the uv multipler, the smaller the image
-	//fragColor = texture(iChannel0, uv * 3.0 + scr_center);
-	//return;
-
-	//uv  = uv / mod(iTime, 5.0);
-	//uv += scr_center;
-
 	float t = min(1.0, max(iTime, 0.0) / t2_zoom); // Normalize time in [0..1]
 	t = 1.0 - t; // Reverse time to shrink streaks
 	t = (6.0 * t) % 7.0;
@@ -176,30 +160,16 @@ float3 HyperZoom(float2 uv) {
 		iters_mix = round(lerp(iters[index], iters[index + 1], t1));
 		d_scale_mix = lerp(d_scale[index], d_scale[index + 1], t1);
 	}
-	//index = 5; // DEBUG
-	//index = index % 7;
 
-	//vec2  d = -uv / float(iters[index]) * d_scale[index];
 	vec2  d = -uv / float(iters_mix) * d_scale_mix;
-
-	//time_d = iTime;
-	//time_d = 1.8;
-
-	//d *= 0.75; // Smaller factors = less blur
 	[loop]
 	for (int i = 0; i < iters_mix; i++)
-	//for (int i = 0; i < iters[index]; i++)
 	{
-		//vec2 uv_scaled = uv * factors[index] + 0.5;
 		vec2 uv_scaled = uv * factors_mix + 0.5;
-		//res = distort(uv_scaled, dist[index],
-		//	dist_apply[index], fade[index]);
-		res = distort(uv_scaled, dist_mix,
-			dist_apply_mix, fade_mix);
+		res = distort(uv_scaled, dist_mix, dist_apply_mix, fade_mix);
 		col += res;
 		uv += d;
 	}
-	//col = 1.2 * col / float(iters[index]);
 	col = 1.2 * col / float(iters_mix);
 	return col;
 }
@@ -210,7 +180,7 @@ PixelShaderOutput mainZoom(PixelShaderInput input)
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-	output.bloom = 0;
+	//output.bloom = 0;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -224,62 +194,6 @@ PixelShaderOutput mainZoom(PixelShaderInput input)
 	vec2 uv = fragCoord / iResolution.xy - scr_center;
 	vec3 col = HyperZoom(uv);
 	fragColor = vec4(col, 1.0);
-
-	output.color = fragColor;
-	return output;
-}
-
-/*
-// Hyperspace streaks
-PixelShaderOutput main(PixelShaderInput input)
-{
-	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
-	vec2 fragCoord = input.uv * iResolution.xy;
-	vec2 uv;
-	vec3 streakcol = 0.0;
-	float4 fgcol = fgColorTex.SampleLevel(fgColorSampler, input.uv, 0); // Use this texture to mask the bloom effect
-	float4 bgcol;
-	float bloom = 0.0, white_level;
-
-	//output.pos3D = 0;
-	//output.normal = 0;
-	//output.ssaoMask = 1;
-	output.bloom = 0;
-
-	// Early exit: avoid rendering outside the original viewport edges
-	if (input.uv.x < x0 || input.uv.x > x1 ||
-		input.uv.y < y0 || input.uv.y > y1)
-	{
-		output.color = 0.0;
-		return output;
-	}
-
-	// Render the streaks
-	bloom = 0.0;
-	for (int i = -1; i <= 1; i++)
-		for (int j = -1; j <= 1; j++) {
-			streakcol += pixelVal(4.0 * fragCoord + vec2(i, j), white_level);
-			bloom += white_level;
-		}
-	streakcol /= 9.0;
-	bloom /= 9.0;
-	//bloom = 0.0;
-	output.bloom = float4(5.0 * float3(0.5, 0.5, 1) * bloom, bloom);
-	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
-
-	// Convert pixel coord into uv centered at the origin
-	uv = fragCoord / iResolution.xy - scr_center;
-	// Apply the zoom effect
-	bgcol = 0.0;
-	if (bBGTextureAvailable) bgcol.rgb = HyperZoom(uv);
-	bgcol.a = 1.0;
-
-	// Output to screen
-	fragColor = vec4(streakcol, 1.0);
-	float lightness = dot(0.333, fragColor.rgb);
-	// Mix the background color with the streaks
-	fragColor = lerp(bgcol, fragColor, lightness);
 
 	output.color = fragColor;
 	return output;
@@ -303,7 +217,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec3 color = 0.0;
 	output.color = 0.0;
-	output.bloom = 0.0;
+	//output.bloom = 0.0;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -313,8 +227,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 	}
 
-	float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
-	float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
+	//float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
+	//float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
 	//float t = mod(iTime, T_MAX) / t2;
 	float t = max(0.0, getTime()) / t2;
 	t = 1.0 - t; // Reverse time because now this effect expects "regular" forward time
@@ -328,7 +242,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float trail_start, trail_end, trail_length = 0.5, trail_x;
 	// Fade all the trails into view from black to a little above full-white:
 	float fade = mix(1.4, 0.0, smoothstep(0.65, 0.95, t));
-	float bloom = 0.0;
+	//float bloom = 0.0;
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
@@ -388,7 +302,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 			vec2(slice_fract + slice_offset, z),
 			vec2(0.5, trail_start),
 			vec2(0.5, trail_end),
-			mix(0.0, 0.015, z));
+			mix(0.0, 0.015, z)
+		);
 
 		// This threshold adds a "glow" to the line. This glow grows with
 		// time:
@@ -407,27 +322,29 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 		// Accumulate this trail with the previous ones
 		color = max(color, trail_color);
-		bloom = max(bloom, dot(0.333, trail_color));
+		//bloom = max(bloom, dot(0.333, trail_color));
 	}
 
 	// Whiteout
 	color += mix(1.0, 0.0, smoothstep(0.0, 0.2, t));
 	fragColor = vec4(color, 1.0);
 
+	/*
 	// Convert pixel coord into uv centered at the origin
 	float2 uv = fragCoord / iResolution.xy - scr_center;
 	// Apply the zoom effect
 	bgcol = 0.0;
 	if (bBGTextureAvailable) bgcol.rgb = HyperZoom(uv);
 	bgcol.a = 1.0;
+	*/
 
 	// Blend the trails with the current background
-	float lightness = dot(0.333, color.rgb);
-	color = lerp(bgcol.rgb, color, lightness);
+	//float lightness = dot(0.333, color.rgb);
+	//color = lerp(bgcol.rgb, color, lightness);
 	output.color = vec4(color, 1.0);
 
 	// Fix the final bloom and mask it with the cockpit alpha
-	output.bloom = float4(1.0 * float3(0.5, 0.5, 1) * bloom, bloom);
-	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
+	//output.bloom = float4(1.0 * float3(0.5, 0.5, 1) * bloom, bloom);
+	//output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

@@ -3684,7 +3684,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.bBGTextureAvailable = bBGTextureAvailable;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	g_ShadertoyBuffer.bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
+	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	// First render: Render the hyperspace effect itself

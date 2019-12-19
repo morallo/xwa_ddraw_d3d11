@@ -12,12 +12,12 @@ static const float rotation_speed = 2.3;
 static const float t2 = 4.0;
 
 // The Foreground Color Buffer (_shadertoyBuf)
-Texture2D fgColorTex : register(t0);
-SamplerState fgColorSampler : register(s0);
-
-// The Background Color Buffer (_shadertoyAuxBuf)
-Texture2D bgColorTex : register(t1);
-SamplerState bgColorSampler : register(s1);
+//Texture2D fgColorTex : register(t0);
+//SamplerState fgColorSampler : register(s0);
+//
+//// The Background Color Buffer (_shadertoyAuxBuf)
+//Texture2D bgColorTex : register(t1);
+//SamplerState bgColorSampler : register(s1);
 
 // From https://www.shadertoy.com/view/4sc3z2
 // and https://www.shadertoy.com/view/XsX3zB
@@ -90,7 +90,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
+	//float4 bloom    : SV_TARGET1;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -99,7 +99,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;	
 	vec4 col = vec4(0, 0, 0, 1);
-	output.bloom = 0;
+	//output.bloom = 0;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
@@ -112,7 +112,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
+	//float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
 	float t = mod(iTime, t2) / t2; // Normalized time
 
 	vec3 v = vec3(p, -FOVscale);
@@ -147,8 +147,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Add white spots
 	float white_spot = 0.65 * smoothstep(0.55, 1.0, val);
 	col.rgb += white_spot;
-	output.bloom = white_spot;
-	output.bloom.rgb *= 2.5;
+	//output.bloom = white_spot;
+	//output.bloom.rgb *= 2.5;
 
 	float w_total = 0.0, w_out = 0.0, w_in;
 	// Fade in and out from white every t2 seconds
@@ -165,7 +165,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	col.rgb = mix(col.rgb, 1.0, w_total);
 
 	// Mask the bloom
-	output.bloom *= (1.0 - fgcol.a);
+	//output.bloom *= (1.0 - fgcol.a);
 
 	fragColor = vec4(col.rgb, 1);
 	output.color = fragColor;

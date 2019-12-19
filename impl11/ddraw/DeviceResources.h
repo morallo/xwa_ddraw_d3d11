@@ -235,7 +235,7 @@ typedef struct ShadertoyCBStruct {
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 48 + 64 = 112 bytes
 	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
-	int bDirectSBS; // Enables DirectSBS rendering mode in the shaders
+	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 } ShadertoyCBuffer;

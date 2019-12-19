@@ -3,6 +3,7 @@
 // This shader draws the cockpit on top of the blurred background during
 // post-hyper-exit
 #include "HSV.h"
+#include "ShaderToyDefs.h"
 
 // The foreground texture (shadertoyBuf)
 Texture2D    fgTex     : register(t0);
@@ -51,15 +52,29 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 bgColor = bgTex.Sample(bgSampler, input.uv);
 	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
 
+	float3 color;
 	float fg_alpha = fgColor.a;
 	float lightness = dot(0.333, effectColor.rgb);
 	// Combine the background with the hyperspace effect
-	float3 color = lerp(bgColor.rgb, effectColor.rgb, lightness);
+	if (hyperspace_phase == 2) {
+		// Replace the background with the tunnel
+		color = effectColor.rgb;
+	}
+	else {
+		// Blend the trails with the background
+		color = lerp(bgColor.rgb, effectColor.rgb, lightness);
+	}
 	// Combine the previous textures with the foreground (cockpit)
 	color = lerp(color, fgColor.rgb, fg_alpha);
 	output.color = float4(color, 1.0);
+
 	// Fix the bloom
-	bloom = lightness;
+	if (hyperspace_phase == 1 || hyperspace_phase == 3 || hyperspace_phase == 4) {
+		bloom = lightness;
+	}
+	else {
+		bloom = 0.65 * smoothstep(0.55, 1.0, lightness);
+	}
 	output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
 	output.bloom *= 1.0 - fg_alpha; // Hide the bloom mask wherever the foreground is solid
 	return output;
