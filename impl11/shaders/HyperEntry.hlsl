@@ -15,12 +15,12 @@
 #include "ShaderToyDefs.h"
 
 // Color buffer (foreground/cockpit)
-Texture2D fgColorTex : register(t0);
-SamplerState fgColorSampler : register(s0);
-
-// Color buffer (background)
-Texture2D bgColorTex : register(t1);
-SamplerState bgColorSampler : register(s1);
+//Texture2D fgColorTex : register(t0);
+//SamplerState fgColorSampler : register(s0);
+//
+//// Color buffer (background)
+//Texture2D bgColorTex : register(t1);
+//SamplerState bgColorSampler : register(s1);
 
 // The way this shader works is by looking at the screen as if it were a disk and then
 // this disk is split into a number of slices centered at the origin. Each slice renders
@@ -47,8 +47,6 @@ SamplerState bgColorSampler : register(s1);
 static const vec3 blue_col = vec3(0.3, 0.3, 0.5);
 static const vec3 white_col = vec3(0.85, 0.85, 0.9);
 static const vec3 flare_col = vec3(0.9, 0.9, 1.4);
-static const vec3 bloom_col = vec3(0.5, 0.5, 1);
-#define bloom_strength 2.0
 
 /*
 struct PixelShaderInput
@@ -69,7 +67,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
+	//float4 bloom    : SV_TARGET1;
 };
 
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
@@ -114,7 +112,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec3 color = 0.0;
 	output.color = 0.0;
-	output.bloom = 0.0;
+	//output.bloom = 0.0;
+
+	// DEBUG
+	//output.color = bgColorTex.Sample(bgColorSampler, input.uv);
+	//output.color = float4(input.uv, 0.0, 1.0);
+	//return output;
+	// DEBUG
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -124,10 +128,22 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 	}
 
-	float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
-	float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
+	//float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
+	//float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
 	float t = mod(iTime, T_MAX) / T_MAX;
-	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	vec2 p;
+	//if (bDirectSBS) {
+	//	if (fragCoord.x < iResolution.x * 0.5) {
+	//		p = (2.0 * fragCoord.xy - iResolution.xy) / iResolution.x + vec2(0.5, 0.0);
+	//	}
+	//	else {
+	//		fragCoord.x -= (iResolution.x * 0.5);
+	//		p = (2.0 * fragCoord.xy - iResolution.xy) / iResolution.x + vec2(0.5, 0.0);
+	//	}
+	//}
+	//else
+		// Non-VR:
+		p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	float p_len = length(p);
@@ -139,7 +155,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float trail_start, trail_end;
 	// Fade all the trails into view from black to a little above full-white:
 	float fade = clamp(mix(0.1, 1.1, t * 2.0), 0.0, 2.0);
-	float bloom = 0.0;
+	//float bloom = 0.0;
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
@@ -203,7 +219,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 		// Accumulate this trail with the previous ones
 		color = max(color, trail_color);
-		bloom = max(bloom, dot(0.333, trail_color));
+		//bloom = max(bloom, dot(0.333, trail_color));
 	}
 
 	if (bDisneyStyle) {
@@ -222,11 +238,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 
 	// Blend the trails with the current background
-	float lightness = dot(0.333, color.rgb);
-	color = lerp(bgcol.rgb, color, lightness);
+	//float lightness = dot(0.333, color.rgb);
+	//color = lerp(bgcol.rgb, color, lightness);
 	output.color = vec4(color, 1.0);
 	// Fix the final bloom and mask it with the cockpit alpha
-	output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
-	output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
+	//output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
+	//output.bloom *= 1.0 - fgcol.a; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

@@ -3257,114 +3257,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 	z =  PX[2];
 }
 
-/* 
- * This function was originally used to reconstruct 3D. Now, most of this logic is in the 
- * SBSVertexShader. We actually don't need this function at all, and at some point it will
- * be moved entirely to the vertex shader. At that point, we can get rid of g_3DVerts too and
- * the logic associated with it.
- */
-/*
-void PreprocessVerticesStereo(float width, float height, int numVerts)
-{
-	// Pre-process vertices for Stereo
-	float px, py;
-	//bool is_cockpit;
-	float scale_x = 1.0f / width;
-	float scale_y = 1.0f / height;
-	//float w;
-	//float scale = scale_x;
-	//bool is_GUI = false;
-
-	// Back-project and do stereo
-	for (register int i = 0; i < numVerts; i++) {
-		g_3DVerts[i] = g_OrigVerts[i];
-		// Normalize the coords: move the screen's center to (0,0) and scale the (x,y) axes
-		// to -0.5..0.5
-		px = g_OrigVerts[i].sx * scale_x - 0.5f;
-		py = g_OrigVerts[i].sy * scale_y - 0.5f;
-		// Also invert the Z axis so that z = 0 is the screen plane and z = 1 is ZFar, the original
-		// values have ZFar = 0, and ZNear = 1
-		//direct_pz = g_OrigVerts[i].sz;
-		//pz = 1.0f - direct_pz;
-
-		// GUI elements seem to be in the range 0..0.0005, so 0.0006 sounds like a good threshold:
-		//is_GUI = (pz <= g_fGUIElemPZThreshold);
-		//is_cockpit = (pz <= g_fCockpitPZThreshold);
-
-		g_3DVerts[i].sx = px;
-		g_3DVerts[i].sy = py;
-	}
-	*/
-		// Reproject back into 2D space
-		//if (is_GUI) {
-			// We need to restore the original ZBuffer value for the GUI elements or
-			// they will cause Z-Fighting with the 3D objects. Also the depth of the
-			// GUI elements is fixed by directly setting their parallax. So, nothing
-			// to do here.
-			/*
-			qx = px;
-			qy = py;
-			qz = pz;
-			*/
-			//g_3DVerts[i].sz = g_fFocalDist;
-			//g_3DVerts[i].sz = 0.0008f;
-			//g_3DVerts[i].sz = g_fFloatingGUIParallax;
-			//g_3DVerts[i].sz += 0.9f;
-		//} 
-		/*
-		else { //if (is_cockpit) {
-			if (g_bUseSteamVR) {
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Left, px, py, pz);
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Right, qx, qy, qz);
-			} else {
-				project(X + g_fHalfIPD, Y, Z, px, py, pz);
-				project(X - g_fHalfIPD, Y, Z, qx, qy, qz);
-			}			
-		} /* else {
-			float disp = 10.0f; // Objects "out there" need to have their parallax boosted or they just look flat
-			project(X + g_fHalfIPD * disp, Y, Z, px, py, pz);
-			project(X - g_fHalfIPD * disp, Y, Z, qx, qy, qz);
-		} */
-
-		/*
-		// (px,py) and (qx,qy) are now in the range [-0.5,..,0.5], we need
-		// to map them to the range [0..width, 0..height]
-		
-		// Compute the vertices for the left image
-		{
-			// De-normalize coords (left image)
-			g_LeftVerts[i].sx = (px + 0.5f) / scale_x;
-			g_LeftVerts[i].sy = (py + 0.5f) / scale_y;
-			g_LeftVerts[i].sz = 1.0f - pz;
-		}
-		// Compute the vertices for the right image
-		{
-			// De-normalize coords (right image)
-			g_RightVerts[i].sx = (qx + 0.5f) / scale_x;
-			g_RightVerts[i].sy = (qy + 0.5f) / scale_y;
-			g_RightVerts[i].sz = 1.0f - qz;
-		}
-		// Restore the original Z for the GUI elements: this will avoid Z-fighting
-		// (I think this also helps with Z-fighting in general)
-		//if (is_GUI) {
-			g_LeftVerts[i].sz  = g_OrigVerts[i].sz;
-			g_RightVerts[i].sz = g_OrigVerts[i].sz;
-		//}
-
-		*/
-	//} // Original end of the main for-loop
-
-#ifdef DBG_VR
-	// DBG: Hack: Dump the 3D scene. Triggered with Ctrl-Alt-C
-	if (g_bDo3DCapture)
-	{
-		if (g_HackFile == NULL)
-			fopen_s(&g_HackFile, "./vertexbuf.obj", "wt");
-		DumpOrigVertices(g_HackFile, numVerts);
-	}
-#endif
-//}
-
 /* Function to quickly enable/disable ZWrite. Currently only used for brackets */
 HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	HRESULT hr;
@@ -3523,9 +3415,9 @@ inline float lerp(float x, float y, float s) {
  * full-screen quad. This is used in SSDO to get the effective viewport limits in
  * uv-coords. Pixels outside the uv-coords computed here should be black.
  */
-void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1) 
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false) 
 {
-	if (g_bEnableVR) {
+	if (!UseNonVR && g_bEnableVR) {
 		// In VR mode we can't see the edges of the screen anyway, so don't bother
 		// computing the effective viewport for the left and right eyes... or the
 		// viewport for the SteamVR mode.
@@ -5184,12 +5076,16 @@ HRESULT Direct3DDevice::Execute(
 					// easier.
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							};
+							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[5] = {
-								resources->_renderTargetView.Get(),
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -5203,12 +5099,16 @@ HRESULT Direct3DDevice::Execute(
 					} else {
 						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							};
+							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[5] = {
-								resources->_renderTargetView.Get(),
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -5260,12 +5160,16 @@ HRESULT Direct3DDevice::Execute(
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+							};
+							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetViewR.GetAddressOf(),
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[5] = {
-								resources->_renderTargetViewR.Get(),
+								//resources->_renderTargetViewR.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -5279,12 +5183,16 @@ HRESULT Direct3DDevice::Execute(
 					} else {
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							};
+							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[5] = {
-								resources->_renderTargetView.Get(),
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 

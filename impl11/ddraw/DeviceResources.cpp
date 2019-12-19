@@ -539,55 +539,55 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
 	// Why do I even have to bother? Can I just use my *own* vertex shader and do
 	// away with all this silliness?
-	D3DTLVERTEX HUDVertices[6] = { 0 };
+	D3DTLVERTEX HyperVertices[6] = { 0 };
 
-	HUDVertices[0].sx = 0;
-	HUDVertices[0].sy = 0;
-	HUDVertices[0].sz = sz_depth;
-	HUDVertices[0].rhw = rhw_depth;
-	HUDVertices[0].tu = 0;
-	HUDVertices[0].tv = 0;
-	HUDVertices[0].color = color;
+	HyperVertices[0].sx  = 0;
+	HyperVertices[0].sy  = 0;
+	HyperVertices[0].sz  = sz_depth;
+	HyperVertices[0].rhw = rhw_depth;
+	HyperVertices[0].tu  = 0;
+	HyperVertices[0].tv  = 0;
+	HyperVertices[0].color = color;
 
-	HUDVertices[1].sx = (float)width;
-	HUDVertices[1].sy = 0;
-	HUDVertices[1].sz = sz_depth;
-	HUDVertices[1].rhw = rhw_depth;
-	HUDVertices[1].tu = 1;
-	HUDVertices[1].tv = 0;
-	HUDVertices[1].color = color;
+	HyperVertices[1].sx  = (float)width;
+	HyperVertices[1].sy  = 0;
+	HyperVertices[1].sz  = sz_depth;
+	HyperVertices[1].rhw = rhw_depth;
+	HyperVertices[1].tu  = 1;
+	HyperVertices[1].tv  = 0;
+	HyperVertices[1].color = color;
 
-	HUDVertices[2].sx = (float)width;
-	HUDVertices[2].sy = (float)height;
-	HUDVertices[2].sz = sz_depth;
-	HUDVertices[2].rhw = rhw_depth;
-	HUDVertices[2].tu = 1;
-	HUDVertices[2].tv = 1;
-	HUDVertices[2].color = color;
+	HyperVertices[2].sx  = (float)width;
+	HyperVertices[2].sy  = (float)height;
+	HyperVertices[2].sz  = sz_depth;
+	HyperVertices[2].rhw = rhw_depth;
+	HyperVertices[2].tu  = 1;
+	HyperVertices[2].tv  = 1;
+	HyperVertices[2].color = color;
 
-	HUDVertices[3].sx = (float)width;
-	HUDVertices[3].sy = (float)height;
-	HUDVertices[3].sz = sz_depth;
-	HUDVertices[3].rhw = rhw_depth;
-	HUDVertices[3].tu = 1;
-	HUDVertices[3].tv = 1;
-	HUDVertices[3].color = color;
+	HyperVertices[3].sx  = (float)width;
+	HyperVertices[3].sy  = (float)height;
+	HyperVertices[3].sz  = sz_depth;
+	HyperVertices[3].rhw = rhw_depth;
+	HyperVertices[3].tu  = 1;
+	HyperVertices[3].tv  = 1;
+	HyperVertices[3].color = color;
 
-	HUDVertices[4].sx = 0;
-	HUDVertices[4].sy = (float)height;
-	HUDVertices[4].sz = sz_depth;
-	HUDVertices[4].rhw = rhw_depth;
-	HUDVertices[4].tu = 0;
-	HUDVertices[4].tv = 1;
-	HUDVertices[4].color = color;
+	HyperVertices[4].sx  = 0;
+	HyperVertices[4].sy  = (float)height;
+	HyperVertices[4].sz  = sz_depth;
+	HyperVertices[4].rhw = rhw_depth;
+	HyperVertices[4].tu  = 0;
+	HyperVertices[4].tv  = 1;
+	HyperVertices[4].color = color;
 
-	HUDVertices[5].sx = 0;
-	HUDVertices[5].sy = 0;
-	HUDVertices[5].sz = sz_depth;
-	HUDVertices[5].rhw = rhw_depth;
-	HUDVertices[5].tu = 0;
-	HUDVertices[5].tv = 0;
-	HUDVertices[5].color = color;
+	HyperVertices[5].sx  = 0;
+	HyperVertices[5].sy  = 0;
+	HyperVertices[5].sz  = sz_depth;
+	HyperVertices[5].rhw = rhw_depth;
+	HyperVertices[5].tu  = 0;
+	HyperVertices[5].tv  = 0;
+	HyperVertices[5].color = color;
 
 	/* Create the VertexBuffer if necessary */
 	if (this->_hyperspaceVertexBuffer != NULL) {
@@ -606,14 +606,14 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HUDVertices);
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HyperVertices);
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.MiscFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA vertexBufferData;
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = HUDVertices;
+	vertexBufferData.pSysMem = HyperVertices;
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_hyperspaceVertexBuffer);
 	if (FAILED(hr)) {
 		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
