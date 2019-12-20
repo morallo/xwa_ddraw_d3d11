@@ -3630,7 +3630,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	case HS_POST_HYPER_EXIT_ST:
 		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
 		// Max shader time: T2_ZOOM
-		resources->InitPixelShader(resources->_hyperExitPS);
+		resources->InitPixelShader(resources->_hyperZoomPS); // hyperExitPS is activated after the HyperZoom shader
 		timeInHyperspace = (float)g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
 		if (timeInHyperspace > 1.0f) timeInHyperspace = 1.0f;
 		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
@@ -3681,14 +3681,137 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iMouse[0] = 0;
 	g_ShadertoyBuffer.iMouse[1] = 0;
 	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.bBGTextureAvailable = bBGTextureAvailable;
+	g_ShadertoyBuffer.bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-	// First render: Render the hyperspace effect itself
+	// Pre-render: Apply the hyperzoom if necessary
+	if (bBGTextureAvailable)
 	{
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		//if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			//else
+				//viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		//}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		/*if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else*/
+		{
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+		//g_VSCBuffer.viewportScale[3] = 1.0f;
+		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+
+		// Enable/Disable the fixed GUI
+		//g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
+		g_VSCBuffer.bFullTransform = 0.0f;
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		//if (g_bEnableVR)
+		//	resources->InitVertexShader(resources->_sbsVertexShader);
+		//else
+			// The original (non-VR) code used _vertexShader:
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRV:
+		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
+		context->Draw(6, 0);
+
+		// Render the right image
+		//if (g_bEnableVR) 
+		if (g_bUseSteamVR)
+		{
+			if (g_bUseSteamVR)
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+				g_ShadertoyBuffer.bDirectSBS = 2;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			context->OMSetRenderTargets(1, 
+				g_bUseSteamVR ? resources->_renderTargetViewPostR.GetAddressOf() : resources->_renderTargetViewPost.GetAddressOf(), 
+				NULL);
+			// Set the SRV:
+			context->PSSetShaderResources(0, 1, 
+				g_bUseSteamVR ? resources->_shadertoyAuxSRV_R.GetAddressOf() : resources->_shadertoyAuxSRV.GetAddressOf());
+			context->Draw(6, 0);
+
+			if (g_bUseSteamVR)
+				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+		}
+		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+
+		// Activate the hyperExitPS
+		resources->InitPixelShader(resources->_hyperExitPS);
+	}
+	// End of hyperzoom
+
+	// First render: Render the hyperspace effect itself
+	//if (false)
+	{
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		//if (!g_bEnableVR) 
 		/* if (false)
 		{
@@ -3800,6 +3923,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
 			}
@@ -3884,7 +4008,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-		resources->InitPixelShader(resources->_hyperZoomComposePS);
+		resources->InitPixelShader(resources->_hyperComposePS);
 		// Clear all the render target views
 		ID3D11RenderTargetView *rtvs_null[5] = {
 			NULL, // Main RTV

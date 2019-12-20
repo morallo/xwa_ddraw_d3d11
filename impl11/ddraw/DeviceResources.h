@@ -226,7 +226,7 @@ typedef struct ShadertoyCBStruct {
 	float iTime;
 	// 16 bytes
 	float iResolution[2];
-	int bBGTextureAvailable; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	int bDirectSBS; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
 	float y_center;
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
@@ -575,7 +575,8 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
 	ComPtr<ID3D11PixelShader> _hyperExitPS;
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
-	ComPtr<ID3D11PixelShader> _hyperZoomComposePS;
+	ComPtr<ID3D11PixelShader> _hyperZoomPS;
+	ComPtr<ID3D11PixelShader> _hyperComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

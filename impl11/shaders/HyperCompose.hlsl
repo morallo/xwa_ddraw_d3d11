@@ -39,6 +39,10 @@ struct PixelShaderOutput
 	float4 bloom	    : SV_TARGET1;
 };
 
+// The HyperZoom effect probably can't be applied in this shader because it works
+// on the full screen. Instead the HyperZoom must be applied SBS or using independent
+// buffers
+
 static const float3 bloom_col = float3(0.5, 0.5, 1);
 #define bloom_strength 2.0
 
@@ -51,6 +55,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 fgColor = fgTex.Sample(fgSampler, input.uv);
 	float4 bgColor = bgTex.Sample(bgSampler, input.uv);
 	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
+
+	/*
+	// HyperZoom
+	// Apply the zoom effect
+	if (bBGTextureAvailable) {
+		vec2 fragCoord = input.uv * iResolution.xy;
+		// Convert pixel coord into uv centered at the origin
+		float2 uv = fragCoord / iResolution.xy - scr_center;
+		bgColor.rgb = HyperZoom(uv);
+		bgColor.a = 1.0;
+	}
+	// HyperZoom
+	*/
 
 	float3 color;
 	float fg_alpha = fgColor.a;

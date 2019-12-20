@@ -26,7 +26,7 @@ cbuffer ConstantBuffer : register(b7)
 	float  iTime;
 	// 16 bytes
 	float2 iResolution;
-	uint bBGTextureAvailable; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	uint bDirectSBS;
 	float y_center; 
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport

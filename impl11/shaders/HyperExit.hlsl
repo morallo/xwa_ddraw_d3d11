@@ -68,8 +68,6 @@ inline float getTime() {
 static const vec2 scr_center = vec2(0.5, 0.5);
 static const float speed = 1.0; // 100 is super-fast, 50 is fast, 25 is good
 
-
-
 /*
 struct PixelShaderInput
 {
@@ -284,7 +282,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 								smoothstep(0.5, 1.0, t))
 			);
 		}
-		else {
+		else 
+		{
 			trail_start = min(trail_end,
 							trail_start - (t * fspeed) -
 							mix(0.0, fjump_speed,

@@ -43,7 +43,8 @@
 #include "../Debug/HyperEntry.h"
 #include "../Debug/HyperExit.h"
 #include "../Debug/HyperTunnel.h"
-#include "../Debug/HyperZoomCompose.h"
+#include "../Debug/HyperCompose.h"
+#include "../Debug/HyperZoom.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -82,7 +83,8 @@
 #include "../Release/HyperEntry.h"
 #include "../Release/HyperExit.h"
 #include "../Release/HyperTunnel.h"
-#include "../Release/HyperZoomCompose.h"
+#include "../Release/HyperCompose.h"
+#include "../Release/HyperZoom.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2072,7 +2074,10 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -2314,7 +2319,10 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoomCompose, sizeof(g_HyperZoomCompose), nullptr, &_hyperZoomComposePS)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
