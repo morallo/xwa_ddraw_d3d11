@@ -51,7 +51,7 @@ float simplexNoise(vec3 p)
 	return dot(31.316, n);
 }
 
-float fBm3(in vec3 p)
+float fBm(in vec3 p)
 {
 	//p += vec2(sin(iTime * .7), cos(iTime * .45))*(.1) + iMouse.xy*.1/iResolution.xy;
 	float f = 0.0;
@@ -138,7 +138,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec3 xyt = vec3(polar, 0.15 * iTime /* * forward_speed */);
 
 	// Blend two periods of noise together to eliminate the radial seam
-	float val = mix(fBm3(xyt + vec3(1.0, 0.0, 0.0)), fBm3(xyt), smoothstep(0.0, 1.0, x));
+	float val = mix(fBm(xyt + vec3(1.0, 0.0, 0.0)), fBm(xyt), smoothstep(0.0, 1.0, x));
 	val = clamp(0.45 + 0.55 * val, 0.0, 1.0);
 
 	// Colorize blue
