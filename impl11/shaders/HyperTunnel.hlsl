@@ -133,7 +133,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	a -= iTime * rotation_speed;
 	float x = fract(a / TAU);
 
-	polar.x = x + polar.y / TAU * 1.25; // Original period: 4
+	polar.x = x + twirl * polar.y / TAU * 1.25; // Original period: 4
 	polar *= vec2(1.0, 0.2);
 	vec3 xyt = vec3(polar, 0.15 * iTime /* * forward_speed */);
 

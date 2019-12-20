@@ -3678,20 +3678,14 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.iMouse[0] = 0;
-	g_ShadertoyBuffer.iMouse[1] = 0;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
-	if (bDirectSBS) {
+	if (g_bEnableVR) {
 		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
 			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-		/*else {
-			g_ShadertoyBuffer.iResolution[0] *= 0.5f;
-			g_ShadertoyBuffer.iResolution[1] *= 0.5f;
-		}*/
 	}
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
@@ -3702,12 +3696,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
-		//if (g_bEnableVR) {
-			if (g_bUseSteamVR)
-				viewport.Width = (float)resources->_backbufferWidth;
-			//else
-				//viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-		//}
+		if (g_bUseSteamVR) {
+			viewport.Width = (float)resources->_backbufferWidth;
+			viewport.Height = (float)resources->_backbufferHeight;
+		}
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
@@ -3724,22 +3716,17 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.cockpit_threshold = -1.0f;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
-		/*if (g_bEnableVR)
+		if (g_bUseSteamVR)
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
 		}
-		else*/
+		else
 		{
+			// non-VR and DirectSBS cases:
 			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
-		//g_VSCBuffer.viewportScale[3] = 1.0f;
-		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-
-		// Enable/Disable the fixed GUI
-		//g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -3754,9 +3741,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
-		//if (g_bEnableVR)
-		//	resources->InitVertexShader(resources->_sbsVertexShader);
-		//else
+		if (g_bUseSteamVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
 			// The original (non-VR) code used _vertexShader:
 			resources->InitVertexShader(resources->_vertexShader);
 
@@ -3764,32 +3751,21 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 		// Set the RTV:
-		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 		// Set the SRV:
 		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
 		context->Draw(6, 0);
+		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 
 		// Render the right image
-		//if (g_bEnableVR) 
 		if (g_bUseSteamVR)
 		{
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			// VIEWPORT-RIGHT
-			//if (g_bUseSteamVR) 
-			{
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			/*else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-				g_ShadertoyBuffer.bDirectSBS = 2;
-			}*/
-			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftX = 0.0f;
 			viewport.TopLeftY = 0.0f;
+			viewport.Width = (float)resources->_backbufferWidth;
+			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
@@ -3797,18 +3773,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_VSMatrixCB.projEye = g_fullMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			context->OMSetRenderTargets(1, 
-				g_bUseSteamVR ? resources->_renderTargetViewPostR.GetAddressOf() : resources->_renderTargetViewPost.GetAddressOf(), 
-				NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 			// Set the SRV:
-			context->PSSetShaderResources(0, 1, 
-				g_bUseSteamVR ? resources->_shadertoyAuxSRV_R.GetAddressOf() : resources->_shadertoyAuxSRV.GetAddressOf());
+			context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV_R.GetAddressOf());
 			context->Draw(6, 0);
-
-			if (g_bUseSteamVR)
-				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 		}
-		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 
 		// Activate the hyperExitPS
 		resources->InitPixelShader(resources->_hyperExitPS);
@@ -3856,10 +3826,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		//g_VSCBuffer.viewportScale[3] = 1.0f;
 		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-
-		// Enable/Disable the fixed GUI
-		//g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
-		//g_VSCBuffer.bFullTransform = 0.0f;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -3956,18 +3922,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
 		resources->InitVertexShader(resources->_mainVertexShader);
-
-		/*
-		if (g_bEnableVR) {
-			if (g_bUseSteamVR) {
-				viewport.Width = g_fCurScreenWidth;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.Width = (float)resources->_backbufferHeight;
-			}
-		}
-		*/
 
 		// Reset the UV limits for this shader
 		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -4083,15 +4037,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			// TODO: Handle SteamVR cases
 			context->Draw(6, 0);
 		}
-
-		/*
-		// DEBUG
-		if (g_iPresentCounter == CAPTURE_FRAME) {
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_offscreenBufferPost-1.jpg");
-		}
-		// DEBUG
-		*/
 	}
 
 	/*

@@ -848,8 +848,8 @@ mat4 look_around_mouse_control( mat4 camera, float pitch, float tan_half_fovy )
 	vec2 mm = vec2( 0.0, 0.0 );
 
 #ifndef EXTRA_3D_CAMERA
-	if ( iMouse.z > 0.0 )
-		mm = ( iMouse.xy - iResolution.xy * 0.5 ) / ( min( iResolution.x, iResolution.y ) * 0.5 );
+	//if ( iMouse.z > 0.0 )
+	//	mm = ( iMouse.xy - iResolution.xy * 0.5 ) / ( min( iResolution.x, iResolution.y ) * 0.5 );
 #endif
 
 	mm.x = -mm.x;
