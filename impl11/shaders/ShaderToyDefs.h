@@ -22,8 +22,7 @@
 // ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
-	float iTime, twirl;
-	float2 unused;
+	float iTime, twirl, bloom_strength, unused;
 	// 16 bytes
 	float2 iResolution;
 	uint bDirectSBS;

@@ -44,7 +44,7 @@ struct PixelShaderOutput
 // buffers
 
 static const float3 bloom_col = float3(0.5, 0.5, 1);
-#define bloom_strength 2.0
+//#define bloom_strength 2.0
 
 PixelShaderOutput main(PixelShaderInput input)
 {

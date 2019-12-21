@@ -3599,6 +3599,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		if (iTime > 2.0f) iTime = 2.0f;
 		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
 		iLinearTime = iTime;
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
 		break;
 	case HS_HYPER_TUNNEL_ST:
 		// Max internal time: ~1290
@@ -3615,6 +3616,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
 		break;
 	case HS_HYPER_EXIT_ST:
 		// Max internal time: ~236
@@ -3626,6 +3628,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTimeAtHyperExit = iTime;
 		iLinearTime = 6.0f + ((T2 + T2_ZOOM - T_OVERLAP) - iTime);
 		fShakeAmplitude = lerp(7.0f, 0.0f, timeInHyperspace);
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
 		break;
 	case HS_POST_HYPER_EXIT_ST:
 		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
@@ -3636,6 +3639,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
 		iLinearTime = ((T2 + T2_ZOOM - T_OVERLAP) - iTimeAtHyperExit) + timeInHyperspace;
 		//iTime = lerp(iTimeAtHyperExit, T2 + T2_ZOOM - T_OVERLAP, timeInHyperspace);
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
 		break;
 	}
 
