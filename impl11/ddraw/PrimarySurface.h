@@ -6,6 +6,8 @@
 
 class BackbufferSurface;
 
+class Direct3DTexture;
+
 class PrimarySurface : public IDirectDrawSurface
 {
 public:
@@ -60,6 +62,22 @@ public:
 	void ClearHUDRegions();
 
 	void DrawHUDVertices();
+
+	void ComputeNormalsPass(float fZoomFactor);
+
+	void SmoothNormalsPass(float fZoomFactor);
+
+	void SSAOPass(float fZoomFactor);
+
+	void SSDOPass(float fZoomFactor, float fZoomFactor2);
+
+	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool debug);
+
+	void GetHyperspaceViewMatrix();
+
+	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
+		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
+		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 

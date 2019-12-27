@@ -91,6 +91,8 @@ const float DEFAULT_MAX_POS_Z =  2.5f;
 const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 const bool DEFAULT_RESHADE_ENABLED_STATE = false;
 const bool DEFAULT_BLOOM_ENABLED_STATE = false;
+// TODO: Make this toggleable later
+const bool DEFAULT_AO_ENABLED_STATE = false;
 // cockpit look constants
 const float DEFAULT_YAW_MULTIPLIER   = 1.0f;
 const float DEFAULT_PITCH_MULTIPLIER = 1.0f;
@@ -140,7 +142,6 @@ const char *MAX_POSITIONAL_Y_VRPARAM = "max_positional_track_y";
 const char *MIN_POSITIONAL_Z_VRPARAM = "min_positional_track_z";
 const char *MAX_POSITIONAL_Z_VRPARAM = "max_positional_track_z";
 const char *STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
-const char *BLOOM_ENABLED_VRPARAM = "bloom_enabled";
 // Cockpitlook params
 const char *YAW_MULTIPLIER_CLPARAM   = "yaw_multiplier";
 const char *PITCH_MULTIPLIER_CLPARAM = "pitch_multiplier";
@@ -217,6 +218,7 @@ int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold fo
 // g_iSkyBoxExecIndex is compared against g_iExecBufCounter to determine when the SkyBox is rendered
 // This is important because in XWAU the SkyBox is *not* rendered at infinity and causes a lot of
 // visual contention if not handled properly.
+bool g_bIsSkyBox = false, g_bPrevIsSkyBox = false, g_bSkyBoxJustFinished = false;
 
 bool g_bFixSkyBox = true; // Fix the skybox (send it to infinity: use original vertices without parallax)
 bool g_bSkipSkyBox = false;
@@ -232,12 +234,28 @@ bool g_bTargetCompDrawn = false; // Becomes true after the targetting computer h
 bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloatingGUI3DObject -- useful to detect when the targeted craft is about to be drawn
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
+bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
-// The following flag tells us when the main GUI elements (HUD, radars, etc) have been rendered
-// It's reset to false every time the backbuffer is swapped.
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
+
+HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
+int g_iHyperExitPostFrames = 0;
+//Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
+float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
+float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
+short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
+// DEBUG
+//#define HYPER_OVERRIDE
+bool g_bHyperDebugMode = false;
+float g_fHyperTimeOverride = 0.0f; // Only used to debug the post-hyper-exit effect. I should remove this later.
+int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
+//int g_iHyperStateOverride = HS_HYPER_TUNNEL_ST;
+//int g_iHyperStateOverride = HS_HYPER_EXIT_ST;
+//int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
+// DEBUG
 
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
@@ -255,7 +273,10 @@ extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
 bool g_bCockpitPZHackEnabled = true;
 bool g_bOverrideAspectRatio = false;
-bool g_bEnableVR = true; // Enable/disable VR mode.
+/*
+true if either DirectSBS or SteamVR are enabled. false for original display mode
+*/
+bool g_bEnableVR = true;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -266,6 +287,20 @@ extern BloomPixelShaderCBStruct g_BloomPSCBuffer;
 BloomConfig g_BloomConfig = { 1 };
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
+
+// SSAO
+SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
+extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
+float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
+float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
+bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
+bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
+bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
+Vector4 g_LightVector[2], g_TempLightVector[2];
+Vector4 g_LightColor[2], g_TempLightColor[2];
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -305,9 +340,22 @@ bool g_bDirectSBSInitialized = false;
 D3D11_VIEWPORT g_nonVRViewport{};
 
 VertexShaderMatrixCB g_VSMatrixCB;
-VertexShaderCBuffer g_VSCBuffer;
-PixelShaderCBuffer g_PSCBuffer;
+VertexShaderCBuffer  g_VSCBuffer;
+PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
+ShadertoyCBuffer		 g_ShadertoyBuffer;
+
+struct MainVertex
+{
+	float pos[2];
+	float tex[2];
+	MainVertex() {}
+	MainVertex(float x, float y, float tx, float ty) {
+		pos[0] = x; pos[1] = y;
+		tex[0] = tx; tex[1] = ty;
+	}
+};
+extern MainVertex g_BarrelEffectVertices[6];
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -759,9 +807,6 @@ void SaveVRParams() {
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
-
-	fprintf(file, "\n; Enable the Bloom effect\n");
-	fprintf(file, "%s = %d\n", BLOOM_ENABLED_VRPARAM, g_bBloomEnabled);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -1403,9 +1448,13 @@ bool LoadBloomParams() {
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
 	float fValue = 0.0f;
+	// Set some default values
 	g_BloomConfig.uvStepSize1 = 3.0f;
 	g_BloomConfig.uvStepSize2 = 2.0f;
-
+	g_BloomConfig.fLasersStrength     = 4.0f;
+	g_BloomConfig.fEngineGlowStrength = 0.5f;
+	g_BloomConfig.fSparksStrength	  = 0.5f;
+	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
@@ -1418,7 +1467,7 @@ bool LoadBloomParams() {
 			fValue = (float)atof(svalue);
 
 			// ReShade state
-			if (_stricmp(param, BLOOM_ENABLED_VRPARAM) == 0) {
+			if (_stricmp(param, "bloom_enabled") == 0) {
 				bool state = (bool)fValue;
 				g_bReshadeEnabled |= state;
 				g_bBloomEnabled = state;
@@ -1463,6 +1512,15 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "explosions_strength") == 0) {
 				g_BloomConfig.fExplosionsStrength = fValue;
+			}
+			else if (_stricmp(param, "sparks_strength") == 0) {
+				g_BloomConfig.fSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "cockpit_sparks_strength") == 0) {
+				g_BloomConfig.fCockpitSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "missile_strength") == 0) {
+				g_BloomConfig.fMissileStrength = fValue;
 			}
 			else if (_stricmp(param, "hyper_streak_strength") == 0) {
 				g_BloomConfig.fHyperStreakStrength = fValue;
@@ -1566,6 +1624,387 @@ bool LoadBloomParams() {
 
 	log_debug("[DBG] Reshade Enabled: %d", g_bReshadeEnabled);
 	log_debug("[DBG] Bloom Enabled: %d", g_bBloomEnabled);
+	return true;
+}
+
+bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
+{
+	int res = 0;
+	char *c = NULL;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f",
+				x, y, z);
+			if (res < 3) {
+				log_debug("[DBG] [AO] ERROR (skipping), expected at least 3 elements in '%s'", c);
+				return false;
+			}
+		}
+		catch (...) {
+			log_debug("[DBG] [AO] Could not read 3D from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool LoadSSAOParams() {
+	log_debug("[DBG] Loading SSAO params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	// Provide some default values in case they are missing in the config file
+	g_SSAO_PSCBuffer.bias = 0.05f;
+	g_SSAO_PSCBuffer.intensity = 3.0f;
+	g_SSAO_PSCBuffer.power = 1.0f;
+	g_SSAO_PSCBuffer.black_level = 0.2f;
+	g_SSAO_PSCBuffer.bentNormalInit = 0.2f;
+	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
+	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
+	g_SSAO_PSCBuffer.z_division = 0;
+	g_SSAO_PSCBuffer.samples = 8;
+	g_SSAO_PSCBuffer.moire_offset = 0.02f;
+	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
+	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
+	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
+	g_SSAO_PSCBuffer.fn_scale = 1.0f;
+	g_SSAO_PSCBuffer.fn_max_xymult = 100.0f;
+	g_SSAO_PSCBuffer.ambient = 0.15f;
+	g_SSAO_PSCBuffer.gamma = 1.0f;
+	g_fSSAOAlphaOfs = 0.5;
+	g_SSAO_Type = SSO_AMBIENT;
+	// Default position of the global light (the sun)
+	g_LightVector[0].x = 0;
+	g_LightVector[0].y = 1;
+	g_LightVector[0].z = 0;
+	g_LightVector[0].w = 0;
+	g_LightVector[0].normalize();
+
+	g_LightVector[1].x = 1;
+	g_LightVector[1].y = 1;
+	g_LightVector[1].z = 0;
+	g_LightVector[1].w = 0;
+	g_LightVector[0].normalize();
+
+	// Default color of the shadow
+	g_SSAO_PSCBuffer.invLightR = 0.2666f;
+	g_SSAO_PSCBuffer.invLightG = 0.2941f;
+	g_SSAO_PSCBuffer.invLightB = 0.3254f;
+	// Default view-yaw/pitch signs
+	g_fViewYawSign = 1.0f;
+	g_fViewPitchSign = -1.0f;
+
+	try {
+		error = fopen_s(&file, "./ssao.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load ssao.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading ssao.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "ssao_enabled") == 0) {
+				bool state = (bool)fValue;
+				g_bReshadeEnabled |= state;
+				g_bAOEnabled = state;
+			}
+
+			else if (_stricmp(param, "ssao_type") == 0) {
+				if (_stricmp(svalue, "ambient") == 0)
+					g_SSAO_Type = SSO_AMBIENT;
+				else if (_stricmp(svalue, "directional") == 0)
+					g_SSAO_Type = SSO_DIRECTIONAL;
+				else if (_stricmp(svalue, "bent_normals") == 0)
+					g_SSAO_Type = SSO_BENT_NORMALS;
+			}
+			else if (_stricmp(param, "bias") == 0) {
+				g_SSAO_PSCBuffer.bias = fValue;
+			}
+			else if (_stricmp(param, "intensity") == 0) {
+				g_SSAO_PSCBuffer.intensity = fValue;
+			}
+			else if (_stricmp(param, "near_sample_radius") == 0 ||
+				     _stricmp(param, "sample_radius") == 0) {
+				g_SSAO_PSCBuffer.near_sample_radius = fValue;
+			}
+			else if (_stricmp(param, "far_sample_radius") == 0) {
+				g_SSAO_PSCBuffer.far_sample_radius = fValue;
+			}
+			else if (_stricmp(param, "samples") == 0) {
+				g_SSAO_PSCBuffer.samples = (int )fValue;
+			}
+			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
+				g_fSSAOZoomFactor = (float)fValue;
+			}
+			else if (_stricmp(param, "ssao2_buffer_scale_divisor") == 0) {
+				g_fSSAOZoomFactor2 = (float)fValue;
+			}
+			else if (_stricmp(param, "enable_blur") == 0) {
+				g_bBlurSSAO = (bool)fValue;
+			}
+			else if (_stricmp(param, "black_level") == 0) {
+				g_SSAO_PSCBuffer.black_level = fValue;
+			}
+			else if (_stricmp(param, "perspective_correct") == 0) {
+				g_SSAO_PSCBuffer.z_division = (bool)fValue;
+			}
+			else if (_stricmp(param, "bent_normal_init") == 0) {
+				g_SSAO_PSCBuffer.bentNormalInit = fValue;
+			}
+			else if (_stricmp(param, "max_dist") == 0) {
+				g_SSAO_PSCBuffer.max_dist = fValue;
+			}
+			else if (_stricmp(param, "power") == 0) {
+				g_SSAO_PSCBuffer.power = fValue;
+			}
+			else if (_stricmp(param, "enable_dual_ssao") == 0) {
+				g_bDisableDualSSAO = !(bool)fValue;
+			}
+			else if (_stricmp(param, "enable_ssao_in_shader") == 0) {
+				g_bEnableSSAOInShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "enable_bent_normals_in_shader") == 0) {
+				g_bEnableBentNormalsInShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug") == 0) {
+				g_SSAO_PSCBuffer.debug = (int)fValue;
+				g_BloomPSCBuffer.debug = (int)fValue;
+			}
+			else if (_stricmp(param, "indirect_intensity") == 0) {
+				g_SSAO_PSCBuffer.indirect_intensity = fValue;
+			}
+			/*else if (_stricmp(param, "normal_blur_radius") == 0) {
+				g_fNormalBlurRadius = fValue;
+			}*/
+			else if (_stricmp(param, "debug_ssao") == 0) {
+				g_iSSDODebug = (int)fValue;
+			}
+			else if (_stricmp(param, "blur_passes") == 0) {
+				g_iSSAOBlurPasses = (int)fValue;
+			}
+			else if (_stricmp(param, "enable_indirect_ssdo") == 0) {
+				g_bEnableIndirectSSDO = (bool)fValue;
+			}
+			else if (_stricmp(param, "moire_offset") == 0) {
+				g_SSAO_PSCBuffer.moire_offset = fValue;
+			}
+			/* else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
+				g_SSAO_PSCBuffer.addSSDO = (int)fValue;
+			} */
+			else if (_stricmp(param, "normal_mapping_enable") == 0) {
+				g_SSAO_PSCBuffer.fn_enable = (int)fValue;
+				g_bFNEnable = g_SSAO_PSCBuffer.fn_enable;
+			}
+			else if (_stricmp(param, "nm_max_xymult") == 0) {
+				g_SSAO_PSCBuffer.fn_max_xymult = fValue;
+			}
+			else if (_stricmp(param, "nm_scale") == 0) {
+				g_SSAO_PSCBuffer.fn_scale = fValue;
+			}
+			else if (_stricmp(param, "nm_sharpness") == 0) {
+				g_SSAO_PSCBuffer.fn_sharpness = fValue;
+			}
+			else if (_stricmp(param, "nm_intensity_near") == 0) {
+				g_SSAO_PSCBuffer.nm_intensity_near = fValue;
+			}
+			else if (_stricmp(param, "nm_intensity_far") == 0) {
+				g_SSAO_PSCBuffer.nm_intensity_far = fValue;
+			}
+			else if (_stricmp(param, "override_game_light_pos") == 0) {
+				g_bOverrideLightPos = (bool)fValue;
+			}
+			else if (_stricmp(param, "alpha_to_solid_offset") == 0) {
+				g_fSSAOAlphaOfs = fValue;
+			}
+			else if (_stricmp(param, "ssdo_ambient") == 0) {
+				g_SSAO_PSCBuffer.ambient = fValue;
+			}
+			else if (_stricmp(param, "viewYawSign") == 0) {
+				g_fViewYawSign = fValue;
+			}
+			else if (_stricmp(param, "viewPitchSign") == 0) {
+				g_fViewPitchSign = fValue;
+			}
+			else if (_stricmp(param, "HDR_enabled") == 0) {
+				g_bHDREnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "gamma") == 0) {
+				g_SSAO_PSCBuffer.gamma = fValue;
+			}
+			else if (_stricmp(param, "shadow_step_size") == 0) {
+				g_SSAO_PSCBuffer.shadow_step_size = fValue;
+			}
+			else if (_stricmp(param, "shadow_steps") == 0) {
+				g_SSAO_PSCBuffer.shadow_steps = fValue;
+			}
+			else if (_stricmp(param, "shadow_k") == 0) {
+				g_SSAO_PSCBuffer.shadow_k = fValue;
+			}
+			else if (_stricmp(param, "shadow_enable") == 0) {
+				g_bShadowEnable = (bool)fValue;
+				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+			}
+			else if (_stricmp(param, "white_point") == 0) {
+				g_SSAO_PSCBuffer.white_point = fValue;
+			}
+			else if (_stricmp(param, "light_vector") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightVector[0].x = x;
+				g_LightVector[0].y = y;
+				g_LightVector[0].z = z;
+				g_LightVector[0].w = 0.0f;
+				g_LightVector[0].normalize();
+				log_debug("[DBG] [AO] Light vec: [%0.3f, %0.3f, %0.3f]",
+					g_LightVector[0].x, g_LightVector[0].y, g_LightVector[0].z);
+			}
+			else if (_stricmp(param, "light_vector2") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightVector[1].x = x;
+				g_LightVector[1].y = y;
+				g_LightVector[1].z = z;
+				g_LightVector[1].w = 0.0f;
+				g_LightVector[1].normalize();
+				log_debug("[DBG] [AO] Light vec2: [%0.3f, %0.3f, %0.3f]",
+					g_LightVector[1].x, g_LightVector[1].y, g_LightVector[1].z);
+			}
+			else if (_stricmp(param, "light_color") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightColor[0].x = x;
+				g_LightColor[0].y = y;
+				g_LightColor[0].z = z;
+				g_LightColor[0].w = 0.0f;
+				log_debug("[DBG] [AO] Light Color: [%0.3f, %0.3f, %0.3f]",
+					g_LightColor[0].x, g_LightColor[0].y, g_LightColor[0].z);
+			}
+			else if (_stricmp(param, "light_color2") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_LightColor[1].x = x;
+				g_LightColor[1].y = y;
+				g_LightColor[1].z = z;
+				g_LightColor[1].w = 0.0f;
+				log_debug("[DBG] [AO] Light Color2: [%0.3f, %0.3f, %0.3f]",
+					g_LightColor[1].x, g_LightColor[1].y, g_LightColor[1].z);
+			}
+			else if (_stricmp(param, "shadow_color") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_SSAO_PSCBuffer.invLightR = x;
+				g_SSAO_PSCBuffer.invLightG = y;
+				g_SSAO_PSCBuffer.invLightB = z;
+			}
+		}
+	}
+	fclose(file);
+
+	log_debug("[DBG] [AO] SSAO Enabled: %d", g_bAOEnabled);
+	log_debug("[DBG] [AO] SSAO bias: %0.3f", g_SSAO_PSCBuffer.bias);
+	log_debug("[DBG] [AO] SSAO intensity: %0.3f", g_SSAO_PSCBuffer.intensity);
+	log_debug("[DBG] [AO] SSAO near_sample_radius: %0.6f", g_SSAO_PSCBuffer.near_sample_radius);
+	log_debug("[DBG] [AO] SSAO far_sample_radius: %0.6f", g_SSAO_PSCBuffer.far_sample_radius);
+	log_debug("[DBG] [AO] SSAO samples: %d", g_SSAO_PSCBuffer.samples);
+	log_debug("[DBG] [AO] SSAO black_level: %f", g_SSAO_PSCBuffer.black_level);
+	if (g_SSAO_Type == SSO_AMBIENT)
+		log_debug("[DBG] [AO] SSO: AMBIENT OCCLUSION");
+	else if (g_SSAO_Type == SSO_DIRECTIONAL)
+		log_debug("[DBG] [AO] SSO: DIRECTIONAL OCCLUSION");
+	return true;
+}
+
+bool LoadHyperParams() {
+	log_debug("[DBG] Loading Hyperspace params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	// Provide some default values in case they are missing in the config file
+	g_ShadertoyBuffer.y_center = 0.15f;
+	g_ShadertoyBuffer.FOVscale = 1.0f;
+	g_ShadertoyBuffer.viewMat.identity();
+	g_ShadertoyBuffer.bDisneyStyle = 1;
+	g_ShadertoyBuffer.tunnel_speed = 5.0f;
+	g_ShadertoyBuffer.twirl = 1.0f;
+	g_fHyperLightRotationSpeed = 50.0f;
+	g_fHyperShakeRotationSpeed = 50.0f;
+
+	try {
+		error = fopen_s(&file, "./hyperspace.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hyperspace.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hyperspace.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "y_center") == 0) {
+				g_ShadertoyBuffer.y_center = fValue;
+			}
+			else if (_stricmp(param, "disney_style") == 0) {
+				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
+			}
+			else if (_stricmp(param, "tunnel_speed") == 0) {
+				g_ShadertoyBuffer.tunnel_speed = fValue;
+			}
+			else if (_stricmp(param, "twirl") == 0) {
+				g_ShadertoyBuffer.twirl = fValue;
+			}
+			else if (_stricmp(param, "FOV_scale") == 0) {
+				g_ShadertoyBuffer.FOVscale = fValue;
+			}
+			else if (_stricmp(param, "debug_mode") == 0) {
+				g_bHyperDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "light_rotation_speed") == 0) {
+				g_fHyperLightRotationSpeed = fValue;
+			}
+			else if (_stricmp(param, "shake_speed") == 0) {
+				g_fHyperShakeRotationSpeed = fValue;
+			}
+		}
+	}
+	fclose(file);
+
 	return true;
 }
 
@@ -1780,6 +2219,10 @@ next:
 	LoadDCParams();
 	// Load the Bloom params
 	LoadBloomParams();
+	// Load the SSAO params
+	LoadSSAOParams();
+	// Load the Hyperspace params
+	LoadHyperParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1830,7 +2273,7 @@ void DumpMatrix4(FILE *file, const Matrix4 &mat) {
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[0], mat[4], mat[8], mat[12]);
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[1], mat[5], mat[9], mat[13]);
 	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[2], mat[6], mat[10], mat[14]);
-	fprintf(file, " %0.6f, %0.6f, %0.6f, %0.6f\n", mat[3], mat[7], mat[11], mat[15]);
+	fprintf(file, "%0.6f, %0.6f, %0.6f, %0.6f\n", mat[3], mat[7], mat[11], mat[15]);
 }
 
 void ShowMatrix4(const Matrix4 &mat, char *name) {
@@ -2005,17 +2448,6 @@ void Test2DMesh() {
 	Q = Q / Q[3];
 	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
 }
-
-struct MainVertex
-{
-	float pos[2];
-	float tex[2];
-	MainVertex() {}
-	MainVertex(float x, float y, float tx, float ty) {
-		pos[0] = x; pos[1] = y;
-		tex[0] = tx; tex[1] = ty;
-	}
-};
 
 bool InitSteamVR()
 {
@@ -2829,114 +3261,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 	z =  PX[2];
 }
 
-/* 
- * This function was originally used to reconstruct 3D. Now, most of this logic is in the 
- * SBSVertexShader. We actually don't need this function at all, and at some point it will
- * be moved entirely to the vertex shader. At that point, we can get rid of g_3DVerts too and
- * the logic associated with it.
- */
-/*
-void PreprocessVerticesStereo(float width, float height, int numVerts)
-{
-	// Pre-process vertices for Stereo
-	float px, py;
-	//bool is_cockpit;
-	float scale_x = 1.0f / width;
-	float scale_y = 1.0f / height;
-	//float w;
-	//float scale = scale_x;
-	//bool is_GUI = false;
-
-	// Back-project and do stereo
-	for (register int i = 0; i < numVerts; i++) {
-		g_3DVerts[i] = g_OrigVerts[i];
-		// Normalize the coords: move the screen's center to (0,0) and scale the (x,y) axes
-		// to -0.5..0.5
-		px = g_OrigVerts[i].sx * scale_x - 0.5f;
-		py = g_OrigVerts[i].sy * scale_y - 0.5f;
-		// Also invert the Z axis so that z = 0 is the screen plane and z = 1 is ZFar, the original
-		// values have ZFar = 0, and ZNear = 1
-		//direct_pz = g_OrigVerts[i].sz;
-		//pz = 1.0f - direct_pz;
-
-		// GUI elements seem to be in the range 0..0.0005, so 0.0006 sounds like a good threshold:
-		//is_GUI = (pz <= g_fGUIElemPZThreshold);
-		//is_cockpit = (pz <= g_fCockpitPZThreshold);
-
-		g_3DVerts[i].sx = px;
-		g_3DVerts[i].sy = py;
-	}
-	*/
-		// Reproject back into 2D space
-		//if (is_GUI) {
-			// We need to restore the original ZBuffer value for the GUI elements or
-			// they will cause Z-Fighting with the 3D objects. Also the depth of the
-			// GUI elements is fixed by directly setting their parallax. So, nothing
-			// to do here.
-			/*
-			qx = px;
-			qy = py;
-			qz = pz;
-			*/
-			//g_3DVerts[i].sz = g_fFocalDist;
-			//g_3DVerts[i].sz = 0.0008f;
-			//g_3DVerts[i].sz = g_fFloatingGUIParallax;
-			//g_3DVerts[i].sz += 0.9f;
-		//} 
-		/*
-		else { //if (is_cockpit) {
-			if (g_bUseSteamVR) {
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Left, px, py, pz);
-				projectSteamVR(X, Y, Z, vr::EVREye::Eye_Right, qx, qy, qz);
-			} else {
-				project(X + g_fHalfIPD, Y, Z, px, py, pz);
-				project(X - g_fHalfIPD, Y, Z, qx, qy, qz);
-			}			
-		} /* else {
-			float disp = 10.0f; // Objects "out there" need to have their parallax boosted or they just look flat
-			project(X + g_fHalfIPD * disp, Y, Z, px, py, pz);
-			project(X - g_fHalfIPD * disp, Y, Z, qx, qy, qz);
-		} */
-
-		/*
-		// (px,py) and (qx,qy) are now in the range [-0.5,..,0.5], we need
-		// to map them to the range [0..width, 0..height]
-		
-		// Compute the vertices for the left image
-		{
-			// De-normalize coords (left image)
-			g_LeftVerts[i].sx = (px + 0.5f) / scale_x;
-			g_LeftVerts[i].sy = (py + 0.5f) / scale_y;
-			g_LeftVerts[i].sz = 1.0f - pz;
-		}
-		// Compute the vertices for the right image
-		{
-			// De-normalize coords (right image)
-			g_RightVerts[i].sx = (qx + 0.5f) / scale_x;
-			g_RightVerts[i].sy = (qy + 0.5f) / scale_y;
-			g_RightVerts[i].sz = 1.0f - qz;
-		}
-		// Restore the original Z for the GUI elements: this will avoid Z-fighting
-		// (I think this also helps with Z-fighting in general)
-		//if (is_GUI) {
-			g_LeftVerts[i].sz  = g_OrigVerts[i].sz;
-			g_RightVerts[i].sz = g_OrigVerts[i].sz;
-		//}
-
-		*/
-	//} // Original end of the main for-loop
-
-#ifdef DBG_VR
-	// DBG: Hack: Dump the 3D scene. Triggered with Ctrl-Alt-C
-	if (g_bDo3DCapture)
-	{
-		if (g_HackFile == NULL)
-			fopen_s(&g_HackFile, "./vertexbuf.obj", "wt");
-		DumpOrigVertices(g_HackFile, numVerts);
-	}
-#endif
-//}
-
 /* Function to quickly enable/disable ZWrite. Currently only used for brackets */
 HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	HRESULT hr;
@@ -3091,6 +3415,40 @@ inline float lerp(float x, float y, float s) {
 }
 
 /*
+ * Compute the effective screen limits in uv coords when rendering effects using a
+ * full-screen quad. This is used in SSDO to get the effective viewport limits in
+ * uv-coords. Pixels outside the uv-coords computed here should be black.
+ */
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false) 
+{
+	if (!UseNonVR && g_bEnableVR) {
+		// In VR mode we can't see the edges of the screen anyway, so don't bother
+		// computing the effective viewport for the left and right eyes... or the
+		// viewport for the SteamVR mode.
+		*x0 = 0.0f;
+		*y0 = 0.0f;
+		*x1 = 1.0f;
+		*y1 = 1.0f;
+	}
+	else {
+		UINT left   = (UINT)g_nonVRViewport.TopLeftX;
+		UINT top    = (UINT)g_nonVRViewport.TopLeftY;
+		UINT width  = (UINT)g_nonVRViewport.Width;
+		UINT height = (UINT)g_nonVRViewport.Height;
+		float x, y;
+		InGameToScreenCoords(left, top, width, height, 0, 0, &x, &y);
+		*x0 = x / g_fCurScreenWidth;
+		*y0 = y / g_fCurScreenHeight;
+		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
+		*x1 = x / g_fCurScreenWidth;
+		*y1 = y / g_fCurScreenHeight;
+		//if (g_bDumpSSAOBuffers)
+		//log_debug("[DBG] [DBG] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+		//	*x0, *y0, *x1, *y1);
+	}
+}
+
+/*
  * Converts normalized uv_coords with respect to a HUD texture into actual pixel
  * coordinates.
  */
@@ -3127,6 +3485,36 @@ void DisplayBox(char *name, Box box) {
 		box.x0, box.y0, box.x1, box.y1);
 }
 
+/*
+ If the game is rendering the hyperspace effect, this function will select shaderToyBuf
+ when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
+ */
+inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	/*
+	// DEBUG
+	static bool bFirstTime = true;
+	if (bFirstTime) {
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferPost,
+			L"C:\\Temp\\_offscreenBufferPost-First-Time.dds");
+		bFirstTime = false;
+	}
+	// DEBUG
+	*/
+
+	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
+	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
+		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
+		return shadertoyRTV;
+	else
+		// Normal output buffer (_offscreenBuffer)
+		return regularRTV;
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -3155,10 +3543,18 @@ HRESULT Direct3DDevice::Execute(
 	DumpExecuteBuffer(executeBuffer);
 #endif
 
+	// DEBUG
+	//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+//#ifdef HYPER_OVERRIDE
+	if (g_bHyperDebugMode)
+		g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
+//#endif
+	//g_iHyperExitPostFrames = 0;
+	// DEBUG
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	//auto& context1 = resources->_d3dDeviceContext1;
 
 	HRESULT hr = S_OK;
 	UINT width, height, left, top;
@@ -3170,6 +3566,7 @@ HRESULT Direct3DDevice::Execute(
 
 	g_VSCBuffer = { 0 };
 	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override = -1.0f;
 	g_VSCBuffer.sz_override = -1.0f;
 	g_VSCBuffer.mult_z_override = -1.0f;
@@ -3178,17 +3575,13 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.bFullTransform = 0.0f;
 
 	g_PSCBuffer = { 0 };
-	g_PSCBuffer.brightness     = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
-
+	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
+	g_PSCBuffer.fPosNormalAlpha = 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
-
-	//g_PSCBuffer.DynCockpitSlots  = 0;
-	//g_PSCBuffer.bUseCoverTexture = 0;
-	//g_PSCBuffer.bRenderHUD		 = 0;
-	//g_PSCBuffer.bEnhaceLasers	 = 0;
-	//g_PSCBuffer.bAlphaOnly		 = 0;
 
 	// Save the current viewMatrix: if the Dynamic Cockpit is enabled, we'll need it later to restore the transform
 	//Matrix4 currentViewMat = g_VSMatrixCB.viewMat;
@@ -3294,10 +3687,16 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
-		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold;
+		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
 		g_VSCBuffer.z_override = -1.0f;
 		g_VSCBuffer.sz_override = -1.0f;
 		g_VSCBuffer.mult_z_override = -1.0f;
+
+		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
+		g_SSAO_PSCBuffer.vpScale[0] = g_VSCBuffer.viewportScale[0];
+		g_SSAO_PSCBuffer.vpScale[1] = g_VSCBuffer.viewportScale[1];
+		g_SSAO_PSCBuffer.vpScale[2] = g_VSCBuffer.viewportScale[2];
+		g_SSAO_PSCBuffer.vpScale[3] = g_VSCBuffer.viewportScale[3];
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		//g_fXWAScale = scale; // Store the current scale, the Dynamic Cockpit will use this value
@@ -3483,8 +3882,8 @@ HRESULT Direct3DDevice::Execute(
 				// Capture the non-VR viewport that is used with the non-VR vertexshader:
 				g_nonVRViewport.TopLeftX = (float)left;
 				g_nonVRViewport.TopLeftY = (float)top;
-				g_nonVRViewport.Width	 = (float)width;
-				g_nonVRViewport.Height	 = (float)height;
+				g_nonVRViewport.Width    = (float)width;
+				g_nonVRViewport.Height   = (float)height;
 				g_nonVRViewport.MinDepth = D3D11_MIN_DEPTH;
 				g_nonVRViewport.MaxDepth = D3D11_MAX_DEPTH;
 
@@ -3539,15 +3938,21 @@ HRESULT Direct3DDevice::Execute(
 				bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
 				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
-				bool bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
 				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
-				bool bIsAimingHUD  = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
-				bool bIsGUI  = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
+				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
+				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
 				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
 				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
 				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
+				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
+				bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
+				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
+				g_bPrevIsPlayerObject = g_bIsPlayerObject;
+				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
@@ -3577,9 +3982,25 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
-				//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
-				//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
+					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				//}
+
+				/*
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					// Capture the background:
+					// ...
+				}
+				*/
+
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					// Capture the background; but only if we're not in hyperspace -- we don't want to
+					// capture the black background used by the game!
+				}
 
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
@@ -3605,9 +4026,153 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
+				// Update the Hyperspace FSM -- but only updated it exactly once per frame
+				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
+					switch (g_HyperspacePhaseFSM) {
+					case HS_INIT_ST:
+						if (PlayerDataTable->hyperspacePhase == 2) {
+							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
+							g_bHyperspaceFirstFrame = true;
+							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
+							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
+								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
+								g_bHyperHeadSnapped = true;
+							PlayerDataTable->cockpitCameraYaw = g_fLastCockpitCameraYaw;
+							PlayerDataTable->cockpitCameraPitch = g_fLastCockpitCameraPitch;
+							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
+							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
+							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+						}
+						break;
+					case HS_HYPER_ENTER_ST:
+						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
+						// it had when entering hyperspace
+						if (!g_bClearedAuxBuffer &&
+							(PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							 PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame)) {
+							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+							g_bClearedAuxBuffer = true;
+							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+							if (g_bUseSteamVR) {
+								//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+							}
+						}
+
+						if (PlayerDataTable->hyperspacePhase == 4) {
+							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+							// We're about to enter the hyperspace tunnel, change the color of the lights:
+							float fade = 1.0f;
+							for (int i = 0; i < 2; i++, fade *= 0.5f) {
+								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
+								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
+								g_LightColor[i].x = fade * 0.4f;
+								g_LightColor[i].y = fade * 0.5f;
+								g_LightColor[i].z = fade * 0.8f;
+							}
+						}
+						break;
+					case HS_HYPER_TUNNEL_ST:
+						if (PlayerDataTable->hyperspacePhase == 3) {
+							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
+							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+							// Restore the previous color of the lights
+							for (int i = 0; i < 2; i++) {
+								memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
+								memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
+							}
+						}
+						break;
+					case HS_HYPER_EXIT_ST:
+						if (PlayerDataTable->hyperspacePhase == 0) {
+							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
+							g_iHyperExitPostFrames = 0;
+							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+						}
+						break;
+					case HS_POST_HYPER_EXIT_ST:
+						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
+							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
+							g_HyperspacePhaseFSM = HS_INIT_ST;
+						}
+						break;
+					}
+
+//#ifdef HYPER_OVERRIDE
+					// DEBUG
+					if (g_bHyperDebugMode)
+						g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
+					// DEBUG
+//#endif
+				}
+
 				/*************************************************************************
 					State management ends here
 				 *************************************************************************/
+
+				if (!g_bPrevStartedGUI && g_bStartedGUI) {
+					g_bSwitchedToGUI = true;
+					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
+					// This is where we can capture the current frame for post-processing effects
+
+					// Resolve the Depth Buffers (we have dual SSAO, so there are two depth buffers)
+					if (g_bAOEnabled) {
+						g_bDepthBufferResolved = true;
+						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+						context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
+						//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
+								resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
+							//context->ResolveSubresource(resources->_normBufAsInputR, 0,
+							//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						}
+						// DEBUG
+						//if (g_iPresentCounter == 100) {
+						   ////DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
+						   ////	L"c:\\temp\\_depthBuf.jpg");
+						   //// //DirectX::SaveWICTextureToFile(context, resources->_normBufAsInput, GUID_ContainerFormatJpeg,
+						   //// //	 L"c:\\temp\\_normBuf.jpg");
+						   //DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"c:\\temp\\_depthBuf.dds");
+						   //log_debug("[DBG] [AO] _depthBuf.dds dumped");
+						//}
+						// DEBUG
+					}
+
+					// Process/Render the hyperspace effect
+					{
+						// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+						// not travelling through hyperspace:
+						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+						{
+							g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+							g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+							if (g_bUseSteamVR) {
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+							}
+						}
+
+						/*
+						// Render the hyperspace effect *after* the original hyperspace effect has already finished.
+						if (g_HyperspacePhaseFSM != HS_INIT_ST)
+						{
+							// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+							//				  shadertoyBuf has a copy of the cockpit
+
+							// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+							// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+							RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+						}
+						*/
+					}
+				}
 
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
@@ -3621,368 +4186,371 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				 // Capture the bounds for the left sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
+				// Capture the bounds for all the Dynamic Cockpit Elements
 				{
-					if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the left sensor:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Left Radar Region captured");
-
-						// Get the limits for the left radar:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the laser recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LASER_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the shield recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELD_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
-						//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	box.x0, box.y0, box.x1, box.y1);
-						//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
-						//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
-						//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
-						//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
-					}
-				}
-
-				// Capture the bounds for the right sensor:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
-				{
-					if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Right Radar Region limits captured");
-
-						// Get the limits for the right radar:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_RADAR_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the engine recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[ENGINE_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the beam recharge rate:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_RECHARGE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the shields:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
-				{
-					if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Shields Region limits captured");
-
-						// Get the limits for the shields:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the tractor beam:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
-				{
-					if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Beam Region limits captured");
-
-						// Get the limits for the shields:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the targeting computer:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Target Comp Region limits captured");
-
-						// Get the limits for the targeting computer:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, left side:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, left side:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the quad lasers, both sides:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the dual lasers:
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the B-Wing lasers
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[B_WING_LASERS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for the TIE-Defender lasers
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_BOTH_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_L_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_R_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-					}
-				}
-
-				// Capture the bounds for the left/right message boxes:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
-				{
-					//if (lastTextureSelected->is_DC_BorderMsgSrc ||
-					//	)
-
-					DCHUDRegion *dcSrcBoxL = &g_DCHUDRegions.boxes[LEFT_MSG_HUD_BOX_IDX];
-					DCHUDRegion *dcSrcBoxR = &g_DCHUDRegions.boxes[RIGHT_MSG_HUD_BOX_IDX];
-					if (!dcSrcBoxL->bLimitsComputed || !dcSrcBoxR->bLimitsComputed)
-					{
-						DCHUDRegion *dcSrcBox = NULL;
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						bool bLeft = false;
-						float midX, minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box = { 0 };
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						// This HUD is used for both the left and right message boxes, so we need to check
-						// which one is being rendered
-						midX = (minX + maxX) / 2.0f;
-						if (midX < g_fCurInGameWidth / 2.0f && !dcSrcBoxL->bLimitsComputed) {
-							bLeft = true;
-							dcSrcBox = dcSrcBoxL;
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_MSG_DC_ELEM_SRC_IDX];
-							//log_debug("[DBG] [DC] Left Msg Region captured");
-						}
-						else if (midX > g_fCurInGameWidth / 2.0f && !dcSrcBoxR->bLimitsComputed) {
-							bLeft = false;
-							dcSrcBox = dcSrcBoxR;
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_MSG_DC_ELEM_SRC_IDX];
-							//log_debug("[DBG] [DC] Right Msg Region captured");
-						}
-
-						if (dcSrcBox != NULL) {
+						if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
 							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
 							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-							//if (bLeft) DisplayBox("LEFT MSG: ", box); else DisplayBox("RIGHT MSG: ", box);
 							// Store the pixel coordinates
 							dcSrcBox->coords = box;
 							// Compute and store the erase coordinates for this HUD Box
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Left Radar Region captured");
 
-							// Get the limits for the text contents itself
+							// Get the limits for the left radar:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the laser recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LASER_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the shield recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELD_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
+							//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	box.x0, box.y0, box.x1, box.y1);
+							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
+							//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
+							//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
+							//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
+						}
+					}
+
+					// Capture the bounds for the right sensor:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
+					{
+						if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Right Radar Region limits captured");
+
+							// Get the limits for the right radar:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_RADAR_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the engine recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[ENGINE_RECHARGE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the beam recharge rate:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_RECHARGE_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 						}
 					}
-				}
 
-				// Capture the bounds for the top-left bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the shields:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Top Left Region captured");
+						if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Shields Region limits captured");
 
-						// Get the limits for Speed & Throttle
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
-
-						// Get the limits for Missiles
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+							// Get the limits for the shields:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
 					}
-				}
 
-				// Capture the bounds for the top-right bracket:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
-				{
-					if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
+					// Capture the bounds for the tractor beam:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
 					{
-						DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX];
-						DCElemSrcBox *dcElemSrcBox = NULL;
-						float minX, minY, maxX, maxY;
-						Box uv_minmax = { 0 };
-						Box box;
-						GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-							&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-						InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
-						InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
-						// Store the pixel coordinates
-						dcSrcBox->coords = box;
-						// Compute and store the erase coordinates for this HUD Box
-						ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-							dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-						dcSrcBox->bLimitsComputed = true;
-						//log_debug("[DBG] [DC] Top Right Region captured");
+						if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Beam Region limits captured");
 
-						// Get the limits for Name & Time
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NAME_TIME_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+							// Get the limits for the shields:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[BEAM_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
 
-						// Get the limits for Number of Crafts
-						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
-						dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
-							uv_minmax, box, dcElemSrcBox->uv_coords);
-						dcElemSrcBox->bComputed = true;
+					// Capture the bounds for the targeting computer:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Target Comp Region limits captured");
+
+							// Get the limits for the targeting computer:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, left side:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, left side:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the quad lasers, both sides:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[QUAD_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the dual lasers:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[DUAL_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the B-Wing lasers
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[B_WING_LASERS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the TIE-Defender lasers
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_BOTH_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_L_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SIX_LASERS_R_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
+
+					// Capture the bounds for the left/right message boxes:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
+					{
+						//if (lastTextureSelected->is_DC_BorderMsgSrc ||
+						//	)
+
+						DCHUDRegion *dcSrcBoxL = &g_DCHUDRegions.boxes[LEFT_MSG_HUD_BOX_IDX];
+						DCHUDRegion *dcSrcBoxR = &g_DCHUDRegions.boxes[RIGHT_MSG_HUD_BOX_IDX];
+						if (!dcSrcBoxL->bLimitsComputed || !dcSrcBoxR->bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = NULL;
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							bool bLeft = false;
+							float midX, minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box = { 0 };
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							// This HUD is used for both the left and right message boxes, so we need to check
+							// which one is being rendered
+							midX = (minX + maxX) / 2.0f;
+							if (midX < g_fCurInGameWidth / 2.0f && !dcSrcBoxL->bLimitsComputed) {
+								bLeft = true;
+								dcSrcBox = dcSrcBoxL;
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_MSG_DC_ELEM_SRC_IDX];
+								//log_debug("[DBG] [DC] Left Msg Region captured");
+							}
+							else if (midX > g_fCurInGameWidth / 2.0f && !dcSrcBoxR->bLimitsComputed) {
+								bLeft = false;
+								dcSrcBox = dcSrcBoxR;
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[RIGHT_MSG_DC_ELEM_SRC_IDX];
+								//log_debug("[DBG] [DC] Right Msg Region captured");
+							}
+
+							if (dcSrcBox != NULL) {
+								InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+								InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+								//if (bLeft) DisplayBox("LEFT MSG: ", box); else DisplayBox("RIGHT MSG: ", box);
+								// Store the pixel coordinates
+								dcSrcBox->coords = box;
+								// Compute and store the erase coordinates for this HUD Box
+								ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+									dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+								dcSrcBox->bLimitsComputed = true;
+
+								// Get the limits for the text contents itself
+								dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+									uv_minmax, box, dcElemSrcBox->uv_coords);
+								dcElemSrcBox->bComputed = true;
+							}
+						}
+					}
+
+					// Capture the bounds for the top-left bracket:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Top Left Region captured");
+
+							// Get the limits for Speed & Throttle
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Missiles
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
+					}
+
+					// Capture the bounds for the top-right bracket:
+					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
+					{
+						if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
+						{
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX];
+							DCElemSrcBox *dcElemSrcBox = NULL;
+							float minX, minY, maxX, maxY;
+							Box uv_minmax = { 0 };
+							Box box;
+							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
+							// Store the pixel coordinates
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+							//log_debug("[DBG] [DC] Top Right Region captured");
+
+							// Get the limits for Name & Time
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NAME_TIME_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Number of Crafts
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+						}
 					}
 				}
 
@@ -4053,11 +4621,57 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
+				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
+				// If these outputs are not disabled, then the aiming HUD gets AO as well!
+				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+				}
+
 				// Dim all the GUI elements
 				if (g_bStartedGUI && !g_bIsFloating3DObject) {
 					bModifiedShaders = true;
 					g_PSCBuffer.brightness = g_fBrightness;
 				}
+
+				if (g_bIsSkyBox) {
+					bModifiedShaders = true;
+					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
+					//DisplayCoords(instruction, currentIndexLocation);
+					// DEBUG
+
+					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
+					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
+					// Send the skybox to infinity:
+					g_VSCBuffer.sz_override = 0.01f;
+					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
+				}
+
+				// Apply the SSAO mask
+				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
+					
+					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer) 
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fSSAOMaskVal = 1.0f;
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
+						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
+						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
+						lastTextureSelected->is_Missile || lastTextureSelected->is_GenericSSAOTransparent) 
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fSSAOMaskVal = 0.0f;
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					}
+				}
+
+				// When exiting hyperspace, the light textures will overwrite the alpha component. Fixing this
+				// requires changing the alpha blend state; but if I modify that, chances are something else will
+				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
+				// to be a few frames after exiting hyperspace.
+				if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
+					goto out;
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
@@ -4123,7 +4737,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Modify the state for both VR and regular game modes...
 
-				// BLOOM flags and apply 32-bit mode ENHANCEMENTS
+				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
 				{
 					if (lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser) {
@@ -4161,23 +4775,55 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
+					else if (lastTextureSelected->is_Spark) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_CockpitSpark) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_Chaff)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_Missile)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
 				}
 
-				// Set the hyperspace flags
+				// Set the Hyperspace Bloom flags and render the new hyperspace effect
 				if (PlayerDataTable->hyperspacePhase) {
+					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
+					//	PlayerDataTable->hyperspacePhase, PlayerDataTable->timeInHyperspace, PlayerDataTable->_hyperspaceRelated_);
 					// 2: Entering hyperspace
 					// 4: Traveling through hyperspace (animation plays back at this point)
 					// 3: Exiting hyperspace
 					if (bLastTextureSelectedNotNULL) {
+						// Set the Bloom strength for the hyperspace streaks
 						if (lastTextureSelected->is_FlatLightEffect) {
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_PSCBuffer.bIsHyperspaceStreak = 1;
+							// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
+							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							goto out; // Don't render the hyperspace streaks anymore
 						}
+
+						// Set the Bloom strength for the hyperspace tunnel
 						if (lastTextureSelected->is_HyperspaceAnim) {
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							g_PSCBuffer.bIsHyperspaceAnim = 1;
+							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+							goto out; // Don't render the original hyperspace tunnel
 						}
 					}
 				}
@@ -4235,7 +4881,10 @@ HRESULT Direct3DDevice::Execute(
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							resources->InitPixelShader(resources->_pixelShaderDC);
+							if (g_PSCBuffer.DynCockpitSlots > 0)
+								resources->InitPixelShader(resources->_pixelShaderDC);
+							else if (g_PSCBuffer.bUseCoverTexture)
+								resources->InitPixelShader(resources->_pixelShaderEmptyDC);
 						} // if dc_element->bActive
 					}
 					// TODO: I should probably put an assert here since this shouldn't happen
@@ -4248,10 +4897,15 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
-				// EARLY EXIT 2: if we're not in VR mode, we only need the state; but not the extra
-				// processing. (The state will be used later to do post-processing like Bloom and AO).
+				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
+				// processing needed for VR.
 				if (!g_bEnableVR) {
 					resources->InitViewport(&g_nonVRViewport);
+
+					// Don't render the very first frame when entering hyperspace if we were not looking forward:
+					// the game resets the yaw/pitch on the first frame and we don't want that
+					if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
+						goto out;
 
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -4262,26 +4916,40 @@ HRESULT Direct3DDevice::Execute(
 
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
-						context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
-					}
-					else {
-						// Reshade is enabled, render to multiple output targets
-						ID3D11RenderTargetView *rtvs[2] = {
-							resources->_renderTargetView.Get(),
-							resources->_renderTargetViewBloomMask.Get()
+						ID3D11RenderTargetView *rtvs[1] = {
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 						};
-						context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(1, 
+							//resources->_renderTargetView.GetAddressOf(),
+							rtvs, resources->_depthStencilViewL.Get());
+					} else {
+						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+						ID3D11RenderTargetView *rtvs[5] = {
+							//resources->_renderTargetView.Get(),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							resources->_renderTargetViewBloomMask.Get(),
+							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
+								resources->_renderTargetViewDepthBuf2.Get(),
+							resources->_renderTargetViewNormBuf.Get(),
+							resources->_renderTargetViewSSAOMask.Get()
+						};
+						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					//if (bIsHyperspaceTunnel) {
-					//	UINT stride = sizeof(D3DTLVERTEX);
-					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-					//	resources->InitInputLayout(resources->_inputLayout);
-					//	context->Draw(3, 0);
-					//	// TODO: Restore the original input layout here
+						//	UINT stride = sizeof(D3DTLVERTEX);
+						//	UINT offset = 0;
+						//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+						//	resources->InitInputLayout(resources->_inputLayout);
+						//	context->Draw(3, 0);
+						//	// TODO: Restore the original input layout here
+						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
 					//} else
+					//if (PlayerDataTable->hyperspacePhase != 0)
+					//if (PlayerDataTable->hyperspacePhase == 2 && !g_bIsPlayerObject) {
+						//	RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
+					//}
+					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}
@@ -4310,7 +4978,7 @@ HRESULT Direct3DDevice::Execute(
 				// Enable the full transform for the hyperspace tunnel
 				if (bIsHyperspaceTunnel) {
 					bModifiedShaders = true;
-					g_VSCBuffer.bFullTransform = 1.0f;
+					//g_VSCBuffer.bFullTransform = 1.0f;
 					//g_VSCBuffer.sz_override = 0.01f;
 					//g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 				}
@@ -4332,18 +5000,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 				*/
 
-				if (bIsSkyBox) {
-					bModifiedShaders = true;
-					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
-					//DisplayCoords(instruction, currentIndexLocation);
-					// DEBUG
-
-					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
-					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
-					// Send the skybox to infinity:
-					g_VSCBuffer.sz_override = 0.01f;
-					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
-				}
+				// if (bIsSkyBox) was here originally.
 
 				/*
 				if (bIsTranspOrGlow) {
@@ -4423,37 +5080,55 @@ HRESULT Direct3DDevice::Execute(
 					// easier.
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
-						}
-						else {
-							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetView.GetAddressOf(),
+								resources->_depthStencilViewL.Get());
+						} else {
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							ID3D11RenderTargetView *rtvs[5] = {
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								resources->_renderTargetViewBloomMask.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
+							};
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
+						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
-						}
-						else {
-							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
+								resources->_depthStencilViewL.Get());
+						} else {
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							ID3D11RenderTargetView *rtvs[5] = {
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								resources->_renderTargetViewBloomMask.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
+							};
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
 					// VIEWPORT-LEFT
 					if (g_bUseSteamVR) {
 						viewport.Width = (float)resources->_backbufferWidth;
-					}
-					else {
+					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 					}
 					viewport.Height = (float)resources->_backbufferHeight;
@@ -4488,30 +5163,49 @@ HRESULT Direct3DDevice::Execute(
 					//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
-						if (!g_bBloomEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(),
+						if (!g_bReshadeEnabled) {
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+							};
+							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetViewR.GetAddressOf(),
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetViewR.Get(),
-								resources->_renderTargetViewBloomMaskR.Get()
+							ID3D11RenderTargetView *rtvs[5] = {
+								//resources->_renderTargetViewR.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+								resources->_renderTargetViewBloomMaskR.Get(),
+								//resources->_renderTargetViewDepthBufR.Get(),
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBufR.Get() : 
+									resources->_renderTargetViewDepthBuf2R.Get(),
+								resources->_renderTargetViewNormBufR.Get(),
+								resources->_renderTargetViewSSAOMaskR.Get()
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
 						}
-					}
-					else {
+					} else {
+						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
-							context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
-						}
-						else {
-							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[2] = {
-								resources->_renderTargetView.Get(),
-								resources->_renderTargetViewBloomMask.Get()
+							ID3D11RenderTargetView *rtvs[1] = {
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(2, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
+								resources->_depthStencilViewL.Get());
+						} else {
+							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							ID3D11RenderTargetView *rtvs[5] = {
+								//resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								resources->_renderTargetViewBloomMask.Get(),
+								//resources->_renderTargetViewDepthBuf.Get(),
+								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+									resources->_renderTargetViewDepthBuf.Get() : 
+									resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get()
+							};
+							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -4519,8 +5213,7 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						viewport.Width = (float)resources->_backbufferWidth;
 						viewport.TopLeftX = 0.0f;
-					}
-					else {
+					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 						viewport.TopLeftX = 0.0f + viewport.Width;
 					}
@@ -4537,7 +5230,7 @@ HRESULT Direct3DDevice::Execute(
 					//	context->Draw(6, 0);
 					//	// TODO: Restore the original input layout here
 					//} else
-						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
 			out:
@@ -4578,6 +5271,8 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
 					g_PSCBuffer.fBloomStrength	= 1.0f;
+					g_PSCBuffer.fPosNormalAlpha = 1.0f;
+					g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
@@ -4912,8 +5607,18 @@ HRESULT Direct3DDevice::BeginScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
+	bool bTransitionToHyperspace = false;
+	bPrevHyperspaceState = bCurHyperspaceState;
+	bCurHyperspaceState = PlayerDataTable->hyperspacePhase != 0;
+	bTransitionToHyperspace = !bPrevHyperspaceState && bCurHyperspaceState;
+	// We want to capture the transition to hyperspace because we don't want to clear some buffers
+	// when this happens. The problem is that the game snaps the camera to the forward position as soon
+	// as we jump into hyperspace; but that causes glitches with the new hyperspace effect. To solve this
+	// I'm storing the heading of the camera right before the jump and then I restore it as soon as possible
+	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
+	// clearing these buffers on that same frame or the effect will "blink"
 
-	//log_debug("[DBG] BeginScene");
 	if (!this->_deviceResources->_renderTargetView)
 	{
 #if LOGGER
@@ -4929,25 +5634,54 @@ HRESULT Direct3DDevice::BeginScene()
 
 	auto& device = this->_deviceResources->_d3dDevice;
 	auto& context = this->_deviceResources->_d3dDeviceContext;
+	auto& resources = this->_deviceResources;
 
-	context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
-	if (g_bUseSteamVR)
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-	/* if (g_bDynCockpitEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
-	} */
-	if (g_bReshadeEnabled) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMask, this->_deviceResources->clearColor);
-		if (g_bUseSteamVR)
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewBloomMaskR, this->_deviceResources->clearColor);
+	if (!bTransitionToHyperspace) {
+		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+		}
 	}
-	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-	context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
 
-	if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
+	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them
+	// even if the Bloom effect is disabled
+	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) 
+		if (!bTransitionToHyperspace) {
+			context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
+			if (g_bUseSteamVR)
+				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
+		}
+
+	// Clear the AO RTVs
+	if (g_bAOEnabled) 
+		if (!bTransitionToHyperspace) {
+			// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
+			// on the sides of the screen
+			float infinity[4] = { 0, 0, 32000.0f, 0 };
+			float zero[4] = { 0, 0, 0, 0 };
+
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+			}
+		}
+
+	if (!bTransitionToHyperspace) {
+		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		if (g_bUseSteamVR)
+			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+	}
+
+	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
+		resources->_displayHeight, resources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;
 
 	if (this->_deviceResources->_displayBpp == 2)
@@ -4981,7 +5715,47 @@ HRESULT Direct3DDevice::EndScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-	//log_debug("[DBG] EndScene");
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	/*
+	I can't do this here because it will break the display of the main menu after exiting a mission
+	Looks like even the menu uses EndScene and I'm messing it up even when using the "g_bRendering3D" flag!
+
+	// Render the hyperspace effect when no GUI is present
+	if (g_bRendering3D && !g_bSwitchedToGUI)
+	{
+		g_bSwitchedToGUI = true;
+		// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+		// not travelling through hyperspace:
+		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+		{
+			g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+			g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+
+			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR) {
+				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+					resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+			}
+		}
+
+		// Render the hyperspace effect *after* the original hyperspace effect has already finished.
+		if (g_HyperspacePhaseFSM != HS_INIT_ST)
+		{
+			UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+			// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+			//				  shadertoyBuf has a copy of the cockpit
+
+			// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+			// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+			// TODO: Fix the effect for VR
+			RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, &vertexBufferStride, &vertexBufferOffset);
+		}
+	}
+	*/
+
 	this->_deviceResources->sceneRendered = true;
 
 	this->_deviceResources->inScene = false;

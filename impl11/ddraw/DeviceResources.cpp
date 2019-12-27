@@ -19,14 +19,32 @@
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
-//#include "../Debug/BloomPrePassPS.h"
 #include "../Debug/BloomHGaussPS.h"
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomCombinePS.h"
 #include "../Debug/BloomBufferAddPS.h"
+#include "../Debug/ComputeNormalsShader.h"
+#include "../Debug/SSAOPixelShader.h"
+#include "../Debug/SSAOBlurPixelShader.h"
+#include "../Debug/SSAOAddPixelShader.h"
+#include "../Debug/SSDODirect.h"
+#include "../Debug/SSDODirectBentNormals.h"
+#include "../Debug/SSDODirectHDR.h"
+#include "../Debug/SSDOIndirect.h"
+#include "../Debug/SSDOAdd.h"
+#include "../Debug/SSDOAddHDR.h"
+#include "../Debug/SSDOAddBentNormals.h"
+#include "../Debug/SSDOBlur.h"
+#include "../Debug/DeathStarShader.h"
+#include "../Debug/HyperEntry.h"
+#include "../Debug/HyperExit.h"
+#include "../Debug/HyperTunnel.h"
+#include "../Debug/HyperCompose.h"
+#include "../Debug/HyperZoom.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -41,14 +59,32 @@
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
-//#include "../Release/BloomPrePassPS.h"
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomCombinePS.h"
 #include "../Release/BloomBufferAddPS.h"
+#include "../Release/ComputeNormalsShader.h"
+#include "../Release/SSAOPixelShader.h"
+#include "../Release/SSAOBlurPixelShader.h"
+#include "../Release/SSAOAddPixelShader.h"
+#include "../Release/SSDODirect.h"
+#include "../Release/SSDODirectBentNormals.h"
+#include "../Release/SSDODirectHDR.h"
+#include "../Release/SSDOIndirect.h"
+#include "../Release/SSDOAdd.h"
+#include "../Release/SSDOAddHDR.h"
+#include "../Release/SSDOAddBentNormals.h"
+#include "../Release/SSDOBlur.h"
+#include "../Release/DeathStarShader.h"
+#include "../Release/HyperEntry.h"
+#include "../Release/HyperExit.h"
+#include "../Release/HyperTunnel.h"
+#include "../Release/HyperCompose.h"
+#include "../Release/HyperZoom.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -101,10 +137,12 @@ typedef enum {
 	PS_CONSTANT_BUFFER_2D,
 	PS_CONSTANT_BUFFER_3D,
 	PS_CONSTANT_BUFFER_BLOOM,
+	PS_CONSTANT_BUFFER_SSAO
 } PSConstantBufferType;
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
 extern bool g_bDynCockpitEnabled;
+extern bool g_bAOEnabled;
 
 FILE *g_DebugFile = NULL;
 
@@ -280,6 +318,9 @@ DeviceResources::DeviceResources()
 
 	const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	memcpy(this->clearColor, &color, sizeof(color));
+
+	const float colorRGBA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	memcpy(this->clearColorRGBA, &colorRGBA, sizeof(colorRGBA));
 
 	this->clearDepth = 1.0f;
 
@@ -500,55 +541,55 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
 	// Why do I even have to bother? Can I just use my *own* vertex shader and do
 	// away with all this silliness?
-	D3DTLVERTEX HUDVertices[6] = { 0 };
+	D3DTLVERTEX HyperVertices[6] = { 0 };
 
-	HUDVertices[0].sx = 0;
-	HUDVertices[0].sy = 0;
-	HUDVertices[0].sz = sz_depth;
-	HUDVertices[0].rhw = rhw_depth;
-	HUDVertices[0].tu = 0;
-	HUDVertices[0].tv = 0;
-	HUDVertices[0].color = color;
+	HyperVertices[0].sx  = 0;
+	HyperVertices[0].sy  = 0;
+	HyperVertices[0].sz  = sz_depth;
+	HyperVertices[0].rhw = rhw_depth;
+	HyperVertices[0].tu  = 0;
+	HyperVertices[0].tv  = 0;
+	HyperVertices[0].color = color;
 
-	HUDVertices[1].sx = (float)width;
-	HUDVertices[1].sy = 0;
-	HUDVertices[1].sz = sz_depth;
-	HUDVertices[1].rhw = rhw_depth;
-	HUDVertices[1].tu = 1;
-	HUDVertices[1].tv = 0;
-	HUDVertices[1].color = color;
+	HyperVertices[1].sx  = (float)width;
+	HyperVertices[1].sy  = 0;
+	HyperVertices[1].sz  = sz_depth;
+	HyperVertices[1].rhw = rhw_depth;
+	HyperVertices[1].tu  = 1;
+	HyperVertices[1].tv  = 0;
+	HyperVertices[1].color = color;
 
-	HUDVertices[2].sx = (float)width;
-	HUDVertices[2].sy = (float)height;
-	HUDVertices[2].sz = sz_depth;
-	HUDVertices[2].rhw = rhw_depth;
-	HUDVertices[2].tu = 1;
-	HUDVertices[2].tv = 1;
-	HUDVertices[2].color = color;
+	HyperVertices[2].sx  = (float)width;
+	HyperVertices[2].sy  = (float)height;
+	HyperVertices[2].sz  = sz_depth;
+	HyperVertices[2].rhw = rhw_depth;
+	HyperVertices[2].tu  = 1;
+	HyperVertices[2].tv  = 1;
+	HyperVertices[2].color = color;
 
-	HUDVertices[3].sx = (float)width;
-	HUDVertices[3].sy = (float)height;
-	HUDVertices[3].sz = sz_depth;
-	HUDVertices[3].rhw = rhw_depth;
-	HUDVertices[3].tu = 1;
-	HUDVertices[3].tv = 1;
-	HUDVertices[3].color = color;
+	HyperVertices[3].sx  = (float)width;
+	HyperVertices[3].sy  = (float)height;
+	HyperVertices[3].sz  = sz_depth;
+	HyperVertices[3].rhw = rhw_depth;
+	HyperVertices[3].tu  = 1;
+	HyperVertices[3].tv  = 1;
+	HyperVertices[3].color = color;
 
-	HUDVertices[4].sx = 0;
-	HUDVertices[4].sy = (float)height;
-	HUDVertices[4].sz = sz_depth;
-	HUDVertices[4].rhw = rhw_depth;
-	HUDVertices[4].tu = 0;
-	HUDVertices[4].tv = 1;
-	HUDVertices[4].color = color;
+	HyperVertices[4].sx  = 0;
+	HyperVertices[4].sy  = (float)height;
+	HyperVertices[4].sz  = sz_depth;
+	HyperVertices[4].rhw = rhw_depth;
+	HyperVertices[4].tu  = 0;
+	HyperVertices[4].tv  = 1;
+	HyperVertices[4].color = color;
 
-	HUDVertices[5].sx = 0;
-	HUDVertices[5].sy = 0;
-	HUDVertices[5].sz = sz_depth;
-	HUDVertices[5].rhw = rhw_depth;
-	HUDVertices[5].tu = 0;
-	HUDVertices[5].tv = 0;
-	HUDVertices[5].color = color;
+	HyperVertices[5].sx  = 0;
+	HyperVertices[5].sy  = 0;
+	HyperVertices[5].sz  = sz_depth;
+	HyperVertices[5].rhw = rhw_depth;
+	HyperVertices[5].tu  = 0;
+	HyperVertices[5].tv  = 0;
+	HyperVertices[5].color = color;
 
 	/* Create the VertexBuffer if necessary */
 	if (this->_hyperspaceVertexBuffer != NULL) {
@@ -567,14 +608,14 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HUDVertices);
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * ARRAYSIZE(HyperVertices);
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.MiscFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA vertexBufferData;
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = HUDVertices;
+	vertexBufferData.pSysMem = HyperVertices;
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_hyperspaceVertexBuffer);
 	if (FAILED(hr)) {
 		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
@@ -604,8 +645,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 */
 	HRESULT hr;
 	char* step = "";
-	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	//DXGI_FORMAT BloomFormatFloat = DXGI_FORMAT_B8G8R8A8_UNORM;
+	DXGI_FORMAT oldFormat;
+
 	//log_debug("[DBG] OnSizeChanged called");
 	// Generic VR Initialization
 	// Replace the game's WndProc
@@ -636,6 +677,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_shadertoyBuf.Release();
+	this->_shadertoyAuxBuf.Release();
+	this->_shadertoyRTV.Release();
+	this->_shadertoySRV.Release();
+	this->_shadertoyAuxSRV.Release();
 	if (g_bUseSteamVR) {
 		this->_offscreenBufferR.Release();
 		this->_offscreenBufferAsInputR.Release();
@@ -645,7 +691,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_shadertoyBufR.Release();
+		this->_shadertoyAuxBufR.Release();
+		this->_shadertoyRTV_R.Release();
+		this->_shadertoySRV_R.Release();
+		this->_shadertoyAuxSRV_R.Release();
 	}
+
 	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 		if (g_bDynCockpitEnabled) {
 			// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
@@ -687,25 +739,41 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputSRVDynCockpit.Release();
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
 	}
+
+	// offscreenBufferBloomMask/AsInputBloomMask/SRV/RTVs are used for SSDO (and SSAO?)
+	// _bloomOutput1 is used as temp buff during SSDO
 	if (g_bReshadeEnabled) {
 		this->_offscreenBufferBloomMask.Release();
 		this->_offscreenBufferAsInputBloomMask.Release();
 		this->_offscreenAsInputBloomMaskSRV.Release();
 		this->_renderTargetViewBloomMask.Release();
-		this->_renderTargetViewBloom1.Release();
-		this->_renderTargetViewBloom2.Release();
-		this->_renderTargetViewBloomSum.Release();
 		this->_bloomOutput1.Release();
-		this->_bloomOutput2.Release();
-		this->_bloomOutputSum.Release();
 		this->_bloomOutput1SRV.Release();
-		this->_bloomOutput2SRV.Release();
-		this->_bloomOutputSumSRV.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
 			this->_renderTargetViewBloomMaskR.Release();
+		}
+	}
+
+	if (g_bBloomEnabled) {
+		//this->_offscreenAsInputBloomMaskSRV.Release();
+		//this->_renderTargetViewBloomMask.Release();
+		this->_renderTargetViewBloom1.Release();
+		this->_renderTargetViewBloom2.Release();
+		this->_renderTargetViewBloomSum.Release();
+		//this->_bloomOutput1.Release();
+		this->_bloomOutput2.Release();
+		this->_bloomOutputSum.Release();
+		//this->_bloomOutput1SRV.Release();
+		this->_bloomOutput2SRV.Release();
+		this->_bloomOutputSumSRV.Release();
+		if (g_bUseSteamVR) {
+			/*this->_offscreenBufferBloomMaskR.Release();
+			this->_offscreenBufferAsInputBloomMaskR.Release();
+			this->_offscreenAsInputBloomMaskSRV_R.Release();
+			this->_renderTargetViewBloomMaskR.Release();*/
 			this->_bloomOutput1R.Release();
 			this->_bloomOutput2R.Release();
 			this->_bloomOutputSumR.Release();
@@ -715,6 +783,49 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_bloomOutput1SRV_R.Release();
 			this->_bloomOutput2SRV_R.Release();
 			this->_bloomOutputSumSRV_R.Release();
+		}
+	}
+
+	if (g_bAOEnabled) {
+		this->_depthBuf.Release();
+		this->_depthBufAsInput.Release();
+		this->_depthBuf2.Release();
+		this->_depthBuf2AsInput.Release();
+		this->_normBuf.Release();
+		this->_bentBuf.Release();
+		this->_bentBufR.Release(); // bentBufR is used to hold a copy of bentBuf to blur it (and viceversa)
+		this->_ssaoBuf.Release();
+		this->_ssaoBufR.Release(); // ssaoBufR will be used to store SSDO Indirect (and viceversa)
+		this->_ssaoMask.Release();
+		this->_renderTargetViewDepthBuf.Release();
+		this->_depthBufSRV.Release();
+		this->_depthBuf2SRV.Release();
+		this->_normBufSRV.Release();
+		this->_bentBufSRV.Release();
+		this->_bentBufSRV_R.Release();
+		this->_renderTargetViewNormBuf.Release();
+		this->_renderTargetViewBentBuf.Release();
+		this->_renderTargetViewSSAO.Release();
+		this->_renderTargetViewSSAO_R.Release();
+		this->_renderTargetViewSSAOMask.Release();
+		this->_ssaoBufSRV.Release();
+		this->_ssaoBufSRV_R.Release();
+		this->_ssaoMaskSRV.Release();
+		if (g_bUseSteamVR) {
+			this->_depthBufR.Release();
+			this->_depthBufAsInputR.Release();
+			this->_depthBuf2R.Release();
+			this->_depthBuf2AsInputR.Release();
+			this->_ssaoMaskR.Release();
+			this->_normBufR.Release();
+			this->_renderTargetViewDepthBufR.Release();
+			this->_depthBufSRV_R.Release();
+			this->_depthBuf2SRV_R.Release();
+			this->_normBufSRV_R.Release();
+			this->_renderTargetViewNormBufR.Release();
+			this->_renderTargetViewBentBufR.Release();
+			this->_renderTargetViewSSAOMaskR.Release();
+			this->_ssaoMaskSRV_R.Release();
 		}
 	}
 
@@ -844,8 +955,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_sampleDesc.Count,
 			this->_sampleDesc.Quality,
 			0);
+		oldFormat = desc.Format;
 
-		step = "OffscreenBuffer";
+		step = "_offscreenBuffer";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBuffer);
 		if (FAILED(hr)) {
 			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -854,7 +966,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bUseSteamVR) {
-			step = "OffscreenBufferR";
+			step = "_offscreenBufferR";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -911,8 +1023,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
-
 			step = "_offscreenBufferBloomMask";
 			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
 			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
@@ -924,7 +1034,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bSteamVREnabled) {
+			if (g_bUseSteamVR) {
 				step = "_offscreenBufferBloomMaskR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMaskR);
 				if (FAILED(hr)) {
@@ -937,12 +1047,63 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.Format = oldFormat;
 		}
 
+		if (g_bAOEnabled) {
+			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			
+			// _depthBuf will be used as a renderTarget
+			step = "_depthBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_depthBuf2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
+				step = "_depthBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_depthBuf2R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				/*step = "_normBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}*/
+			}
+
+			desc.Format = oldFormat;
+		}
+
 		// No MSAA after this point
 		// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
-		step = "offscreenBufferAsInput";
 		desc.SampleDesc.Count = 1;
 		desc.SampleDesc.Quality = 0;
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+		step = "offscreenBufferAsInput";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInput);
 		if (FAILED(hr)) {
 			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -961,7 +1122,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			DXGI_FORMAT oldFormat = desc.Format;
 			desc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenBufferAsInputBloomMask";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMask);
@@ -971,7 +1131,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bSteamVREnabled) {
+			if (g_bUseSteamVR) {
 				step = "_offscreenBufferAsInputBloomMaskR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
 				if (FAILED(hr)) {
@@ -980,12 +1140,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
-			//desc.Format = oldFormat;
+			desc.Format = oldFormat;
+		}
 
+		{
 			// These guys should be the last to be created because they modify the BindFlags to
 			// add D3D11_BIND_RENDER_TARGET
 			UINT curFlags = desc.BindFlags;
-			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			desc.Format = BLOOM_BUFFER_FORMAT;
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET; // SRV + RTV
 			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 			log_err("Flags: 0x%x\n", desc.BindFlags);
 
@@ -1001,6 +1164,51 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			else {
 				log_err("Successfully created _reshadeOutput1 with combined flags\n");
 			}
+			desc.Format = oldFormat;
+
+			step = "_shadertoyBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_shadertoyAuxBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				step = "_shadertoyBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_shadertoyAuxBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+		}
+
+		if (g_bBloomEnabled) {
+			// These guys should be the last to be created because they modify the BindFlags to
+			// add D3D11_BIND_RENDER_TARGET
+			desc.Format = BLOOM_BUFFER_FORMAT;
+			UINT curFlags = desc.BindFlags;
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
+			log_err("Flags: 0x%x\n", desc.BindFlags);
 
 			step = "_bloomOutput2";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2);
@@ -1027,7 +1235,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Successfully created _bloomOutputSum with combined flags\n");
 			}
 
-			if (g_bSteamVREnabled) {
+			if (g_bUseSteamVR) {
 				step = "_bloomOutput1R";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
 				if (FAILED(hr)) {
@@ -1067,6 +1275,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _bloomOutputSumR with combined flags\n");
 				}
 			}
+			
 			// Restore the previous bind flags, just in case there is a dependency on these later on
 			desc.BindFlags = curFlags;
 			// Restore the non-float format
@@ -1110,6 +1319,124 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.BindFlags = curFlags;
 		}
 
+		// Create Non-MSAA AO Buffers
+		if (g_bAOEnabled) {
+			UINT oldFlags = desc.BindFlags;
+			desc.SampleDesc.Count = 1;
+			desc.SampleDesc.Quality = 0;
+			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+
+			step = "_depthBufAsInput";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInput);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_depthBuf2AsInput";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2AsInput);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				step = "_depthBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInputR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_depthBuf2R";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf2AsInputR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			// Add the RTV flag
+			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+			step = "_normBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_bentBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			step = "_bentBufR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			desc.Format = HDR_FORMAT;
+			step = "_ssaoBuf";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			desc.Format = HDR_FORMAT;
+			step = "_ssaoBufR";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			desc.Format = AO_MASK_FORMAT;
+			step = "_ssaoMask";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMask);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				desc.Format = AO_DEPTH_BUFFER_FORMAT;
+				step = "_normBufR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				desc.Format = AO_MASK_FORMAT;
+				step = "_ssaoMaskR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			desc.Format = oldFormat;
+			desc.BindFlags = oldFlags;
+		}
+
 		// Create the shader resource views for both offscreen buffers
 		D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 		// Create a shader resource view for the _offscreenBuffer
@@ -1119,6 +1446,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		shaderResourceViewDesc.Texture2D.MipLevels = 1;
 		D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
 
+		/* SRVs */
 		// Create the shader resource view for offscreenBufferAsInput
 		step = "offscreenAsInputShaderResourceView";
 		hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInput,
@@ -1129,8 +1457,53 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
-		if (g_bReshadeEnabled) {
-			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+		step = "_shadertoySRV";
+		hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);
+		if (FAILED(hr)) {
+			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+			log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+			goto out;
+		}
+
+		step = "_shadertoyAuxSRV";
+		hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyAuxBuf, &shaderResourceViewDesc, &this->_shadertoyAuxSRV);
+		if (FAILED(hr)) {
+			log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+			log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+			goto out;
+		}
+
+		if (g_bUseSteamVR) {
+			// Create the shader resource view for offscreenBufferAsInputR
+			step = "offscreenAsInputShaderResourceViewR";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputR,
+				&shaderResourceViewDesc, &this->_offscreenAsInputShaderResourceViewR);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_shadertoySRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBufR, &shaderResourceViewDesc, &this->_shadertoySRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_shadertoyAuxSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyAuxBufR, &shaderResourceViewDesc, &this->_shadertoyAuxSRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+		}
+
+		// Bloom SRVs
+		if (g_bReshadeEnabled) 
+		{
 			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_offscreenAsInputBloomMaskSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMask,
@@ -1140,7 +1513,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
-			
+
+			if (g_bUseSteamVR)
+			{
+				step = "_offscreenAsInputBloomSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
+					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
+		
 			step = "_bloomOutput1SRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1,
 				&shaderResourceViewDesc, &this->_bloomOutput1SRV);
@@ -1149,7 +1534,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+			shaderResourceViewDesc.Format = oldFormat;
+		}
 
+		if (g_bBloomEnabled) {
+			shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_bloomOutput2SRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2,
 				&shaderResourceViewDesc, &this->_bloomOutput2SRV);
@@ -1168,18 +1557,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bSteamVREnabled) {
-				//shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
-				step = "_offscreenAsInputBloomSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
-					&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-				//shaderResourceViewDesc.Format = oldFormat;
-
+			if (g_bUseSteamVR) {
+				shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
+				
 				step = "_bloomOutput1SRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
 					&shaderResourceViewDesc, &this->_bloomOutput1SRV_R);
@@ -1207,20 +1587,122 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
-
 			shaderResourceViewDesc.Format = oldFormat;
 		}
 
-		if (g_bUseSteamVR) {
-			// Create the shader resource view for offscreenBufferAsInputR
-			step = "offscreenAsInputShaderResourceViewR";
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputR,
-				&shaderResourceViewDesc, &this->_offscreenAsInputShaderResourceViewR);
+		// AO SRVs
+		if (g_bAOEnabled) {
+			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+
+			step = "_depthBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInput,
+				&shaderResourceViewDesc, &this->_depthBufSRV);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+
+			step = "_depthBuf2SRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBuf2AsInput,
+				&shaderResourceViewDesc, &this->_depthBuf2SRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_normBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_normBuf, &shaderResourceViewDesc, &this->_normBufSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_bentBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_bentBufSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+			
+			shaderResourceViewDesc.Format = HDR_FORMAT;
+			step = "_ssaoBufSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			step = "_ssaoBufSRV_R";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			shaderResourceViewDesc.Format = AO_MASK_FORMAT;
+			step = "_ssaoMaskSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMask, &shaderResourceViewDesc, &this->_ssaoMaskSRV);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR) {
+				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+				step = "_depthBufSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInputR,
+					&shaderResourceViewDesc, &this->_depthBufSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_depthBuf2SRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBuf2AsInputR,
+					&shaderResourceViewDesc, &this->_depthBuf2SRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				step = "_normBufSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_normBufR, &shaderResourceViewDesc, &this->_normBufSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				shaderResourceViewDesc.Format = oldFormat;
+
+
+				shaderResourceViewDesc.Format = AO_MASK_FORMAT;
+				step = "_ssaoMaskSRV_R";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMaskR, &shaderResourceViewDesc, &this->_ssaoMaskSRV_R);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
+			shaderResourceViewDesc.Format = oldFormat;
 		}
 
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1252,9 +1734,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		g_fCurInGameHeight = (float)_displayHeight;
 	}
 
+	/* RTVs */
 	if (SUCCEEDED(hr))
 	{
 		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc(this->_useMultisampling ? D3D11_RTV_DIMENSION_TEXTURE2DMS : D3D11_RTV_DIMENSION_TEXTURE2D);
+		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 
 		step = "_renderTargetView";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBuffer, &renderTargetViewDesc, &this->_renderTargetView);
@@ -1263,6 +1747,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "_renderTargetViewPost";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &renderTargetViewDesc, &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
+
+		step = "_shadertoyRTV";
+		// This RTV writes to a non-MSAA texture
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBuf, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV);
+		if (FAILED(hr)) {
+			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
+			goto out;
+		}
 
 		if (g_bUseSteamVR) {
 			step = "RenderTargetViewR";
@@ -1276,6 +1768,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			step = "renderTargetViewSteamVRResize";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVRResize);
 			if (FAILED(hr)) goto out;
+
+			step = "_shadertoyRTV_R";
+			// This RTV writes to a non-MSAA texture
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBufR, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV_R);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [ST] _shadertoyRTV_R FAILED");
+				goto out;
+			}
 		}
 
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1292,8 +1792,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitBG FAILED");
 				goto out;
 			}
-
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
+			
 			step = "_renderTargetViewDynCockpitAsInput";
 			// This RTV writes to a non-MSAA texture
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpit, &renderTargetViewDescNoMSAA,
@@ -1314,21 +1813,24 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			DXGI_FORMAT oldFormat = renderTargetViewDesc.Format;
-
-			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
 			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			step = "_renderTargetViewBloomMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
 
-			if (g_bSteamVREnabled) {
+			if (g_bUseSteamVR) {
 				step = "_renderTargetViewBloomMaskR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 			}
-			//renderTargetViewDesc.Format = oldFormat;
-			
+			renderTargetViewDesc.Format = oldFormat;
+		}
+
+		// Bloom RTVs
+		if (g_bBloomEnabled) {
+			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
+			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
+						
 			// These RTVs render to non-MSAA buffers
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			step = "_renderTargetViewBloom1";
@@ -1343,7 +1845,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
 			if (FAILED(hr)) goto out;
 
-			if (g_bSteamVREnabled) {
+			if (g_bUseSteamVR) {
 				step = "_renderTargetViewBloom1R";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
 				if (FAILED(hr)) goto out;
@@ -1354,6 +1856,68 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				step = "_renderTargetViewBloomSumR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
+				if (FAILED(hr)) goto out;
+			}
+
+			renderTargetViewDesc.Format = oldFormat;
+		}
+
+		if (g_bAOEnabled) {
+			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
+			renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
+
+			step = "_renderTargetViewDepthBuf";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewDepthBuf2";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf2, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf2);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewNormBuf";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_normBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBuf);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewBentBuf";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
+			if (FAILED(hr)) goto out;
+
+			renderTargetViewDescNoMSAA.Format = HDR_FORMAT;
+			step = "_renderTargetViewSSAO";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO);
+			if (FAILED(hr)) goto out;
+
+			step = "_renderTargetViewSSAO_R";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
+			if (FAILED(hr)) goto out;
+
+			renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
+			step = "_renderTargetViewSSAOMask";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoMask, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAOMask);
+			if (FAILED(hr)) goto out;
+
+			if (g_bUseSteamVR) {
+				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
+				step = "_renderTargetViewDepthBufR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewDepthBuf2R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf2R, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf2R);
+				if (FAILED(hr)) goto out;
+
+				step = "_renderTargetViewNormBufR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_normBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBufR);
+				if (FAILED(hr)) goto out;
+
+				/*step = "_renderTargetViewBentBufR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBufR);
+				if (FAILED(hr)) goto out;*/
+
+				renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
+				step = "_renderTargetViewSSAOMask_R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoMaskR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAOMaskR);
 				if (FAILED(hr)) goto out;
 			}
 
@@ -1498,6 +2062,24 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -1512,6 +2094,44 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+			return hr;
+	}
+
+	if (g_bAOEnabled) {
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
+			return hr;
+		
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
 	}
 
@@ -1664,8 +2284,13 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
-		return hr;
+	if (g_bDynCockpitEnabled) {
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderEmptyDC, sizeof(g_PixelShaderEmptyDC), nullptr, &_pixelShaderEmptyDC)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
 		return hr;
@@ -1682,10 +2307,25 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SingleBarrelPixelShader, sizeof(g_SingleBarrelPixelShader), nullptr, &_singleBarrelPixelShader)))
 		return hr;
 
-	if (g_bBloomEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), nullptr, &_bloomPrepassPS)))
-		//	return hr;
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
+		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperEntry, sizeof(g_HyperEntry), nullptr, &_hyperEntryPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperExit, sizeof(g_HyperExit), nullptr, &_hyperExitPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
+		return hr;
+
+	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
 
@@ -1696,6 +2336,44 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+			return hr;
+	}
+
+	if (g_bAOEnabled) {
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
 	}
 
@@ -1728,7 +2406,15 @@ HRESULT DeviceResources::LoadResources()
 
 	constantBufferDesc.ByteWidth = 192; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
 	// 192 bytes is 3 matrices
+	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(PixelShaderCBuffer) must be 192");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
+		return hr;
+
+	//constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	// 192 bytes is 3 matrices
+	static_assert(sizeof(PixelShaderMatrixCB) == 64, "sizeof(PixelShaderCBuffer) must be 64");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
@@ -1745,12 +2431,26 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the constant buffer for the barrel pixel shader
 	constantBufferDesc.ByteWidth = 16;
+	static_assert(sizeof(BarrelPixelShaderCBuffer) == 16, "sizeof(BarrelPixelShaderCBuffer) must be 16");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_barrelConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the bloom pixel shader
-	constantBufferDesc.ByteWidth = 32;
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(BloomPixelShaderCBuffer) == 48, "sizeof(BloomPixelShaderCBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_bloomConstantBuffer)))
+		return hr;
+
+	// Create the Hyperspace (ShaderToy) constant buffer
+	constantBufferDesc.ByteWidth = 128;
+	static_assert(sizeof(ShadertoyCBuffer) == 128, "sizeof(ShadertoyCBuffer) must be 128");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
+		return hr;
+
+	// Create the constant buffer for the SSAO pixel shader
+	constantBufferDesc.ByteWidth = 176;
+	static_assert(sizeof(SSAOPixelShaderCBuffer) == 176, "sizeof(SSAOPixelShaderCBuffer) must be 176");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_ssaoConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the main pixel shader
@@ -1981,6 +2681,12 @@ void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const Ve
 	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
 
+void DeviceResources::InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer)
+{
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(4, 1, buffer);
+}
+
 void DeviceResources::InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
 	const float aspectRatio, const float scale, const float brightness, const float use_3D)
 {
@@ -2083,6 +2789,37 @@ void DeviceResources::InitPSConstantBufferBloom(ID3D11Buffer** buffer, const Blo
 		this->_d3dDeviceContext->PSSetConstantBuffers(2, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_BLOOM;
+}
+
+void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAOPixelShaderCBuffer *psConstants)
+{
+	static SSAOPixelShaderCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(SSAOPixelShaderCBuffer);
+
+	static ID3D11Buffer** currentBuffer = nullptr;
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_SSAO ||
+		memcmp(psConstants, &currentPSConstants, sizeof_constants) != 0)
+		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+
+	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
+		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_SSAO ||
+		buffer != currentBuffer)
+	{
+		currentBuffer = buffer;
+		this->_d3dDeviceContext->PSSetConstantBuffers(3, 1, buffer);
+	}
+	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_SSAO;
+}
+
+void DeviceResources::InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
+{
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static ShadertoyCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(ShadertoyCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)

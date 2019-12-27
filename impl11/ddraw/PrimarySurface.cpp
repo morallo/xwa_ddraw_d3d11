@@ -12,8 +12,11 @@
 #include "FrontbufferSurface.h"
 #include "FreePIE.h"
 #include "Matrices.h"
+#include "Direct3DTexture.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
+
+const float DEG2RAD = 3.141593f / 180;
 
 #include <vector>
 
@@ -23,9 +26,22 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
 
+extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+extern float g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed;
+extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
+extern float g_fHyperTimeOverride; // DEBUG, remove later
+extern int g_iHyperStateOverride; // DEBUG, remove later
+extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
+extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
+extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
+extern int g_iHyperExitPostFrames;
+extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
+
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
-extern bool g_bYawPitchFromMouseOverride;
+extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
+extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
@@ -38,7 +54,11 @@ extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
+
+void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
 #include <headers/openvr.h>
 const float PI = 3.141592f;
@@ -86,6 +106,121 @@ int g_iBloomPasses[8] = {
 	1, 1, 1, 1, 1, 1, 1, 1
 };
 
+// SSAO
+extern SSAOTypeEnum g_SSAO_Type;
+extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
+extern int g_iSSDODebug, g_iSSAOBlurPasses;
+extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWARotation;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled, g_bShadowEnable;
+extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
+extern Vector4 g_LightVector[2];
+extern Vector4 g_LightColor[2];
+extern float g_fViewYawSign, g_fViewPitchSign;
+
+// S0x07D4FA0
+struct XwaGlobalLight
+{
+	/* 0x0000 */ int PositionX;
+	/* 0x0004 */ int PositionY;
+	/* 0x0008 */ int PositionZ;
+	/* 0x000C */ float DirectionX;
+	/* 0x0010 */ float DirectionY;
+	/* 0x0014 */ float DirectionZ;
+	/* 0x0018 */ float Intensity;
+	/* 0x001C */ float XwaGlobalLight_m1C;
+	/* 0x0020 */ float ColorR;
+	/* 0x0024 */ float ColorB;
+	/* 0x0028 */ float ColorG;
+	/* 0x002C */ float BlendStartIntensity;
+	/* 0x0030 */ float BlendStartColor1C;
+	/* 0x0034 */ float BlendStartColorR;
+	/* 0x0038 */ float BlendStartColorB;
+	/* 0x003C */ float BlendStartColorG;
+	/* 0x0040 */ float BlendEndIntensity;
+	/* 0x0044 */ float BlendEndColor1C;
+	/* 0x0048 */ float BlendEndColorR;
+	/* 0x004C */ float BlendEndColorB;
+	/* 0x0050 */ float BlendEndColorG;
+};
+
+// V0x00782848
+DWORD *XwaGlobalLightsCount = (DWORD *)0x00782848;
+
+// V0x007D4FA0
+XwaGlobalLight *XwaGlobalLights = (XwaGlobalLight *)0x007D4FA0; // Maximum 8 lights
+
+struct XwaVector3
+{
+	/* 0x0000 */ float x;
+	/* 0x0004 */ float y;
+	/* 0x0008 */ float z;
+};
+
+// S0x0000002
+struct XwaMatrix3x3
+{
+	/* 0x0000 */ float _11;
+	/* 0x0004 */ float _12;
+	/* 0x0008 */ float _13;
+	/* 0x000C */ float _21;
+	/* 0x0010 */ float _22;
+	/* 0x0014 */ float _23;
+	/* 0x0018 */ float _31;
+	/* 0x001C */ float _32;
+	/* 0x0020 */ float _33;
+};
+
+// S0x0000012
+struct XwaTransform
+{
+	/* 0x0000 */ XwaVector3 Position;
+	/* 0x000C */ XwaMatrix3x3 Rotation;
+};
+
+// S0x0000001
+// L00439B30
+void XwaVector3Transform(XwaVector3* A4, const XwaMatrix3x3* A8)
+{
+	float A4_00 = A8->_31 * A4->z + A8->_21 * A4->y + A8->_11 * A4->x;
+	float A4_04 = A8->_32 * A4->z + A8->_22 * A4->y + A8->_12 * A4->x;
+	float A4_08 = A8->_33 * A4->z + A8->_23 * A4->y + A8->_13 * A4->x;
+
+	A4->x = A4_00;
+	A4->y = A4_04;
+	A4->z = A4_08;
+}
+
+void DumpGlobalLights()
+{
+	std::ostringstream str;
+
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+
+	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
+	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
+
+	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
+	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);
+
+	for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+	{
+		str << std::endl;
+		str << "\t\t" << s_XwaGlobalLights[i].PositionX << ";" << s_XwaGlobalLights[i].PositionY << ";" << s_XwaGlobalLights[i].PositionZ;
+		str << "\t\t" << s_XwaGlobalLights[i].DirectionX << ";" << s_XwaGlobalLights[i].DirectionY << ";" << s_XwaGlobalLights[i].DirectionZ;
+
+		XwaVector3 viewDir = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
+		XwaVector3Transform(&viewDir, &ViewTransform->Rotation);
+		str << "\t\t" << viewDir.x << ";" << viewDir.y << ";" << viewDir.z;
+	}
+
+	//LogText(str.str());
+}
+
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 /*
  * Convert a rotation matrix to a normalized quaternion.
  * From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
@@ -131,6 +266,38 @@ vr::HmdQuaternionf_t rotationToQuaternion(vr::HmdMatrix34_t m) {
 }
 
 /*
+ * From http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+ */
+vr::HmdMatrix33_t quatToMatrix(vr::HmdQuaternionf_t q) {
+	vr::HmdMatrix33_t m;
+	float sqw = q.w*q.w;
+	float sqx = q.x*q.x;
+	float sqy = q.y*q.y;
+	float sqz = q.z*q.z;
+
+	// invs (inverse square length) is only required if quaternion is not already normalised
+	float invs = 1 / (sqx + sqy + sqz + sqw);
+	m.m[0][0] = (sqx - sqy - sqz + sqw) * invs; // since sqw + sqx + sqy + sqz =1/invs*invs
+	m.m[1][1] = (-sqx + sqy - sqz + sqw) * invs;
+	m.m[2][2] = (-sqx - sqy + sqz + sqw) * invs;
+
+	float tmp1 = q.x*q.y;
+	float tmp2 = q.z*q.w;
+	m.m[1][0] = 2.0f * (tmp1 + tmp2)*invs;
+	m.m[0][1] = 2.0f * (tmp1 - tmp2)*invs;
+
+	tmp1 = q.x*q.z;
+	tmp2 = q.y*q.w;
+	m.m[2][0] = 2.0f * (tmp1 - tmp2)*invs;
+	m.m[0][2] = 2.0f * (tmp1 + tmp2)*invs;
+	tmp1 = q.y*q.z;
+	tmp2 = q.x*q.w;
+	m.m[2][1] = 2.0f * (tmp1 + tmp2)*invs;
+	m.m[1][2] = 2.0f * (tmp1 - tmp2)*invs;
+	return m;
+}
+
+/*
    From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
    yaw: left = +90, right = -90
    pitch: up = +90, down = -90
@@ -161,6 +328,27 @@ void quatToEuler(vr::HmdQuaternionf_t q, float *yaw, float *roll, float *pitch) 
 	*roll = atan2(2.0f * q.x*q.w - 2.0f * q.y*q.z, 1.0f - 2.0f * sqx - 2.0f * sqz);
 }
 
+/*
+ * From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
+ */
+vr::HmdQuaternionf_t eulerToQuat(float yaw, float pitch, float roll) {
+	vr::HmdQuaternionf_t q;
+	// Assuming the angles are in radians.
+	float c1 = cos(yaw / 2.0f);
+	float s1 = sin(yaw / 2.0f);
+	float c2 = cos(pitch / 2.0f);
+	float s2 = sin(pitch / 2.0f);
+	float c3 = cos(roll / 2.0f);
+	float s3 = sin(roll / 2.0f);
+	float c1c2 = c1 * c2;
+	float s1s2 = s1 * s2;
+	q.w = c1c2 * c3 - s1s2 * s3;
+	q.x = c1c2 * s3 + s1s2 * c3;
+	q.y = s1 * c2*c3 + c1 * s2*s3;
+	q.z = c1 * s2*c3 - s1 * c2*s3;
+	return q;
+}
+
 Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t &mat) {
 	Matrix3 matrixObj(
 		mat.m[0][0], mat.m[1][0], mat.m[2][0],
@@ -168,6 +356,124 @@ Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t &mat) {
 		mat.m[0][2], mat.m[1][2], mat.m[2][2]
 	);
 	return matrixObj;
+}
+
+Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t &mat) {
+	Matrix3 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0],
+		mat.m[0][1], mat.m[1][1], mat.m[2][1],
+		mat.m[0][2], mat.m[1][2], mat.m[2][2]
+	);
+	return matrixObj;
+}
+
+void ShowXWAMatrix(const XwaTransform &m) {
+	log_debug("[DBG] -----------------------------");
+	log_debug("[DBG] %0.4f, %0.4f, %0.4f, %0.4f", m.Rotation._11, m.Rotation._12, m.Rotation._13, m.Position.x);
+	log_debug("[DBG] %0.4f, %0.4f, %0.4f, %0.4f", m.Rotation._21, m.Rotation._22, m.Rotation._23, m.Position.y);
+	log_debug("[DBG] %0.4f, %0.4f, %0.4f, %0.4f", m.Rotation._31, m.Rotation._32, m.Rotation._33, m.Position.z);
+	log_debug("[DBG] -----------------------------");
+}
+
+void ShowXWAVector(char *msg, const XwaVector3 &v) {
+	log_debug("[DBG] %s [%0.4f, %0.4f, %0.4f]", msg, v.x, v.y, v.z);
+}
+
+//Matrix4 ComputeRotationMatrixFromXWAView(Vector4 *light) {
+void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
+	Vector4 tmpL[2], T, B, N;
+	// Compute the full rotation
+	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
+	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+
+	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll); // Z or Y?
+
+	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
+	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
+	// so the remaining rotation must be around the y axis (?)
+	// DEBUG, x = z, y = x, z = y;
+	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
+	// When pitch == 90, the craft is actually seeing the horizon
+	// When pitch == 0, the craft is looking towards the sun
+	// New approach: let's build a TBN system here to avoid the gimbal lock problem
+	float cosTheta, cosPhi, sinTheta, sinPhi;
+	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+	cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+	N.z = cosTheta * sinPhi;
+	N.x = sinTheta * sinPhi;
+	N.y = cosPhi;
+	N.w = 0;
+
+	// This transform chain will always transform (x,y,z) into (0, 1, 0):
+	// To make an orthonormal basis, we need x+ and z+
+	N = rotMatrixPitch * rotMatrixYaw * N;
+	B.x = 0; B.y = 0; B.z = 1; B.w = 0;
+	T.x = 1; T.y = 0; T.z = 0; T.w = 0;
+	// In this space we now need to rotate B and T around the Y axis by "roll" degrees
+	B = rotMatrixRoll * B;
+	T = rotMatrixRoll * T;
+	// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	rotMatrixFull.invert();
+	T = rotMatrixFull * T;
+	B = rotMatrixFull * B;
+	N = rotMatrixFull * N;
+	// Our TBN basis is now in absolute coordinates
+	rotMatrixFull.identity();
+	rotMatrixFull.set(
+		T.x, B.x, N.x, 0,
+		T.y, B.y, N.y, 0,
+		T.z, B.z, N.z, 0,
+		0, 0, 0, 1
+	);
+
+	for (int i = 0; i < num_lights; i++)
+		tmpL[i] = rotMatrixFull * g_LightVector[i];
+
+	// tmpL is now the light's direction in view space. We need to further transform this
+	// to compensate for camera rotation
+
+	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
+	float viewYaw, viewPitch;
+	if (PlayerDataTable[0].externalCamera) {
+		viewYaw   = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+	}
+	else {
+		viewYaw   = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+	}
+	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	viewMatrixYaw.identity();
+	viewMatrixPitch.identity();
+	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
+	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
+	for (int i = 0; i < num_lights; i++)
+		light[i] = viewMatrixPitch * viewMatrixYaw * tmpL[i];
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, x, y, z, tmp.x, tmp.y, tmp.z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, light->x, light->y, light->z);
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); camYP: (%0.3f, %0.3f), light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, viewYaw, viewPitch, light->x, light->y, light->z);
+	// DEBUG
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, light->x, light->y, light->z);
+
+	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
+	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
+
+	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
 }
 
 void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
@@ -214,8 +520,10 @@ BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
-BloomPixelShaderCBStruct g_BloomPSCBuffer;
-extern bool g_bBloomEnabled;
+BloomPixelShaderCBuffer g_BloomPSCBuffer;
+SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
+extern ShadertoyCBuffer g_ShadertoyBuffer;
+extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
 // Main Pixel Shader constant buffer
@@ -716,7 +1024,11 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 
 	resources->InitViewport(&viewport);
@@ -792,7 +1104,6 @@ void PrimarySurface::barrelEffect3D() {
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_barrelPixelShader);
 	
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	// Set the lens distortion constants for the barrel shader
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
@@ -801,7 +1112,12 @@ void PrimarySurface::barrelEffect3D() {
 	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// Clear the render target
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
+	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
 	context->Draw(6, 0);
@@ -929,14 +1245,17 @@ void PrimarySurface::barrelEffectSteamVR() {
 	context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 	context->IASetInputLayout(resources->_mainInputLayout);
 
+	ID3D11RenderTargetView *rtvs[5] = {
+		resources->_renderTargetViewPost.Get(),
+		NULL, NULL, NULL, NULL,
+	};
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-		//resources->_depthStencilViewL.Get());
 	context->Draw(6, 0);
 
+	rtvs[0] = resources->_renderTargetViewPostR.Get();
+	context->OMSetRenderTargets(5, rtvs, NULL);
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-		//resources->_depthStencilViewR.Get());
 	context->Draw(6, 0);
 
 #ifdef DBG_VR
@@ -1309,7 +1628,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	context->Draw(6, 0);
 
 	// Draw the right image when SteamVR is enabled
-	if (g_bSteamVREnabled) {
+	if (g_bUseSteamVR) {
 		switch (pass) {
 		case 0: 	// Prepass
 			// Input: _offscreenAsInputReshadeSRV_R
@@ -1397,7 +1716,6 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-	//float fPixelScale = 4.0f;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
 
@@ -1463,7 +1781,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
 	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
-	if (g_bSteamVREnabled)
+	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
@@ -1485,7 +1803,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Copy _bloomOutput1 over _bloomOutputSum
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	if (g_bSteamVREnabled)
+	if (g_bUseSteamVR)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 
 	// DEBUG
@@ -1636,7 +1954,7 @@ void PrimarySurface::DrawHUDVertices() {
 
 	// We don't need to clear the current vertex and pixel constant buffers.
 	// Since we've just finished rendering 3D, they should contain values that
-	// can be reused. So let's just overwrite those values that we need.
+	// can be reused. So let's just overwrite the values that we need.
 	g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
 	g_VSCBuffer.z_override        = -1.0f;
 	g_VSCBuffer.sz_override       = -1.0f;
@@ -1659,7 +1977,7 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
 	// Enable/Disable the fixed GUI
 	g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
-	// Since the HUD is all rendered on a flat surface, we lose vrparams that make the 3D object
+	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override = g_fFloatingGUIDepth;
 
@@ -1774,6 +2092,1997 @@ void PrimarySurface::DrawHUDVertices() {
 	context->Draw(6, 0);
 }
 
+void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Set the constants used by the ComputeNormals shader
+	float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp  / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width  = screen_res_x / (1.0f * fZoomFactor);
+	viewport.Height = screen_res_y / (1.0f * fZoomFactor);
+
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _depthAsInput
+	// Output _normBuf
+	//resources->InitPixelShader(resources->_computeNormalsPS);
+	context->PSSetShaderResources(0, 1, resources->_depthBufSRV.GetAddressOf());
+	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
+	//ID3D11RenderTargetView *rtvs[2] = {
+	//			resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+	//			resources->_renderTargetViewNormBuf.Get()
+	//};
+	//context->OMSetRenderTargets(2, rtvs, NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	context->Draw(6, 0);
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		// TODO: Check that this works in SteamVR
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _depthAsInputR
+		// Output _normBufR
+		context->PSSetShaderResources(0, 1, resources->_depthBufSRV_R.GetAddressOf());
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewNormBufR.GetAddressOf(), NULL);
+		context->Draw(6, 0);
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Set the constants used by the ComputeNormals shader
+	/*
+	float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+	*/
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width  = screen_res_x / (1.0f * fZoomFactor);
+	viewport.Height = screen_res_y / (1.0f * fZoomFactor);
+
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	float fPixelScale = 2.0f, fFirstPassZoomFactor = fZoomFactor / 2.0f;
+	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fZoomFactor;
+	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.uvStepSize = 1.0f;
+	//g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
+	//g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+	//g_BloomPSCBuffer.norm_weight = g_fNormWeight;
+	g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _depthAsInput
+	// Output _normBuf
+	resources->InitPixelShader(resources->_computeNormalsPS);
+	// Copy bentBuf <- normBuf temporarily...
+	context->CopyResource(resources->_bentBuf, resources->_normBuf);
+	ID3D11ShaderResourceView *srvs[2] = {
+		resources->_depthBufSRV.Get(),
+		resources->_bentBufSRV.Get()
+	};
+	//ID3D11RenderTargetView *rtvs[2] = {
+	//			resources->_renderTargetView.Get(), // DEBUG purposes only, remove later
+	//			resources->_renderTargetViewNormBuf.Get()
+	//};
+	//context->OMSetRenderTargets(2, rtvs, NULL);
+	//context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL); // DEBUG
+
+	context->PSSetShaderResources(0, 2, srvs);
+	context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, bgColor);
+	
+	context->Draw(6, 0);
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		// TODO: Check that this works in SteamVR
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _depthAsInputR
+		// Output _normBufR
+		context->PSSetShaderResources(0, 1, resources->_depthBufSRV_R.GetAddressOf());
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, bgColor);
+		context->OMSetRenderTargets(1, resources->_renderTargetViewNormBufR.GetAddressOf(), NULL);
+		context->Draw(6, 0);
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+void PrimarySurface::SSAOPass(float fZoomFactor) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = screen_res_x / fZoomFactor;
+	viewport.Height = screen_res_y / fZoomFactor;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Set the constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	// Set the SSAO pixel shader constant buffer
+	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
+	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+	g_SSAO_PSCBuffer.fn_enable   = g_bFNEnable;
+	g_SSAO_PSCBuffer.debug		 = g_bShowSSAODebug;
+	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
+	// Set the layout
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+
+	// SSAO Computation, Left Image
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+	// Output _ssaoBuf, _bentBuf
+	{
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *srvs_pass1[4] = {
+			resources->_depthBufSRV.Get(),
+			resources->_depthBuf2SRV.Get(),
+			resources->_normBufSRV.Get(),
+			resources->_offscreenAsInputShaderResourceView
+		};
+		resources->InitPixelShader(resources->_ssaoPS);
+		if (!g_bBlurSSAO && g_bShowSSAODebug) {
+			ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetView.Get(),
+				resources->_renderTargetViewBentBuf.Get(),
+			};
+			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 4, srvs_pass1);
+			context->Draw(6, 0);
+			goto out1;
+		}
+		else {
+			ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetViewSSAO.Get(),
+				resources->_renderTargetViewBentBuf.Get()
+			};
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 4, srvs_pass1);
+			context->Draw(6, 0);
+		}
+	}
+
+	// Setup the constant buffers to upscale the buffers
+	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
+	// size will be twice as big in the next pass due to the downsample, so we have to compensate
+	// with a zoom factor:
+	float fPixelScale = fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
+	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.uvStepSize			= 1.0f;
+	//g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
+	//g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
+	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// SSAO Blur, Left Image
+	// input: offscreenAsInput (with a copy of the ssaoBuf), depthBuf, bentBufR (with a copy of bentBuf), normBuf
+	// output: ssaoBuf, bentBuf
+	if (g_bBlurSSAO) {
+		resources->InitPixelShader(resources->_ssaoBlurPS);
+		// Copy the SSAO buffer to offscreenBufferAsInput/bloom1(HDR) -- we'll use it as temp buffer
+		// to blur the SSAO buffer
+		//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+		context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
+		// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
+		// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
+		context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+		// Clear the destination buffers: the blur will re-populate them
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
+		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
+		ID3D11ShaderResourceView *srvs[5] = {
+				//resources->_offscreenAsInputShaderResourceView.Get(),
+				resources->_bloomOutput1SRV.Get(),
+				resources->_depthBufSRV.Get(),
+				resources->_depthBuf2SRV.Get(),
+				resources->_normBufSRV.Get(),
+				resources->_bentBufSRV_R.Get(),
+		};
+		/* // This case is no longer needed, the SSAO + NM are displayed in 
+		// SSAOAddPixelShader using the debug constant buffer flag
+		if (g_bShowSSAODebug) {
+			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+			context->PSSetShaderResources(0, 5, srvs);
+			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+			// DEBUG: Enable the following line to display the normals
+			//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
+			context->Draw(6, 0);
+			goto out1;
+		}
+		else */ 
+		{
+			ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetViewSSAO.Get(),
+				resources->_renderTargetViewBentBuf.Get()
+			};
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 5, srvs);
+			context->Draw(6, 0);
+		}
+	}
+
+	// Final combine, Left Image
+	{
+		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
+		// output: offscreenBuf
+		// Reset the viewport for the final SSAO combine
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width    = screen_res_x;
+		viewport.Height   = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+		ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
+		context->PSSetShaderResources(0, 4, null_srvs4);
+		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
+		// so that it can be used as an SRV
+		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+		resources->InitPixelShader(resources->_ssaoAddPS);
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_offscreenAsInputBloomMaskSRV.Get(),
+			resources->_ssaoBufSRV.Get(),
+			resources->_ssaoMaskSRV.Get(),
+			resources->_normBufSRV.Get(),
+			resources->_depthBufSRV.Get(),
+			resources->_depthBuf2SRV.Get(),
+		};
+		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->Draw(6, 0);
+	}
+
+out1:
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = screen_res_x / fZoomFactor;
+		viewport.Height = screen_res_y / fZoomFactor;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// SSAO Computation, right eye
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+		// Output _ssaoBuf, _bentBuf
+		{
+			// Resolve offscreenBuf
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			ID3D11ShaderResourceView *srvs_pass1[4] = {
+				resources->_depthBufSRV_R.Get(),
+				resources->_depthBuf2SRV_R.Get(),
+				resources->_normBufSRV_R.Get(),
+				resources->_offscreenAsInputShaderResourceViewR
+			};
+			resources->InitPixelShader(resources->_ssaoPS);
+			if (!g_bBlurSSAO && g_bShowSSAODebug) {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewR.Get(),
+					resources->_renderTargetViewBentBufR.Get(),
+				};
+				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 4, srvs_pass1);
+				context->Draw(6, 0);
+				goto out2;
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewSSAO_R.Get(),
+					resources->_renderTargetViewBentBufR.Get()
+				};
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 4, srvs_pass1);
+				context->Draw(6, 0);
+			}
+		}
+
+		// Setup the constant buffers to upscale the buffers
+		// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
+		// size will be twice as big in the next pass due to the downsample, so we have to compensate
+		// with a zoom factor:
+		float fPixelScale = fZoomFactor;
+		g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp;
+		g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp;
+		g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+		//g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
+		g_BloomPSCBuffer.uvStepSize = 1.0f;
+		//g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
+		//g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
+		//g_BloomPSCBuffer.norm_weight = g_fNormWeight;
+		g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
+		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+		// SSAO Blur, Right Image
+		// input: offscreenAsInputR (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
+		// output: ssaoBufR, bentBufR
+		if (g_bBlurSSAO)
+		{
+			resources->InitPixelShader(resources->_ssaoBlurPS);
+			// Copy the SSAO buffer to offscreenBufferAsInput/bloom1(HDR) -- we'll use it as temp buffer
+			// to blur the SSAO buffer
+			//context->CopyResource(resources->_offscreenBufferAsInputR, resources->_ssaoBufR);
+			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
+			// Here I'm reusing bentBuf as a temporary buffer for bentBufR
+			// This is just to avoid having to make a temporary buffer to blur the bent normals.
+			context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+			// Clear the destination buffers: the blur will re-populate them
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
+			ID3D11ShaderResourceView *srvs[5] = {
+					//resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_bloomOutput1SRV.Get(),
+					resources->_depthBufSRV_R.Get(),
+					resources->_depthBuf2SRV_R.Get(),
+					resources->_normBufSRV_R.Get(),
+					resources->_bentBufSRV.Get(),
+			};
+			/*
+			// No longer needed, SSAO debug + NM are displayed in SSAOAddPixelShader when
+			// the debug flag is set
+			if (g_bShowSSAODebug) {
+				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+				context->PSSetShaderResources(0, 5, srvs);
+				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
+				// DEBUG: Enable the following line to display the normals
+				//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
+				context->Draw(6, 0);
+				goto out2;
+			}
+ 			else */
+			{
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewSSAO_R.Get(),
+					resources->_renderTargetViewBentBufR.Get()
+				};
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 5, srvs);
+				context->Draw(6, 0);
+			}
+		}
+
+		// Final combine, Right Image
+		{
+			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
+			// output: offscreenBufR
+			// Reset the viewport for the final SSAO combine
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width = screen_res_x;
+			viewport.Height = screen_res_y;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+	
+			// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
+			// so that it can be used as an SRV
+			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			resources->InitPixelShader(resources->_ssaoAddPS);
+			// Resolve offscreenBuf
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			ID3D11ShaderResourceView *srvs_pass2[7] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),
+				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
+				resources->_ssaoBufSRV_R.Get(),
+				resources->_ssaoMaskSRV_R.Get(),
+				resources->_normBufSRV_R.Get(),
+				resources->_depthBufSRV_R.Get(),
+				resources->_depthBuf2SRV_R.Get(),
+			};
+			context->PSSetShaderResources(0, 7, srvs_pass2);
+			context->Draw(6, 0);
+		}
+	}
+
+out2:
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_SSAO_PSCBuffer.x0 = x0;
+	g_SSAO_PSCBuffer.y0 = y0;
+	g_SSAO_PSCBuffer.x1 = x1;
+	g_SSAO_PSCBuffer.y1 = y1;
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float black[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = screen_res_x / fZoomFactor;
+	viewport.Height   = screen_res_y / fZoomFactor;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+	
+	PixelShaderMatrixCB matrixCB;
+	Vector4 light[2];
+	ComputeRotationMatrixFromXWAView(light, 2);
+	matrixCB.LightColor.x = g_LightColor[0].x;
+	matrixCB.LightColor.y = g_LightColor[0].y;
+	matrixCB.LightColor.z = g_LightColor[0].z;
+
+	matrixCB.LightColor2.x = g_LightColor[1].x;
+	matrixCB.LightColor2.y = g_LightColor[1].y;
+	matrixCB.LightColor2.z = g_LightColor[1].z;
+
+	if (g_bOverrideLightPos) {
+		matrixCB.LightVector.x = g_LightVector[0].x;
+		matrixCB.LightVector.y = g_LightVector[0].y;
+		matrixCB.LightVector.z = g_LightVector[0].z;
+
+		matrixCB.LightVector2.x = g_LightVector[1].x;
+		matrixCB.LightVector2.y = g_LightVector[1].y;
+		matrixCB.LightVector2.z = g_LightVector[1].z;
+	}
+	else {
+		matrixCB.LightVector.x = light[0].x;
+		matrixCB.LightVector.y = light[0].y;
+		matrixCB.LightVector.z = light[0].z;
+
+		matrixCB.LightVector2.x = light[1].x;
+		matrixCB.LightVector2.y = light[1].y;
+		matrixCB.LightVector2.z = light[1].z;
+	}
+	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
+
+#ifdef DEATH_STAR
+	static float iTime = 0.0f;
+	g_DeathStarBuffer.iMouse[0] = 0;
+	g_DeathStarBuffer.iMouse[1] = 0;
+	g_DeathStarBuffer.iTime = iTime;
+	g_DeathStarBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_DeathStarBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferDeathStar(resources->_deathStarConstantBuffer.GetAddressOf(), &g_DeathStarBuffer);
+	iTime += 0.1f;
+#endif
+
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	// Set the SSDO Pixel Shader constant buffer
+	g_SSAO_PSCBuffer.screenSizeX   = g_fCurScreenWidth;
+	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
+	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
+	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
+	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
+	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
+	// Set the layout
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+	
+	// SSDO Direct Lighting, Left Image
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+	// Output _ssaoBuf, _bentBuf
+	{
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *srvs_pass1[6] = {
+			resources->_depthBufSRV.Get(),
+			resources->_depthBuf2SRV.Get(),
+			resources->_normBufSRV.Get(),
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_ssaoMaskSRV.Get(),
+			resources->_offscreenAsInputBloomMaskSRV.Get(),
+		};
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
+			//resources->InitPixelShader(resources->_deathStarPS);
+		else
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+
+		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
+			ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetView.Get(),
+				resources->_renderTargetViewBentBuf.Get(),
+			};
+			context->ClearRenderTargetView(resources->_renderTargetView, black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 6, srvs_pass1);
+			context->Draw(6, 0);
+			goto out1;
+		}
+		else {
+			ID3D11RenderTargetView *rtvs[2] = {
+				resources->_renderTargetViewSSAO.Get(),
+				resources->_renderTargetViewBentBuf.Get()
+			};
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->PSSetShaderResources(0, 6, srvs_pass1);
+			context->Draw(6, 0);
+		}
+	}
+	
+	// Setup the constant buffers to upscale the buffers
+	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
+	// size will be twice as big in the next pass due to the downsample, so we have to compensate
+	// with a zoom factor:
+	float fPixelScale = fZoomFactor;
+	g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
+	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
+	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
+	g_BloomPSCBuffer.uvStepSize			= 1.0f;
+	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
+	g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+	// SSDO Blur, Left Image
+	// input: offscreenAsInput (with a copy of the ssaoBuf), depthBuf, bentBufR (with a copy of bentBuf), normBuf
+	// output: ssaoBuf, bentBuf
+	if (g_bBlurSSAO) 
+		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
+			resources->InitPixelShader(resources->_ssdoBlurPS);
+			// Copy the SSAO buffer to offscreenBufferAsInput/bloomOutput1(HDR) -- we'll use it as temp buffer
+			// to blur the SSAO buffer
+			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
+			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
+			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
+			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
+			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+			// Clear the destination buffers: the blur will re-populate them
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
+			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
+			ID3D11ShaderResourceView *srvs[5] = {
+					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
+					resources->_bloomOutput1SRV.Get(), // HDR
+					resources->_depthBufSRV.Get(),
+					resources->_depthBuf2SRV.Get(),
+					resources->_normBufSRV.Get(),
+					resources->_bentBufSRV_R.Get(),
+			};
+			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 
+				g_SSAO_Type != SSO_BENT_NORMALS) {
+				context->ClearRenderTargetView(resources->_renderTargetView, black);
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
+					resources->_renderTargetViewBentBuf.Get(),
+				};
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 5, srvs);
+				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+				// DEBUG: Enable the following line to display the normals
+				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
+				// DEBUG
+				context->Draw(6, 0);
+				goto out1;
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewSSAO.Get(),
+					resources->_renderTargetViewBentBuf.Get()
+				};
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 5, srvs);
+				context->Draw(6, 0);
+			}
+		}
+
+	// SSDO Indirect Lighting, Left Image
+
+	// Clear the Indirect SSDO buffer -- we have to do this regardless of whether the indirect
+	// illumination is computed or not.
+	context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Input: _depthBuf, _depthBuf2, _normBuf, offscreenAsInput (with a copy of _ssaoBuf -- not anymore! Should I fix this?)
+	// Output _ssaoBufR
+	if (g_bEnableIndirectSSDO)
+	{
+		resources->InitPixelShader(resources->_ssdoIndirectPS);
+		// Set the SSDO pixel shader constant buffer
+		//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
+		//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
+		g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
+		g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
+		g_SSAO_PSCBuffer.fn_enable      = g_bFNEnable;
+		resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
+		// Copy the SSAO buffer to offscreenBufferAsInput -- this is the accumulated
+		// color + SSDO buffer
+		// Not anymore! The accumulation of color + SSDO is now done in the Add shader.
+		// What happens if I just send the regular color buffer instead?
+		//context->CopyResource(resources->_offscreenBufferAsInput/_bloomOutput1, resources->_ssaoBuf);
+
+		// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
+		// in the previous steps
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *srvs[5] = {
+			resources->_depthBufSRV.Get(),  // FG Depth Buffer
+			resources->_depthBuf2SRV.Get(), // BG Depth Buffer
+			resources->_normBufSRV.Get(),   // Normal Buffer
+			resources->_offscreenAsInputShaderResourceView.Get(), // Color Buffer
+			resources->_ssaoBufSRV.Get(),   // Direct SSDO from previous pass
+		};
+		
+		// DEBUG
+		if (g_bShowSSAODebug && !g_bBlurSSAO && g_bEnableIndirectSSDO) {
+			context->ClearRenderTargetView(resources->_renderTargetView, black);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetView.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+		}
+		// DEBUG
+		else {
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewSSAO_R.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+		}
+		context->PSSetShaderResources(0, 5, srvs);
+		context->Draw(6, 0);
+	}
+
+	// Blur the Indirect SSDO buffer
+	if (g_bEnableIndirectSSDO && g_bBlurSSAO) {
+		resources->InitPixelShader(resources->_ssdoBlurPS);
+		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
+			// Copy the SSDO Indirect Buffer (ssaoBufR) to offscreenBufferAsInput -- we'll use it as temp buffer
+			// to blur the SSAO buffer
+			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
+			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
+			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
+			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+			// Clear the destination buffers: the blur will re-populate them
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
+			ID3D11ShaderResourceView *srvs[4] = {
+					//resources->_offscreenAsInputShaderResourceView.Get(), // ssaoBufR
+					resources->_bloomOutput1SRV.Get(), // ssaoBufR HDR
+					resources->_depthBufSRV.Get(),
+					resources->_depthBuf2SRV.Get(),
+					resources->_normBufSRV.Get(),
+					//resources->_bentBufSRV_R.Get(),
+			};
+			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1) {
+				context->ClearRenderTargetView(resources->_renderTargetView, black);
+				//context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO_R.GetAddressOf(), NULL);
+				ID3D11RenderTargetView *rtvs[2] = {
+					//resources->_renderTargetViewSSAO_R.Get(),
+					resources->_renderTargetView.Get(), // resources->_renderTargetViewBentBuf.Get(),
+					NULL,
+				};
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 4, srvs);
+				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
+				// DEBUG: Enable the following line to display the normals
+				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
+				context->Draw(6, 0);
+				goto out1;
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewSSAO_R.Get(),
+					NULL,
+				};
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 4, srvs);
+				context->Draw(6, 0);
+			}
+		}
+	}
+
+	// Final combine, Left Image
+	{
+		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
+		// output: offscreenBuf
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			//resources->InitPixelShader(resources->_hyperspacePS);
+#ifndef DEATH_STAR
+			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+#else
+			resources->InitPixelShader(resources->_deathStarPS);
+#endif
+		else
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+		// Reset the viewport for the final SSAO combine
+		viewport.TopLeftX	= 0.0f;
+		viewport.TopLeftY	= 0.0f;
+		viewport.Width		= screen_res_x;
+		viewport.Height		= screen_res_y;
+		viewport.MaxDepth	= D3D11_MAX_DEPTH;
+		viewport.MinDepth	= D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
+		// so that it can be used as an SRV
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetView.Get(),
+			NULL, NULL, NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		ID3D11ShaderResourceView *ssdoSRV = NULL;
+		if (g_SSAO_Type == SSO_BENT_NORMALS)
+			ssdoSRV = resources->_bentBufSRV.Get();
+		else
+			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
+			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
+			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
+			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
+			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			resources->_depthBufSRV.Get(),							// Depth buffer
+			//resources->_depthBuf2SRV.Get()
+			resources->_normBufSRV.Get(),
+		};
+		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->Draw(6, 0);
+	}
+
+out1:
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width    = screen_res_x / fZoomFactor;
+		viewport.Height   = screen_res_y / fZoomFactor;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// SSDO Direct Lighting, right eye
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+		// Output _ssaoBuf, _bentBuf
+		{
+			// Resolve offscreenBuf
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			ID3D11ShaderResourceView *srvs_pass1[6] = {
+				resources->_depthBufSRV_R.Get(),
+				resources->_depthBuf2SRV_R.Get(),
+				resources->_normBufSRV_R.Get(),
+				resources->_offscreenAsInputShaderResourceViewR.Get(),
+				resources->_ssaoMaskSRV_R.Get(),
+				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
+			};
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+			if (!g_bBlurSSAO && g_bShowSSAODebug) {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewR.Get(),
+					resources->_renderTargetViewBentBufR.Get(),
+				};
+				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 6, srvs_pass1);
+				context->Draw(6, 0);
+				goto out2;
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[2] = {
+					resources->_renderTargetViewSSAO_R.Get(),
+					resources->_renderTargetViewBentBufR.Get()
+				};
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
+				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->PSSetShaderResources(0, 6, srvs_pass1);
+				context->Draw(6, 0);
+			}
+		}
+
+		// Setup the constant buffers to upscale the buffers
+		// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
+		// size will be twice as big in the next pass due to the downsample, so we have to compensate
+		// with a zoom factor:
+		float fPixelScale = fZoomFactor;
+		g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
+		g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
+		g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
+		g_BloomPSCBuffer.uvStepSize			= 1.0f;
+		g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
+		g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+
+		// SSDO Blur, Right Image
+		// input: offscreenAsInputR (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
+		// output: ssaoBufR, bentBufR
+		if (g_bBlurSSAO)
+			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
+				resources->InitPixelShader(resources->_ssdoBlurPS);
+				// Copy the SSAO buffer to offscreenBufferAsInput/_bloomOutput1(HDR) -- we'll use it as temp buffer
+				// to blur the SSAO buffer
+				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
+				// Here I'm reusing bentBuf as a temporary buffer for bentBufR
+				// This is just to avoid having to make a temporary buffer to blur the bent normals.
+				context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+				// Clear the destination buffers: the blur will re-populate them
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
+				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
+				ID3D11ShaderResourceView *srvs[5] = {
+						//resources->_offscreenAsInputShaderResourceViewR.Get(),
+						resources->_bloomOutput1SRV.Get(),
+						resources->_depthBufSRV_R.Get(),
+						resources->_depthBuf2SRV_R.Get(),
+						resources->_normBufSRV_R.Get(),
+						resources->_bentBufSRV.Get(),
+				};
+				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
+					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
+					ID3D11RenderTargetView *rtvs[2] = {
+						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewSSAO_R.Get(),
+						resources->_renderTargetViewBentBufR.Get(),
+					};
+					context->OMSetRenderTargets(2, rtvs, NULL);
+					context->PSSetShaderResources(0, 5, srvs);
+					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
+					// DEBUG: Enable the following line to display the normals
+					//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
+					context->Draw(6, 0);
+					goto out2;
+				}
+				else {
+					ID3D11RenderTargetView *rtvs[2] = {
+						resources->_renderTargetViewSSAO_R.Get(),
+						resources->_renderTargetViewBentBufR.Get()
+					};
+					context->OMSetRenderTargets(2, rtvs, NULL);
+					context->PSSetShaderResources(0, 5, srvs);
+					context->Draw(6, 0);
+				}
+			}
+	
+		// SSDO Indirect Lighting, Right Image
+
+		// Clear the Indirect SSDO buffer -- we have to do this regardless of whether the indirect
+		// illumination is computed or not. For the right image, the indirect illumination buffer
+		// is ssaoBufR:
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
+
+		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+		// Input: _depthBuf, _depthBuf2, _normBuf, offscreenAsInput (with a copy of _ssaoBuf -- not anymore! Should I fix this?)
+		// Output _ssaoBufR
+		if (g_bEnableIndirectSSDO)
+		{
+			resources->InitPixelShader(resources->_ssdoIndirectPS);
+			// Set the SSDO pixel shader constant buffer
+			//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
+			//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
+			g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
+			g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
+			g_SSAO_PSCBuffer.fn_enable		= g_bFNEnable;
+			resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
+			// Copy the SSAO buffer to offscreenBufferAsInput -- this is the accumulated
+			// color + SSDO buffer
+			// Not anymore! The accumulation of color + SSDO is now done in the Add shader.
+			// What happens if I just send the regular color buffer instead?
+			//context->CopyResource(resources->_offscreenBufferAsInput/_bloomOutput1, resources->_ssaoBuf);
+
+			// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
+			// in the previous steps
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			ID3D11ShaderResourceView *srvs[5] = {
+				resources->_depthBufSRV_R.Get(),  // FG Depth Buffer
+				resources->_depthBuf2SRV_R.Get(), // BG Depth Buffer
+				resources->_normBufSRV_R.Get(),   // Normal Buffer
+				resources->_offscreenAsInputShaderResourceViewR.Get(), // Color Buffer
+				resources->_ssaoBufSRV_R.Get(),   // Direct SSDO from previous pass
+			};
+
+			// DEBUG
+			if (g_bShowSSAODebug && !g_bBlurSSAO && g_bEnableIndirectSSDO) {
+				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+			}
+			// DEBUG
+			else {
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewSSAO.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+			}
+			context->PSSetShaderResources(0, 5, srvs);
+			context->Draw(6, 0);
+		}
+
+		// Blur the Indirect SSDO buffer
+		if (g_bEnableIndirectSSDO && g_bBlurSSAO) {
+			resources->InitPixelShader(resources->_ssdoBlurPS);
+			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
+				// Copy the SSDO Indirect Buffer (ssaoBuf) to offscreenBufferAsInputR/_bloomOutput1 -- we'll use it as temp buffer
+				// to blur the SSAO buffer
+				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
+				// Here I'm reusing bentBuf as a temporary buffer for bentBufR, This is just to avoid 
+				// having to make a temporary buffer to blur the bent normals.
+				//context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+				// Clear the destination buffers: the blur will re-populate them
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
+				ID3D11ShaderResourceView *srvs[4] = {
+						//resources->_offscreenAsInputShaderResourceViewR.Get(), // ssaoBuf, direct lighting
+						resources->_bloomOutput1SRV.Get(), // ssaoBuf, direct lighting HDR
+						resources->_depthBufSRV_R.Get(),
+						resources->_depthBuf2SRV_R.Get(),
+						resources->_normBufSRV_R.Get(),
+						//resources->_bentBufSRV.Get(), // with a copy of bentBufR
+				};
+				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1) {
+					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
+					//context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
+					ID3D11RenderTargetView *rtvs[2] = {
+						//resources->_renderTargetViewSSAO.Get(),
+						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewBentBufR.Get(),
+						NULL,
+					};
+					context->OMSetRenderTargets(2, rtvs, NULL);
+					context->PSSetShaderResources(0, 4, srvs);
+					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
+					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
+					// DEBUG: Enable the following line to display the normals
+					//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
+					context->Draw(6, 0);
+					goto out1;
+				}
+				else {
+					ID3D11RenderTargetView *rtvs[2] = {
+						resources->_renderTargetViewSSAO.Get(), // ssaoBuf is now the indirect lighting
+						NULL, // bentBufR output
+					};
+					context->OMSetRenderTargets(2, rtvs, NULL);
+					context->PSSetShaderResources(0, 4, srvs);
+					context->Draw(6, 0);
+				}
+			}
+		}
+
+		// Final combine, Right Image
+		{
+			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
+			// output: offscreenBufR
+			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			// Reset the viewport for the final SSAO combine
+			viewport.TopLeftX	= 0.0f;
+			viewport.TopLeftY	= 0.0f;
+			viewport.Width		= screen_res_x;
+			viewport.Height		= screen_res_y;
+			viewport.MaxDepth	= D3D11_MAX_DEPTH;
+			viewport.MinDepth	= D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+			// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
+			// so that it can be used as an SRV
+			ID3D11RenderTargetView *rtvs[5] = {
+				resources->_renderTargetViewR.Get(),
+				NULL, NULL, NULL, NULL
+			};
+			context->OMSetRenderTargets(4, rtvs, NULL);
+			// Resolve offscreenBuf
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			ID3D11ShaderResourceView *srvs_pass2[5] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),
+				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
+				resources->_ssaoBufSRV_R.Get(),
+				resources->_ssaoBufSRV.Get(),
+				resources->_ssaoMaskSRV_R.Get(),
+				//resources->_bentBufSRV_R.Get(),
+				//resources->_normBufSRV_R.Get()
+			};
+			context->PSSetShaderResources(0, 5, srvs_pass2);
+			context->Draw(6, 0);
+		}
+	}
+
+out2:
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
+/*
+ * Compute the current ship's orientation. Returns:
+ * Rs: The "Right" vector in global coordinates
+ * Us: The "Up" vector in global coordinates
+ * Fs: The "Forward" vector in global coordinates
+ * A viewMatrix that maps [Rs, Us, Fs] to the major [X, Y, Z] axes
+ */
+Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool debug = false)
+{
+	const float DEG2RAD = 3.141593f / 180;
+	float yaw, pitch, roll;
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	Vector4 T, B, N;
+	// Compute the full rotation
+	yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
+	pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
+	roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
+
+	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
+	//Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll); // Z or Y?
+
+	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
+	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
+	// so the remaining rotation must be around the y axis (?)
+	// DEBUG, x = z, y = x, z = y;
+	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
+	// When pitch == 90, the craft is actually seeing the horizon
+	// When pitch == 0, the craft is looking towards the sun
+	// New approach: let's build a TBN system here to avoid the gimbal lock problem
+	float cosTheta, cosPhi, sinTheta, sinPhi;
+	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
+	cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
+	N.z = cosTheta * sinPhi;
+	N.x = sinTheta * sinPhi;
+	N.y = cosPhi;
+	N.w = 0;
+
+	// This transform chain will always transform (N.x,N.y,N.z) into (0, 1, 0)
+	// To make an orthonormal basis, we need x+ and z+
+	N = rotMatrixPitch * rotMatrixYaw * N;
+	//log_debug("[DBG] N(DEBUG): %0.3f, %0.3f, %0.3f", N.x, N.y, N.z); // --> displays (0,1,0)
+	B.x = 0; B.y = 0; B.z = -1; B.w = 0;
+	T.x = 1; T.y = 0; T.z = 0; T.w = 0;
+	B = rotMatrixRoll * B;
+	T = rotMatrixRoll * T;
+	// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	rotMatrixFull.invert();
+	T = rotMatrixFull * T;
+	B = rotMatrixFull * B;
+	N = rotMatrixFull * N;
+	// Our TBN basis is now in absolute coordinates
+	Matrix4 rotX, refl;
+	rotX.identity();
+	rotX.rotateX(90.0f);
+	refl.set(
+		1, 0, 0, 0,
+		0, -1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	);
+	Fs = refl * rotX * N;
+	Us = refl * rotX * B;
+	Rs = refl * rotX * T;
+	Fs.w = 0; Rs.w = 0; Us.w = 0;
+	// This transform chain gets us the orientation of the craft in XWA's coord system:
+	// [1,0,0] is right, [0,1,0] is forward, [0,0,1] is up
+	//log_debug("[DBG] [GUN] Fs: [%0.3f, %0.3f, %0.3f] ypr: %0.3f, %0.3f, %0.3f ***********", Fs.x, Fs.y, Fs.z, yaw, pitch, roll);
+
+	// Facing forward we get: T: [1, 0, 0], B: [0, -1, 0], N: [0, 0, -1]
+	if (debug)
+		log_debug("[DBG] [H] Rs: [%0.3f, %0.3f, %0.3f], Us: [%0.3f, %0.3f, %0.3f], Fs: [%0.3f, %0.3f, %0.3f]",
+			Rs.x, Rs.y, Rs.z, Us.x, Us.y, Us.z, Fs.x, Fs.y, Fs.z);
+	/* Matrix4 viewMatrix = Matrix4(
+		Rs.x, Rs.y, Rs.z, 0,
+		Us.x, Us.y, Us.z, 0,
+		Fs.x, Fs.y, Fs.z, 0,
+		0, 0, 0, 1
+	); */
+
+	Matrix4 viewMatrix = Matrix4(
+		Rs.x, Us.x, Fs.x, 0,
+		Rs.y, Us.y, Fs.y, 0,
+		Rs.z, Us.z, Fs.z, 0,
+		0, 0, 0, 1
+	);
+	// Rs, Us, Fs is an orthonormal basis
+	return viewMatrix;
+}
+
+void PrimarySurface::GetHyperspaceViewMatrix() {
+	const float DEG2RAD = 0.01745f;
+	if (PlayerDataTable->gunnerTurretActive)
+	{
+		// This is what the matrix looks like when looking front:
+		// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
+		short *Turret = (short *)(0x8B94E0 + 0x21E);
+		float factor = 32768.0f;
+		Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
+		Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
+		Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
+
+		// Pointing straight at the sun or "straight up":
+		// [4344] [DBG] F: [-0.015, -0.003, 1.000], R: [0.000, 1.000, 0.002], U: [-1.000, 0.000, -0.015]
+		// [12316] [DBG] F: [-0.004, 0.146, 0.989], R: [0.000, 0.989, -0.146], U: [-1.000, -0.000, -0.004]
+		// Pointing up again. ship looking at 90 to the right:
+		// [12316] [DBG] F: [0.020, 0.001, 0.999], R: [0.984, -0.177, -0.020], U: [0.177, 0.984, -0.004]
+		// Pointing up again, ship looking at 45 in the horizon:
+		// [12316] [DBG] F: [0.004, 0.061, 0.998], R: [0.691, 0.721, -0.047], U: [-0.723, 0.690, -0.039]
+		// Pointing up again; ship looking backwards:
+		// [12316] [DBG] F: [0.040, -0.013, 0.999], R: [-0.030, -0.999, -0.011], U: [0.998, -0.030, -0.040]
+		// Pointing up again, ship looking -90 left:
+		// [12316] [DBG] F: [-0.060, 0.003, 0.998], R: [-0.993, 0.097, -0.060], U: [-0.097, -0.995, -0.002]
+
+		// Pointing forward:
+		// [12316] [DBG] F: [0.001, 0.996, 0.076], R: [0.090, 0.076, -0.992], U: [-0.995, 0.008, -0.090]
+		// Pointing right:
+		// [12316][DBG] F: [0.992, -0.101, 0.071], R : [0.069, -0.028, -0.997], U : [0.102, 0.994, -0.021]
+		// Pointing backwards:
+		// [12316] [DBG] F: [-0.019, -0.992, -0.116], R: [-0.179, -0.110, 0.977], U: [-0.983, 0.039, -0.176]
+		// Pointing right because the ship rolled 90 deg right:
+		// [12316] [DBG] F: [0.974, 0.022, 0.221], R: [-0.002, 0.995, -0.089], U: [-0.222, 0.087, 0.970]
+		// Pointing left because the ship rolled 90 deg left:
+		// [12316] [DBG] F: [-0.998, 0.000, 0.043], R: [-0.004, 0.995, -0.090], U: [-0.043, -0.090, -0.995]
+
+		// Ship facing down from starting position, so that turret looks straight ahead:
+		// [16224][DBG] F: [0.000, 0.997, 0.069], R : [0.000, 0.069, -0.997], U : [-1.000, 0.000, 0.000]
+
+		Vector4 Rs, Us, Fs;
+		Matrix4 Heading = GetCurrentHeadingMatrix(Rs, Us, Fs);
+		//log_debug("[DBG] [GUN] (1) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+		//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+		// Transform the turret's orientation into the canonical x-y-z axes:
+		R = Heading * R;
+		U = Heading * U;
+		F = Heading * F;
+		// At this point the original [R, U, F] should always map to [0,0,1], [-1,0,0], [0,1,0] and this should only
+		// change if the turret moves
+		//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+		//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+		//float tpitch = atan2(F.y, F.x); // .. range?
+		//float tyaw   = acos(F.z); // 0..PI
+		//log_debug("[DBG] [GUN] tpitch: %0.3f, tyaw: %0.3f", 	tpitch / DEG2RAD, tyaw / DEG2RAD);
+
+		Matrix4 viewMat = Matrix4(
+			-R.x, -U.x, F.x, 0,
+			-R.y, -U.y, F.y, 0,
+			-R.z, -U.z, F.z, 0,
+			0, 0, 0, 1
+		);
+		Matrix4 rotX;
+		rotX.rotateX(180.0f);
+		g_ShadertoyBuffer.viewMat = rotX * viewMat.invert();
+	}
+	else {
+		float yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f + 180.0f;
+		float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+		float roll = 0.0f;
+
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+		g_ShadertoyBuffer.viewMat = rotMatrixFull.invert();
+
+		//////////////////////////////////////////////////
+		// Compute the ship's view matrix
+		//Vector4 Rs, Us, Fs;
+		//Matrix4 viewMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs);
+	}
+}
+
+/*
+Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
+	   _shaderToyBuf (already resolved): Contains the foreground (only the cockpit) when exiting hyperspace.
+					 Unused in all other circumstances.
+Output: Renders over _offscreenBufferPost and copies to _offscreenBuffer.
+		Overwrites _offscreenBufferAsInputShaderResourceView
+*/
+void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
+	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
+	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
+{
+	/*
+	  Jedi Fallen Order sample hyperspace entry effect:
+	  https://youtu.be/GLZoDkbTakg?t=197
+	*/
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
+	static float fLightRotationAngle = 0.0f;
+	float timeInHyperspace = (float)PlayerDataTable->timeInHyperspace;
+	float iLinearTime = 0.0f; // We need a "linear" time that we can use to control the speed of the shake and light rotation
+	float fShakeAmplitude = 0.0f;
+	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	D3D11_VIEWPORT viewport{};
+
+	// Prevent rendering the hyperspace effect multiple times per frame:
+	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
+		return;
+	g_bHyperspaceEffectRenderedOnCurrentFrame = true;
+
+	/*
+		Hyperspace Data:
+			2: Entering hyperspace
+				max time: 489, 553
+			4: Traveling through hyperspace (animation plays back at this point)
+				max time: 1291, 1290
+			3: Exiting hyperspace
+				max time: 236, 231
+	*/
+
+	// Constants for the post-hyper-exit effect:
+	const float T2 = 2.0f; // Time in seconds for the trails
+	const float T2_ZOOM = 1.5f; // Time in seconds for the hyperzoom
+	const float T_OVERLAP = 1.5f; // Overlap between the trails and the zoom
+
+	static float fXRotationAngle = 0.0f, fYRotationAngle = 0.0f, fZRotationAngle = 0.0f;
+
+	// Adjust the time according to the current hyperspace phase
+	//switch (PlayerDataTable->hyperspacePhase) 
+	switch (g_HyperspacePhaseFSM)
+	{
+	case HS_HYPER_ENTER_ST:
+		// Max internal time: ~500
+		// Max shader time: 2.0 (t2)
+		resources->InitPixelShader(resources->_hyperEntryPS);
+		timeInHyperspace = timeInHyperspace / 650.0f; // 550.0f
+		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
+		if (iTime > 2.0f) iTime = 2.0f;
+		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
+		iLinearTime = iTime;
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
+		break;
+	case HS_HYPER_TUNNEL_ST:
+		// Max internal time: ~1290
+		// Max shader time: 4.0 (arbitrary)
+		resources->InitPixelShader(resources->_hyperTunnelPS);
+		timeInHyperspace = timeInHyperspace / 1290.0f;
+		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
+
+		// Rotate the lights while travelling through the hyper-tunnel:
+		for (int i = 0; i < 2; i++) {
+			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
+			g_LightVector[i].y = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
+			g_LightVector[i].z = 0.0f;
+		}
+		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
+		iLinearTime = 2.0f + iTime;
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
+		break;
+	case HS_HYPER_EXIT_ST:
+		// Max internal time: ~236
+		// Max shader time: 1.5 (t2 minus a small fraction)
+		resources->InitPixelShader(resources->_hyperExitPS);
+		timeInHyperspace = timeInHyperspace / 200.0f;
+		iTime = lerp(T2 + T2_ZOOM - T_OVERLAP, T2_ZOOM, timeInHyperspace);
+		//iTime = lerp(0.0f, T2 - T_OVERLAP, timeInHyperspace);
+		iTimeAtHyperExit = iTime;
+		iLinearTime = 6.0f + ((T2 + T2_ZOOM - T_OVERLAP) - iTime);
+		fShakeAmplitude = lerp(7.0f, 0.0f, timeInHyperspace);
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
+		break;
+	case HS_POST_HYPER_EXIT_ST:
+		// Max internal time: MAX_POST_HYPER_EXIT_FRAMES
+		// Max shader time: T2_ZOOM
+		resources->InitPixelShader(resources->_hyperZoomPS); // hyperExitPS is activated after the HyperZoom shader
+		timeInHyperspace = (float)g_iHyperExitPostFrames / MAX_POST_HYPER_EXIT_FRAMES;
+		if (timeInHyperspace > 1.0f) timeInHyperspace = 1.0f;
+		iTime = lerp(iTimeAtHyperExit, 0.0f, timeInHyperspace);
+		iLinearTime = ((T2 + T2_ZOOM - T_OVERLAP) - iTimeAtHyperExit) + timeInHyperspace;
+		//iTime = lerp(iTimeAtHyperExit, T2 + T2_ZOOM - T_OVERLAP, timeInHyperspace);
+		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
+		break;
+	}
+
+	//#ifdef HYPER_OVERRIDE
+		//iTime += 0.1f;
+		//if (iTime > 2.0f) iTime = 0.0f;
+	if (g_bHyperDebugMode)
+		iTime = g_fHyperTimeOverride;
+	//#endif
+
+	fXRotationAngle = 25.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fYRotationAngle = 30.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fZRotationAngle = 35.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fLightRotationAngle = -25.0f * iLinearTime * g_fHyperLightRotationSpeed;
+
+	// Shake the cockpit a little bit:
+	float fShakeX = cos(fXRotationAngle * 0.01745f);
+	float fShakeZ = sin(fZRotationAngle * 0.01745f);
+	float fShakeY = cos(fYRotationAngle * 0.01745f);;
+	int iShakeX = (int)(fShakeAmplitude * fShakeX);
+	int iShakeY = (int)(fShakeAmplitude * fShakeY);
+	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
+	PlayerDataTable[0].cockpitXReference = iShakeX;
+	PlayerDataTable[0].cockpitYReference = iShakeY;
+	PlayerDataTable[0].cockpitZReference = iShakeZ;
+
+	// DEBUG Test the hyperzoom
+	/*
+	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) {
+		float fGetTime = iTime - T2_ZOOM + T_OVERLAP;
+		log_debug("[DBG] FSM %d, iTime: %0.3f, getTime: %0.3f, bUseHyperZoom: %d, g_iHyperExitPostFrames: %d",
+			g_HyperspacePhaseFSM, iTime, fGetTime, bBGTextureAvailable, g_iHyperExitPostFrames);
+	}
+	*/
+	// DEBUG
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetHyperspaceViewMatrix();
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	g_ShadertoyBuffer.iTime = iTime;
+	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
+	if (g_bEnableVR) {
+		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
+			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
+	}
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+	// Pre-render: Apply the hyperzoom if necessary
+	if (bBGTextureAvailable)
+	{
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bUseSteamVR) {
+			viewport.Width = (float)resources->_backbufferWidth;
+			viewport.Height = (float)resources->_backbufferHeight;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		if (g_bUseSteamVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			// non-VR and DirectSBS cases:
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bUseSteamVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			// The original (non-VR) code used _vertexShader:
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+		// Set the RTV:
+		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+		// Set the SRV:
+		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
+		context->Draw(6, 0);
+		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+
+		// Render the right image
+		if (g_bUseSteamVR)
+		{
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+			// VIEWPORT-RIGHT
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width = (float)resources->_backbufferWidth;
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+			// Set the SRV:
+			context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV_R.GetAddressOf());
+			context->Draw(6, 0);
+			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+		}
+
+		// Activate the hyperExitPS
+		resources->InitPixelShader(resources->_hyperExitPS);
+	}
+	// End of hyperzoom
+
+	// First render: Render the hyperspace effect itself
+	{
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio			=  g_fAspectRatio;
+		g_VSCBuffer.z_override			= -1.0f;
+		g_VSCBuffer.sz_override			= -1.0f;
+		g_VSCBuffer.mult_z_override		= -1.0f;
+		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.bPreventTransform	=  0.0f;
+		g_VSCBuffer.bFullTransform		=  0.0f;
+		if (g_bEnableVR) 
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+		//g_VSCBuffer.viewportScale[3] = 1.0f;
+		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			// The original (non-VR) code used _vertexShader:
+			resources->InitVertexShader(resources->_vertexShader);
+		
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		context->Draw(6, 0);
+
+		// Render the right image
+		if (g_bEnableVR) {
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			if (g_bUseSteamVR)
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+			else
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+			context->Draw(6, 0);
+		}
+	}
+
+	// Second render: compose the cockpit over the previous effect
+	{
+		// Reset the viewport for non-VR mode:
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width	  = g_fCurScreenWidth;
+		viewport.Height	  = g_fCurScreenHeight;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// Reset the vertex shader to regular 2D post-process
+		// Set the Vertex Shader Constant buffers
+		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+		// Set/Create the VertexBuffer and set the topology, etc
+		if (resources->_barrelEffectVertBuffer == nullptr) {
+			D3D11_BUFFER_DESC vertexBufferDesc;
+			ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+			vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+			vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			vertexBufferDesc.CPUAccessFlags = 0;
+			vertexBufferDesc.MiscFlags = 0;
+
+			D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+			ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+			vertexBufferData.pSysMem = g_BarrelEffectVertices;
+			device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+		}
+
+		UINT stride = sizeof(MainVertex), offset = 0;
+		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_mainInputLayout);
+		resources->InitVertexShader(resources->_mainVertexShader);
+
+		// Reset the UV limits for this shader
+		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+		g_ShadertoyBuffer.x0 = x0;
+		g_ShadertoyBuffer.y0 = y0;
+		g_ShadertoyBuffer.x1 = x1;
+		g_ShadertoyBuffer.y1 = y1;
+		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+		resources->InitPixelShader(resources->_hyperComposePS);
+		// Clear all the render target views
+		ID3D11RenderTargetView *rtvs_null[5] = {
+			NULL, // Main RTV
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+		};
+		context->OMSetRenderTargets(5, rtvs_null, NULL);
+
+		/*
+		// DEBUG
+		const int CAPTURE_FRAME = 15;
+		if (g_iPresentCounter == CAPTURE_FRAME) 
+		{
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyBuf.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBuf-0.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBufferPost-0.jpg");
+		}
+		// DEBUG
+		*/
+
+		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+		// to _offscreenBufferAsInput to re-use in the next step:
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+		/*
+		// DEBUG
+		if (g_iPresentCounter == CAPTURE_FRAME) {
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyAuxBuf-0.jpg");
+			//DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+			//	L"C:\\Temp\\_shadertoyBuf-0.jpg");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf,
+				L"C:\\Temp\\_shadertoyBuf-0.dds");
+		}
+		// DEBUG
+		*/
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+		if (!g_bReshadeEnabled) {
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPost.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+		}
+		else {
+			ID3D11RenderTargetView *rtvs[5] = {
+				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+				resources->_renderTargetViewBloomMask.Get(),
+				NULL, // Depth
+				NULL, // Norm Buf
+				NULL, // SSAO Mask
+			};
+			context->OMSetRenderTargets(5, rtvs, NULL);
+		}
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[3] = {
+			resources->_shadertoySRV.Get(),		// Foreground (cockpit)
+			resources->_shadertoyAuxSRV.Get(),  // Background
+			resources->_offscreenAsInputShaderResourceView.Get(), // Previous effect (trails or tunnel)
+		};
+		context->PSSetShaderResources(0, 3, srvs);
+		// TODO: Handle SteamVR cases
+		context->Draw(6, 0);
+
+		// Post-process the right image
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+			if (!g_bReshadeEnabled) {
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewPostR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[5] = {
+					resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+					resources->_renderTargetViewBloomMaskR.Get(),
+					NULL, // Depth
+					NULL, // Norm Buf
+					NULL, // SSAO Mask
+				};
+				context->OMSetRenderTargets(5, rtvs, NULL);
+			}
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[3] = {
+				resources->_shadertoySRV_R.Get(),		// Foreground (cockpit)
+				resources->_shadertoyAuxSRV_R.Get(),  // Background
+				resources->_offscreenAsInputShaderResourceViewR.Get(), // Previous effect (trails or tunnel)
+			};
+			context->PSSetShaderResources(0, 3, srvs);
+			// TODO: Handle SteamVR cases
+			context->Draw(6, 0);
+		}
+	}
+
+	/*
+	// DEBUG
+	if (g_iPresentCounter == CAPTURE_FRAME) {
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+			L"C:\\Temp\\_offscreenBufferPost-1.jpg");
+	}
+	// DEBUG
+	*/
+
+//out:
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
+	resources->InitViewport(lastViewport);
+	// TODO: None of these functions will actually *apply* any changes if they don't internally see
+	//       any difference. The fix is to use a proper InitXXX() above to update the internal state
+	//	     of these functions.
+	if (lastTextureSelected != NULL) {
+		lastTextureSelected->_refCount++;
+		context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+		lastTextureSelected->_refCount--;
+	}
+	resources->InitInputLayout(resources->_inputLayout);
+	if (g_bEnableVR)
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+	else
+		this->_deviceResources->InitVertexShader(resources->_vertexShader);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitPixelShader(lastPixelShader);
+	resources->InitRasterizerState(resources->_rasterizerState);
+	if (lastVertexBuffer != NULL)
+		resources->InitVertexBuffer(&lastVertexBuffer, lastVertexBufStride, lastVertexBufOffset);
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+}
+
+
 /* Convenience function to call WaitGetPoses() */
 inline void WaitGetPoses() {
 	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
@@ -1819,16 +4128,21 @@ HRESULT PrimarySurface::Flip(
 	LogText(str.str());
 #endif
 
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	auto &device = resources->_d3dDevice;
 	this->_deviceResources->sceneRenderedEmpty = this->_deviceResources->sceneRendered == false;
 	this->_deviceResources->sceneRendered = false;
-	auto &context = this->_deviceResources->_d3dDeviceContext;
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
-		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
+		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
-			this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPostR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
+			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
 		/*
 		if (g_bDynCockpitEnabled) {
@@ -1838,10 +4152,8 @@ HRESULT PrimarySurface::Flip(
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
 		}
 		*/
-		// Do we need to clear renderTargetViewPost?
-		this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(this->_deviceResources->_renderTargetViewPost, this->_deviceResources->clearColor);
-		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
-		this->_deviceResources->_d3dDeviceContext->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, this->_deviceResources->clearDepth, 0);
+		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
 	/* Present 2D content */
@@ -2027,6 +4339,8 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
+					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
+					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
 					if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_iNaturalConcourseAnimations, 0)))
 					{
@@ -2073,6 +4387,7 @@ HRESULT PrimarySurface::Flip(
 		HRESULT hr;
 		auto &resources = this->_deviceResources;
 		auto &context = resources->_d3dDeviceContext;
+		auto &device = resources->_d3dDevice;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -2088,8 +4403,163 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
-			// Re-shade the contents of _offscreenBufferAsInputReshade
+			// Render the hyperspace effect if necessary
+			{
+				if (!g_bSwitchedToGUI) {
+					g_bSwitchedToGUI = true;
+					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+					// not travelling through hyperspace:
+					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+					{
+						g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
+						g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
+							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR) {
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
+								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						}
+					}
+				}
+
+				// Render the new hyperspace effect
+				if (g_HyperspacePhaseFSM != HS_INIT_ST)
+				{
+					UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+					// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
+					//				  shadertoyBuf has a copy of the cockpit
+
+					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+					// TODO: Fix the effect for VR
+					RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+				}
+			}
+
+			// Resolve the Bloom mask before the SSAO and Bloom effects.
+			if (g_bReshadeEnabled) {
+				// Resolve whatever is in the _offscreenBufferBloomMask into _offscreenBufferAsInputBloomMask, and
+				// do the same for the right (SteamVR) image -- I'll worry about the details later.
+				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
+				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+				if (g_bUseSteamVR)
+					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+
+				// DEBUG
+				/*if (g_iPresentCounter == 100) {
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
+				}*/
+				// DEBUG
+			}
+
+			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
+			if (g_bAOEnabled) {
+				if (!g_bDepthBufferResolved) {
+					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here.
+					// This may happen if there is no GUI (all HUD indicators were switched off) or the
+					// external camera is active.
+					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
+					//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+					if (g_bUseSteamVR) {
+						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+						context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
+							resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
+						//context->ResolveSubresource(resources->_normBufAsInputR, 0,
+						//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+					}
+				}
+
+				// We need to set the blend state properly for SSAO
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display SSAO
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				//resources->_d3dDevice->render
+				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
+				D3D11_SAMPLER_DESC samplerDesc;
+				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
+				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+				samplerDesc.MipLODBias = 0.0f;
+				samplerDesc.MinLOD = 0;
+				samplerDesc.MaxLOD = FLT_MAX;
+				samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+				samplerDesc.BorderColor[0] = 0.0f;
+				samplerDesc.BorderColor[1] = 0.0f;
+				samplerDesc.BorderColor[2] = 0.0f;
+				samplerDesc.BorderColor[3] = 0.0f;
+				ComPtr<ID3D11SamplerState> tempSampler;
+				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
+				context->PSSetSamplers(1, 1, &tempSampler);
+
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_offscreenBuf.jpg");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_ssaoMask.jpg");
+					log_debug("[DBG] [AO] Captured debug buffers");
+				}
+
+				// Input: depthBufAsInput (already resolved during Execute())
+				// Output: normalsBuf
+				//SmoothNormalsPass(1.0f);
+
+				// Input: depthBuf, normBuf, randBuf
+				// Output: _bloom1
+				switch (g_SSAO_Type) {
+					case SSO_AMBIENT:
+						SSAOPass(g_fSSAOZoomFactor);
+						break;
+					case SSO_DIRECTIONAL:
+					case SSO_BENT_NORMALS:
+						SSDOPass(g_fSSAOZoomFactor, g_fSSAOZoomFactor2);
+						break;
+				}
+
+				if (g_bDumpSSAOBuffers) {
+					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+				}
+			}
+
+			// Apply the Bloom effect
 			if (g_bBloomEnabled) {
+				// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
+				// SSAO uses that mask to prevent applying SSAO on bright areas
+
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
 				// blend state
@@ -2115,32 +4585,26 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				int HyperspacePhase = PlayerDataTable->hyperspacePhase;
-				bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
+				//int HyperspacePhase = PlayerDataTable->hyperspacePhase;
+				//bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
+				bool bHyperStreaks = g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST ||
+					g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST ||
+					g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST;
 
 				// DEBUG
-				static int CaptureCounter = 1;
+				//static int CaptureCounter = 1;
 				// DEBUG
-
-				// Resolve whatever is in the _offscreenBufferReshadeMask into _offscreenBufferAsInputReshadeMask, and
-				// do the same for the right (SteamVR) image -- I'll worry about the details later.
-				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
-				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-				if (g_bSteamVREnabled)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-				if (g_bSteamVREnabled)
+				if (g_bUseSteamVR)
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
 				/* if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
 					wchar_t filename[80];
-					
+
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
 					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.dds", CaptureCounter);
@@ -2154,7 +4618,7 @@ HRESULT PrimarySurface::Flip(
 				} */
 				// DEBUG
 
-				if (bHyperStreaks) 
+				if (bHyperStreaks)
 				{
 					// Only apply the "short" bloom to the hyperspace streaks (otherwise they
 					// tend to get overexposed)
@@ -2168,7 +4632,7 @@ HRESULT PrimarySurface::Flip(
 					BloomPyramidLevelPass(3, 1, 8.0f);
 					BloomPyramidLevelPass(4, 1, 16.0f);
 				}
-				else 
+				else
 				{
 					float fScale = 2.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
@@ -2179,10 +4643,15 @@ HRESULT PrimarySurface::Flip(
 						fScale *= 2.0f;
 					}
 				}
-				// Add the accumulated bloom with the offscreen buffer
-				// Input: _bloomSum, _offscreenBufferAsInput
-				// Output: _offscreenBuffer
-				BloomBasicPass(5, 1.0f);
+
+				//if (!g_bAOEnabled) {
+					// If SSAO is not enabled, then we can merge the bloom buffer with the offscreen buffer
+					// here. Otherwise, we'll merge it along with the SSAO buffer later.
+					// Add the accumulated bloom with the offscreen buffer
+					// Input: _bloomSum, _offscreenBufferAsInput
+					// Output: _offscreenBuffer
+					BloomBasicPass(5, 1.0f);
+				//}
 
 				// DEBUG
 				/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -2242,7 +4711,8 @@ HRESULT PrimarySurface::Flip(
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 							this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 				}
-			} else // Non-VR mode
+			} 
+			else // Non-VR mode
 				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
 					this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
@@ -2253,7 +4723,6 @@ HRESULT PrimarySurface::Flip(
 			g_bTargetCompDrawn = false;
 			g_bPrevIsFloatingGUI3DObject = false;
 			g_bIsFloating3DObject = false;
-			//log_debug("[DBG] g_bStartedGUI at end-of-frame: %d", g_bStartedGUI);
 			g_bStartedGUI = false;
 			g_bPrevStartedGUI = false;
 			g_bIsScaleableGUIElem = false;
@@ -2262,9 +4731,41 @@ HRESULT PrimarySurface::Flip(
 			g_bIsTrianglePointer = false;
 			g_bLastTrianglePointer = false;
 			g_iHUDOffscreenCommandsRendered = 0;
+			g_bSkyBoxJustFinished = false;
+			g_bPrevIsPlayerObject = false;
+			g_bIsPlayerObject = false;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable->externalCamera;
+			g_bDepthBufferResolved = false;
+			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
+			g_bSwitchedToGUI = false;
+			// Increase the post-hyperspace-exit frames; but only when we're in the right state:
+			if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+				g_iHyperExitPostFrames++;
+			else
+				g_iHyperExitPostFrames = 0;
+			g_bHyperspaceFirstFrame = false;
+			g_bHyperHeadSnapped = false;
 			//*g_playerInHangar = 0;
+			if (g_bDumpSSAOBuffers)
+				g_bDumpSSAOBuffers = false;
+
+//#define HYPER_OVERRIDE 1
+//#ifdef HYPER_OVERRIDE
+			//g_fHyperTimeOverride += 0.025f;
+			if (g_bHyperDebugMode) {
+				g_fHyperTimeOverride = 1.0f;
+				if (g_fHyperTimeOverride > 2.0f) // 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
+					g_fHyperTimeOverride = 0.0f;
+			}
+			/*
+			// Update the state
+			if (g_fHyperTimeOverride >= 2.0f)
+				g_iHyperStateOverride = 3; // HYPER_EXIT
+			else
+				g_iHyperStateOverride = 4; // POST_HYPER_EXIT
+			*/
+//#endif
 
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -2286,7 +4787,7 @@ HRESULT PrimarySurface::Flip(
 			animTickX();
 			animTickY();
 			animTickZ();
-
+			
 			// Enable 6dof
 			if (g_bUseSteamVR) {
 				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
@@ -2468,6 +4969,7 @@ HRESULT PrimarySurface::Flip(
 			}
 #endif
 
+			// Submit images to SteamVR
 			if (g_bUseSteamVR) {
 				//if (!g_pHMD->GetTimeSinceLastVsync(&seconds, &frame))
 				//	log_debug("[DBG] No Vsync info available");
@@ -2495,11 +4997,26 @@ HRESULT PrimarySurface::Flip(
 			//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
 			//if (timeRemaining < 0.005) WaitGetPoses();
 
+			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
+			if (!g_bRendering3D) {
+				// We were presenting 2D content and now we're about to show 3D content. If we were in
+				// hyperspace, we might need to reset the hyperspace FSM and restore any settings we
+				// changed previously
+				if (g_HyperspacePhaseFSM != HS_INIT_ST && PlayerDataTable->hyperspacePhase == 0) {
+					if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST) {
+						// Restore the previous color of the lights
+						for (int i = 0; i < 2; i++) {
+							memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
+							memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
+						}
+					}
+					g_HyperspacePhaseFSM = HS_INIT_ST;
+				}
+			}
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
-			//log_debug("[DBG] Present 3D");
 			g_iPresentCounter++;
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))

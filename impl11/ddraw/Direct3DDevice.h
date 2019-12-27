@@ -6,6 +6,8 @@
 
 class RenderStates;
 
+class Direct3DTexture;
+
 class Direct3DDevice : IDirect3DDevice
 {
 public:
@@ -44,6 +46,8 @@ public:
 		bool debug=false);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
+
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
 
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 

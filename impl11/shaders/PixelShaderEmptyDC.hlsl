@@ -21,10 +21,10 @@ SamplerState sampler1 : register(s1);
 
 struct PixelShaderInput
 {
-	float4 pos      : SV_POSITION;
-	float4 color    : COLOR0;
-	float2 tex      : TEXCOORD0;
-	float4 pos3D    : COLOR1;
+	float4 pos : SV_POSITION;
+	float4 color : COLOR0;
+	float2 tex : TEXCOORD0;
+	float4 pos3D : COLOR1;
 };
 
 struct PixelShaderOutput
@@ -73,18 +73,6 @@ float4 uintColorToFloat4(uint color) {
 		1);
 }
 
-/*
-float4 uintColorToFloat4(uint color) {
-	float r, g, b;
-	b = (color % 256) / 255.0;
-	color = color / 256;
-	g = (color % 256) / 255.0;
-	color = color / 256;
-	r = (color % 256) / 255.0;
-	return float4(r, g, b, 1);
-}
-*/
-
 uint getBGColor(uint i) {
 	uint idx = i / 4;
 	uint sub_idx = i % 4;
@@ -97,7 +85,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float alpha = texelColor.w;
 	float3 diffuse = input.color.xyz;
-	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
@@ -107,56 +94,24 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float3 N = normalize(cross(ddx(P), ddy(P)));
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
-	// Don't flip N.z -- that causes more artifacts: flat unoccluded surfaces become shaded in SSAO
+	// Do not flip N.z -- that causes flat unoccluded surfaces to be shaded in SSAO
 	output.normal = float4(N, 1);
 
 	output.ssaoMask = 0;
+	//output.diffuse = input.color;
 
-	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
+	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
 	// The code returns a color from this path
-	// We assume this shader will be called iff DynCockpitSlots > 0
-
-	// DEBUG: Display uvs as colors. Some meshes have UVs beyond the range [0..1]
-		//if (input.tex.x > 1.0) 	return float4(1, 0, 1, 1);
-		//if (input.tex.y > 1.0) 	return float4(0, 0, 1, 1);
-		//return float4(input.tex.xy, 0, 1); // DEBUG: Display the uvs as colors
-		//return 0.7*hud_texelColor + 0.3*texelColor; // DEBUG DEBUG DEBUG!!! Remove this later! This helps position the elements easily
-
-		// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
-		// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
-		// dst uv coords
-
-	float4 hud_texelColor = uintColorToFloat4(getBGColor(0));
-	[unroll]
-	for (uint i = 0; i < DynCockpitSlots; i++) {
-		float2 delta = dst[i].zw - dst[i].xy;
-		float2 s = (input.tex - dst[i].xy) / delta;
-		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
-
-		if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
-			dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
-		{
-			// Sample the dynamic cockpit texture:
-			hud_texelColor = texture1.Sample(sampler1, dyn_uv); // "ct" is for "cover_texture"
-			float hud_alpha = hud_texelColor.w;
-			// Add the background color to the dynamic cockpit display:
-			hud_texelColor = lerp(uintColorToFloat4(getBGColor(i)), hud_texelColor, hud_alpha);
-		}
-	}
-	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
-
-	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
-	// Also go shadless where the cover texture is bright enough.
-	if (bUseCoverTexture > 0) {
-		// We don't have an alpha overlay texture anymore; but we can fake it by disabling shading
-		// on areas with a high lightness value
-
+	//else if (bUseCoverTexture > 0) {
+	// We assume the caller will set this pixel shader iff DynCockpitSlots == 0 && bUseCoverTexture > 0
+	{
 		// texelColor is the cover_texture right now
 		float3 HSV = RGBtoHSV(texelColor.xyz);
+		float4 hud_texelColor = float4(0, 0, 0, 1);
 		float brightness = ct_brightness;
 		if (HSV.z * alpha >= 0.8) {
 			// The cover texture is bright enough, go shadeless and make it brighter
-			diffuse = 1;
+			diffuse = float3(1, 1, 1);
 			// Increase the brightness:
 			HSV = RGBtoHSV(texelColor.xyz);
 			HSV.z *= 1.2;
@@ -165,22 +120,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			brightness = 1.0;
 			output.ssaoMask = 1;
 		}
-		// Display the dynamic cockpit texture only where the texture cover is transparent:
-		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
-		// that's what the brightness setting below is for:
 		texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
-		output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
-		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
-		output.ssaoMask = max(output.ssaoMask, (1 - alpha));
+		output.color = float4(diffuse * texelColor.xyz, alpha);
+		return output;
 	}
-	else {
-		texelColor = hud_texelColor;
-		diffuse = float3(1, 1, 1);
-		output.ssaoMask = 1;
-	}
-	//output.diffuse = float4(diffuse, 1);
-	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
-	//output.color = float4(texelColor.xyz, texelColor.w);
+
+	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;
 }

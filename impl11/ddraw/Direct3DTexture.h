@@ -38,6 +38,10 @@ public:
 	bool is_Explosion;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
+	// True if this texture is a gunner texture
+	bool is_GunnerTex;
+	// True if this texture belongs to an Exterior OPT (the player's craft when external camera is on)
+	bool is_Exterior;
 	// True when displaying the hyperspace animation
 	bool is_HyperspaceAnim;
 	// True for dat,1000,2, (used for the hyperspace streak effect)
@@ -46,6 +50,20 @@ public:
 	bool is_LensFlare;
 	// True for suns in the backdrop dat files
 	bool is_Sun;
+	// True for space debris (used to inhibit them for SSAO)
+	bool is_Debris;
+	// True for warhead trails (used to inhibit SSAO)
+	bool is_Trail;
+	// True for sparks (to control Bloom)
+	bool is_Spark;
+	// True for cockpit sparks (to control Bloom)
+	bool is_CockpitSpark;
+	// True for the chaff dat
+	bool is_Chaff;
+	// True for all sorts of missiles. Used for Bloom and SSAO
+	bool is_Missile;
+	// True for all textures that should not render SSAO
+	bool is_GenericSSAOTransparent;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures

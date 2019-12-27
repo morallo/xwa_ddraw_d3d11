@@ -99,19 +99,15 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,22000,",
 	"dat,22003,",
 	"dat,22005,",
-	"dat,22007,",
-	// Sparks
+	//"dat,22007,", // Cockpit sparks
+};
+
+std::vector<char *> Sparks_ResNames = {
 	"dat,3000,",
 	"dat,3001,",
 	"dat,3002,",
 	"dat,3003,",
-	// Trails?
-	//"dat,21000,",
-	//"dat,21005,",
-	//"dat,21010,",
-	//"dat,21015,",
-	//"dat,21020,",
-	//"dat,21025,",
+	"dat,3004,",
 };
 
 // List of Lens Flare effects
@@ -136,6 +132,22 @@ std::vector<char *> Sun_ResNames = {
 	"dat,9008,",
 	"dat,9009,",
 	"dat,9010,",
+};
+
+std::vector<char *> SpaceDebris_ResNames = {
+	"dat,4000,",
+	"dat,4001,",
+	"dat,4002,",
+	"dat,4003,"
+};
+
+std::vector<char *> Trails_ResNames = {
+	"dat,21000,",
+	"dat,21005,",
+	"dat,21010,",
+	"dat,21015,",
+	"dat,21020,",
+	"dat,21025,",
 };
 
 // g_DCElements is used when loading textures to load the cover texture.
@@ -290,10 +302,19 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
 	this->is_CockpitTex = false;
+	this->is_GunnerTex = false;
+	this->is_Exterior = false;
 	this->is_HyperspaceAnim = false;
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
 	this->is_Sun = false;
+	this->is_Debris = false;
+	this->is_Trail = false;
+	this->is_Spark = false;
+	this->is_CockpitSpark = false;
+	this->is_Chaff = false;
+	this->is_Missile = false;
+	this->is_GenericSSAOTransparent = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -455,10 +476,6 @@ void Direct3DTexture::TagTexture() {
 	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
 	// and regular textures because mip-mapping may be turned off in the video settings
 	// menu.
-	//if (surface->_mipmapCount == 1)
-		//if (surface->_width == 8 || surface->_width == 16 || surface->_width == 32 || 
-		//	surface->_width == 64 || surface->_width == 128 || surface->_width == 256 || 
-		//	surface->_width == 512 || surface->_width == 768)
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -512,7 +529,20 @@ void Direct3DTexture::TagTexture() {
 		// Catch the backdrup suns and mark them
 		if (isInVector(surface->_name, Sun_ResNames))
 			this->is_Sun = true;
-
+		// Catch the space debris
+		if (isInVector(surface->_name, SpaceDebris_ResNames))
+			this->is_Debris = true;
+		// Catch the trails
+		if (isInVector(surface->_name, Trails_ResNames))
+			this->is_Trail = true;
+		// Catch the sparks
+		if (isInVector(surface->_name, Sparks_ResNames))
+			this->is_Spark = true;
+		if (strstr(surface->_name, "dat,22007,") != NULL)
+			this->is_CockpitSpark = true;
+		if (strstr(surface->_name, "dat,5000,") != NULL)
+			this->is_Chaff = true;
+		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
@@ -564,15 +594,25 @@ void Direct3DTexture::TagTexture() {
 		}
 	}
 
-	//else if (surface->_mipmapCount > 1)
+	// Tag Lasers, Missiles, Cockpit textures, Exterior textures, light textures
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
-		
 		// Catch the laser-related textures and mark them
 		if (strstr(surface->_name, "Laser") != NULL) {
 			// Ignore "LaserBat.OPT"
 			if (strstr(surface->_name, "LaserBat") == NULL) {
 				this->is_Laser = true;
+			}
+		}
+
+		// Tag all the missiles
+		// Flare
+		if (strstr(surface->_name, "Missile") != NULL || strstr(surface->_name, "Torpedo") != NULL ||
+			strstr(surface->_name, "SpaceBomb") != NULL || strstr(surface->_name, "Pulse") != NULL ||
+			strstr(surface->_name, "Rocket") != NULL || strstr(surface->_name, "Flare") != NULL) {
+			if (strstr(surface->_name, "Boat") == NULL) {
+				//log_debug("[DBG] Missile texture: %s", surface->_name);
+				this->is_Missile = true;
 			}
 		}
 
@@ -584,9 +624,41 @@ void Direct3DTexture::TagTexture() {
 			this->is_CockpitTex = true;
 		}
 
+		if (strstr(surface->_name, "Gunner") != NULL) {
+			this->is_GunnerTex = true;
+		}
+
+		if (strstr(surface->_name, "Exterior") != NULL) {
+			this->is_Exterior = true;
+		}
+
 		// Catch light textures and mark them appropriately
 		if (strstr(surface->_name, ",light,") != NULL)
 			this->is_LightTexture = true;
+
+		//if (strstr(surface->_name, "color-transparent") != NULL) {
+			//this->is_ColorTransparent = true;
+			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
+		//}
+
+		/*
+		if (strstr(surface->_name, "YavinAlberi.opt,TEX00001,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00026,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00027,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00011,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00020,") != NULL ||
+			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00021,") != NULL ||
+			strstr(surface->_name, "YavinLand.opt,TEX00037,") != NULL ||
+			strstr(surface->_name, "YavinPiramed.opt,TEX00004,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00000,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00007,") != NULL ||
+			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00015,") != NULL
+		   )
+		{
+			//log_debug("[DBG] [DC] [%s]", surface->_name);
+			this->is_GenericSSAOTransparent = true;
+		}
+		*/
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
@@ -636,10 +708,10 @@ void Direct3DTexture::TagTexture() {
 							//	g_DCElements[idx].coverTextureName, res);
 							resources->dc_coverTexture[idx] = nullptr;
 						}
-						else {
+						//else {
 							//resources->dc_coverTexture[idx] = coverTexture;
 							//log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
-						}
+						//}
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {
@@ -689,10 +761,19 @@ HRESULT Direct3DTexture::Load(
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
+	this->is_GunnerTex = d3dTexture->is_GunnerTex;
+	this->is_Exterior = d3dTexture->is_Exterior;
 	this->is_HyperspaceAnim = d3dTexture->is_HyperspaceAnim;
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
+	this->is_Debris = d3dTexture->is_Debris;
+	this->is_Trail = d3dTexture->is_Trail;
+	this->is_Spark = d3dTexture->is_Spark;
+	this->is_CockpitSpark = d3dTexture->is_CockpitSpark;
+	this->is_Chaff = d3dTexture->is_Chaff;
+	this->is_Missile = d3dTexture->is_Missile;
+	this->is_GenericSSAOTransparent = d3dTexture->is_GenericSSAOTransparent;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
