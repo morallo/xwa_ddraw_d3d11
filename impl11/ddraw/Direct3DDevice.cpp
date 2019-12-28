@@ -394,6 +394,7 @@ float centeredSigmoid(float x) {
 	return 1.0f / (1.0f + exp(-x)) - 0.5f;
 }
 
+float g_fCockpitReferenceScale = 300.0f;
 HeadPos g_HeadPosAnim = { 0 }, g_HeadPos = { 0 };
 bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 const float ANIM_INCR = 0.1f, MAX_LEAN_X = 1.5f, MAX_LEAN_Y = 1.5f, MAX_LEAN_Z = 1.5f;
@@ -2199,6 +2200,9 @@ void LoadVRParams() {
 			}
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
 				g_bDCManualActivate = (bool)fValue;
+			}
+			else if (_stricmp(param, "cockpit_reference_scale") == 0) {
+				g_fCockpitReferenceScale = fValue;
 			}
 
 			param_read_count++;

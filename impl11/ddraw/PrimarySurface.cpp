@@ -545,6 +545,7 @@ extern Matrix4 g_viewMatrix;
 extern VertexShaderMatrixCB g_VSMatrixCB;
 
 
+extern float g_fCockpitReferenceScale;
 extern HeadPos g_HeadPosAnim, g_HeadPos;
 void animTickX();
 void animTickY();
@@ -3363,23 +3364,23 @@ out2:
  * Fs: The "Forward" vector in global coordinates
  * A viewMatrix that maps [Rs, Us, Fs] to the major [X, Y, Z] axes
  */
-Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool debug = false)
+Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert=false, bool debug=false)
 {
 	const float DEG2RAD = 3.141593f / 180;
 	float yaw, pitch, roll;
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	Vector4 T, B, N;
 	// Compute the full rotation
-	yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
+	yaw = PlayerDataTable[0].yaw     / 65536.0f * 360.0f;
 	pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
+	roll = PlayerDataTable[0].roll   / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	//Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	rotMatrixFull.identity();
 	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
 	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll); // Z or Y?
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(roll);
 
 	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
 	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
@@ -3416,10 +3417,10 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	rotX.identity();
 	rotX.rotateX(90.0f);
 	refl.set(
-		1, 0, 0, 0,
-		0, -1, 0, 0,
-		0, 0, 1, 0,
-		0, 0, 0, 1
+		1,  0,  0,  0,
+		0, -1,  0,  0,
+		0,  0,  1,  0,
+		0,  0,  0,  1
 	);
 	Fs = refl * rotX * N;
 	Us = refl * rotX * B;
@@ -3440,13 +3441,25 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 		0, 0, 0, 1
 	); */
 
-	Matrix4 viewMatrix = Matrix4(
-		Rs.x, Us.x, Fs.x, 0,
-		Rs.y, Us.y, Fs.y, 0,
-		Rs.z, Us.z, Fs.z, 0,
-		0, 0, 0, 1
-	);
-	// Rs, Us, Fs is an orthonormal basis
+	Matrix4 viewMatrix;
+	if (!invert) {
+		viewMatrix = Matrix4(
+			Rs.x, Us.x, Fs.x, 0,
+			Rs.y, Us.y, Fs.y, 0,
+			Rs.z, Us.z, Fs.z, 0,
+			0, 0, 0, 1
+		);
+		// Rs, Us, Fs is an orthonormal basis
+	}
+	else {
+		viewMatrix = Matrix4(
+			Rs.x, Rs.y, Rs.z, 0,
+			Us.x, Us.y, Us.z, 0,
+			Fs.x, Fs.y, Fs.z, 0,
+			0, 0, 0, 1
+		);
+		// Rs, Us, Fs is an orthonormal basis
+	}
 	return viewMatrix;
 }
 
@@ -3619,6 +3632,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
 		break;
 	case HS_HYPER_EXIT_ST:
+		// Time is reversed here and in post-hyper-exit because this effect was originally
+		// the hyper-entry in reverse; but then I changed it and I didn't "un-revert" the
+		// time axis. Oh well, yet another TODO for me...
 		// Max internal time: ~236
 		// Max shader time: 1.5 (t2 minus a small fraction)
 		resources->InitPixelShader(resources->_hyperExitPS);
@@ -4911,7 +4927,7 @@ HRESULT PrimarySurface::Flip(
 					g_bResetHeadCenter = false;
 
 				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0]; 
-				//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to roll-through-keyboard
+				//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
 				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
 				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
 
@@ -4945,12 +4961,28 @@ HRESULT PrimarySurface::Flip(
 				g_viewMatrix.identity();
 				g_viewMatrix.rotateZ(roll); 
 				//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
+				// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
+				// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
+				// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
+				// 
+				/*
 				g_viewMatrix[12] = headPos[0];
 				g_viewMatrix[13] = headPos[1];
 				g_viewMatrix[14] = headPos[2];
 				rotMatrixFull[12] = headPos[0];
 				rotMatrixFull[13] = headPos[1];
 				rotMatrixFull[14] = headPos[2];
+				*/
+				// Map the translation from global coordinates to heading coords
+				Vector4 Rs, Us, Fs;
+				Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
+				headPos[4] = 0.0f;
+				headPos = HeadingMatrix * headPos;
+				PlayerDataTable->cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
+				PlayerDataTable->cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
+				PlayerDataTable->cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+				// END OF HACK
+
 				// viewMat is not a full transform matrix: it's only RotZ + Translation
 				// because the cockpit hook already applies the yaw/pitch rotation
 				g_VSMatrixCB.viewMat = g_viewMatrix;

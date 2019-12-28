@@ -145,7 +145,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case VK_LEFT:
 				g_LightVector[0].x -= 0.1f;
-				PrintVector(g_LightVector[0]);
+				g_LightVector[0].normalize();
+				//PrintVector(g_LightVector[0]);
 				/*
 				g_fHyperTimeOverride -= 0.1f;
 				if (g_fHyperTimeOverride < 0.0f)
@@ -156,7 +157,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_iHyperStateOverride = 4; // POST_HYPER_EXIT
 				log_debug("[DBG] State: %d, g_fHyperTimeOverride: %0.3f", g_iHyperStateOverride, g_fHyperTimeOverride);
 				*/
-
 				return 0;
 
 			case VK_UP:

@@ -71,7 +71,7 @@ public:
 
 	void SSDOPass(float fZoomFactor, float fZoomFactor2);
 
-	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool debug);
+	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 
 	void GetHyperspaceViewMatrix();
 
