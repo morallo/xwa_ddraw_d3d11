@@ -146,9 +146,13 @@ class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
 
+/*****************/
+// This struct is in the process of moving to the cockpit look hook. It can be removed
+// later
 typedef struct HeadPosStruct {
 	float x, y, z;
 } HeadPos;
+/*****************/
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {

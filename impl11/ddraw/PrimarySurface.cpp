@@ -3434,15 +3434,9 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	if (debug)
 		log_debug("[DBG] [H] Rs: [%0.3f, %0.3f, %0.3f], Us: [%0.3f, %0.3f, %0.3f], Fs: [%0.3f, %0.3f, %0.3f]",
 			Rs.x, Rs.y, Rs.z, Us.x, Us.y, Us.z, Fs.x, Fs.y, Fs.z);
-	/* Matrix4 viewMatrix = Matrix4(
-		Rs.x, Rs.y, Rs.z, 0,
-		Us.x, Us.y, Us.z, 0,
-		Fs.x, Fs.y, Fs.z, 0,
-		0, 0, 0, 1
-	); */
 
 	Matrix4 viewMatrix;
-	if (!invert) {
+	if (!invert) { // Transform current ship's heading to Global Coordinates (Major Axes)
 		viewMatrix = Matrix4(
 			Rs.x, Us.x, Fs.x, 0,
 			Rs.y, Us.y, Fs.y, 0,
@@ -3450,8 +3444,7 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 			0, 0, 0, 1
 		);
 		// Rs, Us, Fs is an orthonormal basis
-	}
-	else {
+	} else { // Transform Global Coordinates to the Ship's Coordinate System
 		viewMatrix = Matrix4(
 			Rs.x, Rs.y, Rs.z, 0,
 			Us.x, Us.y, Us.z, 0,
@@ -4799,20 +4792,20 @@ HRESULT PrimarySurface::Flip(
 				}*/
 			}
 
-			// Perform the lean left/right etc animations
-			animTickX();
-			animTickY();
-			animTickZ();
+			//// Perform the lean left/right etc animations
+			//animTickX();
+			//animTickY();
+			//animTickZ();
 			
 			// Enable 6dof
 			if (g_bUseSteamVR) {
 				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
 				float x = 0.0f, y = 0.0f, z = 0.0f;
 				Matrix3 rotMatrix;
-				Vector3 pos;
-				static Vector4 headCenter(0, 0, 0, 0);
-				Vector3 headPos;
-				Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
+				//Vector3 pos;
+				//static Vector4 headCenter(0, 0, 0, 0);
+				//Vector3 headPos;
+				//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
 
 				GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
 				yaw   *= RAD_TO_DEG * g_fYawMultiplier;
@@ -4826,6 +4819,7 @@ HRESULT PrimarySurface::Flip(
 				// of... tricky; and I'm not going to bother right now since PSMoveService
 				// already works very well for me.
 				// Read the positional data from FreePIE if the right flag is set
+				/*
 				if (g_bSteamVRPosFromFreePIE) {
 					ReadFreePIE(g_iFreePIESlot);
 					if (g_bResetHeadCenter) {
@@ -4840,6 +4834,7 @@ HRESULT PrimarySurface::Flip(
 				}
 				pos.set(x, y, z);
 				headPos = -pos;
+				*/
 
 				// Compute the full rotation
 				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -4853,6 +4848,7 @@ HRESULT PrimarySurface::Flip(
 				// Adding headPosFromKeyboard is only to allow the keys to move the cockpit.
 				// g_HeadPos can be removed once positional tracking has been fixed... or 
 				// maybe we can leave it there to test things
+				/*
 				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
 				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
 				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
@@ -4865,6 +4861,7 @@ HRESULT PrimarySurface::Flip(
 				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
 				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
 				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
+				*/
 
 				// Transform the absolute head position into a relative position. This is
 				// needed because the game will apply the yaw/pitch on its own. So, we need
@@ -4872,17 +4869,18 @@ HRESULT PrimarySurface::Flip(
 				// rotation matrix. Fortunately, rotation matrices can be inverted with a
 				// simple transpose.
 				rotMatrix.invert();
-				//rotMatrix.transpose();
-				headPos = rotMatrix * headPos;
+				//headPos = rotMatrix * headPos;
 
 				g_viewMatrix.identity();
 				g_viewMatrix.rotateZ(roll);
+				/*
 				g_viewMatrix[12] = headPos[0]; 
 				g_viewMatrix[13] = headPos[1];
 				g_viewMatrix[14] = headPos[2];
 				rotMatrixFull[12] = headPos[0];
 				rotMatrixFull[13] = headPos[1];
 				rotMatrixFull[14] = headPos[2];
+				*/
 				// viewMat is not a full transform matrix: it's only RotZ + Translation
 				// because the cockpit hook already applies the yaw/pitch rotation
 				g_VSMatrixCB.viewMat = g_viewMatrix;
@@ -4903,18 +4901,18 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				if (ReadFreePIE(g_iFreePIESlot)) {
-					if (g_bResetHeadCenter) {
+					/*if (g_bResetHeadCenter) {
 						headCenter[0] = g_FreePIEData.x;
 						headCenter[1] = g_FreePIEData.y;
 						headCenter[2] = g_FreePIEData.z;
 					}
-					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
+					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);*/
 					yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
 					pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
 					roll   = g_FreePIEData.roll  * g_fRollMultiplier;
 					yaw   += g_fYawOffset;
 					pitch += g_fPitchOffset;
-					headPos = (pos - headCenter);
+					//headPos = (pos - headCenter);
 				} 
 				
 				if (g_bYawPitchFromMouseOverride) {
@@ -4926,6 +4924,7 @@ HRESULT PrimarySurface::Flip(
 				if (g_bResetHeadCenter)
 					g_bResetHeadCenter = false;
 
+				/*
 				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0]; 
 				//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
 				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
@@ -4935,12 +4934,11 @@ HRESULT PrimarySurface::Flip(
 				if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
 				if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
 				if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-				//if (-headPos[2] < g_fMinPositionZ) headPos[2] = -g_fMinPositionZ;
 
 				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
 				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
 				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-				//if (-headPos[2] > g_fMaxPositionZ) headPos[2] = -g_fMaxPositionZ;
+				*/
 
 				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 				rotMatrixFull.identity();
@@ -4956,7 +4954,7 @@ HRESULT PrimarySurface::Flip(
 				rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
 				// Can we avoid computing the matrix inverse?
 				rotMatrixYaw.invert();
-				headPos = rotMatrixYaw * headPos;
+				//headPos = rotMatrixYaw * headPos;
 
 				g_viewMatrix.identity();
 				g_viewMatrix.rotateZ(roll); 
@@ -4973,15 +4971,17 @@ HRESULT PrimarySurface::Flip(
 				rotMatrixFull[13] = headPos[1];
 				rotMatrixFull[14] = headPos[2];
 				*/
+				/* // This effect is now being applied in the cockpit look hook 
 				// Map the translation from global coordinates to heading coords
 				Vector4 Rs, Us, Fs;
 				Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
-				headPos[4] = 0.0f;
+				headPos[3] = 0.0f;
 				headPos = HeadingMatrix * headPos;
 				PlayerDataTable->cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
 				PlayerDataTable->cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
 				PlayerDataTable->cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
 				// END OF HACK
+				*/
 
 				// viewMat is not a full transform matrix: it's only RotZ + Translation
 				// because the cockpit hook already applies the yaw/pitch rotation

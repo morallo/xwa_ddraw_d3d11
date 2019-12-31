@@ -389,6 +389,9 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 
+/********/
+// This code is about to be migrated to the cockpitlook hook, so it can be removed from
+// this library later.
 /* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
 float centeredSigmoid(float x) {
 	return 1.0f / (1.0f + exp(-x)) - 0.5f;
@@ -456,6 +459,8 @@ void animTickZ() {
 
 	g_HeadPos.z = centeredSigmoid(g_HeadPosAnim.z) * MAX_LEAN_Z;
 }
+// End of the code that can be removed.
+/********/
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -2160,10 +2165,15 @@ void LoadVRParams() {
 				g_bFixedGUI = (bool)fValue;
 			}
 
+			else if (_stricmp(param, "manual_dc_activate") == 0) {
+				g_bDCManualActivate = (bool)fValue;
+			}
+
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
 				g_iFreePIESlot = (int)fValue;
 			}
+			/*
 			else if (_stricmp(param, ROLL_MULTIPLIER_VRPARAM) == 0) {
 				g_fRollMultiplier = fValue;
 			}
@@ -2195,15 +2205,14 @@ void LoadVRParams() {
 			else if (_stricmp(param, MAX_POSITIONAL_Z_VRPARAM) == 0) {
 				g_fMaxPositionZ = fValue;
 			}
-			else if (_stricmp(param, STEAMVR_POS_FROM_FREEPIE_VRPARAM) == 0) {
+			*/
+			
+			/*else if (_stricmp(param, STEAMVR_POS_FROM_FREEPIE_VRPARAM) == 0) {
 				g_bSteamVRPosFromFreePIE = (bool)fValue;
-			}
-			else if (_stricmp(param, "manual_dc_activate") == 0) {
-				g_bDCManualActivate = (bool)fValue;
-			}
-			else if (_stricmp(param, "cockpit_reference_scale") == 0) {
+			}*/
+			/*else if (_stricmp(param, "cockpit_reference_scale") == 0) {
 				g_fCockpitReferenceScale = fValue;
-			}
+			}*/
 
 			param_read_count++;
 		}
