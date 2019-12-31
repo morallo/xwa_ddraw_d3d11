@@ -4,6 +4,7 @@
 // enabled. For regular textures or when the Dynamic Cockpit is disabled,
 // use "PixelShader.hlsl" instead.
 #include "HSV.h"
+#include "shader_common.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -53,7 +54,6 @@ cbuffer ConstantBuffer : register(b0)
 	float fSSAOMaskVal;			// (Ignored) SSAO mask value
 };
 
-#define MAX_DC_COORDS 8
 cbuffer ConstantBuffer : register(b1)
 {
 	float4 src[MAX_DC_COORDS];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
@@ -62,9 +62,10 @@ cbuffer ConstantBuffer : register(b1)
 									  // So each elem here is actually 4 bgColors.
 
 	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
-	// unused1, unused2, unused3
+	float unused1, unused2, unused3;
 };
 
+/*
 float4 uintColorToFloat4(uint color) {
 	return float4(
 		((color >> 16) & 0xFF) / 255.0,
@@ -78,6 +79,7 @@ uint getBGColor(uint i) {
 	uint sub_idx = i % 4;
 	return bgColor[idx][sub_idx];
 }
+*/
 
 PixelShaderOutput main(PixelShaderInput input)
 {

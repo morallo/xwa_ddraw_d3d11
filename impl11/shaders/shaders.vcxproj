@@ -317,6 +317,7 @@
   <ItemGroup>
     <ClInclude Include="HSV.h" />
     <ClInclude Include="ShaderToyDefs.h" />
+    <ClInclude Include="shader_common.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

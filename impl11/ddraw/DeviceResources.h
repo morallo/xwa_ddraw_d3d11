@@ -165,7 +165,7 @@ typedef struct BarrelPixelShaderCBStruct {
 	int unused;
 } BarrelPixelShaderCBuffer;
 
-#define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8X8_UNORM
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
@@ -301,17 +301,19 @@ typedef struct PixelShaderCBStruct {
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
-const int MAX_DC_COORDS = 8;
+const int MAX_DC_COORDS = 12;
 typedef struct DCPixelShaderCBStruct {
 	uvfloat4 src[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
+	// 4 * MAX_DC_COORDS * 4 = 192
 	uvfloat4 dst[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
+	// 4 * MAX_DC_COORDS * 4 = 192
+	// 384 bytes thus far
 	uint32_t bgColor[MAX_DC_COORDS]; // 32-bit Background colors
-	// 4 * MAX_DC_COORDS = 32
+	// 4 * MAX_DC_COORDS = 48
+	// 432 bytes thus far
 
-	float ct_brightness, unused1, unused2, unused3;
-	// 304 bytes
+	float ct_brightness, unused[3];
+	// 448 bytes
 } DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {

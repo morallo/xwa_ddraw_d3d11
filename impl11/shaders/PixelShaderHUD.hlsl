@@ -1,6 +1,7 @@
 // Copyright (c) 2019 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
 // This shader should only be called to render the HUD FG/BG
+#include "shader_common.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -41,7 +42,6 @@ cbuffer ConstantBuffer : register(b0)
 	// unused
 };
 
-#define MAX_DC_COORDS 8
 cbuffer ConstantBuffer : register(b1)
 {
 	float4 src[MAX_DC_COORDS];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
@@ -50,7 +50,7 @@ cbuffer ConstantBuffer : register(b1)
 									  // So each elem here is actually 4 bgColors.
 
 	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
-	// unused1, unused2, unused3
+	float unused1, unused2, unused3;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
