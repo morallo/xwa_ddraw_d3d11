@@ -857,7 +857,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		if (SUCCEEDED(hr))
 		{
-			md.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			md.Format = BACKBUFFER_FORMAT;
 
 			hr = dxgiOutput->FindClosestMatchingMode(&md, &md, nullptr);
 		}
@@ -869,7 +869,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
 			sd.BufferDesc.Width  = 0;
 			sd.BufferDesc.Height = 0;
-			sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 			sd.OutputWindow = hWnd;
@@ -914,7 +914,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "RenderTarget Texture2D";
 
 		CD3D11_TEXTURE2D_DESC backBufferDesc(
-			DXGI_FORMAT_B8G8R8A8_UNORM,
+			BACKBUFFER_FORMAT,
 			dwWidth,
 			dwHeight,
 			1,
@@ -944,7 +944,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (SUCCEEDED(hr))
 	{
 		CD3D11_TEXTURE2D_DESC desc(
-			DXGI_FORMAT_B8G8R8A8_UNORM,
+			BACKBUFFER_FORMAT,
 			this->_backbufferWidth,
 			this->_backbufferHeight,
 			1,
@@ -1025,7 +1025,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			step = "_offscreenBufferBloomMask";
 			// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
-			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
 			desc.Format = BLOOM_BUFFER_FORMAT;
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMask);
 			if (FAILED(hr)) {
@@ -1828,7 +1827,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// Bloom RTVs
 		if (g_bBloomEnabled) {
-			// Original format: DXGI_FORMAT_B8G8R8A8_UNORM
 			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 						
 			// These RTVs render to non-MSAA buffers
@@ -1987,7 +1985,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		D3D11_TEXTURE2D_DESC textureDesc;
 		textureDesc.Width = this->_displayWidth;
 		textureDesc.Height = this->_displayHeight;
-		textureDesc.Format = this->_mainDisplayTextureBpp == 2 ? DXGI_FORMAT_B5G6R5_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+		textureDesc.Format = this->_mainDisplayTextureBpp == 2 ? DXGI_FORMAT_B5G6R5_UNORM : BACKBUFFER_FORMAT;
 		textureDesc.Usage = D3D11_USAGE_DYNAMIC;
 		textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		textureDesc.MiscFlags = 0;
@@ -2901,7 +2899,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 				D3D11_TEXTURE2D_DESC textureDesc;
 				textureDesc.Width = width;
 				textureDesc.Height = height;
-				textureDesc.Format = (bpp == 2 && this->_use16BppMainDisplayTexture) ? DXGI_FORMAT_B5G6R5_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
+				textureDesc.Format = (bpp == 2 && this->_use16BppMainDisplayTexture) ? DXGI_FORMAT_B5G6R5_UNORM : BACKBUFFER_FORMAT;
 				textureDesc.Usage = D3D11_USAGE_DYNAMIC;
 				textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 				textureDesc.MiscFlags = 0;
@@ -3436,7 +3434,7 @@ void DeviceResources::CheckMultisamplingSupport()
 
 	UINT formatSupport;
 
-	if (FAILED(this->_d3dDevice->CheckFormatSupport(DXGI_FORMAT_B8G8R8A8_UNORM, &formatSupport)))
+	if (FAILED(this->_d3dDevice->CheckFormatSupport(BACKBUFFER_FORMAT, &formatSupport)))
 	{
 		return;
 	}
@@ -3449,7 +3447,7 @@ void DeviceResources::CheckMultisamplingSupport()
 		{
 			UINT numQualityLevels = 0;
 
-			HRESULT hr = this->_d3dDevice->CheckMultisampleQualityLevels(DXGI_FORMAT_B8G8R8A8_UNORM, i, &numQualityLevels);
+			HRESULT hr = this->_d3dDevice->CheckMultisampleQualityLevels(BACKBUFFER_FORMAT, i, &numQualityLevels);
 
 			if (SUCCEEDED(hr) && (numQualityLevels > 0))
 			{

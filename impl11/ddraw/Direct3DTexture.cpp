@@ -235,7 +235,7 @@ char* convertFormat(char* src, DWORD width, DWORD height, DXGI_FORMAT format)
 	int length = width * height;
 	char* buffer = new char[length * 4];
 
-	if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
+	if (format == BACKBUFFER_FORMAT)
 	{
 		memcpy(buffer, src, length * 4);
 	}
@@ -831,7 +831,7 @@ HRESULT Direct3DTexture::Load(
 
 	if (bpp == 4)
 	{
-		format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		format = BACKBUFFER_FORMAT;
 	}
 	else
 	{
@@ -854,7 +854,7 @@ HRESULT Direct3DTexture::Load(
 	D3D11_TEXTURE2D_DESC textureDesc;
 	textureDesc.Width = surface->_width;
 	textureDesc.Height = surface->_height;
-	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == DXGI_FORMAT_B8G8R8A8_UNORM ? format : DXGI_FORMAT_B8G8R8A8_UNORM;
+	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT ? format : BACKBUFFER_FORMAT;
 	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	textureDesc.CPUAccessFlags = 0;
 	textureDesc.MiscFlags = 0;
@@ -866,7 +866,7 @@ HRESULT Direct3DTexture::Load(
 
 	D3D11_SUBRESOURCE_DATA* textureData = new D3D11_SUBRESOURCE_DATA[textureDesc.MipLevels];
 
-	bool useBuffers = !this->_deviceResources->_are16BppTexturesSupported && format != DXGI_FORMAT_B8G8R8A8_UNORM;
+	bool useBuffers = !this->_deviceResources->_are16BppTexturesSupported && format != BACKBUFFER_FORMAT;
 	char** buffers = nullptr;
 
 	if (useBuffers)

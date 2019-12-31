@@ -3996,7 +3996,7 @@ HRESULT Direct3DDevice::Execute(
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
-					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					//		resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				//}
 
 				/*

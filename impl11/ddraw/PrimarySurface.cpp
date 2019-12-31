@@ -990,7 +990,7 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBuffer2 to use it
 	// as input, so that we can render the image twice.
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		0, BACKBUFFER_FORMAT);
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1099,7 +1099,7 @@ void PrimarySurface::barrelEffect3D() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		0, BACKBUFFER_FORMAT);
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -1210,9 +1210,9 @@ void PrimarySurface::barrelEffectSteamVR() {
 
 	// Resolve both images
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		0, BACKBUFFER_FORMAT);
 	context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		0, BACKBUFFER_FORMAT);
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1381,7 +1381,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
 	// use it as input
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		0, BACKBUFFER_FORMAT);
 
 	// Resize the buffer to be presented for SteamVR
 	float scale_x = screen_res_x / g_steamVRWidth;
@@ -1594,7 +1594,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Output: _offscreenBuffer (_bloomOutput1?)
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
@@ -1613,7 +1613,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Output: _offscreenBuffer
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			/*
@@ -1660,7 +1660,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Output: _offscreenBufferR
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
 			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
@@ -1679,7 +1679,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			// Output: _offscreenBufferR
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
 			/*
@@ -2404,7 +2404,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	{
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[4] = {
 			resources->_depthBufSRV.Get(),
 			resources->_depthBuf2SRV.Get(),
@@ -2519,7 +2519,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		resources->InitPixelShader(resources->_ssaoAddPS);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
@@ -2551,7 +2551,7 @@ out1:
 		{
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			ID3D11ShaderResourceView *srvs_pass1[4] = {
 				resources->_depthBufSRV_R.Get(),
 				resources->_depthBuf2SRV_R.Get(),
@@ -2669,7 +2669,7 @@ out1:
 			resources->InitPixelShader(resources->_ssaoAddPS);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			ID3D11ShaderResourceView *srvs_pass2[7] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
@@ -2822,7 +2822,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	{
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[6] = {
 			resources->_depthBufSRV.Get(),
 			resources->_depthBuf2SRV.Get(),
@@ -2956,7 +2956,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
 		// in the previous steps
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs[5] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
 			resources->_depthBuf2SRV.Get(), // BG Depth Buffer
@@ -3065,7 +3065,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->OMSetRenderTargets(5, rtvs, NULL);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *ssdoSRV = NULL;
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
 			ssdoSRV = resources->_bentBufSRV.Get();
@@ -3103,7 +3103,7 @@ out1:
 		{
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			ID3D11ShaderResourceView *srvs_pass1[6] = {
 				resources->_depthBufSRV_R.Get(),
 				resources->_depthBuf2SRV_R.Get(),
@@ -3230,7 +3230,7 @@ out1:
 			// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
 			// in the previous steps
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			ID3D11ShaderResourceView *srvs[5] = {
 				resources->_depthBufSRV_R.Get(),  // FG Depth Buffer
 				resources->_depthBuf2SRV_R.Get(), // BG Depth Buffer
@@ -3331,7 +3331,7 @@ out1:
 			context->OMSetRenderTargets(4, rtvs, NULL);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, DXGI_FORMAT_B8G8R8A8_UNORM);
+				0, BACKBUFFER_FORMAT);
 			ID3D11ShaderResourceView *srvs_pass2[5] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
@@ -4288,24 +4288,24 @@ HRESULT PrimarySurface::Flip(
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
-					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
 						// Barrel effect enabled for DirectSBS mode
 						barrelEffect2D(i);
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+							this->_deviceResources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					}
 					else {
 						// In SteamVR mode this will display the left image:
 						if (g_bUseSteamVR) {
 							resizeForSteamVR(0, true);
 							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-								this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+								this->_deviceResources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
 						else {
 							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-								this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+								this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						}
 					}
 					
@@ -4694,7 +4694,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
-			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 			// The offscreenBuffer contains the fully-rendered image at this point.
 			if (g_bEnableVR) {
@@ -4709,21 +4709,21 @@ HRESULT PrimarySurface::Flip(
 					resizeForSteamVR(0, false);
 					// Resolve steamVRPresentBuffer to backBuffer so that it gets presented
 					this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-						this->_deviceResources->_steamVRPresentBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+						this->_deviceResources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 				} 
 				else { // Direct SBS mode
 					if (!g_bDisableBarrelEffect) {
 						barrelEffect3D();
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+							this->_deviceResources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					} else
 						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+							this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				}
 			} 
 			else // Non-VR mode
 				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-					this->_deviceResources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 			// Let's reset some frame counters and other control variables
 			g_iDrawCounter = 0; g_iExecBufCounter = 0;
@@ -4780,9 +4780,9 @@ HRESULT PrimarySurface::Flip(
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				auto &context = resources->_d3dDeviceContext;
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
-					0, _deviceResources->_offscreenBufferDynCockpit, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					0, _deviceResources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
-					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
 
 				/*static bool bDump = true;
 				if (g_iPresentCounter == 100 && bDump) {
