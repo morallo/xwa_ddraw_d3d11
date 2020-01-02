@@ -8,12 +8,16 @@ SamplerState sampler0 : register(s0);
 
 static float METRIC_SCALE_FACTOR = 25.0;
 
+static float3 Light = float3(0.9, 1.0, 0.6);
+static float3 ambient_col = float3(0.025, 0.025, 0.03);
+
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
 	float4 color  : COLOR0;
 	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
 };
 
 struct PixelShaderOutput
@@ -59,7 +63,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	
+	// Original code:
 	float3 N = normalize(cross(ddx(P), ddy(P)));
+	//float3 N = normalize(input.normal.xyz);
+	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
@@ -169,6 +176,39 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
 	}
 
+	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	/*
+	if (input.normal.w > 0.0) {
+		float3 L = normalize(Light);
+		//output.color = float4(N, 1.0);
+
+		// Gamma
+		//texelColor.xyz = pow(clamp(texelColor.xyz, 0.0, 1.0), 2.2);
+
+		// diffuse component
+		float diffuse = clamp(dot(N, L), 0.0, 1.0);
+		// specular component
+		float3 eye = float3(0.0, 0.0, -10.0);
+		//float3 spec_col = float3(1.0, 0.0, 0.0);
+		//float3 spec_col = 1.0;
+		float3 spec_col = texelColor.xyz;
+		float3 eye_vec = normalize(eye - P);
+		float3 refl_vec = normalize(reflect(L, N));
+		float spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
+		spec = pow(spec, 16.0);
+		
+		//output.color = float4(ambient_col + diffuse * texelColor.xyz + spec_col * spec, texelColor.w);
+		output.color.xyz = N * 0.5 + 0.5;
+
+		// Gamma
+		//output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
+
+		output.color.xyz *= brightness;
+	} 
+	else
+		output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	*/
+	
 	return output;
 }

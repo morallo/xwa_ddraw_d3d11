@@ -171,9 +171,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color = texture0.Sample(sampler0, input.uv).xyz;
-	//float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	//float3 Normal   = texNormal.Sample(samplerNormal, input.uv).xyz;
+	float3 color    = texture0.Sample(sampler0, input.uv).xyz;
+	//float3 bentN  = texBent.Sample(samplerBent, input_uv_sub).xyz;
+	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
 	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
 	float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;

@@ -1124,6 +1124,13 @@ bool LoadDCCoverTextureSize(char *buf, float *width, float *height)
 }
 
 /*
+ * Clears all the move_region commands
+ */
+static inline void ClearDCMoveRegions() {
+	g_DCMoveRegions.numCoords = 0;
+}
+
+/*
  * Loads a move_region row into g_DCMoveRegions:
  * move_region = region, x0,y0,x1,y1
  */
@@ -1185,8 +1192,8 @@ bool LoadDCMoveRegion(char *buf)
 			g_DCMoveRegions.dst[idx].y1 = y1;
 			g_DCMoveRegions.numCoords++;
 
-			log_debug("[DBG] [DC] move_region [%s], (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-				region_name, x0, y0, x1, y1);
+			log_debug("[DBG] [DC] move_region [%s=%d], (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				region_name, region_slot, x0, y0, x1, y1);
 		}
 	}
 	catch (...) {
@@ -1194,13 +1201,6 @@ bool LoadDCMoveRegion(char *buf)
 		return false;
 	}
 	return true;
-}
-
-/*
- * Clears all the move_region commands
- */
-static inline void ClearDCMoveRegions() {
-	g_DCMoveRegions.numCoords = 0;
 }
 
 /*
@@ -1421,7 +1421,12 @@ bool LoadDCParams() {
 			}
 			else if (_stricmp(param, MOVE_REGION_DCPARAM) == 0) {
 				// Individual cockpit move_region commands override the global move_region commands:
-				if (!bCockpitParamsLoaded)
+				// EDIT: I don't remember very well why I did this; but maybe it was when I thought the move_region
+				// commands would go into each cockpit. So the per-cockpit move_region commands would override
+				// any global move_regions. However, at this point, the move_region commands seem to be global
+				// and apply to all cockpits, so let's reload these commands to make it easier to edit the HUD
+				// with Ctrl+Alt+L
+				//if (!bCockpitParamsLoaded)
 					LoadDCMoveRegion(buf);
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
@@ -4246,10 +4251,10 @@ HRESULT Direct3DDevice::Execute(
 							//	box.x0, box.y0, box.x1, box.y1);
 							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 							//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
-							//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
-							//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-							//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
-							//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
+							uvfloat4 e = g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
+							log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
+								e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
 						}
 					}
 

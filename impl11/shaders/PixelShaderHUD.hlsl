@@ -31,7 +31,7 @@ struct PixelShaderOutput
 cbuffer ConstantBuffer : register(b0)
 {
 	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
+	uint DynCockpitSlots;	// How many DC slots will be used.
 	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
 	uint unused;				// (Used to be bRenderHUD) When set, first texture is HUD foreground and second texture is HUD background
 	// 16 bytes
@@ -42,14 +42,15 @@ cbuffer ConstantBuffer : register(b0)
 	// unused
 };
 
+// DCPixelShaderCBuffer, _PSConstantBufferDC, g_DCPSCBuffer
 cbuffer ConstantBuffer : register(b1)
 {
-	float4 src[MAX_DC_COORDS];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
+	float4 src[MAX_DC_COORDS];		   // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
 	float4 dst[MAX_DC_COORDS];
-	uint4 bgColor[MAX_DC_COORDS / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
-									  // So each elem here is actually 4 bgColors.
+	uint4  bgColor[MAX_DC_COORDS / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
+									   // So each elem here is actually 4 bgColors.
 
-	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
+	float ct_brightness;				   // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
 	float unused1, unused2, unused3;
 };
 
@@ -90,10 +91,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	[unroll]
 	for (i = 0; i < DynCockpitSlots; i++)
 		if (input.tex.x >= src[i].x && input.tex.x <= src[i].z &&
-			input.tex.y >= src[i].y && input.tex.y <= src[i].w) {
+			input.tex.y >= src[i].y && input.tex.y <= src[i].w) 
+		{
 			texelColor.w = 0;
 			alpha = 0;
 			alphaBG = 0;
+
+			// DEBUG: Highlight the source regions that will be moved in RED
+			/*
+			texelColor.xyz = float3(1.0, 0.0, 0.0);
+			texelColor.w = 1.0;
+			alpha = 1;
+			alphaBG = 0;
+			*/
+			// DEBUG
 		}
 
 	// Execute the move_region commands: copy regions

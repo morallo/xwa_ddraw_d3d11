@@ -1995,8 +1995,10 @@ void PrimarySurface::DrawHUDVertices() {
 			if (region_slot < 0)
 				continue;
 			// Skip regions if their limits haven't been computed
-			if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed)
+			if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed) {
+				log_debug("[DBG] [DC] Skipping move_region command for slot %d", region_slot);
 				continue;
+			}
 			// Fetch the source uv coords:
 			g_DCPSCBuffer.src[numCoords] = g_DCHUDRegions.boxes[region_slot].erase_coords;
 			// Fetch the destination uv coords:
@@ -2008,6 +2010,7 @@ void PrimarySurface::DrawHUDVertices() {
 
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 
 	UINT stride = sizeof(D3DTLVERTEX);
 	UINT offset = 0;

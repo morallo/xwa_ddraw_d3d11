@@ -29,6 +29,7 @@ typedef struct uvfloat4_struct {
 	float x0, y0, x1, y1;
 } uvfloat4;
 
+// Region names. Used in the erase_region and move_region commands
 const int LEFT_RADAR_HUD_BOX_IDX		= 0;
 const int RIGHT_RADAR_HUD_BOX_IDX	= 1;
 const int SHIELDS_HUD_BOX_IDX		= 2;
