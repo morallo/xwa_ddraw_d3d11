@@ -10,6 +10,7 @@ static float METRIC_SCALE_FACTOR = 25.0;
 
 static float3 Light = float3(0.9, 1.0, 0.6);
 static float3 ambient_col = float3(0.025, 0.025, 0.03);
+//static float3 ambient_col = float3(0.10, 0.10, 0.15);
 
 struct PixelShaderInput
 {
@@ -65,8 +66,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	// Original code:
 	float3 N = normalize(cross(ddx(P), ddy(P)));
+
 	//float3 N = normalize(input.normal.xyz);
 	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
@@ -178,8 +181,17 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	//output.color = float4(diffuse, texelColor.w);
+	//return output;
+
 	/*
 	if (input.normal.w > 0.0) {
+		// DEBUG
+		//output.color.xyz = input.normal.xyz;
+		//output.color.w = alpha;
+		//return output;
+		// DEBUG
+
 		float3 L = normalize(Light);
 		//output.color = float4(N, 1.0);
 
@@ -190,16 +202,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		float diffuse = clamp(dot(N, L), 0.0, 1.0);
 		// specular component
 		float3 eye = float3(0.0, 0.0, -10.0);
-		//float3 spec_col = float3(1.0, 0.0, 0.0);
-		//float3 spec_col = 1.0;
 		float3 spec_col = texelColor.xyz;
-		float3 eye_vec = normalize(eye - P);
+		float3 eye_vec  = normalize(eye - P);
 		float3 refl_vec = normalize(reflect(L, N));
 		float spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
 		spec = pow(spec, 16.0);
 		
-		//output.color = float4(ambient_col + diffuse * texelColor.xyz + spec_col * spec, texelColor.w);
-		output.color.xyz = N * 0.5 + 0.5;
+		output.color = float4(ambient_col + diffuse * texelColor.xyz + spec_col * spec, texelColor.w);
+		//output.color.xyz = N * 0.5 + 0.5;
 
 		// Gamma
 		//output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);

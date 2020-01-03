@@ -62,7 +62,7 @@ void PrintVector(const Vector4 &Vector) {
 }
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled;
-extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
+//extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
@@ -388,6 +388,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				IncreaseHUDParallax(0.1f);
 				return 0;
 
+			/*
 			case VK_UP:
 				g_bUpKeyDownShift = false;
 				g_bUpKeyDown = false;
@@ -396,12 +397,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bDownKeyDown = false;
 				g_bDownKeyDownShift = false;
 				return 0;
+			*/
 			}
 		}
 
 		// Plain key: no Shift, Ctrl, Alt
 		if (!ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
+			/*
 			case VK_LEFT:
 				g_bLeftKeyDown = false;
 				return 0;
@@ -417,6 +420,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bDownKeyDown = false;
 				g_bDownKeyDownShift = false;
 				return 0;
+			*/
 			case VK_OEM_PERIOD:
 				if (g_bUseSteamVR)
 					g_pHMD->ResetSeatedZeroPose();
@@ -432,6 +436,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		break;
 	}
 
+	/*
 	case WM_KEYDOWN: {
 		// Plain key: no Shift, Ctrl, Alt
 		if (!ShiftKey && !AltKey && !CtrlKey) {
@@ -463,8 +468,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			}
 		}
-
 	}
+	*/
 	}
 	// Call the previous WindowProc handler
 	return CallWindowProc(OldWindowProc, hwnd, uMsg, wParam, lParam);

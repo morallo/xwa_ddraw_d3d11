@@ -545,11 +545,11 @@ extern Matrix4 g_viewMatrix;
 extern VertexShaderMatrixCB g_VSMatrixCB;
 
 
-extern float g_fCockpitReferenceScale;
-extern HeadPos g_HeadPosAnim, g_HeadPos;
-void animTickX();
-void animTickY();
-void animTickZ();
+//extern float g_fCockpitReferenceScale;
+//extern HeadPos g_HeadPosAnim, g_HeadPos;
+//void animTickX();
+//void animTickY();
+//void animTickZ();
 
 MainVertex g_BarrelEffectVertices[6] = {
 	MainVertex(-1, -1, 0, 1),
@@ -4444,7 +4444,6 @@ HRESULT PrimarySurface::Flip(
 
 					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-					// TODO: Fix the effect for VR
 					RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 				}
 			}
@@ -4642,7 +4641,7 @@ HRESULT PrimarySurface::Flip(
 					BloomPyramidLevelPass(1, 2, 2.0f);
 					BloomPyramidLevelPass(2, 1, 4.0f);
 					BloomPyramidLevelPass(3, 1, 8.0f);
-					BloomPyramidLevelPass(4, 1, 16.0f);
+					//BloomPyramidLevelPass(4, 1, 16.0f);
 				}
 				else
 				{
@@ -4894,14 +4893,14 @@ HRESULT PrimarySurface::Flip(
 				float yaw, pitch, roll;
 				static Vector4 headCenter(0, 0, 0, 0);
 				Vector4 headPos(0,0,0,1);
-				//Vector3 headPosFromKeyboard(0, 0, 0);
-				Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z); // Regular keyboard functionality
 				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
 				
+				/*
 				if (g_bResetHeadCenter) {
 					g_HeadPos = { 0 };
 					g_HeadPosAnim = { 0 };
 				}
+				*/
 
 				if (ReadFreePIE(g_iFreePIESlot)) {
 					/*if (g_bResetHeadCenter) {

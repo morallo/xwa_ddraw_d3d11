@@ -70,8 +70,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.color = input.color.zyxw;
 	output.tex   = input.tex;
 
-	output.normal.xyz = input.specular.xyz * 2.0 - 1.0;
-	output.normal.w = input.specular.w;
+	output.normal = input.specular;
 
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -0.5..0.5 range

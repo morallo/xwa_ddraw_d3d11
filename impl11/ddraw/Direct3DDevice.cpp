@@ -393,6 +393,7 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems);
 // This code is about to be migrated to the cockpitlook hook, so it can be removed from
 // this library later.
 /* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
+/*
 float centeredSigmoid(float x) {
 	return 1.0f / (1.0f + exp(-x)) - 0.5f;
 }
@@ -460,6 +461,7 @@ void animTickZ() {
 	g_HeadPos.z = centeredSigmoid(g_HeadPosAnim.z) * MAX_LEAN_Z;
 }
 // End of the code that can be removed.
+*/
 /********/
 
 // NewIPD is in cms
@@ -4251,10 +4253,10 @@ HRESULT Direct3DDevice::Execute(
 							//	box.x0, box.y0, box.x1, box.y1);
 							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 							//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
-							uvfloat4 e = g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
+							/*uvfloat4 e = g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
 							log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 								e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
-								e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
+								e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);*/
 						}
 					}
 
