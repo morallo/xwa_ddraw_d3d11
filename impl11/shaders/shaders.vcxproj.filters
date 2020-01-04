@@ -54,6 +54,7 @@
     <FxCompile Include="HyperExit.hlsl" />
     <FxCompile Include="HyperCompose.hlsl" />
     <FxCompile Include="HyperZoom.hlsl" />
+    <FxCompile Include="LaserPointerVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

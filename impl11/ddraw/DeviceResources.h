@@ -244,6 +244,23 @@ typedef struct ShadertoyCBStruct {
 	// 128 bytes
 } ShadertoyCBuffer;
 
+// Let's make this Constant Buffer the same size as the ShadertoyCBuffer
+// so that we can reuse the same CB slot -- after all, we can't manipulate
+// anything while travelling through hyperspace anyway...
+typedef struct LaserPointerCBStruct {
+	float iTime, FOVscale, unusedA[2];
+	// 16 bytes
+	float iResolution[2], unusedB[2];
+	// 32 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	// 48 bytes
+	Matrix4 viewMat; // The view rotation matrix
+	// 4*4 = 16 elements, 16 * 4 = 64 bytes
+	// 48 + 64 = 112 bytes
+	float unusedC[4];
+	// 128 bytes
+} LaserPointerCBuffer;
+
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
@@ -583,6 +600,7 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
 	ComPtr<ID3D11PixelShader> _hyperZoomPS;
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
+	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -616,6 +634,7 @@ public:
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceConstantBuffer;
+	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;

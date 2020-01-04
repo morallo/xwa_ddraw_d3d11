@@ -48,7 +48,7 @@ void Normalize(float4 *Vector) {
 	float x = Vector->x;
 	float y = Vector->y;
 	float z = Vector->z;
-	float L = sqrt(x*x + y * y + z * z);
+	float L = sqrt(x*x + y*y + z*z);
 	if (L < 0.001) L = 1.0f;
 
 	Vector->x = x / L;
@@ -75,6 +75,8 @@ enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 // DEBUG
+
+extern Vector4 g_contOrigin;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -128,9 +130,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
-				g_LightVector[0].x += 0.1f;
-				g_LightVector[0].normalize();
+				//g_LightVector[0].x += 0.1f;
+				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
+
+				g_contOrigin.x += 0.05f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -144,9 +148,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				*/
 				return 0;
 			case VK_LEFT:
-				g_LightVector[0].x -= 0.1f;
-				g_LightVector[0].normalize();
+				//g_LightVector[0].x -= 0.1f;
+				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
+
+				g_contOrigin.x -= 0.05f;
+
 				/*
 				g_fHyperTimeOverride -= 0.1f;
 				if (g_fHyperTimeOverride < 0.0f)
@@ -160,14 +167,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_UP:
-				g_LightVector[0].y += 0.1f;
-				g_LightVector[0].normalize();
+				//g_LightVector[0].y += 0.1f;
+				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
+
+				g_contOrigin.y += 0.05f;
 				return 0;
 			case VK_DOWN:
-				g_LightVector[0].y -= 0.1f;
-				g_LightVector[0].normalize();
+				//g_LightVector[0].y -= 0.1f;
+				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
+
+				g_contOrigin.y -= 0.05f;
 				return 0;
 			}
 		}
@@ -425,6 +436,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				if (g_bUseSteamVR)
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
+
+				g_contOrigin.set(0, 0, 0, 1);
 				break;
 			}
 		}

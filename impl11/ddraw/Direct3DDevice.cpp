@@ -240,6 +240,8 @@ unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
+/*********************************************************/
+// HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
@@ -257,6 +259,14 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 //int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
 
+/*********************************************************/
+// ACTIVE COCKPIT
+Vector4 g_contOrigin = Vector4(0, 0, 0, 1); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contDirection = Vector4(0, 0, 1, 0); // The direction in which the controller is pointing, in view-space coords
+
+
+/*********************************************************/
+// DYNAMIC COCKPIT
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;

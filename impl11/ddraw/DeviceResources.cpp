@@ -45,6 +45,7 @@
 #include "../Debug/HyperTunnel.h"
 #include "../Debug/HyperCompose.h"
 #include "../Debug/HyperZoom.h"
+#include "../Debug/LaserPointerVR.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -85,6 +86,7 @@
 #include "../Release/HyperTunnel.h"
 #include "../Release/HyperCompose.h"
 #include "../Release/HyperZoom.h"
+#include "../Release/LaserPointerVR.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2078,6 +2080,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2323,6 +2328,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -2443,6 +2451,11 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.ByteWidth = 128;
 	static_assert(sizeof(ShadertoyCBuffer) == 128, "sizeof(ShadertoyCBuffer) must be 128");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
+		return hr;
+
+	constantBufferDesc.ByteWidth = 128;
+	static_assert(sizeof(LaserPointerCBuffer) == 128, "sizeof(LaserPointerCBuffer) must be 128");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the SSAO pixel shader
