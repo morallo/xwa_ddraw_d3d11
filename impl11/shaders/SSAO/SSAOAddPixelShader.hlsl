@@ -7,6 +7,7 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
 
  // The color buffer
@@ -36,8 +37,6 @@ SamplerState sampPos  : register(s5);
 // The Background 3D position buffer (linear X,Y,Z)
 Texture2D    texPos2  : register(t6);
 SamplerState sampPos2 : register(s6);
-
-#define INFINITY_Z 20000
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -160,7 +159,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 			p = P2;
 			FGFlag = false;
 		}
-		if (p.z < INFINITY_Z) {
+		if (p.z < INFINITY_Z1) {
 			float2 offset = float2(pixelSizeX, pixelSizeY);
 			float nm_intensity = lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
 			float3 FakeNormal = get_normal_from_color(input.uv, offset);

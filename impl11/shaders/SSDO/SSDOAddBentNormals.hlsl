@@ -39,8 +39,6 @@ SamplerState sampPos : register(s5);
 Texture2D texNormal : register(t6);
 SamplerState samplerNormal : register(s6);
 
-#define INFINITY_Z 20000
-
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -220,7 +218,7 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
 	max_shadow_length_sqr *= max_shadow_length_sqr;
-	float cur_length = 0, length_at_res = INFINITY_Z;
+	float cur_length = 0, length_at_res = INFINITY_Z1;
 	float res = 1.0;
 	float weight = 1.0;
 	//float occ_dot;
@@ -283,7 +281,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z) return float4(pow(abs(albedo), 1 / gamma), 1);
+	if (pos3D.z > INFINITY_Z1) return float4(pow(abs(albedo), 1 / gamma), 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {

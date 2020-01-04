@@ -389,90 +389,11 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 bool InitDirectSBS();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 
-/********/
-// This code is about to be migrated to the cockpitlook hook, so it can be removed from
-// this library later.
-/* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
-/*
-float centeredSigmoid(float x) {
-	return 1.0f / (1.0f + exp(-x)) - 0.5f;
-}
-
-float g_fCockpitReferenceScale = 300.0f;
-HeadPos g_HeadPosAnim = { 0 }, g_HeadPos = { 0 };
-bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-const float ANIM_INCR = 0.1f, MAX_LEAN_X = 1.5f, MAX_LEAN_Y = 1.5f, MAX_LEAN_Z = 1.5f;
-// The MAX_LEAN values will be clamped by the limits from vrparams.cfg
-
-void animTickX() {
-	if (g_bRightKeyDown)
-		g_HeadPosAnim.x -= ANIM_INCR;
-	else if (g_bLeftKeyDown)
-		g_HeadPosAnim.x += ANIM_INCR;
-	else if (!g_bRightKeyDown && !g_bLeftKeyDown && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.x < 0.0001)
-			g_HeadPosAnim.x += ANIM_INCR;
-		if (g_HeadPosAnim.x > 0.0001)
-			g_HeadPosAnim.x -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.x >  6.0f)  g_HeadPosAnim.x =  6.0f;
-	if (g_HeadPosAnim.x < -6.0f)  g_HeadPosAnim.x = -6.0f;
-
-	g_HeadPos.x = centeredSigmoid(g_HeadPosAnim.x) * MAX_LEAN_X;
-}
-
-void animTickY() {
-	if (g_bDownKeyDown)
-		g_HeadPosAnim.y += ANIM_INCR;
-	else if (g_bUpKeyDown)
-		g_HeadPosAnim.y -= ANIM_INCR;
-	else if (!g_bDownKeyDown && !g_bUpKeyDown && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.y < 0.0001)
-			g_HeadPosAnim.y += ANIM_INCR;
-		if (g_HeadPosAnim.y > 0.0001)
-			g_HeadPosAnim.y -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.y >  6.0f)  g_HeadPosAnim.y =  6.0f;
-	if (g_HeadPosAnim.y < -6.0f)  g_HeadPosAnim.y = -6.0f;
-
-	g_HeadPos.y = centeredSigmoid(g_HeadPosAnim.y) * MAX_LEAN_Y;
-}
-
-void animTickZ() {
-	if (g_bDownKeyDownShift)
-		g_HeadPosAnim.z -= ANIM_INCR;
-	else if (g_bUpKeyDownShift)
-		g_HeadPosAnim.z += ANIM_INCR;
-	else if (!g_bDownKeyDownShift && !g_bUpKeyDownShift && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.z < 0.0001)
-			g_HeadPosAnim.z += ANIM_INCR;
-		if (g_HeadPosAnim.z > 0.0001)
-			g_HeadPosAnim.z -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.z >  6.0f)  g_HeadPosAnim.z =  6.0f;
-	if (g_HeadPosAnim.z < -6.0f)  g_HeadPosAnim.z = -6.0f;
-
-	g_HeadPos.z = centeredSigmoid(g_HeadPosAnim.z) * MAX_LEAN_Z;
-}
-// End of the code that can be removed.
-*/
-/********/
-
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
 	if (NewIPD < 0.0f)
 		NewIPD = 0.0f;
-	/*
-	if (NewIPD > 12.0f) {
-		NewIPD = 12.0f;
-	}
-	*/
+
 	g_fIPD = NewIPD / IPD_SCALE_FACTOR;
 	log_debug("[DBG] NewIPD: %0.3f, Actual g_fIPD: %0.6f", NewIPD, g_fIPD);
 	g_fHalfIPD = g_fIPD / 2.0f;
@@ -1467,6 +1388,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fLasersStrength     = 4.0f;
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength	  = 0.5f;
+	g_BloomConfig.fSkydomeLightStrength = 0.1f;
 	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1540,6 +1462,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "hyper_tunnel_strength") == 0) {
 				g_BloomConfig.fHyperTunnelStrength = fValue;
+			}
+			else if (_stricmp(param, "skydome_light_strength") == 0) {
+				g_BloomConfig.fSkydomeLightStrength = fValue;
 			}
 			
 			// Bloom strength per pyramid level
@@ -4670,7 +4595,7 @@ HRESULT Direct3DDevice::Execute(
 				// Apply the SSAO mask
 				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
 					
-					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer) 
+					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 1.0f;
@@ -4678,7 +4603,7 @@ HRESULT Direct3DDevice::Execute(
 					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
 						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
-						lastTextureSelected->is_Missile || lastTextureSelected->is_GenericSSAOTransparent) 
+						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 0.0f;
@@ -4815,6 +4740,11 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_SkydomeLight) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 				}
@@ -4956,20 +4886,6 @@ HRESULT Direct3DDevice::Execute(
 						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
 					}
 
-					//if (bIsHyperspaceTunnel) {
-						//	UINT stride = sizeof(D3DTLVERTEX);
-						//	UINT offset = 0;
-						//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-						//	resources->InitInputLayout(resources->_inputLayout);
-						//	context->Draw(3, 0);
-						//	// TODO: Restore the original input layout here
-						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-					//} else
-					//if (PlayerDataTable->hyperspacePhase != 0)
-					//if (PlayerDataTable->hyperspacePhase == 2 && !g_bIsPlayerObject) {
-						//	RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-					//}
-					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}

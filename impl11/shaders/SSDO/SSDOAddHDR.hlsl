@@ -8,6 +8,7 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
 
  // The color buffer
@@ -36,8 +37,6 @@ SamplerState sampPos : register(s5);
 // The Normals buffer
 //Texture2D texNormal : register(t6);
 //SamplerState samplerNormal : register(s6);
-
-#define INFINITY_Z 20000
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -198,7 +197,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z) return float4(albedo, 1);
+	if (pos3D.z > INFINITY_Z1) return float4(albedo, 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {

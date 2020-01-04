@@ -8,8 +8,8 @@ Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
 static float3 Light = float3(0.9, 1.0, 0.6);
-static float3 ambient_col = float3(0.025, 0.025, 0.03);
-//static float3 ambient_col = float3(0.10, 0.10, 0.15);
+//static float3 ambient_col = float3(0.025, 0.025, 0.03);
+////static float3 ambient_col = float3(0.10, 0.10, 0.15);
 
 struct PixelShaderInput
 {
@@ -43,10 +43,10 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
 	// 32 bytes
 
-	float fBloomStrength;	// General multiplier for the bloom effect
-	float fPosNormalAlpha;	// Override for pos3D and normal output alpha
-	float fSSAOMaskVal;		// SSAO mask value
-	float fSSAOAlphaOfs;		// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
+	float fBloomStrength;		// General multiplier for the bloom effect
+	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
+	float fSSAOMaskVal;			// SSAO mask value
+	float fSSAOAlphaOfs;			// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 	// 48 bytes
 };
 

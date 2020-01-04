@@ -38,8 +38,6 @@ SamplerState sampPos : register(s5);
 Texture2D texNormal : register(t6);
 SamplerState samplerNormal : register(s6);
 
-#define INFINITY_Z 20000
-
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -186,7 +184,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float mask = dot(0.333, ssaoMask);
 	
-	if (pos3D.z > INFINITY_Z || mask > 0.9)
+	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
+	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
+	if (mask > 0.9)
 		return float4(color, 1);
 
 	/*

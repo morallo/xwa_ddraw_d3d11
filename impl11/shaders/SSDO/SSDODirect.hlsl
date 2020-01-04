@@ -384,7 +384,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
-	float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
+	//float2 offset = float2(0.5 / screenSizeX, 0.5 / screenSizeY); // Test setting
+	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
 	float3 FakeNormal = 0; 
 	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
@@ -435,7 +436,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
+	
+	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	
 	//output.bentNormal.xyz = output.ssao.xyz * bentNormal;
 	//output.bentNormal.xyz = radius * 100; // DEBUG! Use this to visualize the radius
 	return output;

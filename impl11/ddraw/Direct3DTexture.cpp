@@ -314,7 +314,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_CockpitSpark = false;
 	this->is_Chaff = false;
 	this->is_Missile = false;
-	this->is_GenericSSAOTransparent = false;
+	this->is_GenericSSAOMasked = false;
+	this->is_SkydomeLight = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -654,11 +655,18 @@ void Direct3DTexture::TagTexture() {
 			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00007,") != NULL ||
 			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00015,") != NULL
 		   )
-		{
-			//log_debug("[DBG] [DC] [%s]", surface->_name);
-			this->is_GenericSSAOTransparent = true;
-		}
 		*/
+		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
+		if (strstr(surface->_name, "Cielo") != NULL)
+		{
+			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
+			this->is_GenericSSAOMasked = true;
+			if (this->is_LightTexture) {
+				this->is_SkydomeLight = true;
+				this->is_LightTexture = false; // The is_SkydomeLight attribute overrides this attribute
+			}
+		}
+		
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
@@ -773,7 +781,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_CockpitSpark = d3dTexture->is_CockpitSpark;
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
-	this->is_GenericSSAOTransparent = d3dTexture->is_GenericSSAOTransparent;
+	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
+	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
