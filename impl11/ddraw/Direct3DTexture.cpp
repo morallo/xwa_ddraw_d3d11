@@ -157,6 +157,8 @@ extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 
+extern bool g_bUseLaserPointer;
+
 bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
@@ -316,6 +318,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Missile = false;
 	this->is_GenericSSAOMasked = false;
 	this->is_SkydomeLight = false;
+	this->is_ActiveCockpit = false;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -667,6 +670,16 @@ void Direct3DTexture::TagTexture() {
 			}
 		}
 		
+		if (g_bUseLaserPointer) {
+			if (this->is_CockpitTex && this->is_LightTexture) 
+			{
+				//if (strstr(surface->_name, "Tex00095") != NULL)
+				{
+					this->is_ActiveCockpit = true;
+					log_debug("[DBG] [AC] %s is ActiveCockpit", surface->_name);
+				}
+			}
+		}
 
 		if (g_bDynCockpitEnabled) {
 			// Capture and store the name of the cockpit
@@ -783,6 +796,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Missile = d3dTexture->is_Missile;
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
+	this->is_ActiveCockpit = d3dTexture->is_ActiveCockpit;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from

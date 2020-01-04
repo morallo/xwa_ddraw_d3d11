@@ -171,14 +171,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y += 0.05f;
+				g_contOrigin.y -= 0.05f;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y -= 0.05f;
+				g_contOrigin.y += 0.05f;
 				return 0;
 			}
 		}
@@ -315,10 +315,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_UP:
-				IncreaseLensK1(0.1f);
+				//IncreaseLensK1(0.1f);
+				g_contOrigin.z += 0.05f;
 				return 0;
 			case VK_DOWN:
-				IncreaseLensK1(-0.1f);
+				//IncreaseLensK1(-0.1f);
+				g_contOrigin.z -= 0.05f;
 				return 0;
 			case VK_LEFT:
 				IncreaseLensK2(-0.1f);

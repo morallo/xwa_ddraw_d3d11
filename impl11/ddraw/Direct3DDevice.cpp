@@ -30,6 +30,8 @@
 
 #include "XWAObject.h"
 
+#include "..\shaders\shader_common.h"
+
 #define DBG_MAX_PRESENT_LOGS 0
 
 FILE *g_HackFile = NULL;
@@ -3306,7 +3308,8 @@ void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
 	float *minU, float *minV, float *maxU, float *maxV,
-	bool debug) {
+	bool debug) 
+{
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	WORD index;
@@ -3358,6 +3361,179 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 	}
 	if (debug)
 		log_debug("[DBG] END Geom");
+}
+
+bool rayTriangleIntersect(
+	const Vector3 &orig, const Vector3 &dir,
+	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
+	float &t)
+{
+	// From https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
+	// compute plane's normal
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// no need to normalize
+	Vector3 N = v0v1.cross(v0v2); // N 
+	float area2 = N.length();
+
+	// Step 1: finding P
+
+	// check if ray and plane are parallel ?
+	float NdotRayDirection = N.dot(dir);
+	if (fabs(NdotRayDirection) < 0.0001 /* kEpsilon */) // almost 0 
+		return false; // they are parallel so they don't intersect ! 
+
+	// compute d parameter using equation 2
+	float d = N.dot(v0);
+
+	// compute t (equation 3)
+	t = (N.dot(orig) + d) / NdotRayDirection;
+	// check if the triangle is in behind the ray
+	if (t < 0) return false; // the triangle is behind 
+
+	// compute the intersection point using equation 1
+	Vector3 P = orig + t * dir;
+
+	// Step 2: inside-outside test
+	Vector3 C; // vector perpendicular to triangle's plane 
+
+	// edge 0
+	Vector3 edge0 = v1 - v0;
+	Vector3 vp0 = P - v0;
+	C = edge0.cross(vp0);
+	if (N.dot(C) < 0) return false; // P is on the right side 
+
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	if (N.dot(C) < 0)  return false; // P is on the right side 
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	if (N.dot(C) < 0) return false; // P is on the right side; 
+
+	return true; // this ray hits the triangle 
+}
+
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into 3D, just like we do in the VerteShader or SBS VertexShader:
+inline void backProject(WORD index, Vector3 *P) {
+	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
+	// This code comes from VertexShader.hlsl
+	float3 temp;
+	// float3 temp = input.pos.xyz;
+	temp.x = g_OrigVerts[index].sx;
+	temp.y = g_OrigVerts[index].sy;
+	// Normalize into the -0.5..0.5 range
+	//temp.xy *= vpScale.xy;
+	temp.x *= g_VSCBuffer.viewportScale[0];
+	temp.y *= g_VSCBuffer.viewportScale[1];
+	// temp.xy += float2(-0.5, 0.5);
+	temp.x -= 0.5f;
+	temp.y += 0.5f;
+	// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+	temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+	temp.y *= g_VSCBuffer.viewportScale[2];
+	// temp.z = METRIC_SCALE_FACTOR * w;
+	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
+	// I'm going to skip the overrides because they don't apply to cockpit textures...
+	// The back-projection into 3D is now very simple:
+	//float3 P = float3(temp.z * temp.xy, temp.z);
+	P->x = temp.z * temp.x;
+	P->y = temp.z * temp.y;
+	P->z = temp.z;
+}
+
+/*
+// Projects a 3D point to 2D for display directly as a post-process effect.
+inline void project(Vector3 P, Vector3 *P_out) {
+	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
+	// This code comes from VertexShader.hlsl
+	float3 temp;
+	// float3 temp = input.pos.xyz;
+	temp.x = g_OrigVerts[index].sx;
+	temp.y = g_OrigVerts[index].sy;
+	// Normalize into the -0.5..0.5 range
+	//temp.xy *= vpScale.xy;
+	temp.x *= g_VSCBuffer.viewportScale[0];
+	temp.y *= g_VSCBuffer.viewportScale[1];
+	// temp.xy += float2(-0.5, 0.5);
+	temp.x -= 0.5f;
+	temp.y += 0.5f;
+	// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+	temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+	temp.y *= g_VSCBuffer.viewportScale[2];
+	// temp.z = METRIC_SCALE_FACTOR * w;
+	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
+	// I'm going to skip the overrides because they don't apply to cockpit textures...
+	// The back-projection into 3D is now very simple:
+	//float3 P = float3(temp.z * temp.xy, temp.z);
+	P->x = temp.z * temp.x;
+	P->y = temp.z * temp.y;
+	P->z = temp.z;
+}
+*/
+
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex,
+	Vector3 orig, Vector3 dir, float *t, bool debug) 
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	WORD index;
+	//float px, py; // u, v;
+	//float X, Y, Z;
+	Vector3 v0, v1, v2;
+	float t_temp;
+
+	if (debug)
+		log_debug("[DBG] START Geom");
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = triangle->v1;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
+		backProject(index, &v0);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+		}
+
+		index = triangle->v2;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
+		backProject(index, &v1);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+		}
+
+		index = triangle->v3;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
+		backProject(index, &v2);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+		}
+
+		// Check the intersection with this triangle
+		if (rayTriangleIntersect(orig, dir, v0, v1, v2, t_temp)) {
+			*t = t_temp;
+			return true;
+		}
+		triangle++;
+	}
+
+	if (debug)
+		log_debug("[DBG] END Geom");
+	return false;
 }
 
 inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
@@ -3918,6 +4094,7 @@ HRESULT Direct3DDevice::Execute(
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
+				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_ActiveCockpit;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
@@ -4064,7 +4241,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				/*************************************************************************
-					State management ends here
+					State management ends here, special state management starts
 				 *************************************************************************/
 
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
@@ -4098,10 +4275,9 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 
-					// Process/Render the hyperspace effect
+					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+					// not travelling through hyperspace:
 					{
-						// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-						// not travelling through hyperspace:
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
 							g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
@@ -4114,21 +4290,12 @@ HRESULT Direct3DDevice::Execute(
 									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 							}
 						}
-
-						/*
-						// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-						if (g_HyperspacePhaseFSM != HS_INIT_ST)
-						{
-							// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-							//				  shadertoyBuf has a copy of the cockpit
-
-							// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-							// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-							RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-						}
-						*/
 					}
 				}
+
+				/*************************************************************************
+					Special state management ends here
+				 *************************************************************************/
 
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
@@ -4514,6 +4681,40 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
+
+				// Active Cockpit: Intersect the current texture with the controller
+				if (g_bUseLaserPointer && bIsActiveCockpit) {
+					Vector3 orig, dir;
+					float t;
+					bool bIntersection;
+					//log_debug("[DBG] [AC] Testing for intersection...");
+
+					orig.x = g_contOrigin.x;
+					orig.y = g_contOrigin.y;
+					orig.z = g_contOrigin.z;
+
+					dir.x = g_contDirection.x;
+					dir.y = g_contDirection.y;
+					dir.z = g_contDirection.z;
+					
+					bIntersection = 	IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t);
+					if (bIntersection) {
+						float intersection[3];
+						intersection[0] = orig.x + t * dir.x;
+						intersection[1] = orig.y + t * dir.y;
+						intersection[2] = orig.z + t * dir.z;
+
+						if (intersection[2] < g_LaserPointerBuffer.intersection[2]) {
+							g_LaserPointerBuffer.intersection[0] = intersection[0];
+							g_LaserPointerBuffer.intersection[1] = intersection[1];
+							g_LaserPointerBuffer.intersection[2] = intersection[2];
+							g_LaserPointerBuffer.bIntersection = 1;
+
+							//log_debug("[DBG] [AC] Intersection: %0.3f, %0.3f, %0.3f",
+							//	g_LaserPointerBuffer.intersection[0], g_LaserPointerBuffer.intersection[1], g_LaserPointerBuffer.intersection[2]);
+						}
+					}
+				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
 				//	goto out;

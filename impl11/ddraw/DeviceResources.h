@@ -248,16 +248,17 @@ typedef struct ShadertoyCBStruct {
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
 typedef struct LaserPointerCBStruct {
-	float iTime, FOVscale, unusedA[2];
+	float iTime, FOVscale, iResolution[2];
 	// 16 bytes
-	float iResolution[2], unusedB[2];
-	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
-	// 48 bytes
+	// 32 bytes
 	Matrix4 viewMat; // The view rotation matrix
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
-	// 48 + 64 = 112 bytes
-	float unusedC[4];
+	// 32 + 64 = 96 bytes
+	float contOrigin[4];
+	// 112 bytes
+	float intersection[3];
+	int bIntersection;
 	// 128 bytes
 } LaserPointerCBuffer;
 

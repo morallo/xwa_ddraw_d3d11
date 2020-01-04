@@ -4,6 +4,23 @@
  */
 #include "ShaderToyDefs.h"
 
+ // LaserPointerCBuffer
+cbuffer ConstantBuffer : register(b7)
+{
+	float iTime, FOVScale;
+	float2 iResolution;
+	// 16 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	// 32 bytes
+	matrix viewMat;
+	// 96 bytes
+	float4 contOrigin;
+	// 112 bytes
+	float3 intersection;
+	bool bIntersection; // True if there is an intersection to display
+	// 128 bytes
+};
+
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
 // will be an overlay on top of everything else.
 Texture2D colorTex : register(t0);
@@ -20,7 +37,11 @@ float sdSphere(in vec3 p, in vec3 center, float radius)
 
 float map(in vec3 p)
 {
-	return sdSphere(p, vec3(0.0, 0.0, 0.0), 0.05);
+	//float d = sdSphere(p, contOrigin.xyz, 0.05);
+	float d = 10000.0;
+	if (bIntersection)
+		d = min(d, sdSphere(p, intersection, 0.03));
+	return d;
 }
 
 float intersect(in vec3 ro, in vec3 rd)

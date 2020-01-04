@@ -258,6 +258,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	return output;
 }
 
+// Convert Reconstructed 3D back to 2D and then to post-process UV coord
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
 	float w = P.z / METRIC_SCALE_FACTOR;

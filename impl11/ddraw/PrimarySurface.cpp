@@ -38,7 +38,9 @@ extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
+// ACTIVE COCKPIT
 extern bool g_bUseLaserPointer;
+extern Vector4 g_contOrigin;
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
@@ -3455,7 +3457,7 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	return viewMatrix;
 }
 
-void PrimarySurface::GetHyperspaceViewMatrix() {
+void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 	const float DEG2RAD = 0.01745f;
 	if (PlayerDataTable->gunnerTurretActive)
 	{
@@ -3519,7 +3521,7 @@ void PrimarySurface::GetHyperspaceViewMatrix() {
 		);
 		Matrix4 rotX;
 		rotX.rotateX(180.0f);
-		g_ShadertoyBuffer.viewMat = rotX * viewMat.invert();
+		*result = rotX * viewMat.invert();
 	}
 	else {
 		float yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f + 180.0f;
@@ -3532,7 +3534,7 @@ void PrimarySurface::GetHyperspaceViewMatrix() {
 		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
 		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
 		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-		g_ShadertoyBuffer.viewMat = rotMatrixFull.invert();
+		*result = rotMatrixFull.invert();
 
 		//////////////////////////////////////////////////
 		// Compute the ship's view matrix
@@ -3685,7 +3687,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// DEBUG
 	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	GetHyperspaceViewMatrix();
+	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -4114,13 +4116,16 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	resources->InitPixelShader(resources->_laserPointerPS);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	GetHyperspaceViewMatrix();
+	GetCraftViewMatrix(&g_LaserPointerBuffer.viewMat);
 	g_LaserPointerBuffer.x0 = x0;
 	g_LaserPointerBuffer.y0 = y0;
 	g_LaserPointerBuffer.x1 = x1;
 	g_LaserPointerBuffer.y1 = y1;
 	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_LaserPointerBuffer.contOrigin[0] = g_contOrigin.x;
+	g_LaserPointerBuffer.contOrigin[1] = g_contOrigin.y;
+	g_LaserPointerBuffer.contOrigin[2] = g_contOrigin.z;
 	resources->InitPSConstantBufferHyperspace(resources->_laserPointerConstantBuffer.GetAddressOf(), 
 		(ShadertoyCBuffer *)&g_LaserPointerBuffer);
 
@@ -4843,7 +4848,8 @@ HRESULT PrimarySurface::Flip(
 				// DEBUG
 			}
 
-			if (g_bUseLaserPointer) {
+			// Render the Laser Pointer for VR
+			if (g_bRendering3D && g_bUseLaserPointer) {
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
@@ -4924,6 +4930,12 @@ HRESULT PrimarySurface::Flip(
 			//*g_playerInHangar = 0;
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
+
+			// Reset the intersection
+			if (g_bUseLaserPointer) {
+				g_LaserPointerBuffer.bIntersection = false;
+				g_LaserPointerBuffer.intersection[2] = 10000.0f;
+			}
 
 //#define HYPER_OVERRIDE 1
 //#ifdef HYPER_OVERRIDE
