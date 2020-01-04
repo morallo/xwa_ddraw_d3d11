@@ -263,7 +263,7 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 // ACTIVE COCKPIT
 Vector4 g_contOrigin = Vector4(0, 0, 0, 1); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirection = Vector4(0, 0, 1, 0); // The direction in which the controller is pointing, in view-space coords
-
+bool g_bUseLaserPointer = true; // TODO: Make this toggleable through the CFG file
 
 /*********************************************************/
 // DYNAMIC COCKPIT
@@ -354,6 +354,7 @@ VertexShaderCBuffer  g_VSCBuffer;
 PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
 ShadertoyCBuffer		 g_ShadertoyBuffer;
+LaserPointerCBuffer	 g_LaserPointerBuffer;
 
 struct MainVertex
 {

@@ -4,6 +4,11 @@
  */
 #include "ShaderToyDefs.h"
 
+// Color buffer: The fully-rendered image should go in this slot. This laser pointer 
+// will be an overlay on top of everything else.
+Texture2D colorTex : register(t0);
+SamplerState colorSampler : register(s0);
+
 static const vec3 lig = normalize(vec3(0.5, 0.0, -0.7));
 
 float sdSphere(in vec3 p, in vec3 center, float radius)
@@ -60,7 +65,7 @@ struct PixelShaderOutput
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
+	//vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec3 color = 0.0;
 	output.color = 0.0;
@@ -73,6 +78,40 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 	}
 
-	output.color = vec4(color, 1.0);
+	float3 bgColor = colorTex.Sample(colorSampler, input.uv).xyz;
+
+	vec2 p = (-iResolution.xy + 2.0 * fragCoord) / iResolution.y;
+
+	vec3 ro = vec3(0.0, 0.0, -1.0);
+	vec3 rd = normalize(vec3(p, 1.0));
+
+	vec3 diff_col = vec3(0.9, 0.6, 0.3);
+	vec3 spec_col = vec3(1.0, 1.0, 1.0);
+	float ambient = 0.03;
+	vec3 col = 0.0;
+	vec3 eye = ro;
+
+	float t = intersect(ro, rd);
+	if (t > 0.0)
+	{
+		vec3 pos = ro + t * rd;
+		vec3 nor = calcNormal(pos);
+		vec3 eye_vec = normalize(eye - pos);
+		vec3 refl_vec = normalize(reflect(-lig, nor));
+		// Diffuse component
+		col = diff_col * clamp(dot(nor, lig), 0.0, 1.0);
+		// Specular component
+		float spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
+		col += spec_col * pow(spec, 16.0);
+		// Ambient component
+		col += ambient;
+		// Gamma correction
+		col = pow(clamp(col, 0.0, 1.0), 0.45);
+	}
+	else
+		col = bgColor;
+
+	//fragColor = vec4(col, 1.0);
+	output.color = vec4(col, 1.0);
 	return output;
 }

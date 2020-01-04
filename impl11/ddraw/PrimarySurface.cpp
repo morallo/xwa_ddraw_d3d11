@@ -38,6 +38,8 @@ extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
+extern bool g_bUseLaserPointer;
+
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
@@ -520,21 +522,22 @@ BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 // Bloom
-BloomPixelShaderCBuffer g_BloomPSCBuffer;
-SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
-extern ShadertoyCBuffer g_ShadertoyBuffer;
+BloomPixelShaderCBuffer		g_BloomPSCBuffer;
+SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
+extern ShadertoyCBuffer		g_ShadertoyBuffer;
+extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer g_MSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio;
-extern int g_iDraw2DCounter;
-extern bool g_bStartedGUI, g_bPrevStartedGUI, g_bIsScaleableGUIElem, g_bPrevIsScaleableGUIElem, g_bScaleableHUDStarted, g_bDynCockpitEnabled;
-extern bool g_bEnableVR, g_bDisableBarrelEffect;
-extern bool g_bDumpGUI;
-extern int g_iDrawCounter, g_iExecBufCounter, g_iPresentCounter, g_iNonZBufferCounter, g_iDrawCounterAfterHUD;
-extern bool g_bTargetCompDrawn, g_bPrevIsFloatingGUI3DObject, g_bIsFloating3DObject;
+extern int   g_iDraw2DCounter;
+extern bool  g_bStartedGUI, g_bPrevStartedGUI, g_bIsScaleableGUIElem, g_bPrevIsScaleableGUIElem, g_bScaleableHUDStarted, g_bDynCockpitEnabled;
+extern bool  g_bEnableVR, g_bDisableBarrelEffect;
+extern bool  g_bDumpGUI;
+extern int   g_iDrawCounter, g_iExecBufCounter, g_iPresentCounter, g_iNonZBufferCounter, g_iDrawCounterAfterHUD;
+extern bool  g_bTargetCompDrawn, g_bPrevIsFloatingGUI3DObject, g_bIsFloating3DObject;
 extern unsigned int g_iFloatingGUIDrawnCounter;
 
 bool g_bRendering3D = false; // Set to true when the system is about to render in 3D
@@ -544,17 +547,10 @@ extern DWORD g_FullScreenWidth, g_FullScreenHeight;
 extern Matrix4 g_viewMatrix;
 extern VertexShaderMatrixCB g_VSMatrixCB;
 
-
-//extern float g_fCockpitReferenceScale;
-//extern HeadPos g_HeadPosAnim, g_HeadPos;
-//void animTickX();
-//void animTickY();
-//void animTickZ();
-
 MainVertex g_BarrelEffectVertices[6] = {
 	MainVertex(-1, -1, 0, 1),
-	MainVertex(1, -1, 1, 1),
-	MainVertex(1,  1, 1, 0),
+	MainVertex( 1, -1, 1, 1),
+	MainVertex( 1,  1, 1, 0),
 
 	MainVertex(1,  1, 1, 0),
 	MainVertex(-1,  1, 0, 0),
@@ -4094,6 +4090,169 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 }
 
+/*
+ * Input: offscreenBuffer (resolved here)
+ * Output: offscreenBufferPost
+ */
+void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
+	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
+	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+	static float iTime = 0.0f;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	D3D11_VIEWPORT viewport{};
+
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR) {
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	}
+
+	resources->InitPixelShader(resources->_laserPointerPS);
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetHyperspaceViewMatrix();
+	g_LaserPointerBuffer.x0 = x0;
+	g_LaserPointerBuffer.y0 = y0;
+	g_LaserPointerBuffer.x1 = x1;
+	g_LaserPointerBuffer.y1 = y1;
+	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferHyperspace(resources->_laserPointerConstantBuffer.GetAddressOf(), 
+		(ShadertoyCBuffer *)&g_LaserPointerBuffer);
+
+	{
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
+		g_VSCBuffer.z_override = -1.0f;
+		g_VSCBuffer.sz_override = -1.0f;
+		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.bPreventTransform = 0.0f;
+		g_VSCBuffer.bFullTransform = 0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+		//g_VSCBuffer.viewportScale[3] = 1.0f;
+		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			// The original (non-VR) code used _vertexShader:
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRV:
+		context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+		context->Draw(6, 0);
+
+		// Render the right image
+		if (g_bEnableVR) {
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			if (g_bUseSteamVR) {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+			} 
+			else {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+			}
+			context->Draw(6, 0);
+		}
+	}
+
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
+	resources->InitViewport(lastViewport);
+	if (lastTextureSelected != NULL) {
+		lastTextureSelected->_refCount++;
+		context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+		lastTextureSelected->_refCount--;
+	}
+	resources->InitInputLayout(resources->_inputLayout);
+	if (g_bEnableVR)
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+	else
+		this->_deviceResources->InitVertexShader(resources->_vertexShader);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitPixelShader(lastPixelShader);
+	resources->InitRasterizerState(resources->_rasterizerState);
+	if (lastVertexBuffer != NULL)
+		resources->InitVertexBuffer(&lastVertexBuffer, lastVertexBufStride, lastVertexBufOffset);
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+}
 
 /* Convenience function to call WaitGetPoses() */
 inline void WaitGetPoses() {
@@ -4682,6 +4841,11 @@ HRESULT PrimarySurface::Flip(
 					g_bDumpBloomBuffers = false;
 				}*/
 				// DEBUG
+			}
+
+			if (g_bUseLaserPointer) {
+				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
