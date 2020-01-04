@@ -5,7 +5,9 @@
  * Adapted for XWA by Leo Reyes.
  * Licensed under the MIT license. See LICENSE.txt
  */
- // The Foreground 3D position buffer (linear X,Y,Z)
+#include "..\shader_common.h"
+
+// The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
 
@@ -28,10 +30,6 @@ SamplerState sampSSAOMask : register(s4);
 // The bloom mask
 Texture2D    texBloomMask  : register(t5);
 SamplerState sampBloomMask : register(s5);
-
-#define INFINITY_Z0 15000
-#define INFINITY_Z1 20000
-#define INFINITY_FADEOUT_RANGE 5000
 
 //static float3 invLightColor = float3(0.058279, 0.069624, 0.085897);
 //static float3 invLightColor = float3(1, 0, 0);

@@ -8,6 +8,7 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
 
  // The color buffer
@@ -186,8 +187,6 @@ float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt)
 	float4 vf = ((vh * va + 0.004f) / ((vh * (va + 0.55f) + 0.0491f))) - 0.0821f;
 	return vf.rgb / vf.www;
 }
-
-static float METRIC_SCALE_FACTOR = 25.0;
 
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;

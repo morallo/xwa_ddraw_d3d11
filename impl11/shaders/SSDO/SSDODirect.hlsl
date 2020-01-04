@@ -4,6 +4,8 @@
  * Adapted for XWA by Leo Reyes.
  * Licensed under the MIT license. See LICENSE.txt
  */
+#include "..\shader_common.h"
+
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
@@ -27,11 +29,6 @@ SamplerState sampSSAOMask : register(s4);
 // The bloom mask
 Texture2D    texBloomMask  : register(t5);
 SamplerState sampBloomMask : register(s5);
-
-#define INFINITY_Z0 15000
-#define INFINITY_Z1 20000
-#define INFINITY_FADEOUT_RANGE 5000
-static float METRIC_SCALE_FACTOR = 25.0;
 
 struct PixelShaderInput
 {

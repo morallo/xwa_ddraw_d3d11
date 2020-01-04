@@ -7,6 +7,7 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
 
  // The color buffer
@@ -102,8 +103,11 @@ struct PixelShaderInput
 	float2 uv : TEXCOORD;
 };
 
-static float METRIC_SCALE_FACTOR = 25.0;
-
+// (Sorry, don't remember very well) I think this function projects a 3D point back
+// into 2D and then converts the 2D coord into its equivalent UV-coord used in post
+// processing. This function is going to be useful to project 3D into 2D when trying
+// to make iteractions with controllers in VR or just when adding extra geometry to
+// the game later on.
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
 	float w = P.z / METRIC_SCALE_FACTOR;

@@ -1,12 +1,11 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
+#include "shader_common.h"
 #include "HSV.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
-
-static float METRIC_SCALE_FACTOR = 25.0;
 
 static float3 Light = float3(0.9, 1.0, 0.6);
 static float3 ambient_col = float3(0.025, 0.025, 0.03);

@@ -3,6 +3,7 @@
 // https://www.gamedev.net/articles/programming/graphics/a-simple-and-practical-approach-to-ssao-r2753/
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
+#include "..\shader_common.h"
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -23,10 +24,6 @@ SamplerState sampColor : register(s3);
 // The SSDO buffer with direct lighting from the previous pass
 Texture2D    texSSDO  : register(t4);
 SamplerState sampSSDO : register(s4);
-
-#define INFINITY_Z0 15000
-#define INFINITY_Z1 20000
-#define INFINITY_FADEOUT_RANGE 5000
 
 struct PixelShaderInput
 {

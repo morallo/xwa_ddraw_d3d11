@@ -1,8 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for SSAO by Leo Reyes, 2019
-
-static float METRIC_SCALE_FACTOR = 25.0;
+#include "shader_common.h"
 
 cbuffer ConstantBuffer : register(b0)
 {
