@@ -671,7 +671,7 @@ void Direct3DTexture::TagTexture() {
 		}
 		
 		if (g_bUseLaserPointer) {
-			if (this->is_CockpitTex && this->is_LightTexture) 
+			if (this->is_CockpitTex && !this->is_LightTexture) 
 			{
 				//if (strstr(surface->_name, "Tex00095") != NULL)
 				{

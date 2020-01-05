@@ -255,10 +255,9 @@ typedef struct LaserPointerCBStruct {
 	Matrix4 viewMat; // The view rotation matrix
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 32 + 64 = 96 bytes
-	float contOrigin[4];
+	float contOrigin[2], intersection[2];
 	// 112 bytes
-	float intersection[3];
-	int bIntersection;
+	int bContOrigin, bIntersection, unusedA[2];
 	// 128 bytes
 } LaserPointerCBuffer;
 

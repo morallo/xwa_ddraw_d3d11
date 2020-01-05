@@ -41,6 +41,8 @@ extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 // ACTIVE COCKPIT
 extern bool g_bUseLaserPointer;
 extern Vector4 g_contOrigin;
+extern Vector3 g_LaserPointerIntersection;
+inline Vector3 project(Vector3 pos3D);
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
@@ -4107,6 +4109,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	static float iTime = 0.0f;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	D3D11_VIEWPORT viewport{};
+	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
+	// because this is a post-process effect
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR) {
@@ -4123,9 +4127,26 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.y1 = y1;
 	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
-	g_LaserPointerBuffer.contOrigin[0] = g_contOrigin.x;
-	g_LaserPointerBuffer.contOrigin[1] = g_contOrigin.y;
-	g_LaserPointerBuffer.contOrigin[2] = g_contOrigin.z;
+	//g_LaserPointerBuffer.contOrigin[0] = g_contOrigin.x;
+	//g_LaserPointerBuffer.contOrigin[1] = g_contOrigin.y;
+	//g_LaserPointerBuffer.contOrigin[2] = g_contOrigin.z;
+	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
+	// Project the controller's position:
+	if (g_contOrigin[2] >= 0.001f) {
+		Vector3 pos3D = Vector3(g_contOrigin[0], g_contOrigin[1], g_contOrigin[2]);
+		Vector3 p = project(pos3D);
+		g_LaserPointerBuffer.contOrigin[0] = p[0];
+		g_LaserPointerBuffer.contOrigin[1] = p[1];
+		g_LaserPointerBuffer.bContOrigin = 1;
+		//log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
+		//	g_contOrigin[0], g_contOrigin[1], g_contOrigin[2],
+		//	p[0], p[1]);
+	}
+	else {
+		g_LaserPointerBuffer.bContOrigin = 0;
+		//log_debug("[DBG] [AC] NO contOrigin");
+	}
+
 	resources->InitPSConstantBufferHyperspace(resources->_laserPointerConstantBuffer.GetAddressOf(), 
 		(ShadertoyCBuffer *)&g_LaserPointerBuffer);
 
@@ -4238,6 +4259,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
+	// Don't restore anything... whatever!
+	//goto out;
+
+	/*
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
 	resources->InitViewport(lastViewport);
 	if (lastTextureSelected != NULL) {
@@ -4257,6 +4282,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		resources->InitVertexBuffer(&lastVertexBuffer, lastVertexBufStride, lastVertexBufOffset);
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+out:
+*/
 }
 
 /* Convenience function to call WaitGetPoses() */
@@ -4849,7 +4876,13 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the Laser Pointer for VR
-			if (g_bRendering3D && g_bUseLaserPointer) {
+			if (g_bUseLaserPointer && g_bRendering3D 
+				/* &&				
+				(PlayerDataTable[0].cockpitDisplayed || 
+				 PlayerDataTable[0].gunnerTurretActive ||
+				 PlayerDataTable[0].cockpitDisplayed2) */
+			   ) 
+			{
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
@@ -4931,10 +4964,10 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDumpSSAOBuffers)
 				g_bDumpSSAOBuffers = false;
 
-			// Reset the intersection
+			// Reset the laser pointer intersection
 			if (g_bUseLaserPointer) {
 				g_LaserPointerBuffer.bIntersection = false;
-				g_LaserPointerBuffer.intersection[2] = 10000.0f;
+				g_LaserPointerIntersection[2] = 10000.0f;
 			}
 
 //#define HYPER_OVERRIDE 1

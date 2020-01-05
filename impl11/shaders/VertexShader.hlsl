@@ -74,8 +74,11 @@ PixelShaderInput main(VertexShaderInput input)
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
-	temp.xy += float2(-0.5, 0.5);
-	
+	//temp.xy += float2(-0.5, 0.5); // Is this wrong? Should this be -1.0 and 1.0 instead?
+	temp.xy += float2(-1.0, 1.0); // YES: it should be -1.0,1.0 instead because the code adds
+								  // a factor of 2 now 0,0 is centered on the screen
+								  // I need to check *several* places to fix this as well
+
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)

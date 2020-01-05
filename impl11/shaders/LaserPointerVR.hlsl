@@ -14,10 +14,11 @@ cbuffer ConstantBuffer : register(b7)
 	// 32 bytes
 	matrix viewMat;
 	// 96 bytes
-	float4 contOrigin;
+	float2 contOrigin, intersection;
 	// 112 bytes
-	float3 intersection;
+	bool bContOrigin; // True if contOring is valid
 	bool bIntersection; // True if there is an intersection to display
+	int unusedA1, unusedA2;
 	// 128 bytes
 };
 
@@ -26,16 +27,24 @@ cbuffer ConstantBuffer : register(b7)
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
 
+/*
 static const vec3 lig = normalize(vec3(0.5, 0.0, -0.7));
 
 float sdSphere(in vec3 p, in vec3 center, float radius)
 {
 	return length(p - center) - radius;
 }
+*/
+
+float sdCircle(in vec2 p, in vec2 center, float radius)
+{
+	return length(p - center) - radius;
+}
 
 //=====================================================
 
-float map(in vec3 p)
+/*
+float map3D(in vec3 p)
 {
 	//float d = sdSphere(p, contOrigin.xyz, 0.05);
 	float d = 10000.0;
@@ -43,7 +52,20 @@ float map(in vec3 p)
 		d = min(d, sdSphere(p, intersection, 0.03));
 	return d;
 }
+*/
 
+float map(in vec2 p)
+{
+	float d = 10000.0;
+	if (bIntersection)
+		d = sdCircle(p, intersection, 0.01);
+	//if (bContOrigin)
+	//	d = sdCircle(p, contOrigin, 0.02);
+	//d = sdCircle(p, vec2(0.5, 0.5), 0.02);
+	return d;
+}
+
+/*
 float intersect(in vec3 ro, in vec3 rd)
 {
 	const float maxd = 10.0;
@@ -70,6 +92,7 @@ vec3 calcNormal(in vec3 pos)
 		map(pos + eps.yxy) - map(pos - eps.yxy),
 		map(pos + eps.yyx) - map(pos - eps.yyx)));
 }
+*/
 
 struct PixelShaderInput
 {
@@ -101,36 +124,28 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	float3 bgColor = colorTex.Sample(colorSampler, input.uv).xyz;
 
-	vec2 p = (-iResolution.xy + 2.0 * fragCoord) / iResolution.y;
-
-	vec3 ro = vec3(0.0, 0.0, -1.0);
-	vec3 rd = normalize(vec3(p, 1.0));
+	//vec2 p = fragCoord / iResolution.xy;
+	vec2 p = input.uv;
 
 	vec3 diff_col = vec3(0.9, 0.6, 0.3);
-	vec3 spec_col = vec3(1.0, 1.0, 1.0);
-	float ambient = 0.03;
 	vec3 col = 0.0;
-	vec3 eye = ro;
 
-	float t = intersect(ro, rd);
-	if (t > 0.0)
+	// DEBUG
+	//output.color = float4(p, 0, 1);
+	//return output;
+	// DEBUG
+
+	//float t = intersect(ro, rd);
+	float t = map(p);
+	if (t < 0.001)
 	{
-		vec3 pos = ro + t * rd;
-		vec3 nor = calcNormal(pos);
-		vec3 eye_vec = normalize(eye - pos);
-		vec3 refl_vec = normalize(reflect(-lig, nor));
-		// Diffuse component
-		col = diff_col * clamp(dot(nor, lig), 0.0, 1.0);
-		// Specular component
-		float spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
-		col += spec_col * pow(spec, 16.0);
-		// Ambient component
-		col += ambient;
+		col = float3(1.0, 0.0, 0.0);
 		// Gamma correction
-		col = pow(clamp(col, 0.0, 1.0), 0.45);
+		//col = pow(clamp(col, 0.0, 1.0), 0.45);
 	}
 	else
 		col = bgColor;
+	col.b += 0.1;
 
 	//fragColor = vec4(col, 1.0);
 	output.color = vec4(col, 1.0);

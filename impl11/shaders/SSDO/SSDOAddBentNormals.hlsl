@@ -194,7 +194,9 @@ inline float2 projectToUV(in float3 pos3D) {
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
 	// (-1,-1)-(1, 1)
 	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
-	P.xy -= float2(-0.5, 0.5);
+	//P.xy -= float2(-0.5, 0.5); // Is this wrong? I think the y axis is inverted, so adding 0.5 would be fine (?)
+	P.xy -= float2(-1.0, 1.0); // DirectSBS may be different
+	//P.xy -= float2(-0.5, -0.5);
 	P.xy /= vpScale.xy;
 	// We now have P = input.pos
 	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;

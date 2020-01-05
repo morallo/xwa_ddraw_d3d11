@@ -265,6 +265,7 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 // ACTIVE COCKPIT
 Vector4 g_contOrigin = Vector4(0, 0, 0, 1); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirection = Vector4(0, 0, 1, 0); // The direction in which the controller is pointing, in view-space coords
+Vector3 g_LaserPointerIntersection = Vector3(0, 0, 10000.0f);
 bool g_bUseLaserPointer = true; // TODO: Make this toggleable through the CFG file
 
 /*********************************************************/
@@ -3236,6 +3237,10 @@ HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	return hr;
 }
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 // Should this function be inlined?
 // See:
 // xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
@@ -3419,7 +3424,7 @@ bool rayTriangleIntersect(
 }
 
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
-// into 3D, just like we do in the VerteShader or SBS VertexShader:
+// into 3D, just like we do in the VertexShader or SBS VertexShader:
 inline void backProject(WORD index, Vector3 *P) {
 	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
 	// This code comes from VertexShader.hlsl
@@ -3431,9 +3436,16 @@ inline void backProject(WORD index, Vector3 *P) {
 	//temp.xy *= vpScale.xy;
 	temp.x *= g_VSCBuffer.viewportScale[0];
 	temp.y *= g_VSCBuffer.viewportScale[1];
+	// temp.x is now normalized to the range (0,  2)
+	// temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// temp.xy += float2(-0.5, 0.5);
-	temp.x -= 0.5f;
-	temp.y += 0.5f;
+	//temp.x -= 0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+	//temp.y += 0.5f;
+	temp.x -= 1.0f;
+	temp.y += 1.0f;
+
+	// temp.x is now in the range -0.5 ..  0.5 and
+	// temp.y is now in the range  0.5 .. -0.5
 	// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 	temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 	temp.y *= g_VSCBuffer.viewportScale[2];
@@ -3447,35 +3459,56 @@ inline void backProject(WORD index, Vector3 *P) {
 	P->z = temp.z;
 }
 
-/*
-// Projects a 3D point to 2D for display directly as a post-process effect.
-inline void project(Vector3 P, Vector3 *P_out) {
-	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
-	// This code comes from VertexShader.hlsl
-	float3 temp;
-	// float3 temp = input.pos.xyz;
-	temp.x = g_OrigVerts[index].sx;
-	temp.y = g_OrigVerts[index].sy;
-	// Normalize into the -0.5..0.5 range
-	//temp.xy *= vpScale.xy;
-	temp.x *= g_VSCBuffer.viewportScale[0];
-	temp.y *= g_VSCBuffer.viewportScale[1];
-	// temp.xy += float2(-0.5, 0.5);
-	temp.x -= 0.5f;
-	temp.y += 0.5f;
-	// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
-	temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-	temp.y *= g_VSCBuffer.viewportScale[2];
-	// temp.z = METRIC_SCALE_FACTOR * w;
-	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
-	// I'm going to skip the overrides because they don't apply to cockpit textures...
-	// The back-projection into 3D is now very simple:
-	//float3 P = float3(temp.z * temp.xy, temp.z);
-	P->x = temp.z * temp.x;
-	P->y = temp.z * temp.y;
-	P->z = temp.z;
+inline Vector3 project(Vector3 pos3D)
+{
+	// (x0,y0)-(x1,y1) are the viewport limits
+	float x0 = g_LaserPointerBuffer.x0;
+	float y0 = g_LaserPointerBuffer.y0;
+	float x1 = g_LaserPointerBuffer.x1;
+	float y1 = g_LaserPointerBuffer.y1;
+	Vector3 P = pos3D;
+	float w = P.z / (float)METRIC_SCALE_FACTOR;
+	// P.xy = P.xy / P.z;
+	P.x = P.x / P.z;
+	P.y = P.y / P.z;
+	// Convert to vertex pos:
+	// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+	P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+	P.y /= g_VSCBuffer.viewportScale[2];
+	//P.xy -= float2(-0.5, 0.5);
+	//P.x -= -0.5f;
+	//P.y -=  0.5f;
+	P.x -= -1.0f;
+	P.y -=  1.0f;
+
+	// P.xy /= vpScale.xy;
+	P.x /= g_VSCBuffer.viewportScale[0];
+	P.y /= g_VSCBuffer.viewportScale[1];
+	P.z = 1.0f / w; // Not necessary, this computes the original rhw
+	// P is now in in-game coordinates (CONFIRMED!), where:
+	// (0,0) is the upper-left *original* viewport corner, and:
+	// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+	// Note that the *original* viewport does not necessarily cover the whole screen
+	//return P;
+
+	// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
+	// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
+
+	// The following lines are simply implementing the following formulas used in the VertexShader:
+	//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+	//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+	P.x = (P.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+	P.y = (P.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+	// P.x is now in -1 ..  1
+	// P.y is now in  1 .. -1
+
+	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
+	// Now convert to UV coords: (0, 1)-(1, 0):
+	// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
+	P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
+	P.y = lerp(y0, y1, (P.y + 1.0f) / 2.0f);
+	return P;
 }
-*/
 
 bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex,
 	Vector3 orig, Vector3 dir, float *t, bool debug) 
@@ -3499,8 +3532,11 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &v0);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
-				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+			Vector3 q = project(v0);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f / vert.rhw, 
+				v0.x, v0.y, v0.z, 
+				q.x, q.y, 1.0f/q.z);
 		}
 
 		index = triangle->v2;
@@ -3509,8 +3545,11 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &v1);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
-				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+			Vector3 q = project(v1);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f/vert.rhw, 
+				v1.x, v1.y, v1.z, 
+				q.x, q.y, 1.0f / q.z);
 		}
 
 		index = triangle->v3;
@@ -3519,8 +3558,11 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &v2);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			log_debug("[DBG] 2D: %0.3f, %0.3f --> (%0.3f, %0.3f, %0.3f)",
-				vert.sx, vert.sy, v0.x, v0.y, v0.z);
+			Vector3 q = project(v2);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f / vert.rhw,
+				v2.x, v2.y, v2.z, 
+				q.x, q.y, 1.0f / q.z);
 		}
 
 		// Check the intersection with this triangle
@@ -3540,10 +3582,6 @@ inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, f
 {
 	*x_out = left + x / g_fCurInGameWidth  * width;
 	*y_out = top  + y / g_fCurInGameHeight * height;
-}
-
-inline float lerp(float x, float y, float s) {
-	return x + s * (y - x);
 }
 
 /*
@@ -3814,8 +3852,11 @@ HRESULT Direct3DDevice::Execute(
 		} else {
 			g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
+			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
+			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
 		}
 		g_VSCBuffer.viewportScale[2] = scale;
+		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
@@ -4700,18 +4741,25 @@ HRESULT Direct3DDevice::Execute(
 					bIntersection = 	IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t);
 					if (bIntersection) {
 						float intersection[3];
+						Vector3 pos2D;
+
 						intersection[0] = orig.x + t * dir.x;
 						intersection[1] = orig.y + t * dir.y;
 						intersection[2] = orig.z + t * dir.z;
 
-						if (intersection[2] < g_LaserPointerBuffer.intersection[2]) {
-							g_LaserPointerBuffer.intersection[0] = intersection[0];
-							g_LaserPointerBuffer.intersection[1] = intersection[1];
-							g_LaserPointerBuffer.intersection[2] = intersection[2];
+						if (intersection[2] < g_LaserPointerIntersection[2]) {
+							g_LaserPointerIntersection[0] = intersection[0];
+							g_LaserPointerIntersection[1] = intersection[1];
+							g_LaserPointerIntersection[2] = intersection[2];
+							// Project to 2D
+							pos2D = project(g_LaserPointerIntersection);
+							g_LaserPointerBuffer.intersection[0] = pos2D[0];
+							g_LaserPointerBuffer.intersection[1] = pos2D[1];
 							g_LaserPointerBuffer.bIntersection = 1;
 
-							//log_debug("[DBG] [AC] Intersection: %0.3f, %0.3f, %0.3f",
-							//	g_LaserPointerBuffer.intersection[0], g_LaserPointerBuffer.intersection[1], g_LaserPointerBuffer.intersection[2]);
+							//log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+							//	g_LaserPointerIntersection[0], g_LaserPointerIntersection[1], g_LaserPointerIntersection[2],
+							//	pos2D[0], pos2D[1]);
 						}
 					}
 				}
