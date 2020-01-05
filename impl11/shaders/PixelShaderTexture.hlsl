@@ -7,7 +7,16 @@
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-static float3 Light = float3(0.9, 1.0, 0.6);
+// pos3D/Depth buffer has the following coords:
+// X+: Right
+// Y+: Up
+// Z+: Away from the camera
+// (0,0,0) is the camera center, (0,0,Z) is the center of the screen
+
+#define diffuse_intensity 0.95
+
+static float3 light_dir = float3(0.9, 1.0, -0.8);
+#define ambient 0.03
 static float3 ambient_col = float3(0.025, 0.025, 0.03);
 //static float3 ambient_col = float3(0.10, 0.10, 0.15);
 
@@ -54,21 +63,22 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	float alpha = texelColor.w;
-	float3 diffuse = input.color.xyz;
-	float3 P = input.pos3D.xyz;
-	float SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float  alpha		  = texelColor.w;
+	float3 diffuse    = input.color.xyz;
+	float3 P			  = input.pos3D.xyz;
+	float  SSAOAlpha  = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
 	output.bloom = 0;
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	
 	// Original code:
-	float3 N = normalize(cross(ddx(P), ddy(P)));
+	//float3 N = normalize(cross(ddx(P), ddy(P)));
 
 	// hook_normals code:
 	//float3 N = normalize(input.normal.xyz);
-	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
@@ -185,42 +195,55 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 
-	/*
 	// hook_normals code:
 	if (input.normal.w > 0.0) {
 		// DEBUG
 		//output.color.xyz = input.normal.xyz;
+		// X+ is to the right: the light comes from the right
+		//output.color.xyz = input.normal.xxx;
+		// Y+ is down: the light comes from below
+		//output.color.xyz = input.normal.yyy;
+		// Z+ is away from the camera: the light comes from far away (behind the objects in the tech room)
+		//output.color.xyz = input.normal.zzz;
 		//output.color.w = alpha;
 		//return output;
 		// DEBUG
 
-		float3 L = normalize(Light);
-		//output.color = float4(N, 1.0);
+		float3 L = normalize(light_dir);
 
 		// Gamma
-		//texelColor.xyz = pow(clamp(texelColor.xyz, 0.0, 1.0), 2.2);
+		texelColor.xyz = pow(clamp(texelColor.xyz, 0.0, 1.0), 2.2);
 
 		// diffuse component
 		float diffuse = clamp(dot(N, L), 0.0, 1.0);
+		diffuse *= diffuse_intensity;
 		// specular component
-		float3 eye = float3(0.0, 0.0, -2.0);
-		float3 spec_col = texelColor.xyz;
+		float3 eye = float3(0.0, 0.0, 0.0);
+		//float3 spec_col = texelColor.xyz;
+		float3 spec_col = 0.35;
 		float3 eye_vec  = normalize(eye - P);
 		float3 refl_vec = normalize(reflect(-L, N));
-		float spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
-		spec = pow(spec, 10.0);
+		float  spec     = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
+		float  exponent = 10.0;
+		if (alpha < 0.95) { // Transparent polygons --> glass
+			exponent = 80.0;
+			spec_col = 1.0;
+		}
+		spec = pow(spec, exponent);
+		if (alpha < 0.95) alpha += 2.0 * spec; // Make specular reflections on glass more visible
 		
-		output.color = float4(ambient_col + diffuse * texelColor.xyz + spec_col * spec, texelColor.w);
+		//output.color = float4((ambient_col + diffuse) * texelColor.xyz + spec_col * spec, texelColor.w);
+		//output.color = float4((ambient_col + diffuse) * texelColor.xyz, texelColor.w);
+		output.color = float4((ambient + diffuse) * texelColor.xyz + spec * spec_col, alpha);
 		//output.color.xyz = N * 0.5 + 0.5;
 
 		// Gamma
-		//output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
+		output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
 
 		output.color.xyz *= brightness;
 	} 
 	else
 		output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	*/
 
 	return output;
 }
