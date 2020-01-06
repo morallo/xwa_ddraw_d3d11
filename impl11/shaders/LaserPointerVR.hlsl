@@ -41,6 +41,13 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 	return length(p - center) - radius;
 }
 
+float sdLine(in vec2 p, in vec2 a, in vec2 b)
+{
+	vec2 pa = p - a, ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+
 //=====================================================
 
 /*
@@ -57,11 +64,12 @@ float map3D(in vec3 p)
 float map(in vec2 p)
 {
 	float d = 10000.0;
-	if (bIntersection)
-		d = sdCircle(p, intersection, 0.01);
-	//if (bContOrigin)
-	//	d = sdCircle(p, contOrigin, 0.02);
-	//d = sdCircle(p, vec2(0.5, 0.5), 0.02);
+	if (bIntersection) {
+		d = sdCircle(p, intersection, 0.0025);
+		d = min(d, sdLine(p, contOrigin, intersection) - 0.001);
+	}
+	if (bContOrigin)
+		d = min(d, sdCircle(p, contOrigin, 0.0075));
 	return d;
 }
 
@@ -139,13 +147,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float t = map(p);
 	if (t < 0.001)
 	{
-		col = float3(1.0, 0.0, 0.0);
+		float3 pointer_col = bIntersection ? float3(1.0, 0.0, 0.0) : float3(0.7, 0.7, 0.7);
+		col = lerp(bgColor, pointer_col, 0.5);
 		// Gamma correction
 		//col = pow(clamp(col, 0.0, 1.0), 0.45);
 	}
 	else
 		col = bgColor;
-	col.b += 0.1;
+	//col.b += 0.1;
 
 	//fragColor = vec4(col, 1.0);
 	output.color = vec4(col, 1.0);

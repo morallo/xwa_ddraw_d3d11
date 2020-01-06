@@ -76,7 +76,9 @@ extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 // DEBUG
 
+// ACTIVE COCKPIT
 extern Vector4 g_contOrigin;
+extern bool g_bUseLaserPointer;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -284,6 +286,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'H':
 				ToggleCockpitPZHack();
 				return 0;
+			case 'Q':
+				g_bUseLaserPointer = !g_bUseLaserPointer;
+				return 0;
 
 			/*
 			case 'P': 
@@ -439,7 +444,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOrigin.set(0, 0, 0, 1);
+				g_contOrigin.set(0, 0, 0.2f, 1);
 				break;
 			}
 		}

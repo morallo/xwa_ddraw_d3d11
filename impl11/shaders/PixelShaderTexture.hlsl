@@ -79,6 +79,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 N = normalize(input.normal.xyz);
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	// N *= input.normal.w; // Zero-out normals when w == 0 ?
 	
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
@@ -220,13 +221,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		// specular component
 		float3 eye = float3(0.0, 0.0, 0.0);
 		//float3 spec_col = texelColor.xyz;
-		float3 spec_col = 0.35;
+		float3 spec_col = clamp(1.5 * texelColor.xyz, 0.0, 1.0);
+		//float3 spec_col = 0.35;
 		float3 eye_vec  = normalize(eye - P);
 		float3 refl_vec = normalize(reflect(-L, N));
 		float  spec     = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
 		float  exponent = 10.0;
 		if (alpha < 0.95) { // Transparent polygons --> glass
-			exponent = 80.0;
+			exponent = 128.0;
 			spec_col = 1.0;
 		}
 		spec = pow(spec, exponent);
@@ -241,9 +243,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
 
 		output.color.xyz *= brightness;
-	} 
-	else
+	} else {
+		// Objects without normals don't need to go gamma correction, we would exp(color, 2.2)
+		// only to do exp(color, 0.45), so no need to do that as it will cancel itself out.
 		output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	}
 
 	return output;
 }
