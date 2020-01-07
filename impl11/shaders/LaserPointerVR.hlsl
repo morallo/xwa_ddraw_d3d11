@@ -16,10 +16,13 @@ cbuffer ConstantBuffer : register(b7)
 	// 96 bytes
 	float2 contOrigin, intersection;
 	// 112 bytes
-	bool bContOrigin; // True if contOring is valid
+	bool bContOrigin; // True if contOrigin is valid
 	bool bIntersection; // True if there is an intersection to display
-	int unusedA1, unusedA2;
+	float2 debugPoint;
 	// 128 bytes
+	float2 v0, v1; // DEBUG
+	// 144 bytes
+	float2 v2, uv; // DEBUG
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -48,6 +51,20 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b)
 	return length(pa - ba * h);
 }
 
+float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
+{
+	vec2 e0 = p1 - p0, e1 = p2 - p1, e2 = p0 - p2;
+	vec2 v0 = p - p0, v1 = p - p1, v2 = p - p2;
+	vec2 pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
+	vec2 pq1 = v1 - e1 * clamp(dot(v1, e1) / dot(e1, e1), 0.0, 1.0);
+	vec2 pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
+	float s = sign(e0.x*e2.y - e0.y*e2.x);
+	vec2 d = min(min(vec2(dot(pq0, pq0), s*(v0.x*e0.y - v0.y*e0.x)),
+		vec2(dot(pq1, pq1), s*(v1.x*e1.y - v1.y*e1.x))),
+		vec2(dot(pq2, pq2), s*(v2.x*e2.y - v2.y*e2.x)));
+	return -sqrt(d.x)*sign(d.y);
+}
+
 //=====================================================
 
 /*
@@ -64,13 +81,20 @@ float map3D(in vec3 p)
 float map(in vec2 p)
 {
 	float d = 10000.0;
-	if (bIntersection) {
+	if (bIntersection)
 		d = sdCircle(p, intersection, 0.0025);
-		d = min(d, sdLine(p, contOrigin, intersection) - 0.001);
-	}
 	if (bContOrigin)
 		d = min(d, sdCircle(p, contOrigin, 0.0075));
+	if (bContOrigin && bIntersection)
+		d = min(d, sdLine(p, contOrigin, intersection) - 0.001);
+	// Display the debug point too
+	d = min(d, sdCircle(p, debugPoint, 0.005));
 	return d;
+}
+
+float debug_map(in vec2 p) 
+{
+	return sdTriangle(p, v0, v1, v2);
 }
 
 /*
@@ -144,17 +168,22 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// DEBUG
 
 	//float t = intersect(ro, rd);
+	col = bgColor;
+
 	float t = map(p);
 	if (t < 0.001)
 	{
 		float3 pointer_col = bIntersection ? float3(1.0, 0.0, 0.0) : float3(0.7, 0.7, 0.7);
 		col = lerp(bgColor, pointer_col, 0.5);
-		// Gamma correction
-		//col = pow(clamp(col, 0.0, 1.0), 0.45);
 	}
-	else
-		col = bgColor;
+	
+	if (bIntersection && debug_map(p) < 0.001)
+		col = lerp(col, float3(uv, 0.5), 0.35);
+
 	//col.b += 0.1;
+
+	// Gamma correction
+	//col = pow(clamp(col, 0.0, 1.0), 0.45);
 
 	//fragColor = vec4(col, 1.0);
 	output.color = vec4(col, 1.0);

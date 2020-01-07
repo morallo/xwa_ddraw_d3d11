@@ -70,6 +70,9 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
 bool g_bShowXWARotation = false;
 
+extern bool bFreePIEAlreadyInitialized;
+void ShutdownFreePIE();
+
 // DEBUG
 enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
@@ -79,6 +82,8 @@ extern int g_iHyperStateOverride;
 // ACTIVE COCKPIT
 extern Vector4 g_contOrigin;
 extern bool g_bUseLaserPointer;
+extern float g_fLPdebugPointOffset;
+extern bool g_bDumpLaserPointerDebugInfo;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -173,14 +178,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y -= 0.05f;
+				g_contOrigin.y += 0.05f;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y += 0.05f;
+				g_contOrigin.y -= 0.05f;
 				return 0;
 			}
 		}
@@ -238,6 +243,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
+				return 0;
+			case 'F':
+				g_bDumpLaserPointerDebugInfo = true;
 				return 0;
 			// DEBUG
 			case 'P':
@@ -328,10 +336,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_contOrigin.z -= 0.05f;
 				return 0;
 			case VK_LEFT:
-				IncreaseLensK2(-0.1f);
+				//IncreaseLensK2(-0.1f);
+				g_fLPdebugPointOffset -= 0.05f;
+				if (g_fLPdebugPointOffset < 0.0f)
+					g_fLPdebugPointOffset = 0.0f;
 				return 0;
 			case VK_RIGHT:
-				IncreaseLensK2(0.1f);
+				//IncreaseLensK2(0.1f);
+				g_fLPdebugPointOffset += 0.05f;
 				return 0;
 			}
 		}
@@ -444,7 +456,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOrigin.set(0, 0, 0.2f, 1);
+				g_contOrigin.set(0.0f, 0.0f, 0.0f, 1);
 				break;
 			}
 		}
@@ -536,6 +548,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			ShutDownSteamVR();
 		else if (g_bEnableVR)
 			ShutDownDirectSBS();
+		// Generic FreePIE shutdown, just in case...
+		if (bFreePIEAlreadyInitialized)
+			ShutdownFreePIE();
 		break;
 	}
 

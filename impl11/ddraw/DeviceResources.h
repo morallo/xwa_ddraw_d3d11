@@ -257,8 +257,13 @@ typedef struct LaserPointerCBStruct {
 	// 32 + 64 = 96 bytes
 	float contOrigin[2], intersection[2];
 	// 112 bytes
-	int bContOrigin, bIntersection, unusedA[2];
+	int bContOrigin, bIntersection;
+	float debugPoint[2];
 	// 128 bytes
+	float v0[2], v1[2]; // DEBUG
+	// 144 bytes
+	float v2[2], uv[2]; // DEBUG
+	// 160
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */
@@ -418,6 +423,8 @@ public:
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+
+	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);

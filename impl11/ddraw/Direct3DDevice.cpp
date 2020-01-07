@@ -263,9 +263,16 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOrigin = Vector4(0, 0, 0.2f, 1); // This is the origin of the controller in 3D, in view-space coords
-Vector4 g_contDirection = Vector4(0, 0, 1, 0); // The direction in which the controller is pointing, in view-space coords
-Vector3 g_LaserPointerIntersection = Vector3(0, 0, 10000.0f);
+Vector4 g_contOrigin = Vector4(0.0f, 0.0f, 0.0f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contDirection = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
+Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
+float g_fBestIntersectionDistance = 10000.0f;
+float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+// DEBUG vars
+bool g_bDumpLaserPointerDebugInfo = false;
+Vector3 g_LPdebugPoint;
+float g_fLPdebugPointOffset = 0.0f;
+// DEBUG vars
 bool g_bUseLaserPointer = true; // TODO: Make this toggleable through the CFG file
 
 /*********************************************************/
@@ -346,6 +353,7 @@ float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
+int g_iFreePIEControllerSlot = -1;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 bool g_bDirectSBSInitialized = false;
@@ -1722,7 +1730,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
 			else if (_stricmp(param, "bent_normal_init") == 0) {
-				g_SSAO_PSCBuffer.bentNormalInit = fValue;
+				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Defaul: 0.2f
 			}
 			else if (_stricmp(param, "max_dist") == 0) {
 				g_SSAO_PSCBuffer.max_dist = fValue;
@@ -2119,46 +2127,20 @@ void LoadVRParams() {
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
 				g_iFreePIESlot = (int)fValue;
 			}
-			/*
-			else if (_stricmp(param, ROLL_MULTIPLIER_VRPARAM) == 0) {
-				g_fRollMultiplier = fValue;
+			else if (_stricmp(param, "freepie_controller_slot") == 0) {
+				g_iFreePIEControllerSlot = (int)fValue;
+				InitFreePIE();
 			}
-			else if (_stricmp(param, POS_X_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosXMultiplier = fValue;
+			else if (_stricmp(param, "controller_multiplier_x") == 0) {
+				g_fContMultiplierX = fValue;
 			}
-			else if (_stricmp(param, POS_Y_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosYMultiplier = fValue;
+			else if (_stricmp(param, "controller_multiplier_y") == 0) {
+				g_fContMultiplierY = fValue;
 			}
-			else if (_stricmp(param, POS_Z_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosZMultiplier = fValue;
+			else if (_stricmp(param, "controller_multiplier_z") == 0) {
+				g_fContMultiplierZ = fValue;
 			}
-
-			else if (_stricmp(param, MIN_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMinPositionX = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMaxPositionX = fValue;
-			}
-			else if (_stricmp(param, MIN_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMinPositionY = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMaxPositionY = fValue;
-			}
-			else if (_stricmp(param, MIN_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMinPositionZ = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMaxPositionZ = fValue;
-			}
-			*/
 			
-			/*else if (_stricmp(param, STEAMVR_POS_FROM_FREEPIE_VRPARAM) == 0) {
-				g_bSteamVRPosFromFreePIE = (bool)fValue;
-			}*/
-			/*else if (_stricmp(param, "cockpit_reference_scale") == 0) {
-				g_fCockpitReferenceScale = fValue;
-			}*/
 
 			param_read_count++;
 		}
@@ -3371,21 +3353,22 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
-	float &t)
+	float &t, Vector3 &P, float &u, float &v)
 {
 	// From https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/barycentric-coordinates
 	// compute plane's normal
 	Vector3 v0v1 = v1 - v0;
 	Vector3 v0v2 = v2 - v0;
 	// no need to normalize
 	Vector3 N = v0v1.cross(v0v2); // N 
-	float area2 = N.length();
+	float denom = N.dot(N);
 
 	// Step 1: finding P
 
 	// check if ray and plane are parallel ?
 	float NdotRayDirection = N.dot(dir);
-	if (fabs(NdotRayDirection) < 0.0001 /* kEpsilon */) // almost 0 
+	if (fabs(NdotRayDirection) < 0.00001 /* kEpsilon */) // almost 0 
 		return false; // they are parallel so they don't intersect ! 
 
 	// compute d parameter using equation 2
@@ -3394,10 +3377,10 @@ bool rayTriangleIntersect(
 	// compute t (equation 3)
 	t = (N.dot(orig) + d) / NdotRayDirection;
 	// check if the triangle is in behind the ray
-	if (t < 0) return false; // the triangle is behind 
+	if (t < 0) return false; // the triangle is behind
 
 	// compute the intersection point using equation 1
-	Vector3 P = orig + t * dir;
+	P = orig + t * dir;
 
 	// Step 2: inside-outside test
 	Vector3 C; // vector perpendicular to triangle's plane 
@@ -3412,13 +3395,16 @@ bool rayTriangleIntersect(
 	Vector3 edge1 = v2 - v1;
 	Vector3 vp1 = P - v1;
 	C = edge1.cross(vp1);
-	if (N.dot(C) < 0)  return false; // P is on the right side 
+	if ((u = N.dot(C)) < 0)  return false; // P is on the right side
 
 	// edge 2
 	Vector3 edge2 = v0 - v2;
 	Vector3 vp2 = P - v2;
 	C = edge2.cross(vp2);
-	if (N.dot(C) < 0) return false; // P is on the right side; 
+	if ((v = N.dot(C)) < 0) return false; // P is on the right side; 
+
+	u /= denom;
+	v /= denom;
 
 	return true; // this ray hits the triangle 
 }
@@ -3439,10 +3425,10 @@ inline void backProject(WORD index, Vector3 *P) {
 	// temp.x is now normalized to the range (0,  2)
 	// temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// temp.xy += float2(-0.5, 0.5);
-	//temp.x -= 0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-	//temp.y += 0.5f;
-	temp.x -= 1.0f;
-	temp.y += 1.0f;
+	//temp.x += -0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+	//temp.y +=  0.5f;
+	temp.x += -1.0f;
+	temp.y +=  1.0f;
 
 	// temp.x is now in the range -0.5 ..  0.5 and
 	// temp.y is now in the range  0.5 .. -0.5
@@ -3506,20 +3492,23 @@ inline Vector3 project(Vector3 pos3D)
 	// Now convert to UV coords: (0, 1)-(1, 0):
 	// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
 	P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
-	P.y = lerp(y0, y1, (P.y + 1.0f) / 2.0f);
+	P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
 	return P;
 }
 
 bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex,
-	Vector3 orig, Vector3 dir, float *t, bool debug) 
+	Vector3 orig, Vector3 dir, float *t, Vector3 *v0, Vector3 *v1, Vector3 *v2, 
+	Vector3 *P, float *u, float *v, bool debug) 
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	WORD index;
-	//float px, py; // u, v;
-	//float X, Y, Z;
-	Vector3 v0, v1, v2;
-	float t_temp;
+	float U0, V0, U1, V1, U2, V2;
+	float best_t = 10000.0f;
+	bool bIntersection = false;
+
+	Vector3 tempv0, tempv1, tempv2, tempP;
+	float tempt, tu, tv;
 
 	if (debug)
 		log_debug("[DBG] START Geom");
@@ -3528,54 +3517,63 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 	{
 		index = triangle->v1;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
-		backProject(index, &v0);
+		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
+		backProject(index, &tempv0);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(v0);
+			Vector3 q = project(tempv0);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f / vert.rhw, 
-				v0.x, v0.y, v0.z, 
+				vert.sx, vert.sy, 1.0f/vert.rhw, 
+				tempv0.x, tempv0.y, tempv0.z,
 				q.x, q.y, 1.0f/q.z);
 		}
 
 		index = triangle->v2;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
-		backProject(index, &v1);
+		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
+		backProject(index, &tempv1);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(v1);
+			Vector3 q = project(tempv1);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
-				v1.x, v1.y, v1.z, 
-				q.x, q.y, 1.0f / q.z);
+				tempv1.x, tempv1.y, tempv1.z,
+				q.x, q.y, 1.0f/q.z);
 		}
 
 		index = triangle->v3;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		//u = g_OrigVerts[index].tu; v = g_OrigVerts[index].tv;
-		backProject(index, &v2);
+		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
+		backProject(index, &tempv2);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(v2);
+			Vector3 q = project(tempv2);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f / vert.rhw,
-				v2.x, v2.y, v2.z, 
-				q.x, q.y, 1.0f / q.z);
+				vert.sx, vert.sy, 1.0f/vert.rhw,
+				tempv2.x, tempv2.y, tempv2.z,
+				q.x, q.y, 1.0f/q.z);
 		}
 
 		// Check the intersection with this triangle
-		if (rayTriangleIntersect(orig, dir, v0, v1, v2, t_temp)) {
-			*t = t_temp;
-			return true;
+		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
+		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv)) 
+		{
+			if (tempt < best_t) {
+				best_t = tempt;
+				*v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
+				*P = tempP;
+				// Interpolate the texture UV using the barycentric (tu, tv) coords:
+				*u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+				*v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+				bIntersection = true;
+			}
 		}
 		triangle++;
 	}
 
 	if (debug)
 		log_debug("[DBG] END Geom");
-	return false;
+	return bIntersection;
 }
 
 inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
@@ -4725,8 +4723,8 @@ HRESULT Direct3DDevice::Execute(
 
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bUseLaserPointer && bIsActiveCockpit) {
-					Vector3 orig, dir;
-					float t;
+					Vector3 orig, dir, v0, v1, v2, P;
+					float t, u, v;
 					bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
 
@@ -4737,29 +4735,40 @@ HRESULT Direct3DDevice::Execute(
 					dir.x = g_contDirection.x;
 					dir.y = g_contDirection.y;
 					dir.z = g_contDirection.z;
+
+					//log_debug("[DBG] [AC] dir: %0.3f, %0.3f, %0.3f", dir.x, dir.y, dir.z);
 					
-					bIntersection = 	IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t);
+					bIntersection = 	IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t,
+						&v0, &v1, &v2, &P, &u, &v);
 					if (bIntersection) {
-						float intersection[3];
 						Vector3 pos2D;
 
-						intersection[0] = orig.x + t * dir.x;
-						intersection[1] = orig.y + t * dir.y;
-						intersection[2] = orig.z + t * dir.z;
-
-						if (intersection[2] < g_LaserPointerIntersection[2]) {
-							g_LaserPointerIntersection[0] = intersection[0];
-							g_LaserPointerIntersection[1] = intersection[1];
-							g_LaserPointerIntersection[2] = intersection[2];
+						if (t < g_fBestIntersectionDistance)
+						{
+							
+							g_fBestIntersectionDistance = t;
+							g_LaserPointer3DIntersection = P;
 							// Project to 2D
-							pos2D = project(g_LaserPointerIntersection);
-							g_LaserPointerBuffer.intersection[0] = pos2D[0];
-							g_LaserPointerBuffer.intersection[1] = pos2D[1];
+							pos2D = project(g_LaserPointer3DIntersection);
+							g_LaserPointerBuffer.intersection[0] = pos2D.x;
+							g_LaserPointerBuffer.intersection[1] = pos2D.y;
+							g_LaserPointerBuffer.uv[0] = u;
+							g_LaserPointerBuffer.uv[1] = v;
 							g_LaserPointerBuffer.bIntersection = 1;
 
-							//log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-							//	g_LaserPointerIntersection[0], g_LaserPointerIntersection[1], g_LaserPointerIntersection[2],
-							//	pos2D[0], pos2D[1]);
+							// DEBUG
+							{
+								Vector3 q;
+								q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+								q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+								/*
+								log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+									g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
+									pos2D.x, pos2D.y);
+								*/
+							}
+							// DEBUG
 						}
 					}
 				}

@@ -12,11 +12,17 @@ freepie_io_6dof_read_fun_type freepie_io_6dof_read = NULL;
 bool bFreePIEInitialized = false;
 freepie_io_6dof_data g_FreePIEData;
 HMODULE hFreePIE = NULL;
+bool bFreePIEAlreadyInitialized = false;
 
 bool InitFreePIE() {
 	LONG lRes = ERROR_SUCCESS;
 	char regvalue[1024];
 	DWORD size = 1024;
+	if (bFreePIEAlreadyInitialized) 
+	{
+		log_debug("[DBG] FreePIE already initialized");
+		return true;
+	}
 	log_debug("[DBG] Initializing FreePIE");
 	bFreePIEInitialized = false;
 
@@ -55,13 +61,17 @@ bool InitFreePIE() {
 		return false;
 	}
 	bFreePIEInitialized = true;
+	bFreePIEAlreadyInitialized = true;
 	return true;
 }
 
 void ShutdownFreePIE() {
 	log_debug("[DBG] Shutting down FreePIE");
-	if (hFreePIE != NULL)
+	if (hFreePIE != NULL) {
 		FreeLibrary(hFreePIE);
+		hFreePIE = NULL;
+		bFreePIEAlreadyInitialized = false;
+	}
 }
 
 bool ReadFreePIE(int slot) {

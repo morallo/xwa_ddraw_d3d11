@@ -2453,8 +2453,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 128;
-	static_assert(sizeof(LaserPointerCBuffer) == 128, "sizeof(LaserPointerCBuffer) must be 128");
+	constantBufferDesc.ByteWidth = 160;
+	static_assert(sizeof(LaserPointerCBuffer) == 160, "sizeof(LaserPointerCBuffer) must be 160");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 
@@ -2827,6 +2827,16 @@ void DeviceResources::InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
 	static ShadertoyCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(ShadertoyCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
+}
+
+void DeviceResources::InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants)
+{
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static LaserPointerCBuffer currentPSConstants = { 0 };
 	static int sizeof_constants = sizeof(ShadertoyCBuffer);
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);

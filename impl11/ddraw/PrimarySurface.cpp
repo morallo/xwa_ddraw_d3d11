@@ -40,9 +40,17 @@ extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
 extern bool g_bUseLaserPointer;
-extern Vector4 g_contOrigin;
-extern Vector3 g_LaserPointerIntersection;
+extern Vector4 g_contOrigin, g_contDirection;
+extern Vector3 g_LaserPointer3DIntersection;
+extern float g_fBestIntersectionDistance;
 inline Vector3 project(Vector3 pos3D);
+extern int g_iFreePIEControllerSlot;
+extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+// DEBUG vars
+extern bool g_bDumpLaserPointerDebugInfo;
+extern Vector3 g_LPdebugPoint;
+extern float g_fLPdebugPointOffset;
+// DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
@@ -4108,9 +4116,29 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	static Vector3 referencePos = Vector3(0, 0, 0);
 	D3D11_VIEWPORT viewport{};
 	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
 	// because this is a post-process effect
+
+	if (g_iFreePIEControllerSlot > -1) {
+		if (!ReadFreePIE(g_iFreePIEControllerSlot))
+			log_debug("[DBG] [AC] Could not load FreePIE data from slot: %d", g_iFreePIEControllerSlot);
+		else {
+			if (g_bResetHeadCenter) {
+				referencePos.x = g_FreePIEData.x;
+				referencePos.y = g_FreePIEData.y;
+				referencePos.z = g_FreePIEData.z;
+				g_bResetHeadCenter = false;
+			}
+			g_contOrigin.x = g_FreePIEData.x - referencePos.x;
+			g_contOrigin.y = g_FreePIEData.y - referencePos.y;
+			g_contOrigin.z = g_FreePIEData.z - referencePos.z;
+			g_contOrigin.z = -g_contOrigin.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+			//log_debug("[DBG] [AC] g_contOrigin: %0.3f, %0.3f, %0.3f",
+			//	g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
+		}
+	}
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR) {
@@ -4127,28 +4155,60 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.y1 = y1;
 	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
-	//g_LaserPointerBuffer.contOrigin[0] = g_contOrigin.x;
-	//g_LaserPointerBuffer.contOrigin[1] = g_contOrigin.y;
-	//g_LaserPointerBuffer.contOrigin[2] = g_contOrigin.z;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
+	
+	// DEBUG
+	{
+		// Compute the debug point
+		g_LPdebugPoint[0] = g_contOrigin.x + g_fLPdebugPointOffset * g_contDirection.x;
+		g_LPdebugPoint[1] = g_contOrigin.y + g_fLPdebugPointOffset * g_contDirection.y;
+		g_LPdebugPoint[2] = g_contOrigin.z + g_fLPdebugPointOffset * g_contDirection.z;
+
+		// Project to 2D
+		Vector3 p = project(g_LPdebugPoint);
+		g_LaserPointerBuffer.debugPoint[0] = p.x;
+		g_LaserPointerBuffer.debugPoint[1] = p.y;
+	}
+	// DEBUG
 	// Project the controller's position:
 	if (g_contOrigin[2] >= 0.001f) {
-		Vector3 pos3D = Vector3(g_contOrigin[0], g_contOrigin[1], g_contOrigin[2]);
+		Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
 		Vector3 p = project(pos3D);
-		g_LaserPointerBuffer.contOrigin[0] = p[0];
-		g_LaserPointerBuffer.contOrigin[1] = p[1];
+		g_LaserPointerBuffer.contOrigin[0] = p.x;
+		g_LaserPointerBuffer.contOrigin[1] = p.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
-		//log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
-		//	g_contOrigin[0], g_contOrigin[1], g_contOrigin[2],
-		//	p[0], p[1]);
+		/*if (g_bDumpLaserPointerDebugInfo) {
+			log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
+				g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
+				p.x, p.y);
+		}*/
 	}
 	else {
 		g_LaserPointerBuffer.bContOrigin = 0;
-		//log_debug("[DBG] [AC] NO contOrigin");
+		/*if (g_bDumpLaserPointerDebugInfo)
+			log_debug("[DBG] [AC] NO contOrigin");*/
 	}
 
-	resources->InitPSConstantBufferHyperspace(resources->_laserPointerConstantBuffer.GetAddressOf(), 
-		(ShadertoyCBuffer *)&g_LaserPointerBuffer);
+	// Dump some debug info to see what's happening with the intersection
+	if (g_bDumpLaserPointerDebugInfo) {
+		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
+		Vector3 p = project(pos3D);
+		bool bIntersection = g_LaserPointerBuffer.bIntersection;
+		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
+		if (bIntersection) {
+			log_debug("[DBG] [AC] intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+				pos3D.x, pos3D.y, pos3D.z, p.x, p.y);
+		}
+		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
+		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirection.x, g_contDirection.y, g_contDirection.z);
+		log_debug("[DBG] [AC] Triangle, best t: %0.3f: ", g_fBestIntersectionDistance);
+		log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
+		log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
+		log_debug("[DBG] [AC] v2: (%0.3f, %0.3f)", g_LaserPointerBuffer.v2[0], g_LaserPointerBuffer.v2[1]);
+		g_bDumpLaserPointerDebugInfo = false;
+	}
+
+	resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
 
 	{
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4966,8 +5026,8 @@ HRESULT PrimarySurface::Flip(
 
 			// Reset the laser pointer intersection
 			if (g_bUseLaserPointer) {
-				g_LaserPointerBuffer.bIntersection = false;
-				g_LaserPointerIntersection[2] = 10000.0f;
+				g_LaserPointerBuffer.bIntersection = 0;
+				g_fBestIntersectionDistance = 10000.0f;
 			}
 
 //#define HYPER_OVERRIDE 1
