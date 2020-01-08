@@ -67,7 +67,7 @@ public:
 	// True for all skydomes ("*Cielo*") in DTM's planetary maps
 	bool is_SkydomeLight;
 	// True if this is an Active Cockpit texture for VR
-	bool is_ActiveCockpit;
+	int ActiveCockpitIdx;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures

@@ -340,7 +340,7 @@ typedef struct DCPixelShaderCBStruct {
 } DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
-	int src_slot[MAX_DC_COORDS];
+	int src_slot[MAX_DC_COORDS]; // This src slot references one of the pre-defined DC internal areas
 	uvfloat4 dst[MAX_DC_COORDS];
 	uint32_t uBGColor[MAX_DC_COORDS];
 	int numCoords;
@@ -362,6 +362,23 @@ typedef struct dc_element_struct {
 	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested;
 } dc_element;
+
+// ACTIVE COCKPIT
+#define MAX_AC_COORDS_PER_TEXTURE 16
+#define MAX_AC_TEXTURES 16
+#define MAX_ACTION_LEN 16 // Chars used to specify an action
+typedef struct ac_uv_coords_struct {
+	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
+	char action[MAX_ACTION_LEN];
+	int numCoords;
+} ac_uv_coords;
+
+typedef struct ac_element_struct {
+	ac_uv_coords coords;
+	int id; // Auto-generated ID to speed up testing against this texture while rendering
+	char name[MAX_TEXTURE_NAME];
+	bool bActive, bNameHasBeenTested;
+} ac_element;
 
 typedef struct move_region_coords_struct {
 	int region_slot[MAX_HUD_BOXES];
@@ -429,6 +446,7 @@ public:
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
+	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 

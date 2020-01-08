@@ -105,12 +105,17 @@ int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
 extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 extern VertexShaderMatrixCB g_VSMatrixCB;
+// DYNAMIC COCKPIT
 extern dc_element g_DCElements[];
 extern int g_iNumDCElements;
 extern char g_sCurrentCockpit[128];
-
 extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
+
+// ACTIVE COCKPIT
+extern bool g_bUseLaserPointer;
+extern ac_element g_ACElements[];
+extern int g_iNumACElements;
 
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
@@ -639,6 +644,14 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 	//DCElements.clear();
 }
 
+void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
+	for (int i = 0; i < size; i++) {
+		log_debug("[DBG] [AC] !!!! Releasing [%d][%s]", i, ACElements[i].name);
+		ACElements[i].name[0] = 0;
+	}
+	g_iNumACElements = 0;
+}
+
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 {
 	/*
@@ -740,6 +753,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputDynCockpitBG.Release();
 		this->_offscreenAsInputSRVDynCockpit.Release();
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
+	}
+
+	if (g_bUseLaserPointer) {
+		ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
 	}
 
 	// offscreenBufferBloomMask/AsInputBloomMask/SRV/RTVs are used for SSDO (and SSAO?)

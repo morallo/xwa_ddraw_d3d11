@@ -150,17 +150,22 @@ std::vector<char *> Trails_ResNames = {
 	"dat,21025,",
 };
 
+// DYNAMIC COCKPIT
 // g_DCElements is used when loading textures to load the cover texture.
 extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
 extern int g_iNumDCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
-
-extern bool g_bUseLaserPointer;
-
 bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
+
+// ACTIVE COCKPIT
+extern ac_element g_ACElement[MAX_AC_TEXTURES];
+extern int g_iNumACElements;
+extern bool g_bUseLaserPointer;
+bool LoadIndividualACParams(char *sFileName);
+void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
@@ -184,6 +189,15 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 	return -1;
 }
 
+int isInVector(char *name, ac_element *ac_elements, int num_elems) {
+	for (int i = 0; i < num_elems; i++) {
+		if (strstr(name, ac_elements[i].name) != NULL)
+			return i;
+	}
+	return -1;
+}
+
+/*
 bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
 	FILE *file;
 	int error = 0;
@@ -214,6 +228,7 @@ bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
 	fclose(file);
 	return true;
 }
+*/
 
 //
 //void ReloadCRCs() {
@@ -318,7 +333,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Missile = false;
 	this->is_GenericSSAOMasked = false;
 	this->is_SkydomeLight = false;
-	this->is_ActiveCockpit = false;
+	this->ActiveCockpitIdx = -1;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -626,6 +641,35 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
+			// Capture and store the name of the cockpit the very first time we see a cockpit texture
+			if (g_sCurrentCockpit[0] == 0) {
+				if (this->is_CockpitTex) {
+					//strstr(surface->_name, "Gunner")  != NULL)  {
+					char *start = strstr(surface->_name, "\\");
+					char *end = strstr(surface->_name, ".opt");
+					if (start != NULL && end != NULL) {
+						start += 1; // Skip the backslash
+						int size = end - start;
+						strncpy_s(g_sCurrentCockpit, 128, start, size);
+						log_debug("[DBG] Cockpit Name Captured: '%s'", g_sCurrentCockpit);
+					}
+
+					// Load the relevant DC file for the current cockpit if necessary
+					if (g_bDynCockpitEnabled) {
+						char sFileName[80];
+						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
+						if (!LoadIndividualDCParams(sFileName))
+							log_debug("[DBG] [DC] WARNING: Could not load DC params");
+					}
+					// Load the relevant AC file for the current cockpit if necessary
+					if (g_bUseLaserPointer) {
+						char sFileName[80];
+						CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
+						if (!LoadIndividualACParams(sFileName))
+							log_debug("[DBG] [AC] WARNING: Could not load AC params");
+					}
+				}
+			}
 		}
 
 		if (strstr(surface->_name, "Gunner") != NULL) {
@@ -645,22 +689,9 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
 		//}
 
-		/*
-		if (strstr(surface->_name, "YavinAlberi.opt,TEX00001,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00026,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00027,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00011,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00020,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00021,") != NULL ||
-			strstr(surface->_name, "YavinLand.opt,TEX00037,") != NULL ||
-			strstr(surface->_name, "YavinPiramed.opt,TEX00004,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00000,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00007,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00015,") != NULL
-		   )
-		*/
 		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
-		if (strstr(surface->_name, "Cielo") != NULL)
+		if (strstr(surface->_name, "Cielo") != NULL ||
+			strstr(surface->_name, "Skydome") != NULL)
 		{
 			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
 			this->is_GenericSSAOMasked = true;
@@ -670,39 +701,7 @@ void Direct3DTexture::TagTexture() {
 			}
 		}
 		
-		if (g_bUseLaserPointer) {
-			if (this->is_CockpitTex && !this->is_LightTexture) 
-			{
-				//if (strstr(surface->_name, "Tex00095") != NULL)
-				{
-					this->is_ActiveCockpit = true;
-					log_debug("[DBG] [AC] %s is ActiveCockpit", surface->_name);
-				}
-			}
-		}
-
 		if (g_bDynCockpitEnabled) {
-			// Capture and store the name of the cockpit
-			if (g_sCurrentCockpit[0] == 0) {
-				if (this->is_CockpitTex) {
-					//strstr(surface->_name, "Gunner")  != NULL)  {
-					char *start = strstr(surface->_name, "\\");
-					char *end = strstr(surface->_name, ".opt");
-					if (start != NULL && end != NULL) {
-						start += 1; // Skip the backslash
-						int size = end - start;
-						strncpy_s(g_sCurrentCockpit, 128, start, size);
-						log_debug("[DBG] [DC] Cockpit Name: '%s'", g_sCurrentCockpit);
-
-						// Load the relevant DC file for the current cockpit
-						char sFileName[80];
-						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
-						if (!LoadIndividualDCParams(sFileName))
-							log_debug("[DBG] [DC] ERROR: Could not load DC params");
-					}
-				}
-			}
-
 			/* Process Dynamic Cockpit destination textures: */
 			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
@@ -740,6 +739,19 @@ void Direct3DTexture::TagTexture() {
 				}
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
+
+		if (g_bUseLaserPointer) {
+			if (this->is_CockpitTex && !this->is_LightTexture)
+			{
+				//if (strstr(surface->_name, "Tex00095") != NULL)
+				{
+					//this->ActiveCockpitIdx = true;
+					//log_debug("[DBG] [AC] %s is ActiveCockpit", surface->_name);
+				}
+			}
+		}
+
+
 	}
 }
 
@@ -796,7 +808,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Missile = d3dTexture->is_Missile;
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
-	this->is_ActiveCockpit = d3dTexture->is_ActiveCockpit;
+	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from

@@ -72,7 +72,6 @@ const bool DEFAULT_INTERLEAVED_REPROJECTION = false;
 const bool DEFAULT_BARREL_EFFECT_STATE = true;
 const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its own lens correction, only enable it if the user really wants it
 const float DEFAULT_BRIGHTNESS = 0.95f;
-const bool DEFAULT_INVERSE_TRANSPOSE = false;
 const float MAX_BRIGHTNESS = 1.0f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
@@ -183,7 +182,6 @@ bool g_bSteamVREnabled = false; // The user sets this flag to true to request su
 bool g_bSteamVRInitialized = false; // The system will set this flag after SteamVR has been initialized
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
-bool g_bInverseTranspose = DEFAULT_INVERSE_TRANSPOSE; // Transpose the eye matrices before computing the inverse
 bool g_bResetHeadCenter = true; // Reset the head center on startup
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
@@ -275,6 +273,8 @@ Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
 bool g_bUseLaserPointer = true; // TODO: Make this toggleable through the CFG file
+ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
+int g_iNumACElements = 0;
 
 /*********************************************************/
 // DYNAMIC COCKPIT
@@ -282,6 +282,7 @@ char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
+
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
@@ -409,8 +410,9 @@ int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 /* Reloads all the CRCs. */
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
-bool InitDirectSBS();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
+int isInVector(char *name, ac_element *ac_elements, int num_elems);
+bool InitDirectSBS();
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -737,20 +739,6 @@ void SaveVRParams() {
 	fprintf(file, "\n; 6dof section. Set any of these multipliers to 0 to de-activate individual axes.\n");
 	fprintf(file, "; The settings for pitch and yaw are in cockpitlook.cfg\n");
 	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_X_MULTIPLIER_VRPARAM, g_fPosXMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_Y_MULTIPLIER_VRPARAM, g_fPosYMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_Z_MULTIPLIER_VRPARAM, g_fPosZMultiplier);
-	fprintf(file, "\n; Limits of the head tracker position in meters: this prevents you from\n");
-	fprintf(file, "; \"leaning outside the cockpit\".\n");
-	fprintf(file, "; x+ is to the right.\n");
-	fprintf(file, "; y+ is down.\n");
-	fprintf(file, "; z+ is forward.\n");
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_X_VRPARAM, g_fMinPositionX);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_X_VRPARAM, g_fMaxPositionX);
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_Y_VRPARAM, g_fMinPositionY);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_Y_VRPARAM, g_fMaxPositionY);
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_Z_VRPARAM, g_fMinPositionZ);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_Z_VRPARAM, g_fMaxPositionZ);
 
 	fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
 	fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
@@ -1045,6 +1033,64 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 }
 
 /*
+ * Loads an "action" row:
+ * "action" = ACTION, x0,y0, x1,y1
+ */
+bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
+{
+	float x0, y0, x1, y1;
+	int res = 0, idx = coords->numCoords;
+	char *substr = NULL;
+	char action[50];
+
+	if (idx >= MAX_AC_COORDS_PER_TEXTURE) {
+		log_debug("[DBG] [AC] Too many actions already loaded for this texture");
+		return false;
+	}
+
+	substr = strchr(buf, '=');
+	if (substr == NULL) {
+		log_debug("[DBG] [AC] Missing '=' in '%s', skipping", buf);
+		return false;
+	}
+	// Skip the equal sign:
+	substr++;
+	// Skip white space chars:
+	while (*substr == ' ' || *substr == '\t')
+		substr++;
+
+	try {
+		int len;
+
+		//src_slot = -1;
+		action[0] = 0;
+		len = ReadNameFromLine(substr, action);
+		if (len == 0)
+			return false;
+
+		// Parse the rest of the parameters
+		substr += len + 1;
+		res = sscanf_s(substr, "%f, %f, %f, %f", &x0, &y0, &x1, &y1);
+		if (res < 4) {
+			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
+		}
+		else {
+			strncpy_s(coords->action, MAX_ACTION_LEN, action, 50);
+			coords->area[idx].x0 = x0 / width;
+			coords->area[idx].y0 = y0 / height;
+			coords->area[idx].x1 = x1 / width;
+			coords->area[idx].y1 = y1 / height;
+			coords->numCoords++;
+		}
+	}
+	catch (...) {
+		log_debug("[DBG] [AC] Could not read uv coords from: %s", buf);
+		return false;
+	}
+	return true;
+}
+
+/*
  * Loads a cover_texture_size row
  */
 bool LoadDCCoverTextureSize(char *buf, float *width, float *height)
@@ -1155,6 +1201,14 @@ bool LoadDCMoveRegion(char *buf)
  */
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize) {
 	snprintf(sFileName, iFileNameSize, "DynamicCockpit\\%s.dc", CockpitName);
+}
+
+/*
+ * Convert a cockpit name into an AC params file of the form:
+ * DynamicCockpit\<CockpitName>.ac
+ */
+void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize) {
+	snprintf(sFileName, iFileNameSize, "DynamicCockpit\\%s.ac", CockpitName);
 }
 
 /*
@@ -1306,6 +1360,98 @@ bool LoadIndividualDCParams(char *sFileName) {
 	return true;
 }
 
+/*
+ * Load the DC params for an individual cockpit.
+ * Resets g_DCElements (if we're not rendering in 3D), and the move regions.
+ */
+bool LoadIndividualACParams(char *sFileName) {
+	log_debug("[DBG] Loading Active Cockpit params for [%s]...", sFileName);
+	FILE *file;
+	int error = 0, line = 0;
+	static int lastACElemSelected = -1;
+	float tex_width = 1, tex_height = 1;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float value = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			value = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				// This is a new AC element.
+				ac_element ac_elem;
+				strcpy_s(ac_elem.name, MAX_TEXTURE_NAME, buf + 1);
+				// Get rid of the trailing ']'
+				char *end = strstr(ac_elem.name, "]");
+				if (end != NULL)
+					*end = 0;
+				// See if we have this AC element already
+				lastACElemSelected = isInVector(ac_elem.name, g_ACElements, g_iNumACElements);
+				if (lastACElemSelected > -1) {
+					g_ACElements[lastACElemSelected].coords.numCoords = 0;
+					log_debug("[DBG] [AC] Resetting coords of exisiting AC elem @ idx: %d", lastACElemSelected);
+				}
+				else if (g_iNumACElements < MAX_AC_TEXTURES) {
+					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+						ac_elem.name, g_iNumACElements);
+					ac_elem.id = g_iNumACElements; // Generate a unique ID
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = false;
+					ac_elem.bNameHasBeenTested = false;
+					g_ACElements[g_iNumACElements] = ac_elem;
+					lastACElemSelected = g_iNumACElements;
+					g_iNumACElements++;
+					log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
+				}
+				else {
+					if (g_iNumACElements >= MAX_AC_TEXTURES)
+						log_debug("[DBG] [AC] ERROR: Max g_iNumACElements: %d reached", g_iNumACElements);
+				}
+			}
+			else if (_stricmp(param, "texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &tex_width, &tex_height);
+				log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
+			}
+			else if (_stricmp(param, "action") == 0) {
+				if (g_iNumACElements == 0) {
+					log_debug("[DBG] [AC] ERROR. Line %d, g_ACElements is empty, cannot add action", line);
+					continue;
+				}
+				if (lastACElemSelected == -1) {
+					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without a corresponding texture section.", line);
+					continue;
+				}
+				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
+			}
+			
+		}
+	}
+	fclose(file);
+	return true;
+}
+
 /* Loads the dynamic_cockpit.cfg file */
 bool LoadDCParams() {
 	log_debug("[DBG] Loading Dynamic Cockpit params...");
@@ -1377,6 +1523,62 @@ bool LoadDCParams() {
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = value;
+			}
+		}
+	}
+	fclose(file);
+	return true;
+}
+
+/* Loads the dynamic_cockpit.cfg file */
+bool LoadACParams() {
+	log_debug("[DBG] [AC] Loading Active Cockpit params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./active_cockpit.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [AC] Could not load active_cockpit.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [AC] Error %d when loading active_cockpit.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float value = 0.0f;
+
+	/* Reload individual cockit parameters if the current cockpit is set */
+	bool bActiveCockpitParamsLoaded = false;
+	if (g_sCurrentCockpit[0] != 0) {
+		char sFileName[80];
+		CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
+		bActiveCockpitParamsLoaded = LoadIndividualACParams(sFileName);
+	}
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			value = (float)atof(svalue);
+
+			if (_stricmp(param, "active_cockpit_enabled") == 0) {
+				g_bUseLaserPointer = (bool)value;
+				log_debug("[DBG] [AC] g_bUseLaserPointer: %d", g_bUseLaserPointer);
+				if (!g_bUseLaserPointer) {
+					// Early abort: stop reading coordinates if the active cockpit is disabled
+					fclose(file);
+					return false;
+				}
 			}
 		}
 	}
@@ -2109,10 +2311,6 @@ void LoadVRParams() {
 					g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 				}
 			}
-			else if (_stricmp(param, INVERSE_TRANSPOSE_VRPARAM) == 0) {
-				g_bInverseTranspose = (bool)fValue;
-				log_debug("[DBG] Inverse Transpose set to: %d", g_bInverseTranspose);
-			}
 			else if (_stricmp(param, NATURAL_CONCOURSE_ANIM_VRPARAM) == 0) {
 				g_iNaturalConcourseAnimations = (int)fValue;
 			}
@@ -2151,14 +2349,14 @@ void LoadVRParams() {
 	fclose(file);
 
 next:
-	// Load CRCs
-	//ReloadCRCs();
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
 	LoadDCInternalCoordinates();
 	// Load Dynamic Cockpit params
 	LoadDCParams();
+	// Load Active Cockpit params
+	LoadACParams();
 	// Load the Bloom params
 	LoadBloomParams();
 	// Load the SSAO params
@@ -3351,6 +3549,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
+/*
 bool rayTriangleIntersect_old(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
@@ -3369,7 +3568,7 @@ bool rayTriangleIntersect_old(
 
 	// check if ray and plane are parallel ?
 	float NdotRayDirection = N.dot(dir);
-	if (fabs(NdotRayDirection) < 0.00001 /* kEpsilon */) // almost 0 
+	if (fabs(NdotRayDirection) < 0.00001) // almost 0 
 		return false; // they are parallel so they don't intersect ! 
 
 	// compute d parameter using equation 2
@@ -3409,6 +3608,7 @@ bool rayTriangleIntersect_old(
 
 	return true; // this ray hits the triangle 
 }
+*/
 
 #define MOLLER_TRUMBORE
 //#undef MOLLER_TRUMBORE
@@ -4255,7 +4455,7 @@ HRESULT Direct3DDevice::Execute(
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
-				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_ActiveCockpit;
+				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
