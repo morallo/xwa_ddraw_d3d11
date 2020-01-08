@@ -113,7 +113,7 @@ extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 
 // ACTIVE COCKPIT
-extern bool g_bUseLaserPointer;
+extern bool g_bActiveCockpitEnabled;
 extern ac_element g_ACElements[];
 extern int g_iNumACElements;
 
@@ -755,7 +755,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputSRVDynCockpitBG.Release();
 	}
 
-	if (g_bUseLaserPointer) {
+	if (g_bActiveCockpitEnabled) {
 		ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
 	}
 
@@ -2470,8 +2470,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 160;
-	static_assert(sizeof(LaserPointerCBuffer) == 160, "sizeof(LaserPointerCBuffer) must be 160");
+	constantBufferDesc.ByteWidth = 176;
+	static_assert(sizeof(LaserPointerCBuffer) == 176, "sizeof(LaserPointerCBuffer) must be 176");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 

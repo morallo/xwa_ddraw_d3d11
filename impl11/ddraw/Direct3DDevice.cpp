@@ -266,13 +266,14 @@ Vector4 g_contDirection = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in w
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 // DEBUG vars
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
-bool g_bUseLaserPointer = true; // TODO: Make this toggleable through the CFG file
+bool g_bActiveCockpitEnabled = true; // TODO: Make this toggleable through the CFG file
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
@@ -1075,7 +1076,7 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
-			strncpy_s(coords->action, MAX_ACTION_LEN, action, 50);
+			strcpy_s(&coords->action[idx], MAX_ACTION_LEN, action);
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
 			coords->area[idx].x1 = x1 / width;
@@ -1444,6 +1445,14 @@ bool LoadIndividualACParams(char *sFileName) {
 					continue;
 				}
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
+				// DEBUG
+				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
+				int idx = coords->numCoords - 1;
+				log_debug("[DBG] [AC] Action: [%s] (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					&(coords->action[idx]),
+					coords->area[idx].x0, coords->area[idx].y0,
+					coords->area[idx].x1, coords->area[idx].y1);
+				// DEBUG
 			}
 			
 		}
@@ -1572,9 +1581,9 @@ bool LoadACParams() {
 			value = (float)atof(svalue);
 
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
-				g_bUseLaserPointer = (bool)value;
-				log_debug("[DBG] [AC] g_bUseLaserPointer: %d", g_bUseLaserPointer);
-				if (!g_bUseLaserPointer) {
+				g_bActiveCockpitEnabled = (bool)value;
+				log_debug("[DBG] [AC] g_bUseLaserPointer: %d", g_bActiveCockpitEnabled);
+				if (!g_bActiveCockpitEnabled) {
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
 					return false;
@@ -3805,8 +3814,8 @@ inline Vector3 project(Vector3 pos3D)
 	return P;
 }
 
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex,
-	Vector3 orig, Vector3 dir, float *t, Vector3 *v0, Vector3 *v1, Vector3 *v2, 
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx,
+	Vector3 orig, Vector3 dir, float *t, Vector3 *v0, Vector3 *v1, Vector3 *v2,
 	Vector3 *P, float *u, float *v, bool debug) 
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
@@ -3869,8 +3878,10 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		{
 			if (tempt < g_fBestIntersectionDistance)
 			{
+				// Update the best intersection so far
 				g_fBestIntersectionDistance = tempt;
 				g_LaserPointer3DIntersection = tempP;
+				g_iBestIntersTexIdx = textureIdx;
 				g_debug_v0 = tempv0;
 				g_debug_v1 = tempv1;
 				g_debug_v2 = tempv2;
@@ -5044,7 +5055,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Active Cockpit: Intersect the current texture with the controller
-				if (g_bUseLaserPointer && bIsActiveCockpit) {
+				if (g_bActiveCockpitEnabled && bIsActiveCockpit) {
 					Vector3 orig, dir, v0, v1, v2, P;
 					float t, u, v;
 					//bool bIntersection;
@@ -5058,7 +5069,7 @@ HRESULT Direct3DDevice::Execute(
 					dir.y = g_contDirection.y;
 					dir.z = g_contDirection.z;
 
-					IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t,
+					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir, &t,
 						&v0, &v1, &v2, &P, &u, &v);
 					//if (bIntersection) {
 						//Vector3 pos2D;

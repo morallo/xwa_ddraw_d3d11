@@ -45,7 +45,7 @@ public:
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
 
-	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 orig, Vector3 dir, float *t, 
+	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, Vector3 orig, Vector3 dir, float *t, 
 		Vector3 *v0, Vector3 *v1, Vector3 *v2, Vector3 *P, float *u, float *v, bool debug=false);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);

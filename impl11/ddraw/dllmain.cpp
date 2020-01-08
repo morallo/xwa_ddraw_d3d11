@@ -81,7 +81,7 @@ extern int g_iHyperStateOverride;
 
 // ACTIVE COCKPIT
 extern Vector4 g_contOrigin;
-extern bool g_bUseLaserPointer;
+extern bool g_bActiveCockpitEnabled;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
 
@@ -295,7 +295,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				ToggleCockpitPZHack();
 				return 0;
 			case 'Q':
-				g_bUseLaserPointer = !g_bUseLaserPointer;
+				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
 				return 0;
 
 			/*

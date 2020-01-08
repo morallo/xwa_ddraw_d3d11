@@ -264,6 +264,8 @@ typedef struct LaserPointerCBStruct {
 	// 144 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 160
+	int bACElemIntersection, unusedA[3];
+	// 176
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */
@@ -363,6 +365,12 @@ typedef struct dc_element_struct {
 	bool bActive, bNameHasBeenTested;
 } dc_element;
 
+typedef struct move_region_coords_struct {
+	int region_slot[MAX_HUD_BOXES];
+	uvfloat4 dst[MAX_HUD_BOXES];
+	int numCoords;
+} move_region_coords;
+
 // ACTIVE COCKPIT
 #define MAX_AC_COORDS_PER_TEXTURE 16
 #define MAX_AC_TEXTURES 16
@@ -379,12 +387,6 @@ typedef struct ac_element_struct {
 	char name[MAX_TEXTURE_NAME];
 	bool bActive, bNameHasBeenTested;
 } ac_element;
-
-typedef struct move_region_coords_struct {
-	int region_slot[MAX_HUD_BOXES];
-	uvfloat4 dst[MAX_HUD_BOXES];
-	int numCoords;
-} move_region_coords;
 
 // SSAO Type
 typedef enum {

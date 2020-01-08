@@ -39,13 +39,17 @@ extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
-extern bool g_bUseLaserPointer;
+extern bool g_bActiveCockpitEnabled;
 extern Vector4 g_contOrigin, g_contDirection;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
 inline Vector3 project(Vector3 pos3D);
 extern int g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+extern int g_iBestIntersTexIdx;
+extern ac_element g_ACElements[MAX_AC_TEXTURES];
+extern int g_iNumACElements;
+
 // DEBUG vars
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
@@ -4171,6 +4175,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.debugPoint[1] = p.y;
 	}
 	// DEBUG
+
 	// Project the controller's position:
 	if (g_contOrigin[2] >= 0.001f) {
 		Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
@@ -4200,6 +4205,28 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		q = project(g_debug_v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
 		q = project(g_debug_v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 	}
+
+	// If there was an interescion, find the action
+	g_LaserPointerBuffer.bACElemIntersection = 0;
+	if (g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
+	{
+		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx].coords);
+		float u = g_LaserPointerBuffer.uv[0];
+		float v = g_LaserPointerBuffer.uv[1];
+		for (int i = 0; i < coords->numCoords; i++) {
+			if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
+				coords->area[i].y0 <= v && v <= coords->area[i].y1)
+			{
+				log_debug("[DBG] [AC] ACTION: [%s]", &(coords->action[i]));
+				g_LaserPointerBuffer.bACElemIntersection = 1;
+				break;
+			}
+		}
+	}
+	// DEBUG
+	if (!g_LaserPointerBuffer.bACElemIntersection)
+		log_debug("[DBG] [AC] NO ACTION");
+	// DEBUG
 
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
@@ -4966,7 +4993,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the Laser Pointer for VR
-			if (g_bUseLaserPointer && g_bRendering3D 
+			if (g_bActiveCockpitEnabled && g_bRendering3D 
 				/* &&				
 				(PlayerDataTable[0].cockpitDisplayed || 
 				 PlayerDataTable[0].gunnerTurretActive ||
@@ -5055,9 +5082,10 @@ HRESULT PrimarySurface::Flip(
 				g_bDumpSSAOBuffers = false;
 
 			// Reset the laser pointer intersection
-			if (g_bUseLaserPointer) {
+			if (g_bActiveCockpitEnabled) {
 				g_LaserPointerBuffer.bIntersection = 0;
 				g_fBestIntersectionDistance = 10000.0f;
+				g_iBestIntersTexIdx = -1;
 			}
 
 //#define HYPER_OVERRIDE 1

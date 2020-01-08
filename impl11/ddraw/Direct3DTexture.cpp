@@ -161,9 +161,9 @@ bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
 // ACTIVE COCKPIT
-extern ac_element g_ACElement[MAX_AC_TEXTURES];
+extern ac_element g_ACElements[MAX_AC_TEXTURES];
 extern int g_iNumACElements;
-extern bool g_bUseLaserPointer;
+extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);
 void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
@@ -662,7 +662,7 @@ void Direct3DTexture::TagTexture() {
 							log_debug("[DBG] [DC] WARNING: Could not load DC params");
 					}
 					// Load the relevant AC file for the current cockpit if necessary
-					if (g_bUseLaserPointer) {
+					if (g_bActiveCockpitEnabled) {
 						char sFileName[80];
 						CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
 						if (!LoadIndividualACParams(sFileName))
@@ -740,13 +740,16 @@ void Direct3DTexture::TagTexture() {
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
 
-		if (g_bUseLaserPointer) {
+		if (g_bActiveCockpitEnabled) {
 			if (this->is_CockpitTex && !this->is_LightTexture)
 			{
-				//if (strstr(surface->_name, "Tex00095") != NULL)
-				{
-					//this->ActiveCockpitIdx = true;
-					//log_debug("[DBG] [AC] %s is ActiveCockpit", surface->_name);
+				/* Process Active Cockpit destination textures: */
+				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
+				if (idx > -1) {
+					log_debug("[DBG] [AC] %s is an Active Cockpit Texture", surface->_name);
+					// "Point back" into the right ac_element index:
+					this->ActiveCockpitIdx = idx;
+					g_ACElements[idx].bActive = true;
 				}
 			}
 		}

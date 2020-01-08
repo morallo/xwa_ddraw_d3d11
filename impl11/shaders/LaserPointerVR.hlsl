@@ -23,6 +23,9 @@ cbuffer ConstantBuffer : register(b7)
 	float2 v0, v1; // DEBUG
 	// 144 bytes
 	float2 v2, uv; // DEBUG
+	// 160 bytes
+	int bACElemIntersection, unusedA0, unusedA1, unusedA2;
+	// 176
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -169,18 +172,19 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	//float t = intersect(ro, rd);
 	col = bgColor;
+	float3 dotcol = bACElemIntersection ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.0, 0.0);
 
 	// Draw the ray and dot:
 	float t = map(p);
 	if (t < 0.001)
 	{
-		float3 pointer_col = bIntersection ? float3(1.0, 0.0, 0.0) : float3(0.7, 0.7, 0.7);
+		float3 pointer_col = bIntersection ? dotcol : float3(0.7, 0.7, 0.7);
 		col = lerp(bgColor, pointer_col, 0.75);
 	}
 	
 	// Draw the triangle uv-color-coded
-	if (bIntersection && debug_map(p) < 0.001)
-		col = lerp(col, float3(uv, 0.0), 0.5);
+	//if (bIntersection && debug_map(p) < 0.001)
+	//	col = lerp(col, float3(uv, 0.0), 0.5);
 
 	//col.b += 0.1;
 
