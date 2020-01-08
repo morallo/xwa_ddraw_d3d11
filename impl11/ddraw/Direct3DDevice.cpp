@@ -269,6 +269,7 @@ Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 // DEBUG vars
+Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
@@ -3350,7 +3351,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
-bool rayTriangleIntersect(
+bool rayTriangleIntersect_old(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v)
@@ -3407,6 +3408,114 @@ bool rayTriangleIntersect(
 	v /= denom;
 
 	return true; // this ray hits the triangle 
+}
+
+#define MOLLER_TRUMBORE
+//#undef MOLLER_TRUMBORE
+#undef CULLING
+bool rayTriangleIntersect(
+	const Vector3 &orig, const Vector3 &dir,
+	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
+	float &t, Vector3 &P, float &u, float &v)
+{
+	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
+#ifdef MOLLER_TRUMBORE 
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	Vector3 pvec = dir.cross(v0v2);
+	float det = v0v1.dot(pvec);
+#ifdef CULLING 
+	// if the determinant is negative the triangle is backfacing
+	// if the determinant is close to 0, the ray misses the triangle
+	if (det < 0.00001 /* kEpsilon */) return false;
+#else 
+	// ray and triangle are parallel if det is close to 0
+	if (fabs(det) < 0.00001 /* kEpsilon */) return false;
+#endif 
+	float invDet = 1.0f / det;
+
+	Vector3 tvec = orig - v0;
+	u = tvec.dot(pvec) * invDet;
+	if (u < 0 || u > 1) return false;
+
+	Vector3 qvec = tvec.cross(v0v1);
+	v = dir.dot(qvec) * invDet;
+	if (v < 0 || u + v > 1) return false;
+
+	t = v0v2.dot(qvec) * invDet;
+	P = orig + t * dir;
+
+	// Compute u-v again to make them consistent with tex coords
+	Vector3 N = v0v1.cross(v0v2); // N 
+	Vector3 C;
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	u = N.dot(C);
+	
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	v = N.dot(C);
+
+	float denom = N.dot(N);
+	u /= denom;
+	v /= denom;
+	return true;
+#else 
+	// compute plane's normal
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// no need to normalize
+	Vector3 N = v0v1.cross(v0v2); // N 
+	float denom = N.dot(N);
+
+	// Step 1: finding P
+
+	// check if ray and plane are parallel ?
+	float NdotRayDirection = N.dot(dir);
+	if (fabs(NdotRayDirection) < 0.00001 /* kEpsilon */) // almost 0 
+		return false; // they are parallel so they don't intersect ! 
+
+	// compute d parameter using equation 2
+	float d = N.dot(v0);
+
+	// compute t (equation 3)
+	t = (N.dot(orig) + d) / NdotRayDirection;
+	// check if the triangle is in behind the ray
+	if (t < 0) return false; // the triangle is behind 
+
+	// compute the intersection point using equation 1
+	P = orig + t * dir;
+
+	// Step 2: inside-outside test
+	Vector3 C; // vector perpendicular to triangle's plane 
+
+	// edge 0
+	Vector3 edge0 = v1 - v0;
+	Vector3 vp0 = P - v0;
+	C = edge0.cross(vp0);
+	if (N.dot(C) < 0) return false; // P is on the right side 
+
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	if ((u = N.dot(C)) < 0)  return false; // P is on the right side 
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	if ((v = N.dot(C)) < 0) return false; // P is on the right side; 
+
+	u /= denom;
+	v /= denom;
+
+	return true; // this ray hits the triangle 
+#endif 
 }
 
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
@@ -3558,14 +3667,27 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
 		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv)) 
 		{
-			if (tempt < best_t) {
-				best_t = tempt;
+			if (tempt < g_fBestIntersectionDistance)
+			{
+				g_fBestIntersectionDistance = tempt;
+				g_LaserPointer3DIntersection = tempP;
+				g_debug_v0 = tempv0;
+				g_debug_v1 = tempv1;
+				g_debug_v2 = tempv2;
+				
+				*t = tempt;
 				*v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
 				*P = tempP;
+
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
 				*u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
 				*v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+
+				g_LaserPointerBuffer.uv[0] = *u;
+				g_LaserPointerBuffer.uv[1] = *v;
+
 				bIntersection = true;
+				g_LaserPointerBuffer.bIntersection = 1;
 			}
 		}
 		triangle++;
@@ -4725,7 +4847,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bUseLaserPointer && bIsActiveCockpit) {
 					Vector3 orig, dir, v0, v1, v2, P;
 					float t, u, v;
-					bool bIntersection;
+					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
 
 					orig.x = g_contOrigin.x;
@@ -4736,41 +4858,42 @@ HRESULT Direct3DDevice::Execute(
 					dir.y = g_contDirection.y;
 					dir.z = g_contDirection.z;
 
-					//log_debug("[DBG] [AC] dir: %0.3f, %0.3f, %0.3f", dir.x, dir.y, dir.z);
-					
-					bIntersection = 	IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t,
+					IntersectWithTriangles(instruction, currentIndexLocation, orig, dir, &t,
 						&v0, &v1, &v2, &P, &u, &v);
-					if (bIntersection) {
-						Vector3 pos2D;
+					//if (bIntersection) {
+						//Vector3 pos2D;
 
-						if (t < g_fBestIntersectionDistance)
-						{
+						//if (t < g_fBestIntersectionDistance)
+						//{
 							
-							g_fBestIntersectionDistance = t;
-							g_LaserPointer3DIntersection = P;
+							//g_fBestIntersectionDistance = t;
+							//g_LaserPointer3DIntersection = P;
 							// Project to 2D
-							pos2D = project(g_LaserPointer3DIntersection);
-							g_LaserPointerBuffer.intersection[0] = pos2D.x;
-							g_LaserPointerBuffer.intersection[1] = pos2D.y;
-							g_LaserPointerBuffer.uv[0] = u;
-							g_LaserPointerBuffer.uv[1] = v;
-							g_LaserPointerBuffer.bIntersection = 1;
+							//pos2D = project(g_LaserPointer3DIntersection);
+							//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+							//g_LaserPointerBuffer.intersection[1] = pos2D.y;
+							//g_LaserPointerBuffer.uv[0] = u;
+							//g_LaserPointerBuffer.uv[1] = v;
+							//g_LaserPointerBuffer.bIntersection = 1;
+							//g_debug_v0 = v0;
+							//g_debug_v1 = v1;
+							//g_debug_v2 = v2;
 
 							// DEBUG
-							{
-								Vector3 q;
+							//{
+								/*Vector3 q;
 								q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
 								q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
 								/*
 								log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
 									g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
 									pos2D.x, pos2D.y);
 								*/
-							}
+							//}
 							// DEBUG
-						}
-					}
+						//}
+					//}
 				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {

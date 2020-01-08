@@ -336,14 +336,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_contOrigin.z -= 0.05f;
 				return 0;
 			case VK_LEFT:
-				//IncreaseLensK2(-0.1f);
-				g_fLPdebugPointOffset -= 0.05f;
+				IncreaseLensK2(-0.1f);
+				/*g_fLPdebugPointOffset -= 0.05f;
 				if (g_fLPdebugPointOffset < 0.0f)
-					g_fLPdebugPointOffset = 0.0f;
+					g_fLPdebugPointOffset = 0.0f;*/
 				return 0;
 			case VK_RIGHT:
-				//IncreaseLensK2(0.1f);
-				g_fLPdebugPointOffset += 0.05f;
+				IncreaseLensK2(0.1f);
+				//g_fLPdebugPointOffset += 0.05f;
 				return 0;
 			}
 		}

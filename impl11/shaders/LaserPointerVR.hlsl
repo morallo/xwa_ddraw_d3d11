@@ -170,15 +170,17 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//float t = intersect(ro, rd);
 	col = bgColor;
 
+	// Draw the ray and dot:
 	float t = map(p);
 	if (t < 0.001)
 	{
 		float3 pointer_col = bIntersection ? float3(1.0, 0.0, 0.0) : float3(0.7, 0.7, 0.7);
-		col = lerp(bgColor, pointer_col, 0.5);
+		col = lerp(bgColor, pointer_col, 0.75);
 	}
 	
+	// Draw the triangle uv-color-coded
 	if (bIntersection && debug_map(p) < 0.001)
-		col = lerp(col, float3(uv, 0.5), 0.35);
+		col = lerp(col, float3(uv, 0.0), 0.5);
 
 	//col.b += 0.1;
 

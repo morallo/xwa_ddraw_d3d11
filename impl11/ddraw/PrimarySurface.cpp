@@ -47,6 +47,7 @@ inline Vector3 project(Vector3 pos3D);
 extern int g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 // DEBUG vars
+extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
 extern float g_fLPdebugPointOffset;
@@ -4188,6 +4189,17 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		/*if (g_bDumpLaserPointerDebugInfo)
 			log_debug("[DBG] [AC] NO contOrigin");*/
 	}
+	
+	// Project the intersection to 2D:
+	if (g_LaserPointerBuffer.bIntersection) {
+		Vector3 q = project(g_LaserPointer3DIntersection);
+		g_LaserPointerBuffer.intersection[0] = q.x;
+		g_LaserPointerBuffer.intersection[1] = q.y;
+
+		q = project(g_debug_v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+		q = project(g_debug_v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+		q = project(g_debug_v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+	}
 
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
@@ -4205,6 +4217,24 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
 		log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
 		log_debug("[DBG] [AC] v2: (%0.3f, %0.3f)", g_LaserPointerBuffer.v2[0], g_LaserPointerBuffer.v2[1]);
+
+		FILE *file = NULL;
+		fopen_s(&file, "./test-tri-inters.obj", "wt");
+		fprintf(file, "# Triangle\n");
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_debug_v0.x, g_debug_v0.y, g_debug_v0.z);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_debug_v1.x, g_debug_v1.y, g_debug_v1.z);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_debug_v2.x, g_debug_v2.y, g_debug_v2.z);
+		fprintf(file, "\n# Origin\n");
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
+		fprintf(file, "\n# Intersection\n");
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
+		fprintf(file, "\n# Triangle\n");
+		fprintf(file, "f 1 2 3\n");
+		fprintf(file, "# Line\n");
+		fprintf(file, "f 4 5\n");
+		fclose(file);
+		log_debug("[DBG] [AC] test-tri-inters.obj dumped");
+
 		g_bDumpLaserPointerDebugInfo = false;
 	}
 
