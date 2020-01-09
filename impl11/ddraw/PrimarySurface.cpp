@@ -39,7 +39,7 @@ extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
-extern bool g_bActiveCockpitEnabled;
+extern bool g_bActiveCockpitEnabled, g_bACTrigger;
 extern Vector4 g_contOrigin, g_contDirection;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
@@ -4108,6 +4108,35 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 }
 
 /*
+ * Executes the action defined by "action" as per the Active Cockpit
+ * definitions.
+ */
+void PrimarySurface::ACRunAction(char *action) {
+	INPUT input;
+	input.type = INPUT_KEYBOARD;
+	input.ki.time = 0;
+	input.ki.wVk = 0;
+	input.ki.dwExtraInfo = 0;
+
+	input.ki.dwFlags = KEYEVENTF_SCANCODE;
+	if (strcmp(action, "S") == 0) {
+		input.ki.wScan = 0x1F;
+	}
+	else if (strcmp(action, "T") == 0) {
+		input.ki.wScan = 0x14;
+	}
+	
+	// Send keydown event:
+	log_debug("[DBG] [AC] Sending input (1)...");
+	SendInput(1, &input, sizeof(INPUT));
+
+	// Send the keyup event:
+	log_debug("[DBG] [AC] Sending input (2)...");
+	input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+	SendInput(1, &input, sizeof(INPUT));
+}
+
+/*
  * Input: offscreenBuffer (resolved here)
  * Output: offscreenBufferPost
  */
@@ -4206,7 +4235,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		q = project(g_debug_v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 	}
 
-	// If there was an interescion, find the action
+	// If there was an intersection, find the action (I don't think this code needs to be here)
 	g_LaserPointerBuffer.bACElemIntersection = 0;
 	if (g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
 	{
@@ -4217,15 +4246,18 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
 				coords->area[i].y0 <= v && v <= coords->area[i].y1)
 			{
-				log_debug("[DBG] [AC] ACTION: [%s]", &(coords->action[i]));
 				g_LaserPointerBuffer.bACElemIntersection = 1;
+				if (g_bACTrigger)
+					// Run the action proper
+					ACRunAction(&(coords->action[i]));
 				break;
 			}
 		}
+		g_bACTrigger = false;
 	}
 	// DEBUG
-	if (!g_LaserPointerBuffer.bACElemIntersection)
-		log_debug("[DBG] [AC] NO ACTION");
+	//if (!g_LaserPointerBuffer.bACElemIntersection)
+	//	log_debug("[DBG] [AC] NO ACTION");
 	// DEBUG
 
 	// Dump some debug info to see what's happening with the intersection

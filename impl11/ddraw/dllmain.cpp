@@ -81,7 +81,7 @@ extern int g_iHyperStateOverride;
 
 // ACTIVE COCKPIT
 extern Vector4 g_contOrigin;
-extern bool g_bActiveCockpitEnabled;
+extern bool g_bActiveCockpitEnabled, g_bACTrigger;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
 
@@ -451,6 +451,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bDownKeyDownShift = false;
 				return 0;
 			*/
+			case VK_SPACE:
+				// ACTIVE COCKPIT:
+				// Use the spacebar to activate the cursor on the current active element
+				if (g_bActiveCockpitEnabled) {
+					g_bACTrigger = true;
+				}
+				break;
+
 			case VK_OEM_PERIOD:
 				if (g_bUseSteamVR)
 					g_pHMD->ResetSeatedZeroPose();

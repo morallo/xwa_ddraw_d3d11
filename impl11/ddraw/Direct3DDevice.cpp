@@ -273,7 +273,7 @@ bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
-bool g_bActiveCockpitEnabled = true; // TODO: Make this toggleable through the CFG file
+bool g_bActiveCockpitEnabled = true, g_bACTrigger = false;
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
