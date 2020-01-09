@@ -4127,11 +4127,11 @@ void PrimarySurface::ACRunAction(char *action) {
 	}
 	
 	// Send keydown event:
-	log_debug("[DBG] [AC] Sending input (1)...");
+	//log_debug("[DBG] [AC] Sending input (1)...");
 	SendInput(1, &input, sizeof(INPUT));
 
 	// Send the keyup event:
-	log_debug("[DBG] [AC] Sending input (2)...");
+	//log_debug("[DBG] [AC] Sending input (2)...");
 	input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
 	SendInput(1, &input, sizeof(INPUT));
 }
@@ -4191,9 +4191,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	
+	// Compute the debug point
+	/*
 	// DEBUG
 	{
-		// Compute the debug point
 		g_LPdebugPoint[0] = g_contOrigin.x + g_fLPdebugPointOffset * g_contDirection.x;
 		g_LPdebugPoint[1] = g_contOrigin.y + g_fLPdebugPointOffset * g_contDirection.y;
 		g_LPdebugPoint[2] = g_contOrigin.z + g_fLPdebugPointOffset * g_contDirection.z;
@@ -4204,6 +4205,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.debugPoint[1] = p.y;
 	}
 	// DEBUG
+	*/
 
 	// Project the controller's position:
 	if (g_contOrigin[2] >= 0.001f) {

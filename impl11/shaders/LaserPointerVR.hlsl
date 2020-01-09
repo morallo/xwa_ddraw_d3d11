@@ -18,29 +18,19 @@ cbuffer ConstantBuffer : register(b7)
 	// 112 bytes
 	bool bContOrigin; // True if contOrigin is valid
 	bool bIntersection; // True if there is an intersection to display
-	float2 debugPoint;
+	bool bACElemIntersection; // True if the cursor is hovering over an action element
+	float unusedA0;
 	// 128 bytes
 	float2 v0, v1; // DEBUG
 	// 144 bytes
 	float2 v2, uv; // DEBUG
 	// 160 bytes
-	int bACElemIntersection, unusedA0, unusedA1, unusedA2;
-	// 176
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
 // will be an overlay on top of everything else.
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
-
-/*
-static const vec3 lig = normalize(vec3(0.5, 0.0, -0.7));
-
-float sdSphere(in vec3 p, in vec3 center, float radius)
-{
-	return length(p - center) - radius;
-}
-*/
 
 float sdCircle(in vec2 p, in vec2 center, float radius)
 {
@@ -71,16 +61,6 @@ float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 //=====================================================
 
 /*
-float map3D(in vec3 p)
-{
-	//float d = sdSphere(p, contOrigin.xyz, 0.05);
-	float d = 10000.0;
-	if (bIntersection)
-		d = min(d, sdSphere(p, intersection, 0.03));
-	return d;
-}
-*/
-
 float map(in vec2 p)
 {
 	float d = 10000.0;
@@ -91,41 +71,15 @@ float map(in vec2 p)
 	if (bContOrigin && bIntersection)
 		d = min(d, sdLine(p, contOrigin, intersection) - 0.001);
 	// Display the debug point too
-	d = min(d, sdCircle(p, debugPoint, 0.005));
+	//d = min(d, sdCircle(p, debugPoint, 0.005));
 	return d;
 }
+*/
 
+/*
 float debug_map(in vec2 p) 
 {
 	return sdTriangle(p, v0, v1, v2);
-}
-
-/*
-float intersect(in vec3 ro, in vec3 rd)
-{
-	const float maxd = 10.0;
-	float h = 1.0;
-	float t = 0.0;
-	for (int i = 0; i < 50; i++)
-	{
-		if (h<0.001 || t>maxd) break;
-		h = map(ro + rd * t);
-		t += h;
-	}
-
-	if (t > maxd) t = -1.0;
-
-	return t;
-}
-
-vec3 calcNormal(in vec3 pos)
-{
-	vec3 eps = vec3(0.002, 0.0, 0.0);
-
-	return normalize(vec3(
-		map(pos + eps.xyy) - map(pos - eps.xyy),
-		map(pos + eps.yxy) - map(pos - eps.yxy),
-		map(pos + eps.yyx) - map(pos - eps.yyx)));
 }
 */
 
@@ -170,28 +124,36 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//return output;
 	// DEBUG
 
-	//float t = intersect(ro, rd);
 	col = bgColor;
-	float3 dotcol = bACElemIntersection ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.0, 0.0);
+	float3 dotcol = bACElemIntersection ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
 
-	// Draw the ray and dot:
-	float t = map(p);
-	if (t < 0.001)
-	{
-		float3 pointer_col = bIntersection ? dotcol : float3(0.7, 0.7, 0.7);
-		col = lerp(bgColor, pointer_col, 0.75);
+	float v = 0.0, d = 10000.0;
+	if (bContOrigin) {
+		d = sdCircle(p, contOrigin, 0.0);
+		d += 0.005;
+		v += exp(-(d * d) * 5000.0);
 	}
+
+	if (bIntersection) {
+		d = sdCircle(p, intersection, 0.0);
+		d += 0.01;
+		v += exp(-(d * d) * 10000.0);
+	}
+
+	if (bIntersection && bContOrigin) {
+		d = sdLine(p, contOrigin, intersection);
+		d += 0.01;
+		v += exp(-(d * d) * 7500.0);
+	}
+
+	v = clamp(1.2 * v, 0.0, 1.0);
+	float3 pointer_col = bIntersection ? dotcol : 0.7;
+	col = lerp(bgColor, pointer_col, v);
 	
 	// Draw the triangle uv-color-coded
 	//if (bIntersection && debug_map(p) < 0.001)
 	//	col = lerp(col, float3(uv, 0.0), 0.5);
 
-	//col.b += 0.1;
-
-	// Gamma correction
-	//col = pow(clamp(col, 0.0, 1.0), 0.45);
-
-	//fragColor = vec4(col, 1.0);
 	output.color = vec4(col, 1.0);
 	return output;
 }

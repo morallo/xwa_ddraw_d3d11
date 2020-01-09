@@ -257,15 +257,13 @@ typedef struct LaserPointerCBStruct {
 	// 32 + 64 = 96 bytes
 	float contOrigin[2], intersection[2];
 	// 112 bytes
-	int bContOrigin, bIntersection;
-	float debugPoint[2];
+	int bContOrigin, bIntersection, bACElemIntersection;
+	float unusedA0;
 	// 128 bytes
 	float v0[2], v1[2]; // DEBUG
 	// 144 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 160
-	int bACElemIntersection, unusedA[3];
-	// 176
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */
