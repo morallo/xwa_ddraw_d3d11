@@ -95,7 +95,7 @@ copy /Y $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Star Wars X
       <ModuleDefinitionFile>ddraw.def</ModuleDefinitionFile>
       <UACUIAccess>true</UACUIAccess>
       <AdditionalLibraryDirectories>C:\Zip\XWA-DX11\DirectXTK-master\Bin\Desktop_2015\Win32\Release;C:\Zip\XWA-DX11\openvr-master\lib\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance"
@@ -126,6 +126,7 @@ copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Win
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
+    <ClCompile Include="joystick.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="Matrices.cpp" />
     <ClCompile Include="MipmapSurface.cpp" />
@@ -151,6 +152,7 @@ copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Win
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
+    <ClInclude Include="joystick.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="Matrices.h" />
     <ClInclude Include="MipmapSurface.h" />

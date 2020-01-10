@@ -13,6 +13,11 @@ public:
 	bool AnisotropicFilteringEnabled;
 	bool VSyncEnabled;
 	bool WireframeFillMode;
+	int JoystickEmul;
+	int XInputTriggerAsThrottle;
+	bool InvertYAxis;
+	float MouseSensitivity;
+	float KbdSensitivity;
 
 	float Concourse3DScale;
 
