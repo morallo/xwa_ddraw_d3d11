@@ -128,7 +128,7 @@ Config::Config()
 	}
 
 	//if (this->JoystickEmul != 0 && isXWA)
-	if (this->JoystickEmul)
+	//if (this->JoystickEmul)
 	{
 		// TODO: How to check if this is a supported binary?
 		DWORD old, dummy;
