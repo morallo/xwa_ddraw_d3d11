@@ -296,6 +296,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
+				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
 				return 0;
 
 			/*
@@ -464,7 +465,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOrigin.set(0.0f, 0.0f, 0.0f, 1);
+				g_contOrigin.set(-0.01f, -0.01f, 0.05f, 1);
 				break;
 			}
 		}

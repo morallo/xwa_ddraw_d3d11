@@ -646,7 +646,6 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 
 void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
 	for (int i = 0; i < size; i++) {
-		log_debug("[DBG] [AC] !!!! Releasing [%d][%s]", i, ACElements[i].name);
 		ACElements[i].name[0] = 0;
 	}
 	g_iNumACElements = 0;
@@ -2470,8 +2469,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 160;
-	static_assert(sizeof(LaserPointerCBuffer) == 160, "sizeof(LaserPointerCBuffer) must be 160");
+	constantBufferDesc.ByteWidth = 192;
+	static_assert(sizeof(LaserPointerCBuffer) == 192, "sizeof(LaserPointerCBuffer) must be 192");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 

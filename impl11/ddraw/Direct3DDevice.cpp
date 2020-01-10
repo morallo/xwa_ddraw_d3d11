@@ -261,7 +261,7 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOrigin = Vector4(0.0f, 0.0f, 0.0f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contOrigin = Vector4(-0.01f, -0.01f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirection = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f;
@@ -1416,7 +1416,7 @@ bool LoadIndividualACParams(char *sFileName) {
 				else if (g_iNumACElements < MAX_AC_TEXTURES) {
 					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
 						ac_elem.name, g_iNumACElements);
-					ac_elem.id = g_iNumACElements; // Generate a unique ID
+					//ac_elem.idx = g_iNumACElements; // Generate a unique ID
 					ac_elem.coords = { 0 };
 					ac_elem.bActive = false;
 					ac_elem.bNameHasBeenTested = false;
@@ -3731,7 +3731,7 @@ bool rayTriangleIntersect(
 // into 3D, just like we do in the VertexShader or SBS VertexShader:
 inline void backProject(WORD index, Vector3 *P) {
 	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
-	// This code comes from VertexShader.hlsl
+	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
 	float3 temp;
 	// float3 temp = input.pos.xyz;
 	temp.x = g_OrigVerts[index].sx;
@@ -3743,16 +3743,27 @@ inline void backProject(WORD index, Vector3 *P) {
 	// temp.x is now normalized to the range (0,  2)
 	// temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// temp.xy += float2(-0.5, 0.5);
-	//temp.x += -0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-	//temp.y +=  0.5f;
-	temp.x += -1.0f;
-	temp.y +=  1.0f;
+	if (g_bEnableVR) { // SBSVertexShader
+		temp.x += -0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		temp.y += -0.5f;
+	}
+	else { // VertexShader
+		temp.x += -1.0f;
+		temp.y +=  1.0f;
+	}
 
 	// temp.x is now in the range -0.5 ..  0.5 and
 	// temp.y is now in the range  0.5 .. -0.5
-	// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
-	temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-	temp.y *= g_VSCBuffer.viewportScale[2];
+	if (!g_bEnableVR) {
+		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[2];
+	}
+	else {
+		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+	}
 	// temp.z = METRIC_SCALE_FACTOR * w;
 	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
@@ -3761,9 +3772,16 @@ inline void backProject(WORD index, Vector3 *P) {
 	P->x = temp.z * temp.x;
 	P->y = temp.z * temp.y;
 	P->z = temp.z;
+	if (g_bEnableVR) {
+		// Further adjustment of the coordinates for the DirectSBS case:
+		//output.pos3D = float4(P.x, -P.y, P.z, 1);
+		P->y = -P->y;
+		// Adjust the coordinate system for SteamVR:
+		//P.yz = -P.yz;
+	}
 }
 
-inline Vector3 project(Vector3 pos3D)
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
 	// (x0,y0)-(x1,y1) are the viewport limits
 	float x0 = g_LaserPointerBuffer.x0;
@@ -3772,18 +3790,43 @@ inline Vector3 project(Vector3 pos3D)
 	float y1 = g_LaserPointerBuffer.y1;
 	Vector3 P = pos3D;
 	float w = P.z / (float)METRIC_SCALE_FACTOR;
-	// P.xy = P.xy / P.z;
-	P.x = P.x / P.z;
-	P.y = P.y / P.z;
+
+	if (g_bEnableVR) {
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		Vector4 Q = Vector4(P.x, P.y, -P.z, 1.0f);
+		Q = projEyeMatrix * viewMatrix * Q;
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		P.x /= P.z;
+		P.y /= P.z;
+		w = P.z / (float)METRIC_SCALE_FACTOR;
+	}
+	else {
+		// P.xy = P.xy / P.z;
+		P.x /= P.z;
+		P.y /= P.z;
+	}
 	// Convert to vertex pos:
-	// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
-	P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
-	P.y /= g_VSCBuffer.viewportScale[2];
+	if (!g_bEnableVR) {
+		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[2]);
+	}
+	else {
+		P.x /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2]);
+	}
 	//P.xy -= float2(-0.5, 0.5);
-	//P.x -= -0.5f;
-	//P.y -=  0.5f;
-	P.x -= -1.0f;
-	P.y -=  1.0f;
+	if (g_bEnableVR) {
+		P.x -= -0.5f;
+		P.y -= -0.5f;
+	}
+	else {
+		P.x -= -1.0f;
+		P.y -=  1.0f;
+	}
 
 	// P.xy /= vpScale.xy;
 	P.x /= g_VSCBuffer.viewportScale[0];
@@ -3839,7 +3882,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv0);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0);
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
@@ -3852,7 +3895,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv1);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1);
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
@@ -3865,7 +3908,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv2);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2);
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,

@@ -19,12 +19,16 @@ cbuffer ConstantBuffer : register(b7)
 	bool bContOrigin; // True if contOrigin is valid
 	bool bIntersection; // True if there is an intersection to display
 	bool bACElemIntersection; // True if the cursor is hovering over an action element
-	float unusedA0;
+	int DirectSBSEye; // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
 	// 128 bytes
 	float2 v0, v1; // DEBUG
 	// 144 bytes
 	float2 v2, uv; // DEBUG
 	// 160 bytes
+	float4 vpScale;
+	// 176
+	float aspect_ratio, unusedA0, unusedA1, unusedA2;
+	// 192
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -76,19 +80,25 @@ float map(in vec2 p)
 }
 */
 
-/*
 float debug_map(in vec2 p) 
 {
 	return sdTriangle(p, v0, v1, v2);
 }
-*/
 
+/*
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
 	float4 color  : COLOR0;
 	float2 uv     : TEXCOORD0;
 	float4 pos3D  : COLOR1;
+};
+*/
+
+struct PixelShaderInput
+{
+	float4 pos : SV_POSITION;
+	float2 uv  : TEXCOORD;
 };
 
 struct PixelShaderOutput
@@ -98,10 +108,14 @@ struct PixelShaderOutput
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	//vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
-	vec2 fragCoord = input.uv * iResolution.xy;
+	float2 input_uv_orig = input.uv;
 	vec3 color = 0.0;
 	output.color = 0.0;
+	
+	if (DirectSBSEye == 1) // Left eye, modify the input uv
+		input.uv.x *= 0.5;
+	else if (DirectSBSEye == 2) // Right eye, modify input uv
+		input.uv.x = input.uv.x * 0.5 + 0.5;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (input.uv.x < x0 || input.uv.x > x1 ||
@@ -111,10 +125,23 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 	}
 
+	/* if (DirectSBSEye != -1) {
+		input.uv.xy *= float2(aspect_ratio, 1);
+	} */
+	//output.color = float4(input.uv, 0.5, 1);
+	//return output;
+
 	float3 bgColor = colorTex.Sample(colorSampler, input.uv).xyz;
 
-	//vec2 p = fragCoord / iResolution.xy;
-	vec2 p = input.uv;
+	vec2 p = input_uv_orig;
+	/*
+	if (DirectSBSEye == -1)
+		p = input.uv;
+	else if (DirectSBSEye == 1)
+		p = input.uv * float2(2.0, 1.0);
+	else if (DirectSBSEye == 2)
+		p = (input.uv - 0.5) * float2(2.0, 1.0);
+	*/
 
 	vec3 diff_col = vec3(0.9, 0.6, 0.3);
 	vec3 col = 0.0;
@@ -149,10 +176,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	v = clamp(1.2 * v, 0.0, 1.0);
 	float3 pointer_col = bIntersection ? dotcol : 0.7;
 	col = lerp(bgColor, pointer_col, v);
-	
+
 	// Draw the triangle uv-color-coded
-	//if (bIntersection && debug_map(p) < 0.001)
-	//	col = lerp(col, float3(uv, 0.0), 0.5);
+	if (bIntersection && debug_map(p) < 0.001)
+		col = lerp(col, float3(uv, 0.0), 0.5);
 
 	output.color = vec4(col, 1.0);
 	return output;

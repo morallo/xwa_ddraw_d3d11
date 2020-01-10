@@ -43,7 +43,7 @@ extern bool g_bActiveCockpitEnabled, g_bACTrigger;
 extern Vector4 g_contOrigin, g_contDirection;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
-inline Vector3 project(Vector3 pos3D);
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 extern int g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 extern int g_iBestIntersTexIdx;
@@ -2009,7 +2009,7 @@ void PrimarySurface::DrawHUDVertices() {
 				continue;
 			// Skip regions if their limits haven't been computed
 			if (!g_DCHUDRegions.boxes[region_slot].bLimitsComputed) {
-				log_debug("[DBG] [DC] Skipping move_region command for slot %d", region_slot);
+				//log_debug("[DBG] [DC] Skipping move_region command for slot %d", region_slot);
 				continue;
 			}
 			// Fetch the source uv coords:
@@ -4112,6 +4112,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
  * definitions.
  */
 void PrimarySurface::ACRunAction(char *action) {
+	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	INPUT input;
 	input.type = INPUT_KEYBOARD;
 	input.ki.time = 0;
@@ -4125,7 +4126,22 @@ void PrimarySurface::ACRunAction(char *action) {
 	else if (strcmp(action, "T") == 0) {
 		input.ki.wScan = 0x14;
 	}
-	
+	else if (strcmp(action, "V") == 0) {
+		input.ki.wScan = 0x2F;
+	}
+	else if (strcmp(action, "W") == 0) {
+		input.ki.wScan = 0x11;
+	}
+	else if (strcmp(action, "F8") == 0) {
+		input.ki.wScan = 0x42;
+	}
+	else if (strcmp(action, "F9") == 0) {
+		input.ki.wScan = 0x43;
+	}
+	else if (strcmp(action, "F10") == 0) {
+		input.ki.wScan = 0x44;
+	}
+
 	// Send keydown event:
 	//log_debug("[DBG] [AC] Sending input (1)...");
 	SendInput(1, &input, sizeof(INPUT));
@@ -4155,6 +4171,25 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
 	// because this is a post-process effect
 
+	/* Create the VertexBuffer if necessary */
+	if (resources->_barrelEffectVertBuffer == nullptr)
+	{
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+
 	if (g_iFreePIEControllerSlot > -1) {
 		if (!ReadFreePIE(g_iFreePIEControllerSlot))
 			log_debug("[DBG] [AC] Could not load FreePIE data from slot: %d", g_iFreePIEControllerSlot);
@@ -4180,6 +4215,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 
 	resources->InitPixelShader(resources->_laserPointerPS);
+
+	g_LaserPointerBuffer.DirectSBSEye = -1;
+	if (g_bEnableVR && !g_bUseSteamVR)
+		g_LaserPointerBuffer.DirectSBSEye =  1;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_LaserPointerBuffer.viewMat);
@@ -4207,10 +4246,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// DEBUG
 	*/
 
+	bool bProjectContOrigin = (g_contOrigin[2] >= 0.001f);
 	// Project the controller's position:
-	if (g_contOrigin[2] >= 0.001f) {
+	if (bProjectContOrigin) {
 		Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
-		Vector3 p = project(pos3D);
+		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
 		g_LaserPointerBuffer.contOrigin[0] = p.x;
 		g_LaserPointerBuffer.contOrigin[1] = p.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -4228,13 +4268,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	
 	// Project the intersection to 2D:
 	if (g_LaserPointerBuffer.bIntersection) {
-		Vector3 q = project(g_LaserPointer3DIntersection);
+		Vector3 q = project(g_LaserPointer3DIntersection, g_viewMatrix, g_fullMatrixLeft);
 		g_LaserPointerBuffer.intersection[0] = q.x;
 		g_LaserPointerBuffer.intersection[1] = q.y;
 
-		q = project(g_debug_v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-		q = project(g_debug_v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-		q = project(g_debug_v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+		q = project(g_debug_v0, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+		q = project(g_debug_v1, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+		q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 	}
 
 	// If there was an intersection, find the action (I don't think this code needs to be here)
@@ -4262,10 +4302,19 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	//	log_debug("[DBG] [AC] NO ACTION");
 	// DEBUG
 
+	// Temporarily disable ZWrite: we won't need it for the barrel effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
-		Vector3 p = project(pos3D);
+		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
@@ -4296,13 +4345,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		fclose(file);
 		log_debug("[DBG] [AC] test-tri-inters.obj dumped");
 
-		g_bDumpLaserPointerDebugInfo = false;
+		//g_bDumpLaserPointerDebugInfo = false;
 	}
-
-	resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
-
+	
 	{
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the new viewport (a full quad covering the full screen)
 		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
@@ -4319,51 +4366,18 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		resources->InitViewport(&viewport);
 
-		// We don't need to clear the current vertex and pixel constant buffers.
-		// Since we've just finished rendering 3D, they should contain values that
-		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
-		g_VSCBuffer.bPreventTransform = 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
-		if (g_bEnableVR)
-		{
-			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
-			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
-		}
-		else
-		{
-			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
-			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
-		}
-		//g_VSCBuffer.viewportScale[3] = 1.0f;
-		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-
-		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
-		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
-
-		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
-		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitInputLayout(resources->_inputLayout);
-		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
-		else
-			// The original (non-VR) code used _vertexShader:
-			resources->InitVertexShader(resources->_vertexShader);
-
+		// Set the vertex buffer
+		UINT stride = sizeof(MainVertex);
+		UINT offset = 0;
+		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		resources->InitInputLayout(resources->_mainInputLayout);
+		
+		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+		resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
+		resources->InitVertexShader(resources->_mainVertexShader);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -4375,6 +4389,35 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		// Render the right image
 		if (g_bEnableVR) {
+			if (bProjectContOrigin) {
+				Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
+				Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixRight);
+				g_LaserPointerBuffer.contOrigin[0] = p.x;
+				g_LaserPointerBuffer.contOrigin[1] = p.y;
+				g_LaserPointerBuffer.bContOrigin = 1;
+				/*if (g_bDumpLaserPointerDebugInfo) {
+					log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+						g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
+						p.x, p.y);
+				}*/
+			}
+			else {
+				g_LaserPointerBuffer.bContOrigin = 0;
+				/*if (g_bDumpLaserPointerDebugInfo)
+					log_debug("[DBG] [AC] NO contOrigin");*/
+			}
+
+			// Project the intersection to 2D:
+			if (g_LaserPointerBuffer.bIntersection) {
+				Vector3 q = project(g_LaserPointer3DIntersection, g_viewMatrix, g_fullMatrixRight);
+				g_LaserPointerBuffer.intersection[0] = q.x;
+				g_LaserPointerBuffer.intersection[1] = q.y;
+
+				q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			}
+
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
@@ -4384,15 +4427,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			else {
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
 				viewport.TopLeftX = (float)viewport.Width;
+				g_LaserPointerBuffer.DirectSBSEye = 2;
 			}
 			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
-			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_fullMatrixRight;
-			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
 
 			if (g_bUseSteamVR) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
@@ -4410,7 +4453,14 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
-	// Don't restore anything... whatever!
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+		resources->_depthStencilViewL.Get());
+
+	// Don't restore anything...
+	// I wonder if this is causing the bug that makes the menu go black? Maybe I need to restore
+	// the 2D vertex buffer here?
 	//goto out;
 
 	/*
@@ -5026,18 +5076,6 @@ HRESULT PrimarySurface::Flip(
 				// DEBUG
 			}
 
-			// Render the Laser Pointer for VR
-			if (g_bActiveCockpitEnabled && g_bRendering3D 
-				/* &&				
-				(PlayerDataTable[0].cockpitDisplayed || 
-				 PlayerDataTable[0].gunnerTurretActive ||
-				 PlayerDataTable[0].cockpitDisplayed2) */
-			   ) 
-			{
-				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
-			}
-
 			// Apply the HUD *after* we have re-shaded it (if necessary)
 			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
@@ -5048,6 +5086,23 @@ HRESULT PrimarySurface::Flip(
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
 				DrawHUDVertices();
 			}
+
+			// I should probably render the laser pointer before the HUD; but if I do that, then the
+			// HUD gets messed up. I guess I'm destroying the state somehow
+			// Render the Laser Pointer for VR
+			if (g_bActiveCockpitEnabled && g_bRendering3D
+				/* &&
+				(PlayerDataTable[0].cockpitDisplayed ||
+				 PlayerDataTable[0].gunnerTurretActive ||
+				 PlayerDataTable[0].cockpitDisplayed2) */
+				)
+			{
+				
+				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+			}
+			if (g_bDumpLaserPointerDebugInfo)
+				g_bDumpLaserPointerDebugInfo = false;
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);

@@ -19,18 +19,19 @@ cbuffer ConstantBuffer : register(b1)
 
 struct VertexShaderInput
 {
-	float4 pos : POSITION;
-	float4 color : COLOR0;
+	float4 pos		: POSITION;
+	float4 color		: COLOR0;
 	float4 specular : COLOR1;
-	float2 tex : TEXCOORD;
+	float2 tex		: TEXCOORD;
 };
 
 struct PixelShaderInput
 {
-	float4 pos   : SV_POSITION;
-	float4 color : COLOR0;
-	float2 tex   : TEXCOORD0;
-	float4 pos3D : COLOR1;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL; // hook_normals.dll populates this field
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -65,9 +66,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	output.pos3D = float4(P.x, -P.y, P.z, 1);
 	// Adjust the coordinate system for SteamVR:
-	//P.y = -P.y; P.z = -P.z;
 	P.yz = -P.yz;
-	// TODO: CHECK that the line above didn't mess up the stereoscopy
 
 	// Apply head position and project 3D --> 2D
 	if (bPreventTransform < 0.5f) {
@@ -119,7 +118,8 @@ PixelShaderInput main(VertexShaderInput input)
 	if (sz_override > -0.1)
 		output.pos.z = sz_override;
 
-	output.color = input.color.zyxw;
-	output.tex = input.tex;
+	output.color  = input.color.zyxw;
+	output.tex	  = input.tex;
+	output.normal = input.specular;
 	return output;
 }

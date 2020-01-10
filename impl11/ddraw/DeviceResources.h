@@ -258,12 +258,16 @@ typedef struct LaserPointerCBStruct {
 	float contOrigin[2], intersection[2];
 	// 112 bytes
 	int bContOrigin, bIntersection, bACElemIntersection;
-	float unusedA0;
+	int DirectSBSEye;
 	// 128 bytes
 	float v0[2], v1[2]; // DEBUG
 	// 144 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 160
+	float vpScale[4];
+	// 176
+	float aspect_ratio, unusedA[3];
+	// 192
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */
@@ -381,7 +385,7 @@ typedef struct ac_uv_coords_struct {
 
 typedef struct ac_element_struct {
 	ac_uv_coords coords;
-	int id; // Auto-generated ID to speed up testing against this texture while rendering
+	//int idx; // "Back pointer" into the g_ACElements array
 	char name[MAX_TEXTURE_NAME];
 	bool bActive, bNameHasBeenTested;
 } ac_element;
