@@ -145,9 +145,11 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	if (!g_config.JoystickEmul) {
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
-		DWORD X = pji->dwXpos; 
-		pji->dwXpos = pji->dwRpos; 
-		pji->dwRpos = X;
+		if (g_config.SwapJoystickXZAxes) {
+			DWORD X = pji->dwXpos;
+			pji->dwXpos = pji->dwRpos;
+			pji->dwRpos = X;
+		}
 		//log_debug("[DBG] x,y,z,r: %d, %d, %d, %d", pji->dwXpos, pji->dwYpos, pji->dwZpos, pji->dwRpos);
 		return res;
 	}

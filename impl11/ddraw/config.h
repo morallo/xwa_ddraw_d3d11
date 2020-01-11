@@ -14,6 +14,7 @@ public:
 	bool VSyncEnabled;
 	bool WireframeFillMode;
 	int JoystickEmul;
+	bool SwapJoystickXZAxes;
 	int XInputTriggerAsThrottle;
 	bool InvertYAxis;
 	float MouseSensitivity;

@@ -100,6 +100,10 @@ Config::Config()
 			{
 				this->JoystickEmul = stoi(value);
 			}
+			else if (name == "SwapJoystickXZAxes")
+			{
+				this->SwapJoystickXZAxes = (bool)stoi(value);
+			}
 			else if (name == "MouseSensitivity")
 			{
 				this->MouseSensitivity = stof(value);
