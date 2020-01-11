@@ -261,7 +261,8 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOrigin = Vector4(-0.01f, -0.01f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+//Vector4 g_contOrigin = Vector4(-0.01f, -0.01f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contOrigin = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirection = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f;
@@ -1272,7 +1273,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (lastDCElemSelected > -1) {
 					g_DCElements[lastDCElemSelected].coords.numCoords = 0;
 					g_DCElements[lastDCElemSelected].num_erase_slots = 0;
-					log_debug("[DBG] [DC] Resetting coords of exisiting DC elem @ idx: %d", lastDCElemSelected);
+					log_debug("[DBG] [DC] Resetting coords of existing DC elem @ idx: %d", lastDCElemSelected);
 				}
 				else if (g_iNumDCElements < MAX_DC_SRC_ELEMENTS) {
 					// Initialize this dc_elem:
@@ -1366,7 +1367,7 @@ bool LoadIndividualDCParams(char *sFileName) {
  * Resets g_DCElements (if we're not rendering in 3D), and the move regions.
  */
 bool LoadIndividualACParams(char *sFileName) {
-	log_debug("[DBG] Loading Active Cockpit params for [%s]...", sFileName);
+	log_debug("[DBG] [AC] Loading Active Cockpit params for [%s]...", sFileName);
 	FILE *file;
 	int error = 0, line = 0;
 	static int lastACElemSelected = -1;
@@ -1411,7 +1412,7 @@ bool LoadIndividualACParams(char *sFileName) {
 				lastACElemSelected = isInVector(ac_elem.name, g_ACElements, g_iNumACElements);
 				if (lastACElemSelected > -1) {
 					g_ACElements[lastACElemSelected].coords.numCoords = 0;
-					log_debug("[DBG] [AC] Resetting coords of exisiting AC elem @ idx: %d", lastACElemSelected);
+					log_debug("[DBG] [AC] Resetting coords of existing AC elem @ idx: %d", lastACElemSelected);
 				}
 				else if (g_iNumACElements < MAX_AC_TEXTURES) {
 					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
@@ -3732,32 +3733,47 @@ bool rayTriangleIntersect(
 inline void backProject(WORD index, Vector3 *P) {
 	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
 	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
+	static bool bDebug = true;
+	if (g_bDumpLaserPointerDebugInfo && bDebug) {
+		log_debug("[DBG] [AC] vpScale: %0.3f, %0.3f, %0.3f, %0.3f",
+			g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2], g_VSCBuffer.viewportScale[3]);
+		log_debug("[DBG] [AC] aspect_ratio: %0.3f", g_VSCBuffer.aspect_ratio);
+		bDebug = false;
+	}
 	float3 temp;
 	// float3 temp = input.pos.xyz;
 	temp.x = g_OrigVerts[index].sx;
 	temp.y = g_OrigVerts[index].sy;
+
 	// Normalize into the -0.5..0.5 range
 	//temp.xy *= vpScale.xy;
 	temp.x *= g_VSCBuffer.viewportScale[0];
 	temp.y *= g_VSCBuffer.viewportScale[1];
-	// temp.x is now normalized to the range (0,  2)
-	// temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
-	// temp.xy += float2(-0.5, 0.5);
+	// Non-VR case:
+	//		temp.x is now normalized to the range (0,  2)
+	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
+	// Direct-SBS:
+	//		temp.xy is now normalized to the range [0..1]
+	
 	if (g_bEnableVR) { // SBSVertexShader
-		temp.x += -0.5f; // For nonVR we're also multiplying by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		// temp.xy += float2(-0.5, 0.5);
+		temp.x += -0.5f; 
 		temp.y += -0.5f;
+		// temp.xy is now in the range -0.5 ..  0.5 and
 	}
 	else { // VertexShader
-		temp.x += -1.0f;
+		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
 		temp.y +=  1.0f;
+		// temp.x is now in the range -1.0 ..  1.0 and
+		// temp.y is now in the range  1.0 .. -1.0
 	}
-
-	// temp.x is now in the range -0.5 ..  0.5 and
-	// temp.y is now in the range  0.5 .. -0.5
+	
 	if (!g_bEnableVR) {
 		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[2];
+		// temp.x is now in the range -0.5 ..  0.5 and (?)
+		// temp.y is now in the range  0.5 .. -0.5 (?)
 	}
 	else {
 		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
@@ -3775,7 +3791,7 @@ inline void backProject(WORD index, Vector3 *P) {
 	if (g_bEnableVR) {
 		// Further adjustment of the coordinates for the DirectSBS case:
 		//output.pos3D = float4(P.x, -P.y, P.z, 1);
-		P->y = -P->y;
+		//P->y = -P->y;
 		// Adjust the coordinate system for SteamVR:
 		//P.yz = -P.yz;
 	}
@@ -3796,6 +3812,11 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		// coord system
 		Vector4 Q = Vector4(P.x, P.y, -P.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
+
+		// DEBUG: Don't invert Z because we're not multiplying by any matrix
+		//Vector4 Q = Vector4(P.x, -P.y, P.z, 1.0f);
+		// DEBUG
+
 		P.x = Q.x;
 		P.y = Q.y;
 		P.z = Q.z;
@@ -3813,30 +3834,27 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
 		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
 		P.y /= (g_VSCBuffer.viewportScale[2]);
-	}
-	else {
-		P.x /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
-		P.y /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2]);
-	}
-	//P.xy -= float2(-0.5, 0.5);
-	if (g_bEnableVR) {
-		P.x -= -0.5f;
-		P.y -= -0.5f;
-	}
-	else {
 		P.x -= -1.0f;
 		P.y -=  1.0f;
+		// P.xy /= vpScale.xy;
+		P.x /= g_VSCBuffer.viewportScale[0];
+		P.y /= g_VSCBuffer.viewportScale[1];
+		P.z = 1.0f / w; // Not necessary, this computes the original rhw
+	}
+	else {
+		// The following lines will convert P.xy into the range -0.5..0.5:
+		P.x /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2]);
+		P.x -= -0.5f;
+		P.y -= -0.5f;
+		return P;
 	}
 
-	// P.xy /= vpScale.xy;
-	P.x /= g_VSCBuffer.viewportScale[0];
-	P.y /= g_VSCBuffer.viewportScale[1];
-	P.z = 1.0f / w; // Not necessary, this computes the original rhw
 	// P is now in in-game coordinates (CONFIRMED!), where:
 	// (0,0) is the upper-left *original* viewport corner, and:
 	// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
 	// Note that the *original* viewport does not necessarily cover the whole screen
-	//return P;
+	//return P; // Return in-game coords
 
 	// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
 	// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)

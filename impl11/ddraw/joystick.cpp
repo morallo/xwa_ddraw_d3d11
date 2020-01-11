@@ -218,13 +218,6 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	GetCursorPos(&pos);
 	
 	pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
-	
-	/*
-	pji->dwXpos = 256;
-	pji->dwRpos = 256;
-	//pji->dwZpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
-	*/
-
 	pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
 	pji->dwButtons = 0;
 	pji->dwButtonNumber = 0;
@@ -267,10 +260,10 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	pji->dwZpos = 0;
 	*/
 	
-	if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+	if (GetAsyncKeyState(VK_UP) & 0x8000) {
 		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}
-	if (GetAsyncKeyState(VK_UP) & 0x8000) {
+	if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
 		pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
 	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;

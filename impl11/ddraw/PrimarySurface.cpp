@@ -4254,11 +4254,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.contOrigin[0] = p.x;
 		g_LaserPointerBuffer.contOrigin[1] = p.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
-		/*if (g_bDumpLaserPointerDebugInfo) {
+		if (g_bDumpLaserPointerDebugInfo) {
 			log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
 				g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
 				p.x, p.y);
-		}*/
+		}
 	}
 	else {
 		g_LaserPointerBuffer.bContOrigin = 0;
