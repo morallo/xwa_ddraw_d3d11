@@ -248,7 +248,8 @@ typedef struct ShadertoyCBStruct {
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
 typedef struct LaserPointerCBStruct {
-	float iTime, FOVscale, iResolution[2];
+	int TriggerState; // 0 = Not pressed, 1 = Pressed
+	float FOVscale, iResolution[2];
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
@@ -264,8 +265,6 @@ typedef struct LaserPointerCBStruct {
 	// 144 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 160
-	float aspect_ratio, unusedA[3];
-	// 176
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */

@@ -81,7 +81,7 @@ extern int g_iHyperStateOverride;
 
 // ACTIVE COCKPIT
 extern Vector4 g_contOrigin;
-extern bool g_bActiveCockpitEnabled, g_bACTrigger;
+extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
 
@@ -236,8 +236,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bSkipGUI: %d", g_bSkipGUI);
 				return 0;
 #endif
-			// Ctrl + Alt + Key
-			// DEBUG
+				// Ctrl + Alt + Key
+				// DEBUG
 			case 'D':
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				return 0;
@@ -247,7 +247,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'F':
 				g_bDumpLaserPointerDebugInfo = true;
 				return 0;
-			// DEBUG
+				// DEBUG
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
 				return 0;
@@ -280,7 +280,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				if (!g_bEnableVR) {
 					if (g_bSteamVRInitialized || g_bDirectSBSInitialized)
 						g_bEnableVR = true;
-				} else { // VR mode can always be disabled
+				}
+				else { // VR mode can always be disabled
 					g_bEnableVR = !g_bEnableVR;
 				}
 				return 0;
@@ -299,27 +300,27 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
 				return 0;
 
-			/*
-			case 'P': 
-				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
-					static int scrCounter = 0;
-					char prevFileName[80], scrFileName[80];
-					sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
-					sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
+				/*
+				case 'P':
+					if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
+						static int scrCounter = 0;
+						char prevFileName[80], scrFileName[80];
+						sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
+						sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
 
-					vr::ScreenshotHandle_t scr;
-					vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
-					if (error)
-						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
-					else
-						log_debug("[DBG] Screeshot %d taken", scrCounter);
-					scrCounter++;
-				}
-				else {
-					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
-				}
-				break;
-			*/
+						vr::ScreenshotHandle_t scr;
+						vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
+						if (error)
+							log_debug("[DBG] error %d when taking SteamVR screenshot", error);
+						else
+							log_debug("[DBG] Screeshot %d taken", scrCounter);
+						scrCounter++;
+					}
+					else {
+						log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
+					}
+					break;
+				*/
 
 			case 0xbb:
 				IncreaseScreenScale(0.1f);
@@ -355,7 +356,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
-			
+
 #if DBR_VR
 			case 'X':
 				g_bCapture2DOffscreenBuffer = true;
@@ -365,13 +366,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 #endif
 
-			// Ctrl + Up
+				// Ctrl + Up
 			case VK_UP:
 				g_LightVector[0].z += 0.1f;
 				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector);
 				return 0;
-			// Ctrl + Down
+				// Ctrl + Down
 			case VK_DOWN:
 				g_LightVector[0].z -= 0.1f;
 				g_LightVector[0].normalize();
@@ -419,45 +420,30 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				IncreaseHUDParallax(0.1f);
 				return 0;
 
-			/*
-			case VK_UP:
-				g_bUpKeyDownShift = false;
-				g_bUpKeyDown = false;
-				return 0;
-			case VK_DOWN:
-				g_bDownKeyDown = false;
-				g_bDownKeyDownShift = false;
-				return 0;
-			*/
+				/*
+				case VK_UP:
+					g_bUpKeyDownShift = false;
+					g_bUpKeyDown = false;
+					return 0;
+				case VK_DOWN:
+					g_bDownKeyDown = false;
+					g_bDownKeyDownShift = false;
+					return 0;
+				*/
 			}
 		}
 
 		// Plain key: no Shift, Ctrl, Alt
 		if (!ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
-			/*
-			case VK_LEFT:
-				g_bLeftKeyDown = false;
-				return 0;
-			case VK_RIGHT:
-				g_bRightKeyDown = false;
-				return 0;
-
-			case VK_UP:
-				g_bUpKeyDown = false;
-				g_bUpKeyDownShift = false;
-				return 0;
-			case VK_DOWN:
-				g_bDownKeyDown = false;
-				g_bDownKeyDownShift = false;
-				return 0;
-			*/
 			case VK_SPACE:
 				// ACTIVE COCKPIT:
 				// Use the spacebar to activate the cursor on the current active element
 				if (g_bActiveCockpitEnabled) {
-					g_bACTrigger = true;
+					g_bACActionTriggered = true;
+					g_bACTriggerState = false;
 				}
+				
 				break;
 
 			case VK_OEM_PERIOD:
@@ -477,27 +463,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		break;
 	}
 
-	/*
 	case WM_KEYDOWN: {
 		// Plain key: no Shift, Ctrl, Alt
 		if (!ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
-			case VK_LEFT:
-				g_bLeftKeyDown = true;
-				return 0;
-			case VK_RIGHT:
-				g_bRightKeyDown = true;
-				return 0;
-
-			case VK_UP:
-				g_bUpKeyDown = true;
-				return 0;
-			case VK_DOWN:
-				g_bDownKeyDown = true;
+			case VK_SPACE:
+				if (g_bActiveCockpitEnabled)
+					g_bACTriggerState = true;
 				return 0;
 			}
+
 		}
 
+		/*
 		// Shift
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
@@ -509,9 +487,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			}
 		}
+		*/
 	}
-	*/
 	}
+	
 	// Call the previous WindowProc handler
 	return CallWindowProc(OldWindowProc, hwnd, uMsg, wParam, lParam);
 }

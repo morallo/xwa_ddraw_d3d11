@@ -39,7 +39,7 @@ extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
-extern bool g_bActiveCockpitEnabled, g_bACTrigger;
+extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern Vector4 g_contOrigin, g_contDirection;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
@@ -4229,6 +4229,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
+	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
 	
 	// Compute the debug point
 	/*
@@ -4290,13 +4291,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				coords->area[i].y0 <= v && v <= coords->area[i].y1)
 			{
 				g_LaserPointerBuffer.bACElemIntersection = 1;
-				if (g_bACTrigger)
+				if (g_bACActionTriggered)
 					// Run the action proper
 					ACRunAction(&(coords->action[i]));
 				break;
 			}
 		}
-		g_bACTrigger = false;
+		g_bACActionTriggered = false;
 	}
 	// DEBUG
 	//if (!g_LaserPointerBuffer.bACElemIntersection)

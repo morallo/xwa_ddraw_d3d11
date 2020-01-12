@@ -7,7 +7,8 @@
  // LaserPointerCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
-	float iTime, FOVScale;
+	int TriggerState;
+	float FOVScale;
 	float2 iResolution;
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
@@ -24,8 +25,7 @@ cbuffer ConstantBuffer : register(b7)
 	float2 v0, v1; // DEBUG
 	// 144 bytes
 	float2 v2, uv; // DEBUG
-	float aspect_ratio, unusedA0, unusedA1, unusedA2;
-	// 176
+	// 160 bytes
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -150,6 +150,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	col = bgColor;
 	float3 dotcol = bACElemIntersection ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
+	if (TriggerState)
+		dotcol = float3(0.0, 0.0, 1.0);
 
 	float v = 0.0, d = 10000.0;
 	if (bContOrigin) {
