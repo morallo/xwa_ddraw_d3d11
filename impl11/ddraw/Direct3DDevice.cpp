@@ -273,7 +273,7 @@ bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
-bool g_bActiveCockpitEnabled = true, g_bACTrigger = false;
+bool g_bActiveCockpitEnabled = false, g_bACTrigger = false;
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
@@ -1582,7 +1582,7 @@ bool LoadACParams() {
 
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
 				g_bActiveCockpitEnabled = (bool)value;
-				log_debug("[DBG] [AC] g_bUseLaserPointer: %d", g_bActiveCockpitEnabled);
+				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
 				if (!g_bActiveCockpitEnabled) {
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
@@ -3797,27 +3797,26 @@ inline void backProject(WORD index, Vector3 *P) {
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
 	Vector3 P = pos3D;
-	float w;
+	//float w;
 	// Whatever is placed in P is returned at the end of this function
 	
 	if (g_bEnableVR) {
+		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
 		Vector4 Q = Vector4(P.x, -P.y, -P.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
 
-		// DEBUG: Don't invert Z because we're not multiplying by any matrix
-		//Vector4 Q = Vector4(P.x, -P.y, P.z, 1.0f);
-		// DEBUG
-
 		// output.pos = mul(projEyeMatrix, output.pos);
-		P.x = Q.x; // / Q.w;
-		P.y = Q.y; // / Q.w;
-		P.z = Q.z; // / Q.w;
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
 		w   = Q.w;
 
 		// DirectX divides by w internally after the PixelShader output is written. We don't
-		// see that division in the shader; but we have to do it explicitly here.
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
 		P.x /= w;
 		P.y /= w;
 
@@ -3831,7 +3830,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		float y0 = g_LaserPointerBuffer.y0;
 		float x1 = g_LaserPointerBuffer.x1;
 		float y1 = g_LaserPointerBuffer.y1;
-		w = P.z / (float)METRIC_SCALE_FACTOR;
+		//w = P.z / (float)METRIC_SCALE_FACTOR;
 
 		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;

@@ -7,7 +7,9 @@
 #include <mmsystem.h>
 #include <xinput.h>
 
+#include "XWAObject.h"
 #include "joystick.h"
+extern PlayerDataEntry *PlayerDataTable;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -145,7 +147,11 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	if (!g_config.JoystickEmul) {
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
-		if (g_config.SwapJoystickXZAxes) {
+
+		// Only swap the X-Z joystick axes if we're not in the gunner turret and if it
+		// was requested
+		if (!PlayerDataTable->gunnerTurretActive && g_config.SwapJoystickXZAxes) {
+			// Swap the X-Z joystick axes
 			DWORD X = pji->dwXpos;
 			pji->dwXpos = pji->dwRpos;
 			pji->dwRpos = X;
