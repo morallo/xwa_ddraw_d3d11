@@ -92,7 +92,7 @@ extern Vector3 g_headCenter;
 extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot;
-extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
+extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
@@ -4246,6 +4246,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// DEBUG
 	*/
 
+	// g_viewMatrix contains the camera Roll, nothing more right now
 	bool bProjectContOrigin = (g_contOrigin[2] >= 0.001f);
 	// Project the controller's position:
 	if (bProjectContOrigin) {

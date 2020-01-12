@@ -186,8 +186,7 @@ bool g_bResetHeadCenter = true; // Reset the head center on startup
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight, g_projHead;
-Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
-Matrix4 g_viewMatrix;
+Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 float g_fYawMultiplier   = DEFAULT_YAW_MULTIPLIER;
@@ -2687,7 +2686,6 @@ bool InitSteamVR()
 
 	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
 	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
-	g_fullMatrixHead = g_projHead * g_targetCompView; // The center matrix does not have eye parallax
 
 	//Test2DMesh();
 
@@ -2846,16 +2844,6 @@ bool InitDirectSBS()
 
 	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
 	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
-
-	Matrix4 g_targetCompView
-	(
-		3.0f, 0.0f, 0.0f,  0.0f,
-		0.0f, 6.0f, 0.0f,  2.0f,
-		0.0f, 0.0f, 1.0f,  0.0f,
-		0.0f, 0.0f, 0.0f,  1.0f
-	);
-	g_targetCompView.transpose();
-	g_fullMatrixHead  = g_projLeft * g_targetCompView; // The center matrix does not have eye parallax
 
 	//ShowMatrix4(g_EyeMatrixLeftInv, "g_EyeMatrixLeftInv");
 	//ShowMatrix4(g_projLeft, "g_projLeft");
@@ -3745,7 +3733,7 @@ inline void backProject(WORD index, Vector3 *P) {
 	temp.x = g_OrigVerts[index].sx;
 	temp.y = g_OrigVerts[index].sy;
 
-	// Normalize into the -0.5..0.5 range
+	// Normalize into the 0..2 or 0.0..1.0 range
 	//temp.xy *= vpScale.xy;
 	temp.x *= g_VSCBuffer.viewportScale[0];
 	temp.y *= g_VSCBuffer.viewportScale[1];
@@ -3753,45 +3741,54 @@ inline void backProject(WORD index, Vector3 *P) {
 	//		temp.x is now normalized to the range (0,  2)
 	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// Direct-SBS:
-	//		temp.xy is now normalized to the range [0..1]
+	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
 	
-	if (g_bEnableVR) { // SBSVertexShader
-		// temp.xy += float2(-0.5, 0.5);
+	if (g_bEnableVR) 
+	{ 
+		// SBSVertexShader
+		// temp.xy -= 0.5;
 		temp.x += -0.5f; 
 		temp.y += -0.5f;
-		// temp.xy is now in the range -0.5 ..  0.5 and
+		// temp.xy is now in the range -0.5 ..  0.5
 	}
-	else { // VertexShader
+	else
+	{ 
+		// VertexShader
 		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
 		temp.y +=  1.0f;
 		// temp.x is now in the range -1.0 ..  1.0 and
 		// temp.y is now in the range  1.0 .. -1.0
 	}
 	
-	if (!g_bEnableVR) {
+	if (g_bEnableVR) 
+	{
+		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+	}
+	else 
+	{
 		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[2];
 		// temp.x is now in the range -0.5 ..  0.5 and (?)
 		// temp.y is now in the range  0.5 .. -0.5 (?)
 	}
-	else {
-		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
-	}
+
 	// temp.z = METRIC_SCALE_FACTOR * w;
 	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
+
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy, temp.z);
 	P->x = temp.z * temp.x;
 	P->y = temp.z * temp.y;
 	P->z = temp.z;
-	if (g_bEnableVR) {
+	if (g_bEnableVR) 
+	{
 		// Further adjustment of the coordinates for the DirectSBS case:
 		//output.pos3D = float4(P.x, -P.y, P.z, 1);
-		//P->y = -P->y;
+		P->y = -P->y;
 		// Adjust the coordinate system for SteamVR:
 		//P.yz = -P.yz;
 	}
@@ -3799,79 +3796,81 @@ inline void backProject(WORD index, Vector3 *P) {
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
-	// (x0,y0)-(x1,y1) are the viewport limits
-	float x0 = g_LaserPointerBuffer.x0;
-	float y0 = g_LaserPointerBuffer.y0;
-	float x1 = g_LaserPointerBuffer.x1;
-	float y1 = g_LaserPointerBuffer.y1;
 	Vector3 P = pos3D;
-	float w = P.z / (float)METRIC_SCALE_FACTOR;
-
+	float w;
+	// Whatever is placed in P is returned at the end of this function
+	
 	if (g_bEnableVR) {
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
-		Vector4 Q = Vector4(P.x, P.y, -P.z, 1.0f);
+		Vector4 Q = Vector4(P.x, -P.y, -P.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
 
 		// DEBUG: Don't invert Z because we're not multiplying by any matrix
 		//Vector4 Q = Vector4(P.x, -P.y, P.z, 1.0f);
 		// DEBUG
 
-		P.x = Q.x;
-		P.y = Q.y;
-		P.z = Q.z;
-		P.x /= P.z;
-		P.y /= P.z;
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x; // / Q.w;
+		P.y = Q.y; // / Q.w;
+		P.z = Q.z; // / Q.w;
+		w   = Q.w;
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here.
+		P.x /= w;
+		P.y /= w;
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	} else {
+		// (x0,y0)-(x1,y1) are the viewport limits
+		float x0 = g_LaserPointerBuffer.x0;
+		float y0 = g_LaserPointerBuffer.y0;
+		float x1 = g_LaserPointerBuffer.x1;
+		float y1 = g_LaserPointerBuffer.y1;
 		w = P.z / (float)METRIC_SCALE_FACTOR;
-	}
-	else {
+
+		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
 		P.x /= P.z;
 		P.y /= P.z;
-	}
-	// Convert to vertex pos:
-	if (!g_bEnableVR) {
+
+		// Convert to vertex pos:
 		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
 		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
 		P.y /= (g_VSCBuffer.viewportScale[2]);
 		P.x -= -1.0f;
-		P.y -=  1.0f;
+		P.y -= 1.0f;
 		// P.xy /= vpScale.xy;
 		P.x /= g_VSCBuffer.viewportScale[0];
 		P.y /= g_VSCBuffer.viewportScale[1];
-		P.z = 1.0f / w; // Not necessary, this computes the original rhw
+		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
+
+		// P is now in in-game coordinates (CONFIRMED!), where:
+		// (0,0) is the upper-left *original* viewport corner, and:
+		// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// Note that the *original* viewport does not necessarily cover the whole screen
+		//return P; // Return in-game coords
+
+		// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
+		// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
+
+		// The following lines are simply implementing the following formulas used in the VertexShader:
+		//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+		//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+		P.x = (P.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+		P.y = (P.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		// P.x is now in -1 ..  1
+		// P.y is now in  1 .. -1
+
+		// Now convert to UV coords: (0, 1)-(1, 0):
+		// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
+		P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
+		P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
 	}
-	else {
-		// The following lines will convert P.xy into the range -0.5..0.5:
-		P.x /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
-		P.y /= (g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2]);
-		P.x -= -0.5f;
-		P.y -= -0.5f;
-		return P;
-	}
-
-	// P is now in in-game coordinates (CONFIRMED!), where:
-	// (0,0) is the upper-left *original* viewport corner, and:
-	// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
-	// Note that the *original* viewport does not necessarily cover the whole screen
-	//return P; // Return in-game coords
-
-	// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
-	// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
-
-	// The following lines are simply implementing the following formulas used in the VertexShader:
-	//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
-	//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
-	P.x = (P.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
-	P.y = (P.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
-	// P.x is now in -1 ..  1
-	// P.y is now in  1 .. -1
-
-	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
-	// Now convert to UV coords: (0, 1)-(1, 0):
-	// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
-	P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
-	P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
 	return P;
 }
 

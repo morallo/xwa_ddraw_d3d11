@@ -24,11 +24,8 @@ cbuffer ConstantBuffer : register(b7)
 	float2 v0, v1; // DEBUG
 	// 144 bytes
 	float2 v2, uv; // DEBUG
-	// 160 bytes
-	float4 vpScale;
-	// 176
 	float aspect_ratio, unusedA0, unusedA1, unusedA2;
-	// 192
+	// 176
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -178,8 +175,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col = lerp(bgColor, pointer_col, v);
 
 	// Draw the triangle uv-color-coded
-	if (bIntersection && debug_map(p) < 0.001)
-		col = lerp(col, float3(uv, 0.0), 0.5);
+	//if (bIntersection && debug_map(p) < 0.001)
+	//	col = lerp(col, float3(uv, 0.0), 0.5);
 
 	output.color = vec4(col, 1.0);
 	return output;

@@ -264,10 +264,8 @@ typedef struct LaserPointerCBStruct {
 	// 144 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 160
-	float vpScale[4];
-	// 176
 	float aspect_ratio, unusedA[3];
-	// 192
+	// 176
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */

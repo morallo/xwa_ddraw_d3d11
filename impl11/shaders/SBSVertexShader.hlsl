@@ -44,10 +44,7 @@ PixelShaderInput main(VertexShaderInput input)
 	float3 temp = input.pos.xyz;
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
-	// TODO: VERIFY THIS! THIS EQN MIGHT BE WRONG!
-	// ... or not, the scale in DirectSBS mode is probably different from the regular mode
 	temp.xy -= 0.5;
-	//temp.xy += float2(-0.5, 0.5);
 
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
@@ -83,9 +80,10 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(compViewMatrix, float4(P, 1));
 	}
 	output.pos = mul(projEyeMatrix, output.pos);
+	//output.pos.w = 1.0f;
 
-	/*
 	// Stereoscopy boost -- probably not worth it, needs to be able to distinguish the skybox and the HUD is amplified too
+	/*
 	if (pz > cockpit_threshold) {
 		float w_orig = output.pos.w;
 		metric_scale = 1;

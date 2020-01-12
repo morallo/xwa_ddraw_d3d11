@@ -2469,8 +2469,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 192;
-	static_assert(sizeof(LaserPointerCBuffer) == 192, "sizeof(LaserPointerCBuffer) must be 192");
+	constantBufferDesc.ByteWidth = 176;
+	static_assert(sizeof(LaserPointerCBuffer) == 176, "sizeof(LaserPointerCBuffer) must be 176");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 
