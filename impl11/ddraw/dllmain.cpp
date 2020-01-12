@@ -440,7 +440,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// ACTIVE COCKPIT:
 				// Use the spacebar to activate the cursor on the current active element
 				if (g_bActiveCockpitEnabled) {
-					g_bACActionTriggered = true;
+					//g_bACActionTriggered = true;
 					g_bACTriggerState = false;
 				}
 				

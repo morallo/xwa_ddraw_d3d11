@@ -273,7 +273,7 @@ bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
-bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACTriggerState = false;
+bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
@@ -1559,7 +1559,7 @@ bool LoadACParams() {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	/* Reload individual cockit parameters if the current cockpit is set */
 	bool bActiveCockpitParamsLoaded = false;
@@ -1578,16 +1578,29 @@ bool LoadACParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
-				g_bActiveCockpitEnabled = (bool)value;
+				g_bActiveCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
 				if (!g_bActiveCockpitEnabled) {
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
 					return false;
 				}
+			}
+			else if (_stricmp(param, "freepie_controller_slot") == 0) {
+				g_iFreePIEControllerSlot = (int)fValue;
+				InitFreePIE();
+			}
+			else if (_stricmp(param, "controller_multiplier_x") == 0) {
+				g_fContMultiplierX = fValue;
+			}
+			else if (_stricmp(param, "controller_multiplier_y") == 0) {
+				g_fContMultiplierY = fValue;
+			}
+			else if (_stricmp(param, "controller_multiplier_z") == 0) {
+				g_fContMultiplierZ = fValue;
 			}
 		}
 	}
@@ -2334,21 +2347,7 @@ void LoadVRParams() {
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
 				g_iFreePIESlot = (int)fValue;
-			}
-			else if (_stricmp(param, "freepie_controller_slot") == 0) {
-				g_iFreePIEControllerSlot = (int)fValue;
-				InitFreePIE();
-			}
-			else if (_stricmp(param, "controller_multiplier_x") == 0) {
-				g_fContMultiplierX = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_y") == 0) {
-				g_fContMultiplierY = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_z") == 0) {
-				g_fContMultiplierZ = fValue;
-			}
-			
+			}	
 
 			param_read_count++;
 		}

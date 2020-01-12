@@ -39,7 +39,7 @@ extern int g_iHyperExitPostFrames;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
-extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
+extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
 extern Vector4 g_contOrigin, g_contDirection;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
@@ -4230,6 +4230,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
+	// Detect triggers:
+	if (g_bACLastTriggerState && !g_bACTriggerState) {
+		g_bACActionTriggered = true;
+	}
+	g_bACLastTriggerState = g_bACTriggerState;
 	
 	// Compute the debug point
 	/*
@@ -4279,8 +4284,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 	}
 
-	// If there was an intersection, find the action (I don't think this code needs to be here)
 	g_LaserPointerBuffer.bACElemIntersection = 0;
+	// If there was an intersection, find the action and execute it.
+	// (I don't think this code needs to be here)
 	if (g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
 	{
 		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx].coords);
@@ -4297,8 +4303,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				break;
 			}
 		}
-		g_bACActionTriggered = false;
 	}
+	g_bACActionTriggered = false;
+
 	// DEBUG
 	//if (!g_LaserPointerBuffer.bACElemIntersection)
 	//	log_debug("[DBG] [AC] NO ACTION");
@@ -4314,6 +4321,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	resources->InitDepthStencilState(depthState, &desc);
 
 	// Dump some debug info to see what's happening with the intersection
+	/*
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
 		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
@@ -4349,7 +4357,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		//g_bDumpLaserPointerDebugInfo = false;
 	}
-	
+	*/
+
 	{
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the new viewport (a full quad covering the full screen)
