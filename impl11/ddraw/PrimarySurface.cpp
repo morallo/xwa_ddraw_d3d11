@@ -36,15 +36,17 @@ extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
 extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
+bool g_bKeybExitHyperspace = false;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
-extern Vector4 g_contOrigin, g_contDirection;
+extern bool g_bFreePIEInitialized, g_bOriginFromHMD;
+extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
-extern int g_iFreePIEControllerSlot;
+extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 extern int g_iBestIntersTexIdx;
 extern ac_element g_ACElements[MAX_AC_TEXTURES];
@@ -54,7 +56,7 @@ extern int g_iNumACElements;
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
-extern float g_fLPdebugPointOffset;
+extern float g_fLPdebugPointOffset, g_fDebugYCenter, g_fDebugZCenter;
 // DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
@@ -3472,11 +3474,28 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	return viewMatrix;
 }
 
+void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
+	float yaw   = (float)PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f + 180.0f;
+	float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+	//float roll  = 0.0f;
+
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+	//rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+	rotMatrixFull = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
+	if (invert)
+		*result = rotMatrixFull.invert();
+	else
+		*result = rotMatrixFull;
+}
+
 void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 	const float DEG2RAD = 0.01745f;
 	if (PlayerDataTable->gunnerTurretActive)
 	{
-		// This is what the matrix looks like when looking front:
+		// This is what the matrix looks like when looking forward:
 		// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
 		short *Turret = (short *)(0x8B94E0 + 0x21E);
 		float factor = 32768.0f;
@@ -3539,22 +3558,7 @@ void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 		*result = rotX * viewMat.invert();
 	}
 	else {
-		float yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f + 180.0f;
-		float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
-		float roll = 0.0f;
-
-		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-		rotMatrixFull.identity();
-		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-		*result = rotMatrixFull.invert();
-
-		//////////////////////////////////////////////////
-		// Compute the ship's view matrix
-		//Vector4 Rs, Us, Fs;
-		//Matrix4 viewMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs);
+		GetCockpitViewMatrix(result);
 	}
 }
 
@@ -3615,6 +3619,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	case HS_HYPER_ENTER_ST:
 		// Max internal time: ~500
 		// Max shader time: 2.0 (t2)
+		g_bKeybExitHyperspace = false;
 		resources->InitPixelShader(resources->_hyperEntryPS);
 		timeInHyperspace = timeInHyperspace / 650.0f; // 550.0f
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
@@ -3639,8 +3644,21 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
+		
+		if (g_config.StayInHyperspace) {
+			if (!g_bKeybExitHyperspace) {
+				if (PlayerDataTable->timeInHyperspace > 900 && PlayerDataTable->timeInHyperspace < 1000)
+					PlayerDataTable->timeInHyperspace -= 500;
+			}
+			else {
+				PlayerDataTable->timeInHyperspace = 1050;
+				g_bKeybExitHyperspace = false;
+			}
+		}
+		
 		break;
 	case HS_HYPER_EXIT_ST:
+		g_bKeybExitHyperspace = false;
 		// Time is reversed here and in post-hyper-exit because this effect was originally
 		// the hyper-entry in reverse; but then I changed it and I didn't "un-revert" the
 		// time axis. Oh well, yet another TODO for me...
@@ -4166,7 +4184,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	static Vector3 referencePos = Vector3(0, 0, 0);
+	//static Vector3 referencePos = Vector3(0, 0, 0);
 	D3D11_VIEWPORT viewport{};
 	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
 	// because this is a post-process effect
@@ -4188,25 +4206,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 		vertexBufferData.pSysMem = g_BarrelEffectVertices;
 		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
-
-	if (g_iFreePIEControllerSlot > -1) {
-		if (!ReadFreePIE(g_iFreePIEControllerSlot))
-			log_debug("[DBG] [AC] Could not load FreePIE data from slot: %d", g_iFreePIEControllerSlot);
-		else {
-			if (g_bResetHeadCenter) {
-				referencePos.x = g_FreePIEData.x;
-				referencePos.y = g_FreePIEData.y;
-				referencePos.z = g_FreePIEData.z;
-				g_bResetHeadCenter = false;
-			}
-			g_contOrigin.x = g_FreePIEData.x - referencePos.x;
-			g_contOrigin.y = g_FreePIEData.y - referencePos.y;
-			g_contOrigin.z = g_FreePIEData.z - referencePos.z;
-			g_contOrigin.z = -g_contOrigin.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-			//log_debug("[DBG] [AC] g_contOrigin: %0.3f, %0.3f, %0.3f",
-			//	g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
-		}
 	}
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -4235,59 +4234,53 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_bACActionTriggered = true;
 	}
 	g_bACLastTriggerState = g_bACTriggerState;
-	
-	// Compute the debug point
-	/*
-	// DEBUG
-	{
-		g_LPdebugPoint[0] = g_contOrigin.x + g_fLPdebugPointOffset * g_contDirection.x;
-		g_LPdebugPoint[1] = g_contOrigin.y + g_fLPdebugPointOffset * g_contDirection.y;
-		g_LPdebugPoint[2] = g_contOrigin.z + g_fLPdebugPointOffset * g_contDirection.z;
-
-		// Project to 2D
-		Vector3 p = project(g_LPdebugPoint);
-		g_LaserPointerBuffer.debugPoint[0] = p.x;
-		g_LaserPointerBuffer.debugPoint[1] = p.y;
-	}
-	// DEBUG
-	*/
 
 	// g_viewMatrix contains the camera Roll, nothing more right now
-	bool bProjectContOrigin = (g_contOrigin[2] >= 0.001f);
+	bool bProjectContOrigin = (g_contOriginViewSpace[2] >= 0.001f);
+	Vector3 contOriginDisplay = Vector3(g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
+	Vector3 intersDisplay, pos2D;
+	intersDisplay.x += contOriginDisplay.x + 0.1f * g_contDirViewSpace.x;
+	intersDisplay.y += contOriginDisplay.y + 0.1f * g_contDirViewSpace.y;
+	intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
+
 	// Project the controller's position:
 	if (bProjectContOrigin) {
-		Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
-		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
-		g_LaserPointerBuffer.contOrigin[0] = p.x;
-		g_LaserPointerBuffer.contOrigin[1] = p.y;
+		pos2D = project(contOriginDisplay, g_viewMatrix, g_fullMatrixLeft);
+		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
+		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
-		if (g_bDumpLaserPointerDebugInfo) {
+		/* if (g_bDumpLaserPointerDebugInfo) {
 			log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
 				g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
 				p.x, p.y);
-		}
+		} */
 	}
-	else {
+	else
 		g_LaserPointerBuffer.bContOrigin = 0;
-		/*if (g_bDumpLaserPointerDebugInfo)
-			log_debug("[DBG] [AC] NO contOrigin");*/
-	}
 	
 	// Project the intersection to 2D:
 	if (g_LaserPointerBuffer.bIntersection) {
-		Vector3 q = project(g_LaserPointer3DIntersection, g_viewMatrix, g_fullMatrixLeft);
-		g_LaserPointerBuffer.intersection[0] = q.x;
-		g_LaserPointerBuffer.intersection[1] = q.y;
-
+		intersDisplay = g_LaserPointer3DIntersection;
+		Vector3 q;
 		q = project(g_debug_v0, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
 		q = project(g_debug_v1, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
 		q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+	} 
+	else {
+		// Make a fake intersection just to help the user move around the cockpit
+		intersDisplay.x += contOriginDisplay.x + 0.1f * g_contDirViewSpace.x;
+		intersDisplay.y += contOriginDisplay.y + 0.1f * g_contDirViewSpace.y;
+		intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
 	}
+	// Project the intersection point
+	pos2D = project(intersDisplay, g_viewMatrix, g_fullMatrixLeft);
+	g_LaserPointerBuffer.intersection[0] = pos2D.x;
+	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
-	g_LaserPointerBuffer.bACElemIntersection = 0;
+	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 	// If there was an intersection, find the action and execute it.
-	// (I don't think this code needs to be here)
-	if (g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
+	// (I don't think this code needs to be here; but I put it here with the rest of the render function)
+	if (g_LaserPointerBuffer.bIntersection && g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
 	{
 		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx].coords);
 		float u = g_LaserPointerBuffer.uv[0];
@@ -4296,7 +4289,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
 				coords->area[i].y0 <= v && v <= coords->area[i].y1)
 			{
-				g_LaserPointerBuffer.bACElemIntersection = 1;
+				g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
 				if (g_bACActionTriggered)
 					// Run the action proper
 					ACRunAction(&(coords->action[i]));
@@ -4305,11 +4298,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 	}
 	g_bACActionTriggered = false;
-
-	// DEBUG
-	//if (!g_LaserPointerBuffer.bACElemIntersection)
-	//	log_debug("[DBG] [AC] NO ACTION");
-	// DEBUG
 
 	// Temporarily disable ZWrite: we won't need it for the barrel effect
 	D3D11_DEPTH_STENCIL_DESC desc;
@@ -4321,7 +4309,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	resources->InitDepthStencilState(depthState, &desc);
 
 	// Dump some debug info to see what's happening with the intersection
-	/*
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
 		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
@@ -4331,8 +4318,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			log_debug("[DBG] [AC] intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
 				pos3D.x, pos3D.y, pos3D.z, p.x, p.y);
 		}
-		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
-		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirection.x, g_contDirection.y, g_contDirection.z);
+		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
+		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirViewSpace.x, g_contDirViewSpace.y, g_contDirViewSpace.z);
 		log_debug("[DBG] [AC] Triangle, best t: %0.3f: ", g_fBestIntersectionDistance);
 		log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
 		log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
@@ -4345,7 +4332,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_debug_v1.x, g_debug_v1.y, g_debug_v1.z);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_debug_v2.x, g_debug_v2.y, g_debug_v2.z);
 		fprintf(file, "\n# Origin\n");
-		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
 		fprintf(file, "\n# Intersection\n");
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
 		fprintf(file, "\n# Triangle\n");
@@ -4357,7 +4344,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		//g_bDumpLaserPointerDebugInfo = false;
 	}
-	*/
 
 	{
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4401,33 +4387,22 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				Vector3 pos3D = Vector3(g_contOrigin.x, g_contOrigin.y, g_contOrigin.z);
-				Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixRight);
-				g_LaserPointerBuffer.contOrigin[0] = p.x;
-				g_LaserPointerBuffer.contOrigin[1] = p.y;
+				pos2D = project(contOriginDisplay, g_viewMatrix, g_fullMatrixRight);
+				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
+				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
-				/*if (g_bDumpLaserPointerDebugInfo) {
-					log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-						g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
-						p.x, p.y);
-				}*/
 			}
-			else {
+			else
 				g_LaserPointerBuffer.bContOrigin = 0;
-				/*if (g_bDumpLaserPointerDebugInfo)
-					log_debug("[DBG] [AC] NO contOrigin");*/
-			}
 
 			// Project the intersection to 2D:
-			if (g_LaserPointerBuffer.bIntersection) {
-				Vector3 q = project(g_LaserPointer3DIntersection, g_viewMatrix, g_fullMatrixRight);
-				g_LaserPointerBuffer.intersection[0] = q.x;
-				g_LaserPointerBuffer.intersection[1] = q.y;
+			pos2D = project(intersDisplay, g_viewMatrix, g_fullMatrixRight);
+			g_LaserPointerBuffer.intersection[0] = pos2D.x;
+			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
-				q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
-			}
+			//q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			//q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			//q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -5315,10 +5290,10 @@ HRESULT PrimarySurface::Flip(
 				g_VSMatrixCB.viewMat = g_viewMatrix;
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
-			else if (g_bEnableVR) { // DirectSBS mode, read the roll and position (?) from FreePIE
+			else { // non-VR and DirectSBS mode, read the roll and position (?) from FreePIE
 				//float pitch, yaw, roll, pitchSign = -1.0f;
 				float yaw, pitch, roll;
-				static Vector4 headCenter(0, 0, 0, 0);
+				static Vector4 headCenterPos(0, 0, 0, 0);
 				Vector4 headPos(0,0,0,1);
 				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
 				
@@ -5329,20 +5304,67 @@ HRESULT PrimarySurface::Flip(
 				}
 				*/
 
-				if (ReadFreePIE(g_iFreePIESlot)) {
-					/*if (g_bResetHeadCenter) {
-						headCenter[0] = g_FreePIEData.x;
-						headCenter[1] = g_FreePIEData.y;
-						headCenter[2] = g_FreePIEData.z;
+				// Read yaw/pitch/roll
+				if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+					if (g_bResetHeadCenter && g_bOriginFromHMD) {
+						headCenterPos.x = g_FreePIEData.x;
+						headCenterPos.y = g_FreePIEData.y;
+						headCenterPos.z = g_FreePIEData.z;
 					}
-					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);*/
+					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
+					headPos = (pos - headCenterPos);
 					yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
 					pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
 					roll   = g_FreePIEData.roll  * g_fRollMultiplier;
 					yaw   += g_fYawOffset;
 					pitch += g_fPitchOffset;
-					//headPos = (pos - headCenter);
-				} 
+					
+				}
+
+				if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
+					if (g_bResetHeadCenter && !g_bOriginFromHMD) {
+						headCenterPos[0] = g_FreePIEData.x;
+						headCenterPos[1] = g_FreePIEData.y;
+						headCenterPos[2] = g_FreePIEData.z;
+					}
+					g_contOriginWorldSpace.x =  g_FreePIEData.x - headCenterPos.x;
+					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
+					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
+					//g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+				}
+				
+				//log_debug("[DBG] [AC] ypr: ")
+				// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
+				Matrix4 cockpitView, cockpitViewDir; 
+				{
+					//GetCockpitViewMatrix(&cockpitView);
+					float yaw   = (float)PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f;
+					float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+					Matrix4 rotMatrixYaw, rotMatrixPitch;
+					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
+					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+					cockpitView = rotMatrixPitch * rotMatrixYaw;
+					// I honestly don't understand why the transformation rule for the controller direction
+					// is inverted; but that's how it is!
+					cockpitViewDir = cockpitView;
+					cockpitViewDir.invert();
+				}
+				Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
+				temp.y -= g_fDebugYCenter;
+				temp.z -= g_fDebugZCenter;
+				temp = cockpitView * temp;
+				temp.y += g_fDebugYCenter;
+				temp.z += g_fDebugZCenter;
+				g_contOriginViewSpace.x = temp.x - headPos.x;
+				g_contOriginViewSpace.y = temp.y - headPos.y;
+				g_contOriginViewSpace.z = temp.z - headPos.z;
+				g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+				
+				temp.x = g_contDirWorldSpace.x;
+				temp.y = g_contDirWorldSpace.y;
+				temp.z = g_contDirWorldSpace.z;
+				temp.w = 0.0f;
+				g_contDirViewSpace = cockpitViewDir * temp;
 				
 				if (g_bYawPitchFromMouseOverride) {
 					// If FreePIE could not be read, then get the yaw/pitch from the mouse:
@@ -5369,53 +5391,55 @@ HRESULT PrimarySurface::Flip(
 				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
 				*/
 
-				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-				rotMatrixFull.identity();
-				//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
-				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+				if (g_bEnableVR) {
+					Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+					rotMatrixFull.identity();
+					//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
+					rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+					rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
 
-				// For the fixed GUI, yaw has to be like this:
-				rotMatrixFull.rotateY(yaw);
-				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
-				// But the matrix to compensate for the translation uses -yaw:
-				rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
-				// Can we avoid computing the matrix inverse?
-				rotMatrixYaw.invert();
-				//headPos = rotMatrixYaw * headPos;
+					// For the fixed GUI, yaw has to be like this:
+					rotMatrixFull.rotateY(yaw);
+					rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
+					// But the matrix to compensate for the translation uses -yaw:
+					rotMatrixYaw = rotMatrixPitch * rotMatrixYaw;
+					// Can we avoid computing the matrix inverse?
+					rotMatrixYaw.invert();
+					//headPos = rotMatrixYaw * headPos;
 
-				g_viewMatrix.identity();
-				g_viewMatrix.rotateZ(roll); 
-				//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
-				// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
-				// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
-				// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
-				// 
-				/*
-				g_viewMatrix[12] = headPos[0];
-				g_viewMatrix[13] = headPos[1];
-				g_viewMatrix[14] = headPos[2];
-				rotMatrixFull[12] = headPos[0];
-				rotMatrixFull[13] = headPos[1];
-				rotMatrixFull[14] = headPos[2];
-				*/
-				/* // This effect is now being applied in the cockpit look hook 
-				// Map the translation from global coordinates to heading coords
-				Vector4 Rs, Us, Fs;
-				Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
-				headPos[3] = 0.0f;
-				headPos = HeadingMatrix * headPos;
-				PlayerDataTable->cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-				PlayerDataTable->cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-				PlayerDataTable->cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
-				// END OF HACK
-				*/
+					g_viewMatrix.identity();
+					g_viewMatrix.rotateZ(roll);
+					//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
+					// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
+					// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
+					// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
+					// 
+					/*
+					g_viewMatrix[12] = headPos[0];
+					g_viewMatrix[13] = headPos[1];
+					g_viewMatrix[14] = headPos[2];
+					rotMatrixFull[12] = headPos[0];
+					rotMatrixFull[13] = headPos[1];
+					rotMatrixFull[14] = headPos[2];
+					*/
+					/* // This effect is now being applied in the cockpit look hook
+					// Map the translation from global coordinates to heading coords
+					Vector4 Rs, Us, Fs;
+					Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
+					headPos[3] = 0.0f;
+					headPos = HeadingMatrix * headPos;
+					PlayerDataTable->cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
+					PlayerDataTable->cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
+					PlayerDataTable->cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+					// END OF HACK
+					*/
 
-				// viewMat is not a full transform matrix: it's only RotZ + Translation
-				// because the cockpit hook already applies the yaw/pitch rotation
-				g_VSMatrixCB.viewMat = g_viewMatrix;
-				g_VSMatrixCB.fullViewMat = rotMatrixFull;
+					// viewMat is not a full transform matrix: it's only RotZ + Translation
+					// because the cockpit hook already applies the yaw/pitch rotation
+					g_VSMatrixCB.viewMat = g_viewMatrix;
+					g_VSMatrixCB.fullViewMat = rotMatrixFull;
+				}
 			}
 
 #ifdef DBG_VR

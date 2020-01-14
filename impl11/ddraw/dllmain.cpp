@@ -78,12 +78,16 @@ enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 // DEBUG
+extern bool g_bKeybExitHyperspace;
 
 // ACTIVE COCKPIT
-extern Vector4 g_contOrigin;
+extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
+//DEBUG
+extern float g_fDebugZCenter;
+//DEBUG
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -141,7 +145,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.x += 0.05f;
+				g_contOriginWorldSpace.x += 0.05f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -159,7 +163,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.x -= 0.05f;
+				g_contOriginWorldSpace.x -= 0.05f;
 
 				/*
 				g_fHyperTimeOverride -= 0.1f;
@@ -178,14 +182,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y += 0.05f;
+				g_contOriginWorldSpace.y += 0.05f;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOrigin.y -= 0.05f;
+				g_contOriginWorldSpace.y -= 0.05f;
 				return 0;
 			}
 		}
@@ -331,21 +335,25 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_UP:
 				//IncreaseLensK1(0.1f);
-				g_contOrigin.z += 0.05f;
+				g_contOriginWorldSpace.z += 0.05f;
 				return 0;
 			case VK_DOWN:
 				//IncreaseLensK1(-0.1f);
-				g_contOrigin.z -= 0.05f;
+				g_contOriginWorldSpace.z -= 0.05f;
 				return 0;
 			case VK_LEFT:
-				IncreaseLensK2(-0.1f);
+				//IncreaseLensK2(-0.1f);
 				/*g_fLPdebugPointOffset -= 0.05f;
 				if (g_fLPdebugPointOffset < 0.0f)
 					g_fLPdebugPointOffset = 0.0f;*/
+				g_fDebugZCenter += 0.01f;
+				log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
 				return 0;
 			case VK_RIGHT:
-				IncreaseLensK2(0.1f);
+				//IncreaseLensK2(0.1f);
 				//g_fLPdebugPointOffset += 0.05f;
+				g_fDebugZCenter -= 0.01f;
+				log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
 				return 0;
 			}
 		}
@@ -437,6 +445,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		if (!ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
 			case VK_SPACE:
+				// Exit hyperspace
+				g_bKeybExitHyperspace = true;
+
 				// ACTIVE COCKPIT:
 				// Use the spacebar to activate the cursor on the current active element
 				if (g_bActiveCockpitEnabled) {
@@ -451,7 +462,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOrigin.set(-0.01f, -0.01f, 0.05f, 1);
+				g_fDebugZCenter = 0.0f;
+				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
+				//g_contOriginViewSpace = g_contOriginWorldSpace;
 				break;
 			}
 		}

@@ -187,6 +187,7 @@ vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight, g_projHead;
 Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
+
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 float g_fYawMultiplier   = DEFAULT_YAW_MULTIPLIER;
@@ -260,9 +261,10 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 
 /*********************************************************/
 // ACTIVE COCKPIT
-//Vector4 g_contOrigin = Vector4(-0.01f, -0.01f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
-Vector4 g_contOrigin = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
-Vector4 g_contDirection = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
+Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
+Vector4 g_contOriginViewSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contDirViewSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
@@ -271,9 +273,10 @@ int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersect
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
-float g_fLPdebugPointOffset = 0.0f;
+float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f, g_fDebugZCenter = 0.0f;
 // DEBUG vars
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
+bool g_bOriginFromHMD = false;
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
@@ -1601,6 +1604,18 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "controller_multiplier_z") == 0) {
 				g_fContMultiplierZ = fValue;
+			}
+			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
+				g_bOriginFromHMD = (bool)fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_x") == 0) {
+				g_contOriginWorldSpace.x = fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_y") == 0) {
+				g_contOriginWorldSpace.y = fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_z") == 0) {
+				g_contOriginWorldSpace.z = fValue;
 			}
 		}
 	}
@@ -5119,13 +5134,13 @@ HRESULT Direct3DDevice::Execute(
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
 
-					orig.x = g_contOrigin.x;
-					orig.y = g_contOrigin.y;
-					orig.z = g_contOrigin.z;
+					orig.x = g_contOriginViewSpace.x;
+					orig.y = g_contOriginViewSpace.y;
+					orig.z = g_contOriginViewSpace.z;
 
-					dir.x = g_contDirection.x;
-					dir.y = g_contDirection.y;
-					dir.z = g_contDirection.z;
+					dir.x = g_contDirViewSpace.x;
+					dir.y = g_contDirViewSpace.y;
+					dir.z = g_contDirViewSpace.z;
 
 					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir, &t,
 						&v0, &v1, &v2, &P, &u, &v);

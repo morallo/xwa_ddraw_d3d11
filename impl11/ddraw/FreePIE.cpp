@@ -9,7 +9,7 @@ typedef INT32(__cdecl *freepie_io_6dof_read_fun_type)(UINT32 index, UINT32 lengt
 freepie_io_6dof_slots_fun_type freepie_io_6dof_slots = NULL;
 freepie_io_6dof_read_fun_type freepie_io_6dof_read = NULL;
 
-bool bFreePIEInitialized = false;
+bool g_bFreePIEInitialized = false;
 freepie_io_6dof_data g_FreePIEData;
 HMODULE hFreePIE = NULL;
 bool bFreePIEAlreadyInitialized = false;
@@ -24,7 +24,7 @@ bool InitFreePIE() {
 		return true;
 	}
 	log_debug("[DBG] Initializing FreePIE");
-	bFreePIEInitialized = false;
+	g_bFreePIEInitialized = false;
 
 	lRes = RegGetValueA(HKEY_CURRENT_USER, "Software\\FreePIE", "path", RRF_RT_ANY, NULL, regvalue, &size);
 	if (lRes != ERROR_SUCCESS) {
@@ -53,14 +53,14 @@ bool InitFreePIE() {
 			return false;
 		}
 
-		bFreePIEInitialized = true;
+		g_bFreePIEInitialized = true;
 		return true;
 	}
 	else {
 		log_debug("[DBG] Could not load FreePIE");
 		return false;
 	}
-	bFreePIEInitialized = true;
+	g_bFreePIEInitialized = true;
 	bFreePIEAlreadyInitialized = true;
 	return true;
 }
@@ -75,7 +75,7 @@ void ShutdownFreePIE() {
 }
 
 bool ReadFreePIE(int slot) {
-	if (!bFreePIEInitialized) {
+	if (!g_bFreePIEInitialized) {
 		//log_debug("[DBG] FreePIE is NOT initialized");
 		return false;
 	}

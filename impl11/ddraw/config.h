@@ -28,6 +28,8 @@ public:
 	bool EnhanceIllumination;
 	bool EnhanceEngineGlow;
 	bool EnhanceExplosions;
+
+	bool StayInHyperspace;
 };
 
 extern Config g_config;

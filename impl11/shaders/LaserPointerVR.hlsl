@@ -7,7 +7,7 @@
  // LaserPointerCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
-	int TriggerState;
+	int TriggerState; // 1 = Pressed, 0 = Released
 	float FOVScale;
 	float2 iResolution;
 	// 16 bytes
@@ -17,9 +17,9 @@ cbuffer ConstantBuffer : register(b7)
 	// 96 bytes
 	float2 contOrigin, intersection;
 	// 112 bytes
-	bool bContOrigin; // True if contOrigin is valid
-	bool bIntersection; // True if there is an intersection to display
-	bool bACElemIntersection; // True if the cursor is hovering over an action element
+	bool bContOrigin;		    // True if contOrigin is valid (can be displayed)
+	bool bIntersection;		    // True if there is an intersection to display
+	bool bHoveringOnActiveElem; // True if the cursor is hovering over an action element
 	int DirectSBSEye; // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
 	// 128 bytes
 	float2 v0, v1; // DEBUG
@@ -149,7 +149,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// DEBUG
 
 	col = bgColor;
-	float3 dotcol = bACElemIntersection ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
+	float3 dotcol = bHoveringOnActiveElem ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
 	if (TriggerState)
 		dotcol = float3(0.0, 0.0, 1.0);
 
@@ -160,13 +160,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 		v += exp(-(d * d) * 5000.0);
 	}
 
-	if (bIntersection) {
+	if (bIntersection) 
+	{
 		d = sdCircle(p, intersection, 0.0);
 		d += 0.01;
 		v += exp(-(d * d) * 10000.0);
 	}
 
-	if (bIntersection && bContOrigin) {
+	//if (bIntersection && bContOrigin)
+	if (bContOrigin) 
+	{
 		d = sdLine(p, contOrigin, intersection);
 		d += 0.01;
 		v += exp(-(d * d) * 7500.0);

@@ -258,7 +258,7 @@ typedef struct LaserPointerCBStruct {
 	// 32 + 64 = 96 bytes
 	float contOrigin[2], intersection[2];
 	// 112 bytes
-	int bContOrigin, bIntersection, bACElemIntersection;
+	int bContOrigin, bIntersection, bHoveringOnActiveElem;
 	int DirectSBSEye;
 	// 128 bytes
 	float v0[2], v1[2]; // DEBUG

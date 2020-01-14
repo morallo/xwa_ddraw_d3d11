@@ -37,6 +37,8 @@ Config::Config()
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
 
+	this->StayInHyperspace = false;
+
 	ifstream file("ddraw.cfg");
 
 	if (file.is_open())
@@ -127,6 +129,10 @@ Config::Config()
 			else if (name == "EnhanceExplosions")
 			{
 				this->EnhanceExplosions = (bool)stoi(value);
+			}
+			else if (name == "StayInHyperspace")
+			{
+				this->StayInHyperspace = (bool)stoi(value);
 			}
 		}
 	}
