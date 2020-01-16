@@ -253,18 +253,18 @@ typedef struct LaserPointerCBStruct {
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	Matrix4 viewMat; // The view rotation matrix
-	// 4*4 = 16 elements, 16 * 4 = 64 bytes
-	// 32 + 64 = 96 bytes
 	float contOrigin[2], intersection[2];
-	// 112 bytes
+	// 48 bytes
 	int bContOrigin, bIntersection, bHoveringOnActiveElem;
 	int DirectSBSEye;
-	// 128 bytes
+	// 64 bytes
 	float v0[2], v1[2]; // DEBUG
-	// 144 bytes
+	// 80 bytes
 	float v2[2], uv[2]; // DEBUG
-	// 160
+	// 96
+	int bDebugMode;
+	int unusedA[3];
+	// 112 bytes
 } LaserPointerCBuffer;
 
 /* 3D Constant Buffers */

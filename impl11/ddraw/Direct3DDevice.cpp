@@ -40,8 +40,7 @@ FILE *g_HackFile = NULL;
 PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 
-const float DEFAULT_FOCAL_DIST = 0.5f;
-//const float DEFAULT_FOCAL_DIST_STEAMVR = 0.6f;
+const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 
 const float DEFAULT_HUD_PARALLAX = 1.7f;
@@ -185,7 +184,7 @@ bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bResetHeadCenter = true; // Reset the head center on startup
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
-Matrix4 g_projLeft, g_projRight, g_projHead;
+Matrix4 g_projLeft, g_projRight;
 Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
@@ -276,7 +275,7 @@ Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f, g_fDebugZCenter = 0.0f;
 // DEBUG vars
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDMotion = false;
 ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
 int g_iNumACElements = 0;
 
@@ -1617,6 +1616,12 @@ bool LoadACParams() {
 			else if (_stricmp(param, "controller_origin_init_z") == 0) {
 				g_contOriginWorldSpace.z = fValue;
 			}
+			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
+				g_bCompensateHMDMotion = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug") == 0) {
+				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -2249,6 +2254,7 @@ void LoadVRParams() {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, FOCAL_DIST_VRPARAM) == 0) {
 				g_fFocalDist = fValue;
+				log_debug("[DBG] Focal Distance: %0.3f", g_fFocalDist);
 			}
 			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
@@ -2620,30 +2626,11 @@ bool InitSteamVR()
 	//Matrix4 RollTest;
 	bool result = true;
 
-	Matrix4 g_targetCompView
-	(
-		3.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 6.0f, 0.0f, 2.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	);
-	g_targetCompView.transpose();
-
 	int file_error = fopen_s(&file, "./steamvr_mat.txt", "wt");
 	log_debug("[DBG] Initializing SteamVR");
 	vr::EVRInitError eError = vr::VRInitError_None;
 	g_pHMD = vr::VR_Init(&eError, vr::VRApplication_Scene);
 	g_headCenter.set(0, 0, 0);
-
-	// Generic matrix used for the dynamic targeting computer -- maybe I should use the left projection matrix instead?
-	g_projHead.set
-	(
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, -1.0f, -0.01f, // Use the focal_dist here?
-		0.0f, 0.0f, -1.0f, 0.0f
-	);
-	g_projHead.transpose();
 
 	if (eError != vr::VRInitError_None)
 	{
@@ -3733,15 +3720,8 @@ bool rayTriangleIntersect(
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
 // into 3D, just like we do in the VertexShader or SBS VertexShader:
 inline void backProject(WORD index, Vector3 *P) {
-	// TODO: The code to back-project is slightly different in DirectSBS/SteamVR
+	// The code to back-project is slightly different in DirectSBS/SteamVR
 	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
-	static bool bDebug = true;
-	if (g_bDumpLaserPointerDebugInfo && bDebug) {
-		log_debug("[DBG] [AC] vpScale: %0.3f, %0.3f, %0.3f, %0.3f",
-			g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2], g_VSCBuffer.viewportScale[3]);
-		log_debug("[DBG] [AC] aspect_ratio: %0.3f", g_VSCBuffer.aspect_ratio);
-		bDebug = false;
-	}
 	float3 temp;
 	// float3 temp = input.pos.xyz;
 	temp.x = g_OrigVerts[index].sx;
@@ -3782,6 +3762,7 @@ inline void backProject(WORD index, Vector3 *P) {
 	}
 	else 
 	{
+		// The center of the screen may not be the center of projection. The y-axis seems to be a bit off.
 		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[2];
@@ -3795,8 +3776,8 @@ inline void backProject(WORD index, Vector3 *P) {
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy, temp.z);
-	P->x = temp.z * temp.x;
-	P->y = temp.z * temp.y;
+	P->x = temp.z * temp.x / g_fFocalDist;
+	P->y = temp.z * temp.y / g_fFocalDist;
 	P->z = temp.z;
 	if (g_bEnableVR) 
 	{
@@ -3818,7 +3799,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
-		Vector4 Q = Vector4(P.x, -P.y, -P.z, 1.0f);
+		Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
 
 		// output.pos = mul(projEyeMatrix, output.pos);
@@ -3826,6 +3807,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		P.y = Q.y;
 		P.z = Q.z;
 		w   = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
 
 		// DirectX divides by w internally after the PixelShader output is written. We don't
 		// see that division in the shader; but we have to do it explicitly here because
@@ -3833,7 +3815,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		// division by Z)
 		P.x /= w;
 		P.y /= w;
-
+		
 		// P is now in the internal DirectX coord sys: xy in (-1..1)
 		// So let's transform to the range 0..1 for post-proc coords:
 		P.x = P.x * 0.5f + 0.5f;
@@ -3848,15 +3830,15 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 
 		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
-		P.x /= P.z;
-		P.y /= P.z;
+		P.x *= g_fFocalDist / P.z;
+		P.y *= g_fFocalDist / P.z;
 
 		// Convert to vertex pos:
 		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
 		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
 		P.y /= (g_VSCBuffer.viewportScale[2]);
 		P.x -= -1.0f;
-		P.y -= 1.0f;
+		P.y -=  1.0f;
 		// P.xy /= vpScale.xy;
 		P.x /= g_VSCBuffer.viewportScale[0];
 		P.y /= g_VSCBuffer.viewportScale[1];

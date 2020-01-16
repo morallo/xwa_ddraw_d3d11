@@ -41,7 +41,7 @@ extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
-extern bool g_bFreePIEInitialized, g_bOriginFromHMD;
+extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDMotion;
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
@@ -4217,10 +4217,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	g_LaserPointerBuffer.DirectSBSEye = -1;
 	if (g_bEnableVR && !g_bUseSteamVR)
-		g_LaserPointerBuffer.DirectSBSEye =  1;
+		g_LaserPointerBuffer.DirectSBSEye = 1;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	GetCraftViewMatrix(&g_LaserPointerBuffer.viewMat);
+	//GetCraftViewMatrix(&g_LaserPointerBuffer.viewMat);
 	g_LaserPointerBuffer.x0 = x0;
 	g_LaserPointerBuffer.y0 = y0;
 	g_LaserPointerBuffer.x1 = x1;
@@ -4261,10 +4261,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Project the intersection to 2D:
 	if (g_LaserPointerBuffer.bIntersection) {
 		intersDisplay = g_LaserPointer3DIntersection;
-		Vector3 q;
-		q = project(g_debug_v0, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-		q = project(g_debug_v1, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-		q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+		if (g_LaserPointerBuffer.bDebugMode) {
+			Vector3 q;
+			q = project(g_debug_v0, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = project(g_debug_v1, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+		}
 	} 
 	else {
 		// Make a fake intersection just to help the user move around the cockpit
@@ -4400,9 +4402,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
-			//q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			//q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			//q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
+				Vector3 q;
+				q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			}
 
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -5333,38 +5338,43 @@ HRESULT PrimarySurface::Flip(
 					//g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
 				}
 				
-				//log_debug("[DBG] [AC] ypr: ")
-				// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
-				Matrix4 cockpitView, cockpitViewDir; 
-				{
-					//GetCockpitViewMatrix(&cockpitView);
-					float yaw   = (float)PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f;
-					float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
-					Matrix4 rotMatrixYaw, rotMatrixPitch;
-					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					cockpitView = rotMatrixPitch * rotMatrixYaw;
-					// I honestly don't understand why the transformation rule for the controller direction
-					// is inverted; but that's how it is!
-					cockpitViewDir = cockpitView;
-					cockpitViewDir.invert();
+				if (g_bCompensateHMDMotion) {
+					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
+					Matrix4 cockpitView, cockpitViewDir;
+					{
+						//GetCockpitViewMatrix(&cockpitView);
+						float yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+						float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+						Matrix4 rotMatrixYaw, rotMatrixPitch;
+						rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
+						rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+						cockpitView = rotMatrixPitch * rotMatrixYaw;
+						// I honestly don't understand why the transformation rule for the controller direction
+						// is inverted; but that's how it is!
+						cockpitViewDir = cockpitView;
+						cockpitViewDir.invert();
+					}
+					Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
+					//temp.y -= g_fDebugYCenter;
+					//temp.z -= g_fDebugZCenter;
+					temp = cockpitView * temp;
+					//temp.y += g_fDebugYCenter;
+					//temp.z += g_fDebugZCenter;
+					g_contOriginViewSpace.x = temp.x - headPos.x;
+					g_contOriginViewSpace.y = temp.y - headPos.y;
+					g_contOriginViewSpace.z = temp.z - headPos.z;
+					g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+
+					temp.x = g_contDirWorldSpace.x;
+					temp.y = g_contDirWorldSpace.y;
+					temp.z = g_contDirWorldSpace.z;
+					temp.w = 0.0f;
+					g_contDirViewSpace = cockpitViewDir * temp;
 				}
-				Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
-				temp.y -= g_fDebugYCenter;
-				temp.z -= g_fDebugZCenter;
-				temp = cockpitView * temp;
-				temp.y += g_fDebugYCenter;
-				temp.z += g_fDebugZCenter;
-				g_contOriginViewSpace.x = temp.x - headPos.x;
-				g_contOriginViewSpace.y = temp.y - headPos.y;
-				g_contOriginViewSpace.z = temp.z - headPos.z;
-				g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-				
-				temp.x = g_contDirWorldSpace.x;
-				temp.y = g_contDirWorldSpace.y;
-				temp.z = g_contDirWorldSpace.z;
-				temp.w = 0.0f;
-				g_contDirViewSpace = cockpitViewDir * temp;
+				else {
+					g_contOriginViewSpace = g_contOriginWorldSpace;
+					g_contDirViewSpace = g_contDirWorldSpace;
+				}
 				
 				if (g_bYawPitchFromMouseOverride) {
 					// If FreePIE could not be read, then get the yaw/pitch from the mouse:

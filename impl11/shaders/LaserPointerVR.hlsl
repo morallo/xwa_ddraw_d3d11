@@ -13,19 +13,20 @@ cbuffer ConstantBuffer : register(b7)
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	matrix viewMat;
-	// 96 bytes
 	float2 contOrigin, intersection;
-	// 112 bytes
+	// 48 bytes
 	bool bContOrigin;		    // True if contOrigin is valid (can be displayed)
 	bool bIntersection;		    // True if there is an intersection to display
 	bool bHoveringOnActiveElem; // True if the cursor is hovering over an action element
 	int DirectSBSEye; // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
-	// 128 bytes
+	// 64 bytes
 	float2 v0, v1; // DEBUG
-	// 144 bytes
+	// 80 bytes
 	float2 v2, uv; // DEBUG
-	// 160 bytes
+	// 96 bytes
+	bool bDebugMode;
+	int unusedA0, unusedA1, unusedA2;
+	// 112 bytes
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -180,8 +181,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col = lerp(bgColor, pointer_col, v);
 
 	// Draw the triangle uv-color-coded
-	//if (bIntersection && debug_map(p) < 0.001)
-	//	col = lerp(col, float3(uv, 0.0), 0.5);
+	if (bDebugMode && bIntersection && debug_map(p) < 0.001)
+		col = lerp(col, float3(uv, 0.0), 0.5);
 
 	output.color = vec4(col, 1.0);
 	return output;

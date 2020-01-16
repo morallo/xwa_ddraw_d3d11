@@ -33,9 +33,9 @@ void IncreaseNoDrawAfterIndex(int Delta);
 //void IncreaseZOverride(float Delta);
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
 void IncreaseSkyBoxIndex(int Delta);
-void IncreaseFocalDist(float Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
+void IncreaseFocalDist(float Delta);
 
 // Debug functions
 void log_debug(const char *format, ...);
@@ -68,6 +68,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
+extern float g_fFocalDist;
 bool g_bShowXWARotation = false;
 
 extern bool bFreePIEAlreadyInitialized;
@@ -145,7 +146,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x += 0.05f;
+				g_contOriginWorldSpace.x += 0.01f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -163,7 +164,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x -= 0.05f;
+				g_contOriginWorldSpace.x -= 0.01f;
 
 				/*
 				g_fHyperTimeOverride -= 0.1f;
@@ -182,14 +183,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y += 0.05f;
+				g_contOriginWorldSpace.y += 0.01f;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y -= 0.05f;
+				g_contOriginWorldSpace.y -= 0.01f;
 				return 0;
 			}
 		}
@@ -301,7 +302,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
-				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
 				return 0;
 
 				/*
@@ -335,25 +335,27 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_UP:
 				//IncreaseLensK1(0.1f);
-				g_contOriginWorldSpace.z += 0.05f;
+				g_contOriginWorldSpace.z += 0.01f;
 				return 0;
 			case VK_DOWN:
 				//IncreaseLensK1(-0.1f);
-				g_contOriginWorldSpace.z -= 0.05f;
+				g_contOriginWorldSpace.z -= 0.01f;
 				return 0;
 			case VK_LEFT:
 				//IncreaseLensK2(-0.1f);
 				/*g_fLPdebugPointOffset -= 0.05f;
 				if (g_fLPdebugPointOffset < 0.0f)
 					g_fLPdebugPointOffset = 0.0f;*/
-				g_fDebugZCenter += 0.01f;
-				log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
+				//g_fDebugZCenter += 0.01f;
+				//log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
+				IncreaseFocalDist(-0.1f);
 				return 0;
 			case VK_RIGHT:
 				//IncreaseLensK2(0.1f);
 				//g_fLPdebugPointOffset += 0.05f;
-				g_fDebugZCenter -= 0.01f;
-				log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
+				//g_fDebugZCenter -= 0.01f;
+				//log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
+				IncreaseFocalDist(0.1f);
 				return 0;
 			}
 		}
@@ -462,6 +464,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
+				g_fFocalDist = 1.0f;
 				g_fDebugZCenter = 0.0f;
 				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
