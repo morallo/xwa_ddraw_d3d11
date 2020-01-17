@@ -47,7 +47,7 @@ extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
-extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
 extern ac_element g_ACElements[MAX_AC_TEXTURES];
 extern int g_iNumACElements;
@@ -5083,7 +5083,7 @@ HRESULT PrimarySurface::Flip(
 			// I should probably render the laser pointer before the HUD; but if I do that, then the
 			// HUD gets messed up. I guess I'm destroying the state somehow
 			// Render the Laser Pointer for VR
-			if (g_bActiveCockpitEnabled && g_bRendering3D
+			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable->externalCamera
 				/* &&
 				(PlayerDataTable[0].cockpitDisplayed ||
 				 PlayerDataTable[0].gunnerTurretActive ||
@@ -5297,9 +5297,9 @@ HRESULT PrimarySurface::Flip(
 				g_VSMatrixCB.viewMat = g_viewMatrix;
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
-			else { // non-VR and DirectSBS mode, read the roll and position (?) from FreePIE
+			else { // non-VR and DirectSBS modes, read the roll and position from FreePIE
 				//float pitch, yaw, roll, pitchSign = -1.0f;
-				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+				float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
 				static Vector4 headCenterPos(0, 0, 0, 0);
 				Vector4 headPos(0,0,0,1);
 				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
@@ -5322,7 +5322,7 @@ HRESULT PrimarySurface::Flip(
 					headPos = (pos - headCenterPos);
 					//yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
 					//pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
-					roll   = g_FreePIEData.roll  * g_fRollMultiplier;
+					roll   += g_FreePIEData.roll  * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
 					//yaw   += g_fYawOffset;
 					//pitch += g_fPitchOffset;
 					
@@ -5347,11 +5347,12 @@ HRESULT PrimarySurface::Flip(
 					yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
 					pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
 
-					Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+					Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
 					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
 					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
-					cockpitView = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+					//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
+					// I'm not sure the cockpit roll should be applied to the controller's 3D position...
+					cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
 					// I honestly don't understand why the transformation rule for the controller direction
 					// is inverted; but that's how it is!
 					//cockpitViewDir = cockpitView;

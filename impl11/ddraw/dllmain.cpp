@@ -68,7 +68,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
-extern float g_fFocalDist;
+extern float g_fFocalDist, g_fFakeRoll;
 bool g_bShowXWARotation = false;
 
 extern bool bFreePIEAlreadyInitialized;
@@ -124,9 +124,24 @@ bool InitSteamVR();
 void ShutDownSteamVR();
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	bool AltKey   = (GetAsyncKeyState(VK_MENU)	  & 0x8000) == 0x8000;
-	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
-	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
+	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
+	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
+	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
+	bool UpKey	  = (GetAsyncKeyState(VK_UP)			& 0x8000) == 0x8000;
+	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
+	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
+	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
+
+	if (AltKey && !CtrlKey && !ShiftKey) {
+		if (LeftKey) {
+			g_fFakeRoll += 1.0f;
+			return 0;
+		}
+		else if (RightKey) {
+			g_fFakeRoll -= 1.0f;
+			return 0;
+		}
+	}
 
 	switch (uMsg)
 	{
@@ -183,7 +198,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y += 0.02;
+				g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
@@ -467,15 +482,26 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_fFocalDist = 1.0f;
 				g_fDebugZCenter = 0.0f;
 				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
+				g_fFakeRoll = 0.0f;
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
 				break;
 			}
 		}
 
 		// Alt doesn't seem to work by itself: wParam is messed up
-		/* if (!ShiftKey && AltKey && !CtrlKey) {
+		/*
+		if (!ShiftKey && AltKey && !CtrlKey) {
+			switch (wParam) {
+			case VK_LEFT:
+				log_debug("[DBG] [AC] Alt+Left");
+				return 0;
+			case VK_RIGHT:
+				log_debug("[DBG] [AC] Alt+Right");
+				return 0;
+			}
 		}
 		*/
+		
 		break;
 	}
 

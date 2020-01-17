@@ -398,6 +398,7 @@ const float LOG_K = 1.0f;
 float g_fIPD = DEFAULT_IPD / IPD_SCALE_FACTOR;
 float g_fHalfIPD = g_fIPD / 2.0f;
 float g_fFocalDist = DEFAULT_FOCAL_DIST;
+float g_fFakeRoll = 0.0f;
 
 /*
  * Control/Debug variables
