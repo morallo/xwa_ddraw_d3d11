@@ -146,7 +146,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x += 0.01f;
+				g_contOriginWorldSpace.x += 0.02f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -164,7 +164,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x -= 0.01f;
+				g_contOriginWorldSpace.x -= 0.02f;
 
 				/*
 				g_fHyperTimeOverride -= 0.1f;
@@ -183,14 +183,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y += 0.01f;
+				g_contOriginWorldSpace.y += 0.02;
 				return 0;
 			case VK_DOWN:
 				//g_LightVector[0].y -= 0.1f;
 				//g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y -= 0.01f;
+				g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
 			}
 		}
@@ -335,11 +335,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_UP:
 				//IncreaseLensK1(0.1f);
-				g_contOriginWorldSpace.z += 0.01f;
+				g_contOriginWorldSpace.z += 0.04f;
 				return 0;
 			case VK_DOWN:
 				//IncreaseLensK1(-0.1f);
-				g_contOriginWorldSpace.z -= 0.01f;
+				g_contOriginWorldSpace.z -= 0.04f;
 				return 0;
 			case VK_LEFT:
 				//IncreaseLensK2(-0.1f);

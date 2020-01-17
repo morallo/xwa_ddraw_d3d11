@@ -4244,8 +4244,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
 
 	// Project the controller's position:
+	Matrix4 viewMatrix = g_viewMatrix;
+	viewMatrix.invert();
 	if (bProjectContOrigin) {
-		pos2D = project(contOriginDisplay, g_viewMatrix, g_fullMatrixLeft);
+		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft);
 		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -4263,9 +4265,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay = g_LaserPointer3DIntersection;
 		if (g_LaserPointerBuffer.bDebugMode) {
 			Vector3 q;
-			q = project(g_debug_v0, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = project(g_debug_v1, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = project(g_debug_v2, g_viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 		}
 	} 
 	else {
@@ -4275,7 +4277,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
-	pos2D = project(intersDisplay, g_viewMatrix, g_fullMatrixLeft);
+	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft);
 	g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
@@ -4389,7 +4391,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				pos2D = project(contOriginDisplay, g_viewMatrix, g_fullMatrixRight);
+				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
@@ -4398,15 +4400,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = project(intersDisplay, g_viewMatrix, g_fullMatrixRight);
+			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = project(g_debug_v0, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, g_viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT
@@ -5297,7 +5299,7 @@ HRESULT PrimarySurface::Flip(
 			}
 			else { // non-VR and DirectSBS mode, read the roll and position (?) from FreePIE
 				//float pitch, yaw, roll, pitchSign = -1.0f;
-				float yaw, pitch, roll;
+				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
 				static Vector4 headCenterPos(0, 0, 0, 0);
 				Vector4 headPos(0,0,0,1);
 				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
@@ -5318,11 +5320,11 @@ HRESULT PrimarySurface::Flip(
 					}
 					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
 					headPos = (pos - headCenterPos);
-					yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
-					pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
+					//yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
+					//pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
 					roll   = g_FreePIEData.roll  * g_fRollMultiplier;
-					yaw   += g_fYawOffset;
-					pitch += g_fPitchOffset;
+					//yaw   += g_fYawOffset;
+					//pitch += g_fPitchOffset;
 					
 				}
 
@@ -5335,34 +5337,34 @@ HRESULT PrimarySurface::Flip(
 					g_contOriginWorldSpace.x =  g_FreePIEData.x - headCenterPos.x;
 					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
 					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
-					//g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
 				}
 				
 				if (g_bCompensateHMDMotion) {
 					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
 					Matrix4 cockpitView, cockpitViewDir;
-					{
-						//GetCockpitViewMatrix(&cockpitView);
-						float yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-						float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
-						Matrix4 rotMatrixYaw, rotMatrixPitch;
-						rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
-						rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-						cockpitView = rotMatrixPitch * rotMatrixYaw;
-						// I honestly don't understand why the transformation rule for the controller direction
-						// is inverted; but that's how it is!
-						cockpitViewDir = cockpitView;
-						cockpitViewDir.invert();
-					}
+					//GetCockpitViewMatrix(&cockpitView);
+					yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+
+					Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
+					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+					rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
+					cockpitView = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+					// I honestly don't understand why the transformation rule for the controller direction
+					// is inverted; but that's how it is!
+					//cockpitViewDir = cockpitView;
+					//cockpitViewDir.invert();
+					cockpitViewDir.identity();
 					Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
-					//temp.y -= g_fDebugYCenter;
-					//temp.z -= g_fDebugZCenter;
+					
 					temp = cockpitView * temp;
-					//temp.y += g_fDebugYCenter;
-					//temp.z += g_fDebugZCenter;
+
 					g_contOriginViewSpace.x = temp.x - headPos.x;
 					g_contOriginViewSpace.y = temp.y - headPos.y;
 					g_contOriginViewSpace.z = temp.z - headPos.z;
+
 					g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
 
 					temp.x = g_contDirWorldSpace.x;
