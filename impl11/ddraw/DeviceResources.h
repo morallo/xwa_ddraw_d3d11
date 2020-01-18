@@ -325,14 +325,14 @@ typedef struct PixelShaderCBStruct {
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
-const int MAX_DC_COORDS = 12;
+const int MAX_DC_COORDS_PER_TEXTURE = 12;
 typedef struct DCPixelShaderCBStruct {
-	uvfloat4 src[MAX_DC_COORDS];
+	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
 	// 4 * MAX_DC_COORDS * 4 = 192
-	uvfloat4 dst[MAX_DC_COORDS];
+	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
 	// 4 * MAX_DC_COORDS * 4 = 192
 	// 384 bytes thus far
-	uint32_t bgColor[MAX_DC_COORDS]; // 32-bit Background colors
+	uint32_t bgColor[MAX_DC_COORDS_PER_TEXTURE]; // 32-bit Background colors
 	// 4 * MAX_DC_COORDS = 48
 	// 432 bytes thus far
 
@@ -341,21 +341,21 @@ typedef struct DCPixelShaderCBStruct {
 } DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
-	int src_slot[MAX_DC_COORDS]; // This src slot references one of the pre-defined DC internal areas
-	uvfloat4 dst[MAX_DC_COORDS];
-	uint32_t uBGColor[MAX_DC_COORDS];
+	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
+	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
+	uint32_t uBGColor[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_src_dst_coords;
 
 typedef struct uv_coords_struct {
-	uvfloat4 src[MAX_DC_COORDS];
+	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_coords;
 
 const int MAX_TEXTURE_NAME = 128;
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
-	int erase_slots[MAX_DC_COORDS];
+	int erase_slots[MAX_DC_COORDS_PER_TEXTURE];
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
@@ -371,12 +371,13 @@ typedef struct move_region_coords_struct {
 } move_region_coords;
 
 // ACTIVE COCKPIT
-#define MAX_AC_COORDS_PER_TEXTURE 16
-#define MAX_AC_TEXTURES 16
+#define MAX_AC_COORDS_PER_TEXTURE 64
+#define MAX_AC_TEXTURES_PER_COCKPIT 16
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
 	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
+	char action_name[MAX_AC_COORDS_PER_TEXTURE][16]; // For debug purposes only, remove later
 	int numCoords;
 } ac_uv_coords;
 
@@ -385,6 +386,7 @@ typedef struct ac_element_struct {
 	//int idx; // "Back pointer" into the g_ACElements array
 	char name[MAX_TEXTURE_NAME];
 	bool bActive, bNameHasBeenTested;
+	short width, height; // DEBUG, remove later
 } ac_element;
 
 // SSAO Type

@@ -161,7 +161,7 @@ bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
 // ACTIVE COCKPIT
-extern ac_element g_ACElements[MAX_AC_TEXTURES];
+extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iNumACElements;
 extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);

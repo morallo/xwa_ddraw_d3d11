@@ -49,7 +49,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
-extern ac_element g_ACElements[MAX_AC_TEXTURES];
+extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iNumACElements;
 
 // DEBUG vars
@@ -4125,6 +4125,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 }
 
+void DisplayACAction(WORD *scanCodes);
 /*
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
@@ -4159,6 +4160,13 @@ void PrimarySurface::ACRunAction(WORD *action) {
 		input.ki.wScan = 0x44;
 	}
 	*/
+
+	if (action[0] == 0) { // void action, skip
+		log_debug("[DBG] [AC] Skipping VOID action");
+		return;
+	}
+	log_debug("[DBG] [AC] Running action: ");
+	DisplayACAction(action);
 
 	// Copy & initialize the scan codes
 	int i = 0;
@@ -4307,9 +4315,24 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				coords->area[i].y0 <= v && v <= coords->area[i].y1)
 			{
 				g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
-				if (g_bACActionTriggered)
-					// Run the action proper
+				if (g_bACActionTriggered) {
+					short width = g_ACElements[g_iBestIntersTexIdx].width;
+					short height = g_ACElements[g_iBestIntersTexIdx].height;
+					log_debug("[DBG} *************");
+					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
+					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
+					log_debug("[DBG] [AC] numCoords: %d", g_ACElements[g_iBestIntersTexIdx].coords.numCoords);
+					log_debug("[DBG] [AC] Running action: [%s]", coords->action_name[i]);
+					log_debug("[DBG] [AC] uv coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+						coords->area[i].x0, coords->area[i].y0,
+						coords->area[i].x1, coords->area[i].y1);
+					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
+						g_LaserPointerBuffer.uv[0], g_LaserPointerBuffer.uv[1],
+						(short)(width * g_LaserPointerBuffer.uv[0]), (short)(height * g_LaserPointerBuffer.uv[1]));
+					// Run the action itself
 					ACRunAction(coords->action[i]);
+					log_debug("[DBG} *************");
+				}
 				break;
 			}
 		}
@@ -4332,8 +4355,16 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
+			short width = g_ACElements[g_iBestIntersTexIdx].width;
+			short height = g_ACElements[g_iBestIntersTexIdx].height;
+			log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
+			log_debug("[DBG] [AC] Texture: %s", g_ACElements[g_iBestIntersTexIdx].name);
 			log_debug("[DBG] [AC] intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
 				pos3D.x, pos3D.y, pos3D.z, p.x, p.y);
+			log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
+				g_LaserPointerBuffer.uv[0], g_LaserPointerBuffer.uv[1],
+				(short)(width * g_LaserPointerBuffer.uv[0]), (short)(height * g_LaserPointerBuffer.uv[1]));
+			
 		}
 		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
 		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirViewSpace.x, g_contDirViewSpace.y, g_contDirViewSpace.z);
@@ -4342,6 +4373,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
 		log_debug("[DBG] [AC] v2: (%0.3f, %0.3f)", g_LaserPointerBuffer.v2[0], g_LaserPointerBuffer.v2[1]);
 
+		/*
 		FILE *file = NULL;
 		fopen_s(&file, "./test-tri-inters.obj", "wt");
 		fprintf(file, "# Triangle\n");
@@ -4358,6 +4390,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		fprintf(file, "f 4 5\n");
 		fclose(file);
 		log_debug("[DBG] [AC] test-tri-inters.obj dumped");
+		*/
 
 		//g_bDumpLaserPointerDebugInfo = false;
 	}

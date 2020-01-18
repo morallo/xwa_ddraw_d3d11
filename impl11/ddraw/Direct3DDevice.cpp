@@ -276,7 +276,7 @@ float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f, g_fDebugZCenter = 0.
 // DEBUG vars
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bOriginFromHMD = false, g_bCompensateHMDMotion = false;
-ac_element g_ACElements[MAX_AC_TEXTURES] = { 0 };
+ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0;
 
 /*********************************************************/
@@ -1040,7 +1040,8 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
  * Converts a string representation of a hotkey to a series of scan codes
  */
 void TranslateACAction(WORD *scanCodes, char *action) {
-	// Scan code table:
+	// Scan code tables:
+	// http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
 	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	int len = strlen(action);
@@ -1074,9 +1075,86 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 
 	// Composite keys
 	ptr = action;
-	if ((cursor = strstr(action, "SHIFT")) != NULL) { 	scanCodes[j++] = 0x2A; ptr = cursor++; } // Advance ptr by strlen("SHIFT")?
-	if ((cursor = strstr(action, "CTRL")) != NULL) {		scanCodes[j++] = 0x1D; ptr = cursor++; }
-	if ((cursor = strstr(action, "ALT")) != NULL) {		scanCodes[j++] = 0x38; ptr = cursor++; }
+	if ((cursor = strstr(action, "SHIFT")) != NULL) { 	scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(action, "CTRL")) != NULL) {		scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(action, "ALT")) != NULL) {		scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	// Process the function keys
+	if (strstr(ptr, "F") != NULL) {
+		char next = *(ptr + 1);
+		if (isdigit(next)) {
+			// This is a function key, convert all the digits after the F
+			int numkey = atoi(ptr + 1);
+			scanCodes[j++] = 0x3B + numkey - 1;
+			scanCodes[j] = 0; // Terminate the scan code list
+			return;
+		}
+	}
+
+	// Process the arrow keys
+	if (strstr(ptr, "ARROW") != NULL) 
+	{
+		if (strstr(ptr, "LEFT") != NULL)  scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4B
+		if (strstr(ptr, "RIGHT") != NULL) scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4D
+		if (strstr(ptr, "UP") != NULL)    scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
+		if (strstr(ptr, "DOWN") != NULL)  scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x50
+		scanCodes[j] = 0;
+		return;
+	}
+
+	// Process other special keys
+	{
+		if (strstr(ptr, "TAB") != NULL) // CONFIRMED: 0x0F
+		{
+			scanCodes[j++] = MapVirtualKey(VK_TAB, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "ENTER") != NULL)
+		{
+			scanCodes[j++] = MapVirtualKey(VK_RETURN, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (isdigit(*ptr)) { // CONFIRMED
+			int digit = *ptr - '0';
+			if (digit == 0) digit += 10;
+			scanCodes[j++] = 0x02 - 1 + digit;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, ";") != NULL) {
+			scanCodes[j++] = 0x27;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "'") != NULL) {
+			scanCodes[j++] = 0x28;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "COMMA") != NULL) {
+			scanCodes[j++] = 0x33;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "PERIOD") != NULL) {
+			scanCodes[j++] = 0x34;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "SPACE") != NULL) {
+			scanCodes[j++] = 0x39;
+			scanCodes[j] = 0;
+		}
+	}
 
 	// Regular single-char keys
 	scanCodes[j++] = (WORD)MapVirtualKey(*ptr, MAPVK_VK_TO_VSC);
@@ -1085,11 +1163,14 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 }
 
 void DisplayACAction(WORD *scanCodes) {
+	std::stringstream ss;
 	int i = 0;
 	while (scanCodes[i] && i < MAX_AC_ACTION_LEN) {
-		log_debug("[DBG] [AC] 0x%x", scanCodes[i]);
+		ss << std::hex << scanCodes[i] << ", ";
 		i++;
 	}
+	std::string s = ss.str();
+	log_debug("[DBG] [AC] %s", s.c_str());
 }
 
 /*
@@ -1135,13 +1216,29 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
-			//strcpy_s(&coords->action[idx], MAX_AC_ACTION_LEN, action);
+			strcpy_s(&(coords->action_name[idx][0]), 16, action);
 			TranslateACAction(&(coords->action[idx][0]), action);
 			DisplayACAction(&(coords->action[idx][0]));
+
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
 			coords->area[idx].x1 = x1 / width;
 			coords->area[idx].y1 = y1 / height;
+			// Flip the coordinates if necessary
+			if (x0 != -1.0f && x1 != -1.0f) {
+				if (x0 > x1) // Mirror the X-axis:
+				{
+					coords->area[idx].x0 = 1.0f - coords->area[idx].x0;
+					coords->area[idx].x1 = 1.0f - coords->area[idx].x1;
+				}
+			}
+			if (y0 != -1.0f && y1 != -1.0f) {
+				if (y0 > y1) // Mirror the Y-axis:
+				{
+					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
+					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
+				}
+			}
 			coords->numCoords++;
 		}
 	}
@@ -1474,7 +1571,7 @@ bool LoadIndividualACParams(char *sFileName) {
 					g_ACElements[lastACElemSelected].coords.numCoords = 0;
 					log_debug("[DBG] [AC] Resetting coords of existing AC elem @ idx: %d", lastACElemSelected);
 				}
-				else if (g_iNumACElements < MAX_AC_TEXTURES) {
+				else if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT) {
 					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
 						ac_elem.name, g_iNumACElements);
 					//ac_elem.idx = g_iNumACElements; // Generate a unique ID
@@ -1487,7 +1584,7 @@ bool LoadIndividualACParams(char *sFileName) {
 					log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
 				}
 				else {
-					if (g_iNumACElements >= MAX_AC_TEXTURES)
+					if (g_iNumACElements >= MAX_AC_TEXTURES_PER_COCKPIT)
 						log_debug("[DBG] [AC] ERROR: Max g_iNumACElements: %d reached", g_iNumACElements);
 				}
 			}
@@ -1507,10 +1604,11 @@ bool LoadIndividualACParams(char *sFileName) {
 				}
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
 				// DEBUG
+				g_ACElements[lastACElemSelected].width = (short)tex_width;
+				g_ACElements[lastACElemSelected].height = (short)tex_height;
 				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
-				log_debug("[DBG] [AC] Action: [0x%X] (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-					&(coords->action[idx][0]),
+				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					coords->area[idx].x0, coords->area[idx].y0,
 					coords->area[idx].x1, coords->area[idx].y1);
 				// DEBUG
@@ -3929,13 +4027,14 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 }
 
 bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx,
-	Vector3 orig, Vector3 dir, float *t, Vector3 *v0, Vector3 *v1, Vector3 *v2,
-	Vector3 *P, float *u, float *v, bool debug) 
+	Vector3 orig, Vector3 dir, 
+	//Vector3 *v0, Vector3 *v1, Vector3 *v2, Vector3 *P, 
+	bool debug) 
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	WORD index;
-	float U0, V0, U1, V1, U2, V2;
+	float u, v, U0, V0, U1, V1, U2, V2;
 	float best_t = 10000.0f;
 	bool bIntersection = false;
 
@@ -4000,16 +4099,20 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				g_debug_v1 = tempv1;
 				g_debug_v2 = tempv2;
 				
-				*t = tempt;
-				*v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
-				*P = tempP;
+				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
+				//*P = tempP;
 
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
-				*u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
-				*v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-
-				g_LaserPointerBuffer.uv[0] = *u;
-				g_LaserPointerBuffer.uv[1] = *v;
+				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+				// Fix negative UVs (yes, some OPTs may have negative UVs to mirror textures)
+				if (u < 0) u = -u;
+				if (v < 0) v = -v;
+				// Fix UVs beyond 1
+				while (u > 1.0f) u -= 1.0f;
+				while (v > 1.0f) v -= 1.0f;
+				g_LaserPointerBuffer.uv[0] = u;
+				g_LaserPointerBuffer.uv[1] = v;
 
 				bIntersection = true;
 				g_LaserPointerBuffer.bIntersection = 1;
@@ -5171,7 +5274,6 @@ HRESULT Direct3DDevice::Execute(
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bIsActiveCockpit) {
 					Vector3 orig, dir, v0, v1, v2, P;
-					float t, u, v;
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
 
@@ -5183,8 +5285,7 @@ HRESULT Direct3DDevice::Execute(
 					dir.y = g_contDirViewSpace.y;
 					dir.z = g_contDirViewSpace.z;
 
-					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir, &t,
-						&v0, &v1, &v2, &P, &u, &v);
+					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir);
 					//if (bIntersection) {
 						//Vector3 pos2D;
 
