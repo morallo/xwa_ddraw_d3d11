@@ -81,7 +81,7 @@ public:
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
 
-	void ACRunAction(char * action);
+	void ACRunAction(WORD * action);
 
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
 

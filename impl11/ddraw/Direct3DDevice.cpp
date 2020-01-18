@@ -1037,6 +1037,62 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 }
 
 /*
+ * Converts a string representation of a hotkey to a series of scan codes
+ */
+void TranslateACAction(WORD *scanCodes, char *action) {
+	// Scan code table:
+	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
+	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+	int len = strlen(action);
+	const char *ptr = action, *cursor;
+	int i, j;
+	// Translate to uppercase
+	for (i = 0; i < len; i++)
+		action[i] = toupper(action[i]);
+	log_debug("[DBG] [AC] Translating [%s]", action);
+
+	// Stop further parsing if this is a void action
+	if (strstr(action, "VOID") != NULL)
+	{
+		scanCodes[0] = 0; 
+		return;
+	}
+
+	j = 0;
+	/*
+	// Function keys must be handled separately because SHIFT+Fn have unique
+	// scan codes
+	if (strstr("F1", action) != NULL) {
+		if      (strstr(action, "SHIFT") != NULL)	scanCodes[j] = 0x54;
+		else if (strstr(action, "CTRL") != NULL)		scanCodes[j] = 0x5E;
+		else if (strstr(action, "ALT") != NULL)		scanCodes[j] = 0x68;
+		else											scanCodes[j] = 0x3B;
+		return;
+	}
+	// End of function keys
+	*/
+
+	// Composite keys
+	ptr = action;
+	if ((cursor = strstr(action, "SHIFT")) != NULL) { 	scanCodes[j++] = 0x2A; ptr = cursor++; } // Advance ptr by strlen("SHIFT")?
+	if ((cursor = strstr(action, "CTRL")) != NULL) {		scanCodes[j++] = 0x1D; ptr = cursor++; }
+	if ((cursor = strstr(action, "ALT")) != NULL) {		scanCodes[j++] = 0x38; ptr = cursor++; }
+
+	// Regular single-char keys
+	scanCodes[j++] = (WORD)MapVirtualKey(*ptr, MAPVK_VK_TO_VSC);
+	if (j < MAX_AC_ACTION_LEN)
+		scanCodes[j] = 0; // Terminate the scan code list
+}
+
+void DisplayACAction(WORD *scanCodes) {
+	int i = 0;
+	while (scanCodes[i] && i < MAX_AC_ACTION_LEN) {
+		log_debug("[DBG] [AC] 0x%x", scanCodes[i]);
+		i++;
+	}
+}
+
+/*
  * Loads an "action" row:
  * "action" = ACTION, x0,y0, x1,y1
  */
@@ -1079,7 +1135,9 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
-			strcpy_s(&coords->action[idx], MAX_ACTION_LEN, action);
+			//strcpy_s(&coords->action[idx], MAX_AC_ACTION_LEN, action);
+			TranslateACAction(&(coords->action[idx][0]), action);
+			DisplayACAction(&(coords->action[idx][0]));
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
 			coords->area[idx].x1 = x1 / width;
@@ -1451,8 +1509,8 @@ bool LoadIndividualACParams(char *sFileName) {
 				// DEBUG
 				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
-				log_debug("[DBG] [AC] Action: [%s] (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-					&(coords->action[idx]),
+				log_debug("[DBG] [AC] Action: [0x%X] (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					&(coords->action[idx][0]),
 					coords->area[idx].x0, coords->area[idx].y0,
 					coords->area[idx].x1, coords->area[idx].y1);
 				// DEBUG

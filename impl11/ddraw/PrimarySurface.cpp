@@ -4129,20 +4129,19 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void PrimarySurface::ACRunAction(char *action) {
+void PrimarySurface::ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
-	INPUT input;
-	input.type = INPUT_KEYBOARD;
-	input.ki.time = 0;
-	input.ki.wVk = 0;
-	input.ki.dwExtraInfo = 0;
+	INPUT input[MAX_AC_ACTION_LEN];
 
+	/*
 	input.ki.dwFlags = KEYEVENTF_SCANCODE;
 	if (strcmp(action, "S") == 0) {
-		input.ki.wScan = 0x1F;
+		//input.ki.wScan = 0x1F;
+		input.ki.wScan = MapVirtualKey('S', MAPVK_VK_TO_VSC);
 	}
 	else if (strcmp(action, "T") == 0) {
-		input.ki.wScan = 0x14;
+		//input.ki.wScan = 0x14;
+		input.ki.wScan = MapVirtualKey('T', MAPVK_VK_TO_VSC);
 	}
 	else if (strcmp(action, "V") == 0) {
 		input.ki.wScan = 0x2F;
@@ -4159,15 +4158,29 @@ void PrimarySurface::ACRunAction(char *action) {
 	else if (strcmp(action, "F10") == 0) {
 		input.ki.wScan = 0x44;
 	}
+	*/
+
+	// Copy & initialize the scan codes
+	int i = 0;
+	while (action[i] && i < MAX_AC_ACTION_LEN) {
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		input[i].ki.wScan = action[i];
+		i++;
+	}
 
 	// Send keydown event:
 	//log_debug("[DBG] [AC] Sending input (1)...");
-	SendInput(1, &input, sizeof(INPUT));
+	SendInput(i, input, sizeof(INPUT));
 
 	// Send the keyup event:
+	for (int j = 0; j < i; j++)
+		input[j].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
 	//log_debug("[DBG] [AC] Sending input (2)...");
-	input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-	SendInput(1, &input, sizeof(INPUT));
+	SendInput(i, input, sizeof(INPUT));
 }
 
 /*
@@ -4296,7 +4309,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
 				if (g_bACActionTriggered)
 					// Run the action proper
-					ACRunAction(&(coords->action[i]));
+					ACRunAction(coords->action[i]);
 				break;
 			}
 		}

@@ -373,10 +373,10 @@ typedef struct move_region_coords_struct {
 // ACTIVE COCKPIT
 #define MAX_AC_COORDS_PER_TEXTURE 16
 #define MAX_AC_TEXTURES 16
-#define MAX_ACTION_LEN 16 // Chars used to specify an action
+#define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
-	char action[MAX_ACTION_LEN];
+	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
 	int numCoords;
 } ac_uv_coords;
 
