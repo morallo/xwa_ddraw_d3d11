@@ -5385,6 +5385,9 @@ HRESULT PrimarySurface::Flip(
 					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
 					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
 					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+					uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
+					g_bACTriggerState = buttonsPressed != 0x0;
+					//log_debug("[DBG] [AC] g_bACTriggerState: %d", buttonsPressed);
 				}
 				
 				if (g_bCompensateHMDMotion) {
