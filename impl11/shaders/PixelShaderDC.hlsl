@@ -128,6 +128,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Fix UVs that are greater than 1. I wonder if I should also fix negative values?
 	input.tex = frac(input.tex);
+	if (input.tex.x < 0.0) input.tex.x += 1.0;
+	if (input.tex.y < 0.0) input.tex.y += 1.0;
 	float4 hud_texelColor = uintColorToFloat4(getBGColor(0));
 	//[unroll] unroll or loop?
 	[loop]

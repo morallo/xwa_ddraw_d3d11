@@ -22,7 +22,7 @@ Config::Config()
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
 	this->WireframeFillMode = false;
-	this->JoystickEmul = -1;
+	this->JoystickEmul = 0;
 
 	this->XInputTriggerAsThrottle = 0;
 	this->InvertYAxis = false;
