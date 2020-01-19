@@ -22,10 +22,11 @@ SamplerState sampler1 : register(s1);
 
 struct PixelShaderInput
 {
-	float4 pos      : SV_POSITION;
-	float4 color    : COLOR0;
-	float2 tex      : TEXCOORD0;
-	float4 pos3D    : COLOR1;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
 };
 
 struct PixelShaderOutput
@@ -112,8 +113,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	output.ssaoMask = 0;
 
-	// Render the Dynamic Cockpit captured buffer into the cockpit destination textures. 
-	// The code returns a color from this path
+	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
 
 	// DEBUG: Display uvs as colors. Some meshes have UVs beyond the range [0..1]
@@ -122,12 +122,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		//return float4(input.tex.xy, 0, 1); // DEBUG: Display the uvs as colors
 		//return 0.7*hud_texelColor + 0.3*texelColor; // DEBUG DEBUG DEBUG!!! Remove this later! This helps position the elements easily
 
-		// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
-		// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
-		// dst uv coords
+	// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
+	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
+	// dst uv coords
 
+	// Fix UVs that are greater than 1. I wonder if I should also fix negative values?
+	input.tex = frac(input.tex);
 	float4 hud_texelColor = uintColorToFloat4(getBGColor(0));
-	[unroll]
+	//[unroll] unroll or loop?
+	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
@@ -137,7 +140,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
 		{
 			// Sample the dynamic cockpit texture:
-			hud_texelColor = texture1.Sample(sampler1, dyn_uv); // "ct" is for "cover_texture"
+			hud_texelColor = texture1.Sample(sampler1, dyn_uv);
 			float hud_alpha = hud_texelColor.w;
 			// Add the background color to the dynamic cockpit display:
 			hud_texelColor = lerp(uintColorToFloat4(getBGColor(i)), hud_texelColor, hud_alpha);
@@ -179,8 +182,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		diffuse = float3(1, 1, 1);
 		output.ssaoMask = 1;
 	}
-	//output.diffuse = float4(diffuse, 1);
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
-	//output.color = float4(texelColor.xyz, texelColor.w);
 	return output;
 }

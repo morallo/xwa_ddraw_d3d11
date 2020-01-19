@@ -5087,6 +5087,7 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				//if (!g_bAOEnabled) {
+					// TODO: Check the statement below, I'm not sure it's current anymore (?)
 					// If SSAO is not enabled, then we can merge the bloom buffer with the offscreen buffer
 					// here. Otherwise, we'll merge it along with the SSAO buffer later.
 					// Add the accumulated bloom with the offscreen buffer

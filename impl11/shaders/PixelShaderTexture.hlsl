@@ -73,13 +73,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, SSAOAlpha);
 	
 	// Original code:
-	//float3 N = normalize(cross(ddx(P), ddy(P)));
+	float3 N = normalize(cross(ddx(P), ddy(P)));
 
 	// hook_normals code:
-	//float3 N = normalize(input.normal.xyz);
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	// N *= input.normal.w; // Zero-out normals when w == 0 ?
+	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	//N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	//// N *= input.normal.w; // Zero-out normals when w == 0 ?
 	
 	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
@@ -174,28 +173,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	// Hyperspace-related bloom, not used anymore
-	/*
-	if (bIsHyperspaceAnim) {
-		output.pos3D.a = 0;
-		output.normal.a = 0;
-		output.ssaoMask.a = 0;
-		//output.diffuse = 0;
-		output.bloom = float4(fBloomStrength * texelColor.xyz, 0.5);
-	}
-
-	if (bIsHyperspaceStreak) {
-		output.pos3D.a = 0;
-		output.normal.a = 0;
-		output.ssaoMask.a = 0;
-		//output.diffuse = 0;
-		output.bloom = float4(fBloomStrength * float3(0.5, 0.5, 1), 0.5);
-	}
-	*/
-
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 
+	/*
 	// hook_normals code:
 	if (input.normal.w > 0.0) {
 		// DEBUG
@@ -243,10 +224,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
 
 		output.color.xyz *= brightness;
-	} else {
+	} 
+	else */
+	{
 		// Objects without normals don't need to go gamma correction, we would exp(color, 2.2)
 		// only to do exp(color, 0.45), so no need to do that as it will cancel itself out.
 		output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+		//output.color = float4(input.tex, 0, texelColor.w);
 	}
 
 	return output;

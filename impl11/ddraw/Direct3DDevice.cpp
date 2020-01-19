@@ -5327,10 +5327,6 @@ HRESULT Direct3DDevice::Execute(
 					//log_debug("[DBG] NoZWrite, ZFunc: %d", _renderStates->GetZFunc());
 				//}
 
-				// Eliminate the default hyperspace animation:
-				//if (bIsHyperspaceTunnel) {
-				//	goto out;
-				//}
 
 				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR

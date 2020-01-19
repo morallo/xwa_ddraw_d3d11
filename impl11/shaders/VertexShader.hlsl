@@ -73,7 +73,9 @@ PixelShaderInput main(VertexShaderInput input)
 	output.color  = input.color.zyxw;
 	output.tex    = input.tex;
 	// This line requires hook_normals.dll:
-	output.normal = input.specular;
+	//output.normal = input.specular;
+
+	output.normal = 0;
 
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -1..1 range
