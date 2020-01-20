@@ -44,13 +44,13 @@ extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState
 extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDMotion;
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
-extern float g_fBestIntersectionDistance;
+extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iNumACElements;
+extern int g_iNumACElements, g_iLaserDirSelector;
 
 // DEBUG vars
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
@@ -4251,18 +4251,14 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
 	// Detect triggers:
-	if (g_bACLastTriggerState && !g_bACTriggerState) {
+	if (g_bACLastTriggerState && !g_bACTriggerState)
 		g_bACActionTriggered = true;
-	}
 	g_bACLastTriggerState = g_bACTriggerState;
 
 	// g_viewMatrix contains the camera Roll, nothing more right now
 	bool bProjectContOrigin = (g_contOriginViewSpace[2] >= 0.001f);
 	Vector3 contOriginDisplay = Vector3(g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
 	Vector3 intersDisplay, pos2D;
-	intersDisplay.x += contOriginDisplay.x + 0.1f * g_contDirViewSpace.x;
-	intersDisplay.y += contOriginDisplay.y + 0.1f * g_contDirViewSpace.y;
-	intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
 
 	// Project the controller's position:
 	Matrix4 viewMatrix = g_viewMatrix;
@@ -4293,9 +4289,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	} 
 	else {
 		// Make a fake intersection just to help the user move around the cockpit
-		intersDisplay.x += contOriginDisplay.x + 0.1f * g_contDirViewSpace.x;
-		intersDisplay.y += contOriginDisplay.y + 0.1f * g_contDirViewSpace.y;
-		intersDisplay.z += contOriginDisplay.z + 0.1f * g_contDirViewSpace.z;
+		intersDisplay.x = contOriginDisplay.x + g_fLaserPointerLength * g_contDirViewSpace.x;
+		intersDisplay.y = contOriginDisplay.y + g_fLaserPointerLength * g_contDirViewSpace.y;
+		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
 	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft);
@@ -4318,6 +4314,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				if (g_bACActionTriggered) {
 					short width = g_ACElements[g_iBestIntersTexIdx].width;
 					short height = g_ACElements[g_iBestIntersTexIdx].height;
+					/*
 					log_debug("[DBG} *************");
 					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
 					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
@@ -4329,9 +4326,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
 						g_LaserPointerBuffer.uv[0], g_LaserPointerBuffer.uv[1],
 						(short)(width * g_LaserPointerBuffer.uv[0]), (short)(height * g_LaserPointerBuffer.uv[1]));
+					*/
 					// Run the action itself
 					ACRunAction(coords->action[i]);
-					log_debug("[DBG} *************");
+					//log_debug("[DBG} *************");
 				}
 				break;
 			}
@@ -5387,7 +5385,6 @@ HRESULT PrimarySurface::Flip(
 					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
 					uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
 					g_bACTriggerState = buttonsPressed != 0x0;
-					//log_debug("[DBG] [AC] g_bACTriggerState: %d", buttonsPressed);
 				}
 				
 				if (g_bCompensateHMDMotion) {
@@ -5403,11 +5400,26 @@ HRESULT PrimarySurface::Flip(
 					//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
 					// I'm not sure the cockpit roll should be applied to the controller's 3D position...
 					cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
-					// I honestly don't understand why the transformation rule for the controller direction
-					// is inverted; but that's how it is!
-					//cockpitViewDir = cockpitView;
+
+					switch (g_iLaserDirSelector) 
+					{
+					case 1:
+						cockpitViewDir = cockpitView; // Laser Pointer looks in the same direction as the HMD; but rotates twice as fast
+						break;
+					case 2:
+						cockpitViewDir = cockpitView;
+						cockpitViewDir.invert(); // Laser Pointer direction tends to stay looking forward; but tends to follow the HMD
+						// I think it only follows the HMD because I don't know the actual focal length
+						break;
+					case 3:
+					default:
+						// Follows the HMD's direction keeping the intersection on the same spot.
+						cockpitViewDir.identity();
+						break;
+					}
+					
 					//cockpitViewDir.invert();
-					cockpitViewDir.identity();
+					//cockpitViewDir.identity(); // This will change the direction to match the HMD's orientation
 					Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
 					
 					temp = cockpitView * temp;

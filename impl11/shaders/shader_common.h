@@ -1,5 +1,6 @@
 // Scale factor used to reconstruct metric 3D for VR and other uses
 #define METRIC_SCALE_FACTOR 25.0
+//#define METRIC_SCALE_FACTOR 50.0
 
 // This is the limit, in meters, when we start fading out effects like SSAO and SSDO:
 #define INFINITY_Z0 15000

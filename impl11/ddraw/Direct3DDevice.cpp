@@ -265,19 +265,19 @@ Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the di
 Vector4 g_contOriginViewSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirViewSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
-float g_fBestIntersectionDistance = 10000.0f;
+float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
+bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDMotion = false, g_bFullCockpitTest = false;
+ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
+int g_iNumACElements = 0, g_iLaserDirSelector = 3;
 // DEBUG vars
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f, g_fDebugZCenter = 0.0f;
 // DEBUG vars
-bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDMotion = false;
-ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
-int g_iNumACElements = 0;
 
 /*********************************************************/
 // DYNAMIC COCKPIT
@@ -1775,6 +1775,15 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
 				g_bCompensateHMDMotion = (bool)fValue;
+			}
+			else if (_stricmp(param, "full_cockpit_test") == 0) {
+				g_bFullCockpitTest = (bool)fValue;
+			}
+			else if (_stricmp(param, "laser_pointer_length") == 0) {
+				g_fLaserPointerLength = fValue;
+			}
+			else if (_stricmp(param, "debug_laser_dir") == 0) {
+				g_iLaserDirSelector = (int)fValue;
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
@@ -5272,7 +5281,8 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Active Cockpit: Intersect the current texture with the controller
-				if (g_bActiveCockpitEnabled && bIsActiveCockpit) {
+				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL && 
+					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest)) {
 					Vector3 orig, dir, v0, v1, v2, P;
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
