@@ -362,6 +362,15 @@ int Direct3DTexture::GetHeight() {
 
 Direct3DTexture::~Direct3DTexture()
 {
+	const auto &resources = this->_deviceResources;
+	
+	if (this->is_CockpitTex) {
+		// There's code in ResetDynamicCockpit that prevents resetting it multiple times.
+		// In other words, ResetDynamicCockpit is idempotent.
+		// ResetDynamicCockpit will also reset the Active Cockpit
+		resources->ResetDynamicCockpit();
+	}
+	//log_debug("[DBG] [DC] Destroying texture %s", this->_surface->_name);
 }
 
 HRESULT Direct3DTexture::QueryInterface(

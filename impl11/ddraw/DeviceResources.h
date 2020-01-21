@@ -451,6 +451,10 @@ public:
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
+	void ResetDynamicCockpit();
+
+	void ResetActiveCockpit();
+
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
 	HRESULT RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp);

@@ -1530,6 +1530,10 @@ bool LoadIndividualACParams(char *sFileName) {
 	static int lastACElemSelected = -1;
 	float tex_width = 1, tex_height = 1;
 
+	// Reset the Active Cockpit elements? We probably don't need this, because the code modifies existing
+	// AC slots
+	//g_iNumACElements = 0;
+
 	try {
 		error = fopen_s(&file, sFileName, "rt");
 	}
@@ -1720,7 +1724,8 @@ bool LoadACParams() {
 	int param_read_count = 0;
 	float fValue = 0.0f;
 
-	/* Reload individual cockit parameters if the current cockpit is set */
+	/* Reload individual cockpit parameters if the current cockpit is set */
+	// TODO: Reset AC params!
 	bool bActiveCockpitParamsLoaded = false;
 	if (g_sCurrentCockpit[0] != 0) {
 		char sFileName[80];

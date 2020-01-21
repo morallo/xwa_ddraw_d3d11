@@ -646,9 +646,74 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 
 void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
 	for (int i = 0; i < size; i++) {
+		int numCoords = ACElements[i].coords.numCoords;
 		ACElements[i].name[0] = 0;
+		for (int j = 0; j < numCoords; j++) {
+			ACElements[i].coords.action[j][0] = 0;
+			ACElements[i].coords.action_name[j][0] = 0;
+		}
+		ACElements[i].coords.numCoords = 0;
 	}
 	g_iNumACElements = 0;
+}
+
+void DeviceResources::ResetDynamicCockpit() {
+	if (g_bDynCockpitEnabled && g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
+	{
+		ResetActiveCockpit();
+		log_debug("[DBG] [DC] Resetting Dynamic Cockpit");
+		// Reset the cockpit name
+		g_sCurrentCockpit[0] = 0;
+		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
+		g_DCHUDRegions.ResetLimits();
+		// Reset the Source DC elements so that we know when they get re-computed.
+		g_DCElemSrcBoxes.Reset();
+		// Reset the active slots in g_DCElements
+		for (int i = 0; i < g_iNumDCElements; i++)
+		{
+			dc_element *elem = &g_DCElements[i];
+			if (elem->bActive) {
+				if (this->dc_coverTexture[i] != nullptr) {
+					//log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
+					this->dc_coverTexture[i]->Release();
+					//log_debug("[DBG] [DC] RELEASED");
+					this->dc_coverTexture[i] = nullptr;
+				}
+				elem->bActive = false;
+				elem->bNameHasBeenTested = false;
+			}
+		}
+		// Reset the dynamic cockpit vector
+		if (g_iNumDCElements > 0) {
+			log_debug("[DBG] [DC] Clearing g_DCElements");
+			ClearDynCockpitVector(g_DCElements, g_iNumDCElements);
+			g_iNumDCElements = 0;
+		}
+	}
+}
+
+/*
+ * This function is called from ResetDynamicCockpit
+ */
+void DeviceResources::ResetActiveCockpit() {
+	if (g_bActiveCockpitEnabled)
+	{
+		log_debug("[DBG] [AC] Resetting Active Cockpit");
+		// Reset the active slots in g_ACElements
+		for (int i = 0; i < g_iNumACElements; i++)
+		{
+			ac_element *elem = &g_ACElements[i];
+			elem->bActive = false;
+			elem->bNameHasBeenTested = false;
+		}
+
+		// Reset the active cockpit vector
+		if (g_iNumACElements > 0) {
+			log_debug("[DBG] [AC] Clearing g_ACElements");
+			ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
+			g_iNumACElements = 0;
+		}
+	}
 }
 
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
@@ -713,35 +778,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-		if (g_bDynCockpitEnabled) {
-			// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
-			g_DCHUDRegions.ResetLimits();
-			// Reset the Source DC elements so that we know when they get re-computed.
-			g_DCElemSrcBoxes.Reset();
-			// Reset the cockpit name
-			g_sCurrentCockpit[0] = 0;
-			// Reset the active slots in g_DCElements
-			for (int i = 0; i < g_iNumDCElements; i++)
-			{
-				dc_element *elem = &g_DCElements[i];
-				if (elem->bActive) {
-					if (this->dc_coverTexture[i] != nullptr) {
-						//log_debug("[DBG] [DC] Releasing [%d][%s]...", i, elem->coverTextureName);
-						this->dc_coverTexture[i]->Release();
-						//log_debug("[DBG] [DC] RELEASED");
-						this->dc_coverTexture[i] = nullptr;
-					}
-					elem->bActive = false;
-					elem->bNameHasBeenTested = false;
-				}
-			}
-			// Reset the dynamic cockpit vector
-			if (g_iNumDCElements > 0) {
-				log_debug("[DBG] [DC] Clearing g_DCElements");
-				ClearDynCockpitVector(g_DCElements, g_iNumDCElements);
-				g_iNumDCElements = 0;
-			}
-		}
+		ResetDynamicCockpit();
 		this->_renderTargetViewDynCockpit.Release();
 		this->_renderTargetViewDynCockpitBG.Release();
 		this->_renderTargetViewDynCockpitAsInput.Release();
