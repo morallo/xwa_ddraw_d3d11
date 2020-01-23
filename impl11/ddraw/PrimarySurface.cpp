@@ -41,7 +41,7 @@ extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
-extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDMotion;
+extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFreePIEControllerButtonDataAvailable;
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
@@ -4132,41 +4132,16 @@ void DisplayACAction(WORD *scanCodes);
  */
 void PrimarySurface::ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
+	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 	INPUT input[MAX_AC_ACTION_LEN];
 
-	/*
-	input.ki.dwFlags = KEYEVENTF_SCANCODE;
-	if (strcmp(action, "S") == 0) {
-		//input.ki.wScan = 0x1F;
-		input.ki.wScan = MapVirtualKey('S', MAPVK_VK_TO_VSC);
-	}
-	else if (strcmp(action, "T") == 0) {
-		//input.ki.wScan = 0x14;
-		input.ki.wScan = MapVirtualKey('T', MAPVK_VK_TO_VSC);
-	}
-	else if (strcmp(action, "V") == 0) {
-		input.ki.wScan = 0x2F;
-	}
-	else if (strcmp(action, "W") == 0) {
-		input.ki.wScan = 0x11;
-	}
-	else if (strcmp(action, "F8") == 0) {
-		input.ki.wScan = 0x42;
-	}
-	else if (strcmp(action, "F9") == 0) {
-		input.ki.wScan = 0x43;
-	}
-	else if (strcmp(action, "F10") == 0) {
-		input.ki.wScan = 0x44;
-	}
-	*/
-
 	if (action[0] == 0) { // void action, skip
-		log_debug("[DBG] [AC] Skipping VOID action");
+		//log_debug("[DBG] [AC] Skipping VOID action");
 		return;
 	}
-	log_debug("[DBG] [AC] Running action: ");
-	DisplayACAction(action);
+	//log_debug("[DBG] [AC] Running action: ");
+	//DisplayACAction(action);
 
 	// Copy & initialize the scan codes
 	int i = 0;
@@ -4522,6 +4497,52 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 out:
 */
+}
+
+void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
+	static uint32_t lastButtonsPressed = 0x0;
+	WORD events[6];
+
+	/*
+	Vertical Axis: 
+	Axis0: Up --> -1, Down --> 1
+	Up --> 0, Down --> 254, Center --> 127
+
+	Horizontal Axis:
+	Axis1: Right --> -1, Left --> 1
+	Right --> 0, Left --> 254, Center --> 127
+	*/
+	//if (axis0 != 127) log_debug("[DBG] axis0: %d", axis0); 
+	//if (axis1 != 127) log_debug("[DBG] axis1: %d", axis1);
+
+	//if (buttonsPressed & 0x08) { // Right
+	if (axis0 < 100) { // Gamepad Joystick Up
+		// Send a [+] keypress for as long as this key is depressed
+		events[0] = 0x0D;
+		events[1] = 0x0;
+		ACRunAction(events);
+	} 
+
+	//if (buttonsPressed & 0x01) { // Left
+	if (axis0 > 130) { // Gamepad Joystick Down
+		// Send a [-] keypress for as long as this key is depressed
+		events[0] = 0x0C;
+		events[1] = 0x0;
+		ACRunAction(events);
+	}
+	
+	if (!(buttonsPressed & 0x02) && (lastButtonsPressed & 0x02)) { // Down
+		events[0] = 0x34; // period key
+		events[1] = 0x0;
+		ACRunAction(events);
+	}
+	
+	if (buttonsPressed & 0x04) // Up 
+		g_bACTriggerState = true;
+	else
+		g_bACTriggerState = false;
+	
+	lastButtonsPressed = buttonsPressed;
 }
 
 /* Convenience function to call WaitGetPoses() */
@@ -5365,13 +5386,10 @@ HRESULT PrimarySurface::Flip(
 					}
 					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
 					headPos = (pos - headCenterPos);
-					//yaw    = g_FreePIEData.yaw   * g_fYawMultiplier;
-					//pitch  = g_FreePIEData.pitch * g_fPitchMultiplier;
 					roll   += g_FreePIEData.roll  * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
-					//yaw   += g_fYawOffset;
-					//pitch += g_fPitchOffset;
-					
 				}
+				else
+					headPos.set(0, 0, 0, 1);
 
 				if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
 					if (g_bResetHeadCenter && !g_bOriginFromHMD) {
@@ -5383,11 +5401,16 @@ HRESULT PrimarySurface::Flip(
 					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
 					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
 					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-					uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
-					g_bACTriggerState = buttonsPressed != 0x0;
+					if (g_bFreePIEControllerButtonDataAvailable) {
+						uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
+						uint32_t axis0 = *((uint32_t *)&g_FreePIEData.pitch);
+						uint32_t axis1 = *((uint32_t *)&g_FreePIEData.roll);
+						ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
+						//g_bACTriggerState = buttonsPressed != 0x0;
+					}
 				}
 				
-				if (g_bCompensateHMDMotion) {
+				if (g_bCompensateHMDRotation) {
 					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
 					Matrix4 cockpitView, cockpitViewDir;
 					//GetCockpitViewMatrix(&cockpitView);
@@ -5424,9 +5447,16 @@ HRESULT PrimarySurface::Flip(
 					
 					temp = cockpitView * temp;
 
-					g_contOriginViewSpace.x = temp.x - headPos.x;
-					g_contOriginViewSpace.y = temp.y - headPos.y;
-					g_contOriginViewSpace.z = temp.z - headPos.z;
+					if (g_bCompensateHMDPosition) {
+						g_contOriginViewSpace.x = temp.x - headPos.x;
+						g_contOriginViewSpace.y = temp.y - headPos.y;
+						g_contOriginViewSpace.z = temp.z - headPos.z;
+					}
+					else {
+						g_contOriginViewSpace.x = temp.x;
+						g_contOriginViewSpace.y = temp.y;
+						g_contOriginViewSpace.z = temp.z;
+					}
 
 					g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
 

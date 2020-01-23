@@ -85,6 +85,8 @@ public:
 
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
 
+	void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
+
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
 	STDMETHOD(GetAttachedSurface)(THIS_ LPDDSCAPS, LPDIRECTDRAWSURFACE FAR *);

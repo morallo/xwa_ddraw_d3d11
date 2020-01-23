@@ -269,7 +269,8 @@ float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDMotion = false, g_bFullCockpitTest = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = false;
+bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iLaserDirSelector = 3;
 // DEBUG vars
@@ -1153,6 +1154,7 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
+			return;
 		}
 	}
 
@@ -1757,6 +1759,9 @@ bool LoadACParams() {
 				g_iFreePIEControllerSlot = (int)fValue;
 				InitFreePIE();
 			}
+			else if (_stricmp(param, "button_data_available") == 0) {
+				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
+			}
 			else if (_stricmp(param, "controller_multiplier_x") == 0) {
 				g_fContMultiplierX = fValue;
 			}
@@ -1778,8 +1783,15 @@ bool LoadACParams() {
 			else if (_stricmp(param, "controller_origin_init_z") == 0) {
 				g_contOriginWorldSpace.z = fValue;
 			}
+			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
+				g_bCompensateHMDRotation = (bool)fValue;
+			}
+			else if (_stricmp(param, "compensate_HMD_position") == 0) {
+				g_bCompensateHMDPosition = (bool)fValue;
+			}
 			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
-				g_bCompensateHMDMotion = (bool)fValue;
+				g_bCompensateHMDRotation = (bool)fValue;
+				g_bCompensateHMDPosition = (bool)fValue;
 			}
 			else if (_stricmp(param, "full_cockpit_test") == 0) {
 				g_bFullCockpitTest = (bool)fValue;
