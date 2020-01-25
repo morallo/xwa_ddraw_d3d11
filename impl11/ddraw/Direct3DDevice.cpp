@@ -277,7 +277,7 @@ int g_iNumACElements = 0, g_iLaserDirSelector = 3;
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
-float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f, g_fDebugZCenter = 0.0f;
+float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f;
 // DEBUG vars
 
 /*********************************************************/
@@ -1041,6 +1041,8 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
  * Converts a string representation of a hotkey to a series of scan codes
  */
 void TranslateACAction(WORD *scanCodes, char *action) {
+	// XWA keyboard reference:
+	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
 	// http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html

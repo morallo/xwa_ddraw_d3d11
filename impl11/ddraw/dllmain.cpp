@@ -69,7 +69,6 @@ extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; //
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
 extern float g_fFocalDist, g_fFakeRoll;
-bool g_bShowXWARotation = false;
 
 extern bool bFreePIEAlreadyInitialized;
 void ShutdownFreePIE();
@@ -86,9 +85,6 @@ extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
-//DEBUG
-extern float g_fDebugZCenter;
-//DEBUG
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -132,6 +128,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
 
+	/*
 	if (AltKey && !CtrlKey && !ShiftKey) {
 		if (LeftKey) {
 			g_fFakeRoll += 1.0f;
@@ -142,6 +139,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			return 0;
 		}
 	}
+	*/
 
 	switch (uMsg)
 	{
@@ -157,11 +155,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
-				//g_LightVector[0].x += 0.1f;
-				//g_LightVector[0].normalize();
+				g_LightVector[0].x += 0.1f;
+				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x += 0.02f;
+				//g_contOriginWorldSpace.x += 0.02f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -175,11 +173,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				*/
 				return 0;
 			case VK_LEFT:
-				//g_LightVector[0].x -= 0.1f;
-				//g_LightVector[0].normalize();
+				g_LightVector[0].x -= 0.1f;
+				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.x -= 0.02f;
+				//g_contOriginWorldSpace.x -= 0.02f;
 
 				/*
 				g_fHyperTimeOverride -= 0.1f;
@@ -194,18 +192,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_UP:
-				//g_LightVector[0].y += 0.1f;
-				//g_LightVector[0].normalize();
+				g_LightVector[0].y += 0.1f;
+				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y += 0.02f;
+				//g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
-				//g_LightVector[0].y -= 0.1f;
-				//g_LightVector[0].normalize();
+				g_LightVector[0].y -= 0.1f;
+				g_LightVector[0].normalize();
 				//PrintVector(g_LightVector[0]);
 
-				g_contOriginWorldSpace.y -= 0.02f;
+				//g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
 			}
 		}
@@ -262,10 +260,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				return 0;
 			case 'X':
-				g_bDumpSSAOBuffers = true;
+				//g_bDumpSSAOBuffers = true;
 				return 0;
 			case 'F':
-				g_bDumpLaserPointerDebugInfo = true;
+				//g_bDumpLaserPointerDebugInfo = true;
 				return 0;
 				// DEBUG
 			case 'P':
@@ -283,9 +281,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'N':
 				// Toggle Normal Mapping
 				g_bFNEnable = !g_bFNEnable;
-				return 0;
-			case 'M':
-				g_bShowXWARotation = true;
 				return 0;
 
 			case 'B':
@@ -315,9 +310,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'H':
 				ToggleCockpitPZHack();
 				return 0;
+			/*
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
 				return 0;
+			*/
 
 				/*
 				case 'P':
@@ -349,28 +346,26 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_UP:
-				//IncreaseLensK1(0.1f);
-				g_contOriginWorldSpace.z += 0.04f;
+				IncreaseLensK1(0.1f);
+				//g_contOriginWorldSpace.z += 0.04f;
 				return 0;
 			case VK_DOWN:
-				//IncreaseLensK1(-0.1f);
-				g_contOriginWorldSpace.z -= 0.04f;
+				IncreaseLensK1(-0.1f);
+				//g_contOriginWorldSpace.z -= 0.04f;
 				return 0;
 			case VK_LEFT:
-				//IncreaseLensK2(-0.1f);
+				IncreaseLensK2(-0.1f);
 				/*g_fLPdebugPointOffset -= 0.05f;
 				if (g_fLPdebugPointOffset < 0.0f)
 					g_fLPdebugPointOffset = 0.0f;*/
-				//g_fDebugZCenter += 0.01f;
 				//log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
-				IncreaseFocalDist(-0.1f);
+				//IncreaseFocalDist(-0.1f);
 				return 0;
 			case VK_RIGHT:
-				//IncreaseLensK2(0.1f);
+				IncreaseLensK2(0.1f);
 				//g_fLPdebugPointOffset += 0.05f;
-				//g_fDebugZCenter -= 0.01f;
 				//log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
-				IncreaseFocalDist(0.1f);
+				//IncreaseFocalDist(0.1f);
 				return 0;
 			}
 		}
@@ -471,7 +466,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//g_bACActionTriggered = true;
 					g_bACTriggerState = false;
 				}
-				
 				break;
 
 			case VK_OEM_PERIOD:
@@ -479,8 +473,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_fFocalDist = 1.0f;
-				g_fDebugZCenter = 0.0f;
 				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
 				g_fFakeRoll = 0.0f;
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
@@ -488,7 +480,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 		}
 
-		// Alt doesn't seem to work by itself: wParam is messed up
+		// Alt doesn't seem to work by itself: wParam is messed up. See the beginning
+		// of this function for an example of how to handle the Alt key properly
 		/*
 		if (!ShiftKey && AltKey && !CtrlKey) {
 			switch (wParam) {

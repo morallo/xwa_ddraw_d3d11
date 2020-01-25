@@ -56,7 +56,7 @@ extern int g_iNumACElements, g_iLaserDirSelector;
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
-extern float g_fLPdebugPointOffset, g_fDebugYCenter, g_fDebugZCenter;
+extern float g_fLPdebugPointOffset, g_fDebugYCenter;
 // DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
@@ -131,7 +131,7 @@ int g_iBloomPasses[8] = {
 extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
-extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos, g_bShowXWARotation;
+extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
 extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled, g_bShadowEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
@@ -4515,33 +4515,49 @@ void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint3
 	//if (axis0 != 127) log_debug("[DBG] axis0: %d", axis0); 
 	//if (axis1 != 127) log_debug("[DBG] axis1: %d", axis1);
 
-	//if (buttonsPressed & 0x08) { // Right
-	if (axis0 < 100) { // Gamepad Joystick Up
+	// Gamepad Joystick Up: Increase speed
+	if (axis0 < 100) { 
 		// Send a [+] keypress for as long as this key is depressed
 		events[0] = 0x0D;
 		events[1] = 0x0;
 		ACRunAction(events);
 	} 
 
-	//if (buttonsPressed & 0x01) { // Left
-	if (axis0 > 130) { // Gamepad Joystick Down
+	// Gamepad Joystick Down: Decrease speed
+	if (axis0 > 130) { 
 		// Send a [-] keypress for as long as this key is depressed
 		events[0] = 0x0C;
 		events[1] = 0x0;
 		ACRunAction(events);
 	}
 	
-	if (!(buttonsPressed & 0x02) && (lastButtonsPressed & 0x02)) { // Down
+	// Down button: reset view (period key)
+	if (!(buttonsPressed & 0x02) && (lastButtonsPressed & 0x02)) {
 		events[0] = 0x34; // period key
 		events[1] = 0x0;
 		ACRunAction(events);
 	}
 	
-	if (buttonsPressed & 0x04) // Up 
+	// Up Button: Trigger
+	if (buttonsPressed & 0x04) 
 		g_bACTriggerState = true;
 	else
 		g_bACTriggerState = false;
-	
+
+	// Left button: 1/3 thrust "[" key
+	if (!(buttonsPressed & 0x01) && (lastButtonsPressed & 0x01)) {
+		events[0] = 0x1A;
+		events[1] = 0x0;
+		ACRunAction(events);
+	}
+
+	// Right: Match speed with target [Enter]
+	if (!(buttonsPressed & 0x08) && (lastButtonsPressed & 0x08)) {
+		events[0] = 0x1C;
+		events[1] = 0x0;
+		ACRunAction(events);
+	}
+
 	lastButtonsPressed = buttonsPressed;
 }
 
