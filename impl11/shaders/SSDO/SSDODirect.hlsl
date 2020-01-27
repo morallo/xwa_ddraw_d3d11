@@ -135,12 +135,30 @@ float3 get_normal_from_color(float2 uv, float2 offset)
 	return normalize(normal);
 }
 
+// n1: base normal
+// n2: detail normal
 float3 blend_normals(float3 n1, float3 n2)
 {
+	// I got this from Pascal Gilcher; but there's more details here:
+	// https://blog.selfshadow.com/publications/blending-in-detail/
 	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-	n1 += float3( 0,  0, 1);
-	n2 *= float3(-1, -1, 1);
-	return n1 * dot(n1, n2) / n1.z - n2;
+
+	// UDN:
+	//return normalize(float3(n1.xy + n2.xy, n1.z));
+	
+	//n1 += float3( 0,  0, 1);
+	//n2 *= float3(-1, -1, 1);
+	//return n1 * dot(n1, n2) / n1.z - n2;
+
+	//float3 t = tex2D(texBase, uv).xyz*float3(2, 2, 2) + float3(-1, -1, 0);
+	n1.z += 1.0;
+	//float3 u = tex2D(texDetail, uv).xyz*float3(-2, -2, 2) + float3(1, 1, -1);
+	n2.xy = -n2.xy;
+
+	//float3 r = t * dot(t, u) / t.z - u;
+	//return normalize(n1 * dot(n1, n2) / n1.z - n2);
+	return normalize(n1 * dot(n1, n2) - n1.z * n2);
+	//return r * 0.5 + 0.5;
 }
 
 struct ColNorm {
@@ -180,7 +198,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
 	//const float dist = length(diff);
-	//const float3 v = normalize(diff);
+	const float3 v = normalize(diff);
 	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
 	//const float weight = 1.0 - saturate((diff.z*diff.z) / (max_dist*max_dist));
 	//const float weight = 1.0 - saturate(diff.z / max_dist);
@@ -202,9 +220,9 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	  If weight is close to 1, consider this a regular occluder and take the second path
 	  below.
 	 */
-	//const float occ_dot = dot(Normal, v);
-	//if (occ_dot < bias)
 	float3 B = 0;
+	const float occ_dot = dot(Normal, v);
+	//if (occ_dot < bias)
 	if (diff.z > 0.0 /* || weight < 0.5 */) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
 	{
 		B.x =  uv_diff.x;
@@ -222,10 +240,16 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// Vary between these two values depending on 'weight':
 		//B = lerp(Normal, B, weight);
 		//B = Normal;
-		output.N = B;
-		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
-		output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-		output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+		if (fn_enable) {
+			B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
+			output.N = FakeNormal;
+		} else
+			output.N = B;
+		output.col = LightColor.rgb  * saturate(dot(B, LightVector.xyz));
+
+		//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
+		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+
 		//output.col = weight;
 		//return output;
 		//output.col = float3(0, 1, 0);
@@ -387,7 +411,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (z_division) 	radius /= p.z;
 
 	//float2 offset = float2(0.5 / screenSizeX, 0.5 / screenSizeY); // Test setting
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	//float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
 	float3 FakeNormal = 0; 
 	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
@@ -439,8 +464,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
 	
-	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	
+	// DEBUG
+	if (fn_enable) bentNormal = FakeNormal;
+	// DEBUG
 	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 	
 	//output.bentNormal.xyz = output.ssao.xyz * bentNormal;
