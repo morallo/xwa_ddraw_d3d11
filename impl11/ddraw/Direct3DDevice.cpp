@@ -303,6 +303,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
+TrackerType g_TrackerType = TRACKER_NONE;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -745,9 +746,9 @@ void SaveVRParams() {
 	fprintf(file, "; The settings for pitch and yaw are in cockpitlook.cfg\n");
 	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
 
-	fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
-	fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
-	fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
+	//fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
+	//fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
+	//fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
@@ -777,7 +778,7 @@ void LoadCockpitLookParams() {
 
 	char buf[160], param[80], svalue[80];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	while (fgets(buf, 160, file) != NULL) {
 		// Skip comments and blank lines
@@ -787,18 +788,40 @@ void LoadCockpitLookParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 			if (_stricmp(param, YAW_MULTIPLIER_CLPARAM) == 0) {
-				g_fYawMultiplier = value;
+				g_fYawMultiplier = fValue;
 			}
 			else if (_stricmp(param, PITCH_MULTIPLIER_CLPARAM) == 0) {
-				g_fPitchMultiplier = value;
+				g_fPitchMultiplier = fValue;
 			}
 			else if (_stricmp(param, YAW_OFFSET_CLPARAM) == 0) {
-				g_fYawOffset = value;
+				g_fYawOffset = fValue;
 			}
 			else if (_stricmp(param, PITCH_OFFSET_CLPARAM) == 0) {
-				g_fPitchOffset = value;
+				g_fPitchOffset = fValue;
+			}
+			else if (_stricmp(param, "tracker_type") == 0) {
+				if (_stricmp(svalue, "FreePIE") == 0) {
+					log_debug("Using FreePIE for tracking");
+					g_TrackerType = TRACKER_FREEPIE;
+				}
+				else if (_stricmp(svalue, "SteamVR") == 0) {
+					log_debug("Using SteamVR for tracking");
+					g_TrackerType = TRACKER_STEAMVR;
+				}
+				else if (_stricmp(svalue, "TrackIR") == 0) {
+					log_debug("Using TrackIR for tracking");
+					g_TrackerType = TRACKER_TRACKIR;
+				}
+				else if (_stricmp(svalue, "None") == 0) {
+					log_debug("Tracking disabled");
+					g_TrackerType = TRACKER_NONE;
+				}
+			}
+			// 6dof parameters
+			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
+				g_iFreePIESlot = (int)fValue;
 			}
 			param_read_count++;
 		}
@@ -2549,11 +2572,6 @@ void LoadVRParams() {
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
 				g_bDCManualActivate = (bool)fValue;
 			}
-
-			// 6dof parameters
-			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
-				g_iFreePIESlot = (int)fValue;
-			}	
 
 			param_read_count++;
 		}
@@ -4752,6 +4770,7 @@ HRESULT Direct3DDevice::Execute(
 					// capture the black background used by the game!
 				}
 
+				// Clear the Dynamic Cockpit foreground and background RTVs
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
@@ -4776,7 +4795,8 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
-				// Update the Hyperspace FSM -- but only updated it exactly once per frame
+				// Update the Hyperspace FSM -- but only update it exactly once per frame
+				// Also clear the shaderToyAuxBuf if any tracker is enabled
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
@@ -4796,10 +4816,17 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_ENTER_ST:
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
-						// it had when entering hyperspace
+						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
+						// are the user's head position moved anyway if 6dof is enabled.
 						if (!g_bClearedAuxBuffer &&
-							(PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
-							 PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame)) {
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
+							     (
+							        PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							        PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
+							     )
+							  )
+						   ) 
+						{
 							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 							g_bClearedAuxBuffer = true;
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
