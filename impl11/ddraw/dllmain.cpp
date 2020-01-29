@@ -263,7 +263,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bDumpSSAOBuffers = true;
 				return 0;
 			case 'F':
-				//g_bDumpLaserPointerDebugInfo = true;
+				g_bDumpLaserPointerDebugInfo = true;
 				return 0;
 				// DEBUG
 			case 'P':

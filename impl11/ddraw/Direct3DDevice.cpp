@@ -303,6 +303,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
+TrackerType g_TrackerType = TRACKER_NONE;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -745,9 +746,9 @@ void SaveVRParams() {
 	fprintf(file, "; The settings for pitch and yaw are in cockpitlook.cfg\n");
 	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
 
-	fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
-	fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
-	fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
+	//fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
+	//fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
+	//fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
@@ -777,7 +778,7 @@ void LoadCockpitLookParams() {
 
 	char buf[160], param[80], svalue[80];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	while (fgets(buf, 160, file) != NULL) {
 		// Skip comments and blank lines
@@ -787,18 +788,40 @@ void LoadCockpitLookParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 			if (_stricmp(param, YAW_MULTIPLIER_CLPARAM) == 0) {
-				g_fYawMultiplier = value;
+				g_fYawMultiplier = fValue;
 			}
 			else if (_stricmp(param, PITCH_MULTIPLIER_CLPARAM) == 0) {
-				g_fPitchMultiplier = value;
+				g_fPitchMultiplier = fValue;
 			}
 			else if (_stricmp(param, YAW_OFFSET_CLPARAM) == 0) {
-				g_fYawOffset = value;
+				g_fYawOffset = fValue;
 			}
 			else if (_stricmp(param, PITCH_OFFSET_CLPARAM) == 0) {
-				g_fPitchOffset = value;
+				g_fPitchOffset = fValue;
+			}
+			else if (_stricmp(param, "tracker_type") == 0) {
+				if (_stricmp(svalue, "FreePIE") == 0) {
+					log_debug("Using FreePIE for tracking");
+					g_TrackerType = TRACKER_FREEPIE;
+				}
+				else if (_stricmp(svalue, "SteamVR") == 0) {
+					log_debug("Using SteamVR for tracking");
+					g_TrackerType = TRACKER_STEAMVR;
+				}
+				else if (_stricmp(svalue, "TrackIR") == 0) {
+					log_debug("Using TrackIR for tracking");
+					g_TrackerType = TRACKER_TRACKIR;
+				}
+				else if (_stricmp(svalue, "None") == 0) {
+					log_debug("Tracking disabled");
+					g_TrackerType = TRACKER_NONE;
+				}
+			}
+			// 6dof parameters
+			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
+				g_iFreePIESlot = (int)fValue;
 			}
 			param_read_count++;
 		}
@@ -1097,10 +1120,16 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// Process the arrow keys
 	if (strstr(ptr, "ARROW") != NULL) 
 	{
-		if (strstr(ptr, "LEFT") != NULL)  scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4B
-		if (strstr(ptr, "RIGHT") != NULL) scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4D
-		if (strstr(ptr, "UP") != NULL)    scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
-		if (strstr(ptr, "DOWN") != NULL)  scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x50
+		scanCodes[j++] = 0xE0;
+		if (strstr(ptr, "LEFT")  != NULL)	scanCodes[j++] = 0x4B;
+		if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = 0x4D;
+		if (strstr(ptr, "UP")    != NULL)	scanCodes[j++] = 0x48;
+		if (strstr(ptr, "DOWN")  != NULL) 	scanCodes[j++] = 0x50;
+
+		//if (strstr(ptr, "LEFT") != NULL)		scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4B
+		//if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4D
+		//if (strstr(ptr, "UP") != NULL)  		scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
+		//if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x50
 		scanCodes[j] = 0;
 		return;
 	}
@@ -1230,15 +1259,26 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 			coords->area[idx].y1 = y1 / height;
 			// Flip the coordinates if necessary
 			if (x0 != -1.0f && x1 != -1.0f) {
-				if (x0 > x1) // Mirror the X-axis:
+				if (x0 > x1) 
 				{
+					// Swap coords in the X-axis:
+					//float x = coords->area[idx].x0;
+					//coords->area[idx].x0 = coords->area[idx].x1;
+					//coords->area[idx].x1 = x;
+					// Mirror the X-axis:
 					coords->area[idx].x0 = 1.0f - coords->area[idx].x0;
 					coords->area[idx].x1 = 1.0f - coords->area[idx].x1;
 				}
 			}
 			if (y0 != -1.0f && y1 != -1.0f) {
-				if (y0 > y1) // Mirror the Y-axis:
+				if (y0 > y1) 
 				{
+					// Swap coords in the Y-axis:
+					//float y = coords->area[idx].y0;
+					//coords->area[idx].y0 = coords->area[idx].y1;
+					//coords->area[idx].y1 = y;
+
+					// Mirror the Y-axis:
 					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
 					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
 				}
@@ -2549,11 +2589,6 @@ void LoadVRParams() {
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
 				g_bDCManualActivate = (bool)fValue;
 			}
-
-			// 6dof parameters
-			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
-				g_iFreePIESlot = (int)fValue;
-			}	
 
 			param_read_count++;
 		}
@@ -4133,12 +4168,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
 				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
 				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-				// Fix negative UVs (yes, some OPTs may have negative UVs to mirror textures)
-				if (u < 0) u = -u;
-				if (v < 0) v = -v;
-				// Fix UVs beyond 1
-				while (u > 1.0f) u -= 1.0f;
-				while (v > 1.0f) v -= 1.0f;
+				
 				g_LaserPointerBuffer.uv[0] = u;
 				g_LaserPointerBuffer.uv[1] = v;
 
@@ -4752,6 +4782,7 @@ HRESULT Direct3DDevice::Execute(
 					// capture the black background used by the game!
 				}
 
+				// Clear the Dynamic Cockpit foreground and background RTVs
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
@@ -4776,7 +4807,8 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
-				// Update the Hyperspace FSM -- but only updated it exactly once per frame
+				// Update the Hyperspace FSM -- but only update it exactly once per frame
+				// Also clear the shaderToyAuxBuf if any tracker is enabled
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
@@ -4796,10 +4828,17 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_ENTER_ST:
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
-						// it had when entering hyperspace
+						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
+						// are the user's head position moved anyway if 6dof is enabled.
 						if (!g_bClearedAuxBuffer &&
-							(PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
-							 PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame)) {
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
+							     (
+							        PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							        PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
+							     )
+							  )
+						   ) 
+						{
 							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 							g_bClearedAuxBuffer = true;
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);

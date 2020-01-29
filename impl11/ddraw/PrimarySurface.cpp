@@ -4223,6 +4223,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 }
 
 void DisplayACAction(WORD *scanCodes);
+
 /*
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
@@ -4232,34 +4233,50 @@ void PrimarySurface::ACRunAction(WORD *action) {
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
 	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 	INPUT input[MAX_AC_ACTION_LEN];
+	bool bEscapedAction = (action[0] == 0xe0);
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
 		return;
 	}
+
+	//if (bEscapedAction)
+	//	log_debug("[DBG] [AC] Executing escaped code");
 	//log_debug("[DBG] [AC] Running action: ");
 	//DisplayACAction(action);
 
 	// Copy & initialize the scan codes
-	int i = 0;
-	while (action[i] && i < MAX_AC_ACTION_LEN) {
+	int i = 0, j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_AC_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
 		input[i].type = INPUT_KEYBOARD;
 		input[i].ki.time = 0;
 		input[i].ki.wVk = 0;
 		input[i].ki.dwExtraInfo = 0;
 		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
-		input[i].ki.wScan = action[i];
-		i++;
+		if (bEscapedAction) {
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+			//input[i].ki.dwExtraInfo = GetMessageExtraInfo();
+		}
+		i++; j++;
 	}
 
-	// Send keydown event:
-	//log_debug("[DBG] [AC] Sending input (1)...");
-	SendInput(i, input, sizeof(INPUT));
+	j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_AC_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) {
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+			//input[i].ki.dwExtraInfo = GetMessageExtraInfo();
+		}
+		i++; j++;
+	}
 
-	// Send the keyup event:
-	for (int j = 0; j < i; j++)
-		input[j].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-	//log_debug("[DBG] [AC] Sending input (2)...");
+	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
 	SendInput(i, input, sizeof(INPUT));
 }
 
@@ -4378,6 +4395,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx].coords);
 		float u = g_LaserPointerBuffer.uv[0];
 		float v = g_LaserPointerBuffer.uv[1];
+		float u0 = u, v0 = v;
+
+		// Fix negative UVs (yes, some OPTs may have negative UVs)
+		while (u < 0.0f) u += 1.0f;
+		while (v < 0.0f) v += 1.0f;
+		// Fix UVs beyond 1
+		while (u > 1.0f) u -= 1.0f;
+		while (v > 1.0f) v -= 1.0f;
+
 		for (int i = 0; i < coords->numCoords; i++) {
 			if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
 				coords->area[i].y0 <= v && v <= coords->area[i].y1)
@@ -4386,7 +4412,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				if (g_bACActionTriggered) {
 					short width = g_ACElements[g_iBestIntersTexIdx].width;
 					short height = g_ACElements[g_iBestIntersTexIdx].height;
-					/*
+					
 					log_debug("[DBG} *************");
 					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
 					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
@@ -4395,13 +4421,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					log_debug("[DBG] [AC] uv coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 						coords->area[i].x0, coords->area[i].y0,
 						coords->area[i].x1, coords->area[i].y1);
+					log_debug("[DBG] [AC] laser uv (raw): (%0.3f, %0.3f)", u0, v0);
 					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
-						g_LaserPointerBuffer.uv[0], g_LaserPointerBuffer.uv[1],
-						(short)(width * g_LaserPointerBuffer.uv[0]), (short)(height * g_LaserPointerBuffer.uv[1]));
-					*/
+						u, v, (short)(width * u), (short)(height * v));
+					
 					// Run the action itself
 					ACRunAction(coords->action[i]);
-					//log_debug("[DBG} *************");
+					log_debug("[DBG} *************");
 				}
 				break;
 			}

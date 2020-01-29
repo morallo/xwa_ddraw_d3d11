@@ -408,6 +408,14 @@ enum HyperspacePhaseEnum {
 };
 const int MAX_POST_HYPER_EXIT_FRAMES = 20;
 
+// General types and globals
+typedef enum {
+	TRACKER_NONE,
+	TRACKER_FREEPIE,
+	TRACKER_STEAMVR,
+	TRACKER_TRACKIR
+} TrackerType;
+
 class DeviceResources
 {
 public:
