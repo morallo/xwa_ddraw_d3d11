@@ -1120,10 +1120,16 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// Process the arrow keys
 	if (strstr(ptr, "ARROW") != NULL) 
 	{
-		if (strstr(ptr, "LEFT") != NULL)  scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4B
-		if (strstr(ptr, "RIGHT") != NULL) scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x4D
-		if (strstr(ptr, "UP") != NULL)    scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
-		if (strstr(ptr, "DOWN") != NULL)  scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x50
+		scanCodes[j++] = 0xE0;
+		if (strstr(ptr, "LEFT")  != NULL)	scanCodes[j++] = 0x4B;
+		if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = 0x4D;
+		if (strstr(ptr, "UP")    != NULL)	scanCodes[j++] = 0x48;
+		if (strstr(ptr, "DOWN")  != NULL) 	scanCodes[j++] = 0x50;
+
+		//if (strstr(ptr, "LEFT") != NULL)		scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4B
+		//if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4D
+		//if (strstr(ptr, "UP") != NULL)  		scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
+		//if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x50
 		scanCodes[j] = 0;
 		return;
 	}
@@ -1253,15 +1259,26 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 			coords->area[idx].y1 = y1 / height;
 			// Flip the coordinates if necessary
 			if (x0 != -1.0f && x1 != -1.0f) {
-				if (x0 > x1) // Mirror the X-axis:
+				if (x0 > x1) 
 				{
+					// Swap coords in the X-axis:
+					//float x = coords->area[idx].x0;
+					//coords->area[idx].x0 = coords->area[idx].x1;
+					//coords->area[idx].x1 = x;
+					// Mirror the X-axis:
 					coords->area[idx].x0 = 1.0f - coords->area[idx].x0;
 					coords->area[idx].x1 = 1.0f - coords->area[idx].x1;
 				}
 			}
 			if (y0 != -1.0f && y1 != -1.0f) {
-				if (y0 > y1) // Mirror the Y-axis:
+				if (y0 > y1) 
 				{
+					// Swap coords in the Y-axis:
+					//float y = coords->area[idx].y0;
+					//coords->area[idx].y0 = coords->area[idx].y1;
+					//coords->area[idx].y1 = y;
+
+					// Mirror the Y-axis:
 					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
 					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
 				}
@@ -4151,12 +4168,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
 				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
 				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-				// Fix negative UVs (yes, some OPTs may have negative UVs to mirror textures)
-				if (u < 0) u = -u;
-				if (v < 0) v = -v;
-				// Fix UVs beyond 1
-				while (u > 1.0f) u -= 1.0f;
-				while (v > 1.0f) v -= 1.0f;
+				
 				g_LaserPointerBuffer.uv[0] = u;
 				g_LaserPointerBuffer.uv[1] = v;
 
