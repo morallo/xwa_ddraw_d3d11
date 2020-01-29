@@ -4133,8 +4133,12 @@ void DisplayACAction(WORD *scanCodes);
  */
 void PrimarySurface::ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
 	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+	// How to send extended scan codes
+	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
+	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
 
