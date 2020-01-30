@@ -5125,8 +5125,8 @@ HRESULT PrimarySurface::Flip(
 				} */
 				// DEBUG
 
-				if (bHyperStreaks)
-				{
+				//if (bHyperStreaks)
+				//{
 					// Only apply the "short" bloom to the hyperspace streaks (otherwise they
 					// tend to get overexposed)
 					// 2 = Entering hyperspace
@@ -5134,12 +5134,11 @@ HRESULT PrimarySurface::Flip(
 					// 3 = Exiting hyperspace
 					// Nice hyperspace animation:
 					// https://www.youtube.com/watch?v=d5W3afhgOlY
-					BloomPyramidLevelPass(1, 2, 2.0f);
-					BloomPyramidLevelPass(2, 1, 4.0f);
-					BloomPyramidLevelPass(3, 1, 8.0f);
-					//BloomPyramidLevelPass(4, 1, 16.0f);
-				}
-				else
+					//BloomPyramidLevelPass(1, 2, 2.0f);
+					//BloomPyramidLevelPass(2, 1, 4.0f);
+					//BloomPyramidLevelPass(3, 1, 8.0f);
+				//}
+				//else
 				{
 					float fScale = 2.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {

@@ -4871,6 +4871,20 @@ HRESULT Direct3DDevice::Execute(
 								memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
 								memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
 							}
+
+							// Clear the previously-captured offscreen buffer: we don't want to display it again when exiting
+							// hyperspace
+							if (!g_bClearedAuxBuffer) 
+							{
+								float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+								g_bClearedAuxBuffer = true;
+								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								if (g_bUseSteamVR) {
+									//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+									context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								}
+							}
 						}
 						break;
 					case HS_HYPER_EXIT_ST:
@@ -5495,7 +5509,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// When exiting hyperspace, the light textures will overwrite the alpha component. Fixing this
 				// requires changing the alpha blend state; but if I modify that, chances are something else will
-				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
+				// break. So instead of fixing it, how about skipping those draw calls since it's only going
 				// to be a few frames after exiting hyperspace.
 				if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
 					goto out;
