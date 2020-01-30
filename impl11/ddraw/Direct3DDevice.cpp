@@ -4812,9 +4812,12 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
+						g_PSCBuffer.bInHyperspace = 0;
 						if (PlayerDataTable->hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
+							g_PSCBuffer.bInHyperspace = 1;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
 							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
 								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
@@ -4827,6 +4830,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
 						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
 						// are the user's head position moved anyway if 6dof is enabled.
@@ -4851,6 +4855,7 @@ HRESULT Direct3DDevice::Execute(
 
 						if (PlayerDataTable->hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							// We're about to enter the hyperspace tunnel, change the color of the lights:
 							float fade = 1.0f;
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
@@ -4863,17 +4868,34 @@ HRESULT Direct3DDevice::Execute(
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						if (PlayerDataTable->hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							// Restore the previous color of the lights
 							for (int i = 0; i < 2; i++) {
 								memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
 								memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
 							}
+
+							// Clear the previously-captured offscreen buffer: we don't want to display it again when exiting
+							// hyperspace
+							if (!g_bClearedAuxBuffer) 
+							{
+								float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+								g_bClearedAuxBuffer = true;
+								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								if (g_bUseSteamVR) {
+									//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+									context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								}
+							}
 						}
 						break;
 					case HS_HYPER_EXIT_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						if (PlayerDataTable->hyperspacePhase == 0) {
 							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
@@ -4881,6 +4903,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
 							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;
@@ -5495,10 +5518,10 @@ HRESULT Direct3DDevice::Execute(
 
 				// When exiting hyperspace, the light textures will overwrite the alpha component. Fixing this
 				// requires changing the alpha blend state; but if I modify that, chances are something else will
-				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
+				// break. So instead of fixing it, how about skipping those draw calls since it's only going
 				// to be a few frames after exiting hyperspace.
-				if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
-					goto out;
+				//if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
+				//	goto out;
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
@@ -5631,6 +5654,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
+				/*
 				// Set the Hyperspace Bloom flags and render the new hyperspace effect
 				if (PlayerDataTable->hyperspacePhase) {
 					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
@@ -5659,6 +5683,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 				}
+				*/
 
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)

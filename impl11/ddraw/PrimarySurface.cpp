@@ -4230,8 +4230,12 @@ void DisplayACAction(WORD *scanCodes);
  */
 void PrimarySurface::ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
 	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+	// How to send extended scan codes
+	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
+	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
 
@@ -5218,8 +5222,8 @@ HRESULT PrimarySurface::Flip(
 				} */
 				// DEBUG
 
-				if (bHyperStreaks)
-				{
+				//if (bHyperStreaks)
+				//{
 					// Only apply the "short" bloom to the hyperspace streaks (otherwise they
 					// tend to get overexposed)
 					// 2 = Entering hyperspace
@@ -5227,12 +5231,11 @@ HRESULT PrimarySurface::Flip(
 					// 3 = Exiting hyperspace
 					// Nice hyperspace animation:
 					// https://www.youtube.com/watch?v=d5W3afhgOlY
-					BloomPyramidLevelPass(1, 2, 2.0f);
-					BloomPyramidLevelPass(2, 1, 4.0f);
-					BloomPyramidLevelPass(3, 1, 8.0f);
-					//BloomPyramidLevelPass(4, 1, 16.0f);
-				}
-				else
+					//BloomPyramidLevelPass(1, 2, 2.0f);
+					//BloomPyramidLevelPass(2, 1, 4.0f);
+					//BloomPyramidLevelPass(3, 1, 8.0f);
+				//}
+				//else
 				{
 					float fScale = 2.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {

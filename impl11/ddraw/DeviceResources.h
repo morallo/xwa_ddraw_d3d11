@@ -312,7 +312,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bIsHyperspaceStreak;
+	uint32_t bInHyperspace;
 	// 16 bytes
 
 	float fBloomStrength;
