@@ -38,6 +38,7 @@ struct PixelShaderOutput
 	float4 ssaoMask : SV_TARGET4;
 };
 
+// PixelShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
 {
 	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
@@ -49,7 +50,7 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsHyperspaceStreak;	// 1 if we're rendering hyperspace streaks
+	uint bInHyperspace;			// 1 if we're rendering while in hyperspace
 	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect
@@ -146,6 +147,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
 		output.bloom.rgb *= fBloomStrength;
+		if (bInHyperspace && output.bloom.a < 0.5) {
+			//output.color.a = 1.0;
+			discard; // VERIFIED: Works fine in Win7
+		}
 		return output;
 	}
 

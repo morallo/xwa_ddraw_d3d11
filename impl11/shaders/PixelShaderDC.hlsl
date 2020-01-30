@@ -49,7 +49,7 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsHyperspaceStreak;
+	uint bInHyperspace;
 
 	float fBloomStrength;		// General multiplier for the bloom effect
 	float fSSAOMaskVal;			// (Ignored) SSAO mask value
@@ -185,5 +185,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = 1;
 	}
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
+	if (bInHyperspace) output.color.a = 1.0;
 	return output;
 }
