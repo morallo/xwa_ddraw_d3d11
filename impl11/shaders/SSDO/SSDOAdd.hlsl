@@ -11,32 +11,32 @@
 #include "..\HSV.h"
 
  // The color buffer
-Texture2D texture0 : register(t0);
-SamplerState sampler0 : register(s0);
+Texture2D texColor : register(t0);
+SamplerState sampColor : register(s0);
 
 // The bloom mask buffer
-Texture2D texBloom : register(t1);
-SamplerState samplerBloom : register(s1);
+//Texture2D texBloom : register(t1);
+//SamplerState samplerBloom : register(s1);
 
 // The SSDO Direct buffer
-Texture2D texSSDO : register(t2);
-SamplerState samplerSSDO : register(s2);
+Texture2D texSSDO : register(t1);
+SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t3);
-SamplerState samplerSSDOInd : register(s3);
+Texture2D texSSDOInd : register(t2);
+SamplerState samplerSSDOInd : register(s2);
 
 // The SSAO mask
-Texture2D texSSAOMask : register(t4);
-SamplerState samplerSSAOMask : register(s4);
+Texture2D texSSAOMask : register(t3);
+SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
-Texture2D texPos : register(t5);
-SamplerState sampPos : register(s5);
+Texture2D texPos : register(t4);
+SamplerState sampPos : register(s4);
 
 // The (Flat) Normals buffer
-Texture2D texNormal : register(t6);
-SamplerState samplerNormal : register(s6);
+Texture2D texNormal : register(t5);
+SamplerState samplerNormal : register(s5);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -98,8 +98,69 @@ cbuffer ConstantBuffer : register(b4)
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
+
+struct PixelShaderOutput
+{
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
+};
+
+float3 getPositionFG(in float2 uv, in float level) {
+	// The use of SampleLevel fixes the following error:
+	// warning X3595: gradient instruction used in a loop with varying iteration
+	// This happens because the texture is sampled within an if statement (if FGFlag then...)
+	return texPos.SampleLevel(sampPos, uv, level).xyz;
+}
+
+/*
+ * From Pascal Gilcher's SSR shader.
+ * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
+ * (Used with permission from the author)
+ */
+float3 get_normal_from_color(float2 uv, float2 offset)
+{
+	float3 offset_swiz = float3(offset.xy, 0);
+	// Luminosity samples
+	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
+	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+
+	// Depth samples
+	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
+	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
+	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
+	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+
+	// Depth differences in the x and y axes
+	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
+	//xymult = saturate(1.0 - xymult);
+	xymult = saturate(fn_max_xymult - xymult);
+
+	float3 normal;
+	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
+	normal.z = 1.0;
+
+	return normalize(normal);
+}
+
+// n1: base normal
+// n2: detail normal
+float3 blend_normals(float3 n1, float3 n2)
+{
+	// I got this from Pascal Gilcher; but there's more details here:
+	// https://blog.selfshadow.com/publications/blending-in-detail/
+	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
+
+	// UDN:
+	//return normalize(float3(n1.xy + n2.xy, n1.z));
+
+	n1.z += 1.0;
+	n2.xy = -n2.xy;
+	return normalize(n1 * dot(n1, n2) - n1.z * n2);
+}
 
 // (Sorry, don't remember very well) I think this function projects a 3D point back
 // into 2D and then converts the 2D coord into its equivalent UV-coord used in post
@@ -169,26 +230,38 @@ float3 shadow_factor(in float3 P) {
 }
 */
 
-float4 main(PixelShaderInput input) : SV_TARGET
+PixelShaderOutput main(PixelShaderInput input)
 {
+	PixelShaderOutput output;
+	output.color = 0;
+	output.bloom = 0;
+
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color    = texture0.Sample(sampler0, input.uv).xyz;
-	//float3 bentN  = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	//float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
+	float3 color    = texColor.Sample(sampColor, input.uv).xyz;
+	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
+	float4 Normal   = texNormal.Sample(samplerNormal, input.uv);
 	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
-	float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
+	//float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
-	float mask = dot(0.333, ssaoMask);
+	float  mask     = dot(0.333, ssaoMask);
 	
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
-	if (mask > 0.9)
-		return float4(color, 1);
+	
+	// Normals with w == 0 are not available -- they correspond to things that don't have
+	// normals, like the skybox
+	if (mask > 0.9 || Normal.w < 0.01) {
+		output.color = float4(color, 1);
+		return output;
+	}
+	
+	float3 N = Normal.xyz;
+	color = color * color; // Gamma correction (approx pow 2.2)
 
 	/*
 	// Compute shadows
@@ -205,11 +278,34 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	ssdo = lerp(ssdo, 1, mask);
 	ssdoInd = lerp(ssdoInd, 0, mask);
 
-	//if (debug == 4)
-	//	return float4(ssdoInd, 1);
-	return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
-	//return float4(color * ssdo, 1);
-	
+	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
+	float3 FakeNormal = 0;
+	if (fn_enable) {
+		FakeNormal = get_normal_from_color(input.uv, offset);
+		N = blend_normals(N, FakeNormal);
+	}
+
+	// specular component
+	float3 L = LightVector.xyz;
+	float3 eye = 0.0;
+	//float3 spec_col = texelColor.xyz;
+	//float3 spec_col = clamp(1.5 * color, 0.0, 1.0);
+	float3 spec_col = 0.35;
+	float3 eye_vec  = normalize(eye - pos3D);
+	float3 refl_vec = normalize(reflect(-L, N));
+	float  spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
+	float  spec_bloom;
+	float  exponent = 10.0;
+	spec_bloom = 1.0 * pow(spec, 50.0);
+	spec = pow(spec, exponent);
+
+	color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
+	output.color = float4(sqrt(color), 1); // Invert gamma correcion (approx pow 1/2.2)
+	output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
+	return output;
+	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
+
+
 	//color = saturate((ambient + diffuse) * color);
 	//ssao = enableSSAO ? ssao : 1.0f;
 

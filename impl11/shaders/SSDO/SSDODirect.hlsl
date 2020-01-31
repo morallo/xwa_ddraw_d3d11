@@ -242,10 +242,11 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//B = Normal;
 		if (fn_enable) {
 			B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
-			output.N = FakeNormal;
-		} else
-			output.N = B;
-		output.col = LightColor.rgb  * saturate(dot(B, LightVector.xyz));
+			// DEBUG
+			//output.N = FakeNormal;
+		}
+		output.N = B;
+		output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
 
 		//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
 		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
@@ -382,6 +383,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius;
 	bool FGFlag;
 	
+	color = color * color; // Gamma correction (approx to pow 2.2)
+
 	output.ssao = 1;
 	output.bentNormal = float4(0, 0, 0.01, 1);
 
@@ -411,8 +414,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (z_division) 	radius /= p.z;
 
 	//float2 offset = float2(0.5 / screenSizeX, 0.5 / screenSizeY); // Test setting
-	//float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
-	float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	//float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0; 
 	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
 
@@ -466,9 +469,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	
 	// DEBUG
-	if (fn_enable) bentNormal = FakeNormal;
+	//if (fn_enable) bentNormal = FakeNormal;
 	// DEBUG
-	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
 	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 	

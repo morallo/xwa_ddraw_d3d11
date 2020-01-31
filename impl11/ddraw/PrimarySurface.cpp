@@ -400,7 +400,7 @@ void ShowXWAVector(char *msg, const XwaVector3 &v) {
 	log_debug("[DBG] %s [%0.4f, %0.4f, %0.4f]", msg, v.x, v.y, v.z);
 }
 
-void ComputeRotationMatrixFromXWAView_old(Vector4 *light, int num_lights) {
+void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
 	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
@@ -452,6 +452,10 @@ void ComputeRotationMatrixFromXWAView_old(Vector4 *light, int num_lights) {
 		T.z, B.z, N.z, 0,
 		0, 0, 0, 1
 	);
+	// We further rotate the light vectors by 180 degrees so that Y+ points up:
+	Matrix4 rot;
+	rot.rotateX(180.0f);
+	rotMatrixFull = rotMatrixFull * rot;
 
 	for (int i = 0; i < num_lights; i++)
 		tmpL[i] = rotMatrixFull * g_LightVector[i];
@@ -496,7 +500,7 @@ void ComputeRotationMatrixFromXWAView_old(Vector4 *light, int num_lights) {
 	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
 }
 
-void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
+void ComputeRotationMatrixFromXWAView_new(Vector4 *light, int num_lights) {
 	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
 	float yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
@@ -2900,7 +2904,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		matrixCB.LightVector2.y = light[1].y;
 		matrixCB.LightVector2.z = light[1].z;
 	}
-	log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light[0].x, light[0].y, light[0].z);
+	//Vector4 Rs, Us, Fs;
+	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
+	//light[0] = H * g_LightVector[0];
+	//log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light[0].x, light[0].y, light[0].z);
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
 #ifdef DEATH_STAR
@@ -3152,8 +3159,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 	// Final combine, Left Image
 	{
-		// input: offscreenAsInput (resolved here), bloomMask, ssaoBuf
-		// output: offscreenBuf
+		// input: offscreenAsInput (resolved here), bloomMask (removed?), ssaoBuf
+		// output: offscreenBuf, bloomMask?
 		if (g_SSAO_Type == SSO_BENT_NORMALS)
 			//resources->InitPixelShader(resources->_hyperspacePS);
 #ifndef DEATH_STAR
@@ -3175,7 +3182,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// so that it can be used as an SRV
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
-			NULL, NULL, NULL, NULL,
+			resources->_renderTargetViewBloomMask.Get(),
+			NULL, NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 		// Resolve offscreenBuf
@@ -3186,17 +3194,17 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			ssdoSRV = resources->_bentBufSRV.Get();
 		else
 			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[7] = {
+		ID3D11ShaderResourceView *srvs_pass2[6] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
+			//resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
 			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
-			//resources->_depthBuf2SRV.Get()
 			resources->_normBufSRV.Get(),
+			//resources->_bentBufSRV.Get(),
 		};
-		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->PSSetShaderResources(0, 6, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3486,9 +3494,9 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	Vector4 T, B, N;
 	// Compute the full rotation
-	yaw = PlayerDataTable[0].yaw     / 65536.0f * 360.0f;
+	yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
 	pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	roll = PlayerDataTable[0].roll   / 65536.0f * 360.0f;
+	roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	//Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -3648,7 +3656,7 @@ void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 			-R.x, -U.x, F.x, 0,
 			-R.y, -U.y, F.y, 0,
 			-R.z, -U.z, F.z, 0,
-			0, 0, 0, 1
+			 0,    0,   0,   1
 		);
 		Matrix4 rotX;
 		rotX.rotateX(180.0f);
@@ -5125,7 +5133,7 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
@@ -5146,12 +5154,19 @@ HRESULT PrimarySurface::Flip(
 					case SSO_DIRECTIONAL:
 					case SSO_BENT_NORMALS:
 						SSDOPass(g_fSSAOZoomFactor, g_fSSAOZoomFactor2);
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
 				}
 
 				if (g_bDumpSSAOBuffers) {
-					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");

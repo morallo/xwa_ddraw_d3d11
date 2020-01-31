@@ -4976,6 +4976,9 @@ HRESULT Direct3DDevice::Execute(
 					Special state management ends here
 				 *************************************************************************/
 
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture)
+				//	goto out;
+
 				//if (PlayerDataTable[0].cockpitDisplayed)
 				//if (PlayerDataTable[0].cockpitDisplayed2)
 				//	goto out;
@@ -5522,6 +5525,7 @@ HRESULT Direct3DDevice::Execute(
 				// to be a few frames after exiting hyperspace.
 				//if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
 				//	goto out;
+				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 

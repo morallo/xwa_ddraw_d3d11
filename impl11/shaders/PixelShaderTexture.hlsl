@@ -125,6 +125,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Process light textures (make them brighter in 32-bit mode)
 	if (bIsLightTexture) {
+		output.normal.a = 0;
 		//output.pos3D = 0;
 		//output.normal = 0;
 		//output.diffuse = 0;
