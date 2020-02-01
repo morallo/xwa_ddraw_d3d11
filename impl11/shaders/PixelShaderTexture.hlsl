@@ -90,7 +90,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
 	
-	output.ssaoMask = float4(fSSAOMaskVal, fSSAOMaskVal, fSSAOMaskVal, alpha);
+	// SSAO Mask, Glossiness, ?
+	// Glossiness is multiplied by 128 to compute the exponent
+	output.ssaoMask = float4(fSSAOMaskVal, 0.08, 0, alpha);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
@@ -141,14 +143,14 @@ PixelShaderOutput main(PixelShaderInput input)
 			float3 color = HSVtoRGB(HSV);
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * color, 1);
-				output.ssaoMask = 1;
+				output.ssaoMask.ra = 1;
 			}
 			output.color = float4(color, alpha);
 		}
 		else {
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * texelColor.rgb, 1);
-				output.ssaoMask = 1;
+				output.ssaoMask.ra = 1;
 			}
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}

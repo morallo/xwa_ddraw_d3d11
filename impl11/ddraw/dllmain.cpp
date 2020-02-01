@@ -68,7 +68,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
-extern float g_fFocalDist, g_fFakeRoll;
+extern float g_fSpecIntensity, g_fFocalDist, g_fFakeRoll;
 
 extern bool bFreePIEAlreadyInitialized;
 void ShutdownFreePIE();
@@ -157,7 +157,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_RIGHT:
 				g_LightVector[0].x += 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector[0]);
+				PrintVector(g_LightVector[0]);
 
 				//g_contOriginWorldSpace.x += 0.02f;
 
@@ -175,7 +175,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_LEFT:
 				g_LightVector[0].x -= 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector[0]);
+				PrintVector(g_LightVector[0]);
 
 				//g_contOriginWorldSpace.x -= 0.02f;
 
@@ -194,14 +194,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_UP:
 				g_LightVector[0].y += 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector[0]);
+				PrintVector(g_LightVector[0]);
 
 				//g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
 				g_LightVector[0].y -= 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector[0]);
+				PrintVector(g_LightVector[0]);
 
 				//g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
@@ -310,6 +310,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'H':
 				ToggleCockpitPZHack();
 				return 0;
+			case 'W':
+				if (g_fSpecIntensity > 0.5f)
+					g_fSpecIntensity = 0.0f;
+				else
+					g_fSpecIntensity = 1.0f;
+				return 0;
 			/*
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
@@ -390,13 +396,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_UP:
 				g_LightVector[0].z += 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector);
+				PrintVector(g_LightVector[0]);
 				return 0;
 				// Ctrl + Down
 			case VK_DOWN:
 				g_LightVector[0].z -= 0.1f;
 				g_LightVector[0].normalize();
-				//PrintVector(g_LightVector);
+				PrintVector(g_LightVector[0]);
 				return 0;
 			}
 		}

@@ -16,7 +16,7 @@ SamplerState sampler1 : register(s1);
 // texture0 == cover texture and
 // texture1 == HUD offscreen buffer
 
-// If bRenderHUD is set:
+// If bRenderHUD is set: Is this used anymore???
 // texture0 == HUD foreground
 // texture1 == HUD background
 
@@ -95,8 +95,8 @@ uint getBGColor(uint i) {
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	float alpha = texelColor.w;
+	float4 texelColor = texture0.Sample(sampler0, input.tex); // texelColor is the cover texture
+	float alpha = texelColor.w; // alpha of the cover texture
 	float3 diffuse = input.color.xyz;
 	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
@@ -166,8 +166,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// texelColor is the cover_texture right now
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		float brightness = ct_brightness;
+		// The cover texture is bright enough, go shadeless and make it brighter
 		if (HSV.z * alpha >= 0.8) {
-			// The cover texture is bright enough, go shadeless and make it brighter
 			diffuse = 1;
 			// Increase the brightness:
 			HSV = RGBtoHSV(texelColor.xyz);
@@ -175,7 +175,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			texelColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 			brightness = 1.0;
-			output.ssaoMask = 1;
+			output.ssaoMask.rga = 1; // Maximum glossiness on light areas?
 		}
 		// Display the dynamic cockpit texture only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
@@ -184,12 +184,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
-		output.ssaoMask = max(output.ssaoMask, (1 - alpha));
+		// SSAOMask, Glossiness x 128, ?, alpha
+		output.ssaoMask.ra = max(output.ssaoMask.ra, (1 - alpha));
+		// if alpha is 1, this is the cover texture --> Glossiness = 0.08
+		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
+		output.ssaoMask.g = lerp(1.0, 0.08, alpha);
 	}
 	else {
 		texelColor = hud_texelColor;
 		diffuse = float3(1, 1, 1);
-		output.ssaoMask = 1;
+		// SSAOMask, Glossiness x 128, ?, alpha
+		output.ssaoMask = float4(1, 1, 0, 1);
 	}
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 	if (bInHyperspace) output.color.a = 1.0;

@@ -10,6 +10,8 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 
+#define diffuse_intensity 0.95
+
  // The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
@@ -83,7 +85,7 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, ssao_unused1, ssao_unused2;
+	float shadow_k, spec_intensity, spec_bloom_intensity;
 	// 176 bytes
 };
 
@@ -105,6 +107,7 @@ struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
+	float4 bent  : SV_TARGET2;
 };
 
 float3 getPositionFG(in float2 uv, in float level) {
@@ -235,6 +238,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
+	output.bent  = 0;
 
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
@@ -248,20 +252,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
-	float  mask     = dot(0.333, ssaoMask);
+	float  mask     = ssaoMask.x; // dot(0.333, ssaoMask);
+	float  gloss    = ssaoMask.y;
+	//float gloss = 0.08;
 	
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
 	
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
-	if (mask > 0.9 || Normal.w < 0.01) {
+	//if (mask > 0.9 || Normal.w < 0.01) {
+	if (Normal.w < 0.01) {
 		output.color = float4(color, 1);
 		return output;
 	}
 	
 	float3 N = Normal.xyz;
 	color = color * color; // Gamma correction (approx pow 2.2)
+
+	float3 L = LightVector.xyz;
 
 	/*
 	// Compute shadows
@@ -274,34 +283,43 @@ PixelShaderOutput main(PixelShaderInput input)
 		shadow = 1;
 	*/
 
-	ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
-	ssdo = lerp(ssdo, 1, mask);
-	ssdoInd = lerp(ssdoInd, 0, mask);
+	//ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
+	//ssdo = lerp(ssdo, 1, mask);
+	//ssdoInd = lerp(ssdoInd, 0, mask);
 
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
-	if (fn_enable) {
+	if (fn_enable && mask < 0.95) {
 		FakeNormal = get_normal_from_color(input.uv, offset);
 		N = blend_normals(N, FakeNormal);
 	}
+	output.bent = float4(N, 1); // DEBUG PURPOSES ONLY
 
+	// diffuse component
+	float diffuse = clamp(dot(N, L), 0.0, 1.0);
+	diffuse = diffuse_intensity * diffuse + ambient;
+	diffuse = lerp(diffuse, 1, mask);
 	// specular component
-	float3 L = LightVector.xyz;
+	
 	float3 eye = 0.0;
 	//float3 spec_col = texelColor.xyz;
-	//float3 spec_col = clamp(1.5 * color, 0.0, 1.0);
-	float3 spec_col = 0.35;
+	float3 spec_col = lerp(clamp(4.0 * color, 0.0, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
+	//float3 spec_col = 0.35;
 	float3 eye_vec  = normalize(eye - pos3D);
-	float3 refl_vec = normalize(reflect(-L, N));
+	float3 refl_vec = normalize(reflect(L, N));
 	float  spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
 	float  spec_bloom;
-	float  exponent = 10.0;
-	spec_bloom = 1.0 * pow(spec, 50.0);
+	//float  exponent = 10.0;
+	float  exponent = 128.0 * gloss;
+	//spec_bloom = spec_bloom_intensity * pow(spec, exponent * 5.0);
+	spec_bloom = 1.3 * pow(spec, exponent * 5.0);
 	spec = pow(spec, exponent);
 
-	color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
+	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
+	color = color * diffuse + spec_intensity * spec_col * spec;
 	output.color = float4(sqrt(color), 1); // Invert gamma correcion (approx pow 1/2.2)
-	output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
+	//output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
+	output.bloom = spec_intensity * float4(spec_col * spec_bloom, spec_bloom);
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
 

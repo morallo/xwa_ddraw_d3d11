@@ -646,6 +646,7 @@ extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
+float g_fSpecIntensity = 1.0f;
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer g_MSCBuffer;
@@ -2823,6 +2824,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
+	g_SSAO_PSCBuffer.spec_intensity = g_fSpecIntensity;
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -3183,7 +3185,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
 			resources->_renderTargetViewBloomMask.Get(),
-			NULL, NULL, NULL,
+			resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
+			NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 		// Resolve offscreenBuf

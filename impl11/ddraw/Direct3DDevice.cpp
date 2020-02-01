@@ -2347,6 +2347,13 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.invLightG = y;
 				g_SSAO_PSCBuffer.invLightB = z;
 			}
+			else if (_stricmp(param, "specular_intensity") == 0) {
+				g_SSAO_PSCBuffer.spec_intensity = fValue;
+			}
+			else if (_stricmp(param, "spec_bloom_intensity") == 0) {
+				g_SSAO_PSCBuffer.spec_bloom_intensity = fValue;
+				log_debug("[DBG] spec_bloom_intensity = %0.3f", g_SSAO_PSCBuffer.spec_bloom_intensity);
+			}
 		}
 	}
 	fclose(file);
@@ -4721,6 +4728,7 @@ HRESULT Direct3DDevice::Execute(
 				// bIsSkyBox is true if we're about to render the SkyBox
 				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
+				bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
 				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
 				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
 				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
@@ -5791,7 +5799,8 @@ HRESULT Direct3DDevice::Execute(
 							resources->_renderTargetViewBloomMask.Get(),
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),
-							resources->_renderTargetViewNormBuf.Get(),
+							// The normals hook should not be allowed to write normals for light textures
+							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 							resources->_renderTargetViewSSAOMask.Get()
 						};
 						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
@@ -5942,7 +5951,8 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
@@ -5965,7 +5975,8 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
@@ -6026,7 +6037,8 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBufR.Get() : 
 									resources->_renderTargetViewDepthBuf2R.Get(),
-								resources->_renderTargetViewNormBufR.Get(),
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
 								resources->_renderTargetViewSSAOMaskR.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
@@ -6049,7 +6061,8 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								resources->_renderTargetViewSSAOMask.Get()
 							};
 							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
