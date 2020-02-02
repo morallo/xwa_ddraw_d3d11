@@ -2350,9 +2350,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "specular_intensity") == 0) {
 				g_SSAO_PSCBuffer.spec_intensity = fValue;
 			}
-			else if (_stricmp(param, "spec_bloom_intensity") == 0) {
+			else if (_stricmp(param, "specular_bloom_intensity") == 0) {
 				g_SSAO_PSCBuffer.spec_bloom_intensity = fValue;
-				log_debug("[DBG] spec_bloom_intensity = %0.3f", g_SSAO_PSCBuffer.spec_bloom_intensity);
 			}
 		}
 	}

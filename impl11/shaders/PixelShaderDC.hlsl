@@ -119,6 +119,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, 1);
 
 	output.ssaoMask = 0;
+	output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
+	output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -176,6 +178,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 			brightness = 1.0;
 			output.ssaoMask.rga = 1; // Maximum glossiness on light areas?
+			output.ssaoMask.b = 0.15; // Low spec intensity
 		}
 		// Display the dynamic cockpit texture only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
@@ -186,15 +189,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
 		// SSAOMask, Glossiness x 128, ?, alpha
 		output.ssaoMask.ra = max(output.ssaoMask.ra, (1 - alpha));
-		// if alpha is 1, this is the cover texture --> Glossiness = 0.08
+		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
 		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
-		output.ssaoMask.g = lerp(1.0, 0.08, alpha);
+		output.ssaoMask.g = lerp(1.0, DEFAULT_GLOSSINESS, alpha);
 	}
 	else {
 		texelColor = hud_texelColor;
 		diffuse = float3(1, 1, 1);
-		// SSAOMask, Glossiness x 128, ?, alpha
-		output.ssaoMask = float4(1, 1, 0, 1);
+		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
+		output.ssaoMask = float4(1, 1, 0.15, 1);
 	}
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 	if (bInHyperspace) output.color.a = 1.0;

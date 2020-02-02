@@ -90,6 +90,11 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 {
 	if (!g_config.JoystickEmul) {
 		UINT res = joyGetDevCaps(joy, pjc, size);
+		/*log_debug("[DBG] *************************************");
+		log_debug("[DBG] joystick devcaps");
+		log_debug("[DBG] numaxes: %d, maxaxes: %d", pjc->wNumAxes, pjc->wMaxAxes);
+		log_debug("[DBG] xmax: %d, ymax: %d, rmax: %d", pjc->wXmax, pjc->wYmax, pjc->wRmax);
+		log_debug("[DBG] *************************************");*/
 		if (g_config.InvertYAxis && joy == 0 && pjc && size == 0x194) joyYmax = pjc->wYmax;
 		return res;
 	}
@@ -112,10 +117,12 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 	}
 	pjc->wXmax = 512;
 	pjc->wYmax = 512;
+	pjc->wZmax = 512;
+	pjc->wRmax = 512;
 	pjc->wNumButtons = 5;
 	pjc->wMaxButtons = 5;
-	pjc->wNumAxes = 2;
-	pjc->wMaxAxes = 2;
+	pjc->wNumAxes = 6;
+	pjc->wMaxAxes = 6;
 	return JOYERR_NOERROR;
 }
 
@@ -148,6 +155,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
 
+		//log_debug("[DBG] joyX,R: %d, %d", pji->dwXpos, pji->dwRpos);
 		// Only swap the X-Z joystick axes if we're not in the gunner turret and if it
 		// was requested
 		if (!PlayerDataTable->gunnerTurretActive && g_config.SwapJoystickXZAxes) {
@@ -191,9 +199,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		pji->dwButtons |= (state.Gamepad.wButtons & 0xc0) << 2;
 		// Triggers last, they are not mapped in the joystick emulation
 		if (g_config.XInputTriggerAsThrottle != 1 &&
-		    state.Gamepad.bLeftTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD) pji->dwButtons |= 0x400;
+			state.Gamepad.bLeftTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD) pji->dwButtons |= 0x400;
 		if (g_config.XInputTriggerAsThrottle != 2 &&
-		    state.Gamepad.bRightTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD) pji->dwButtons |= 0x800;
+			state.Gamepad.bRightTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD) pji->dwButtons |= 0x800;
 		// These are not defined by XINPUT, and can't be remapped by the
 		// XWA user interface as they will be buttons above 12, but map them just in case
 		pji->dwButtons |= (state.Gamepad.wButtons & 0xc00) << 2;
@@ -222,49 +230,70 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	lastGetPos = now;
 	POINT pos;
 	GetCursorPos(&pos);
+
+	pji->dwXpos = 256; // This is the center position for this axis
+	pji->dwYpos = 256;
+	pji->dwZpos = 256;
+	pji->dwRpos = 256;
+
+	// Mouse input
+	{
+		pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		pji->dwButtons = 0;
+		pji->dwButtonNumber = 0;
+		if (GetAsyncKeyState(VK_LBUTTON)) {
+			pji->dwButtons |= 1;
+			++pji->dwButtonNumber;
+		}
+		if (GetAsyncKeyState(VK_RBUTTON)) {
+			pji->dwButtons |= 2;
+			++pji->dwButtonNumber;
+		}
+		if (GetAsyncKeyState(VK_MBUTTON)) {
+			pji->dwButtons |= 4;
+			++pji->dwButtonNumber;
+		}
+		if (GetAsyncKeyState(VK_XBUTTON1)) {
+			pji->dwButtons |= 8;
+			++pji->dwButtonNumber;
+		}
+		if (GetAsyncKeyState(VK_XBUTTON2)) {
+			pji->dwButtons |= 16;
+			++pji->dwButtonNumber;
+		}
+	}
 	
-	pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
-	pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
-	pji->dwButtons = 0;
-	pji->dwButtonNumber = 0;
-	if (GetAsyncKeyState(VK_LBUTTON)) {
-		pji->dwButtons |= 1;
-		++pji->dwButtonNumber;
+	/*
+	bool AltKey = (GetAsyncKeyState(VK_MENU) & 0x8000) == 0x8000;
+	pji->dwRpos = 256; // This is the center position for this axis
+	if (AltKey) {
+		//log_debug("[DBG] AltKey Pressed");
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+			pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		}
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+			pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		}
 	}
-	if (GetAsyncKeyState(VK_RBUTTON)) {
-		pji->dwButtons |= 2;
-		++pji->dwButtonNumber;
+	else {
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+			pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		}
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+			pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		}
 	}
-	if (GetAsyncKeyState(VK_MBUTTON)) {
-		pji->dwButtons |= 4;
-		++pji->dwButtonNumber;
-	}
-	if (GetAsyncKeyState(VK_XBUTTON1)) {
-		pji->dwButtons |= 8;
-		++pji->dwButtonNumber;
-	}
-	if (GetAsyncKeyState(VK_XBUTTON2)) {
-		pji->dwButtons |= 16;
-		++pji->dwButtonNumber;
-	}
+	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
+	*/
 	
+	// dwZpos is the throttle
 	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}
 	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
-	
-	/*
-	pji->dwXpos = 256; // This is the center position for this axis
-	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-		pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
-	}
-	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-		pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
-	}
-	pji->dwZpos = 0;
-	*/
 	
 	if (GetAsyncKeyState(VK_UP) & 0x8000) {
 		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));

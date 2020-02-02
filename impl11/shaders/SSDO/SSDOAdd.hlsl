@@ -10,7 +10,7 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 
-#define diffuse_intensity 0.95
+#define diffuse_intensity 1.0
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -240,6 +240,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.bent  = 0;
 
+	// DEBUG
+	//output.color = float4(input.uv.xy, 0, 1);
+	//return output;
+	// DEBUG
+
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
@@ -254,8 +259,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float  mask     = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss    = ssaoMask.y;
+	float  spec_int = ssaoMask.z;
 	//float gloss = 0.08;
 	
+	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
+	// so that implies that Z increases towards the viewer and decreases away from the camera.
+	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
+	// normals.
+	pos3D.z = -pos3D.z;
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
 	
@@ -267,10 +278,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 	
-	float3 N = Normal.xyz;
+	float3 L = normalize(LightVector.xyz);
+	float3 N = normalize(Normal.xyz);
+	float smooth_dot = max(dot(N, L), 0.0);
 	color = color * color; // Gamma correction (approx pow 2.2)
-
-	float3 L = LightVector.xyz;
 
 	/*
 	// Compute shadows
@@ -289,35 +300,46 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
-	if (fn_enable && mask < 0.95) {
+	if (fn_enable && mask < 0.95) { // A mask of 1 means "shadeless", things like the HUD, for example
 		FakeNormal = get_normal_from_color(input.uv, offset);
 		N = blend_normals(N, FakeNormal);
 	}
-	output.bent = float4(N, 1); // DEBUG PURPOSES ONLY
+	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
 	// diffuse component
-	float diffuse = clamp(dot(N, L), 0.0, 1.0);
-	diffuse = diffuse_intensity * diffuse + ambient;
+	float diffuse_dot = min(dot(N, L), 1.0);
+	float diffuse = /* ssdo.x * */ diffuse_intensity * diffuse_dot + ambient;
 	diffuse = lerp(diffuse, 1, mask);
 	// specular component
 	
-	float3 eye = 0.0;
+	//float3 eye = 0.0;
 	//float3 spec_col = texelColor.xyz;
-	float3 spec_col = lerp(clamp(4.0 * color, 0.0, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
+	float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
+	//float3 spec_col = /* ssdo.x * */ spec_int;
 	//float3 spec_col = 0.35;
-	float3 eye_vec  = normalize(eye - pos3D);
-	float3 refl_vec = normalize(reflect(L, N));
-	float  spec = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
-	float  spec_bloom;
+	float3 eye_vec  = normalize(-pos3D); // normalize(eye - pos3D);
+	// reflect expects an incident vector: a vector that goes from the light source to the current point.
+	// L goes from the current point to the light vector, so we have to use -L:
+	float3 refl_vec = normalize(reflect(-L, N));
+	//output.bent = float4(refl_vec * 0.5 + 0.5, 1); // DEBUG
+	float  spec = max(dot(eye_vec, refl_vec), 0.0);
+	
+	//float3 viewDir    = normalize(pos3D);
+	//float3 halfwayDir = normalize(L + viewDir);
+	//float spec = max(dot(N, halfwayDir), 0.0);
+
+	//if (smooth_dot <= 0.0) spec = 0.0;
+	//smooth_dot = min(pow(smooth_dot, 2.0), 1.0);
+	//spec *= smooth_dot;
 	//float  exponent = 10.0;
-	float  exponent = 128.0 * gloss;
-	//spec_bloom = spec_bloom_intensity * pow(spec, exponent * 5.0);
-	spec_bloom = 1.3 * pow(spec, exponent * 5.0);
+	//float  exponent = 256.0 * gloss;
+	float exponent = 128.0 * gloss;
+	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * 2.0);
 	spec = pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-	color = color * diffuse + spec_intensity * spec_col * spec;
-	output.color = float4(sqrt(color), 1); // Invert gamma correcion (approx pow 1/2.2)
+	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec);
+	output.color = float4(sqrt(color), 1); // Invert gamma correction (approx pow 1/2.2)
 	//output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
 	output.bloom = spec_intensity * float4(spec_col * spec_bloom, spec_bloom);
 	return output;

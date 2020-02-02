@@ -466,20 +466,22 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
 	float viewYaw, viewPitch;
 	if (PlayerDataTable[0].externalCamera) {
-		viewYaw   = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[0].cameraYaw   / 65536.0f * 360.0f;
 		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewYaw   = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f;
 		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
 	}
-	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	Matrix4 viewMatrixYaw, viewMatrixPitch, viewMatrixFull;
 	viewMatrixYaw.identity();
 	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
+	viewMatrixYaw.rotateY(g_fViewYawSign   * viewYaw);
 	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
+	viewMatrixFull = viewMatrixPitch * viewMatrixYaw;
+	viewMatrixFull.invert();
 	for (int i = 0; i < num_lights; i++)
-		light[i] = viewMatrixPitch * viewMatrixYaw * tmpL[i];
+		light[i] = viewMatrixFull * tmpL[i];
 
 	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
 	//	yaw, pitch, roll, x, y, z, tmp.x, tmp.y, tmp.z);
@@ -2878,7 +2880,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	
 	PixelShaderMatrixCB matrixCB;
 	Vector4 light[2];
-	ComputeRotationMatrixFromXWAView(light, 2);
 	matrixCB.LightColor.x = g_LightColor[0].x;
 	matrixCB.LightColor.y = g_LightColor[0].y;
 	matrixCB.LightColor.z = g_LightColor[0].z;
@@ -2887,6 +2888,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	matrixCB.LightColor2.y = g_LightColor[1].y;
 	matrixCB.LightColor2.z = g_LightColor[1].z;
 
+	ComputeRotationMatrixFromXWAView(light, 2);
 	//if (g_bOverrideLightPos) {
 	if (false) {
 		matrixCB.LightVector.x = g_LightVector[0].x;
@@ -2909,7 +2911,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	//Vector4 Rs, Us, Fs;
 	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
 	//light[0] = H * g_LightVector[0];
-	//log_debug("[DBG] light: [%0.3f, %0.3f, %0.3f]", light[0].x, light[0].y, light[0].z);
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
+			matrixCB.LightVector.x, matrixCB.LightVector.y, matrixCB.LightVector.z);
 	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
 
 #ifdef DEATH_STAR
@@ -5168,11 +5172,12 @@ HRESULT PrimarySurface::Flip(
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 				}
 			}

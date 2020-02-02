@@ -90,9 +90,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
 	
-	// SSAO Mask, Glossiness, ?
-	// Glossiness is multiplied by 128 to compute the exponent
-	output.ssaoMask = float4(fSSAOMaskVal, 0.08, 0, alpha);
+	// SSAO Mask, Glossiness, Spec_Intensity
+	// Glossiness is multiplied by 256 to compute the exponent
+	output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
