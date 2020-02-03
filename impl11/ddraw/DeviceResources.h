@@ -222,7 +222,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	float vpScale[4];
 	// 160 bytes
 	int shadow_enable;
-	float shadow_k, spec_intensity, spec_bloom_intensity;
+	float shadow_k, ssao_unused0, ssao_unused1;
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
@@ -288,19 +288,20 @@ typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
-typedef struct PixelShaderMatrixCBStruct {
-	//Matrix4 projEye;
-	//Matrix4 viewMat;
-	//Matrix4 fullViewMat;
+typedef struct PSShadingSystemCBStruct {
 	float4  LightVector;
 	// 16 bytes
-	float4  LightColor;
-	// 32 bytes
 	float4  LightVector2;
+	// 32 bytes
+	float4  LightColor;
 	// 48 bytes
 	float4  LightColor2;
 	// 64 bytes
-} PixelShaderMatrixCB;
+	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
+	// 80 bytes
+	float saturation_boost, lightness_boost, ss_unused0, ss_unused1;
+	// 96 bytes
+} PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
@@ -442,14 +443,14 @@ public:
 	void InitViewport(D3D11_VIEWPORT* viewport);
 	void InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer);
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);
-	void InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer);
+	void InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
-	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
+	void InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 
 	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);

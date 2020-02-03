@@ -10,6 +10,7 @@
  */
 #include "..\shader_common.h"
 #include "..\HSV.h"
+#include "..\shading_system.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -85,14 +86,6 @@ cbuffer ConstantBuffer : register(b3)
 	uint shadow_enable;
 	float shadow_k, ssao_unused1, ssao_unused2;
 	// 176 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct PixelShaderInput

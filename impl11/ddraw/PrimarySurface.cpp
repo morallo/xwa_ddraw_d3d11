@@ -644,11 +644,12 @@ extern float g_fLensK1, g_fLensK2, g_fLensK3;
 // Bloom
 BloomPixelShaderCBuffer		g_BloomPSCBuffer;
 SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
+PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
-float g_fSpecIntensity = 1.0f;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity;
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer g_MSCBuffer;
@@ -2826,7 +2827,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
-	g_SSAO_PSCBuffer.spec_intensity = g_fSpecIntensity;
+	g_ShadingSys_PSBuffer.spec_intensity = g_fSpecIntensity;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_fSpecBloomIntensity;
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -2878,43 +2880,42 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
-	PixelShaderMatrixCB matrixCB;
 	Vector4 light[2];
-	matrixCB.LightColor.x = g_LightColor[0].x;
-	matrixCB.LightColor.y = g_LightColor[0].y;
-	matrixCB.LightColor.z = g_LightColor[0].z;
+	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
+	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
+	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
 
-	matrixCB.LightColor2.x = g_LightColor[1].x;
-	matrixCB.LightColor2.y = g_LightColor[1].y;
-	matrixCB.LightColor2.z = g_LightColor[1].z;
+	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
+	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
+	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
 
 	ComputeRotationMatrixFromXWAView(light, 2);
 	//if (g_bOverrideLightPos) {
 	if (false) {
-		matrixCB.LightVector.x = g_LightVector[0].x;
-		matrixCB.LightVector.y = g_LightVector[0].y;
-		matrixCB.LightVector.z = g_LightVector[0].z;
+		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
 
-		matrixCB.LightVector2.x = g_LightVector[1].x;
-		matrixCB.LightVector2.y = g_LightVector[1].y;
-		matrixCB.LightVector2.z = g_LightVector[1].z;
+		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
 	}
 	else {
-		matrixCB.LightVector.x = light[0].x;
-		matrixCB.LightVector.y = light[0].y;
-		matrixCB.LightVector.z = light[0].z;
+		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
 
-		matrixCB.LightVector2.x = light[1].x;
-		matrixCB.LightVector2.y = light[1].y;
-		matrixCB.LightVector2.z = light[1].z;
+		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
 	}
 	//Vector4 Rs, Us, Fs;
 	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
 	//light[0] = H * g_LightVector[0];
 	if (g_bDumpSSAOBuffers)
 		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-			matrixCB.LightVector.x, matrixCB.LightVector.y, matrixCB.LightVector.z);
-	resources->InitPSConstantBufferMatrix(resources->_PSMatrixBuffer.GetAddressOf(), &matrixCB);
+			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+	resources->InitPSConstantShadingSystem(resources->_PSMatrixBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
 #ifdef DEATH_STAR
 	static float iTime = 0.0f;
@@ -5143,8 +5144,9 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_ssaoMask.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
+					//	L"C:\\Temp\\_ssaoMask.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
 					log_debug("[DBG] [AO] Captured debug buffers");
 				}
 

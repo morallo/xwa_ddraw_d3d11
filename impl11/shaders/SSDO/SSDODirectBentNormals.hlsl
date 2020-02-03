@@ -5,6 +5,7 @@
  * Licensed under the MIT license. See LICENSE.txt
  */
 #include "..\shader_common.h"
+#include "..\shading_system.h"
 
  // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -76,14 +77,6 @@ cbuffer ConstantBuffer : register(b3)
 	float3 invLightColor;
 	float unused4;
 	// 128 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct BlurData {

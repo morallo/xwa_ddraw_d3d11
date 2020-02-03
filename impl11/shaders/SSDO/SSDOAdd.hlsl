@@ -9,6 +9,7 @@
  */
 #include "..\shader_common.h"
 #include "..\HSV.h"
+#include "..\shading_system.h"
 
 #define diffuse_intensity 1.0
 //#define global_ambient 0.005
@@ -86,16 +87,8 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, spec_intensity, spec_bloom_intensity;
+	float shadow_k, ssao_unused0, ssao_unused1;
 	// 176 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct PixelShaderInput
@@ -253,15 +246,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
 	float4 Normal   = texNormal.Sample(samplerNormal, input.uv);
 	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
-	//float4 bloom    = texBloom.Sample(samplerBloom, input.uv);
 	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
 	float  mask     = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss    = ssaoMask.y;
 	float  spec_int = ssaoMask.z;
-	//float gloss = 0.08;
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
@@ -315,34 +305,33 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	//float3 eye = 0.0;
 	//float3 spec_col = texelColor.xyz;
-	float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
+	float3 HSV = RGBtoHSV(color);
+	HSV.y *= saturation_boost;
+	HSV.z *= lightness_boost;
+	float3 spec_col = lerp(HSVtoRGB(HSV), 1.0, mask);
+	//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
 	//float3 spec_col = /* ssdo.x * */ spec_int;
 	//float3 spec_col = 0.35;
 	float3 eye_vec  = normalize(-pos3D); // normalize(eye - pos3D);
 	// reflect expects an incident vector: a vector that goes from the light source to the current point.
 	// L goes from the current point to the light vector, so we have to use -L:
 	float3 refl_vec = normalize(reflect(-L, N));
-	//output.bent = float4(refl_vec * 0.5 + 0.5, 1); // DEBUG
-	float  spec = max(dot(eye_vec, refl_vec), 0.0);
+	float  spec     = max(dot(eye_vec, refl_vec), 0.0);
 	
 	//float3 viewDir    = normalize(pos3D);
 	//float3 halfwayDir = normalize(L + viewDir);
 	//float spec = max(dot(N, halfwayDir), 0.0);
 
-	//if (smooth_dot <= 0.0) spec = 0.0;
-	//smooth_dot = min(pow(smooth_dot, 2.0), 1.0);
-	//spec *= smooth_dot;
 	//float  exponent = 10.0;
-	//float  exponent = 256.0 * gloss;
-	float exponent = 128.0 * gloss;
-	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * 3.0);
+	float exponent = glossiness * gloss;
+	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * bloom_glossiness_mult);
 	spec = pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;
 	output.color = float4(sqrt(color), 1); // Invert gamma correction (approx pow 1/2.2)
 	//output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
-	output.bloom = spec_intensity * float4(spec_col * spec_bloom, spec_bloom);
+	output.bloom = float4(spec_col * spec_bloom, spec_bloom);
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
 

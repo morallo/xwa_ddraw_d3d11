@@ -3,6 +3,7 @@
 // Extended for VR by Leo Reyes (c) 2019
 #include "shader_common.h"
 #include "HSV.h"
+#include "shading_system.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);

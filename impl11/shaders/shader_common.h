@@ -11,6 +11,3 @@
 
 // Dynamic Cockpit: Maximum Number of DC elements per texture
 #define MAX_DC_COORDS 12
-
-#define DEFAULT_GLOSSINESS 0.08
-#define DEFAULT_SPEC_INT   0.35

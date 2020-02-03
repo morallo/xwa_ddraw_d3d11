@@ -317,11 +317,13 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
-extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
+extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
+extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
+float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -2127,6 +2129,14 @@ bool LoadSSAOParams() {
 	g_fViewYawSign = 1.0f;
 	g_fViewPitchSign = -1.0f;
 
+	// Default values for the shading system CB
+	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = 1.25f;
+	g_ShadingSys_PSBuffer.glossiness = 128.0f;
+	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
+	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
+	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
+
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -2347,11 +2357,27 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.invLightG = y;
 				g_SSAO_PSCBuffer.invLightB = z;
 			}
+
+			/* Shading System Settings */
 			else if (_stricmp(param, "specular_intensity") == 0) {
-				g_SSAO_PSCBuffer.spec_intensity = fValue;
+				g_ShadingSys_PSBuffer.spec_intensity = fValue;
+				g_fSpecIntensity = fValue;
 			}
 			else if (_stricmp(param, "specular_bloom_intensity") == 0) {
-				g_SSAO_PSCBuffer.spec_bloom_intensity = fValue;
+				g_ShadingSys_PSBuffer.spec_bloom_intensity = fValue;
+				g_fSpecBloomIntensity = fValue;
+			}
+			else if (_stricmp(param, "lightness_boost") == 0) {
+				g_ShadingSys_PSBuffer.lightness_boost = fValue;
+			}
+			else if (_stricmp(param, "saturation_boost") == 0) {
+				g_ShadingSys_PSBuffer.saturation_boost = fValue;
+			}
+			else if (_stricmp(param, "glossiness") == 0) {
+				g_ShadingSys_PSBuffer.glossiness = fValue;
+			}
+			else if (_stricmp(param, "bloom_glossiness_multiplier") == 0) {
+				g_ShadingSys_PSBuffer.bloom_glossiness_mult = fValue;
 			}
 		}
 	}

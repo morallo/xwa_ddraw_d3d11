@@ -2465,15 +2465,8 @@ HRESULT DeviceResources::LoadResources()
 
 	constantBufferDesc.ByteWidth = 192; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
 	// 192 bytes is 3 matrices
-	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(PixelShaderCBuffer) must be 192");
+	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(VertexShaderMatrixCB) must be 192");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
-		return hr;
-
-	//constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	constantBufferDesc.ByteWidth = 192 + 32; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	// 192 bytes is 3 matrices
-	static_assert(sizeof(PixelShaderMatrixCB) == 64, "sizeof(PixelShaderCBuffer) must be 64");
-	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
@@ -2484,7 +2477,7 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the constant buffer for the (3D) textured pixel shader -- Dynamic Cockpit data
 	constantBufferDesc.ByteWidth = 448;
-	static_assert(sizeof(DCPixelShaderCBuffer) == 448, "sizeof(PixelShaderCBuffer) must be 448");
+	static_assert(sizeof(DCPixelShaderCBuffer) == 448, "sizeof(DCPixelShaderCBuffer) must be 448");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBufferDC)))
 		return hr;
 
@@ -2516,6 +2509,11 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.ByteWidth = 176;
 	static_assert(sizeof(SSAOPixelShaderCBuffer) == 176, "sizeof(SSAOPixelShaderCBuffer) must be 176");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_ssaoConstantBuffer)))
+		return hr;
+
+	constantBufferDesc.ByteWidth = 96;
+	static_assert(sizeof(PSShadingSystemCB) == 96, "sizeof(PSShadingSystemCB) must be 96");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
 		return hr;
 
 	// Create the constant buffer for the main pixel shader
@@ -2746,7 +2744,7 @@ void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const Ve
 	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
 
-void DeviceResources::InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer)
+void DeviceResources::InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer)
 {
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(4, 1, buffer);

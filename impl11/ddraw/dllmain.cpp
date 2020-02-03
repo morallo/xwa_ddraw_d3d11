@@ -68,7 +68,7 @@ extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
 extern Vector4 g_LightVector[2];
-extern float g_fSpecIntensity, g_fFocalDist, g_fFakeRoll;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
 extern bool bFreePIEAlreadyInitialized;
 void ShutdownFreePIE();
@@ -311,10 +311,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				ToggleCockpitPZHack();
 				return 0;
 			case 'W':
-				if (g_fSpecIntensity > 0.5f)
+				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;
-				else
+					g_fSpecBloomIntensity = 0.0f;
+				} 
+				else {
 					g_fSpecIntensity = 1.0f;
+					g_fSpecBloomIntensity = 1.25f;
+				}
 				return 0;
 			/*
 			case 'Q':

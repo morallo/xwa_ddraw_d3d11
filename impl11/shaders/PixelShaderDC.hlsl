@@ -5,6 +5,7 @@
 // use "PixelShader.hlsl" instead.
 #include "HSV.h"
 #include "shader_common.h"
+#include "shading_system.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -118,7 +119,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	output.normal = float4(N, 1);
 
-	output.ssaoMask = 0;
+	output.ssaoMask   = 0;
 	output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
 	output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
 
