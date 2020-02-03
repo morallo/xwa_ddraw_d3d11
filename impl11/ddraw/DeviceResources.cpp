@@ -2513,7 +2513,7 @@ HRESULT DeviceResources::LoadResources()
 
 	constantBufferDesc.ByteWidth = 96;
 	static_assert(sizeof(PSShadingSystemCB) == 96, "sizeof(PSShadingSystemCB) must be 96");
-	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSMatrixBuffer)))
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadingSysBuffer)))
 		return hr;
 
 	// Create the constant buffer for the main pixel shader

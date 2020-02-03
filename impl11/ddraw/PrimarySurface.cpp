@@ -2915,7 +2915,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	if (g_bDumpSSAOBuffers)
 		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
 			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
-	resources->InitPSConstantShadingSystem(resources->_PSMatrixBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
 #ifdef DEATH_STAR
 	static float iTime = 0.0f;

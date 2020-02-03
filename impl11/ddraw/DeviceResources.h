@@ -668,7 +668,7 @@ public:
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
-	ComPtr<ID3D11Buffer> _PSMatrixBuffer;
+	ComPtr<ID3D11Buffer> _shadingSysBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
