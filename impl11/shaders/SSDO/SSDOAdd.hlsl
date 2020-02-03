@@ -11,6 +11,7 @@
 #include "..\HSV.h"
 
 #define diffuse_intensity 1.0
+//#define global_ambient 0.005
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -280,7 +281,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	float3 L = normalize(LightVector.xyz);
 	float3 N = normalize(Normal.xyz);
-	float smooth_dot = max(dot(N, L), 0.0);
+	//float smooth_dot = max(dot(N, L), 0.0);
 	color = color * color; // Gamma correction (approx pow 2.2)
 
 	/*
@@ -307,8 +308,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
 	// diffuse component
-	float diffuse_dot = min(dot(N, L), 1.0);
-	float diffuse = /* ssdo.x * */ diffuse_intensity * diffuse_dot + ambient;
+	float diffuse = diffuse_intensity * max(dot(N, L), 0.0) + ambient;
+	//diffuse = ambient; // DEBUG
 	diffuse = lerp(diffuse, 1, mask);
 	// specular component
 	
@@ -334,11 +335,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float  exponent = 10.0;
 	//float  exponent = 256.0 * gloss;
 	float exponent = 128.0 * gloss;
-	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * 2.0);
+	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * 3.0);
 	spec = pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec);
+	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;
 	output.color = float4(sqrt(color), 1); // Invert gamma correction (approx pow 1/2.2)
 	//output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
 	output.bloom = spec_intensity * float4(spec_col * spec_bloom, spec_bloom);
