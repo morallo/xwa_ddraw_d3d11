@@ -1,5 +1,5 @@
 #define DEFAULT_GLOSSINESS 0.08
-#define DEFAULT_SPEC_INT   0.35
+#define DEFAULT_SPEC_INT   1.0
 
 // PSShadingSystemCB
 cbuffer ConstantBuffer : register(b4)

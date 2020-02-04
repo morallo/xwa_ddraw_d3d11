@@ -249,6 +249,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	//float  Navg     = dot(0.333, Normal.xyz);
 	float  mask     = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss    = ssaoMask.y;
 	float  spec_int = ssaoMask.z;
@@ -264,7 +265,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
-	if (Normal.w < 0.01) {
+	if (Normal.w < 0.01) { // The skybox get this alpha value
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -324,8 +325,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//float  exponent = 10.0;
 	float exponent = glossiness * gloss;
-	float spec_bloom = spec_bloom_intensity * pow(spec, exponent * bloom_glossiness_mult);
-	spec = pow(spec, exponent);
+	float spec_bloom = spec_int * spec_bloom_intensity * pow(spec, exponent * bloom_glossiness_mult);
+	spec = spec_int * pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;

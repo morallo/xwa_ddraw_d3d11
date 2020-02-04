@@ -192,7 +192,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask.ra = max(output.ssaoMask.ra, (1 - alpha));
 		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
 		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
-		output.ssaoMask.g = lerp(1.0, DEFAULT_GLOSSINESS, alpha);
+		output.ssaoMask.g = lerp(1.00, DEFAULT_GLOSSINESS, alpha);
+		output.ssaoMask.b = lerp(0.15, DEFAULT_SPEC_INT, alpha); // Low spec intensity
 	}
 	else {
 		texelColor = hud_texelColor;
