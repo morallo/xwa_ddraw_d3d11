@@ -5560,9 +5560,10 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
-					else {
+					else { // Default material
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = METAL_MAT;
+						//g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
 					}
 				}
 

@@ -320,13 +320,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 eye = 0.0;
 	float3 spec_col = 1.0;
 	float3 HSV = RGBtoHSV(color);
-	if (PLASTIC_LO <= mask && mask < PLASTIC_HI) {
-		HSV.y *= 0.0;
-		HSV.z *= lightness_boost;
-		spec_col = HSVtoRGB(HSV);
-	}
-	else if (METAL_LO <= mask && mask < METAL_HI) {
-		HSV.y *= saturation_boost;
+	// Handle both plastic and metallic materials
+	if (mask < METAL_HI) {
+		// The tint varies from 0 for plastic materials to 1 for fully metallic mats
+		float tint = lerp(0.0, 1.0, mask / METAL_MAT);
+		HSV.y *= tint * saturation_boost;
 		HSV.z *= lightness_boost;
 		spec_col = HSVtoRGB(HSV);
 	}
