@@ -1,6 +1,8 @@
 #define DEFAULT_GLOSSINESS 0.08
 #define DEFAULT_SPEC_INT   1.0
 
+#include "material_defs.h"
+
 // PSShadingSystemCB
 cbuffer ConstantBuffer : register(b4)
 {
@@ -14,6 +16,7 @@ cbuffer ConstantBuffer : register(b4)
 	// 64 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
 	// 80 bytes
-	float saturation_boost, lightness_boost, ss_unused0, ss_unused1;
+	float saturation_boost, lightness_boost, ss_unused0;
+	uint ss_debug;
 	// 96 bytes
 };

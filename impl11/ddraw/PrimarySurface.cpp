@@ -479,7 +479,6 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	viewMatrixYaw.rotateY(g_fViewYawSign   * viewYaw);
 	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
 	viewMatrixFull = viewMatrixPitch * viewMatrixYaw;
-	viewMatrixFull.invert();
 	for (int i = 0; i < num_lights; i++)
 		light[i] = viewMatrixFull * tmpL[i];
 

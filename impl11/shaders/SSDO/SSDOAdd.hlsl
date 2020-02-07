@@ -242,17 +242,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color    = texColor.Sample(sampColor, input.uv).xyz;
+	float3 color     = texColor.Sample(sampColor, input.uv).xyz;
 	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	float4 Normal   = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		= texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
-	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float4 Normal    = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo      = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd   = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	//float  Navg     = dot(0.333, Normal.xyz);
-	float  mask     = ssaoMask.x; // dot(0.333, ssaoMask);
-	float  gloss    = ssaoMask.y;
-	float  spec_int = ssaoMask.z;
+	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
+	float  gloss     = ssaoMask.y;
+	float  spec_int  = ssaoMask.z;
+	bool   shadeless = mask > SHADELESS_LO;
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
@@ -265,15 +266,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
-	if (Normal.w < 0.01) { // The skybox get this alpha value
+	if (Normal.w < 0.01) { // The skybox gets this alpha value
 		output.color = float4(color, 1);
 		return output;
 	}
-	
+
+	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 L = normalize(LightVector.xyz);
 	float3 N = normalize(Normal.xyz);
-	//float smooth_dot = max(dot(N, L), 0.0);
-	color = color * color; // Gamma correction (approx pow 2.2)
 
 	/*
 	// Compute shadows
@@ -292,24 +292,45 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
-	if (fn_enable && mask < 0.95) { // A mask of 1 means "shadeless", things like the HUD, for example
+	// Glass, Shadeless and Emission should not have normal mapping:
+	if (fn_enable && mask < GLASS_LO) {
 		FakeNormal = get_normal_from_color(input.uv, offset);
 		N = blend_normals(N, FakeNormal);
 	}
 	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
 	// diffuse component
-	float diffuse = diffuse_intensity * max(dot(N, L), 0.0) + ambient;
-	//diffuse = ambient; // DEBUG
-	diffuse = lerp(diffuse, 1, mask);
-	// specular component
+	float diffuse = max(dot(N, L), 0.0);
+	if (ss_debug == 1) {
+		output.color.xyz = diffuse + ambient;
+		output.color.a = 1.0;
+		return output;
+	}
+	else if (ss_debug == 2)
+		diffuse = ssdo.x * diffuse_intensity * diffuse + ambient;
+	else if (ss_debug == 3)
+		diffuse *= ssdo.x;
+	else
+		diffuse = diffuse_intensity * diffuse + ambient;
+		
+	//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
+	diffuse = shadeless ? 1.0 : diffuse;
 	
+	// specular component
 	//float3 eye = 0.0;
-	//float3 spec_col = texelColor.xyz;
+	float3 spec_col = 1.0;
 	float3 HSV = RGBtoHSV(color);
-	HSV.y *= saturation_boost;
-	HSV.z *= lightness_boost;
-	float3 spec_col = lerp(HSVtoRGB(HSV), 1.0, mask);
+	if (PLASTIC_LO <= mask && mask < PLASTIC_HI) {
+		HSV.y *= 0.0;
+		HSV.z *= lightness_boost;
+		spec_col = HSVtoRGB(HSV);
+	}
+	else if (METAL_LO <= mask && mask < METAL_HI) {
+		HSV.y *= saturation_boost;
+		HSV.z *= lightness_boost;
+		spec_col = HSVtoRGB(HSV);
+	}
+
 	//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
 	//float3 spec_col = /* ssdo.x * */ spec_int;
 	//float3 spec_col = 0.35;
@@ -325,6 +346,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//float  exponent = 10.0;
 	float exponent = glossiness * gloss;
+	if (GLASS_LO <= mask && mask < GLASS_HI)
+		exponent *= 2.0;
 	float spec_bloom = spec_int * spec_bloom_intensity * pow(spec, exponent * bloom_glossiness_mult);
 	spec = spec_int * pow(spec, exponent);
 

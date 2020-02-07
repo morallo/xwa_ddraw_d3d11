@@ -9,6 +9,7 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
 #include "common.h"
+#include "..\shaders\material_defs.h"
 #include "DeviceResources.h"
 #include "Direct3DDevice.h"
 #include "Direct3DExecuteBuffer.h"
@@ -2379,6 +2380,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "bloom_glossiness_multiplier") == 0) {
 				g_ShadingSys_PSBuffer.bloom_glossiness_mult = fValue;
 			}
+			else if (_stricmp(param, "ss_debug") == 0) {
+				g_ShadingSys_PSBuffer.ss_debug = (int)fValue;
+			}
+			
 		}
 	}
 	fclose(file);
@@ -5531,15 +5536,15 @@ HRESULT Direct3DDevice::Execute(
 					// Send the skybox to infinity:
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
+					g_PSCBuffer.bIsBackground = 1;
 				}
 
 				// Apply the SSAO mask
 				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
-					
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = 1.0f;
+						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
@@ -5547,8 +5552,17 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = 0.0f;
+						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					}
+					else if (lastTextureSelected->is_Laser) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					}
+					else {
+						bModifiedShaders = true;
+						g_PSCBuffer.fSSAOMaskVal = METAL_MAT;
 					}
 				}
 

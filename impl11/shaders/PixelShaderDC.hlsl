@@ -53,7 +53,11 @@ cbuffer ConstantBuffer : register(b0)
 	uint bInHyperspace;
 
 	float fBloomStrength;		// General multiplier for the bloom effect
+	float fPosNormalAlpha;		// (Ignored) Override for pos3D and normal output alpha
 	float fSSAOMaskVal;			// (Ignored) SSAO mask value
+	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
+
+	uint bIsBackground, unusedPS0, unusedPS1, unusedPS2;
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -119,9 +123,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	output.normal = float4(N, 1);
 
-	output.ssaoMask   = 0;
+	output.ssaoMask.r = PLASTIC_MAT;
 	output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
 	output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
+	output.ssaoMask.a = 0.0;
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -178,8 +183,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			texelColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 			brightness = 1.0;
-			output.ssaoMask.rga = 1; // Maximum glossiness on light areas?
-			output.ssaoMask.b = 0.15; // Low spec intensity
+			output.ssaoMask.r  = SHADELESS_MAT;
+			output.ssaoMask.ga = 1; // Maximum glossiness on light areas?
+			output.ssaoMask.b  = 0.15; // Low spec intensity
 		}
 		// Display the dynamic cockpit texture only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
@@ -189,7 +195,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
 		// SSAOMask, Glossiness x 128, ?, alpha
-		output.ssaoMask.ra = max(output.ssaoMask.ra, (1 - alpha));
+		output.ssaoMask.r = lerp(SHADELESS_MAT, PLASTIC_MAT, alpha);
+		output.ssaoMask.a = max(output.ssaoMask.a, (1 - alpha));
 		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
 		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
 		output.ssaoMask.g = lerp(1.00, DEFAULT_GLOSSINESS, alpha);
@@ -199,7 +206,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		texelColor = hud_texelColor;
 		diffuse = float3(1, 1, 1);
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
-		output.ssaoMask = float4(1, 1, 0.15, 1);
+		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 	}
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 	if (bInHyperspace) output.color.a = 1.0;

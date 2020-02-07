@@ -299,7 +299,8 @@ typedef struct PSShadingSystemCBStruct {
 	// 64 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
 	// 80 bytes
-	float saturation_boost, lightness_boost, ss_unused0, ss_unused1;
+	float saturation_boost, lightness_boost, ss_unused0;
+	uint32_t ss_debug;
 	// 96 bytes
 } PSShadingSystemCB;
 
@@ -314,15 +315,16 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
 	uint32_t bInHyperspace;
-	// 16 bytes
+	// 32 bytes
 
 	float fBloomStrength;
 	float fPosNormalAlpha;
 	float fSSAOMaskVal;
 	float fSSAOAlphaMult;
-	// 16 bytes
+	// 48 bytes
 
-	// 48 bytes total
+	uint32_t bIsBackground, unusedPS0, unusedPS1, unusedPS2;
+	// 64 bytes total
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

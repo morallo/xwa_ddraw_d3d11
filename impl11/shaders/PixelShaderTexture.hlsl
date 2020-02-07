@@ -59,6 +59,9 @@ cbuffer ConstantBuffer : register(b0)
 	float fSSAOMaskVal;			// SSAO mask value
 	float fSSAOAlphaOfs;			// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 	// 48 bytes
+
+	uint bIsBackground, unusedPS0, unusedPS1, unusedPS2;
+	// 64 bytes
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -185,6 +188,16 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.color = texelColor; // Return the original color when 32-bit mode is off
 		output.bloom = float4(fBloomStrength * output.color.rgb, alpha);
 		return output;
+	}
+
+	// The HUD is shadeless and has transparency and some planets in the background are also 
+	// transparent. So glass is a non-shadeless surface with transparency:
+	if (fSSAOMaskVal < SHADELESS_LO && !bIsBackground && alpha < 0.95) {
+		// Change the material and do max glossiness and spec_intensity
+		output.ssaoMask.r = GLASS_MAT;
+		output.ssaoMask.gba = 1.0;
+		// Also write the normals of this surface over the current background
+		output.normal.a = 1.0;
 	}
 
 	// Original code:
