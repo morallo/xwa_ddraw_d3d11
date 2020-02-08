@@ -94,6 +94,11 @@
 #include <vector>
 //#include <assert.h>
 
+void InitOPTnames();
+void ClearOPTnames();
+void InitMaterials();
+void ClearMaterials();
+
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
 extern MainShadersCBuffer g_MSCBuffer;
@@ -810,6 +815,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
 			this->_renderTargetViewBloomMaskR.Release();
 		}
+		log_debug("[DBG] [MAT] Clearing OPTnames and Materials");
+		ClearOPTnames();
+		ClearMaterials();
 	}
 
 	if (g_bBloomEnabled) {
@@ -2518,8 +2526,13 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the constant buffer for the main pixel shader
 	constantBufferDesc.ByteWidth = 32;
+	static_assert(sizeof(MainShadersCBStruct) == 32, "sizeof(MainShadersCBStruct) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_mainShadersConstantBuffer)))
 		return hr;
+
+	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
+	InitOPTnames();
+	InitMaterials();
 
 	return hr;
 }

@@ -3,6 +3,7 @@
 // Extended for VR by Leo Reyes, 2019
 
 #include "common.h"
+#include "../shaders/material_defs.h"
 #include "DeviceResources.h"
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
@@ -167,6 +168,14 @@ extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);
 void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
+// MATERIALS
+// Contains all the materials for all the OPTs currently loaded
+std::vector<CraftMaterials> g_Materials;
+// List of all the OPTs seen so far
+std::vector<OPTNameType> g_OPTnames;
+void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
+bool LoadIndividualMATParams(char *OPTname, char *sFileName);
+
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
 		if (x == crc)
@@ -197,43 +206,74 @@ int isInVector(char *name, ac_element *ac_elements, int num_elems) {
 	return -1;
 }
 
+bool isInVector(char *OPTname, std::vector<OPTNameType> &vector) {
+	for (OPTNameType x : vector)
+		if (strstr(OPTname, x.name) != NULL)
+			return true;
+	return false;
+}
+
 /*
-bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
-	FILE *file;
-	int error = 0;
-
-	//log_debug("[DBG] Loading file %s...", filename);
-	try {
-		error = fopen_s(&file, filename, "rt");
-	} catch (...) {
-		log_debug("[DBG] Error: %d when loading file: %s", filename);
-	}
-
-	if (error != 0)
-		return false;
-
-	data.clear();
-	char buf[120];
-	uint32_t crc;
-	while (fgets(buf, 120, file) != NULL) {
-		if (strlen(buf) > 0 && buf[0] != ';' && buf[0] != '#') {
-			// Read a hex value and add it to the vector
-			if (sscanf_s(buf, "0x%x", &crc) > 0) {
-				data.push_back(crc);
-			}
-		}
-	}
-	//log_debug("[DBG] Read %d CRCs from %s", data.size(), filename);
-
-	fclose(file);
-	return true;
+void InitCachedMaterials() {
+	for (int i = 0; i < MAX_CACHED_MATERIALS; i++)
+		g_CachedMaterials[i].texname[0] = 0;
+	g_iFirstCachedMaterial = g_iLastCachedMaterial = 0;
 }
 */
 
-//
-//void ReloadCRCs() {
-//	// TODO: Replace with a resname-based reloader... if such a thing makes sense
-//}
+void InitOPTnames() {
+	ClearOPTnames();
+}
+
+void ClearOPTnames() {
+	g_OPTnames.clear();
+}
+
+void InitMaterials() {
+	ClearMaterials();
+	log_debug("[DBG] [MAT] g_Materials initialized (cleared)");
+}
+
+void ClearMaterials() {
+	for (uint32_t i = 0; i < g_Materials.size(); i++) {
+		// Release the materials for each craft
+		g_Materials[i].MaterialList.clear();
+	}
+	// Release the global materials
+	g_Materials.clear();
+	log_debug("[DBG] [MAT] g_Materials cleared");
+}
+
+/*
+Find the index where the materials for the specific OPT is loaded, or return -1 if the 
+OPT isn't loaded yet.
+*/
+int FindCraftMaterial(char *OPTname) {
+	for (uint32_t i = 0; i < g_Materials.size(); i++) {
+		if (_stricmp(OPTname, g_Materials[i].OPTname) == 0)
+			return i;
+	}
+	return -1;
+}
+
+/*
+Find the material in the specified CraftIndex of g_Materials that corresponds to
+TexName. Returns the default material if it wasn't found.
+*/
+Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
+	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
+	Material defMat;
+	for (uint32_t i = 0; i < craftMats->MaterialList.size(); i++) {
+		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
+			if (debug)
+				log_debug("[DBG] [MAT] Material %s found", TexName);
+			return craftMats->MaterialList[i].material;
+		}
+	}
+	if (debug)
+		log_debug("[DBG] [MAT] Material %s was not found, retuning default material", TexName);
+	return defMat;
+}
 
 #ifdef DBG_VR
 /*
@@ -350,6 +390,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
+	this->material.Glossiness = DEFAULT_GLOSSINESS;
+	this->material.Reflection = DEFAULT_SPEC_INT;
+	this->material.Metallic   = DEFAULT_METALLIC;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -622,6 +665,30 @@ void Direct3DTexture::TagTexture() {
 		}
 	}
 
+	// Load the relevant MAT file for the current OPT if necessary
+	if (g_bReshadeEnabled)
+	{
+		// Capture the OPT name
+		char *start = strstr(surface->_name, "\\");
+		char *end = strstr(surface->_name, ".opt");
+		OPTNameType OPTname;
+		if (start != NULL && end != NULL) {
+			start += 1; // Skip the backslash
+			int size = end - start;
+			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
+			if (!isInVector(OPTname.name, g_OPTnames)) {
+				log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				// Add the name to the list of OPTnames so that we don't try to process it again
+				g_OPTnames.push_back(OPTname);
+				char sFileName[80];
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 80);
+				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
+				if (!LoadIndividualMATParams(OPTname.name, sFileName))
+					log_debug("[DBG] [MAT] Could not load MAT params for %s", sFileName);
+			}
+		}
+	}
+
 	// Tag Lasers, Missiles, Cockpit textures, Exterior textures, light textures
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
@@ -655,7 +722,7 @@ void Direct3DTexture::TagTexture() {
 				if (this->is_CockpitTex) {
 					//strstr(surface->_name, "Gunner")  != NULL)  {
 					char *start = strstr(surface->_name, "\\");
-					char *end = strstr(surface->_name, ".opt");
+					char *end   = strstr(surface->_name, ".opt");
 					if (start != NULL && end != NULL) {
 						start += 1; // Skip the backslash
 						int size = end - start;
@@ -677,6 +744,7 @@ void Direct3DTexture::TagTexture() {
 						if (!LoadIndividualACParams(sFileName))
 							log_debug("[DBG] [AC] WARNING: Could not load AC params");
 					}
+					
 				}
 			}
 		}
@@ -843,6 +911,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_DC_BeamBoxSrc = d3dTexture->is_DC_BeamBoxSrc;
 	this->is_DC_TopLeftSrc = d3dTexture->is_DC_TopLeftSrc;
 	this->is_DC_TopRightSrc = d3dTexture->is_DC_TopRightSrc;
+
+	this->material = d3dTexture->material;
 
 	if (d3dTexture->_textureView)
 	{

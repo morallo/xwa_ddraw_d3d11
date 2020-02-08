@@ -11,7 +11,7 @@
 #include "..\HSV.h"
 #include "..\shading_system.h"
 
-#define diffuse_intensity 1.0
+//#define diffuse_intensity 1.0
 //#define global_ambient 0.005
 
  // The color buffer
@@ -253,7 +253,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss     = ssaoMask.y;
 	float  spec_int  = ssaoMask.z;
+	float  diff_int  = 1.0;
 	bool   shadeless = mask > SHADELESS_LO;
+	float  metallic  = mask / METAL_MAT;
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
@@ -299,6 +301,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
+	// Specular color
+	float3 spec_col = 1.0;
+	float3 HSV = RGBtoHSV(color);
+	// Handle both plastic and metallic materials
+	if (mask < METAL_HI) {
+		// The tint varies from 0 for plastic materials to 1 for fully metallic mats
+		float tint = lerp(0.0, 1.0, metallic);
+		diff_int = lerp(1.0, 0.0, metallic); // Purely metallic surfaces have no diffuse component (?)
+		HSV.y *= tint * saturation_boost;
+		HSV.z *= lightness_boost;
+		spec_col = HSVtoRGB(HSV);
+	}
+
 	// diffuse component
 	float diffuse = max(dot(N, L), 0.0);
 	if (ss_debug == 1) {
@@ -307,28 +322,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 	else if (ss_debug == 2)
-		diffuse = ssdo.x * diffuse_intensity * diffuse + ambient;
+		//diffuse = ssdo.x * diff_int * diffuse + ambient;
+		diffuse = diff_int * min(ssdo.x, diffuse);
 	else if (ss_debug == 3)
 		diffuse *= ssdo.x;
 	else
-		diffuse = diffuse_intensity * diffuse + ambient;
+		diffuse = diff_int * diffuse + ambient;
 		
 	//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
 	diffuse = shadeless ? 1.0 : diffuse;
 	
 	// specular component
 	//float3 eye = 0.0;
-	float3 spec_col = 1.0;
-	float3 HSV = RGBtoHSV(color);
-	// Handle both plastic and metallic materials
-	if (mask < METAL_HI) {
-		// The tint varies from 0 for plastic materials to 1 for fully metallic mats
-		float tint = lerp(0.0, 1.0, mask / METAL_MAT);
-		HSV.y *= tint * saturation_boost;
-		HSV.z *= lightness_boost;
-		spec_col = HSVtoRGB(HSV);
-	}
-
 	//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
 	//float3 spec_col = /* ssdo.x * */ spec_int;
 	//float3 spec_col = 0.35;

@@ -1,6 +1,3 @@
-#define DEFAULT_GLOSSINESS 0.08
-#define DEFAULT_SPEC_INT   1.0
-
 #include "material_defs.h"
 
 // PSShadingSystemCB

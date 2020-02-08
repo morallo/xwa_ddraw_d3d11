@@ -4,6 +4,7 @@
 
 #pragma once
 #include "Matrices.h"
+#include "../shaders/material_defs.h"
 #include <vector>
 
 // Also found in the Floating_GUI_RESNAME list:
@@ -158,7 +159,7 @@ typedef struct HeadPosStruct {
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
-	float use_3D;
+	float use_3D, unused0, unused1, unused2;
 } MainShadersCBuffer;
 
 typedef struct BarrelPixelShaderCBStruct {
@@ -418,6 +419,19 @@ typedef enum {
 	TRACKER_STEAMVR,
 	TRACKER_TRACKIR
 } TrackerType;
+
+// Materials
+typedef struct MaterialStruct {
+	float Metallic;
+	float Reflection;
+	float Glossiness;
+
+	MaterialStruct() {
+		Metallic   = DEFAULT_METALLIC;
+		Reflection = DEFAULT_SPEC_INT;
+		Glossiness = DEFAULT_GLOSSINESS;
+	}
+} Material;
 
 class DeviceResources
 {

@@ -1418,6 +1418,71 @@ void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileName
 }
 
 /*
+ * Convert an OPT name into a MAT params file of the form:
+ * Materials\<OPTName>.mat
+ */
+void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
+	snprintf(sFileName, iFileNameSize, "Materials\\%s.mat", OPTName);
+}
+
+/*
+ * Load the material parameters for an individual OPT.
+ */
+bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
+	log_debug("[DBG] [MAT] Loading Material params for [%s]...", sFileName);
+	FILE *file;
+	int error = 0, line = 0;
+	static int lastDCElemSelected = -1;
+	float cover_tex_width = 1, cover_tex_height = 1;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
+	int param_read_count = 0;
+	float value = 0.0f;
+
+	// Find this OPT in the global materials and clear it if necessary...
+	// TODO
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			value = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				// Extract the name of the texture
+				strcpy_s(texname, MAX_TEXNAME, buf + 1);
+				// Get rid of the trailing ']'
+				char *end = strstr(texname, "]");
+				if (end != NULL)
+					*end = 0;
+				log_debug("[DBG] [MAT] texname: %s", texname);
+			}
+			
+		}
+	}
+	fclose(file);
+	return true;
+}
+
+
+/*
  * Load the DC params for an individual cockpit. 
  * Resets g_DCElements (if we're not rendering in 3D), and the move regions.
  */
@@ -5562,8 +5627,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else { // Default material
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = METAL_MAT;
-						//g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+						g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
 					}
 				}
 
