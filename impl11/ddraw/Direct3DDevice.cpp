@@ -1429,7 +1429,7 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
  * Load the material parameters for an individual OPT.
  */
 bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
-	log_debug("[DBG] [MAT] Loading Material params for [%s]...", sFileName);
+	
 	FILE *file;
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
@@ -1439,14 +1439,15 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 		error = fopen_s(&file, sFileName, "rt");
 	}
 	catch (...) {
-		log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
 		return false;
 	}
 
+	log_debug("[DBG] [MAT] Loading Material params for [%s]...", sFileName);
 	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
 	int param_read_count = 0;
 	float value = 0.0f;

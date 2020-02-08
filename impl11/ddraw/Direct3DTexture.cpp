@@ -208,7 +208,7 @@ int isInVector(char *name, ac_element *ac_elements, int num_elems) {
 
 bool isInVector(char *OPTname, std::vector<OPTNameType> &vector) {
 	for (OPTNameType x : vector)
-		if (strstr(OPTname, x.name) != NULL)
+		if (_stricmp(OPTname, x.name) == 0) // We need to avoid substrings because OPTs can be "Awing", "AwingExterior", "AwingCockpit"
 			return true;
 	return false;
 }
@@ -666,9 +666,10 @@ void Direct3DTexture::TagTexture() {
 	}
 
 	// Load the relevant MAT file for the current OPT if necessary
-	if (g_bReshadeEnabled)
+	//if (g_bReshadeEnabled)
 	{
 		// Capture the OPT name
+		//log_debug("[DBG] [MAT] name: %s", surface->_name);
 		char *start = strstr(surface->_name, "\\");
 		char *end = strstr(surface->_name, ".opt");
 		OPTNameType OPTname;
@@ -683,8 +684,7 @@ void Direct3DTexture::TagTexture() {
 				char sFileName[80];
 				OPTNameToMATParamsFile(OPTname.name, sFileName, 80);
 				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
-				if (!LoadIndividualMATParams(OPTname.name, sFileName))
-					log_debug("[DBG] [MAT] Could not load MAT params for %s", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
 			}
 		}
 	}
