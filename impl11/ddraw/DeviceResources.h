@@ -324,7 +324,8 @@ typedef struct PixelShaderCBStruct {
 	float fSSAOAlphaMult;
 	// 48 bytes
 
-	uint32_t bIsBackground, unusedPS0, unusedPS1, unusedPS2;
+	uint32_t bIsBackground;
+	float fGlossiness, fSpecInt, unusedPS2;
 	// 64 bytes total
 } PixelShaderCBuffer;
 

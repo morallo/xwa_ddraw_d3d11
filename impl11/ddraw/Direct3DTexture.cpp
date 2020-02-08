@@ -262,16 +262,21 @@ TexName. Returns the default material if it wasn't found.
 */
 Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
 	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
-	Material defMat;
-	for (uint32_t i = 0; i < craftMats->MaterialList.size(); i++) {
+	// Slot should always be present and it should be the default craft material
+	Material defMat = craftMats->MaterialList[0].material;
+	for (uint32_t i = 1; i < craftMats->MaterialList.size(); i++) {
 		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
+			defMat = craftMats->MaterialList[i].material;
 			if (debug)
-				log_debug("[DBG] [MAT] Material %s found", TexName);
-			return craftMats->MaterialList[i].material;
+				log_debug("[DBG] [MAT] Material %s found: %0.3f, %0.3f, %0.3f", 
+					TexName, defMat.Metallic, defMat.Reflection, defMat.Glossiness);
+			return defMat;
 		}
 	}
+
 	if (debug)
-		log_debug("[DBG] [MAT] Material %s was not found, retuning default material", TexName);
+		log_debug("[DBG] [MAT] Material %s not found, returning default: %0.3f, %0.3f, %0.3f", 
+			TexName, defMat.Metallic, defMat.Reflection, defMat.Glossiness);
 	return defMat;
 }
 
@@ -390,6 +395,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
+	// Create the default material for this texture
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
 	this->material.Reflection = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
@@ -666,13 +672,12 @@ void Direct3DTexture::TagTexture() {
 	}
 
 	// Load the relevant MAT file for the current OPT if necessary
-	//if (g_bReshadeEnabled)
+	OPTNameType OPTname;
+	OPTname.name[0] = 0;
 	{
 		// Capture the OPT name
-		//log_debug("[DBG] [MAT] name: %s", surface->_name);
 		char *start = strstr(surface->_name, "\\");
 		char *end = strstr(surface->_name, ".opt");
-		OPTNameType OPTname;
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
 			int size = end - start;
@@ -831,7 +836,29 @@ void Direct3DTexture::TagTexture() {
 			}
 		}
 
-
+		// Materials
+		//if (g_bReshadeEnabled) 
+		if (OPTname.name[0] != 0)
+		{
+			int craftIdx = FindCraftMaterial(OPTname.name);
+			if (craftIdx > -1) {
+				log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+				char *start = strstr(surface->_name, ".opt");
+				// Skip the ".opt," part
+				start += 5;
+				// Find the next comma
+				char *end = strstr(start, ",");
+				int size = end - start;
+				char texname[MAX_TEXNAME];
+				strncpy_s(texname, MAX_TEXNAME, start, size);
+				log_debug("[DBG] [MAT] Looking for material for %s", texname);
+				this->material = FindMaterial(craftIdx, texname, true);
+			}
+			//else {
+				// Material not found, use the default material (already created in the constructor)...
+				//log_debug("[DBG] [MAT] Material %s not found", OPTname.name);
+			//}
+		}
 	}
 }
 

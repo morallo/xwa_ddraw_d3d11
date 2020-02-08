@@ -60,7 +60,8 @@ cbuffer ConstantBuffer : register(b0)
 	float fSSAOAlphaOfs;			// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 	// 48 bytes
 
-	uint bIsBackground, unusedPS0, unusedPS1, unusedPS2;
+	uint bIsBackground;
+	float fGlossiness, fSpecInt, unusedPS2;
 	// 64 bytes
 };
 
@@ -96,7 +97,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	// SSAO Mask, Glossiness, Spec_Intensity
 	// Glossiness is multiplied by 256 to compute the exponent
-	output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
+	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
+	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {

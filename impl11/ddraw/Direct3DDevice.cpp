@@ -1450,11 +1450,36 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	log_debug("[DBG] [MAT] Loading Material params for [%s]...", sFileName);
 	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
+	MaterialTexDef curMaterialTexDef;
 
 	// Find this OPT in the global materials and clear it if necessary...
-	// TODO
+	int craftIdx = FindCraftMaterial(OPTname);
+	if (craftIdx < 0) {
+		// New Craft Material
+		log_debug("[DBG] [MAT] New Material (%s)", OPTname);
+		//craftIdx = g_Materials.size();
+	}
+	else {
+		// Existing Craft Material, clear it
+		log_debug("[DBG] [MAT] Existing Material, clearing %s", OPTname);
+		g_Materials[craftIdx].MaterialList.clear();
+	}
+	CraftMaterials craftMat;
+	// Clear the materials for this craft and add a default material
+	craftMat.MaterialList.clear();
+	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
+	curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Reflection = DEFAULT_SPEC_INT;
+	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+	// The default material will always be in slot 0:
+	craftMat.MaterialList.push_back(curMaterialTexDef);
+	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+
+	// We always start the craft material with one material: the default material in slot 0
+	bool MaterialSaved = true;
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
@@ -1464,7 +1489,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
 				// Extract the name of the texture
@@ -1473,12 +1498,82 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 				char *end = strstr(texname, "]");
 				if (end != NULL)
 					*end = 0;
-				log_debug("[DBG] [MAT] texname: %s", texname);
+				//log_debug("[DBG] [MAT] texname: %s", texname);
+				
+				if (!MaterialSaved) {
+					// There's an existing material that needs to be saved before proceeding
+
+					// Special case: overwrite the default material
+					if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+						log_debug("[DBG] [MAT] Overwriting the default material for this craft");
+						craftMat.MaterialList[0] = curMaterialTexDef;
+					} 
+					else {
+						log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
+						craftMat.MaterialList.push_back(curMaterialTexDef);
+					}
+				}
+				// Start a new material
+				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
+				curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Reflection = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
+				MaterialSaved = false;
 			}
-			
+			else if (_stricmp(param, "Metallic") == 0) {
+				log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+				curMaterialTexDef.material.Metallic = fValue;
+			}
+			else if (_stricmp(param, "Reflection") == 0) {
+				log_debug("[DBG] [MAT] Reflection: %0.3f", fValue);
+				curMaterialTexDef.material.Reflection = fValue;
+			}
+			else if (_stricmp(param, "Glossiness") == 0) {
+				log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+				curMaterialTexDef.material.Glossiness = fValue;
+			}
 		}
 	}
 	fclose(file);
+
+	// Save the last material if necessary...
+	if (!MaterialSaved) {
+		// There's an existing material that needs to be saved before proceeding
+
+		// Special case: overwrite the default material
+		if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+			log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
+			craftMat.MaterialList[0] = curMaterialTexDef;
+		}
+		else {
+			log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
+			craftMat.MaterialList.push_back(curMaterialTexDef);
+		}
+	}
+
+	// Replace the craft material in g_Materials
+	if (craftIdx < 0) {
+		log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
+		g_Materials.push_back(craftMat);
+		craftIdx = g_Materials.size() - 1;
+	}
+	else {
+		log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
+		g_Materials[craftIdx] = craftMat;
+	}
+
+	// DEBUG
+	// Print out the materials for this craft
+	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
+	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
+		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
+		log_debug("[DBG] [MAT] %s, %0.3f, %0.3f, %0.3f",
+			g_Materials[craftIdx].MaterialList[i].texname,
+			defMat.Metallic, defMat.Reflection, defMat.Glossiness);
+	}
+	log_debug("[DBG] [MAT] *********************");
+	// DEBUG
 	return true;
 }
 
@@ -4458,6 +4553,9 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
 	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
+	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
@@ -5605,12 +5703,23 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.bIsBackground = 1;
 				}
 
+				// Apply the material properties
+				if (bLastTextureSelectedNotNULL) { 
+					bModifiedShaders = true;
+					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
+					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic / 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
+					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Reflection;
+				}
+
 				// Apply the SSAO mask
 				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+						g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
@@ -5619,16 +5728,17 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+						g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
 					}
 					else if (lastTextureSelected->is_Laser) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-					}
-					else { // Default material
-						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
 					}
 				}
 
@@ -6238,6 +6348,9 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fBloomStrength	= 1.0f;
 					g_PSCBuffer.fPosNormalAlpha = 1.0f;
 					g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+					g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
+					g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+					g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
