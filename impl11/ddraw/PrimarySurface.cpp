@@ -2319,20 +2319,19 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 		this->_deviceResources->_depthStencilViewL.Get());
 }
 
+/*
 void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
 	// Set the constants used by the ComputeNormals shader
-	/*
-	float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
-	g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
-	g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
-	g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
-	g_BloomPSCBuffer.uvStepSize = 1.0f;
-	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-	*/
+	//float fPixelScale = 0.5f, fFirstPassZoomFactor = 1.0f;
+	//g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp / fFirstPassZoomFactor;
+	//g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp / fFirstPassZoomFactor;
+	//g_BloomPSCBuffer.amplifyFactor = 1.0f / fFirstPassZoomFactor;
+	//g_BloomPSCBuffer.uvStepSize = 1.0f;
+	//resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -2446,6 +2445,7 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 }
+*/
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {
 	auto& resources = this->_deviceResources;
@@ -2648,6 +2648,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			resources->_normBufSRV.Get(),
 			resources->_depthBufSRV.Get(),
 			resources->_depthBuf2SRV.Get(),
+			//resources->_ssMaskSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);
@@ -2798,6 +2799,7 @@ out1:
 				resources->_normBufSRV_R.Get(),
 				resources->_depthBufSRV_R.Get(),
 				resources->_depthBuf2SRV_R.Get(),
+				//resources->_ssMaskSRV_R.Get(),
 			};
 			context->PSSetShaderResources(0, 7, srvs_pass2);
 			context->Draw(6, 0);
@@ -3201,17 +3203,18 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			ssdoSRV = resources->_bentBufSRV.Get();
 		else
 			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[6] = {
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
 			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),
+			resources->_normBufSRV.Get(),							// Normals buffer
 			//resources->_bentBufSRV.Get(),
+			resources->_ssMaskSRV.Get(),								// Shading System buffer
 		};
-		context->PSSetShaderResources(0, 6, srvs_pass2);
+		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3462,16 +3465,17 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[5] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),
-				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
-				resources->_ssaoBufSRV_R.Get(),
-				resources->_ssaoBufSRV.Get(),
-				resources->_ssaoMaskSRV_R.Get(),
-				//resources->_bentBufSRV_R.Get(),
-				//resources->_normBufSRV_R.Get()
+			ID3D11ShaderResourceView *srvs_pass2[7] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
+				//resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
+				resources->_ssaoBufSRV_R.Get(),							// SSDO Direct Component
+				resources->_ssaoBufSRV.Get(),							// SSDO Indirect Component
+				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_depthBufSRV_R.Get(),							// Depth buffer
+				resources->_normBufSRV_R.Get(),							// Normals buffer
+				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
 			};
-			context->PSSetShaderResources(0, 5, srvs_pass2);
+			context->PSSetShaderResources(0, 7, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
@@ -5146,6 +5150,7 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
 					//	L"C:\\Temp\\_ssaoMask.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
 					log_debug("[DBG] [AO] Captured debug buffers");
 				}
 

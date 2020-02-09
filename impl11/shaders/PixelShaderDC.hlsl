@@ -37,6 +37,7 @@ struct PixelShaderOutput
 	float4 pos3D    : SV_TARGET2;
 	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
+	float4 ssMask   : SV_TARGET5;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -58,7 +59,11 @@ cbuffer ConstantBuffer : register(b0)
 	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 
 	uint bIsBackground;
-	float fGlossiness, fSpecInt, unusedPS2;
+	float fGlossiness, fSpecInt, fNMIntensity;
+	// 64 bytes
+
+	float fSpecVal, unusedPS1, unusedPS2, unusedPS3;
+	// 80 bytes
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -129,6 +134,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
 	output.ssaoMask.a = 0.0;
 
+	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
+	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
+
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
 
@@ -195,19 +203,24 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
-		// SSAOMask, Glossiness x 128, ?, alpha
+		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
+		// ssMask: NMIntensity, SpecValue, unused
 		output.ssaoMask.r = lerp(SHADELESS_MAT, PLASTIC_MAT, alpha);
 		output.ssaoMask.a = max(output.ssaoMask.a, (1 - alpha));
+		output.ssMask.a   = output.ssaoMask.a;
 		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
 		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
 		output.ssaoMask.g = lerp(1.00, DEFAULT_GLOSSINESS, alpha);
 		output.ssaoMask.b = lerp(0.15, DEFAULT_SPEC_INT, alpha); // Low spec intensity
+		output.ssMask.r   = lerp(0.0, fNMIntensity, alpha); // Normal Mapping intensity
+		output.ssMask.g   = lerp(1.0, fSpecVal, alpha); //  Specular Value
 	}
 	else {
 		texelColor = hud_texelColor;
 		diffuse = float3(1, 1, 1);
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
+		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
 	}
 	output.color = float4(diffuse * texelColor.xyz, texelColor.w);
 	if (bInHyperspace) output.color.a = 1.0;

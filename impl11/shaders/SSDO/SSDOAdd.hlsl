@@ -42,6 +42,10 @@ SamplerState sampPos : register(s4);
 Texture2D texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
+// The Shading System Mask buffer
+Texture2D texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
+
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -249,6 +253,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssdo      = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd   = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask    = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float  Navg     = dot(0.333, Normal.xyz);
 	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss     = ssaoMask.y;
@@ -256,6 +261,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  diff_int  = 1.0;
 	bool   shadeless = mask > SHADELESS_LO;
 	float  metallic  = mask / METAL_MAT;
+	float  nm_int    = ssMask.x;
+	float  spec_val  = ssMask.y;
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
@@ -308,9 +315,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (mask < METAL_HI) {
 		// The tint varies from 0 for plastic materials to 1 for fully metallic mats
 		float tint = lerp(0.0, 1.0, metallic);
+		float value = lerp(spec_val, 0.0, metallic);
 		diff_int = lerp(1.0, 0.0, metallic); // Purely metallic surfaces have no diffuse component (?)
 		HSV.y *= tint * saturation_boost;
-		HSV.z *= lightness_boost;
+		HSV.z = HSV.z * lightness_boost + value;
 		spec_col = HSVtoRGB(HSV);
 	}
 

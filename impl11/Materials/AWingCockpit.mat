@@ -1,0 +1,29 @@
+[Default]
+Metallic   = 0.25
+Intensity  = 0.5
+Glossiness = 0.1
+
+[TEX00000]
+Metallic   = 0.5
+Intensity  = 0.7
+Glossiness = 0.08
+
+[TEX00001]
+Metallic   = 0.5
+Intensity  = 0.7
+Glossiness = 0.08
+
+[TEX00002]
+Metallic   = 0.5
+Intensity  = 0.7
+Glossiness = 0.08
+
+[TEX00003]
+Metallic   = 0.5
+Intensity  = 0.7
+Glossiness = 0.08
+
+[TEX00004]
+Metallic   = 0.5
+Intensity  = 0.7
+Glossiness = 0.08

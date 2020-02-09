@@ -37,6 +37,7 @@ struct PixelShaderOutput
 	float4 pos3D    : SV_TARGET2;
 	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
+	float4 ssMask   : SV_TARGET5;
 };
 
 // PixelShaderCBuffer
@@ -61,8 +62,11 @@ cbuffer ConstantBuffer : register(b0)
 	// 48 bytes
 
 	uint bIsBackground;
-	float fGlossiness, fSpecInt, unusedPS2;
+	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
+
+	float fSpecVal, unusedPS1, unusedPS2, unusedPS3;
+	// 80 bytes
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -77,6 +81,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
+	output.ssMask = 0;
 	
 	// Original code:
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
@@ -95,16 +100,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Flipping N.z seems to have a bad effect on SSAO: flat unoccluded surfaces become shaded
 	output.normal = float4(N, SSAOAlpha);
 	
-	// SSAO Mask, Glossiness, Spec_Intensity
+	// SSAO Mask/Material, Glossiness, Spec_Intensity
 	// Glossiness is multiplied by 128 to compute the exponent
 	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+	// SS Mask: Normal Mapping Intensity, Specular Value, unused
+	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
+		output.ssMask.a = 0;
 		//output.diffuse = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
@@ -150,6 +158,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * color, 1);
 				output.ssaoMask.ra = 1;
+				output.ssMask.a = 1;
 			}
 			output.color = float4(color, alpha);
 		}
@@ -157,6 +166,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * texelColor.rgb, 1);
 				output.ssaoMask.ra = 1;
+				output.ssMask.a = 1;
 			}
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
@@ -175,6 +185,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.pos3D.a = 0;
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
+		output.ssMask.a = 0;
 		texelColor.xyz *= diffuse;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -200,6 +211,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask.gba = 1.0;
 		// Also write the normals of this surface over the current background
 		output.normal.a = 1.0;
+		output.ssMask.r = 0.0; // No normal mapping
+		output.ssMask.g = 1.0; // White specular value
+		output.ssMask.a = 1.0;
 	}
 
 	// Original code:

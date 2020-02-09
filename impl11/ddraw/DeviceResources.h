@@ -325,8 +325,11 @@ typedef struct PixelShaderCBStruct {
 	// 48 bytes
 
 	uint32_t bIsBackground;
-	float fGlossiness, fSpecInt, unusedPS2;
-	// 64 bytes total
+	float fGlossiness, fSpecInt, fNMIntensity;
+	// 64 bytes
+
+	float fSpecVal, unusedPS1, unusedPS2, unusedPS3;
+	// 80 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
@@ -424,13 +427,17 @@ typedef enum {
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
-	float Reflection;
+	float Intensity;
 	float Glossiness;
+	float NMIntensity;
+	float SpecValue;
 
 	MaterialStruct() {
-		Metallic   = DEFAULT_METALLIC;
-		Reflection = DEFAULT_SPEC_INT;
-		Glossiness = DEFAULT_GLOSSINESS;
+		Metallic    = DEFAULT_METALLIC;
+		Intensity   = DEFAULT_SPEC_INT;
+		Glossiness  = DEFAULT_GLOSSINESS;
+		NMIntensity = DEFAULT_NM_INT;
+		SpecValue   = DEFAULT_SPEC_VALUE;
 	}
 } Material;
 
@@ -542,14 +549,17 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBuf2R;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
+	// Shading System
+	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssMask;			// No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskR;		// No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -580,14 +590,17 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
+	// Shading System
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -614,14 +627,17 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
+	// Shading System
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV; // SRV for ssMask
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R; // SRV for ssMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

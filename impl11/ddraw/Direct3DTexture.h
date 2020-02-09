@@ -45,8 +45,8 @@ typedef struct OPTNameStruct {
 
 void InitOPTnames();
 void ClearOPTnames();
-void InitMaterials();
-void ClearMaterials();
+void InitCraftMaterials();
+void ClearCraftMaterials();
 int FindCraftMaterial(char *OPTname);
 Material FindMaterial(int CraftIndex, char *TexName, bool debug);
 

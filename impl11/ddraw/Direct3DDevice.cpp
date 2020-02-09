@@ -1447,7 +1447,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 		return false;
 	}
 
-	log_debug("[DBG] [MAT] Loading Material params for [%s]...", sFileName);
+	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
 	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
 	int param_read_count = 0;
 	float fValue = 0.0f;
@@ -1457,12 +1457,12 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	int craftIdx = FindCraftMaterial(OPTname);
 	if (craftIdx < 0) {
 		// New Craft Material
-		log_debug("[DBG] [MAT] New Material (%s)", OPTname);
+		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
 		//craftIdx = g_Materials.size();
 	}
 	else {
 		// Existing Craft Material, clear it
-		log_debug("[DBG] [MAT] Existing Material, clearing %s", OPTname);
+		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
 		g_Materials[craftIdx].MaterialList.clear();
 	}
 	CraftMaterials craftMat;
@@ -1470,9 +1470,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	craftMat.MaterialList.clear();
 	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
-	curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
-	curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
-	curMaterialTexDef.material.Reflection = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
 	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
 	// The default material will always be in slot 0:
 	craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1505,32 +1507,40 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 
 					// Special case: overwrite the default material
 					if (_stricmp("default", curMaterialTexDef.texname) == 0) {
-						log_debug("[DBG] [MAT] Overwriting the default material for this craft");
+						//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
 						craftMat.MaterialList[0] = curMaterialTexDef;
 					} 
 					else {
-						log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
+						//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
 						craftMat.MaterialList.push_back(curMaterialTexDef);
 					}
 				}
 				// Start a new material
 				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
-				curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
-				curMaterialTexDef.material.Reflection = DEFAULT_SPEC_INT;
-				curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
 				MaterialSaved = false;
 			}
 			else if (_stricmp(param, "Metallic") == 0) {
-				log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
 				curMaterialTexDef.material.Metallic = fValue;
 			}
-			else if (_stricmp(param, "Reflection") == 0) {
-				log_debug("[DBG] [MAT] Reflection: %0.3f", fValue);
-				curMaterialTexDef.material.Reflection = fValue;
+			else if (_stricmp(param, "Intensity") == 0) {
+				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
+				curMaterialTexDef.material.Intensity = fValue;
 			}
 			else if (_stricmp(param, "Glossiness") == 0) {
-				log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
 				curMaterialTexDef.material.Glossiness = fValue;
+			}
+			else if (_stricmp(param, "NMIntensity") == 0) {
+				curMaterialTexDef.material.NMIntensity = fValue;
+			}
+			else if (_stricmp(param, "SpecularVal") == 0) {
+				curMaterialTexDef.material.SpecValue = fValue;
 			}
 		}
 	}
@@ -1539,26 +1549,25 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	// Save the last material if necessary...
 	if (!MaterialSaved) {
 		// There's an existing material that needs to be saved before proceeding
-
 		// Special case: overwrite the default material
 		if (_stricmp("default", curMaterialTexDef.texname) == 0) {
-			log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
+			//log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
 			craftMat.MaterialList[0] = curMaterialTexDef;
 		}
 		else {
-			log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
+			//log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
 			craftMat.MaterialList.push_back(curMaterialTexDef);
 		}
 	}
 
 	// Replace the craft material in g_Materials
 	if (craftIdx < 0) {
-		log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
+		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
 		g_Materials.push_back(craftMat);
 		craftIdx = g_Materials.size() - 1;
 	}
 	else {
-		log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
+		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
 		g_Materials[craftIdx] = craftMat;
 	}
 
@@ -1568,9 +1577,9 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
 	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
 		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
-		log_debug("[DBG] [MAT] %s, %0.3f, %0.3f, %0.3f",
+		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
 			g_Materials[craftIdx].MaterialList[i].texname,
-			defMat.Metallic, defMat.Reflection, defMat.Glossiness);
+			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	}
 	log_debug("[DBG] [MAT] *********************");
 	// DEBUG
@@ -5135,14 +5144,11 @@ HRESULT Direct3DDevice::Execute(
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 						context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-						//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 						if (g_bUseSteamVR) {
 							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 							context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
 								resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-							//context->ResolveSubresource(resources->_normBufAsInputR, 0,
-							//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 						}
 						// DEBUG
 						//if (g_iPresentCounter == 100) {
@@ -5716,7 +5722,9 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->material.Reflection);*/
 					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
-					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Reflection;
+					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
+					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
+					g_PSCBuffer.fSpecVal	     = lastTextureSelected->material.SpecValue;
 				}
 
 				// Apply the SSAO mask
@@ -5727,8 +5735,11 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-						g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-						g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
@@ -5738,8 +5749,11 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
-						g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-						g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 					}
@@ -5748,6 +5762,9 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 				}
@@ -5891,37 +5908,6 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				/*
-				// Set the Hyperspace Bloom flags and render the new hyperspace effect
-				if (PlayerDataTable->hyperspacePhase) {
-					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
-					//	PlayerDataTable->hyperspacePhase, PlayerDataTable->timeInHyperspace, PlayerDataTable->_hyperspaceRelated_);
-					// 2: Entering hyperspace
-					// 4: Traveling through hyperspace (animation plays back at this point)
-					// 3: Exiting hyperspace
-					if (bLastTextureSelectedNotNULL) {
-						// Set the Bloom strength for the hyperspace streaks
-						if (lastTextureSelected->is_FlatLightEffect) {
-							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
-							g_PSCBuffer.bIsHyperspaceStreak = 1;
-							// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
-							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-							goto out; // Don't render the hyperspace streaks anymore
-						}
-
-						// Set the Bloom strength for the hyperspace tunnel
-						if (lastTextureSelected->is_HyperspaceAnim) {
-							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
-							g_PSCBuffer.bIsHyperspaceAnim = 1;
-							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-							goto out; // Don't render the original hyperspace tunnel
-						}
-					}
-				}
-				*/
-
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
@@ -6018,7 +6004,7 @@ HRESULT Direct3DDevice::Execute(
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[5] = {
+						ID3D11RenderTargetView *rtvs[6] = {
 							//resources->_renderTargetView.Get(),
 							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							resources->_renderTargetViewBloomMask.Get(),
@@ -6026,9 +6012,10 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-							resources->_renderTargetViewSSAOMask.Get()
+							resources->_renderTargetViewSSAOMask.Get(),
+							resources->_renderTargetViewSSMask.Get(),
 						};
-						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 					}
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
@@ -6168,7 +6155,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -6178,9 +6165,10 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						// Direct SBS mode
@@ -6192,7 +6180,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -6202,9 +6190,10 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -6254,7 +6243,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
@@ -6264,9 +6253,10 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2R.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
-								resources->_renderTargetViewSSAOMaskR.Get()
+								resources->_renderTargetViewSSAOMaskR.Get(),
+								resources->_renderTargetViewSSMaskR.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 						}
 					} else {
 						// DirectSBS Mode
@@ -6278,7 +6268,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -6288,9 +6278,10 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -6742,9 +6733,19 @@ HRESULT Direct3DDevice::BeginScene()
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
 		}
 
+	if (g_bReshadeEnabled && !bTransitionToHyperspace) {
+		float infinity[4] = { 0, 0, 32000.0f, 0 };
+		float zero[4] = { 0, 0, 0, 0 };
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+		}
+	}
+
 	// Clear the AO RTVs
-	if (g_bAOEnabled) 
-		if (!bTransitionToHyperspace) {
+	if (g_bAOEnabled && !bTransitionToHyperspace) {
 			// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 			// on the sides of the screen
 			float infinity[4] = { 0, 0, 32000.0f, 0 };
@@ -6752,13 +6753,9 @@ HRESULT Direct3DDevice::BeginScene()
 
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
 			if (g_bUseSteamVR) {
 				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
 				context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
-				context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 			}
 		}
 

@@ -229,19 +229,19 @@ void ClearOPTnames() {
 	g_OPTnames.clear();
 }
 
-void InitMaterials() {
-	ClearMaterials();
-	log_debug("[DBG] [MAT] g_Materials initialized (cleared)");
+void InitCraftMaterials() {
+	ClearCraftMaterials();
+	//log_debug("[DBG] [MAT] g_Materials initialized (cleared)");
 }
 
-void ClearMaterials() {
+void ClearCraftMaterials() {
 	for (uint32_t i = 0; i < g_Materials.size(); i++) {
 		// Release the materials for each craft
 		g_Materials[i].MaterialList.clear();
 	}
 	// Release the global materials
 	g_Materials.clear();
-	log_debug("[DBG] [MAT] g_Materials cleared");
+	//log_debug("[DBG] [MAT] g_Materials cleared");
 }
 
 /*
@@ -268,15 +268,15 @@ Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
 		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
 			defMat = craftMats->MaterialList[i].material;
 			if (debug)
-				log_debug("[DBG] [MAT] Material %s found: %0.3f, %0.3f, %0.3f", 
-					TexName, defMat.Metallic, defMat.Reflection, defMat.Glossiness);
+				log_debug("[DBG] [MAT] Material %s found: M:%0.3f, I:%0.3f, G:%0.3f", 
+					TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 			return defMat;
 		}
 	}
 
 	if (debug)
-		log_debug("[DBG] [MAT] Material %s not found, returning default: %0.3f, %0.3f, %0.3f", 
-			TexName, defMat.Metallic, defMat.Reflection, defMat.Glossiness);
+		log_debug("[DBG] [MAT] Material %s not found, returning default: M:%0.3f, I:%0.3f, G:%0.3f", 
+			TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	return defMat;
 }
 
@@ -399,7 +399,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->bHasMaterial = false;
 	// Create the default material for this texture
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
-	this->material.Reflection = DEFAULT_SPEC_INT;
+	this->material.Intensity = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
 }
 
