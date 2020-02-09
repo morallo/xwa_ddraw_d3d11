@@ -96,7 +96,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, SSAOAlpha);
 	
 	// SSAO Mask, Glossiness, Spec_Intensity
-	// Glossiness is multiplied by 256 to compute the exponent
+	// Glossiness is multiplied by 128 to compute the exponent
 	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 

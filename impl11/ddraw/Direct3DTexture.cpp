@@ -395,6 +395,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
+
+	this->bHasMaterial = false;
 	// Create the default material for this texture
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
 	this->material.Reflection = DEFAULT_SPEC_INT;
@@ -853,6 +855,7 @@ void Direct3DTexture::TagTexture() {
 				strncpy_s(texname, MAX_TEXNAME, start, size);
 				log_debug("[DBG] [MAT] Looking for material for %s", texname);
 				this->material = FindMaterial(craftIdx, texname, true);
+				this->bHasMaterial = true;
 			}
 			//else {
 				// Material not found, use the default material (already created in the constructor)...
@@ -940,6 +943,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_DC_TopRightSrc = d3dTexture->is_DC_TopRightSrc;
 
 	this->material = d3dTexture->material;
+	this->bHasMaterial = d3dTexture->bHasMaterial;
 
 	if (d3dTexture->_textureView)
 	{

@@ -5704,16 +5704,25 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Apply the material properties
-				if (bLastTextureSelectedNotNULL) { 
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) { 
 					bModifiedShaders = true;
 					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
-					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic / 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+					//g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+					/*log_debug("[DBG] [MAT] Applying: %s, %0.3f, %0.3f, %0.3f",
+						lastTextureSelected->_surface->_name,
+						lastTextureSelected->material.Metallic,
+						lastTextureSelected->material.Glossiness,
+						lastTextureSelected->material.Reflection);*/
+					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Reflection;
 				}
 
 				// Apply the SSAO mask
-				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
+				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
+				if (bLastTextureSelectedNotNULL)
+				{
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
@@ -5721,7 +5730,8 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
+					} 
+					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
 						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
 						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 

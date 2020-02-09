@@ -1,4 +1,4 @@
-#define DEFAULT_METALLIC   0.25f
+#define DEFAULT_METALLIC   0.50f
 #define DEFAULT_SPEC_INT   0.50f
 #define DEFAULT_GLOSSINESS 0.08f
 // Default material, neither plastic nor metal; but halfway through:

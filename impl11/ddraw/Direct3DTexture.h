@@ -137,6 +137,7 @@ public:
 	bool is_DC_TopRightSrc;
 
 	// **** Materials ****
+	bool bHasMaterial;
 	Material material;
 
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
