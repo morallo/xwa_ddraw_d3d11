@@ -1468,11 +1468,11 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 	craftMat.MaterialList.clear();
 	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
-	curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
-	curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
-	curMaterialTexDef.material.Intensity = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
 	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-	curMaterialTexDef.material.SpecValue = DEFAULT_SPEC_VALUE;
+	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
 	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
 	// The default material will always be in slot 0:
 	craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1515,11 +1515,11 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 				}
 				// Start a new material
 				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
-				curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
-				curMaterialTexDef.material.Intensity = DEFAULT_SPEC_INT;
-				curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
 				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-				curMaterialTexDef.material.SpecValue = DEFAULT_SPEC_VALUE;
+				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
 				MaterialSaved = false;
 			}
 			else if (_stricmp(param, "Metallic") == 0) {
@@ -4767,6 +4767,7 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
 	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
 	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
@@ -6558,6 +6559,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
 					g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
 					g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+					g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };

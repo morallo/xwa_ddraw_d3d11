@@ -142,6 +142,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Process light textures (make them brighter in 32-bit mode)
 	if (bIsLightTexture) {
 		output.normal.a = 0;
+		output.ssMask = 0; // Normal Mapping intensity --> 0
 		//output.pos3D = 0;
 		//output.normal = 0;
 		//output.diffuse = 0;
@@ -213,7 +214,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.normal.a = 1.0;
 		output.ssMask.r = 0.0; // No normal mapping
 		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0;
+		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
 
 	// Original code:

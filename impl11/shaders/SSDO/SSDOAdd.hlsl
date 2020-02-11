@@ -120,14 +120,15 @@ float3 getPositionFG(in float2 uv, in float level) {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
-float3 get_normal_from_color(float2 uv, float2 offset)
+float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
+	float nm_scale = fn_scale * nm_intensity;
 	// Luminosity samples
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
+	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
+	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
+	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
+	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
 
 	// Depth samples
 	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
@@ -303,7 +304,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
 	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset);
+		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
 		N = blend_normals(N, FakeNormal);
 	}
 	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
