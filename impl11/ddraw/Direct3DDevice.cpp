@@ -1428,12 +1428,10 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
 /*
  * Load the material parameters for an individual OPT.
  */
-bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
-	
+bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
+
 	FILE *file;
 	int error = 0, line = 0;
-	static int lastDCElemSelected = -1;
-	float cover_tex_width = 1, cover_tex_height = 1;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");
@@ -1470,11 +1468,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	craftMat.MaterialList.clear();
 	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
-	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
-	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity = DEFAULT_SPEC_INT;
 	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	curMaterialTexDef.material.SpecValue = DEFAULT_SPEC_VALUE;
 	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
 	// The default material will always be in slot 0:
 	craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1501,7 +1499,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 				if (end != NULL)
 					*end = 0;
 				//log_debug("[DBG] [MAT] texname: %s", texname);
-				
+
 				if (!MaterialSaved) {
 					// There's an existing material that needs to be saved before proceeding
 
@@ -1509,7 +1507,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 					if (_stricmp("default", curMaterialTexDef.texname) == 0) {
 						//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
 						craftMat.MaterialList[0] = curMaterialTexDef;
-					} 
+					}
 					else {
 						//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
 						craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1517,11 +1515,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 				}
 				// Start a new material
 				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
-				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
-				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.Metallic = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness = DEFAULT_GLOSSINESS;
 				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+				curMaterialTexDef.material.SpecValue = DEFAULT_SPEC_VALUE;
 				MaterialSaved = false;
 			}
 			else if (_stricmp(param, "Metallic") == 0) {
@@ -1559,6 +1557,210 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			craftMat.MaterialList.push_back(curMaterialTexDef);
 		}
 	}
+
+	// Replace the craft material in g_Materials
+	if (craftIdx < 0) {
+		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
+		g_Materials.push_back(craftMat);
+		craftIdx = g_Materials.size() - 1;
+	}
+	else {
+		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
+		g_Materials[craftIdx] = craftMat;
+	}
+
+	// DEBUG
+	// Print out the materials for this craft
+	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
+	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
+		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
+		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
+			g_Materials[craftIdx].MaterialList[i].texname,
+			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
+	}
+	log_debug("[DBG] [MAT] *********************");
+	// DEBUG
+	return true;
+}
+
+/*
+ * Load the material parameters for an individual OPT.
+ */
+bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
+	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
+	// of TexnameType
+	// https://stackoverflow.com/questions/21829451/push-back-on-a-vector-of-array-of-char
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
+	char buf[256], param[256], svalue[256]; // texname[MAX_TEXNAME];
+	std::vector<TexnameType> texnameList;
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	MaterialTexDef curMaterialTexDef;
+
+	// Find this OPT in the global materials and clear it if necessary...
+	int craftIdx = FindCraftMaterial(OPTname);
+	if (craftIdx < 0) {
+		// New Craft Material
+		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
+		//craftIdx = g_Materials.size();
+	}
+	else {
+		// Existing Craft Material, clear it
+		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		g_Materials[craftIdx].MaterialList.clear();
+	}
+	CraftMaterials craftMat;
+	// Clear the materials for this craft and add a default material
+	craftMat.MaterialList.clear();
+	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
+
+	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+	// The default material will always be in slot 0:
+	craftMat.MaterialList.push_back(curMaterialTexDef);
+	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+
+	// We always start the craft material with one material: the default material in slot 0
+	bool MaterialSaved = true;
+	texnameList.clear();
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				
+				//strcpy_s(texname, MAX_TEXNAME, buf + 1);
+				// Get rid of the trailing ']'
+				//char *end = strstr(texname, "]");
+				//if (end != NULL)
+				//	*end = 0;
+				//log_debug("[DBG] [MAT] texname: %s", texname);
+				
+				if (!MaterialSaved) {
+					// There's an existing material that needs to be saved before proceeding
+					for (TexnameType texname : texnameList) {
+						// Copy the texture name from the list to the current material
+						strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
+						// Special case: overwrite the default material
+						if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+							//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
+							craftMat.MaterialList[0] = curMaterialTexDef;
+						}
+						else {
+							//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
+							craftMat.MaterialList.push_back(curMaterialTexDef);
+						}
+					}
+				}
+				texnameList.clear();
+
+				// Extract the name(s) of the texture(s)
+				{
+					char *start = buf + 1; // Skip the '[' bracket
+					char *end;
+					while (*start && *start != ']') {
+						end = start;
+						// Skip chars until we find ',' ']' or EOS
+						while (*end && *end != ',' && *end != ']')
+							end++;
+						// If we didn't hit EOS, then add the token to the list
+						if (*end)
+						{
+							TexnameType texname;
+							strncpy_s(texname.name, start, end - start);
+							//log_debug("[DBG] [MAT] Adding texname: [%s]", texname.texname);
+							texnameList.push_back(texname);
+							start = end + 1;
+						}
+						else
+							start = end;
+					}
+
+					// DEBUG
+					/*log_debug("[DBG] [MAT] ---------------");
+					for (uint32_t i = 0; i < texnameList.size(); i++)
+						log_debug("[DBG] [MAT] %s, ", texnameList[i].name);
+					log_debug("[DBG] [MAT] ===============");*/
+					// DEBUG
+				}
+
+				// Start a new material
+				//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
+				curMaterialTexDef.texname[0] = 0;
+				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+				MaterialSaved = false;
+			}
+			else if (_stricmp(param, "Metallic") == 0) {
+				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+				curMaterialTexDef.material.Metallic = fValue;
+			}
+			else if (_stricmp(param, "Intensity") == 0) {
+				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
+				curMaterialTexDef.material.Intensity = fValue;
+			}
+			else if (_stricmp(param, "Glossiness") == 0) {
+				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+				curMaterialTexDef.material.Glossiness = fValue;
+			}
+			else if (_stricmp(param, "NMIntensity") == 0) {
+				curMaterialTexDef.material.NMIntensity = fValue;
+			}
+			else if (_stricmp(param, "SpecularVal") == 0) {
+				curMaterialTexDef.material.SpecValue = fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	// Save the last material if necessary...
+	if (!MaterialSaved) {
+		// There's an existing material that needs to be saved before proceeding
+		for (TexnameType texname : texnameList) {
+			// Copy the texture name from the list to the current material
+			strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
+			// Special case: overwrite the default material
+			if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+				//log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
+				craftMat.MaterialList[0] = curMaterialTexDef;
+			}
+			else {
+				//log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
+				craftMat.MaterialList.push_back(curMaterialTexDef);
+			}
+		}
+	}
+	texnameList.clear();
 
 	// Replace the craft material in g_Materials
 	if (craftIdx < 0) {
@@ -5687,6 +5889,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					g_PSCBuffer.bIsShadeless = 1;
 				}
 
 				// Dim all the GUI elements
@@ -5706,7 +5909,7 @@ HRESULT Direct3DDevice::Execute(
 					// Send the skybox to infinity:
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
-					g_PSCBuffer.bIsBackground = 1;
+					g_PSCBuffer.bIsShadeless = 1;
 				}
 
 				// Apply the material properties
@@ -5734,11 +5937,12 @@ HRESULT Direct3DDevice::Execute(
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+						g_PSCBuffer.fSSAOMaskVal = min(1.0f, SHADELESS_MAT + bIsAimingHUD ? 0.15f : 0.0f);
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
+						g_PSCBuffer.bIsShadeless = 1;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					} 
@@ -5764,6 +5968,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
+						g_PSCBuffer.bIsShadeless = 1;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
@@ -6012,6 +6217,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
+							//bIsAimingHUD ? NULL: resources->_renderTargetViewSSAOMask.Get(),
 							resources->_renderTargetViewSSAOMask.Get(),
 							resources->_renderTargetViewSSMask.Get(),
 						};

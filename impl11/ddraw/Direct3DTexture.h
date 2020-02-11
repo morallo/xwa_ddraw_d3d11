@@ -10,6 +10,10 @@ constexpr auto MAX_CACHED_MATERIALS = 32;
 constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 
+typedef struct TexnameStruct {
+	char name[MAX_TEXNAME];
+} TexnameType;
+
 /* 
  Individual entry in the craft material definition file (*.mat). Maintains a copy
  of one entry of the form:

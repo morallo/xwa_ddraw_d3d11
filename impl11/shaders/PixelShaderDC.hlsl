@@ -58,7 +58,7 @@ cbuffer ConstantBuffer : register(b0)
 	float fSSAOMaskVal;			// (Ignored) SSAO mask value
 	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 
-	uint bIsBackground;
+	uint bIsShadeless;
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 

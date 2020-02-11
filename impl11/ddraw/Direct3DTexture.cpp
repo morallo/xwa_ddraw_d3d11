@@ -844,7 +844,7 @@ void Direct3DTexture::TagTexture() {
 		{
 			int craftIdx = FindCraftMaterial(OPTname.name);
 			if (craftIdx > -1) {
-				log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+				//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
 				char *start = strstr(surface->_name, ".opt");
 				// Skip the ".opt," part
 				start += 5;
@@ -853,8 +853,8 @@ void Direct3DTexture::TagTexture() {
 				int size = end - start;
 				char texname[MAX_TEXNAME];
 				strncpy_s(texname, MAX_TEXNAME, start, size);
-				log_debug("[DBG] [MAT] Looking for material for %s", texname);
-				this->material = FindMaterial(craftIdx, texname, true);
+				//log_debug("[DBG] [MAT] Looking for material for %s", texname);
+				this->material = FindMaterial(craftIdx, texname);
 				this->bHasMaterial = true;
 			}
 			//else {

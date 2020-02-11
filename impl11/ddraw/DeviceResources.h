@@ -324,7 +324,7 @@ typedef struct PixelShaderCBStruct {
 	float fSSAOAlphaMult;
 	// 48 bytes
 
-	uint32_t bIsBackground;
+	uint32_t bIsShadeless;
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 

@@ -357,9 +357,12 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//float  exponent = 10.0;
 	float exponent = glossiness * gloss;
-	if (GLASS_LO <= mask && mask < GLASS_HI)
+	float spec_bloom_int = spec_bloom_intensity;
+	if (GLASS_LO <= mask && mask < GLASS_HI) {
 		exponent *= 2.0;
-	float spec_bloom = spec_int * spec_bloom_intensity * pow(spec, exponent * bloom_glossiness_mult);
+		spec_bloom_int *= 3.0; // Make the glass bloom more
+	}
+	float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
 	spec = spec_int * pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
