@@ -49,8 +49,6 @@ public:
 
 	void barrelEffectSteamVR();
 
-	HRESULT buildSteamVRResizeMesh2D();
-
 	void BloomBasicPass(int pass, float fZoomFactor);
 
 	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
@@ -70,6 +68,8 @@ public:
 	void SSAOPass(float fZoomFactor);
 
 	void SSDOPass(float fZoomFactor, float fZoomFactor2);
+
+	void DeferredPass();
 
 	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 

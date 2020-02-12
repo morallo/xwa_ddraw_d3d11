@@ -207,7 +207,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// ssMask: NMIntensity, SpecValue, unused
 		output.ssaoMask.r = lerp(SHADELESS_MAT, PLASTIC_MAT, alpha);
 		output.ssaoMask.a = max(output.ssaoMask.a, (1 - alpha));
-		output.ssMask.a   = max(output.ssaoMask.a, (1 - alpha));
+		output.ssMask.a   = output.ssaoMask.a; // Already clamped in the previous line
 		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
 		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
 		output.ssaoMask.g = lerp(1.00, DEFAULT_GLOSSINESS, alpha);

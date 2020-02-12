@@ -1317,8 +1317,8 @@ void PrimarySurface::barrelEffectSteamVR() {
 	float screen_res_y = (float)resources->_backbufferHeight;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	viewport.TopLeftX = (float)0;
-	viewport.TopLeftY = (float)0;
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
 	viewport.Width = (float)screen_res_x;
 	viewport.Height = (float)screen_res_y;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
@@ -1356,9 +1356,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 	// Set the lens distortion constants for the barrel shader
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
-	// Clear the depth stencil and render target
-	//context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-	//context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+	// Clear the render targets
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 	context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 	context->IASetInputLayout(resources->_mainInputLayout);
@@ -1403,42 +1401,6 @@ void PrimarySurface::barrelEffectSteamVR() {
 }
 
 /*
- * I tried to create a custom mesh for the 2D present; but it introduced perspective
- * distortion (why?)
- */
-HRESULT PrimarySurface::buildSteamVRResizeMesh2D() {
-	HRESULT hr = S_OK;
-
-	// Top-left
-	// Top-right
-	// Bot-right
-	// Bot-left
-	MainVertex vertices[4] =
-	{
-		MainVertex(-1.4f, -1.3f, 0, 1),
-		MainVertex( 0.8f,    -1, 1, 1),
-		MainVertex( 0.8f,     1, 1, 0),
-		MainVertex(-1.4f,  1.3f, 0, 0),
-	};
-
-	D3D11_BUFFER_DESC vertexBufferDesc;
-	vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(vertices);
-	vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vertexBufferDesc.CPUAccessFlags = 0;
-	vertexBufferDesc.MiscFlags = 0;
-	vertexBufferDesc.StructureByteStride = 0;
-
-	D3D11_SUBRESOURCE_DATA vertexBufferData;
-	vertexBufferData.pSysMem = vertices;
-	vertexBufferData.SysMemPitch = 0;
-	vertexBufferData.SysMemSlicePitch = 0;
-
-	return _deviceResources->_d3dDevice->CreateBuffer(&vertexBufferDesc,
-		&vertexBufferData, this->_deviceResources->_steamVRPresentVertexBuffer.GetAddressOf());
-}
-
-/*
  * When rendering for SteamVR, we're usually rendering at half the width; but the Present is done
  * at full resolution, so we need to resize the offscreenBuffer before presenting it.
  * Input: _offscreenBuffer
@@ -1456,18 +1418,6 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-
-	/*
-	if (resources->_steamVRPresentVertexBuffer == NULL) {
-		HRESULT hr = buildSteamVRResizeMesh2D();
-		if (FAILED(hr)) {
-			log_debug("[DBG] SteamVR resize mesh failed, using default _mainVertexBuffer instead");
-			resources->_steamVRPresentVertexBuffer = resources->_mainVertexBuffer;
-		}
-		else
-			log_debug("[DBG] Using custom resize mesh");
-	}
-	*/
 
 	float screen_res_x = (float)g_FullScreenWidth;
 	float screen_res_y = (float)g_FullScreenHeight;
@@ -3491,6 +3441,223 @@ out2:
 		this->_deviceResources->_depthStencilViewL.Get());
 }
 
+/* Regular deferred shading with fake HDR, no SSAO */
+void PrimarySurface::DeferredPass() {
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_SSAO_PSCBuffer.x0 = x0;
+	g_SSAO_PSCBuffer.y0 = y0;
+	g_SSAO_PSCBuffer.x1 = x1;
+	g_SSAO_PSCBuffer.y1 = y1;
+	g_ShadingSys_PSBuffer.spec_intensity = g_fSpecIntensity;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_fSpecBloomIntensity;
+
+	// Create the VertexBuffer if necessary
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
+	// Set the vertex buffer... we probably need another vertex buffer here
+	UINT stride = sizeof(MainVertex);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+
+	// Set Primitive Topology
+	// Opportunity for optimization? Make all draw calls use the same topology?
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	// Temporarily disable ZWrite: we won't need it for this effect
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Create a new viewport to render the offscreen buffer as a texture
+	float screen_res_x = (float)resources->_backbufferWidth;
+	float screen_res_y = (float)resources->_backbufferHeight;
+	float black[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	D3D11_VIEWPORT viewport{};
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	Vector4 light[2];
+	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
+	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
+	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
+
+	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
+	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
+	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
+
+	ComputeRotationMatrixFromXWAView(light, 2);
+	//if (g_bOverrideLightPos) {
+	if (false) {
+		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
+	}
+	else {
+		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
+	}
+	//Vector4 Rs, Us, Fs;
+	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
+	//light[0] = H * g_LightVector[0];
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
+			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	// Set the SSDO Pixel Shader constant buffer
+	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
+	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
+	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
+	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
+	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
+	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
+
+	// Set the layout
+	context->IASetInputLayout(resources->_mainInputLayout);
+	resources->InitVertexShader(resources->_mainVertexShader);
+
+	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
+	// Deferred pass, Left Image
+	{
+		// input: offscreenAsInput (resolved here), normBuf
+		// output: offscreenBuf, bloomMask
+		resources->InitPixelShader(resources->_ssdoAddPS);
+		// Reset the viewport for the final SSAO combine
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width  = screen_res_x;
+		viewport.Height = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
+		// so that it can be used as an SRV
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetView.Get(),
+			resources->_renderTargetViewBloomMask.Get(),
+			NULL, // resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
+			NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, BACKBUFFER_FORMAT);
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
+			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
+			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
+			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
+			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			resources->_depthBufSRV.Get(),							// Depth buffer
+			resources->_normBufSRV.Get(),							// Normals buffer
+			resources->_ssMaskSRV.Get(),								// Shading System buffer
+		};
+		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->Draw(6, 0);
+	}
+
+	// Draw the right image when SteamVR is enabled
+	if (g_bUseSteamVR) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// Final combine, Right Image
+		{
+			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
+			// output: offscreenBufR
+			resources->InitPixelShader(resources->_ssdoAddPS);
+			// Reset the viewport for the final SSAO combine
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width  = screen_res_x;
+			viewport.Height = screen_res_y;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+			// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
+			// so that it can be used as an SRV
+			ID3D11RenderTargetView *rtvs[5] = {
+				resources->_renderTargetViewR.Get(),
+				resources->_renderTargetViewBloomMaskR.Get(), 
+				NULL, NULL, NULL
+			};
+			context->OMSetRenderTargets(5, rtvs, NULL);
+			// Resolve offscreenBuf
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+				0, BACKBUFFER_FORMAT);
+			ID3D11ShaderResourceView *srvs_pass2[7] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
+				//resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
+				NULL,													// SSDO Direct Component
+				NULL,													// SSDO Indirect Component
+				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_depthBufSRV_R.Get(),							// Depth buffer
+				resources->_normBufSRV_R.Get(),							// Normals buffer
+				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
+			};
+			context->PSSetShaderResources(0, 7, srvs_pass2);
+			context->Draw(6, 0);
+		}
+	}
+
+	// Restore previous rendertarget, etc
+	// TODO: Is this really needed?
+	viewport.Width = screen_res_x;
+	viewport.Height = screen_res_y;
+	resources->InitViewport(&viewport);
+	resources->InitInputLayout(resources->_inputLayout);
+	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
+		this->_deviceResources->_depthStencilViewL.Get());
+}
+
 /*
  * Compute the current ship's orientation. Returns:
  * Rs: The "Right" vector in global coordinates
@@ -4908,19 +5075,16 @@ HRESULT PrimarySurface::Flip(
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
 						// Barrel effect enabled for DirectSBS mode
 						barrelEffect2D(i);
-						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					}
 					else {
 						// In SteamVR mode this will display the left image:
 						if (g_bUseSteamVR) {
 							resizeForSteamVR(0, true);
-							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-								this->_deviceResources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
+							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
 						else {
-							this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-								this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						}
 					}
 					
@@ -4945,11 +5109,10 @@ HRESULT PrimarySurface::Flip(
 						// the animation
 						auto &context = this->_deviceResources->_d3dDeviceContext;
 						float bgColor[4] = { 0, 0, 0, 0 };
-						this->_deviceResources->_d3dDeviceContext->ClearRenderTargetView(
-							this->_deviceResources->_renderTargetView, bgColor);
+						context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, bgColor);
-							context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewSteamVRResize, bgColor);
+							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 						}
 						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable->externalCamera);
 					}
@@ -5174,6 +5337,16 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
+					case SSO_DEFERRED:
+						DeferredPass();
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+						break;
+						break;
 				}
 
 				if (g_bDumpSSAOBuffers) {
@@ -5251,20 +5424,6 @@ HRESULT PrimarySurface::Flip(
 				} */
 				// DEBUG
 
-				//if (bHyperStreaks)
-				//{
-					// Only apply the "short" bloom to the hyperspace streaks (otherwise they
-					// tend to get overexposed)
-					// 2 = Entering hyperspace
-					// 4 = Blue tunnel
-					// 3 = Exiting hyperspace
-					// Nice hyperspace animation:
-					// https://www.youtube.com/watch?v=d5W3afhgOlY
-					//BloomPyramidLevelPass(1, 2, 2.0f);
-					//BloomPyramidLevelPass(2, 1, 4.0f);
-					//BloomPyramidLevelPass(3, 1, 8.0f);
-				//}
-				//else
 				{
 					float fScale = 2.0f;
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
@@ -5343,28 +5502,24 @@ HRESULT PrimarySurface::Flip(
 					if (!g_bDisableBarrelEffect) {
 						// Do the barrel effect (_offscreenBuffer -> _offscreenBufferPost)
 						barrelEffectSteamVR();
-						this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer,
-							this->_deviceResources->_offscreenBufferPost);
+						context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+						context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 					}
 					// Resize the buffer to be presented (_offscreenBuffer -> _steamVRPresentBuffer)
 					resizeForSteamVR(0, false);
-					// Resolve steamVRPresentBuffer to backBuffer so that it gets presented
-					this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-						this->_deviceResources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
+					// Resolve steamVRPresentBuffer to backBuffer so that it gets presented on the screen
+					context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 				} 
 				else { // Direct SBS mode
 					if (!g_bDisableBarrelEffect) {
 						barrelEffect3D();
-						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					} else
-						this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-							this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				}
 			} 
 			else // Non-VR mode
-				this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0,
-					this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 			// Let's reset some frame counters and other control variables
 			g_iDrawCounter = 0; g_iExecBufCounter = 0;

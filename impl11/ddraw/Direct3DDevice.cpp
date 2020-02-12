@@ -2550,6 +2550,8 @@ bool LoadSSAOParams() {
 					g_SSAO_Type = SSO_DIRECTIONAL;
 				else if (_stricmp(svalue, "bent_normals") == 0)
 					g_SSAO_Type = SSO_BENT_NORMALS;
+				else if (_stricmp(svalue, "deferred") == 0)
+					g_SSAO_Type = SSO_DEFERRED;
 			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
@@ -5935,7 +5937,7 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_GenericSSAOMasked) 
+					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = min(1.0f, SHADELESS_MAT + bIsAimingHUD ? 0.15f : 0.0f);
