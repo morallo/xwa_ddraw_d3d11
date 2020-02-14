@@ -40,6 +40,7 @@ FILE *g_HackFile = NULL;
 //ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
 PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
+uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
@@ -5226,6 +5227,21 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
+				/*
+				Justagai shared the following information. Some phases are extremely quick and may not
+				be visible unless breakpoints are set.
+				0x6 may not be used in XWA -- it may be there from a previous game in the series
+				enum HyperspacePhase
+				{
+				  HyperspacePhase_None = 0x0,
+				  HyperspacePhase_Preparing = 0x1,
+				  HyperspacePhase_StartStreaks = 0x2,
+				  HyperspacePhase_Streaks = 0x3,
+				  HyperspacePhase_InTunnel = 0x4,
+				  HyperspacePhase_Exiting = 0x5,
+				  HyperspacePhase_Exited = 0x6,
+				};
+				*/
 				// Update the Hyperspace FSM -- but only update it exactly once per frame
 				// Also clear the shaderToyAuxBuf if any tracker is enabled
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
