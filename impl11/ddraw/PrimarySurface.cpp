@@ -22,6 +22,7 @@ const float DEG2RAD = 3.141593f / 180;
 
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
+extern uint32_t* g_playerIndex;
 const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 extern uint32_t *g_playerInHangar;
@@ -403,9 +404,9 @@ void ShowXWAVector(char *msg, const XwaVector3 &v) {
 void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
-	float yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	float roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+	float yaw   = PlayerDataTable[*g_playerIndex].yaw   / 65536.0f * 360.0f;
+	float pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
+	float roll  = PlayerDataTable[*g_playerIndex].roll  / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -465,13 +466,13 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 
 	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
 	float viewYaw, viewPitch;
-	if (PlayerDataTable[0].externalCamera) {
-		viewYaw   = PlayerDataTable[0].cameraYaw   / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+	if (PlayerDataTable[*g_playerIndex].externalCamera) {
+		viewYaw   = PlayerDataTable[*g_playerIndex].cameraYaw   / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewYaw   = PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
 	}
 	Matrix4 viewMatrixYaw, viewMatrixPitch, viewMatrixFull;
 	viewMatrixYaw.identity();
@@ -504,9 +505,9 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 void ComputeRotationMatrixFromXWAView_new(Vector4 *light, int num_lights) {
 	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
-	float yaw = PlayerDataTable[0].yaw / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	float roll = PlayerDataTable[0].roll / 65536.0f * 360.0f;
+	float yaw = PlayerDataTable[*g_playerIndex].yaw / 65536.0f * 360.0f;
+	float pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
+	float roll = PlayerDataTable[*g_playerIndex].roll / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -562,13 +563,13 @@ void ComputeRotationMatrixFromXWAView_new(Vector4 *light, int num_lights) {
 
 	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
 	float viewYaw, viewPitch;
-	if (PlayerDataTable[0].externalCamera) {
-		viewYaw = PlayerDataTable[0].cameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cameraPitch / 65536.0f * 360.0f;
+	if (PlayerDataTable[*g_playerIndex].externalCamera) {
+		viewYaw = PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewYaw = PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+		viewYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
 	}
 	Matrix4 viewMatrixYaw, viewMatrixPitch;
 	viewMatrixYaw.identity();
@@ -3708,9 +3709,9 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 	Vector4 T, B, N;
 	// Compute the full rotation
-	yaw   = PlayerDataTable[0].yaw   / 65536.0f * 360.0f;
-	pitch = PlayerDataTable[0].pitch / 65536.0f * 360.0f;
-	roll  = PlayerDataTable[0].roll  / 65536.0f * 360.0f;
+	yaw   = PlayerDataTable[*g_playerIndex].yaw   / 65536.0f * 360.0f;
+	pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
+	roll  = PlayerDataTable[*g_playerIndex].roll  / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	//Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -3794,8 +3795,8 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 }
 
 void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
-	float yaw   = (float)PlayerDataTable[0].cockpitCameraYaw   / 65536.0f * 360.0f + 180.0f;
-	float pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+	float yaw   = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f + 180.0f;
+	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
 	//float roll  = 0.0f;
 
 	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -3812,7 +3813,7 @@ void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
 
 void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 	const float DEG2RAD = 0.01745f;
-	if (PlayerDataTable->gunnerTurretActive)
+	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
 	{
 		// This is what the matrix looks like when looking forward:
 		// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
@@ -3902,7 +3903,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f, iTimeAtHyperExit = 0.0f;
 	static float fLightRotationAngle = 0.0f;
-	float timeInHyperspace = (float)PlayerDataTable->timeInHyperspace;
+	float timeInHyperspace = (float)PlayerDataTable[*g_playerIndex].timeInHyperspace;
 	float iLinearTime = 0.0f; // We need a "linear" time that we can use to control the speed of the shake and light rotation
 	float fShakeAmplitude = 0.0f;
 	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
@@ -3932,7 +3933,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	static float fXRotationAngle = 0.0f, fYRotationAngle = 0.0f, fZRotationAngle = 0.0f;
 
 	// Adjust the time according to the current hyperspace phase
-	//switch (PlayerDataTable->hyperspacePhase) 
+	//switch (PlayerDataTable[*g_playerIndex].hyperspacePhase) 
 	switch (g_HyperspacePhaseFSM)
 	{
 	case HS_HYPER_ENTER_ST:
@@ -3966,11 +3967,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		
 		if (g_config.StayInHyperspace) {
 			if (!g_bKeybExitHyperspace) {
-				if (PlayerDataTable->timeInHyperspace > 900 && PlayerDataTable->timeInHyperspace < 1000)
-					PlayerDataTable->timeInHyperspace -= 500;
+				if (PlayerDataTable[*g_playerIndex].timeInHyperspace > 900 && PlayerDataTable[*g_playerIndex].timeInHyperspace < 1000)
+					PlayerDataTable[*g_playerIndex].timeInHyperspace -= 500;
 			}
 			else {
-				PlayerDataTable->timeInHyperspace = 1050;
+				PlayerDataTable[*g_playerIndex].timeInHyperspace = 1050;
 				g_bKeybExitHyperspace = false;
 			}
 		}
@@ -4024,9 +4025,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	int iShakeX = (int)(fShakeAmplitude * fShakeX);
 	int iShakeY = (int)(fShakeAmplitude * fShakeY);
 	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
-	PlayerDataTable[0].cockpitXReference = iShakeX;
-	PlayerDataTable[0].cockpitYReference = iShakeY;
-	PlayerDataTable[0].cockpitZReference = iShakeZ;
+	PlayerDataTable[*g_playerIndex].cockpitXReference = iShakeX;
+	PlayerDataTable[*g_playerIndex].cockpitYReference = iShakeY;
+	PlayerDataTable[*g_playerIndex].cockpitZReference = iShakeZ;
 
 	// DEBUG Test the hyperzoom
 	/*
@@ -5273,7 +5274,7 @@ HRESULT PrimarySurface::Flip(
 							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 						}
-						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable->externalCamera);
+						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable[*g_playerIndex].externalCamera);
 					}
 
 					if (g_bUseSteamVR) {					
@@ -5339,13 +5340,13 @@ HRESULT PrimarySurface::Flip(
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
-		//PlayerDataTable[0].cameraYaw   += 40 * *mouseLook_X;
-		//PlayerDataTable[0].cameraPitch += 15 * *mouseLook_Y;
+		//PlayerDataTable[*g_playerIndex].cameraYaw   += 40 * *mouseLook_X;
+		//PlayerDataTable[*g_playerIndex].cameraPitch += 15 * *mouseLook_Y;
 		//yaw += 600;
-		//log_debug("[DBG] roll: %0.3f", PlayerDataTable[0].roll / 32768.0f * 180.0f);
+		//log_debug("[DBG] roll: %0.3f", PlayerDataTable[*g_playerIndex].roll / 32768.0f * 180.0f);
 		// This looks like it's always 0:
 		//log_debug("[DBG] els Lasers: %d, Shields: %d, Beam: %d",
-		//	PlayerDataTable[0].elsLasers, PlayerDataTable[0].elsShields, PlayerDataTable[0].elsBeam);
+		//	PlayerDataTable[*g_playerIndex].elsLasers, PlayerDataTable[*g_playerIndex].elsShields, PlayerDataTable[*g_playerIndex].elsBeam);
 
 		if (this->_deviceResources->_swapChain)
 		{
@@ -5359,8 +5360,8 @@ HRESULT PrimarySurface::Flip(
 					// not travelling through hyperspace:
 					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					{
-						g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-						g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+						g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+						g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
 
 						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -5557,7 +5558,7 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				//int HyperspacePhase = PlayerDataTable->hyperspacePhase;
+				//int HyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 				//bool bHyperStreaks = (HyperspacePhase == 2) || (HyperspacePhase == 3);
 				bool bHyperStreaks = g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST ||
 					g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST ||
@@ -5645,7 +5646,7 @@ HRESULT PrimarySurface::Flip(
 			// I should probably render the laser pointer before the HUD; but if I do that, then the
 			// HUD gets messed up. I guess I'm destroying the state somehow
 			// Render the Laser Pointer for VR
-			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable->externalCamera)
+			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable[*g_playerIndex].externalCamera)
 			{
 				
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
@@ -5702,7 +5703,7 @@ HRESULT PrimarySurface::Flip(
 			g_bPrevIsPlayerObject = false;
 			g_bIsPlayerObject = false;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
-			g_bDCManualActivate = !PlayerDataTable->externalCamera;
+			g_bDCManualActivate = !PlayerDataTable[*g_playerIndex].externalCamera;
 			g_bDepthBufferResolved = false;
 			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
 			g_bSwitchedToGUI = false;
@@ -5902,8 +5903,8 @@ HRESULT PrimarySurface::Flip(
 					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
 					Matrix4 cockpitView, cockpitViewDir;
 					//GetCockpitViewMatrix(&cockpitView);
-					yaw = (float)PlayerDataTable[0].cockpitCameraYaw / 65536.0f * 360.0f;
-					pitch = (float)PlayerDataTable[0].cockpitCameraPitch / 65536.0f * 360.0f;
+					yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
 
 					Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
 					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
@@ -5961,8 +5962,8 @@ HRESULT PrimarySurface::Flip(
 				
 				if (g_bYawPitchFromMouseOverride) {
 					// If FreePIE could not be read, then get the yaw/pitch from the mouse:
-					yaw   =  (float)PlayerDataTable[0].cockpitCameraYaw / 32768.0f * 180.0f;
-					pitch = -(float)PlayerDataTable[0].cockpitCameraPitch / 32768.0f * 180.0f;
+					yaw   =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
+					pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
 				}
 
 				if (g_bResetHeadCenter)
@@ -6022,9 +6023,9 @@ HRESULT PrimarySurface::Flip(
 					Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
 					headPos[3] = 0.0f;
 					headPos = HeadingMatrix * headPos;
-					PlayerDataTable->cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-					PlayerDataTable->cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-					PlayerDataTable->cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+					PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
+					PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
+					PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
 					// END OF HACK
 					*/
 
@@ -6080,7 +6081,7 @@ HRESULT PrimarySurface::Flip(
 				// We were presenting 2D content and now we're about to show 3D content. If we were in
 				// hyperspace, we might need to reset the hyperspace FSM and restore any settings we
 				// changed previously
-				if (g_HyperspacePhaseFSM != HS_INIT_ST && PlayerDataTable->hyperspacePhase == 0) {
+				if (g_HyperspacePhaseFSM != HS_INIT_ST && PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 					if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST) {
 						// Restore the previous color of the lights
 						for (int i = 0; i < 2; i++) {

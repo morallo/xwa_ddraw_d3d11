@@ -16,6 +16,7 @@
 
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
+extern uint32_t* g_playerIndex;
 //Matrix4 ComputeRotationMatrixFromXWAView();
 
 #ifdef DBG_VR

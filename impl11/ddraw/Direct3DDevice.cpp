@@ -5248,17 +5248,17 @@ HRESULT Direct3DDevice::Execute(
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
 						g_PSCBuffer.bInHyperspace = 0;
-						if (PlayerDataTable->hyperspacePhase == 2) {
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
 							g_PSCBuffer.bInHyperspace = 1;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
-							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
-								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
+							if (PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fLastCockpitCameraYaw ||
+								PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fLastCockpitCameraPitch)
 								g_bHyperHeadSnapped = true;
-							PlayerDataTable->cockpitCameraYaw = g_fLastCockpitCameraYaw;
-							PlayerDataTable->cockpitCameraPitch = g_fLastCockpitCameraPitch;
+							PlayerDataTable[*g_playerIndex].cockpitCameraYaw = g_fLastCockpitCameraYaw;
+							PlayerDataTable[*g_playerIndex].cockpitCameraPitch = g_fLastCockpitCameraPitch;
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
@@ -5272,8 +5272,8 @@ HRESULT Direct3DDevice::Execute(
 						if (!g_bClearedAuxBuffer &&
 							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
 							     (
-							        PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
-							        PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
+							        PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							        PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
 							     )
 							  )
 						   ) 
@@ -5288,7 +5288,7 @@ HRESULT Direct3DDevice::Execute(
 							}
 						}
 
-						if (PlayerDataTable->hyperspacePhase == 4) {
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							// We're about to enter the hyperspace tunnel, change the color of the lights:
@@ -5304,7 +5304,7 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_TUNNEL_ST:
 						g_PSCBuffer.bInHyperspace = 1;
-						if (PlayerDataTable->hyperspacePhase == 3) {
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
@@ -5331,7 +5331,7 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_EXIT_ST:
 						g_PSCBuffer.bInHyperspace = 1;
-						if (PlayerDataTable->hyperspacePhase == 0) {
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
@@ -5391,8 +5391,8 @@ HRESULT Direct3DDevice::Execute(
 					{
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
-							g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-							g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+							g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
 
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -5411,8 +5411,8 @@ HRESULT Direct3DDevice::Execute(
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture)
 				//	goto out;
 
-				//if (PlayerDataTable[0].cockpitDisplayed)
-				//if (PlayerDataTable[0].cockpitDisplayed2)
+				//if (PlayerDataTable[*g_playerIndex].cockpitDisplayed)
+				//if (PlayerDataTable[*g_playerIndex].cockpitDisplayed2)
 				//	goto out;
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc && debugTexture == NULL) {
@@ -6926,7 +6926,7 @@ HRESULT Direct3DDevice::BeginScene()
 	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
 	bool bTransitionToHyperspace = false;
 	bPrevHyperspaceState = bCurHyperspaceState;
-	bCurHyperspaceState = PlayerDataTable->hyperspacePhase != 0;
+	bCurHyperspaceState = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0;
 	bTransitionToHyperspace = !bPrevHyperspaceState && bCurHyperspaceState;
 	// We want to capture the transition to hyperspace because we don't want to clear some buffers
 	// when this happens. The problem is that the game snaps the camera to the forward position as soon
@@ -7052,8 +7052,8 @@ HRESULT Direct3DDevice::EndScene()
 		// not travelling through hyperspace:
 		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 		{
-			g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-			g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+			g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+			g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
 
 			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
