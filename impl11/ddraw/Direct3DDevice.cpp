@@ -320,7 +320,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
-bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
@@ -2552,6 +2552,9 @@ bool LoadSSAOParams() {
 					g_SSAO_Type = SSO_BENT_NORMALS;
 				else if (_stricmp(svalue, "deferred") == 0)
 					g_SSAO_Type = SSO_DEFERRED;
+			}
+			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
+				g_bDisableDiffuse = (bool)fValue;
 			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
@@ -5886,6 +5889,14 @@ HRESULT Direct3DDevice::Execute(
 				// _offscreenAsInputSRVDynCockpit is resolved in PrimarySurface.cpp, right before we
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
+
+				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
+				// then disable the pre-computed diffuse component:
+				//if (g_bAOEnabled && !g_bRendering3D) {
+				if (g_bDisableDiffuse) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fDisableDiffuse = 1.0f;
+				}
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!

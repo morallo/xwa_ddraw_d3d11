@@ -2466,7 +2466,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
 
-
 	// SSAO Computation, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
@@ -2576,31 +2575,69 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
-		viewport.Width    = screen_res_x;
-		viewport.Height   = screen_res_y;
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
+
+		// Set the lights
+		Vector4 light[2];
+		g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
+		g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
+		g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
+
+		g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
+		g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
+		g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
+
+		ComputeRotationMatrixFromXWAView(light, 2);
+		if (g_bOverrideLightPos) {
+			g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
+			g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
+			g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
+
+			g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
+			g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
+			g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
+		}
+		else {
+			g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
+			g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
+			g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
+
+			g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
+			g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
+			g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
+		}
+		resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+
 		ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
 		context->PSSetShaderResources(0, 4, null_srvs4);
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 		// so that it can be used as an SRV
-		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetView.Get(),
+			resources->_renderTargetViewBloomMask.Get(),
+			NULL, // resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
+			NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
 		resources->InitPixelShader(resources->_ssaoAddPS);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[7] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),
-			resources->_offscreenAsInputBloomMaskSRV.Get(),
-			resources->_ssaoBufSRV.Get(),
-			resources->_ssaoMaskSRV.Get(),
-			resources->_normBufSRV.Get(),
-			resources->_depthBufSRV.Get(),
-			resources->_depthBuf2SRV.Get(),
-			//resources->_ssMaskSRV.Get(),
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
+			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom mask
+			resources->_ssaoBufSRV.Get(),							// SSAO/SSDO component
+			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			resources->_normBufSRV.Get(),							// Normals Mask
+			resources->_depthBufSRV.Get(),							// Depth buffer 1
+			resources->_depthBuf2SRV.Get(),							// Depth buffer 2
+			resources->_ssMaskSRV.Get(),								// Shading System Mask
 		};
-		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3516,8 +3553,7 @@ void PrimarySurface::DeferredPass() {
 	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
 
 	ComputeRotationMatrixFromXWAView(light, 2);
-	//if (g_bOverrideLightPos) {
-	if (false) {
+	if (g_bOverrideLightPos) {
 		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
 		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
 		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
@@ -5039,6 +5075,129 @@ HRESULT PrimarySurface::Flip(
 			/* Present Concourse, ESC Screen Menu */
 			if (this->_deviceResources->_swapChain)
 			{
+				/*
+				// Resolve the bloom mask
+				if (g_bBloomEnabled) {
+					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+						resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+					if (g_bUseSteamVR)
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+							resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+				}
+
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_offscreenBuf.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2D-1.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf2D.dds");
+					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf2D.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf2D.dds");
+					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR2D.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf2D.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask2D.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask2D.dds");
+				}
+
+				if (g_bAOEnabled) {
+					switch (g_SSAO_Type) {
+					case SSO_AMBIENT:
+						SSAOPass(g_fSSAOZoomFactor);
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+						break;
+					case SSO_DIRECTIONAL:
+					case SSO_BENT_NORMALS:
+						SSDOPass(g_fSSAOZoomFactor, g_fSSAOZoomFactor2);
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+						break;
+					case SSO_DEFERRED:
+						DeferredPass();
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+						break;
+					}
+				}
+
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2D-2.dds");
+				}
+
+				// Apply the Bloom effect
+				if (g_bBloomEnabled) {
+					// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
+					// SSAO uses that mask to prevent applying SSAO on bright areas
+
+					// We need to set the blend state properly for Bloom, or else we might get
+					// different results when brackets are rendered because they alter the 
+					// blend state
+					D3D11_BLEND_DESC blendDesc{};
+					blendDesc.AlphaToCoverageEnable = FALSE;
+					blendDesc.IndependentBlendEnable = FALSE;
+					blendDesc.RenderTarget[0].BlendEnable = TRUE;
+					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+					hr = resources->InitBlendState(nullptr, &blendDesc);
+
+					// Temporarily disable ZWrite: we won't need it to display Bloom
+					D3D11_DEPTH_STENCIL_DESC desc;
+					ComPtr<ID3D11DepthStencilState> depthState;
+					desc.DepthEnable = FALSE;
+					desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+					desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+					desc.StencilEnable = FALSE;
+					resources->InitDepthStencilState(depthState, &desc);
+
+					// Initialize the accummulator buffer
+					float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+					context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
+					if (g_bUseSteamVR)
+						context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
+
+					float fScale = 2.0f;
+					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
+						int AdditionalPasses = g_iBloomPasses[i] - 1;
+						// Zoom level 2.0f with only one pass tends to show artifacts unless
+						// the spread is set to 1
+						BloomPyramidLevelPass(i, AdditionalPasses, fScale);
+						fScale *= 2.0f;
+					}
+
+					// TODO: Check the statement below, I'm not sure it's current anymore (?)
+					// If SSAO is not enabled, then we can merge the bloom buffer with the offscreen buffer
+					// here. Otherwise, we'll merge it along with the SSAO buffer later.
+					// Add the accumulated bloom with the offscreen buffer
+					// Input: _bloomSum, _offscreenBufferAsInput
+					// Output: _offscreenBuffer
+					BloomBasicPass(5, 1.0f);
+
+					// DEBUG
+					if (g_bDumpSSAOBuffers) {
+						DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput2D.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer-Bloom2D.dds");
+					}
+					// DEBUG
+				}
+				*/
+
 				UINT rate = 25 * this->_deviceResources->_refreshRate.Denominator;
 				UINT numerator = this->_deviceResources->_refreshRate.Numerator + this->_flipFrames;
 				UINT interval = numerator / rate;
@@ -5126,6 +5285,8 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
+					if (g_bDumpSSAOBuffers)
+						g_bDumpSSAOBuffers = false;
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
@@ -5326,6 +5487,12 @@ HRESULT PrimarySurface::Flip(
 				switch (g_SSAO_Type) {
 					case SSO_AMBIENT:
 						SSAOPass(g_fSSAOZoomFactor);
+						// Resolve the bloom mask again: SSDO can modify this mask
+						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
+								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
 					case SSO_DIRECTIONAL:
 					case SSO_BENT_NORMALS:
@@ -5345,7 +5512,6 @@ HRESULT PrimarySurface::Flip(
 						if (g_bUseSteamVR)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
-						break;
 						break;
 				}
 
@@ -5479,17 +5645,13 @@ HRESULT PrimarySurface::Flip(
 			// I should probably render the laser pointer before the HUD; but if I do that, then the
 			// HUD gets messed up. I guess I'm destroying the state somehow
 			// Render the Laser Pointer for VR
-			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable->externalCamera
-				/* &&
-				(PlayerDataTable[0].cockpitDisplayed ||
-				 PlayerDataTable[0].gunnerTurretActive ||
-				 PlayerDataTable[0].cockpitDisplayed2) */
-				)
+			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable->externalCamera)
 			{
 				
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
+			
 			if (g_bDumpLaserPointerDebugInfo)
 				g_bDumpLaserPointerDebugInfo = false;
 
@@ -5600,7 +5762,7 @@ HRESULT PrimarySurface::Flip(
 			//animTickY();
 			//animTickZ();
 			
-			// Enable 6dof
+			// Enable roll (formerly this was 6dof)
 			if (g_bUseSteamVR) {
 				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
 				float x = 0.0f, y = 0.0f, z = 0.0f;

@@ -144,6 +144,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius = near_sample_radius;
 	bool FGFlag;
 
+	// I believe the hook_normals hook is inverting the Z axis of the normal, so we need
+	// to flip it here again to get proper SSAO
+	n.z = -n.z;
 	if (P1.z < P2.z) {
 		p = P1;
 		FGFlag = true;
@@ -155,6 +158,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
+	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
 
 	// This is probably OK; but we didn't have this in the previous release, so
 	// should I activate this?

@@ -62,7 +62,7 @@ cbuffer ConstantBuffer : register(b0)
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, unusedPS1, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
 	// 80 bytes
 };
 
@@ -108,7 +108,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex); // texelColor is the cover texture
 	float alpha = texelColor.w; // alpha of the cover texture
-	float3 diffuse = input.color.xyz;
+	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
@@ -202,7 +202,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
 		output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-		diffuse = lerp(float3(1, 1, 1), diffuse, alpha);
+		diffuse = lerp(1.0, diffuse, alpha);
 		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
 		// ssMask: NMIntensity, SpecValue, unused
 		output.ssaoMask.r = lerp(SHADELESS_MAT, PLASTIC_MAT, alpha);
@@ -217,7 +217,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	else {
 		texelColor = hud_texelColor;
-		diffuse = float3(1, 1, 1);
+		diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused

@@ -65,7 +65,7 @@ cbuffer ConstantBuffer : register(b0)
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, unusedPS1, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
 	// 80 bytes
 };
 
@@ -74,7 +74,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float  alpha		  = texelColor.w;
-	float3 diffuse    = input.color.xyz;
+	float3 diffuse    = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P			  = input.pos3D.xyz;
 	float  SSAOAlpha  = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
@@ -187,7 +187,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
 		output.ssMask.a = 0;
-		texelColor.xyz *= diffuse;
+		texelColor.xyz *= input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
 			// Enhance the glow in 32-bit mode
