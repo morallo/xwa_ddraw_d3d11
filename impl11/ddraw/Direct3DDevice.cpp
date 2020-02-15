@@ -42,6 +42,10 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
+// Data provided by keiranhalcyon7:
+uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
+float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
+float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.

@@ -2468,9 +2468,40 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
 
+	// Set the lights
+	Vector4 light[2];
+	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
+	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
+	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
+
+	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
+	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
+	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
+
+	ComputeRotationMatrixFromXWAView(light, 2);
+	if (g_bOverrideLightPos) {
+		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
+	}
+	else {
+		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
+	}
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+
 	// SSAO Computation, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-	// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+	// Input: _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
 	// Output _ssaoBuf, _bentBuf
 	{
 		// Resolve offscreenBuf
@@ -2484,25 +2515,21 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		};
 		resources->InitPixelShader(resources->_ssaoPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 4, srvs_pass1);
 			context->Draw(6, 0);
 			goto out1;
 		}
 		else {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO.Get(),
-				resources->_renderTargetViewBentBuf.Get()
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, bgColor);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 4, srvs_pass1);
 			context->Draw(6, 0);
 		}
@@ -2517,8 +2544,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
-	//g_BloomPSCBuffer.enableSSAO			= g_bEnableSSAOInShader;
-	//g_BloomPSCBuffer.enableBentNormals	= g_bEnableBentNormalsInShader;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
@@ -2538,36 +2563,19 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
 		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
 		ID3D11ShaderResourceView *srvs[5] = {
-				//resources->_offscreenAsInputShaderResourceView.Get(),
 				resources->_bloomOutput1SRV.Get(),
 				resources->_depthBufSRV.Get(),
 				resources->_depthBuf2SRV.Get(),
 				resources->_normBufSRV.Get(),
 				resources->_bentBufSRV_R.Get(),
 		};
-		/* // This case is no longer needed, the SSAO + NM are displayed in 
-		// SSAOAddPixelShader using the debug constant buffer flag
-		if (g_bShowSSAODebug) {
-			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-			context->PSSetShaderResources(0, 5, srvs);
-			// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
-			//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
-			// DEBUG: Enable the following line to display the normals
-			//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
-			context->Draw(6, 0);
-			goto out1;
-		}
-		else */ 
-		{
-			ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetViewSSAO.Get(),
-				resources->_renderTargetViewBentBuf.Get()
-			};
-			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs);
-			context->Draw(6, 0);
-		}
+		
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewSSAO.Get(),
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		context->PSSetShaderResources(0, 5, srvs);
+		context->Draw(6, 0);
 	}
 
 	// Final combine, Left Image
@@ -2583,37 +2591,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
 
-		// Set the lights
-		Vector4 light[2];
-		g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
-		g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
-		g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
-
-		g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
-		g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
-		g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
-
-		ComputeRotationMatrixFromXWAView(light, 2);
-		if (g_bOverrideLightPos) {
-			g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
-			g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
-			g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
-
-			g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
-			g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
-			g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
-		}
-		else {
-			g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
-			g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
-			g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
-
-			g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
-			g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
-			g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
-		}
-		resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
-
 		ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
 		context->PSSetShaderResources(0, 4, null_srvs4);
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
@@ -2621,8 +2598,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
 			resources->_renderTargetViewBloomMask.Get(),
-			NULL, // resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
-			NULL, NULL,
+			NULL, NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 		resources->InitPixelShader(resources->_ssaoAddPS);
@@ -2632,9 +2608,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom mask
-			resources->_ssaoBufSRV.Get(),							// SSAO/SSDO component
+			resources->_ssaoBufSRV.Get(),							// SSAO component
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
-			resources->_normBufSRV.Get(),							// Normals Mask
+			resources->_normBufSRV.Get(),							// Normals
 			resources->_depthBufSRV.Get(),							// Depth buffer 1
 			resources->_depthBuf2SRV.Get(),							// Depth buffer 2
 			resources->_ssMaskSRV.Get(),								// Shading System Mask
@@ -2656,7 +2632,7 @@ out1:
 
 		// SSAO Computation, right eye
 		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-		// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
+		// Input: _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
 		// Output _ssaoBuf, _bentBuf
 		{
 			// Resolve offscreenBuf
@@ -2670,25 +2646,21 @@ out1:
 			};
 			resources->InitPixelShader(resources->_ssaoPS);
 			if (!g_bBlurSSAO && g_bShowSSAODebug) {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewR.Get(),
-					resources->_renderTargetViewBentBufR.Get(),
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
-				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->OMSetRenderTargets(1, rtvs, NULL);
 				context->PSSetShaderResources(0, 4, srvs_pass1);
 				context->Draw(6, 0);
 				goto out2;
 			}
 			else {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO_R.Get(),
-					resources->_renderTargetViewBentBufR.Get()
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, bgColor);
-				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->OMSetRenderTargets(1, rtvs, NULL);
 				context->PSSetShaderResources(0, 4, srvs_pass1);
 				context->Draw(6, 0);
 			}
@@ -2699,15 +2671,11 @@ out1:
 		// size will be twice as big in the next pass due to the downsample, so we have to compensate
 		// with a zoom factor:
 		float fPixelScale = fZoomFactor;
-		g_BloomPSCBuffer.pixelSizeX = fPixelScale * g_fCurScreenWidthRcp;
-		g_BloomPSCBuffer.pixelSizeY = fPixelScale * g_fCurScreenHeightRcp;
-		g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
-		//g_BloomPSCBuffer.white_point = g_fSSAOWhitePoint;
-		g_BloomPSCBuffer.uvStepSize = 1.0f;
-		//g_BloomPSCBuffer.enableSSAO = g_bEnableSSAOInShader;
-		//g_BloomPSCBuffer.enableBentNormals = g_bEnableBentNormalsInShader;
-		//g_BloomPSCBuffer.norm_weight = g_fNormWeight;
-		g_BloomPSCBuffer.depth_weight = g_SSAO_PSCBuffer.max_dist;
+		g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp;
+		g_BloomPSCBuffer.pixelSizeY		= fPixelScale * g_fCurScreenHeightRcp;
+		g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
+		g_BloomPSCBuffer.uvStepSize		= 1.0f;
+		g_BloomPSCBuffer.depth_weight	= g_SSAO_PSCBuffer.max_dist;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 		// SSAO Blur, Right Image
@@ -2727,37 +2695,19 @@ out1:
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
 			ID3D11ShaderResourceView *srvs[5] = {
-					//resources->_offscreenAsInputShaderResourceViewR.Get(),
 					resources->_bloomOutput1SRV.Get(),
 					resources->_depthBufSRV_R.Get(),
 					resources->_depthBuf2SRV_R.Get(),
 					resources->_normBufSRV_R.Get(),
 					resources->_bentBufSRV.Get(),
 			};
-			/*
-			// No longer needed, SSAO debug + NM are displayed in SSAOAddPixelShader when
-			// the debug flag is set
-			if (g_bShowSSAODebug) {
-				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-				context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
-				context->PSSetShaderResources(0, 5, srvs);
-				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
-				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
-				// DEBUG: Enable the following line to display the normals
-				//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
-				context->Draw(6, 0);
-				goto out2;
-			}
- 			else */
-			{
-				ID3D11RenderTargetView *rtvs[2] = {
-					resources->_renderTargetViewSSAO_R.Get(),
-					resources->_renderTargetViewBentBufR.Get()
-				};
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
-				context->Draw(6, 0);
-			}
+			
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewSSAO_R.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			context->PSSetShaderResources(0, 5, srvs);
+			context->Draw(6, 0);
 		}
 
 		// Final combine, Right Image
@@ -2773,24 +2723,31 @@ out1:
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			resources->InitViewport(&viewport);
 	
+			ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
+			context->PSSetShaderResources(0, 4, null_srvs4);
 			// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 			// so that it can be used as an SRV
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
+			ID3D11RenderTargetView *rtvs[5] = {
+				resources->_renderTargetViewR.Get(),
+				resources->_renderTargetViewBloomMaskR.Get(),
+				NULL, NULL, NULL,
+			};
+			context->OMSetRenderTargets(5, rtvs, NULL);
 			resources->InitPixelShader(resources->_ssaoAddPS);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[7] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),
-				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
-				resources->_ssaoBufSRV_R.Get(),
-				resources->_ssaoMaskSRV_R.Get(),
-				resources->_normBufSRV_R.Get(),
-				resources->_depthBufSRV_R.Get(),
-				resources->_depthBuf2SRV_R.Get(),
-				//resources->_ssMaskSRV_R.Get(),
+			ID3D11ShaderResourceView *srvs_pass2[8] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
+				resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
+				resources->_ssaoBufSRV_R.Get(),							// SSAO component
+				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_normBufSRV_R.Get(),							// Normals
+				resources->_depthBufSRV_R.Get(),							// Depth buffer 1
+				resources->_depthBuf2SRV_R.Get(),						// Depth buffer 2
+				resources->_ssMaskSRV_R.Get(),							// Shading System Mask
 			};
-			context->PSSetShaderResources(0, 7, srvs_pass2);
+			context->PSSetShaderResources(0, 8, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
@@ -2880,8 +2837,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
 
 	ComputeRotationMatrixFromXWAView(light, 2);
-	//if (g_bOverrideLightPos) {
-	if (false) {
+	if (g_bOverrideLightPos) {
 		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
 		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
 		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
@@ -3448,9 +3404,11 @@ out1:
 			// so that it can be used as an SRV
 			ID3D11RenderTargetView *rtvs[5] = {
 				resources->_renderTargetViewR.Get(),
-				NULL, NULL, NULL, NULL
+				resources->_renderTargetViewBloomMaskR.Get(),
+				resources->_renderTargetViewBentBufR.Get(), // DEBUG REMOVE THIS LATER
+				NULL, NULL
 			};
-			context->OMSetRenderTargets(4, rtvs, NULL);
+			context->OMSetRenderTargets(5, rtvs, NULL);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
