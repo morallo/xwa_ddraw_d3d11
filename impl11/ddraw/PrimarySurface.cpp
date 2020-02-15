@@ -25,6 +25,7 @@ extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
+const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
@@ -4025,9 +4026,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	int iShakeX = (int)(fShakeAmplitude * fShakeX);
 	int iShakeY = (int)(fShakeAmplitude * fShakeY);
 	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
-	PlayerDataTable[*g_playerIndex].cockpitXReference = iShakeX;
-	PlayerDataTable[*g_playerIndex].cockpitYReference = iShakeY;
-	PlayerDataTable[*g_playerIndex].cockpitZReference = iShakeZ;
+	if (*numberOfPlayersInGame == 1) {
+		PlayerDataTable[*g_playerIndex].cockpitXReference = iShakeX;
+		PlayerDataTable[*g_playerIndex].cockpitYReference = iShakeY;
+		PlayerDataTable[*g_playerIndex].cockpitZReference = iShakeZ;
+	}
 
 	// DEBUG Test the hyperzoom
 	/*
@@ -6023,9 +6026,11 @@ HRESULT PrimarySurface::Flip(
 					Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
 					headPos[3] = 0.0f;
 					headPos = HeadingMatrix * headPos;
-					PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-					PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-					PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+					if (*numberOfPlayersInGame == 1) {
+						PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
+						PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
+						PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+					}
 					// END OF HACK
 					*/
 
