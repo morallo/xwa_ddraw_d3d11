@@ -233,11 +233,13 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		// Vary between these two values depending on 'weight':
 		//B = lerp(Normal, B, weight);
 		//B = Normal;
-		if (fn_enable) {
-			B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
-			// DEBUG
-			//output.N = FakeNormal;
-		}
+		
+		// Let's postpone normal mapping until the final combination step
+		//if (fn_enable) {
+		//	B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
+		//	// DEBUG
+		//	//output.N = FakeNormal;
+		//}
 		output.N = B;
 		output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
 
@@ -410,7 +412,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
 	//float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0; 
-	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
+	//if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset); // Let's postpone normal mapping until the final combine stage
 
 	/*
 	// Compute shadows

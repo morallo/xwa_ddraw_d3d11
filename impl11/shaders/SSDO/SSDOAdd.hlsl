@@ -325,6 +325,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// diffuse component
 	float diffuse = max(dot(N, L), 0.0);
+	/*
 	if (ss_debug == 1) {
 		output.color.xyz = diffuse + ambient;
 		output.color.a = 1.0;
@@ -336,7 +337,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	else if (ss_debug == 3)
 		diffuse *= ssdo.x;
 	else
-		diffuse = diff_int * diffuse + ambient;
+	*/
+		// Default case
+		diffuse = ssdo.x * (diff_int * diffuse + ambient);
+		//diffuse = diff_int * diffuse + ambient;
 		
 	//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
 	diffuse = shadeless ? 1.0 : diffuse;
@@ -364,7 +368,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
 	float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-	spec = spec_int * pow(spec, exponent);
+	spec = /* ssdo.x * */ spec_int * pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;

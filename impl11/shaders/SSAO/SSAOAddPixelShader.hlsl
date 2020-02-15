@@ -193,11 +193,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = 0;
 	output.bloom = 0;
 
-	if (ssao_debug) {
-		output.color = float4(ssao, 1);
-		return output;
-	}
-
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
@@ -209,7 +204,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 L = normalize(LightVector.xyz);
 	float3 N = normalize(Normal.xyz);
+
+	// For shadeless areas, make ssao 1
 	ssao = shadeless ? 1.0 : ssao;
+	if (ssao_debug) {
+		output.color = float4(ssao, 1);
+		return output;
+	}
 
 	bool FGFlag;
 	float3 P1 = getPositionFG(input.uv, 0);
@@ -269,8 +270,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// diffuse component
+	//const float diff_max = 0.4;
+	//const float amb_max = 0.3;
+	//const float spec_max = 0.3;
 	float diffuse = max(dot(N, L), 0.0);
 	diffuse = ssao.x * (diff_int * diffuse + ambient);
+	//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
 	//diffuse = diff_int * diffuse + ambient;
 
 	//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
@@ -299,7 +304,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
 	float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-	spec = spec_int * pow(spec, exponent);
+	spec = ssao.x * spec_int * pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;

@@ -1714,6 +1714,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			if (g_bUseSteamVR) {
+				shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 				step = "_ssaoMaskSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMaskR, &shaderResourceViewDesc, &this->_ssaoMaskSRV_R);
 				if (FAILED(hr)) {

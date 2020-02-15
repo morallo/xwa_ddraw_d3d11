@@ -17,7 +17,12 @@
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
-//Matrix4 ComputeRotationMatrixFromXWAView();
+extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
+extern float *g_fRawFOVDist; // FOV dist(float), same value as above
+extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+
+
+extern int g_KeySet;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -156,9 +161,20 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_RIGHT:
-				g_LightVector[0].x += 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].x += 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					*g_rawFOVDist += 50;
+					*g_fRawFOVDist += 50.0f;
+					*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
+					log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
+						*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+					break;
+				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
 
@@ -174,9 +190,20 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				*/
 				return 0;
 			case VK_LEFT:
-				g_LightVector[0].x -= 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].x -= 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					*g_rawFOVDist -= 50;
+					*g_fRawFOVDist -= 50.0f;
+					*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
+					log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
+						*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+					break;
+				}
 
 				//g_contOriginWorldSpace.x -= 0.02f;
 

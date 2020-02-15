@@ -46,6 +46,11 @@ const auto numberOfPlayersInGame = (int*)0x910DEC;
 uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+int g_KeySet = 2;
+/* 
+   1 = Arrow keys move the lights
+   2 = Arrow keys change the FOV
+*/
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
@@ -2766,6 +2771,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "ss_debug") == 0) {
 				g_ShadingSys_PSBuffer.ss_debug = (int)fValue;
 			}
+			else if (_stricmp(param, "key_set") == 0) {
+				g_KeySet = (int)fValue;
+				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
+			}
 			
 		}
 	}
@@ -4769,6 +4778,7 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform = 0.0f;
 	g_VSCBuffer.bFullTransform = 0.0f;
+	g_VSCBuffer.metric_mult = 1.0f;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -6586,6 +6596,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.mult_z_override = -1.0f;
 					g_VSCBuffer.bPreventTransform = 0.0f;
 					g_VSCBuffer.bFullTransform = 0.0f;
+					g_VSCBuffer.metric_mult = 1.0f;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;

@@ -3,11 +3,12 @@
 // Extended for VR by Leo Reyes, 2019
 #include "shader_common.h"
 
+// VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
 {
 	float4 vpScale;
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform;
+	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -50,7 +51,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-	temp.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
+	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // This value was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
 	// Override the depth of this element if z_override is set
 	if (mult_z_override > -0.1)
