@@ -4436,7 +4436,7 @@ inline void backProject(WORD index, Vector3 *P) {
 	}
 
 	// temp.z = METRIC_SCALE_FACTOR * w;
-	temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
+	temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
 
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
@@ -4491,8 +4491,8 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		float y0 = g_LaserPointerBuffer.y0;
 		float x1 = g_LaserPointerBuffer.x1;
 		float y1 = g_LaserPointerBuffer.y1;
-		//w = P.z / (float)METRIC_SCALE_FACTOR;
-
+		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
+		
 		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
 		P.x *= g_fFocalDist / P.z;
