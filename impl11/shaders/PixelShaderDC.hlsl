@@ -66,12 +66,13 @@ cbuffer ConstantBuffer : register(b0)
 	// 80 bytes
 };
 
+// DCPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b1)
 {
-	float4 src[MAX_DC_COORDS];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
-	float4 dst[MAX_DC_COORDS];
-	uint4 bgColor[MAX_DC_COORDS / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
-									  // So each elem here is actually 4 bgColors.
+	float4 src[MAX_DC_COORDS_PER_TEXTURE];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
+	float4 dst[MAX_DC_COORDS_PER_TEXTURE];
+	uint4 bgColor[MAX_DC_COORDS_PER_TEXTURE / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
+												  // So each elem here is actually 4 bgColors.
 
 	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
 	float unused1, unused2, unused3;
@@ -129,10 +130,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	output.normal = float4(N, 1);
 
-	output.ssaoMask.r = PLASTIC_MAT;
-	output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
-	output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
-	output.ssaoMask.a = 0.0;
+	//output.ssaoMask.r = PLASTIC_MAT;
+	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
+	//output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
+	//output.ssaoMask.a = 0.0;
+	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);

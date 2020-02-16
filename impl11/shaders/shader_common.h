@@ -10,4 +10,4 @@
 #define INFINITY_FADEOUT_RANGE 5000
 
 // Dynamic Cockpit: Maximum Number of DC elements per texture
-#define MAX_DC_COORDS 12
+#define MAX_DC_COORDS_PER_TEXTURE 12

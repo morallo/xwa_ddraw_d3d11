@@ -243,7 +243,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//}
 		output.N = B;
 		//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
-		output.col = saturate(dot(B, LightVector.xyz));
+		output.col = saturate(dot(B, LightVector[0].xyz));
 		//output.col.y = 1.0;
 		/*
 		// Specular component
@@ -324,7 +324,7 @@ inline float2 projectToUV(in float3 pos3D) {
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector.xyz;
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge

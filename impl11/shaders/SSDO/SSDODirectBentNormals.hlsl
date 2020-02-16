@@ -210,8 +210,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//BentNormal += B;
 		// I think we can get rid of the visibility term and just return the following
 		// from this case or 0 outside this "if" block.
-		output.col =  LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-		output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+		output.col =  LightColor[0].rgb * saturate(dot(B, LightVector[0].xyz)) + invLightColor * saturate(dot(B, -LightVector[0].xyz));
+		output.col += LightColor[1].rgb * saturate(dot(B, LightVector[1].xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
 		return output;
 	}
 	output.N = 0;

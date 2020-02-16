@@ -63,8 +63,10 @@ public:
 
 	void ComputeNormalsPass(float fZoomFactor);
 
-	void SmoothNormalsPass(float fZoomFactor);
+	//void SmoothNormalsPass(float fZoomFactor);
 
+	void SetLights(float fSSDOEnabled);
+	
 	void SSAOPass(float fZoomFactor);
 
 	void SSDOPass(float fZoomFactor, float fZoomFactor2);

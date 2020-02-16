@@ -1021,7 +1021,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 	char *substr = NULL;
 	char slot_name[50];
 
-	if (idx >= MAX_DC_COORDS) {
+	if (idx >= MAX_DC_COORDS_PER_TEXTURE) {
 		log_debug("[DBG] [DC] Too many coords already loaded");
 		return false;
 	}
@@ -5326,9 +5326,9 @@ HRESULT Direct3DDevice::Execute(
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
 								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
 								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
-								g_LightColor[i].x = fade * 0.4f;
-								g_LightColor[i].y = fade * 0.5f;
-								g_LightColor[i].z = fade * 0.8f;
+								g_LightColor[i].x = fade * 0.3f;
+								g_LightColor[i].y = fade * 0.4f;
+								g_LightColor[i].z = fade * 0.9f;
 							}
 						}
 						break;

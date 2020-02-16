@@ -3,13 +3,11 @@
 // PSShadingSystemCB
 cbuffer ConstantBuffer : register(b4)
 {
-	float4 LightVector;
+	float4 LightVector[2];
 	// 16 bytes
-	float4 LightVector2;
 	// 32 bytes
-	float4 LightColor;
+	float4 LightColor[2];
 	// 48 bytes
-	float4 LightColor2;
 	// 64 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
 	// 80 bytes

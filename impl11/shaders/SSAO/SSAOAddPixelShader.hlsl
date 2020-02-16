@@ -202,7 +202,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	color = color * color; // Gamma correction (approx pow 2.2)
-	float3 L = normalize(LightVector.xyz);
 	float3 N = normalize(Normal.xyz);
 
 	// For shadeless areas, make ssao 1
@@ -269,47 +268,55 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
-	// diffuse component
-	//const float diff_max = 0.4;
-	//const float amb_max = 0.3;
-	//const float spec_max = 0.3;
-	float diffuse = max(dot(N, L), 0.0);
-	diffuse = ssao.x * (diff_int * diffuse + ambient);
-	//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
-	//diffuse = diff_int * diffuse + ambient;
+	float3 tmp_color = 0.0;
+	float4 tmp_bloom = 0.0;
+	[unroll]
+	for (uint i = 0; i < 2; i++) {
+		//float3 L = normalize(LightVector[i].xyz);
+		float3 L = LightVector[i].xyz;
+		float LightInt = dot(LightColor[i].rgb, 0.333);
+		// diffuse component
+		//const float diff_max = 0.4;
+		//const float amb_max = 0.3;
+		//const float spec_max = 0.3;
+		float diffuse = max(dot(N, L), 0.0);
+		diffuse = ssao.x * (diff_int * diffuse + ambient);
+		//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
+		//diffuse = diff_int * diffuse + ambient;
 
-	//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
-	diffuse = shadeless ? 1.0 : diffuse;
+		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
+		diffuse = shadeless ? 1.0 : diffuse;
 
-	// specular component
-	//float3 eye = 0.0;
-	//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
-	//float3 spec_col = /* ssdo.x * */ spec_int;
-	//float3 spec_col = 0.35;
-	float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
-	// reflect expects an incident vector: a vector that goes from the light source to the current point.
-	// L goes from the current point to the light vector, so we have to use -L:
-	float3 refl_vec = normalize(reflect(-L, N));
-	float  spec = max(dot(eye_vec, refl_vec), 0.0);
+		// specular component
+		//float3 eye = 0.0;
+		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
+		//float3 spec_col = /* ssdo.x * */ spec_int;
+		//float3 spec_col = 0.35;
+		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
+		// reflect expects an incident vector: a vector that goes from the light source to the current point.
+		// L goes from the current point to the light vector, so we have to use -L:
+		float3 refl_vec = normalize(reflect(-L, N));
+		float  spec = max(dot(eye_vec, refl_vec), 0.0);
 
-	//float3 viewDir    = normalize(pos3D);
-	//float3 halfwayDir = normalize(L + viewDir);
-	//float spec = max(dot(N, halfwayDir), 0.0);
+		//float3 viewDir    = normalize(pos3D);
+		//float3 halfwayDir = normalize(L + viewDir);
+		//float spec = max(dot(N, halfwayDir), 0.0);
 
-	//float  exponent = 10.0;
-	float exponent = glossiness * gloss;
-	float spec_bloom_int = spec_bloom_intensity;
-	if (GLASS_LO <= mask && mask < GLASS_HI) {
-		exponent *= 2.0;
-		spec_bloom_int *= 3.0; // Make the glass bloom more
+		//float  exponent = 10.0;
+		float exponent = glossiness * gloss;
+		float spec_bloom_int = spec_bloom_intensity;
+		if (GLASS_LO <= mask && mask < GLASS_HI) {
+			exponent *= 2.0;
+			spec_bloom_int *= 3.0; // Make the glass bloom more
+		}
+		float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
+		spec = /* ssao.x * */ LightInt * spec_int * pow(spec, exponent);
+
+		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
+		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);
+		tmp_bloom += float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
-	float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-	spec = ssao.x * spec_int * pow(spec, exponent);
-
-	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;
-	output.color = float4(sqrt(color), 1); // Invert gamma correction (approx pow 1/2.2)
-	//output.bloom = float4(spec_col * ssdo * spec_bloom, spec_bloom);
-	output.bloom = float4(spec_col * spec_bloom, spec_bloom);
+	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
+	output.bloom = tmp_bloom;
 	return output;
 }

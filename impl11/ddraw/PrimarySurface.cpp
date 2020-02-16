@@ -2401,6 +2401,52 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 }
 */
 
+/*
+ * Sets the lights in the constant buffer used in the New Shading System.
+ */
+void PrimarySurface::SetLights(float fSSDOEnabled) {
+	const auto &resources = this->_deviceResources;
+	Vector4 light[2];
+	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
+	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
+	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
+
+	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
+	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
+	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
+
+	ComputeRotationMatrixFromXWAView(light, 2);
+	if (g_bOverrideLightPos) {
+		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
+	}
+	else {
+		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
+		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
+		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
+
+		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
+		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
+		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
+	}
+	//Vector4 Rs, Us, Fs;
+	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
+	//light[0] = H * g_LightVector[0];
+	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
+			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+		log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
+			g_ShadingSys_PSBuffer.LightVector2.x, g_ShadingSys_PSBuffer.LightVector2.y, g_ShadingSys_PSBuffer.LightVector2.z);
+	}
+	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+}
+
 void PrimarySurface::SSAOPass(float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2471,35 +2517,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	resources->InitVertexShader(resources->_mainVertexShader);
 
 	// Set the lights
-	Vector4 light[2];
-	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
-	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
-	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
-
-	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
-	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
-	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
-
-	ComputeRotationMatrixFromXWAView(light, 2);
-	if (g_bOverrideLightPos) {
-		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
-	}
-	else {
-		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
-	}
-	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	SetLights(0.0f);
 
 	// SSAO Computation, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
@@ -2829,42 +2847,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
-	Vector4 light[2];
-	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
-	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
-	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
-
-	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
-	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
-	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
-
-	ComputeRotationMatrixFromXWAView(light, 2);
-	if (g_bOverrideLightPos) {
-		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
-	}
-	else {
-		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
-	}
-	//Vector4 Rs, Us, Fs;
-	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
-	//light[0] = H * g_LightVector[0];
-	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
-	g_ShadingSys_PSBuffer.ssdo_enabled = 1.0f;
-	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	SetLights(1.0f);
 
 #ifdef DEATH_STAR
 	static float iTime = 0.0f;
@@ -3506,42 +3489,8 @@ void PrimarySurface::DeferredPass() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 
-	Vector4 light[2];
-	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
-	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
-	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
-
-	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
-	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
-	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
-
-	ComputeRotationMatrixFromXWAView(light, 2);
-	if (g_bOverrideLightPos) {
-		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
-	}
-	else {
-		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
-	}
-	//Vector4 Rs, Us, Fs;
-	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
-	//light[0] = H * g_LightVector[0];
-	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
-	g_ShadingSys_PSBuffer.ssdo_enabled = 0.0f;
-	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	// Set the lights
+	SetLights(0.0f);
 
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3920,8 +3869,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Rotate the lights while travelling through the hyper-tunnel:
 		for (int i = 0; i < 2; i++) {
-			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
-			g_LightVector[i].y = (float)cos((fLightRotationAngle + (i * 90.0)) * 0.01745f);
+			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0f)) * 0.01745f);
+			g_LightVector[i].y = (float)sin((fLightRotationAngle + (i * 90.0f)) * 0.01745f);
 			g_LightVector[i].z = 0.0f;
 		}
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
@@ -3979,7 +3928,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	fXRotationAngle = 25.0f * iLinearTime * g_fHyperShakeRotationSpeed;
 	fYRotationAngle = 30.0f * iLinearTime * g_fHyperShakeRotationSpeed;
 	fZRotationAngle = 35.0f * iLinearTime * g_fHyperShakeRotationSpeed;
-	fLightRotationAngle = -25.0f * iLinearTime * g_fHyperLightRotationSpeed;
+	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
+	// TODO: Where am I setting the lights for the new shading model?
+	//		 Am I setting the ssMask in the RTVs like I do during Execute()? Do I even need to do that?
 
 	// Shake the cockpit a little bit:
 	float fShakeX = cos(fXRotationAngle * 0.01745f);

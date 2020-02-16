@@ -208,7 +208,7 @@ inline float2 projectToUV(in float3 pos3D) {
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector.xyz;
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
@@ -311,7 +311,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	else
 		shadow = shadow.xxx;
 
-	float3 reflected = reflect(LightVector.xyz, Normal);
+	float3 reflected = reflect(LightVector[0].xyz, Normal);
 	float3 eyeVector = 0 - pos3D;
 	//float3 eyeVector = float3(0, 0, -1);
 	float spec = saturate(dot(reflected, eyeVector));
@@ -321,7 +321,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
 	//temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	//temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
-	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
+	temp += LightColor[0].rgb * saturate(dot(Normal, LightVector[0].xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp += LightColor.rgb * saturate(dot(bentN, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp *= shadow;
 	//if (shadow > 0) temp = float3(1, 0, 0);
