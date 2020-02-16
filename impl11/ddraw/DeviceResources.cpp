@@ -104,7 +104,7 @@ bool ReplaceWindowProc(HWND ThisWindow);
 extern MainShadersCBuffer g_MSCBuffer;
 extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
-extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio;
+extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio, g_bCustomFOVApplied;
 extern int g_iPresentCounter;
 int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
@@ -133,6 +133,8 @@ extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 bool InitSteamVR();
+
+void LoadFOVParams();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */
 typedef enum {
@@ -750,6 +752,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 	// Reset the present counter
 	g_iPresentCounter = 0;
+	// Reset the FOV application flag
+	g_bCustomFOVApplied = false;
 
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
@@ -2602,7 +2606,8 @@ HRESULT DeviceResources::LoadResources()
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
 	InitCraftMaterials();
-
+	// Apply the external FOV parameters
+	// LoadFOVParams(); // This doesn't work: looks like XWA overwrites these params after this call.
 	return hr;
 }
 

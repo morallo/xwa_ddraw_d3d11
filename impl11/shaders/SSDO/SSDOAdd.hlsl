@@ -367,8 +367,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
-	float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-	spec = /* ssdo.x * */ spec_int * pow(spec, exponent);
+	float spec_bloom = /* ssdo.y * */ spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
+	spec = /* ssdo.y * */ spec_int * pow(spec, exponent);
 
 	//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 	color = LightColor.rgb * (color * diffuse + spec_intensity * spec_col * spec); // +ambient;

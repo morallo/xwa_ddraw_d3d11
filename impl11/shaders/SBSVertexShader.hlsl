@@ -51,7 +51,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // This value was determined empirically
+	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
 	// Override the depth of this element if z_override is set
 	if (mult_z_override > -0.1)

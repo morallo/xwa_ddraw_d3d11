@@ -20,9 +20,10 @@ extern uint32_t* g_playerIndex;
 extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
-
+extern float g_fDefaultFOVDist;
 
 extern int g_KeySet;
+extern float g_fMetricMult;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -124,6 +125,100 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
 void ShutDownSteamVR();
+void ApplyFOV(float FOV);
+
+/*
+ * Save the current FOV and metric multiplier to an external file
+ */
+void SaveFOVParams() {
+	FILE *file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, "./FOVParams.cfg", "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] [FOV] Could not save FOVParams.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [FOV] Error %d when saving FOVParams.cfg", error);
+		return;
+	}
+
+	fprintf(file, "FOV = %0.6f\n", *g_fRawFOVDist);
+	fprintf(file, "metric_multiplier = %0.6f\n", g_fMetricMult);
+	fclose(file);
+}
+
+void LoadFOVParams() {
+	log_debug("[DBG] [FOV] Loading FOVParams...");
+	FILE *file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, "./FOVParams.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [FOV] Could not load FOVParams.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [FOV] Error %d when loading FOVParams.cfg", error);
+		return;
+	}
+
+	char buf[160], param[80], svalue[80];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 160, file) != NULL) {
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
+			fValue = (float)atof(svalue);
+			if (_stricmp(param, "FOV") == 0) {
+				ApplyFOV(fValue);
+				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
+			}
+			else if (_stricmp(param, "metric_multiplier") == 0) {
+				g_fMetricMult = fValue;
+				log_debug("[DBG] [FOV] Metric Multiplier: %0.6f", g_fMetricMult);
+			}
+		}
+	}
+	fclose(file);
+}
+
+void ApplyFOV(float FOV) 
+{
+	*g_fRawFOVDist = FOV;
+	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+}
+
+void IncreaseFOV(float delta) 
+{
+	*g_fRawFOVDist += delta;
+	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+	SaveFOVParams();
+	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
+		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+}
+
+void IncreaseMetricMult(float delta) 
+{
+	g_fMetricMult += delta;
+	if (g_fMetricMult < 0.1f)
+		g_fMetricMult = 0.1f;
+	SaveFOVParams();
+	log_debug("[DBG] [FOV] g_fMetricMult: %0.3f", g_fMetricMult);
+}
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
@@ -168,11 +263,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					*g_rawFOVDist += 50;
-					*g_fRawFOVDist += 50.0f;
-					*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
-					log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
-						*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+					IncreaseFOV(50.0f);
 					break;
 				}
 
@@ -197,11 +288,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					*g_rawFOVDist -= 50;
-					*g_fRawFOVDist -= 50.0f;
-					*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
-					log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
-						*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+					IncreaseFOV(-50.0f);
 					break;
 				}
 
@@ -220,16 +307,30 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 
 			case VK_UP:
-				g_LightVector[0].y += 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].y += 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					IncreaseMetricMult(0.1f);
+					break;
+				}
 
 				//g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
-				g_LightVector[0].y -= 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].y -= 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					IncreaseMetricMult(-0.1f);
+					break;
+				}
 
 				//g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
@@ -601,6 +702,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			InitDirectSBS();
 			g_bDirectSBSInitialized = true;
 		}
+		g_fDefaultFOVDist = *g_fRawFOVDist;
+		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
 		break;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:

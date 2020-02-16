@@ -215,19 +215,20 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	 */
 	float3 B = 0;
 	const float occ_dot = dot(Normal, v);
+	
+	B.x = uv_diff.x;
+	B.y = -uv_diff.y;
+	//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+	//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
+	B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
+	// Adding the normalized B to BentNormal seems to yield better normals
+	// if B is added to BentNormal before normalization, the resulting normals
+	// look more faceted
+	B = normalize(B);
+
 	//if (occ_dot < bias)
 	if (diff.z > 0.0 /* || weight < 0.5 */) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
 	{
-		B.x =  uv_diff.x;
-		B.y = -uv_diff.y;
-		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
-		//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
-		B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
-		// Adding the normalized B to BentNormal seems to yield better normals
-		// if B is added to BentNormal before normalization, the resulting normals
-		// look more faceted
-		B = normalize(B);
-
 		// If weight == 0, use the current point's Normal to compute shading
 		// If weight == 1, use the Bent Normal
 		// Vary between these two values depending on 'weight':
@@ -241,7 +242,21 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//	//output.N = FakeNormal;
 		//}
 		output.N = B;
-		output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+		//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+		output.col = saturate(dot(B, LightVector.xyz));
+		//output.col.y = 1.0;
+		/*
+		// Specular component
+		// Do I need to invert Z for pos3D?
+		float3 pos3D = P;
+		//pos3D.z = -pos3D.z;
+		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
+		// reflect expects an incident vector: a vector that goes from the light source to the current point.
+		// L goes from the current point to the light vector, so we have to use -L:
+		float3 refl_vec = normalize(reflect(-LightVector.xyz, B));
+		output.col.y = max(dot(eye_vec, refl_vec), 0.0);
+		output.col.z = 0.0;
+		*/
 
 		//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
 		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
@@ -260,6 +275,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 
 		output.N = 0;
 		output.col = 0;
+		//output.col.y = 1.0;
+		//output.col.y = 1.0 - saturate(dot(B, LightVector.xyz));
 
 		//B = lerp(-Normal, 0, weight);
 		//B = occluder_normal;

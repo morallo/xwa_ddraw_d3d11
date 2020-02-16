@@ -27,6 +27,8 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+extern bool g_bCustomFOVApplied;
+void LoadFOVParams();
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
@@ -5684,6 +5686,15 @@ HRESULT PrimarySurface::Flip(
 				g_LaserPointerBuffer.bIntersection = 0;
 				g_fBestIntersectionDistance = 10000.0f;
 				g_iBestIntersTexIdx = -1;
+			}
+
+			// Apply the custom FOV
+			// I tried applying these settings on DLL load, and on the first draw call in Execute(); but they didn't work.
+			// Apparently I have to wait until the first frame is fully executed in order to apply the custom FOV
+			if (!g_bCustomFOVApplied) {
+				log_debug("[DBG] [FOV] Applying Custom FOV from Flip()");
+				LoadFOVParams();
+				g_bCustomFOVApplied = true;
 			}
 
 //#define HYPER_OVERRIDE 1

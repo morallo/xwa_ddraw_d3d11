@@ -46,6 +46,8 @@ const auto numberOfPlayersInGame = (int*)0x910DEC;
 uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
 int g_KeySet = 2;
 /* 
    1 = Arrow keys move the lights
@@ -54,6 +56,7 @@ int g_KeySet = 2;
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
+const float DEFAULT_METRIC_MULT = 1.0f;
 
 const float DEFAULT_HUD_PARALLAX = 1.7f;
 const float DEFAULT_TEXT_PARALLAX = 0.45f;
@@ -198,6 +201,7 @@ vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
+float g_fMetricMult = DEFAULT_METRIC_MULT;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -433,6 +437,7 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
 bool InitDirectSBS();
+void LoadFOVParams();
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -571,6 +576,7 @@ void IncreaseLensK2(float Delta) {
 void ResetVRParams() {
 	//g_fFocalDist = g_bSteamVREnabled ? DEFAULT_FOCAL_DIST_STEAMVR : DEFAULT_FOCAL_DIST;
 	g_fFocalDist = DEFAULT_FOCAL_DIST;
+	g_fMetricMult = DEFAULT_METRIC_MULT;
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
@@ -607,14 +613,14 @@ void ResetVRParams() {
 	g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 
 	g_fBrightness = DEFAULT_BRIGHTNESS;
-	g_bStickyArrowKeys = false;
-	g_bYawPitchFromMouseOverride = false;
+	//g_bStickyArrowKeys = false;
+	//g_bYawPitchFromMouseOverride = false;
 
 	g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 	if (g_bUseSteamVR)
 		g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 
-	g_bDisableBarrelEffect = g_bUseSteamVR ? !DEFAULT_BARREL_EFFECT_STATE_STEAMVR : !DEFAULT_BARREL_EFFECT_STATE;
+	//g_bDisableBarrelEffect = g_bUseSteamVR ? !DEFAULT_BARREL_EFFECT_STATE_STEAMVR : !DEFAULT_BARREL_EFFECT_STATE;
 
 	g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
 
@@ -635,11 +641,14 @@ void ResetVRParams() {
 	if (!g_bUseSteamVR)
 		InitDirectSBS();
 
-	g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
-	g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
-	g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
+	//g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
+	//g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+	//g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
+
+	/**g_fRawFOVDist = g_fDefaultFOVDist;
+	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
 	// Load CRCs
-	//ReloadCRCs();
 	LoadCockpitLookParams();
 }
 
@@ -3027,6 +3036,11 @@ void LoadVRParams() {
 	fclose(file);
 
 next:
+	g_fMetricMult = DEFAULT_METRIC_MULT;
+	/**g_fRawFOVDist = g_fDefaultFOVDist;
+	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
+
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
@@ -3041,6 +3055,8 @@ next:
 	LoadSSAOParams();
 	// Load the Hyperspace params
 	LoadHyperParams();
+	// Load FOV params
+	LoadFOVParams();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -4757,6 +4773,12 @@ HRESULT Direct3DDevice::Execute(
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
+	/*if (!g_bCustomFOVApplied) {
+		log_debug("[DBG] [FOV] Applying Custom FOV from Execute()");
+		LoadFOVParams();
+		g_bCustomFOVApplied = true;
+	}*/
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -4778,7 +4800,7 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform = 0.0f;
 	g_VSCBuffer.bFullTransform = 0.0f;
-	g_VSCBuffer.metric_mult = 1.0f;
+	g_VSCBuffer.metric_mult = g_fMetricMult;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -5200,15 +5222,6 @@ HRESULT Direct3DDevice::Execute(
 					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
 					//		resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				//}
-
-				/*
-				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
-					// The skybox just finished, capture it, replace it, etc
-					g_bSkyBoxJustFinished = true;
-					// Capture the background:
-					// ...
-				}
-				*/
 
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
 					// The skybox just finished, capture it, replace it, etc
@@ -6596,7 +6609,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.mult_z_override = -1.0f;
 					g_VSCBuffer.bPreventTransform = 0.0f;
 					g_VSCBuffer.bFullTransform = 0.0f;
-					g_VSCBuffer.metric_mult = 1.0f;
+					g_VSCBuffer.metric_mult = g_fMetricMult;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
