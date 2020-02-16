@@ -2863,6 +2863,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	if (g_bDumpSSAOBuffers)
 		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
 			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+	g_ShadingSys_PSBuffer.ssdo_enabled = 1.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
 #ifdef DEATH_STAR
@@ -3539,6 +3540,7 @@ void PrimarySurface::DeferredPass() {
 	if (g_bDumpSSAOBuffers)
 		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
 			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+	g_ShadingSys_PSBuffer.ssdo_enabled = 0.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
 	// Set the Vertex Shader Constant buffers

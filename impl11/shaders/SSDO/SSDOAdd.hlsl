@@ -264,6 +264,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  metallic  = mask / METAL_MAT;
 	float  nm_int    = ssMask.x;
 	float  spec_val  = ssMask.y;
+
+	// This shader is shared between the SSDO pass and the Deferred pass.
+	// For the deferred pass, we don't have an SSDO component, so:
+	// Set the ssdo component to 1 if ssdo is disabled
+	ssdo = lerp(1.0, ssdo, ssdo_enabled);
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
