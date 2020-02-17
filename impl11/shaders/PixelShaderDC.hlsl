@@ -207,15 +207,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		diffuse = lerp(1.0, diffuse, alpha);
 		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
 		// ssMask: NMIntensity, SpecValue, unused
-		output.ssaoMask.r = lerp(SHADELESS_MAT, PLASTIC_MAT, alpha);
-		output.ssaoMask.a = max(output.ssaoMask.a, (1 - alpha));
-		output.ssMask.a   = output.ssaoMask.a; // Already clamped in the previous line
-		// if alpha is 1, this is the cover texture --> Glossiness = DEFAULT_GLOSSINESS
-		// if alpha is 0, this is the hole in the cover texture --> Maximum glossiness
-		output.ssaoMask.g = lerp(1.00, DEFAULT_GLOSSINESS, alpha);
-		output.ssaoMask.b = lerp(0.15, DEFAULT_SPEC_INT, alpha); // Low spec intensity
-		output.ssMask.r   = lerp(0.0, fNMIntensity, alpha); // Normal Mapping intensity
-		output.ssMask.g   = lerp(1.0, fSpecVal, alpha); //  Specular Value
+		// DC areas are shadeless, have high glossiness and low spec intensity
+		// if alpha is 1, this is the cover texture
+		// if alpha is 0, this is the hole in the cover texture
+		output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, alpha);
+		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.r, alpha); // Normal Mapping intensity, Specular Value
+		output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
+		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
 	}
 	else {
 		texelColor = hud_texelColor;
