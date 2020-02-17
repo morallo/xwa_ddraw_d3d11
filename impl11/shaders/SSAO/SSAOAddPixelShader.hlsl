@@ -280,7 +280,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//const float amb_max = 0.3;
 		//const float spec_max = 0.3;
 		float diffuse = max(dot(N, L), 0.0);
-		diffuse = ssao.x * (diff_int * diffuse + ambient);
+		diffuse = ssao.x * diff_int * diffuse + ambient;
 		//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
 		//diffuse = diff_int * diffuse + ambient;
 

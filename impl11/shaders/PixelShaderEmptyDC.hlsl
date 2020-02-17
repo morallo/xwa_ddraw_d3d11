@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// if alpha is 1, this is the cover texture
 	// if alpha is 0, this is the hole in the cover texture
 	output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, alpha);
-	output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.r, alpha); // Normal Mapping intensity, Specular Value
+	output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, alpha); // Normal Mapping intensity, Specular Value
 	output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 	output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
 	return output;

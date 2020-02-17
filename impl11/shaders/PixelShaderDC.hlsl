@@ -177,7 +177,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
 
 	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
-	// Also go shadless where the cover texture is bright enough.
+	// Also go shadeless where the cover texture is bright enough and mark that in the bloom mask.
 	if (bUseCoverTexture > 0) {
 		// We don't have an alpha overlay texture anymore; but we can fake it by disabling shading
 		// on areas with a high lightness value
@@ -201,8 +201,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Display the dynamic cockpit texture only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
 		// that's what the brightness setting below is for:
-		texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
-		output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
+		texelColor   = lerp(hud_texelColor, brightness * texelColor, alpha);
+		output.bloom = lerp(0.0, output.bloom, alpha);
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 		diffuse = lerp(1.0, diffuse, alpha);
 		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
@@ -211,7 +211,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// if alpha is 1, this is the cover texture
 		// if alpha is 0, this is the hole in the cover texture
 		output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, alpha);
-		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.r, alpha); // Normal Mapping intensity, Specular Value
+		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, alpha); // Normal Mapping intensity, Specular Value
 		output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
 	}

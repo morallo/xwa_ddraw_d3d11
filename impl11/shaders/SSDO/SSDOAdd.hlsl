@@ -171,6 +171,7 @@ float3 blend_normals(float3 n1, float3 n2)
 // the game later on.
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
+	//float w = P.z / (METRIC_SCALE_FACTOR * metric_mult);
 	float w = P.z / METRIC_SCALE_FACTOR;
 	P.xy = P.xy / P.z;
 	// Convert to vertex pos:
@@ -350,7 +351,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		else
 		*/
 		// Default case
-		diffuse = ssdo.x * (diff_int * diffuse + ambient);
+		diffuse = ssdo.x * diff_int * diffuse + ambient;
 		//diffuse = diff_int * diffuse + ambient;
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
