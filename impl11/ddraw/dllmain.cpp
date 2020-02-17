@@ -23,7 +23,7 @@ extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be u
 extern float g_fDefaultFOVDist;
 
 extern int g_KeySet;
-extern float g_fMetricMult;
+extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -146,8 +146,10 @@ void SaveFOVParams() {
 		return;
 	}
 
-	fprintf(file, "FOV = %0.6f\n", *g_fRawFOVDist);
-	fprintf(file, "metric_multiplier = %0.6f\n", g_fMetricMult);
+	fprintf(file, "; The focal length is measured in pixels. The reason this parameter lives in a separate\n");
+	fprintf(file, "; config file is that it can only be applied after the first frame rendered in 3D. So,\n");
+	fprintf(file, "; it's faster to read it from this place\n");
+	fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
 	fclose(file);
 }
 
@@ -181,13 +183,9 @@ void LoadFOVParams() {
 
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 			fValue = (float)atof(svalue);
-			if (_stricmp(param, "FOV") == 0) {
+			if (_stricmp(param, "focal_length") == 0) {
 				ApplyFOV(fValue);
 				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
-			}
-			else if (_stricmp(param, "metric_multiplier") == 0) {
-				g_fMetricMult = fValue;
-				log_debug("[DBG] [FOV] Metric Multiplier: %0.6f", g_fMetricMult);
 			}
 		}
 	}
@@ -206,7 +204,6 @@ void IncreaseFOV(float delta)
 	*g_fRawFOVDist += delta;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
-	SaveFOVParams();
 	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
 		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
 }
@@ -216,8 +213,13 @@ void IncreaseMetricMult(float delta)
 	g_fMetricMult += delta;
 	if (g_fMetricMult < 0.1f)
 		g_fMetricMult = 0.1f;
-	SaveFOVParams();
 	log_debug("[DBG] [FOV] g_fMetricMult: %0.3f", g_fMetricMult);
+}
+
+void IncreaseAspectRatio(float delta) {
+	g_fAspectRatio += delta;
+	g_fConcourseAspectRatio += delta;
+	log_debug("[DBG] [FOV] Aspect Ratio: %0.6f, Concourse Aspect Ratio: %0.6f", g_fAspectRatio, g_fConcourseAspectRatio);
 }
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -264,6 +266,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(50.0f);
+					SaveFOVParams();
 					break;
 				}
 
@@ -289,6 +292,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(-50.0f);
+					SaveFOVParams();
 					break;
 				}
 
@@ -315,6 +319,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseMetricMult(0.1f);
+					SaveVRParams();
 					break;
 				}
 
@@ -329,6 +334,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseMetricMult(-0.1f);
+					SaveVRParams();
 					break;
 				}
 
@@ -526,18 +532,51 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 #endif
 
-				// Ctrl + Up
+			// Ctrl + Up/Down
 			case VK_UP:
-				g_LightVector[0].z += 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].z += 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					IncreaseScreenScale(0.1f);
+					SaveVRParams();
+					break;
+				}
 				return 0;
 				// Ctrl + Down
 			case VK_DOWN:
-				g_LightVector[0].z -= 0.1f;
-				g_LightVector[0].normalize();
-				PrintVector(g_LightVector[0]);
+				switch (g_KeySet) {
+				case 1:
+					g_LightVector[0].z -= 0.1f;
+					g_LightVector[0].normalize();
+					PrintVector(g_LightVector[0]);
+					break;
+				case 2:
+					IncreaseScreenScale(-0.1f);
+					SaveVRParams();
+					break;
+				}
 				return 0;
+			case VK_LEFT:
+				switch (g_KeySet) {
+				case 2:
+					IncreaseAspectRatio(-0.05f);
+					SaveVRParams();
+					break;
+				}
+				return 0;
+			case VK_RIGHT:
+				switch (g_KeySet) {
+				case 2:
+					IncreaseAspectRatio(0.05f);
+					SaveVRParams();
+					break;
+				}
+				return 0;
+
 			}
 		}
 

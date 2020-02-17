@@ -116,6 +116,7 @@ const float DEFAULT_PITCH_OFFSET = 0.0f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
 const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
+const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
 const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
 const char *WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM = "zoomed_out_on_startup";
@@ -145,17 +146,8 @@ const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 // 6dof vrparams
-const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
-const char *POS_X_MULTIPLIER_VRPARAM = "positional_x_multiplier";
-const char *POS_Y_MULTIPLIER_VRPARAM = "positional_y_multiplier";
-const char *POS_Z_MULTIPLIER_VRPARAM = "positional_z_multiplier";
-const char *MIN_POSITIONAL_X_VRPARAM = "min_positional_track_x";
-const char *MAX_POSITIONAL_X_VRPARAM = "max_positional_track_x";
-const char *MIN_POSITIONAL_Y_VRPARAM = "min_positional_track_y";
-const char *MAX_POSITIONAL_Y_VRPARAM = "max_positional_track_y";
-const char *MIN_POSITIONAL_Z_VRPARAM = "min_positional_track_z";
-const char *MAX_POSITIONAL_Z_VRPARAM = "max_positional_track_z";
+const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char *STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
 // Cockpitlook params
 const char *YAW_MULTIPLIER_CLPARAM   = "yaw_multiplier";
@@ -658,13 +650,13 @@ void SaveVRParams() {
 	int error = 0;
 	
 	try {
-		error = fopen_s(&file, "./vrparams.cfg", "wt");
+		error = fopen_s(&file, "./VRParams.cfg", "wt");
 	} catch (...) {
-		log_debug("[DBG] Could not save vrparams.cfg");
+		log_debug("[DBG] Could not save VRParams.cfg");
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] Error %d when saving vrparams.cfg", error);
+		log_debug("[DBG] Error %d when saving VRParams.cfg", error);
 		return;
 	}
 	fprintf(file, "; VR parameters. Write one parameter per line.\n");
@@ -675,7 +667,7 @@ void SaveVRParams() {
 	fprintf(file, "; VR mode may need to be set manually.\n");
 	fprintf(file, "; To reload this file during game (at any point) just press Ctrl+Alt+L.\n");
 	fprintf(file, "; Most parameters can be re-applied when reloading.\n");
-	fprintf(file, "; You can also press Ctrl+Alt+R to reset the viewing params to default values.\n\n");
+	//fprintf(file, "; You can also press Ctrl+Alt+R to reset the viewing params to default values.\n\n");
 
 	fprintf(file, "; VR Mode. Select from None, DirectSBS and SteamVR.\n");
 	if (!g_bEnableVR)
@@ -694,6 +686,8 @@ void SaveVRParams() {
 	fprintf(file, "; remove the stereoscopy effect.\n");
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
 	fprintf(file, "%s = %0.1f\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
+	fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
+	fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
@@ -710,7 +704,7 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n\n", COCKPIT_Z_THRESHOLD_VRPARAM, g_fCockpitPZThreshold);
 	*/
 
-	fprintf(file, "; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
+	fprintf(file, "\n; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
 	fprintf(file, "; ALWAYS specify BOTH the Concourse and 3D window aspect ratio.\n");
 	fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
 	fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
@@ -765,13 +759,9 @@ void SaveVRParams() {
 
 	//fprintf(file, "\n");
 	//fprintf(file, "%s = %d\n", INVERSE_TRANSPOSE_VRPARAM, g_bInverseTranspose);
-	fprintf(file, "\n; 6dof section. Set any of these multipliers to 0 to de-activate individual axes.\n");
-	fprintf(file, "; The settings for pitch and yaw are in cockpitlook.cfg\n");
+	fprintf(file, "\n; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
+	fprintf(file, "; The settings for pitch, yaw and positional tracking are in CockpitLook.cfg\n");
 	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
-
-	//fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
-	//fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
-	//fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
@@ -2922,6 +2912,10 @@ void LoadVRParams() {
 			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
 			}
+			else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
+				g_fMetricMult = fValue;
+				log_debug("[DBG] [FOV] g_fMetricMult: %0.6f", g_fMetricMult);
+			}
 			else if (_stricmp(param, SIZE_3D_WINDOW_VRPARAM) == 0) {
 				// Size of the window while playing the game
 				g_fGlobalScale = fValue;
@@ -3036,7 +3030,6 @@ void LoadVRParams() {
 	fclose(file);
 
 next:
-	g_fMetricMult = DEFAULT_METRIC_MULT;
 	/**g_fRawFOVDist = g_fDefaultFOVDist;
 	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
@@ -4794,13 +4787,13 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer = { 0 };
 	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
-	g_VSCBuffer.z_override = -1.0f;
-	g_VSCBuffer.sz_override = -1.0f;
-	g_VSCBuffer.mult_z_override = -1.0f;
+	g_VSCBuffer.z_override		  = -1.0f;
+	g_VSCBuffer.sz_override		  = -1.0f;
+	g_VSCBuffer.mult_z_override	  = -1.0f;
 	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform = 0.0f;
-	g_VSCBuffer.bFullTransform = 0.0f;
-	g_VSCBuffer.metric_mult = g_fMetricMult;
+	g_VSCBuffer.bFullTransform	  = 0.0f;
+	g_VSCBuffer.metric_mult		  = g_fMetricMult;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -4922,10 +4915,11 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
 
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_SSAO_PSCBuffer.vpScale[0] = g_VSCBuffer.viewportScale[0];

@@ -79,7 +79,7 @@ extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
-extern float g_fCurInGameWidth, g_fCurInGameHeight;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
@@ -2052,6 +2052,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override = g_fFloatingGUIDepth;
+	g_VSCBuffer.metric_mult = g_fMetricMult;
 
 	//g_PSCBuffer.brightness        = g_fBrightness;
 	g_PSCBuffer.brightness		  = 1.0f; // TODO: Check if g_fBrightness is already applied when the textures are rendered
@@ -4014,6 +4015,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_fullMatrixLeft;
@@ -4113,6 +4115,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_fullMatrixLeft;
