@@ -183,7 +183,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  gloss     = ssaoMask.y;
 	float  spec_int  = ssaoMask.z;
 	float  diff_int  = 1.0;
-	bool   shadeless = mask > SHADELESS_LO;
+	bool   shadeless = mask > GLASS_LO; //SHADELESS_LO;
 	float  metallic  = mask / METAL_MAT;
 	float  nm_int    = ssMask.x;
 	float  spec_val  = ssMask.y;

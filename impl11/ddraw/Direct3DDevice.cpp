@@ -2476,7 +2476,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.intensity = 3.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
-	g_SSAO_PSCBuffer.bentNormalInit = 0.2f;
+	g_SSAO_PSCBuffer.bentNormalInit = 1.0f; // 0.2f
 	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
 	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
 	g_SSAO_PSCBuffer.z_division = 0;
@@ -2485,10 +2485,10 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
 	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
-	g_SSAO_PSCBuffer.fn_scale = 1.0f;
-	g_SSAO_PSCBuffer.fn_max_xymult = 100.0f;
+	g_SSAO_PSCBuffer.fn_scale = 0.03f;
+	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
-	g_SSAO_PSCBuffer.gamma = 1.0f;
+	g_SSAO_PSCBuffer.gamma = 1.25f;
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
@@ -2572,8 +2572,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "intensity") == 0) {
 				g_SSAO_PSCBuffer.intensity = fValue;
 			}
-			else if (_stricmp(param, "near_sample_radius") == 0 ||
-				     _stricmp(param, "sample_radius") == 0) {
+			else if (_stricmp(param, "near_sample_radius") == 0) { // "sample_radius" was previously read here too
 				g_SSAO_PSCBuffer.near_sample_radius = fValue;
 			}
 			else if (_stricmp(param, "far_sample_radius") == 0) {
