@@ -2409,41 +2409,35 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 void PrimarySurface::SetLights(float fSSDOEnabled) {
 	const auto &resources = this->_deviceResources;
 	Vector4 light[2];
-	g_ShadingSys_PSBuffer.LightColor.x = g_LightColor[0].x;
-	g_ShadingSys_PSBuffer.LightColor.y = g_LightColor[0].y;
-	g_ShadingSys_PSBuffer.LightColor.z = g_LightColor[0].z;
-
-	g_ShadingSys_PSBuffer.LightColor2.x = g_LightColor[1].x;
-	g_ShadingSys_PSBuffer.LightColor2.y = g_LightColor[1].y;
-	g_ShadingSys_PSBuffer.LightColor2.z = g_LightColor[1].z;
+	for (int i = 0; i < 2; i++) {
+		g_ShadingSys_PSBuffer.LightColor[i].x = g_LightColor[i].x;
+		g_ShadingSys_PSBuffer.LightColor[i].y = g_LightColor[i].y;
+		g_ShadingSys_PSBuffer.LightColor[i].z = g_LightColor[i].z;
+	}
 
 	ComputeRotationMatrixFromXWAView(light, 2);
 	if (g_bOverrideLightPos) {
-		g_ShadingSys_PSBuffer.LightVector.x = g_LightVector[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = g_LightVector[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = g_LightVector[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = g_LightVector[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = g_LightVector[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = g_LightVector[1].z;
+		for (int i = 0; i < 2; i++) {
+			g_ShadingSys_PSBuffer.LightVector[i].x = g_LightVector[i].x;
+			g_ShadingSys_PSBuffer.LightVector[i].y = g_LightVector[i].y;
+			g_ShadingSys_PSBuffer.LightVector[i].z = g_LightVector[i].z;
+		}
 	}
 	else {
-		g_ShadingSys_PSBuffer.LightVector.x = light[0].x;
-		g_ShadingSys_PSBuffer.LightVector.y = light[0].y;
-		g_ShadingSys_PSBuffer.LightVector.z = light[0].z;
-
-		g_ShadingSys_PSBuffer.LightVector2.x = light[1].x;
-		g_ShadingSys_PSBuffer.LightVector2.y = light[1].y;
-		g_ShadingSys_PSBuffer.LightVector2.z = light[1].z;
+		for (int i = 0; i < 2; i++) {
+			g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
+			g_ShadingSys_PSBuffer.LightVector[i].y = light[i].y;
+			g_ShadingSys_PSBuffer.LightVector[i].z = light[i].z;
+		}
 	}
 	//Vector4 Rs, Us, Fs;
 	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
 	//light[0] = H * g_LightVector[0];
 	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector.x, g_ShadingSys_PSBuffer.LightVector.y, g_ShadingSys_PSBuffer.LightVector.z);
+			g_ShadingSys_PSBuffer.LightVector[0].x, g_ShadingSys_PSBuffer.LightVector[0].y, g_ShadingSys_PSBuffer.LightVector[0].z);
 		log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector2.x, g_ShadingSys_PSBuffer.LightVector2.y, g_ShadingSys_PSBuffer.LightVector2.z);
+			g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
 	}
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);

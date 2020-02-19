@@ -295,13 +295,9 @@ typedef struct float4_struct {
 } float4;
 
 typedef struct PSShadingSystemCBStruct {
-	float4  LightVector;
-	// 16 bytes
-	float4  LightVector2;
+	float4  LightVector[2];
 	// 32 bytes
-	float4  LightColor;
-	// 48 bytes
-	float4  LightColor2;
+	float4  LightColor[2];
 	// 64 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
 	// 80 bytes
