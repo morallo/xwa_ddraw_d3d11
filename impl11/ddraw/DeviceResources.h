@@ -276,6 +276,8 @@ typedef struct VertexShaderCBStruct {
 	// 32 bytes
 	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
 	// 48 bytes
+	float post_proj_scale, vsunused0, vsunused1, vsunused2;
+	// 64 bytes
 } VertexShaderCBuffer;
 
 typedef struct VertexShaderMatrixCBStruct {

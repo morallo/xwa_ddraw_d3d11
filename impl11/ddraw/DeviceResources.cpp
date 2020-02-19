@@ -134,7 +134,7 @@ extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 bool InitSteamVR();
 
-void LoadFOVParams();
+void LoadFocalLength();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */
 typedef enum {
@@ -2533,14 +2533,15 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	D3D11_BUFFER_DESC constantBufferDesc;
-	constantBufferDesc.ByteWidth = 64;
 	constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constantBufferDesc.CPUAccessFlags = 0;
 	constantBufferDesc.MiscFlags = 0;
 	constantBufferDesc.StructureByteStride = 0;
 
+	constantBufferDesc.ByteWidth = 64;
 	// This was the original constant buffer. Now it's called _VSConstantBuffer
+	static_assert(sizeof(VertexShaderCBuffer) == 64, "sizeof(VertexShaderCBuffer) must be 64");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
 		return hr;
 
@@ -2607,7 +2608,7 @@ HRESULT DeviceResources::LoadResources()
 	InitOPTnames();
 	InitCraftMaterials();
 	// Apply the external FOV parameters
-	// LoadFOVParams(); // This doesn't work: looks like XWA overwrites these params after this call.
+	// LoadFocalLength(); // This doesn't work: looks like XWA overwrites these params after this call.
 	return hr;
 }
 

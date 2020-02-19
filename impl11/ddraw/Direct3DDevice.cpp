@@ -118,6 +118,7 @@ const char *FOCAL_DIST_VRPARAM = "focal_dist";
 const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
 const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
 const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
+const char *SIZE_POST_PROJ_VRPARAM = "post_projection_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
 const char *WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM = "zoomed_out_on_startup";
 const char *CONCOURSE_WINDOW_SCALE_VRPARAM = "concourse_window_scale";
@@ -354,6 +355,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 float g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
+float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 float g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 float g_fConcourseAspectRatio = DEFAULT_CONCOURSE_ASPECT_RATIO;
@@ -429,7 +431,7 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
 bool InitDirectSBS();
-void LoadFOVParams();
+void LoadFocalLength();
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -509,7 +511,14 @@ void IncreaseScreenScale(float Delta) {
 	g_fGlobalScale += Delta;
 	if (g_fGlobalScale < 0.2f)
 		g_fGlobalScale = 0.2f;
-	log_debug("[DBG] New g_fGlobalScale: %f", g_fGlobalScale);
+	log_debug("[DBG] New g_fGlobalScale: %0.3f", g_fGlobalScale);
+}
+
+void IncreasePostProjScale(float Delta) {
+	g_fPostProjScale += Delta;
+	if (g_fPostProjScale < 0.2f)
+		g_fPostProjScale = 0.2f;
+	log_debug("[DBG] New g_fPostProjScale: %0.3ff", g_fPostProjScale);
 }
 
 void IncreaseFocalDist(float Delta) {
@@ -575,6 +584,7 @@ void ResetVRParams() {
 	g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
+	g_fPostProjScale = 1.0f;
 	g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 	g_bZoomOut = g_bZoomOutInitialState;
 	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
@@ -690,6 +700,9 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+	fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
+	fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
+	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
 	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
 	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
@@ -2923,6 +2936,9 @@ void LoadVRParams() {
 				// Size of the window while playing the game; but zoomed out to see all the GUI
 				g_fGlobalScaleZoomOut = fValue;
 			}
+			else if (_stricmp(param, SIZE_POST_PROJ_VRPARAM) == 0) {
+				g_fPostProjScale = fValue;
+			}
 			else if (_stricmp(param, WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM) == 0) {
 				g_bZoomOutInitialState = (bool)fValue;
 				g_bZoomOut = (bool)fValue;
@@ -3048,7 +3064,7 @@ next:
 	// Load the Hyperspace params
 	LoadHyperParams();
 	// Load FOV params
-	LoadFOVParams();
+	LoadFocalLength();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -4767,7 +4783,7 @@ HRESULT Direct3DDevice::Execute(
 
 	/*if (!g_bCustomFOVApplied) {
 		log_debug("[DBG] [FOV] Applying Custom FOV from Execute()");
-		LoadFOVParams();
+		LoadFocalLength(); // Doesn't work here, need to do it after the first frame is rendered
 		g_bCustomFOVApplied = true;
 	}*/
 
@@ -4912,6 +4928,7 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[2] = scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+		g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
@@ -6596,13 +6613,14 @@ HRESULT Direct3DDevice::Execute(
 
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
-					g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-					g_VSCBuffer.z_override = -1.0f;
-					g_VSCBuffer.sz_override = -1.0f;
-					g_VSCBuffer.mult_z_override = -1.0f;
-					g_VSCBuffer.bPreventTransform = 0.0f;
-					g_VSCBuffer.bFullTransform = 0.0f;
-					g_VSCBuffer.metric_mult = g_fMetricMult;
+					g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
+					g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
+					g_VSCBuffer.z_override        = -1.0f;
+					g_VSCBuffer.sz_override       = -1.0f;
+					g_VSCBuffer.mult_z_override   = -1.0f;
+					g_VSCBuffer.bPreventTransform =  0.0f;
+					g_VSCBuffer.bFullTransform    = 0.0f;
+					g_VSCBuffer.metric_mult       = g_fMetricMult;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;

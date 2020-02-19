@@ -28,7 +28,7 @@ const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
 extern bool g_bCustomFOVApplied;
-void LoadFOVParams();
+void LoadFocalLength();
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
@@ -2044,6 +2044,7 @@ void PrimarySurface::DrawHUDVertices() {
 	}
 	//g_VSCBuffer.viewportScale[2] = 1.0f; // scale;
 	//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+	//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
 
 	// Reduce the scale for GUI elements, except for the HUD
 	g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
@@ -4111,6 +4112,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		//g_VSCBuffer.viewportScale[3] = 1.0f;
 		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+		//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -5649,7 +5651,7 @@ HRESULT PrimarySurface::Flip(
 			// Apparently I have to wait until the first frame is fully executed in order to apply the custom FOV
 			if (!g_bCustomFOVApplied) {
 				log_debug("[DBG] [FOV] Applying Custom FOV from Flip()");
-				LoadFOVParams();
+				LoadFocalLength();
 				g_bCustomFOVApplied = true;
 			}
 

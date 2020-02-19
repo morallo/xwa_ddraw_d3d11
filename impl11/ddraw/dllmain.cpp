@@ -42,7 +42,6 @@ void IncreaseSkipNonZBufferDrawIdx(int Delta);
 void IncreaseSkyBoxIndex(int Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
-void IncreaseFocalDist(float Delta);
 
 // Debug functions
 void log_debug(const char *format, ...);
@@ -103,6 +102,8 @@ void LoadVRParams();
 
 void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
+void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
+//void IncreasePostProjScale(float Delta);
 void ToggleZoomOutMode();
 void IncreaseZoomOutScale(float Delta);
 void IncreaseHUDParallax(float Delta);
@@ -110,6 +111,7 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
+
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
@@ -130,19 +132,19 @@ void ApplyFOV(float FOV);
 /*
  * Save the current FOV and metric multiplier to an external file
  */
-void SaveFOVParams() {
+void SaveFocalLength() {
 	FILE *file;
 	int error = 0;
 
 	try {
-		error = fopen_s(&file, "./FOVParams.cfg", "wt");
+		error = fopen_s(&file, "./FocalLength.cfg", "wt");
 	}
 	catch (...) {
-		log_debug("[DBG] [FOV] Could not save FOVParams.cfg");
+		log_debug("[DBG] [FOV] Could not save FocalLength.cfg");
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] [FOV] Error %d when saving FOVParams.cfg", error);
+		log_debug("[DBG] [FOV] Error %d when saving FocalLength.cfg", error);
 		return;
 	}
 
@@ -153,20 +155,20 @@ void SaveFOVParams() {
 	fclose(file);
 }
 
-void LoadFOVParams() {
-	log_debug("[DBG] [FOV] Loading FOVParams...");
+void LoadFocalLength() {
+	log_debug("[DBG] [FOV] Loading FocalLength...");
 	FILE *file;
 	int error = 0;
 
 	try {
-		error = fopen_s(&file, "./FOVParams.cfg", "rt");
+		error = fopen_s(&file, "./FocalLength.cfg", "rt");
 	}
 	catch (...) {
-		log_debug("[DBG] [FOV] Could not load FOVParams.cfg");
+		log_debug("[DBG] [FOV] Could not load FocalLength.cfg");
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] [FOV] Error %d when loading FOVParams.cfg", error);
+		log_debug("[DBG] [FOV] Error %d when loading FocalLength.cfg", error);
 		return;
 	}
 
@@ -266,7 +268,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(50.0f);
-					SaveFOVParams();
+					SaveFocalLength();
 					break;
 				}
 
@@ -292,7 +294,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(-50.0f);
-					SaveFOVParams();
+					SaveFocalLength();
 					break;
 				}
 
@@ -542,6 +544,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseScreenScale(0.1f);
+					//IncreasePostProjScale(0.1f);
 					SaveVRParams();
 					break;
 				}
@@ -556,6 +559,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseScreenScale(-0.1f);
+					//IncreasePostProjScale(-0.1f);
 					SaveVRParams();
 					break;
 				}

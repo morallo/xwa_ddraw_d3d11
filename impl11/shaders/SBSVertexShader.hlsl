@@ -9,6 +9,7 @@ cbuffer ConstantBuffer : register(b0)
 	float4 vpScale;
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
 	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
+	float post_proj_scale, vsunused0, vsunused1, vsunused2;
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -50,6 +51,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
+	//temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
@@ -81,6 +83,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(compViewMatrix, float4(P, 1));
 	}
 	output.pos = mul(projEyeMatrix, output.pos);
+	output.pos.xy *= post_proj_scale;
 	//output.pos.w = 1.0f;
 
 	// Stereoscopy boost -- probably not worth it, needs to be able to distinguish the skybox and the HUD is amplified too
