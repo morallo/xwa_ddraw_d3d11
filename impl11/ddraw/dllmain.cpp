@@ -458,6 +458,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fSpecBloomIntensity = 1.25f;
 				}
 				return 0;
+			case 'E':
+				g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
+				return 0;
 			/*
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
@@ -495,14 +498,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_UP:
 				IncreaseLensK1(0.1f);
+				SaveVRParams();
 				//g_contOriginWorldSpace.z += 0.04f;
 				return 0;
 			case VK_DOWN:
 				IncreaseLensK1(-0.1f);
+				SaveVRParams();
 				//g_contOriginWorldSpace.z -= 0.04f;
 				return 0;
 			case VK_LEFT:
 				IncreaseLensK2(-0.1f);
+				SaveVRParams();
 				/*g_fLPdebugPointOffset -= 0.05f;
 				if (g_fLPdebugPointOffset < 0.0f)
 					g_fLPdebugPointOffset = 0.0f;*/
@@ -511,6 +517,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case VK_RIGHT:
 				IncreaseLensK2(0.1f);
+				SaveVRParams();
 				//g_fLPdebugPointOffset += 0.05f;
 				//log_debug("[DBG] [AC] g_fDebugZCenter: %0.4f", g_fDebugZCenter);
 				//IncreaseFocalDist(0.1f);

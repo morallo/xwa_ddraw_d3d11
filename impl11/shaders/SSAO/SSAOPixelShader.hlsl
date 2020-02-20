@@ -128,7 +128,8 @@ inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, 
 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
 	float ao_factor = ao_dot * weight;
-	return intensity * pow(ao_factor, power);
+	//return intensity * pow(ao_factor, power);
+	return intensity * ao_factor;
 }
 
 PixelShaderOutput main(PixelShaderInput input)

@@ -202,14 +202,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	color = color * color; // Gamma correction (approx pow 2.2)
+	ssao = clamp(pow(abs(ssao), power), 0.0, 1.0); // Increase ssao contrast
 	float3 N = normalize(Normal.xyz);
 
 	// For shadeless areas, make ssao 1
 	ssao = shadeless ? 1.0 : ssao;
 	if (ssao_debug) {
+		ssao = sqrt(ssao); // Gamma correction
 		output.color = float4(ssao, 1);
 		return output;
 	}
+	// Toggle the SSAO component for debugging purposes:
+	ssao = lerp(ssao, 1.0, sso_disable);
 
 	bool FGFlag;
 	float3 P1 = getPositionFG(input.uv, 0);

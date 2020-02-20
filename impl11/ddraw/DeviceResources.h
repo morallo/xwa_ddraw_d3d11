@@ -304,6 +304,8 @@ typedef struct PSShadingSystemCBStruct {
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
 	// 96 bytes
+	float sso_disable, ssunused0, ssunused1, ssunused2;
+	// 112 bytes
 } PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {

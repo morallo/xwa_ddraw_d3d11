@@ -270,6 +270,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// For the deferred pass, we don't have an SSDO component, so:
 	// Set the ssdo component to 1 if ssdo is disabled
 	ssdo = lerp(1.0, ssdo, ssdo_enabled);
+
+	// Toggle the SSDO component for debugging purposes:
+	ssdo = lerp(ssdo, 1.0, sso_disable);
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.

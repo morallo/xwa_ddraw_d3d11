@@ -5949,7 +5949,10 @@ HRESULT Direct3DDevice::Execute(
 				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
 				// then disable the pre-computed diffuse component:
 				//if (g_bAOEnabled && !g_bRendering3D) {
-				if (g_bDisableDiffuse) {
+				// Only disable the diffuse component during regular flight. 
+				// The tech room is unchanged (the tech room makes g_bRendering = false)
+				// We should also avoid touching the GUI elements
+				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) { 
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}

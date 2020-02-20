@@ -43,6 +43,14 @@ extern int g_iHyperExitPostFrames;
 bool g_bKeybExitHyperspace = false;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
+// DYNAMIC COCKPIT
+extern dc_element g_DCElements[];
+extern int g_iNumDCElements;
+extern DCHUDRegions g_DCHUDRegions;
+extern move_region_coords g_DCMoveRegions;
+extern char g_sCurrentCockpit[128];
+//extern float g_fXWAScale;
+
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
 extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFreePIEControllerButtonDataAvailable;
@@ -67,12 +75,6 @@ extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
-extern dc_element g_DCElements[];
-extern int g_iNumDCElements;
-extern DCHUDRegions g_DCHUDRegions;
-extern move_region_coords g_DCMoveRegions;
-extern char g_sCurrentCockpit[128];
-//extern float g_fXWAScale;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -2440,6 +2442,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
 	}
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
+	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 }
 
