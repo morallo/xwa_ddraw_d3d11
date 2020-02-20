@@ -395,7 +395,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// DEBUG
 			case 'D':
 				g_bShowSSAODebug = !g_bShowSSAODebug;
-				log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
+				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
@@ -423,6 +423,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case 'B':
 				g_bDisableBarrelEffect = !g_bDisableBarrelEffect;
+				SaveVRParams();
 				return 0;
 			case 'R':
 				ResetVRParams();
