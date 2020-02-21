@@ -415,12 +415,18 @@ Direct3DTexture::~Direct3DTexture()
 {
 	const auto &resources = this->_deviceResources;
 	
-	if (this->is_CockpitTex) {
+	//if (this->is_CockpitTex) {
 		// There's code in ResetDynamicCockpit that prevents resetting it multiple times.
 		// In other words, ResetDynamicCockpit is idempotent.
 		// ResetDynamicCockpit will also reset the Active Cockpit
-		resources->ResetDynamicCockpit();
-	}
+		//resources->ResetDynamicCockpit();
+	//}
+	/* 
+	We can't reliably reset DC here because the textures may not be reloaded and then we
+	just disable DC. This happens if hook_60fps.dll is used. We need to be smarter and
+	detect when the cockpit name has changed. If it has, then we reset DC and reload the
+	elements.
+	*/
 	//log_debug("[DBG] [DC] Destroying texture %s", this->_surface->_name);
 }
 
@@ -552,9 +558,7 @@ void Direct3DTexture::TagTexture() {
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
-	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
-	// and regular textures because mip-mapping may be turned off in the video settings
-	// menu.
+	
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -724,19 +728,35 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
+			/* 
+			   Here's a funny story: you can change the craft when in the hangar. So we need to pay attention
+			   to changes in the cockpit's name. One way to do this is by resetting DC when textures are freed;
+			   but doing that causes problems. When hook_time.dll is used, the textures are reloaded after they
+			   are freed; but with Hook_60FPS.dll, textures are not reloaded. So, in the latter case, DC is
+			   disabled when exiting the hangar, because for some reason *that's* when textures are released.
+			   So, the fix is to *always* pay attention to cockpit name changes and reset DC when we detect a
+			   change.
+			*/
 			// Capture and store the name of the cockpit the very first time we see a cockpit texture
-			if (g_sCurrentCockpit[0] == 0) {
-				if (this->is_CockpitTex) {
-					//strstr(surface->_name, "Gunner")  != NULL)  {
-					char *start = strstr(surface->_name, "\\");
-					char *end   = strstr(surface->_name, ".opt");
-					if (start != NULL && end != NULL) {
-						start += 1; // Skip the backslash
-						int size = end - start;
-						strncpy_s(g_sCurrentCockpit, 128, start, size);
-						log_debug("[DBG] Cockpit Name Captured: '%s'", g_sCurrentCockpit);
-					}
+			if (this->is_CockpitTex) {
+				char CockpitName[128];
+				//strstr(surface->_name, "Gunner")  != NULL)  {
+				// Extract the name of the cockpit and put it in CockpitName
+				char *start = strstr(surface->_name, "\\");
+				char *end   = strstr(surface->_name, ".opt");
+				if (start != NULL && end != NULL) {
+					start += 1; // Skip the backslash
+					int size = end - start;
+					strncpy_s(CockpitName, 128, start, size);
+					//log_debug("[DBG] Cockpit Name Captured: '%s'", CockpitName);
+				}
 
+				bool bCockpitNameChanged = !(strcmp(g_sCurrentCockpit, CockpitName) == 0);
+				if (bCockpitNameChanged) {
+					// The cockpit name has changed, update it and reset DC
+					resources->ResetDynamicCockpit(); // Resetting DC will erase the cockpit name
+					strncpy_s(g_sCurrentCockpit, 128, CockpitName, 128);
+					log_debug("[DBG] Cockpit Name Changed/Captured: '%s'", g_sCurrentCockpit);
 					// Load the relevant DC file for the current cockpit if necessary
 					if (g_bDynCockpitEnabled) {
 						char sFileName[80];
@@ -751,9 +771,10 @@ void Direct3DTexture::TagTexture() {
 						if (!LoadIndividualACParams(sFileName))
 							log_debug("[DBG] [AC] WARNING: Could not load AC params");
 					}
-					
 				}
+					
 			}
+			
 		}
 
 		if (strstr(surface->_name, "Gunner") != NULL) {
