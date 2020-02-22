@@ -702,7 +702,7 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
 	fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
 	fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
-	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
+	//fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
 	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
 	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
@@ -2936,9 +2936,9 @@ void LoadVRParams() {
 				// Size of the window while playing the game; but zoomed out to see all the GUI
 				g_fGlobalScaleZoomOut = fValue;
 			}
-			else if (_stricmp(param, SIZE_POST_PROJ_VRPARAM) == 0) {
+			/*else if (_stricmp(param, SIZE_POST_PROJ_VRPARAM) == 0) {
 				g_fPostProjScale = fValue;
-			}
+			}*/
 			else if (_stricmp(param, WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM) == 0) {
 				g_bZoomOutInitialState = (bool)fValue;
 				g_bZoomOut = (bool)fValue;

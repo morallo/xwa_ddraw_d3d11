@@ -1,10 +1,17 @@
 #define DEFAULT_METALLIC   0.50f
-#define DEFAULT_SPEC_INT   0.50f
-#define DEFAULT_GLOSSINESS 0.08f
-#define DEFAULT_NM_INT     1.0f
+
+//#define DEFAULT_SPEC_INT   0.50f
+#define DEFAULT_SPEC_INT   0.25f
+//#define DEFAULT_GLOSSINESS 0.08f
+#define DEFAULT_GLOSSINESS 0.02f
+
+//#define DEFAULT_NM_INT     1.0f
+#define DEFAULT_NM_INT     0.5f
+
 #define DEFAULT_SPEC_VALUE 0.0f
 // Default material, neither plastic nor metal; but halfway through:
-#define DEFAULT_MAT     0.25
+//#define DEFAULT_MAT     0.25
+#define DEFAULT_MAT		0.15f
 
 // Material values
 #define PLASTIC_MAT		0.00

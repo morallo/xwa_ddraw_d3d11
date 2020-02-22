@@ -67,7 +67,7 @@ void PrintVector(const Vector4 &Vector) {
 		Vector.x, Vector.y, Vector.z);
 }
 
-extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled;
+extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
 //extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
@@ -444,6 +444,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				SaveVRParams();
 				return 0;
 			case 'L':
+				// Force the re-application of the focal_length
+				g_bCustomFOVApplied = false;
 				LoadVRParams();
 				return 0;
 			case 'H':
