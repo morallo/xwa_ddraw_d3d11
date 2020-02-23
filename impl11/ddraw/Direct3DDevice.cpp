@@ -139,6 +139,7 @@ const char *VR_MODE_NONE_SVAL = "None";
 const char *VR_MODE_DIRECT_SBS_SVAL = "DirectSBS";
 const char *VR_MODE_STEAMVR_SVAL = "SteamVR";
 const char *INTERLEAVED_REPROJ_VRPARAM = "SteamVR_Interleaved_Reprojection";
+const char *STEAMVR_DISTORTION_ENABLED_VRPARAM = "steamvr_distortion_enabled";
 const char *BARREL_EFFECT_STATE_VRPARAM = "apply_lens_correction";
 const char *INVERSE_TRANSPOSE_VRPARAM = "alternate_steamvr_eye_inverse";
 const char *FLOATING_AIMING_HUD_VRPARAM = "floating_aiming_HUD";
@@ -190,6 +191,7 @@ bool g_bSteamVRInitialized = false; // The system will set this flag after Steam
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bResetHeadCenter = true; // Reset the head center on startup
+bool g_bSteamVRDistortionEnabled = true;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
@@ -355,7 +357,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 float g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
-float g_fPostProjScale = 1.0f;
+//float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 float g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 float g_fConcourseAspectRatio = DEFAULT_CONCOURSE_ASPECT_RATIO;
@@ -514,12 +516,14 @@ void IncreaseScreenScale(float Delta) {
 	log_debug("[DBG] New g_fGlobalScale: %0.3f", g_fGlobalScale);
 }
 
+/*
 void IncreasePostProjScale(float Delta) {
 	g_fPostProjScale += Delta;
 	if (g_fPostProjScale < 0.2f)
 		g_fPostProjScale = 0.2f;
 	log_debug("[DBG] New g_fPostProjScale: %0.3ff", g_fPostProjScale);
 }
+*/
 
 void IncreaseFocalDist(float Delta) {
 	g_fFocalDist += Delta;
@@ -584,7 +588,7 @@ void ResetVRParams() {
 	g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
-	g_fPostProjScale = 1.0f;
+	//g_fPostProjScale = 1.0f;
 	g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 	g_bZoomOut = g_bZoomOutInitialState;
 	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
@@ -619,8 +623,10 @@ void ResetVRParams() {
 	//g_bYawPitchFromMouseOverride = false;
 
 	g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
-	if (g_bUseSteamVR)
+	if (g_bUseSteamVR) {
 		g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
+		g_bSteamVRDistortionEnabled = true;
+	}
 
 	//g_bDisableBarrelEffect = g_bUseSteamVR ? !DEFAULT_BARREL_EFFECT_STATE_STEAMVR : !DEFAULT_BARREL_EFFECT_STATE;
 
@@ -702,7 +708,8 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
 	fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
 	fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
-	//fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
+	//if (fabs(g_fPostProjScale - 1.0f) > 0.001f)
+	//	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
 	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
 	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
@@ -730,7 +737,10 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
 	fprintf(file, "%s = %0.6f\n", K2_VRPARAM, g_fLensK2);
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
-	fprintf(file, "%s = %d\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
+	fprintf(file, "%s = %d\n\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
+	fprintf(file, "The following parameter will enable/disable SteamVR's lens distortion correction\n");
+	fprintf(file, "The default is 1, only set it to 0 if you're seeing distortion in SteamVR\n");
+	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
 
 	fprintf(file, "\n; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
@@ -3026,6 +3036,9 @@ void LoadVRParams() {
 					g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 				}
 			}
+			else if (_stricmp(param, STEAMVR_DISTORTION_ENABLED_VRPARAM) == 0) {
+				g_bSteamVRDistortionEnabled = (bool)fValue;
+			}
 			else if (_stricmp(param, NATURAL_CONCOURSE_ANIM_VRPARAM) == 0) {
 				g_iNaturalConcourseAnimations = (int)fValue;
 			}
@@ -4928,7 +4941,7 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[2] = scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
+		//g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
@@ -6617,7 +6630,7 @@ HRESULT Direct3DDevice::Execute(
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
 					g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
-					g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
+					//g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
 					g_VSCBuffer.z_override        = -1.0f;
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;

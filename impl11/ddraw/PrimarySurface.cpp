@@ -97,7 +97,7 @@ extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled;
+extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot;
 extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
@@ -4832,7 +4832,7 @@ void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint3
 /* Convenience function to call WaitGetPoses() */
 inline void WaitGetPoses() {
 	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
-	// error 101 when doing VRCompositor->Submit()
+	// error 101 when calling VRCompositor->Submit
 	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
 		0, NULL, 0);
 }
@@ -5199,8 +5199,14 @@ HRESULT PrimarySurface::Flip(
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+						if (g_bSteamVRDistortionEnabled) {
+							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+						}
+						else {
+							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
+							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
+						}
 					}
 					
 					g_bRendering3D = false;
@@ -5994,10 +6000,15 @@ HRESULT PrimarySurface::Flip(
 					leftEyeTexture = { this->_deviceResources->_offscreenBufferPost.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 					rightEyeTexture = { this->_deviceResources->_offscreenBufferPostR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 				}
-				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-				//if (error) log_debug("[DBG] 3D Present (left) SteamVR error: %d", error);
-				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-				//if (error) log_debug("[DBG] 3D Present (right) SteamVR error: %d", error);
+
+				if (g_bSteamVRDistortionEnabled) {
+					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+				}
+				else {
+					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
+					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
+				}
 				//g_pVRCompositor->PostPresentHandoff();
 			}
 

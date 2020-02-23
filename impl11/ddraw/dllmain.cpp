@@ -470,27 +470,27 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			*/
 
-				/*
-				case 'P':
-					if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
-						static int scrCounter = 0;
-						char prevFileName[80], scrFileName[80];
-						sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
-						sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
+			/*
+			case 'P':
+				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
+					static int scrCounter = 0;
+					char prevFileName[80], scrFileName[80];
+					sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
+					sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
 
-						vr::ScreenshotHandle_t scr;
-						vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
-						if (error)
-							log_debug("[DBG] error %d when taking SteamVR screenshot", error);
-						else
-							log_debug("[DBG] Screeshot %d taken", scrCounter);
-						scrCounter++;
-					}
-					else {
-						log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
-					}
-					break;
-				*/
+					vr::ScreenshotHandle_t scr;
+					vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
+					if (error)
+						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
+					else
+						log_debug("[DBG] Screeshot %d taken", scrCounter);
+					scrCounter++;
+				}
+				else {
+					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
+				}
+				break;
+			*/
 
 			case 0xbb:
 				IncreaseScreenScale(0.1f);

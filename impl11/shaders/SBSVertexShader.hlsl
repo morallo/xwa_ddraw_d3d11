@@ -9,7 +9,7 @@ cbuffer ConstantBuffer : register(b0)
 	float4 vpScale;
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
 	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-	float post_proj_scale, vsunused0, vsunused1, vsunused2;
+	//float post_proj_scale, vsunused0, vsunused1, vsunused2;
 };
 
 cbuffer ConstantBuffer : register(b1)
@@ -83,7 +83,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(compViewMatrix, float4(P, 1));
 	}
 	output.pos = mul(projEyeMatrix, output.pos);
-	output.pos.xy *= post_proj_scale;
+	//output.pos.xy *= post_proj_scale; // I think this caused double images/blurry vision
 	//output.pos.w = 1.0f;
 
 	// Stereoscopy boost -- probably not worth it, needs to be able to distinguish the skybox and the HUD is amplified too
