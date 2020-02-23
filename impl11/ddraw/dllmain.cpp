@@ -72,7 +72,7 @@ extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEna
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable;
+extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle;
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
@@ -451,6 +451,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				ToggleCockpitPZHack();
 				return 0;
 			case 'W':
+				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
+				/*
 				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;
 					g_fSpecBloomIntensity = 0.0f;
@@ -459,6 +461,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fSpecIntensity = 1.0f;
 					g_fSpecBloomIntensity = 1.25f;
 				}
+				*/
 				return 0;
 			case 'E':
 				g_bEnableSSAOInShader = !g_bEnableSSAOInShader;

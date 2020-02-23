@@ -655,6 +655,7 @@ extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity;
+bool g_bGlobalSpecToggle = true;
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer g_MSCBuffer;
@@ -2793,8 +2794,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
-	g_ShadingSys_PSBuffer.spec_intensity = g_fSpecIntensity;
-	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_fSpecBloomIntensity;
+	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -3435,8 +3436,8 @@ void PrimarySurface::DeferredPass() {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
-	g_ShadingSys_PSBuffer.spec_intensity = g_fSpecIntensity;
-	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_fSpecBloomIntensity;
+	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
