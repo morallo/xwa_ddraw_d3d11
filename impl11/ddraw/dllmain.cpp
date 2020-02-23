@@ -148,9 +148,8 @@ void SaveFocalLength() {
 		return;
 	}
 
-	fprintf(file, "; The focal length is measured in pixels. The reason this parameter lives in a separate\n");
-	fprintf(file, "; config file is that it can only be applied after the first frame rendered in 3D. So,\n");
-	fprintf(file, "; it's faster to read it from this place\n");
+	fprintf(file, "; The focal length is measured in pixels. This parameter can be modified without\n");
+	fprintf(file, "; VR, so, technically, it's not a 'VRParam'\n");
 	fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
 	fclose(file);
 }
@@ -471,25 +470,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			*/
 
 			/*
-			case 'P':
-				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
-					static int scrCounter = 0;
-					char prevFileName[80], scrFileName[80];
-					sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
-					sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
-
-					vr::ScreenshotHandle_t scr;
-					vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
-					if (error)
-						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
-					else
-						log_debug("[DBG] Screeshot %d taken", scrCounter);
-					scrCounter++;
-				}
-				else {
-					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
-				}
-				break;
+			
 			*/
 
 			case 0xbb:
@@ -534,6 +515,26 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
+
+			case 'P':
+				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
+					static int scrCounter = 0;
+					char prevFileName[80], scrFileName[80];
+					sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
+					sprintf_s(scrFileName, 80, "./screenshot%d", scrCounter);
+
+					vr::ScreenshotHandle_t scr;
+					vr::EVRScreenshotError error = g_pVRScreenshots->TakeStereoScreenshot(&scr, prevFileName, scrFileName);
+					if (error)
+						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
+					else
+						log_debug("[DBG] Screeshot %d taken", scrCounter);
+					scrCounter++;
+				}
+				else {
+					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
+				}
+				break;
 
 #if DBR_VR
 			case 'X':
