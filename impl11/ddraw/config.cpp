@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cctype>
 
+#include "joystick.h"
+
 using namespace std;
 
 Config g_config;
@@ -20,6 +22,12 @@ Config::Config()
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
 	this->WireframeFillMode = false;
+	this->JoystickEmul = 0;
+
+	this->XInputTriggerAsThrottle = 0;
+	this->InvertYAxis = false;
+	this->MouseSensitivity = 0.5f;
+	this->KbdSensitivity = 1.0f;
 
 	this->Concourse3DScale = 0.6f;
 
@@ -28,6 +36,8 @@ Config::Config()
 	this->EnhanceLasers = false;
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
+
+	this->StayInHyperspace = false;
 
 	ifstream file("ddraw.cfg");
 
@@ -88,6 +98,22 @@ Config::Config()
 			{
 				this->ProcessAffinityCore = stoi(value);
 			}
+			else if (name == "JoystickEmul")
+			{
+				this->JoystickEmul = stoi(value);
+			}
+			else if (name == "SwapJoystickXZAxes")
+			{
+				this->SwapJoystickXZAxes = (bool)stoi(value);
+			}
+			else if (name == "MouseSensitivity")
+			{
+				this->MouseSensitivity = stof(value);
+			}
+			else if (name == "KbdSensitivity")
+			{
+				this->KbdSensitivity = stof(value);
+			}
 			else if (name == "EnhanceLasers")
 			{
 				this->EnhanceLasers = (bool)stoi(value);
@@ -104,7 +130,23 @@ Config::Config()
 			{
 				this->EnhanceExplosions = (bool)stoi(value);
 			}
+			else if (name == "StayInHyperspace")
+			{
+				this->StayInHyperspace = (bool)stoi(value);
+			}
 		}
+	}
+
+	//if (this->JoystickEmul != 0 && isXWA)
+	//if (this->JoystickEmul)
+	{
+		// TODO: How to check if this is a supported binary?
+		DWORD old, dummy;
+		VirtualProtect((void *)0x5a92a4, 0x5a92b8 - 0x5a92a4, PAGE_READWRITE, &old);
+		*(unsigned *)0x5a92a4 = reinterpret_cast<unsigned>(emulJoyGetPosEx);
+		*(unsigned *)0x5a92a8 = reinterpret_cast<unsigned>(emulJoyGetDevCaps);
+		*(unsigned *)0x5a92b4 = reinterpret_cast<unsigned>(emulJoyGetNumDevs);
+		VirtualProtect((void *)0x5a92a4, 0x5a92b8 - 0x5a92a4, old, &dummy);
 	}
 
 	if (this->ProcessAffinityCore > 0)

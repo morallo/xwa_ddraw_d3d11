@@ -4,6 +4,7 @@
 
 #pragma once
 #include "Matrices.h"
+#include "../shaders/material_defs.h"
 #include <vector>
 
 // Also found in the Floating_GUI_RESNAME list:
@@ -29,6 +30,7 @@ typedef struct uvfloat4_struct {
 	float x0, y0, x1, y1;
 } uvfloat4;
 
+// Region names. Used in the erase_region and move_region commands
 const int LEFT_RADAR_HUD_BOX_IDX		= 0;
 const int RIGHT_RADAR_HUD_BOX_IDX	= 1;
 const int SHIELDS_HUD_BOX_IDX		= 2;
@@ -146,14 +148,18 @@ class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
 
+/*****************/
+// This struct is in the process of moving to the cockpit look hook. It can be removed
+// later
 typedef struct HeadPosStruct {
 	float x, y, z;
 } HeadPos;
+/*****************/
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
-	float use_3D;
+	float use_3D, unused0, unused1, unused2;
 } MainShadersCBuffer;
 
 typedef struct BarrelPixelShaderCBStruct {
@@ -174,7 +180,7 @@ typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength, fSparksStrength;
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
 	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
-	float fCockpitSparksStrength, fMissileStrength;
+	float fCockpitSparksStrength, fMissileStrength, fSkydomeLightStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;
@@ -217,7 +223,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	float vpScale[4];
 	// 160 bytes
 	int shadow_enable;
-	float shadow_k, ssao_unused1, ssao_unused2;
+	float shadow_k, ssao_unused0, ssao_unused1;
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
@@ -239,11 +245,39 @@ typedef struct ShadertoyCBStruct {
 	// 128 bytes
 } ShadertoyCBuffer;
 
+// Let's make this Constant Buffer the same size as the ShadertoyCBuffer
+// so that we can reuse the same CB slot -- after all, we can't manipulate
+// anything while travelling through hyperspace anyway...
+typedef struct LaserPointerCBStruct {
+	int TriggerState; // 0 = Not pressed, 1 = Pressed
+	float FOVscale, iResolution[2];
+	// 16 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	// 32 bytes
+	float contOrigin[2], intersection[2];
+	// 48 bytes
+	int bContOrigin, bIntersection, bHoveringOnActiveElem;
+	int DirectSBSEye;
+	// 64 bytes
+	float v0[2], v1[2]; // DEBUG
+	// 80 bytes
+	float v2[2], uv[2]; // DEBUG
+	// 96
+	int bDebugMode;
+	int unusedA[3];
+	// 112 bytes
+} LaserPointerCBuffer;
+
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
+	// 16 bytes
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform;
+	// 32 bytes
+	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
+	// 48 bytes
+	//float vsunused0, vsunused1, vsunused2, vsunused3;
+	// 64 bytes
 } VertexShaderCBuffer;
 
 typedef struct VertexShaderMatrixCBStruct {
@@ -260,19 +294,19 @@ typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
-typedef struct PixelShaderMatrixCBStruct {
-	//Matrix4 projEye;
-	//Matrix4 viewMat;
-	//Matrix4 fullViewMat;
-	float4  LightVector;
-	// 16 bytes
-	float4  LightColor;
+typedef struct PSShadingSystemCBStruct {
+	float4  LightVector[2];
 	// 32 bytes
-	float4  LightVector2;
-	// 48 bytes
-	float4  LightColor2;
+	float4  LightColor[2];
 	// 64 bytes
-} PixelShaderMatrixCB;
+	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
+	// 80 bytes
+	float saturation_boost, lightness_boost, ssdo_enabled;
+	uint32_t ss_debug;
+	// 96 bytes
+	float sso_disable, ssunused0, ssunused1, ssunused2;
+	// 112 bytes
+} PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
@@ -284,48 +318,55 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bIsHyperspaceStreak;
-	// 16 bytes
+	uint32_t bInHyperspace;
+	// 32 bytes
 
 	float fBloomStrength;
 	float fPosNormalAlpha;
 	float fSSAOMaskVal;
 	float fSSAOAlphaMult;
-	// 16 bytes
+	// 48 bytes
 
-	// 48 bytes total
+	uint32_t bIsShadeless;
+	float fGlossiness, fSpecInt, fNMIntensity;
+	// 64 bytes
+
+	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	// 80 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
-const int MAX_DC_COORDS = 8;
+const int MAX_DC_COORDS_PER_TEXTURE = 12;
 typedef struct DCPixelShaderCBStruct {
-	uvfloat4 src[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uvfloat4 dst[MAX_DC_COORDS];
-	// 4 * MAX_DC_COORDS * 4 = 128
-	uint32_t bgColor[MAX_DC_COORDS]; // 32-bit Background colors
-	// 4 * MAX_DC_COORDS = 32
+	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
+	// 4 * MAX_DC_COORDS * 4 = 192
+	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
+	// 4 * MAX_DC_COORDS * 4 = 192
+	// 384 bytes thus far
+	uint32_t bgColor[MAX_DC_COORDS_PER_TEXTURE]; // 32-bit Background colors
+	// 4 * MAX_DC_COORDS = 48
+	// 432 bytes thus far
 
-	float ct_brightness, unused1, unused2, unused3;
-	// 304 bytes
+	float ct_brightness, unused[3];
+	// 448 bytes
 } DCPixelShaderCBuffer;
 
 typedef struct uv_coords_src_dst_struct {
-	int src_slot[MAX_DC_COORDS];
-	uvfloat4 dst[MAX_DC_COORDS];
-	uint32_t uBGColor[MAX_DC_COORDS];
+	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
+	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
+	uint32_t uBGColor[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_src_dst_coords;
 
 typedef struct uv_coords_struct {
-	uvfloat4 src[MAX_DC_COORDS];
+	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_coords;
 
 const int MAX_TEXTURE_NAME = 128;
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
-	int erase_slots[MAX_DC_COORDS];
+	int erase_slots[MAX_DC_COORDS_PER_TEXTURE];
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
@@ -340,11 +381,31 @@ typedef struct move_region_coords_struct {
 	int numCoords;
 } move_region_coords;
 
+// ACTIVE COCKPIT
+#define MAX_AC_COORDS_PER_TEXTURE 64
+#define MAX_AC_TEXTURES_PER_COCKPIT 16
+#define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
+typedef struct ac_uv_coords_struct {
+	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
+	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
+	char action_name[MAX_AC_COORDS_PER_TEXTURE][16]; // For debug purposes only, remove later
+	int numCoords;
+} ac_uv_coords;
+
+typedef struct ac_element_struct {
+	ac_uv_coords coords;
+	//int idx; // "Back pointer" into the g_ACElements array
+	char name[MAX_TEXTURE_NAME];
+	bool bActive, bNameHasBeenTested;
+	short width, height; // DEBUG, remove later
+} ac_element;
+
 // SSAO Type
 typedef enum {
 	SSO_AMBIENT,
 	SSO_DIRECTIONAL,
 	SSO_BENT_NORMALS,
+	SSO_DEFERRED, // New Shading Model
 } SSAOTypeEnum;
 
 // In order to blend the background with the hyperspace effect when exiting, we need to extend the
@@ -358,6 +419,31 @@ enum HyperspacePhaseEnum {
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
 const int MAX_POST_HYPER_EXIT_FRAMES = 20;
+
+// General types and globals
+typedef enum {
+	TRACKER_NONE,
+	TRACKER_FREEPIE,
+	TRACKER_STEAMVR,
+	TRACKER_TRACKIR
+} TrackerType;
+
+// Materials
+typedef struct MaterialStruct {
+	float Metallic;
+	float Intensity;
+	float Glossiness;
+	float NMIntensity;
+	float SpecValue;
+
+	MaterialStruct() {
+		Metallic    = DEFAULT_METALLIC;
+		Intensity   = DEFAULT_SPEC_INT;
+		Glossiness  = DEFAULT_GLOSSINESS;
+		NMIntensity = DEFAULT_NM_INT;
+		SpecValue   = DEFAULT_SPEC_VALUE;
+	}
+} Material;
 
 class DeviceResources
 {
@@ -385,19 +471,26 @@ public:
 	void InitViewport(D3D11_VIEWPORT* viewport);
 	void InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer);
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);
-	void InitPSConstantBufferMatrix(ID3D11Buffer** buffer, const PixelShaderMatrixCB* psCBuffer);
+	void InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
-	void InitPSConstantBufferDC(ID3D11Buffer ** buffer, const DCPixelShaderCBuffer * psConstants);
+	void InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+
+	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
+	void ClearActiveCockpitVector(ac_element ACElements[], int size);
+
+	void ResetDynamicCockpit();
+
+	void ResetActiveCockpit();
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -460,14 +553,17 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBuf2R;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
 	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
+	// Shading System
+	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssMask;			// No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskR;		// No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -498,14 +594,17 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO_R;
+	// Shading System
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -532,14 +631,17 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
+	// Shading System
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV; // SRV for ssMask
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R; // SRV for ssMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -576,6 +678,7 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
 	ComPtr<ID3D11PixelShader> _hyperZoomPS;
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
+	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -602,13 +705,14 @@ public:
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
-	ComPtr<ID3D11Buffer> _PSMatrixBuffer;
+	ComPtr<ID3D11Buffer> _shadingSysBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBuffer;
 	ComPtr<ID3D11Buffer> _PSConstantBufferDC;
 	ComPtr<ID3D11Buffer> _barrelConstantBuffer;
 	ComPtr<ID3D11Buffer> _bloomConstantBuffer;
 	ComPtr<ID3D11Buffer> _ssaoConstantBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceConstantBuffer;
+	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;

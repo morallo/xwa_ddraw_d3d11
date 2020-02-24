@@ -8,7 +8,9 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
+#include "..\shading_system.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -36,8 +38,6 @@ SamplerState sampPos : register(s5);
 // The Normals buffer
 //Texture2D texNormal : register(t6);
 //SamplerState samplerNormal : register(s6);
-
-#define INFINITY_Z 20000
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -80,14 +80,6 @@ cbuffer ConstantBuffer : register(b3)
 	// 128 bytes
 	float white_point, shadow_step, shadow_length, ssao_unused1;
 	// 144 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct PixelShaderInput
@@ -198,7 +190,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z) return float4(albedo, 1);
+	if (pos3D.z > INFINITY_Z1) return float4(albedo, 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {
@@ -209,9 +201,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	}
 
 	float3 temp = ambient;
-	temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
-	temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
-	temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
+	temp += LightColor[0].rgb  * saturate(dot(bentN,  LightVector[0].xyz));
+	temp += invLightColor   * saturate(dot(bentN, -LightVector[0].xyz));
+	temp += LightColor[1].rgb * saturate(dot(bentN,  LightVector[1].xyz));
 	float3 color = albedo * temp;
 	// Apply tone-mapping:
 	//color = color / (color + 1);

@@ -3,6 +3,7 @@
 // https://www.gamedev.net/articles/programming/graphics/a-simple-and-practical-approach-to-ssao-r2753/
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
+#include "..\shader_common.h"
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -19,8 +20,6 @@ SamplerState sampNorm  : register(s2);
 // The color buffer
 Texture2D    texColor  : register(t3);
 SamplerState sampColor : register(s3);
-
-#define INFINITY_Z 20000
 
 struct PixelShaderInput
 {
@@ -129,7 +128,8 @@ inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, 
 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
 	float ao_factor = ao_dot * weight;
-	return intensity * pow(ao_factor, power);
+	//return intensity * pow(ao_factor, power);
+	return intensity * ao_factor;
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -145,6 +145,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius = near_sample_radius;
 	bool FGFlag;
 
+	// I believe the hook_normals hook is inverting the Z axis of the normal, so we need
+	// to flip it here again to get proper SSAO
+	n.z = -n.z;
 	if (P1.z < P2.z) {
 		p = P1;
 		FGFlag = true;
@@ -155,7 +158,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Early exit: do not compute SSAO for objects at infinity
-	if (p.z > INFINITY_Z) return output;
+	if (p.z > INFINITY_Z1) return output;
+	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
 
 	// This is probably OK; but we didn't have this in the previous release, so
 	// should I activate this?

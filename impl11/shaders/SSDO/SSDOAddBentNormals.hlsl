@@ -8,7 +8,9 @@
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
+#include "..\shader_common.h"
 #include "..\HSV.h"
+#include "..\shading_system.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -37,8 +39,6 @@ SamplerState sampPos : register(s5);
 // The (Flat) Normals buffer
 Texture2D texNormal : register(t6);
 SamplerState samplerNormal : register(s6);
-
-#define INFINITY_Z 20000
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -86,14 +86,6 @@ cbuffer ConstantBuffer : register(b3)
 	uint shadow_enable;
 	float shadow_k, ssao_unused1, ssao_unused2;
 	// 176 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct PixelShaderInput
@@ -187,8 +179,6 @@ float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt)
 	return vf.rgb / vf.www;
 }
 
-static float METRIC_SCALE_FACTOR = 25.0;
-
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
 	float w = P.z / METRIC_SCALE_FACTOR;
@@ -197,7 +187,9 @@ inline float2 projectToUV(in float3 pos3D) {
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
 	// (-1,-1)-(1, 1)
 	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
-	P.xy -= float2(-0.5, 0.5);
+	//P.xy -= float2(-0.5, 0.5); // Is this wrong? I think the y axis is inverted, so adding 0.5 would be fine (?)
+	P.xy -= float2(-1.0, 1.0); // DirectSBS may be different
+	//P.xy -= float2(-0.5, -0.5);
 	P.xy /= vpScale.xy;
 	// We now have P = input.pos
 	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
@@ -216,12 +208,12 @@ inline float2 projectToUV(in float3 pos3D) {
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector.xyz;
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
 	max_shadow_length_sqr *= max_shadow_length_sqr;
-	float cur_length = 0, length_at_res = INFINITY_Z;
+	float cur_length = 0, length_at_res = INFINITY_Z1;
 	float res = 1.0;
 	float weight = 1.0;
 	//float occ_dot;
@@ -284,7 +276,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z) return float4(pow(abs(albedo), 1 / gamma), 1);
+	if (pos3D.z > INFINITY_Z1) return float4(pow(abs(albedo), 1 / gamma), 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {
@@ -319,7 +311,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	else
 		shadow = shadow.xxx;
 
-	float3 reflected = reflect(LightVector.xyz, Normal);
+	float3 reflected = reflect(LightVector[0].xyz, Normal);
 	float3 eyeVector = 0 - pos3D;
 	//float3 eyeVector = float3(0, 0, -1);
 	float spec = saturate(dot(reflected, eyeVector));
@@ -329,7 +321,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//temp += LightColor.rgb  * saturate(dot(bentN,  LightVector.xyz));
 	//temp += invLightColor   * saturate(dot(bentN, -LightVector.xyz));
 	//temp += LightColor2.rgb * saturate(dot(bentN,  LightVector2.xyz));
-	temp += LightColor.rgb * saturate(dot(Normal, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
+	temp += LightColor[0].rgb * saturate(dot(Normal, LightVector[0].xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp += LightColor.rgb * saturate(dot(bentN, LightVector.xyz)) * shadow; // + (shadow * spec * specColor);
 	//temp *= shadow;
 	//if (shadow > 0) temp = float3(1, 0, 0);

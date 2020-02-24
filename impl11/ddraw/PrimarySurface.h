@@ -49,8 +49,6 @@ public:
 
 	void barrelEffectSteamVR();
 
-	HRESULT buildSteamVRResizeMesh2D();
-
 	void BloomBasicPass(int pass, float fZoomFactor);
 
 	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
@@ -65,19 +63,31 @@ public:
 
 	void ComputeNormalsPass(float fZoomFactor);
 
-	void SmoothNormalsPass(float fZoomFactor);
+	//void SmoothNormalsPass(float fZoomFactor);
 
+	void SetLights(float fSSDOEnabled);
+	
 	void SSAOPass(float fZoomFactor);
 
 	void SSDOPass(float fZoomFactor, float fZoomFactor2);
 
-	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool debug);
+	void DeferredPass();
 
-	void GetHyperspaceViewMatrix();
+	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+
+	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
+
+	void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
+
+	void ACRunAction(WORD * action);
+
+	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
+
+	void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 

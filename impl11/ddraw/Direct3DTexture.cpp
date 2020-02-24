@@ -3,6 +3,7 @@
 // Extended for VR by Leo Reyes, 2019
 
 #include "common.h"
+#include "../shaders/material_defs.h"
 #include "DeviceResources.h"
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
@@ -150,15 +151,30 @@ std::vector<char *> Trails_ResNames = {
 	"dat,21025,",
 };
 
+// DYNAMIC COCKPIT
 // g_DCElements is used when loading textures to load the cover texture.
 extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
 extern int g_iNumDCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
-
 bool LoadIndividualDCParams(char *sFileName);
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
+
+// ACTIVE COCKPIT
+extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
+extern int g_iNumACElements;
+extern bool g_bActiveCockpitEnabled;
+bool LoadIndividualACParams(char *sFileName);
+void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
+
+// MATERIALS
+// Contains all the materials for all the OPTs currently loaded
+std::vector<CraftMaterials> g_Materials;
+// List of all the OPTs seen so far
+std::vector<OPTNameType> g_OPTnames;
+void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
+bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
@@ -182,41 +198,87 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 	return -1;
 }
 
-bool Reload_CRC_vector(std::vector<uint32_t> &data, char *filename) {
-	FILE *file;
-	int error = 0;
-
-	//log_debug("[DBG] Loading file %s...", filename);
-	try {
-		error = fopen_s(&file, filename, "rt");
-	} catch (...) {
-		log_debug("[DBG] Error: %d when loading file: %s", filename);
+int isInVector(char *name, ac_element *ac_elements, int num_elems) {
+	for (int i = 0; i < num_elems; i++) {
+		if (strstr(name, ac_elements[i].name) != NULL)
+			return i;
 	}
-
-	if (error != 0)
-		return false;
-
-	data.clear();
-	char buf[120];
-	uint32_t crc;
-	while (fgets(buf, 120, file) != NULL) {
-		if (strlen(buf) > 0 && buf[0] != ';' && buf[0] != '#') {
-			// Read a hex value and add it to the vector
-			if (sscanf_s(buf, "0x%x", &crc) > 0) {
-				data.push_back(crc);
-			}
-		}
-	}
-	//log_debug("[DBG] Read %d CRCs from %s", data.size(), filename);
-
-	fclose(file);
-	return true;
+	return -1;
 }
 
-//
-//void ReloadCRCs() {
-//	// TODO: Replace with a resname-based reloader... if such a thing makes sense
-//}
+bool isInVector(char *OPTname, std::vector<OPTNameType> &vector) {
+	for (OPTNameType x : vector)
+		if (_stricmp(OPTname, x.name) == 0) // We need to avoid substrings because OPTs can be "Awing", "AwingExterior", "AwingCockpit"
+			return true;
+	return false;
+}
+
+/*
+void InitCachedMaterials() {
+	for (int i = 0; i < MAX_CACHED_MATERIALS; i++)
+		g_CachedMaterials[i].texname[0] = 0;
+	g_iFirstCachedMaterial = g_iLastCachedMaterial = 0;
+}
+*/
+
+void InitOPTnames() {
+	ClearOPTnames();
+}
+
+void ClearOPTnames() {
+	g_OPTnames.clear();
+}
+
+void InitCraftMaterials() {
+	ClearCraftMaterials();
+	//log_debug("[DBG] [MAT] g_Materials initialized (cleared)");
+}
+
+void ClearCraftMaterials() {
+	for (uint32_t i = 0; i < g_Materials.size(); i++) {
+		// Release the materials for each craft
+		g_Materials[i].MaterialList.clear();
+	}
+	// Release the global materials
+	g_Materials.clear();
+	//log_debug("[DBG] [MAT] g_Materials cleared");
+}
+
+/*
+Find the index where the materials for the specific OPT is loaded, or return -1 if the 
+OPT isn't loaded yet.
+*/
+int FindCraftMaterial(char *OPTname) {
+	for (uint32_t i = 0; i < g_Materials.size(); i++) {
+		if (_stricmp(OPTname, g_Materials[i].OPTname) == 0)
+			return i;
+	}
+	return -1;
+}
+
+/*
+Find the material in the specified CraftIndex of g_Materials that corresponds to
+TexName. Returns the default material if it wasn't found.
+*/
+Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
+	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
+	// Slot should always be present and it should be the default craft material
+	Material defMat = craftMats->MaterialList[0].material;
+	for (uint32_t i = 1; i < craftMats->MaterialList.size(); i++) {
+		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
+			defMat = craftMats->MaterialList[i].material;
+			if (debug)
+				log_debug("[DBG] [MAT] Material %s found: M:%0.3f, I:%0.3f, G:%0.3f", 
+					TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
+			return defMat;
+		}
+	}
+
+	if (debug)
+		log_debug("[DBG] [MAT] Material %s not found, returning default: M:%0.3f, I:%0.3f, G:%0.3f", 
+			TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
+	return defMat;
+}
 
 #ifdef DBG_VR
 /*
@@ -235,7 +297,7 @@ char* convertFormat(char* src, DWORD width, DWORD height, DXGI_FORMAT format)
 	int length = width * height;
 	char* buffer = new char[length * 4];
 
-	if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
+	if (format == BACKBUFFER_FORMAT)
 	{
 		memcpy(buffer, src, length * 4);
 	}
@@ -314,7 +376,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_CockpitSpark = false;
 	this->is_Chaff = false;
 	this->is_Missile = false;
-	this->is_GenericSSAOTransparent = false;
+	this->is_GenericSSAOMasked = false;
+	this->is_SkydomeLight = false;
+	this->ActiveCockpitIdx = -1;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -331,6 +395,12 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_DC_BeamBoxSrc = false;
 	this->is_DC_TopLeftSrc = false;
 	this->is_DC_TopRightSrc = false;
+
+	this->bHasMaterial = false;
+	// Create the default material for this texture
+	this->material.Glossiness = DEFAULT_GLOSSINESS;
+	this->material.Intensity = DEFAULT_SPEC_INT;
+	this->material.Metallic   = DEFAULT_METALLIC;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -343,6 +413,21 @@ int Direct3DTexture::GetHeight() {
 
 Direct3DTexture::~Direct3DTexture()
 {
+	const auto &resources = this->_deviceResources;
+	
+	//if (this->is_CockpitTex) {
+		// There's code in ResetDynamicCockpit that prevents resetting it multiple times.
+		// In other words, ResetDynamicCockpit is idempotent.
+		// ResetDynamicCockpit will also reset the Active Cockpit
+		//resources->ResetDynamicCockpit();
+	//}
+	/* 
+	We can't reliably reset DC here because the textures may not be reloaded and then we
+	just disable DC. This happens if hook_60fps.dll is used. We need to be smarter and
+	detect when the cockpit name has changed. If it has, then we reset DC and reload the
+	elements.
+	*/
+	//log_debug("[DBG] [DC] Destroying texture %s", this->_surface->_name);
 }
 
 HRESULT Direct3DTexture::QueryInterface(
@@ -473,9 +558,7 @@ void Direct3DTexture::TagTexture() {
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
-	// Mip-map levels are not a reliable way to distinguish between HUD/dat textures
-	// and regular textures because mip-mapping may be turned off in the video settings
-	// menu.
+	
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -594,6 +677,29 @@ void Direct3DTexture::TagTexture() {
 		}
 	}
 
+	// Load the relevant MAT file for the current OPT if necessary
+	OPTNameType OPTname;
+	OPTname.name[0] = 0;
+	{
+		// Capture the OPT name
+		char *start = strstr(surface->_name, "\\");
+		char *end = strstr(surface->_name, ".opt");
+		if (start != NULL && end != NULL) {
+			start += 1; // Skip the backslash
+			int size = end - start;
+			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
+			if (!isInVector(OPTname.name, g_OPTnames)) {
+				log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				// Add the name to the list of OPTnames so that we don't try to process it again
+				g_OPTnames.push_back(OPTname);
+				char sFileName[80];
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 80);
+				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
+			}
+		}
+	}
+
 	// Tag Lasers, Missiles, Cockpit textures, Exterior textures, light textures
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
@@ -622,6 +728,53 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
+			/* 
+			   Here's a funny story: you can change the craft when in the hangar. So we need to pay attention
+			   to changes in the cockpit's name. One way to do this is by resetting DC when textures are freed;
+			   but doing that causes problems. When hook_time.dll is used, the textures are reloaded after they
+			   are freed; but with Hook_60FPS.dll, textures are not reloaded. So, in the latter case, DC is
+			   disabled when exiting the hangar, because for some reason *that's* when textures are released.
+			   So, the fix is to *always* pay attention to cockpit name changes and reset DC when we detect a
+			   change.
+			*/
+			// Capture and store the name of the cockpit the very first time we see a cockpit texture
+			if (this->is_CockpitTex) {
+				char CockpitName[128];
+				//strstr(surface->_name, "Gunner")  != NULL)  {
+				// Extract the name of the cockpit and put it in CockpitName
+				char *start = strstr(surface->_name, "\\");
+				char *end   = strstr(surface->_name, ".opt");
+				if (start != NULL && end != NULL) {
+					start += 1; // Skip the backslash
+					int size = end - start;
+					strncpy_s(CockpitName, 128, start, size);
+					//log_debug("[DBG] Cockpit Name Captured: '%s'", CockpitName);
+				}
+
+				bool bCockpitNameChanged = !(strcmp(g_sCurrentCockpit, CockpitName) == 0);
+				if (bCockpitNameChanged) {
+					// The cockpit name has changed, update it and reset DC
+					resources->ResetDynamicCockpit(); // Resetting DC will erase the cockpit name
+					strncpy_s(g_sCurrentCockpit, 128, CockpitName, 128);
+					log_debug("[DBG] Cockpit Name Changed/Captured: '%s'", g_sCurrentCockpit);
+					// Load the relevant DC file for the current cockpit if necessary
+					if (g_bDynCockpitEnabled) {
+						char sFileName[80];
+						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
+						if (!LoadIndividualDCParams(sFileName))
+							log_debug("[DBG] [DC] WARNING: Could not load DC params");
+					}
+					// Load the relevant AC file for the current cockpit if necessary
+					if (g_bActiveCockpitEnabled) {
+						char sFileName[80];
+						CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
+						if (!LoadIndividualACParams(sFileName))
+							log_debug("[DBG] [AC] WARNING: Could not load AC params");
+					}
+				}
+					
+			}
+			
 		}
 
 		if (strstr(surface->_name, "Gunner") != NULL) {
@@ -641,47 +794,19 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
 		//}
 
-		/*
-		if (strstr(surface->_name, "YavinAlberi.opt,TEX00001,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00026,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00027,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00011,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00020,") != NULL ||
-			strstr(surface->_name, "YavinMassasiTemple.opt,TEX00021,") != NULL ||
-			strstr(surface->_name, "YavinLand.opt,TEX00037,") != NULL ||
-			strstr(surface->_name, "YavinPiramed.opt,TEX00004,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00000,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00007,") != NULL ||
-			strstr(surface->_name, "Yavin_BLC_Temple.opt,TEX00015,") != NULL
-		   )
+		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
+		if (strstr(surface->_name, "Cielo") != NULL ||
+			strstr(surface->_name, "Skydome") != NULL)
 		{
-			//log_debug("[DBG] [DC] [%s]", surface->_name);
-			this->is_GenericSSAOTransparent = true;
-		}
-		*/
-
-		if (g_bDynCockpitEnabled) {
-			// Capture and store the name of the cockpit
-			if (g_sCurrentCockpit[0] == 0) {
-				if (this->is_CockpitTex) {
-					//strstr(surface->_name, "Gunner")  != NULL)  {
-					char *start = strstr(surface->_name, "\\");
-					char *end = strstr(surface->_name, ".opt");
-					if (start != NULL && end != NULL) {
-						start += 1; // Skip the backslash
-						int size = end - start;
-						strncpy_s(g_sCurrentCockpit, 128, start, size);
-						log_debug("[DBG] [DC] Cockpit Name: '%s'", g_sCurrentCockpit);
-
-						// Load the relevant DC file for the current cockpit
-						char sFileName[80];
-						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
-						if (!LoadIndividualDCParams(sFileName))
-							log_debug("[DBG] [DC] ERROR: Could not load DC params");
-					}
-				}
+			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
+			this->is_GenericSSAOMasked = true;
+			if (this->is_LightTexture) {
+				this->is_SkydomeLight = true;
+				this->is_LightTexture = false; // The is_SkydomeLight attribute overrides this attribute
 			}
-
+		}
+		
+		if (g_bDynCockpitEnabled) {
 			/* Process Dynamic Cockpit destination textures: */
 			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
@@ -719,6 +844,45 @@ void Direct3DTexture::TagTexture() {
 				}
 			} // if (idx > -1)
 		} // if (g_bDynCockpitEnabled)
+
+		if (g_bActiveCockpitEnabled) {
+			if (this->is_CockpitTex && !this->is_LightTexture)
+			{
+				/* Process Active Cockpit destination textures: */
+				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
+				if (idx > -1) {
+					log_debug("[DBG] [AC] %s is an Active Cockpit Texture", surface->_name);
+					// "Point back" into the right ac_element index:
+					this->ActiveCockpitIdx = idx;
+					g_ACElements[idx].bActive = true;
+				}
+			}
+		}
+
+		// Materials
+		//if (g_bReshadeEnabled) 
+		if (OPTname.name[0] != 0)
+		{
+			int craftIdx = FindCraftMaterial(OPTname.name);
+			if (craftIdx > -1) {
+				//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+				char *start = strstr(surface->_name, ".opt");
+				// Skip the ".opt," part
+				start += 5;
+				// Find the next comma
+				char *end = strstr(start, ",");
+				int size = end - start;
+				char texname[MAX_TEXNAME];
+				strncpy_s(texname, MAX_TEXNAME, start, size);
+				//log_debug("[DBG] [MAT] Looking for material for %s", texname);
+				this->material = FindMaterial(craftIdx, texname);
+				this->bHasMaterial = true;
+			}
+			//else {
+				// Material not found, use the default material (already created in the constructor)...
+				//log_debug("[DBG] [MAT] Material %s not found", OPTname.name);
+			//}
+		}
 	}
 }
 
@@ -773,7 +937,9 @@ HRESULT Direct3DTexture::Load(
 	this->is_CockpitSpark = d3dTexture->is_CockpitSpark;
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
-	this->is_GenericSSAOTransparent = d3dTexture->is_GenericSSAOTransparent;
+	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
+	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
+	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
@@ -796,6 +962,9 @@ HRESULT Direct3DTexture::Load(
 	this->is_DC_BeamBoxSrc = d3dTexture->is_DC_BeamBoxSrc;
 	this->is_DC_TopLeftSrc = d3dTexture->is_DC_TopLeftSrc;
 	this->is_DC_TopRightSrc = d3dTexture->is_DC_TopRightSrc;
+
+	this->material = d3dTexture->material;
+	this->bHasMaterial = d3dTexture->bHasMaterial;
 
 	if (d3dTexture->_textureView)
 	{
@@ -831,7 +1000,7 @@ HRESULT Direct3DTexture::Load(
 
 	if (bpp == 4)
 	{
-		format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		format = BACKBUFFER_FORMAT;
 	}
 	else
 	{
@@ -854,7 +1023,7 @@ HRESULT Direct3DTexture::Load(
 	D3D11_TEXTURE2D_DESC textureDesc;
 	textureDesc.Width = surface->_width;
 	textureDesc.Height = surface->_height;
-	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == DXGI_FORMAT_B8G8R8A8_UNORM ? format : DXGI_FORMAT_B8G8R8A8_UNORM;
+	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT ? format : BACKBUFFER_FORMAT;
 	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	textureDesc.CPUAccessFlags = 0;
 	textureDesc.MiscFlags = 0;
@@ -866,7 +1035,7 @@ HRESULT Direct3DTexture::Load(
 
 	D3D11_SUBRESOURCE_DATA* textureData = new D3D11_SUBRESOURCE_DATA[textureDesc.MipLevels];
 
-	bool useBuffers = !this->_deviceResources->_are16BppTexturesSupported && format != DXGI_FORMAT_B8G8R8A8_UNORM;
+	bool useBuffers = !this->_deviceResources->_are16BppTexturesSupported && format != BACKBUFFER_FORMAT;
 	char** buffers = nullptr;
 
 	if (useBuffers)

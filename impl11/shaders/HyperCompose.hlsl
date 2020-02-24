@@ -5,6 +5,24 @@
 #include "HSV.h"
 #include "ShaderToyDefs.h"
 
+// ShadertoyCBuffer
+cbuffer ConstantBuffer : register(b7)
+{
+	float iTime, twirl, bloom_strength, unused;
+	// 16 bytes
+	float2 iResolution;
+	uint bDirectSBS;
+	float y_center;
+	// 32 bytes
+	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	// 48 bytes
+	matrix viewMat;
+	// 112 bytes
+	uint bDisneyStyle, hyperspace_phase;
+	float tunnel_speed, FOVscale;
+	// 128 bytes
+};
+
 // The foreground texture (shadertoyBuf)
 Texture2D    fgTex     : register(t0);
 SamplerState fgSampler : register(s0);

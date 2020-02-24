@@ -9,6 +9,7 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
 #include "common.h"
+#include "..\shaders\material_defs.h"
 #include "DeviceResources.h"
 #include "Direct3DDevice.h"
 #include "Direct3DExecuteBuffer.h"
@@ -30,6 +31,8 @@
 
 #include "XWAObject.h"
 
+#include "..\shaders\shader_common.h"
+
 #define DBG_MAX_PRESENT_LOGS 0
 
 FILE *g_HackFile = NULL;
@@ -37,10 +40,23 @@ FILE *g_HackFile = NULL;
 //ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
 PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
+uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
+const auto numberOfPlayersInGame = (int*)0x910DEC;
+// Data provided by keiranhalcyon7:
+uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
+float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
+float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
+int g_KeySet = 2;
+/* 
+   1 = Arrow keys move the lights
+   2 = Arrow keys change the FOV
+*/
 
-const float DEFAULT_FOCAL_DIST = 0.5f;
-//const float DEFAULT_FOCAL_DIST_STEAMVR = 0.6f;
+const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
+const float DEFAULT_METRIC_MULT = 1.0f;
 
 const float DEFAULT_HUD_PARALLAX = 1.7f;
 const float DEFAULT_TEXT_PARALLAX = 0.45f;
@@ -70,7 +86,6 @@ const bool DEFAULT_INTERLEAVED_REPROJECTION = false;
 const bool DEFAULT_BARREL_EFFECT_STATE = true;
 const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its own lens correction, only enable it if the user really wants it
 const float DEFAULT_BRIGHTNESS = 0.95f;
-const bool DEFAULT_INVERSE_TRANSPOSE = false;
 const float MAX_BRIGHTNESS = 1.0f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
@@ -101,7 +116,9 @@ const float DEFAULT_PITCH_OFFSET = 0.0f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
 const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
+const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
 const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
+const char *SIZE_POST_PROJ_VRPARAM = "post_projection_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
 const char *WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM = "zoomed_out_on_startup";
 const char *CONCOURSE_WINDOW_SCALE_VRPARAM = "concourse_window_scale";
@@ -122,6 +139,7 @@ const char *VR_MODE_NONE_SVAL = "None";
 const char *VR_MODE_DIRECT_SBS_SVAL = "DirectSBS";
 const char *VR_MODE_STEAMVR_SVAL = "SteamVR";
 const char *INTERLEAVED_REPROJ_VRPARAM = "SteamVR_Interleaved_Reprojection";
+const char *STEAMVR_DISTORTION_ENABLED_VRPARAM = "steamvr_distortion_enabled";
 const char *BARREL_EFFECT_STATE_VRPARAM = "apply_lens_correction";
 const char *INVERSE_TRANSPOSE_VRPARAM = "alternate_steamvr_eye_inverse";
 const char *FLOATING_AIMING_HUD_VRPARAM = "floating_aiming_HUD";
@@ -130,17 +148,8 @@ const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 // 6dof vrparams
-const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
-const char *POS_X_MULTIPLIER_VRPARAM = "positional_x_multiplier";
-const char *POS_Y_MULTIPLIER_VRPARAM = "positional_y_multiplier";
-const char *POS_Z_MULTIPLIER_VRPARAM = "positional_z_multiplier";
-const char *MIN_POSITIONAL_X_VRPARAM = "min_positional_track_x";
-const char *MAX_POSITIONAL_X_VRPARAM = "max_positional_track_x";
-const char *MIN_POSITIONAL_Y_VRPARAM = "min_positional_track_y";
-const char *MAX_POSITIONAL_Y_VRPARAM = "max_positional_track_y";
-const char *MIN_POSITIONAL_Z_VRPARAM = "min_positional_track_z";
-const char *MAX_POSITIONAL_Z_VRPARAM = "max_positional_track_z";
+const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char *STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
 // Cockpitlook params
 const char *YAW_MULTIPLIER_CLPARAM   = "yaw_multiplier";
@@ -181,13 +190,14 @@ bool g_bSteamVREnabled = false; // The user sets this flag to true to request su
 bool g_bSteamVRInitialized = false; // The system will set this flag after SteamVR has been initialized
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
-bool g_bInverseTranspose = DEFAULT_INVERSE_TRANSPOSE; // Transpose the eye matrices before computing the inverse
 bool g_bResetHeadCenter = true; // Reset the head center on startup
+bool g_bSteamVRDistortionEnabled = true;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
-Matrix4 g_projLeft, g_projRight, g_projHead;
-Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_fullMatrixHead;
-Matrix4 g_viewMatrix;
+Matrix4 g_projLeft, g_projRight;
+Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
+float g_fMetricMult = DEFAULT_METRIC_MULT;
+
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 float g_fYawMultiplier   = DEFAULT_YAW_MULTIPLIER;
@@ -240,6 +250,8 @@ unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 
+/*********************************************************/
+// HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
@@ -257,10 +269,35 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 //int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
 
+/*********************************************************/
+// ACTIVE COCKPIT
+Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
+Vector4 g_contOriginViewSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
+Vector4 g_contDirViewSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
+Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
+float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
+float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
+bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = false;
+bool g_bFreePIEControllerButtonDataAvailable = false;
+ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
+int g_iNumACElements = 0, g_iLaserDirSelector = 3;
+// DEBUG vars
+Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
+bool g_bDumpLaserPointerDebugInfo = false;
+Vector3 g_LPdebugPoint;
+float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f;
+// DEBUG vars
+
+/*********************************************************/
+// DYNAMIC COCKPIT
 char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
+
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
@@ -277,6 +314,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
+TrackerType g_TrackerType = TRACKER_NONE;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -290,11 +328,13 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
-extern SSAOPixelShaderCBStruct g_SSAO_PSCBuffer;
-bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
+extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
+float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -317,6 +357,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 float g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
+//float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 float g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 float g_fConcourseAspectRatio = DEFAULT_CONCOURSE_ASPECT_RATIO;
@@ -333,6 +374,7 @@ float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
+int g_iFreePIEControllerSlot = -1;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 bool g_bDirectSBSInitialized = false;
@@ -344,6 +386,7 @@ VertexShaderCBuffer  g_VSCBuffer;
 PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
 ShadertoyCBuffer		 g_ShadertoyBuffer;
+LaserPointerCBuffer	 g_LaserPointerBuffer;
 
 struct MainVertex
 {
@@ -371,6 +414,7 @@ const float LOG_K = 1.0f;
 float g_fIPD = DEFAULT_IPD / IPD_SCALE_FACTOR;
 float g_fHalfIPD = g_fIPD / 2.0f;
 float g_fFocalDist = DEFAULT_FOCAL_DIST;
+float g_fFakeRoll = 0.0f;
 
 /*
  * Control/Debug variables
@@ -386,85 +430,16 @@ int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 /* Reloads all the CRCs. */
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
-bool InitDirectSBS();
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
-
-/* Maps (-6, 6) to (-0.5, 0.5) using a sigmoid function */
-float centeredSigmoid(float x) {
-	return 1.0f / (1.0f + exp(-x)) - 0.5f;
-}
-
-HeadPos g_HeadPosAnim = { 0 }, g_HeadPos = { 0 };
-bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-const float ANIM_INCR = 0.1f, MAX_LEAN_X = 1.5f, MAX_LEAN_Y = 1.5f, MAX_LEAN_Z = 1.5f;
-// The MAX_LEAN values will be clamped by the limits from vrparams.cfg
-
-void animTickX() {
-	if (g_bRightKeyDown)
-		g_HeadPosAnim.x -= ANIM_INCR;
-	else if (g_bLeftKeyDown)
-		g_HeadPosAnim.x += ANIM_INCR;
-	else if (!g_bRightKeyDown && !g_bLeftKeyDown && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.x < 0.0001)
-			g_HeadPosAnim.x += ANIM_INCR;
-		if (g_HeadPosAnim.x > 0.0001)
-			g_HeadPosAnim.x -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.x >  6.0f)  g_HeadPosAnim.x =  6.0f;
-	if (g_HeadPosAnim.x < -6.0f)  g_HeadPosAnim.x = -6.0f;
-
-	g_HeadPos.x = centeredSigmoid(g_HeadPosAnim.x) * MAX_LEAN_X;
-}
-
-void animTickY() {
-	if (g_bDownKeyDown)
-		g_HeadPosAnim.y += ANIM_INCR;
-	else if (g_bUpKeyDown)
-		g_HeadPosAnim.y -= ANIM_INCR;
-	else if (!g_bDownKeyDown && !g_bUpKeyDown && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.y < 0.0001)
-			g_HeadPosAnim.y += ANIM_INCR;
-		if (g_HeadPosAnim.y > 0.0001)
-			g_HeadPosAnim.y -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.y >  6.0f)  g_HeadPosAnim.y =  6.0f;
-	if (g_HeadPosAnim.y < -6.0f)  g_HeadPosAnim.y = -6.0f;
-
-	g_HeadPos.y = centeredSigmoid(g_HeadPosAnim.y) * MAX_LEAN_Y;
-}
-
-void animTickZ() {
-	if (g_bDownKeyDownShift)
-		g_HeadPosAnim.z -= ANIM_INCR;
-	else if (g_bUpKeyDownShift)
-		g_HeadPosAnim.z += ANIM_INCR;
-	else if (!g_bDownKeyDownShift && !g_bUpKeyDownShift && !g_bStickyArrowKeys) {
-		if (g_HeadPosAnim.z < 0.0001)
-			g_HeadPosAnim.z += ANIM_INCR;
-		if (g_HeadPosAnim.z > 0.0001)
-			g_HeadPosAnim.z -= ANIM_INCR;
-	}
-
-	// Range clamping
-	if (g_HeadPosAnim.z >  6.0f)  g_HeadPosAnim.z =  6.0f;
-	if (g_HeadPosAnim.z < -6.0f)  g_HeadPosAnim.z = -6.0f;
-
-	g_HeadPos.z = centeredSigmoid(g_HeadPosAnim.z) * MAX_LEAN_Z;
-}
+int isInVector(char *name, ac_element *ac_elements, int num_elems);
+bool InitDirectSBS();
+void LoadFocalLength();
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
 	if (NewIPD < 0.0f)
 		NewIPD = 0.0f;
-	/*
-	if (NewIPD > 12.0f) {
-		NewIPD = 12.0f;
-	}
-	*/
+
 	g_fIPD = NewIPD / IPD_SCALE_FACTOR;
 	log_debug("[DBG] NewIPD: %0.3f, Actual g_fIPD: %0.6f", NewIPD, g_fIPD);
 	g_fHalfIPD = g_fIPD / 2.0f;
@@ -538,8 +513,17 @@ void IncreaseScreenScale(float Delta) {
 	g_fGlobalScale += Delta;
 	if (g_fGlobalScale < 0.2f)
 		g_fGlobalScale = 0.2f;
-	log_debug("[DBG] New g_fGlobalScale: %f", g_fGlobalScale);
+	log_debug("[DBG] New g_fGlobalScale: %0.3f", g_fGlobalScale);
 }
+
+/*
+void IncreasePostProjScale(float Delta) {
+	g_fPostProjScale += Delta;
+	if (g_fPostProjScale < 0.2f)
+		g_fPostProjScale = 0.2f;
+	log_debug("[DBG] New g_fPostProjScale: %0.3ff", g_fPostProjScale);
+}
+*/
 
 void IncreaseFocalDist(float Delta) {
 	g_fFocalDist += Delta;
@@ -597,12 +581,14 @@ void IncreaseLensK2(float Delta) {
 void ResetVRParams() {
 	//g_fFocalDist = g_bSteamVREnabled ? DEFAULT_FOCAL_DIST_STEAMVR : DEFAULT_FOCAL_DIST;
 	g_fFocalDist = DEFAULT_FOCAL_DIST;
+	g_fMetricMult = DEFAULT_METRIC_MULT;
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 	g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
+	//g_fPostProjScale = 1.0f;
 	g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 	g_bZoomOut = g_bZoomOutInitialState;
 	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
@@ -633,14 +619,16 @@ void ResetVRParams() {
 	g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 
 	g_fBrightness = DEFAULT_BRIGHTNESS;
-	g_bStickyArrowKeys = false;
-	g_bYawPitchFromMouseOverride = false;
+	//g_bStickyArrowKeys = false;
+	//g_bYawPitchFromMouseOverride = false;
 
 	g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
-	if (g_bUseSteamVR)
+	if (g_bUseSteamVR) {
 		g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
+		g_bSteamVRDistortionEnabled = true;
+	}
 
-	g_bDisableBarrelEffect = g_bUseSteamVR ? !DEFAULT_BARREL_EFFECT_STATE_STEAMVR : !DEFAULT_BARREL_EFFECT_STATE;
+	//g_bDisableBarrelEffect = g_bUseSteamVR ? !DEFAULT_BARREL_EFFECT_STATE_STEAMVR : !DEFAULT_BARREL_EFFECT_STATE;
 
 	g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
 
@@ -661,11 +649,14 @@ void ResetVRParams() {
 	if (!g_bUseSteamVR)
 		InitDirectSBS();
 
-	g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
-	g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
-	g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
+	//g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
+	//g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
+	//g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
+
+	/**g_fRawFOVDist = g_fDefaultFOVDist;
+	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
 	// Load CRCs
-	//ReloadCRCs();
 	LoadCockpitLookParams();
 }
 
@@ -675,13 +666,13 @@ void SaveVRParams() {
 	int error = 0;
 	
 	try {
-		error = fopen_s(&file, "./vrparams.cfg", "wt");
+		error = fopen_s(&file, "./VRParams.cfg", "wt");
 	} catch (...) {
-		log_debug("[DBG] Could not save vrparams.cfg");
+		log_debug("[DBG] Could not save VRParams.cfg");
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] Error %d when saving vrparams.cfg", error);
+		log_debug("[DBG] Error %d when saving VRParams.cfg", error);
 		return;
 	}
 	fprintf(file, "; VR parameters. Write one parameter per line.\n");
@@ -692,7 +683,7 @@ void SaveVRParams() {
 	fprintf(file, "; VR mode may need to be set manually.\n");
 	fprintf(file, "; To reload this file during game (at any point) just press Ctrl+Alt+L.\n");
 	fprintf(file, "; Most parameters can be re-applied when reloading.\n");
-	fprintf(file, "; You can also press Ctrl+Alt+R to reset the viewing params to default values.\n\n");
+	//fprintf(file, "; You can also press Ctrl+Alt+R to reset the viewing params to default values.\n\n");
 
 	fprintf(file, "; VR Mode. Select from None, DirectSBS and SteamVR.\n");
 	if (!g_bEnableVR)
@@ -711,8 +702,14 @@ void SaveVRParams() {
 	fprintf(file, "; remove the stereoscopy effect.\n");
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
 	fprintf(file, "%s = %0.1f\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
+	fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
+	fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
 	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+	fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
+	fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
+	//if (fabs(g_fPostProjScale - 1.0f) > 0.001f)
+	//	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
 	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
 	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
@@ -727,7 +724,7 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n\n", COCKPIT_Z_THRESHOLD_VRPARAM, g_fCockpitPZThreshold);
 	*/
 
-	fprintf(file, "; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
+	fprintf(file, "\n; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
 	fprintf(file, "; ALWAYS specify BOTH the Concourse and 3D window aspect ratio.\n");
 	fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
 	fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
@@ -740,7 +737,13 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
 	fprintf(file, "%s = %0.6f\n", K2_VRPARAM, g_fLensK2);
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
-	fprintf(file, "%s = %d\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
+	fprintf(file, "%s = %d\n\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
+
+	fprintf(file, "; The following parameter will enable/disable SteamVR's lens distortion correction\n");
+	fprintf(file, "; The default is 1, only set it to 0 if you're seeing distortion in SteamVR.\n");
+	fprintf(file, "; If you set it to 0, I suggest you enable %s above to use the internal lens\n", BARREL_EFFECT_STATE_VRPARAM);
+	fprintf(file, "; distortion correction instead\n");
+	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
 
 	fprintf(file, "\n; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
@@ -782,27 +785,9 @@ void SaveVRParams() {
 
 	//fprintf(file, "\n");
 	//fprintf(file, "%s = %d\n", INVERSE_TRANSPOSE_VRPARAM, g_bInverseTranspose);
-	fprintf(file, "\n; 6dof section. Set any of these multipliers to 0 to de-activate individual axes.\n");
-	fprintf(file, "; The settings for pitch and yaw are in cockpitlook.cfg\n");
+	fprintf(file, "\n; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
+	fprintf(file, "; The settings for pitch, yaw and positional tracking are in CockpitLook.cfg\n");
 	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_X_MULTIPLIER_VRPARAM, g_fPosXMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_Y_MULTIPLIER_VRPARAM, g_fPosYMultiplier);
-	fprintf(file, "%s = %0.3f\n", POS_Z_MULTIPLIER_VRPARAM, g_fPosZMultiplier);
-	fprintf(file, "\n; Limits of the head tracker position in meters: this prevents you from\n");
-	fprintf(file, "; \"leaning outside the cockpit\".\n");
-	fprintf(file, "; x+ is to the right.\n");
-	fprintf(file, "; y+ is down.\n");
-	fprintf(file, "; z+ is forward.\n");
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_X_VRPARAM, g_fMinPositionX);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_X_VRPARAM, g_fMaxPositionX);
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_Y_VRPARAM, g_fMinPositionY);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_Y_VRPARAM, g_fMaxPositionY);
-	fprintf(file, "%s = %0.3f\n",   MIN_POSITIONAL_Z_VRPARAM, g_fMinPositionZ);
-	fprintf(file, "%s = %0.3f\n\n", MAX_POSITIONAL_Z_VRPARAM, g_fMaxPositionZ);
-
-	fprintf(file, "; Specify which slot will be used to read FreePIE positional data.\n");
-	fprintf(file, "; Only applies in DirectSBS mode (ignored in SteamVR mode).\n");
-	fprintf(file, "%s = %d\n", FREEPIE_SLOT_VRPARAM, g_iFreePIESlot);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
@@ -832,7 +817,7 @@ void LoadCockpitLookParams() {
 
 	char buf[160], param[80], svalue[80];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	while (fgets(buf, 160, file) != NULL) {
 		// Skip comments and blank lines
@@ -842,18 +827,40 @@ void LoadCockpitLookParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 			if (_stricmp(param, YAW_MULTIPLIER_CLPARAM) == 0) {
-				g_fYawMultiplier = value;
+				g_fYawMultiplier = fValue;
 			}
 			else if (_stricmp(param, PITCH_MULTIPLIER_CLPARAM) == 0) {
-				g_fPitchMultiplier = value;
+				g_fPitchMultiplier = fValue;
 			}
 			else if (_stricmp(param, YAW_OFFSET_CLPARAM) == 0) {
-				g_fYawOffset = value;
+				g_fYawOffset = fValue;
 			}
 			else if (_stricmp(param, PITCH_OFFSET_CLPARAM) == 0) {
-				g_fPitchOffset = value;
+				g_fPitchOffset = fValue;
+			}
+			else if (_stricmp(param, "tracker_type") == 0) {
+				if (_stricmp(svalue, "FreePIE") == 0) {
+					log_debug("Using FreePIE for tracking");
+					g_TrackerType = TRACKER_FREEPIE;
+				}
+				else if (_stricmp(svalue, "SteamVR") == 0) {
+					log_debug("Using SteamVR for tracking");
+					g_TrackerType = TRACKER_STEAMVR;
+				}
+				else if (_stricmp(svalue, "TrackIR") == 0) {
+					log_debug("Using TrackIR for tracking");
+					g_TrackerType = TRACKER_TRACKIR;
+				}
+				else if (_stricmp(svalue, "None") == 0) {
+					log_debug("Tracking disabled");
+					g_TrackerType = TRACKER_NONE;
+				}
+			}
+			// 6dof parameters
+			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
+				g_iFreePIESlot = (int)fValue;
 			}
 			param_read_count++;
 		}
@@ -1030,7 +1037,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 	char *substr = NULL;
 	char slot_name[50];
 
-	if (idx >= MAX_DC_COORDS) {
+	if (idx >= MAX_DC_COORDS_PER_TEXTURE) {
 		log_debug("[DBG] [DC] Too many coords already loaded");
 		return false;
 	}
@@ -1093,6 +1100,239 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 }
 
 /*
+ * Converts a string representation of a hotkey to a series of scan codes
+ */
+void TranslateACAction(WORD *scanCodes, char *action) {
+	// XWA keyboard reference:
+	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
+	// Scan code tables:
+	// http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
+	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+	int len = strlen(action);
+	const char *ptr = action, *cursor;
+	int i, j;
+	// Translate to uppercase
+	for (i = 0; i < len; i++)
+		action[i] = toupper(action[i]);
+	log_debug("[DBG] [AC] Translating [%s]", action);
+
+	// Stop further parsing if this is a void action
+	if (strstr(action, "VOID") != NULL)
+	{
+		scanCodes[0] = 0; 
+		return;
+	}
+
+	j = 0;
+	/*
+	// Function keys must be handled separately because SHIFT+Fn have unique
+	// scan codes
+	if (strstr("F1", action) != NULL) {
+		if      (strstr(action, "SHIFT") != NULL)	scanCodes[j] = 0x54;
+		else if (strstr(action, "CTRL") != NULL)		scanCodes[j] = 0x5E;
+		else if (strstr(action, "ALT") != NULL)		scanCodes[j] = 0x68;
+		else											scanCodes[j] = 0x3B;
+		return;
+	}
+	// End of function keys
+	*/
+
+	// Composite keys
+	ptr = action;
+	if ((cursor = strstr(action, "SHIFT")) != NULL) { 	scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(action, "CTRL")) != NULL) {		scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(action, "ALT")) != NULL) {		scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	// Process the function keys
+	if (strstr(ptr, "F") != NULL) {
+		char next = *(ptr + 1);
+		if (isdigit(next)) {
+			// This is a function key, convert all the digits after the F
+			int numkey = atoi(ptr + 1);
+			scanCodes[j++] = 0x3B + numkey - 1;
+			scanCodes[j] = 0; // Terminate the scan code list
+			return;
+		}
+	}
+
+	// Process the arrow keys
+	if (strstr(ptr, "ARROW") != NULL) 
+	{
+		scanCodes[j++] = 0xE0;
+		if (strstr(ptr, "LEFT")  != NULL)	scanCodes[j++] = 0x4B;
+		if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = 0x4D;
+		if (strstr(ptr, "UP")    != NULL)	scanCodes[j++] = 0x48;
+		if (strstr(ptr, "DOWN")  != NULL) 	scanCodes[j++] = 0x50;
+
+		//if (strstr(ptr, "LEFT") != NULL)		scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4B
+		//if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4D
+		//if (strstr(ptr, "UP") != NULL)  		scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
+		//if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x50
+		scanCodes[j] = 0;
+		return;
+	}
+
+	// Process other special keys
+	{
+		if (strstr(ptr, "TAB") != NULL) // CONFIRMED: 0x0F
+		{
+			scanCodes[j++] = MapVirtualKey(VK_TAB, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "ENTER") != NULL)
+		{
+			scanCodes[j++] = MapVirtualKey(VK_RETURN, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (isdigit(*ptr)) { // CONFIRMED
+			int digit = *ptr - '0';
+			if (digit == 0) digit += 10;
+			scanCodes[j++] = 0x02 - 1 + digit;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, ";") != NULL) {
+			scanCodes[j++] = 0x27;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "'") != NULL) {
+			scanCodes[j++] = 0x28;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "COMMA") != NULL) {
+			scanCodes[j++] = 0x33;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "PERIOD") != NULL) {
+			scanCodes[j++] = 0x34;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "SPACE") != NULL) {
+			scanCodes[j++] = 0x39;
+			scanCodes[j] = 0;
+			return;
+		}
+	}
+
+	// Regular single-char keys
+	scanCodes[j++] = (WORD)MapVirtualKey(*ptr, MAPVK_VK_TO_VSC);
+	if (j < MAX_AC_ACTION_LEN)
+		scanCodes[j] = 0; // Terminate the scan code list
+}
+
+void DisplayACAction(WORD *scanCodes) {
+	std::stringstream ss;
+	int i = 0;
+	while (scanCodes[i] && i < MAX_AC_ACTION_LEN) {
+		ss << std::hex << scanCodes[i] << ", ";
+		i++;
+	}
+	std::string s = ss.str();
+	log_debug("[DBG] [AC] %s", s.c_str());
+}
+
+/*
+ * Loads an "action" row:
+ * "action" = ACTION, x0,y0, x1,y1
+ */
+bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
+{
+	float x0, y0, x1, y1;
+	int res = 0, idx = coords->numCoords;
+	char *substr = NULL;
+	char action[50];
+
+	if (idx >= MAX_AC_COORDS_PER_TEXTURE) {
+		log_debug("[DBG] [AC] Too many actions already loaded for this texture");
+		return false;
+	}
+
+	substr = strchr(buf, '=');
+	if (substr == NULL) {
+		log_debug("[DBG] [AC] Missing '=' in '%s', skipping", buf);
+		return false;
+	}
+	// Skip the equal sign:
+	substr++;
+	// Skip white space chars:
+	while (*substr == ' ' || *substr == '\t')
+		substr++;
+
+	try {
+		int len;
+
+		//src_slot = -1;
+		action[0] = 0;
+		len = ReadNameFromLine(substr, action);
+		if (len == 0)
+			return false;
+
+		// Parse the rest of the parameters
+		substr += len + 1;
+		res = sscanf_s(substr, "%f, %f, %f, %f", &x0, &y0, &x1, &y1);
+		if (res < 4) {
+			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
+		}
+		else {
+			strcpy_s(&(coords->action_name[idx][0]), 16, action);
+			TranslateACAction(&(coords->action[idx][0]), action);
+			DisplayACAction(&(coords->action[idx][0]));
+
+			coords->area[idx].x0 = x0 / width;
+			coords->area[idx].y0 = y0 / height;
+			coords->area[idx].x1 = x1 / width;
+			coords->area[idx].y1 = y1 / height;
+			// Flip the coordinates if necessary
+			if (x0 != -1.0f && x1 != -1.0f) {
+				if (x0 > x1) 
+				{
+					// Swap coords in the X-axis:
+					//float x = coords->area[idx].x0;
+					//coords->area[idx].x0 = coords->area[idx].x1;
+					//coords->area[idx].x1 = x;
+					// Mirror the X-axis:
+					coords->area[idx].x0 = 1.0f - coords->area[idx].x0;
+					coords->area[idx].x1 = 1.0f - coords->area[idx].x1;
+				}
+			}
+			if (y0 != -1.0f && y1 != -1.0f) {
+				if (y0 > y1) 
+				{
+					// Swap coords in the Y-axis:
+					//float y = coords->area[idx].y0;
+					//coords->area[idx].y0 = coords->area[idx].y1;
+					//coords->area[idx].y1 = y;
+
+					// Mirror the Y-axis:
+					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
+					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
+				}
+			}
+			coords->numCoords++;
+		}
+	}
+	catch (...) {
+		log_debug("[DBG] [AC] Could not read uv coords from: %s", buf);
+		return false;
+	}
+	return true;
+}
+
+/*
  * Loads a cover_texture_size row
  */
 bool LoadDCCoverTextureSize(char *buf, float *width, float *height)
@@ -1115,6 +1355,13 @@ bool LoadDCCoverTextureSize(char *buf, float *width, float *height)
 		}
 	}
 	return true;
+}
+
+/*
+ * Clears all the move_region commands
+ */
+static inline void ClearDCMoveRegions() {
+	g_DCMoveRegions.numCoords = 0;
 }
 
 /*
@@ -1179,8 +1426,8 @@ bool LoadDCMoveRegion(char *buf)
 			g_DCMoveRegions.dst[idx].y1 = y1;
 			g_DCMoveRegions.numCoords++;
 
-			log_debug("[DBG] [DC] move_region [%s], (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-				region_name, x0, y0, x1, y1);
+			log_debug("[DBG] [DC] move_region [%s=%d], (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				region_name, region_slot, x0, y0, x1, y1);
 		}
 	}
 	catch (...) {
@@ -1191,19 +1438,392 @@ bool LoadDCMoveRegion(char *buf)
 }
 
 /*
- * Clears all the move_region commands
- */
-static inline void ClearDCMoveRegions() {
-	g_DCMoveRegions.numCoords = 0;
-}
-
-/*
  * Convert a cockpit name into a DC params file of the form:
  * DynamicCockpit\<CockpitName>.dc
  */
 void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize) {
 	snprintf(sFileName, iFileNameSize, "DynamicCockpit\\%s.dc", CockpitName);
 }
+
+/*
+ * Convert a cockpit name into an AC params file of the form:
+ * DynamicCockpit\<CockpitName>.ac
+ */
+void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize) {
+	snprintf(sFileName, iFileNameSize, "DynamicCockpit\\%s.ac", CockpitName);
+}
+
+/*
+ * Convert an OPT name into a MAT params file of the form:
+ * Materials\<OPTName>.mat
+ */
+void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
+	snprintf(sFileName, iFileNameSize, "Materials\\%s.mat", OPTName);
+}
+
+/*
+ * Load the material parameters for an individual OPT.
+ */
+bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
+
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
+	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	MaterialTexDef curMaterialTexDef;
+
+	// Find this OPT in the global materials and clear it if necessary...
+	int craftIdx = FindCraftMaterial(OPTname);
+	if (craftIdx < 0) {
+		// New Craft Material
+		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
+		//craftIdx = g_Materials.size();
+	}
+	else {
+		// Existing Craft Material, clear it
+		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		g_Materials[craftIdx].MaterialList.clear();
+	}
+	CraftMaterials craftMat;
+	// Clear the materials for this craft and add a default material
+	craftMat.MaterialList.clear();
+	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
+
+	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+	// The default material will always be in slot 0:
+	craftMat.MaterialList.push_back(curMaterialTexDef);
+	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+
+	// We always start the craft material with one material: the default material in slot 0
+	bool MaterialSaved = true;
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				// Extract the name of the texture
+				strcpy_s(texname, MAX_TEXNAME, buf + 1);
+				// Get rid of the trailing ']'
+				char *end = strstr(texname, "]");
+				if (end != NULL)
+					*end = 0;
+				//log_debug("[DBG] [MAT] texname: %s", texname);
+
+				if (!MaterialSaved) {
+					// There's an existing material that needs to be saved before proceeding
+
+					// Special case: overwrite the default material
+					if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+						//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
+						craftMat.MaterialList[0] = curMaterialTexDef;
+					}
+					else {
+						//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
+						craftMat.MaterialList.push_back(curMaterialTexDef);
+					}
+				}
+				// Start a new material
+				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
+				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+				MaterialSaved = false;
+			}
+			else if (_stricmp(param, "Metallic") == 0) {
+				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+				curMaterialTexDef.material.Metallic = fValue;
+			}
+			else if (_stricmp(param, "Intensity") == 0) {
+				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
+				curMaterialTexDef.material.Intensity = fValue;
+			}
+			else if (_stricmp(param, "Glossiness") == 0) {
+				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+				curMaterialTexDef.material.Glossiness = fValue;
+			}
+			else if (_stricmp(param, "NMIntensity") == 0) {
+				curMaterialTexDef.material.NMIntensity = fValue;
+			}
+			else if (_stricmp(param, "SpecularVal") == 0) {
+				curMaterialTexDef.material.SpecValue = fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	// Save the last material if necessary...
+	if (!MaterialSaved) {
+		// There's an existing material that needs to be saved before proceeding
+		// Special case: overwrite the default material
+		if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+			//log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
+			craftMat.MaterialList[0] = curMaterialTexDef;
+		}
+		else {
+			//log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
+			craftMat.MaterialList.push_back(curMaterialTexDef);
+		}
+	}
+
+	// Replace the craft material in g_Materials
+	if (craftIdx < 0) {
+		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
+		g_Materials.push_back(craftMat);
+		craftIdx = g_Materials.size() - 1;
+	}
+	else {
+		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
+		g_Materials[craftIdx] = craftMat;
+	}
+
+	// DEBUG
+	// Print out the materials for this craft
+	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
+	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
+		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
+		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
+			g_Materials[craftIdx].MaterialList[i].texname,
+			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
+	}
+	log_debug("[DBG] [MAT] *********************");
+	// DEBUG
+	return true;
+}
+
+/*
+ * Load the material parameters for an individual OPT.
+ */
+bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
+	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
+	// of TexnameType
+	// https://stackoverflow.com/questions/21829451/push-back-on-a-vector-of-array-of-char
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
+	char buf[256], param[256], svalue[256]; // texname[MAX_TEXNAME];
+	std::vector<TexnameType> texnameList;
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	MaterialTexDef curMaterialTexDef;
+
+	// Find this OPT in the global materials and clear it if necessary...
+	int craftIdx = FindCraftMaterial(OPTname);
+	if (craftIdx < 0) {
+		// New Craft Material
+		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
+		//craftIdx = g_Materials.size();
+	}
+	else {
+		// Existing Craft Material, clear it
+		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		g_Materials[craftIdx].MaterialList.clear();
+	}
+	CraftMaterials craftMat;
+	// Clear the materials for this craft and add a default material
+	craftMat.MaterialList.clear();
+	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
+
+	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+	// The default material will always be in slot 0:
+	craftMat.MaterialList.push_back(curMaterialTexDef);
+	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+
+	// We always start the craft material with one material: the default material in slot 0
+	bool MaterialSaved = true;
+	texnameList.clear();
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				
+				//strcpy_s(texname, MAX_TEXNAME, buf + 1);
+				// Get rid of the trailing ']'
+				//char *end = strstr(texname, "]");
+				//if (end != NULL)
+				//	*end = 0;
+				//log_debug("[DBG] [MAT] texname: %s", texname);
+				
+				if (!MaterialSaved) {
+					// There's an existing material that needs to be saved before proceeding
+					for (TexnameType texname : texnameList) {
+						// Copy the texture name from the list to the current material
+						strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
+						// Special case: overwrite the default material
+						if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+							//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
+							craftMat.MaterialList[0] = curMaterialTexDef;
+						}
+						else {
+							//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
+							craftMat.MaterialList.push_back(curMaterialTexDef);
+						}
+					}
+				}
+				texnameList.clear();
+
+				// Extract the name(s) of the texture(s)
+				{
+					char *start = buf + 1; // Skip the '[' bracket
+					char *end;
+					while (*start && *start != ']') {
+						end = start;
+						// Skip chars until we find ',' ']' or EOS
+						while (*end && *end != ',' && *end != ']')
+							end++;
+						// If we didn't hit EOS, then add the token to the list
+						if (*end)
+						{
+							TexnameType texname;
+							strncpy_s(texname.name, start, end - start);
+							//log_debug("[DBG] [MAT] Adding texname: [%s]", texname.texname);
+							texnameList.push_back(texname);
+							start = end + 1;
+						}
+						else
+							start = end;
+					}
+
+					// DEBUG
+					/*log_debug("[DBG] [MAT] ---------------");
+					for (uint32_t i = 0; i < texnameList.size(); i++)
+						log_debug("[DBG] [MAT] %s, ", texnameList[i].name);
+					log_debug("[DBG] [MAT] ===============");*/
+					// DEBUG
+				}
+
+				// Start a new material
+				//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
+				curMaterialTexDef.texname[0] = 0;
+				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
+				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
+				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
+				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
+				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+				MaterialSaved = false;
+			}
+			else if (_stricmp(param, "Metallic") == 0) {
+				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+				curMaterialTexDef.material.Metallic = fValue;
+			}
+			else if (_stricmp(param, "Intensity") == 0) {
+				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
+				curMaterialTexDef.material.Intensity = fValue;
+			}
+			else if (_stricmp(param, "Glossiness") == 0) {
+				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+				curMaterialTexDef.material.Glossiness = fValue;
+			}
+			else if (_stricmp(param, "NMIntensity") == 0) {
+				curMaterialTexDef.material.NMIntensity = fValue;
+			}
+			else if (_stricmp(param, "SpecularVal") == 0) {
+				curMaterialTexDef.material.SpecValue = fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	// Save the last material if necessary...
+	if (!MaterialSaved) {
+		// There's an existing material that needs to be saved before proceeding
+		for (TexnameType texname : texnameList) {
+			// Copy the texture name from the list to the current material
+			strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
+			// Special case: overwrite the default material
+			if (_stricmp("default", curMaterialTexDef.texname) == 0) {
+				//log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
+				craftMat.MaterialList[0] = curMaterialTexDef;
+			}
+			else {
+				//log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
+				craftMat.MaterialList.push_back(curMaterialTexDef);
+			}
+		}
+	}
+	texnameList.clear();
+
+	// Replace the craft material in g_Materials
+	if (craftIdx < 0) {
+		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
+		g_Materials.push_back(craftMat);
+		craftIdx = g_Materials.size() - 1;
+	}
+	else {
+		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
+		g_Materials[craftIdx] = craftMat;
+	}
+
+	// DEBUG
+	// Print out the materials for this craft
+	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
+	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
+		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
+		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
+			g_Materials[craftIdx].MaterialList[i].texname,
+			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
+	}
+	log_debug("[DBG] [MAT] *********************");
+	// DEBUG
+	return true;
+}
+
 
 /*
  * Load the DC params for an individual cockpit. 
@@ -1265,7 +1885,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (lastDCElemSelected > -1) {
 					g_DCElements[lastDCElemSelected].coords.numCoords = 0;
 					g_DCElements[lastDCElemSelected].num_erase_slots = 0;
-					log_debug("[DBG] [DC] Resetting coords of exisiting DC elem @ idx: %d", lastDCElemSelected);
+					log_debug("[DBG] [DC] Resetting coords of existing DC elem @ idx: %d", lastDCElemSelected);
 				}
 				else if (g_iNumDCElements < MAX_DC_SRC_ELEMENTS) {
 					// Initialize this dc_elem:
@@ -1354,6 +1974,111 @@ bool LoadIndividualDCParams(char *sFileName) {
 	return true;
 }
 
+/*
+ * Load the DC params for an individual cockpit.
+ * Resets g_DCElements (if we're not rendering in 3D), and the move regions.
+ */
+bool LoadIndividualACParams(char *sFileName) {
+	log_debug("[DBG] [AC] Loading Active Cockpit params for [%s]...", sFileName);
+	FILE *file;
+	int error = 0, line = 0;
+	static int lastACElemSelected = -1;
+	float tex_width = 1, tex_height = 1;
+
+	// Reset the Active Cockpit elements? We probably don't need this, because the code modifies existing
+	// AC slots
+	//g_iNumACElements = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float value = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			value = (float)atof(svalue);
+
+			if (buf[0] == '[') {
+				// This is a new AC element.
+				ac_element ac_elem;
+				strcpy_s(ac_elem.name, MAX_TEXTURE_NAME, buf + 1);
+				// Get rid of the trailing ']'
+				char *end = strstr(ac_elem.name, "]");
+				if (end != NULL)
+					*end = 0;
+				// See if we have this AC element already
+				lastACElemSelected = isInVector(ac_elem.name, g_ACElements, g_iNumACElements);
+				if (lastACElemSelected > -1) {
+					g_ACElements[lastACElemSelected].coords.numCoords = 0;
+					log_debug("[DBG] [AC] Resetting coords of existing AC elem @ idx: %d", lastACElemSelected);
+				}
+				else if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT) {
+					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+						ac_elem.name, g_iNumACElements);
+					//ac_elem.idx = g_iNumACElements; // Generate a unique ID
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = false;
+					ac_elem.bNameHasBeenTested = false;
+					g_ACElements[g_iNumACElements] = ac_elem;
+					lastACElemSelected = g_iNumACElements;
+					g_iNumACElements++;
+					log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
+				}
+				else {
+					if (g_iNumACElements >= MAX_AC_TEXTURES_PER_COCKPIT)
+						log_debug("[DBG] [AC] ERROR: Max g_iNumACElements: %d reached", g_iNumACElements);
+				}
+			}
+			else if (_stricmp(param, "texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &tex_width, &tex_height);
+				log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
+			}
+			else if (_stricmp(param, "action") == 0) {
+				if (g_iNumACElements == 0) {
+					log_debug("[DBG] [AC] ERROR. Line %d, g_ACElements is empty, cannot add action", line);
+					continue;
+				}
+				if (lastACElemSelected == -1) {
+					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without a corresponding texture section.", line);
+					continue;
+				}
+				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
+				// DEBUG
+				g_ACElements[lastACElemSelected].width = (short)tex_width;
+				g_ACElements[lastACElemSelected].height = (short)tex_height;
+				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
+				int idx = coords->numCoords - 1;
+				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					coords->area[idx].x0, coords->area[idx].y0,
+					coords->area[idx].x1, coords->area[idx].y1);
+				// DEBUG
+			}
+			
+		}
+	}
+	fclose(file);
+	return true;
+}
+
 /* Loads the dynamic_cockpit.cfg file */
 bool LoadDCParams() {
 	log_debug("[DBG] Loading Dynamic Cockpit params...");
@@ -1415,11 +2140,123 @@ bool LoadDCParams() {
 			}
 			else if (_stricmp(param, MOVE_REGION_DCPARAM) == 0) {
 				// Individual cockpit move_region commands override the global move_region commands:
-				if (!bCockpitParamsLoaded)
+				// EDIT: I don't remember very well why I did this; but maybe it was when I thought the move_region
+				// commands would go into each cockpit. So the per-cockpit move_region commands would override
+				// any global move_regions. However, at this point, the move_region commands seem to be global
+				// and apply to all cockpits, so let's reload these commands to make it easier to edit the HUD
+				// with Ctrl+Alt+L
+				//if (!bCockpitParamsLoaded)
 					LoadDCMoveRegion(buf);
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = value;
+			}
+		}
+	}
+	fclose(file);
+	return true;
+}
+
+/* Loads the dynamic_cockpit.cfg file */
+bool LoadACParams() {
+	log_debug("[DBG] [AC] Loading Active Cockpit params...");
+	FILE *file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./active_cockpit.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [AC] Could not load active_cockpit.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [AC] Error %d when loading active_cockpit.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	/* Reload individual cockpit parameters if the current cockpit is set */
+	// TODO: Reset AC params!
+	bool bActiveCockpitParamsLoaded = false;
+	if (g_sCurrentCockpit[0] != 0) {
+		char sFileName[80];
+		CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
+		bActiveCockpitParamsLoaded = LoadIndividualACParams(sFileName);
+	}
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "active_cockpit_enabled") == 0) {
+				g_bActiveCockpitEnabled = (bool)fValue;
+				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
+				if (!g_bActiveCockpitEnabled) {
+					// Early abort: stop reading coordinates if the active cockpit is disabled
+					fclose(file);
+					return false;
+				}
+			}
+			else if (_stricmp(param, "freepie_controller_slot") == 0) {
+				g_iFreePIEControllerSlot = (int)fValue;
+				InitFreePIE();
+			}
+			else if (_stricmp(param, "button_data_available") == 0) {
+				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
+			}
+			else if (_stricmp(param, "controller_multiplier_x") == 0) {
+				g_fContMultiplierX = fValue;
+			}
+			else if (_stricmp(param, "controller_multiplier_y") == 0) {
+				g_fContMultiplierY = fValue;
+			}
+			else if (_stricmp(param, "controller_multiplier_z") == 0) {
+				g_fContMultiplierZ = fValue;
+			}
+			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
+				g_bOriginFromHMD = (bool)fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_x") == 0) {
+				g_contOriginWorldSpace.x = fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_y") == 0) {
+				g_contOriginWorldSpace.y = fValue;
+			}
+			else if (_stricmp(param, "controller_origin_init_z") == 0) {
+				g_contOriginWorldSpace.z = fValue;
+			}
+			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
+				g_bCompensateHMDRotation = (bool)fValue;
+			}
+			else if (_stricmp(param, "compensate_HMD_position") == 0) {
+				g_bCompensateHMDPosition = (bool)fValue;
+			}
+			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
+				g_bCompensateHMDRotation = (bool)fValue;
+				g_bCompensateHMDPosition = (bool)fValue;
+			}
+			else if (_stricmp(param, "full_cockpit_test") == 0) {
+				g_bFullCockpitTest = (bool)fValue;
+			}
+			else if (_stricmp(param, "laser_pointer_length") == 0) {
+				g_fLaserPointerLength = fValue;
+			}
+			else if (_stricmp(param, "debug_laser_dir") == 0) {
+				g_iLaserDirSelector = (int)fValue;
+			}
+			else if (_stricmp(param, "debug") == 0) {
+				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
 			}
 		}
 	}
@@ -1454,6 +2291,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fLasersStrength     = 4.0f;
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength	  = 0.5f;
+	g_BloomConfig.fSkydomeLightStrength = 0.1f;
 	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1527,6 +2365,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "hyper_tunnel_strength") == 0) {
 				g_BloomConfig.fHyperTunnelStrength = fValue;
+			}
+			else if (_stricmp(param, "skydome_light_strength") == 0) {
+				g_BloomConfig.fSkydomeLightStrength = fValue;
 			}
 			
 			// Bloom strength per pyramid level
@@ -1661,7 +2502,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.intensity = 3.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
-	g_SSAO_PSCBuffer.bentNormalInit = 0.2f;
+	g_SSAO_PSCBuffer.bentNormalInit = 1.0f; // 0.2f
 	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
 	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
 	g_SSAO_PSCBuffer.z_division = 0;
@@ -1670,10 +2511,10 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
 	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
-	g_SSAO_PSCBuffer.fn_scale = 1.0f;
-	g_SSAO_PSCBuffer.fn_max_xymult = 100.0f;
+	g_SSAO_PSCBuffer.fn_scale = 0.03f;
+	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
-	g_SSAO_PSCBuffer.gamma = 1.0f;
+	g_SSAO_PSCBuffer.gamma = 1.25f;
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
@@ -1696,6 +2537,14 @@ bool LoadSSAOParams() {
 	// Default view-yaw/pitch signs
 	g_fViewYawSign = 1.0f;
 	g_fViewPitchSign = -1.0f;
+
+	// Default values for the shading system CB
+	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = 1.25f;
+	g_ShadingSys_PSBuffer.glossiness = 128.0f;
+	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
+	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
+	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -1737,6 +2586,11 @@ bool LoadSSAOParams() {
 					g_SSAO_Type = SSO_DIRECTIONAL;
 				else if (_stricmp(svalue, "bent_normals") == 0)
 					g_SSAO_Type = SSO_BENT_NORMALS;
+				else if (_stricmp(svalue, "deferred") == 0)
+					g_SSAO_Type = SSO_DEFERRED;
+			}
+			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
+				g_bDisableDiffuse = (bool)fValue;
 			}
 			else if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
@@ -1744,8 +2598,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "intensity") == 0) {
 				g_SSAO_PSCBuffer.intensity = fValue;
 			}
-			else if (_stricmp(param, "near_sample_radius") == 0 ||
-				     _stricmp(param, "sample_radius") == 0) {
+			else if (_stricmp(param, "near_sample_radius") == 0) { // "sample_radius" was previously read here too
 				g_SSAO_PSCBuffer.near_sample_radius = fValue;
 			}
 			else if (_stricmp(param, "far_sample_radius") == 0) {
@@ -1770,7 +2623,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
 			else if (_stricmp(param, "bent_normal_init") == 0) {
-				g_SSAO_PSCBuffer.bentNormalInit = fValue;
+				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Defaul: 0.2f
 			}
 			else if (_stricmp(param, "max_dist") == 0) {
 				g_SSAO_PSCBuffer.max_dist = fValue;
@@ -1917,6 +2770,36 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.invLightG = y;
 				g_SSAO_PSCBuffer.invLightB = z;
 			}
+
+			/* Shading System Settings */
+			else if (_stricmp(param, "specular_intensity") == 0) {
+				g_ShadingSys_PSBuffer.spec_intensity = fValue;
+				g_fSpecIntensity = fValue;
+			}
+			else if (_stricmp(param, "specular_bloom_intensity") == 0) {
+				g_ShadingSys_PSBuffer.spec_bloom_intensity = fValue;
+				g_fSpecBloomIntensity = fValue;
+			}
+			else if (_stricmp(param, "lightness_boost") == 0) {
+				g_ShadingSys_PSBuffer.lightness_boost = fValue;
+			}
+			else if (_stricmp(param, "saturation_boost") == 0) {
+				g_ShadingSys_PSBuffer.saturation_boost = fValue;
+			}
+			else if (_stricmp(param, "glossiness") == 0) {
+				g_ShadingSys_PSBuffer.glossiness = fValue;
+			}
+			else if (_stricmp(param, "bloom_glossiness_multiplier") == 0) {
+				g_ShadingSys_PSBuffer.bloom_glossiness_mult = fValue;
+			}
+			else if (_stricmp(param, "ss_debug") == 0) {
+				g_ShadingSys_PSBuffer.ss_debug = (int)fValue;
+			}
+			else if (_stricmp(param, "key_set") == 0) {
+				g_KeySet = (int)fValue;
+				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
+			}
+			
 		}
 	}
 	fclose(file);
@@ -2049,9 +2932,14 @@ void LoadVRParams() {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, FOCAL_DIST_VRPARAM) == 0) {
 				g_fFocalDist = fValue;
+				log_debug("[DBG] Focal Distance: %0.3f", g_fFocalDist);
 			}
 			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
+			}
+			else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
+				g_fMetricMult = fValue;
+				log_debug("[DBG] [FOV] g_fMetricMult: %0.6f", g_fMetricMult);
 			}
 			else if (_stricmp(param, SIZE_3D_WINDOW_VRPARAM) == 0) {
 				// Size of the window while playing the game
@@ -2061,6 +2949,9 @@ void LoadVRParams() {
 				// Size of the window while playing the game; but zoomed out to see all the GUI
 				g_fGlobalScaleZoomOut = fValue;
 			}
+			/*else if (_stricmp(param, SIZE_POST_PROJ_VRPARAM) == 0) {
+				g_fPostProjScale = fValue;
+			}*/
 			else if (_stricmp(param, WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM) == 0) {
 				g_bZoomOutInitialState = (bool)fValue;
 				g_bZoomOut = (bool)fValue;
@@ -2148,9 +3039,8 @@ void LoadVRParams() {
 					g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 				}
 			}
-			else if (_stricmp(param, INVERSE_TRANSPOSE_VRPARAM) == 0) {
-				g_bInverseTranspose = (bool)fValue;
-				log_debug("[DBG] Inverse Transpose set to: %d", g_bInverseTranspose);
+			else if (_stricmp(param, STEAMVR_DISTORTION_ENABLED_VRPARAM) == 0) {
+				g_bSteamVRDistortionEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, NATURAL_CONCOURSE_ANIM_VRPARAM) == 0) {
 				g_iNaturalConcourseAnimations = (int)fValue;
@@ -2159,44 +3049,6 @@ void LoadVRParams() {
 				g_bFixedGUI = (bool)fValue;
 			}
 
-			// 6dof parameters
-			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
-				g_iFreePIESlot = (int)fValue;
-			}
-			else if (_stricmp(param, ROLL_MULTIPLIER_VRPARAM) == 0) {
-				g_fRollMultiplier = fValue;
-			}
-			else if (_stricmp(param, POS_X_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosXMultiplier = fValue;
-			}
-			else if (_stricmp(param, POS_Y_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosYMultiplier = fValue;
-			}
-			else if (_stricmp(param, POS_Z_MULTIPLIER_VRPARAM) == 0) {
-				g_fPosZMultiplier = fValue;
-			}
-
-			else if (_stricmp(param, MIN_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMinPositionX = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_X_VRPARAM) == 0) {
-				g_fMaxPositionX = fValue;
-			}
-			else if (_stricmp(param, MIN_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMinPositionY = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_Y_VRPARAM) == 0) {
-				g_fMaxPositionY = fValue;
-			}
-			else if (_stricmp(param, MIN_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMinPositionZ = fValue;
-			}
-			else if (_stricmp(param, MAX_POSITIONAL_Z_VRPARAM) == 0) {
-				g_fMaxPositionZ = fValue;
-			}
-			else if (_stricmp(param, STEAMVR_POS_FROM_FREEPIE_VRPARAM) == 0) {
-				g_bSteamVRPosFromFreePIE = (bool)fValue;
-			}
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
 				g_bDCManualActivate = (bool)fValue;
 			}
@@ -2209,20 +3061,26 @@ void LoadVRParams() {
 	fclose(file);
 
 next:
-	// Load CRCs
-	//ReloadCRCs();
+	/**g_fRawFOVDist = g_fDefaultFOVDist;
+	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
+	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
+
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
 	LoadDCInternalCoordinates();
 	// Load Dynamic Cockpit params
 	LoadDCParams();
+	// Load Active Cockpit params
+	LoadACParams();
 	// Load the Bloom params
 	LoadBloomParams();
 	// Load the SSAO params
 	LoadSSAOParams();
 	// Load the Hyperspace params
 	LoadHyperParams();
+	// Load FOV params
+	LoadFocalLength();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -2457,30 +3315,11 @@ bool InitSteamVR()
 	//Matrix4 RollTest;
 	bool result = true;
 
-	Matrix4 g_targetCompView
-	(
-		3.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 6.0f, 0.0f, 2.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	);
-	g_targetCompView.transpose();
-
 	int file_error = fopen_s(&file, "./steamvr_mat.txt", "wt");
 	log_debug("[DBG] Initializing SteamVR");
 	vr::EVRInitError eError = vr::VRInitError_None;
 	g_pHMD = vr::VR_Init(&eError, vr::VRApplication_Scene);
 	g_headCenter.set(0, 0, 0);
-
-	// Generic matrix used for the dynamic targeting computer -- maybe I should use the left projection matrix instead?
-	g_projHead.set
-	(
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, -1.0f, -0.01f, // Use the focal_dist here?
-		0.0f, 0.0f, -1.0f, 0.0f
-	);
-	g_projHead.transpose();
 
 	if (eError != vr::VRInitError_None)
 	{
@@ -2537,7 +3376,6 @@ bool InitSteamVR()
 
 	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
 	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
-	g_fullMatrixHead = g_projHead * g_targetCompView; // The center matrix does not have eye parallax
 
 	//Test2DMesh();
 
@@ -2696,16 +3534,6 @@ bool InitDirectSBS()
 
 	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
 	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
-
-	Matrix4 g_targetCompView
-	(
-		3.0f, 0.0f, 0.0f,  0.0f,
-		0.0f, 6.0f, 0.0f,  2.0f,
-		0.0f, 0.0f, 1.0f,  0.0f,
-		0.0f, 0.0f, 0.0f,  1.0f
-	);
-	g_targetCompView.transpose();
-	g_fullMatrixHead  = g_projLeft * g_targetCompView; // The center matrix does not have eye parallax
 
 	//ShowMatrix4(g_EyeMatrixLeftInv, "g_EyeMatrixLeftInv");
 	//ShowMatrix4(g_projLeft, "g_projLeft");
@@ -3278,6 +4106,10 @@ HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	return hr;
 }
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 // Should this function be inlined?
 // See:
 // xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
@@ -3350,7 +4182,8 @@ void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
 	float *minU, float *minV, float *maxU, float *maxV,
-	bool debug) {
+	bool debug) 
+{
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	WORD index;
@@ -3404,14 +4237,426 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
+/*
+bool rayTriangleIntersect_old(
+	const Vector3 &orig, const Vector3 &dir,
+	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
+	float &t, Vector3 &P, float &u, float &v)
+{
+	// From https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/barycentric-coordinates
+	// compute plane's normal
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// no need to normalize
+	Vector3 N = v0v1.cross(v0v2); // N 
+	float denom = N.dot(N);
+
+	// Step 1: finding P
+
+	// check if ray and plane are parallel ?
+	float NdotRayDirection = N.dot(dir);
+	if (fabs(NdotRayDirection) < 0.00001) // almost 0 
+		return false; // they are parallel so they don't intersect ! 
+
+	// compute d parameter using equation 2
+	float d = N.dot(v0);
+
+	// compute t (equation 3)
+	t = (N.dot(orig) + d) / NdotRayDirection;
+	// check if the triangle is in behind the ray
+	if (t < 0) return false; // the triangle is behind
+
+	// compute the intersection point using equation 1
+	P = orig + t * dir;
+
+	// Step 2: inside-outside test
+	Vector3 C; // vector perpendicular to triangle's plane 
+
+	// edge 0
+	Vector3 edge0 = v1 - v0;
+	Vector3 vp0 = P - v0;
+	C = edge0.cross(vp0);
+	if (N.dot(C) < 0) return false; // P is on the right side 
+
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	if ((u = N.dot(C)) < 0)  return false; // P is on the right side
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	if ((v = N.dot(C)) < 0) return false; // P is on the right side; 
+
+	u /= denom;
+	v /= denom;
+
+	return true; // this ray hits the triangle 
+}
+*/
+
+#define MOLLER_TRUMBORE
+//#undef MOLLER_TRUMBORE
+#undef CULLING
+bool rayTriangleIntersect(
+	const Vector3 &orig, const Vector3 &dir,
+	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
+	float &t, Vector3 &P, float &u, float &v)
+{
+	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
+#ifdef MOLLER_TRUMBORE 
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	Vector3 pvec = dir.cross(v0v2);
+	float det = v0v1.dot(pvec);
+#ifdef CULLING 
+	// if the determinant is negative the triangle is backfacing
+	// if the determinant is close to 0, the ray misses the triangle
+	if (det < 0.00001 /* kEpsilon */) return false;
+#else 
+	// ray and triangle are parallel if det is close to 0
+	if (fabs(det) < 0.00001 /* kEpsilon */) return false;
+#endif 
+	float invDet = 1.0f / det;
+
+	Vector3 tvec = orig - v0;
+	u = tvec.dot(pvec) * invDet;
+	if (u < 0 || u > 1) return false;
+
+	Vector3 qvec = tvec.cross(v0v1);
+	v = dir.dot(qvec) * invDet;
+	if (v < 0 || u + v > 1) return false;
+
+	t = v0v2.dot(qvec) * invDet;
+	P = orig + t * dir;
+
+	// Compute u-v again to make them consistent with tex coords
+	Vector3 N = v0v1.cross(v0v2); // N 
+	Vector3 C;
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	u = N.dot(C);
+	
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	v = N.dot(C);
+
+	float denom = N.dot(N);
+	u /= denom;
+	v /= denom;
+	return true;
+#else 
+	// compute plane's normal
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// no need to normalize
+	Vector3 N = v0v1.cross(v0v2); // N 
+	float denom = N.dot(N);
+
+	// Step 1: finding P
+
+	// check if ray and plane are parallel ?
+	float NdotRayDirection = N.dot(dir);
+	if (fabs(NdotRayDirection) < 0.00001 /* kEpsilon */) // almost 0 
+		return false; // they are parallel so they don't intersect ! 
+
+	// compute d parameter using equation 2
+	float d = N.dot(v0);
+
+	// compute t (equation 3)
+	t = (N.dot(orig) + d) / NdotRayDirection;
+	// check if the triangle is in behind the ray
+	if (t < 0) return false; // the triangle is behind 
+
+	// compute the intersection point using equation 1
+	P = orig + t * dir;
+
+	// Step 2: inside-outside test
+	Vector3 C; // vector perpendicular to triangle's plane 
+
+	// edge 0
+	Vector3 edge0 = v1 - v0;
+	Vector3 vp0 = P - v0;
+	C = edge0.cross(vp0);
+	if (N.dot(C) < 0) return false; // P is on the right side 
+
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	if ((u = N.dot(C)) < 0)  return false; // P is on the right side 
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	if ((v = N.dot(C)) < 0) return false; // P is on the right side; 
+
+	u /= denom;
+	v /= denom;
+
+	return true; // this ray hits the triangle 
+#endif 
+}
+
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into 3D, just like we do in the VertexShader or SBS VertexShader:
+inline void backProject(WORD index, Vector3 *P) {
+	// The code to back-project is slightly different in DirectSBS/SteamVR
+	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
+	float3 temp;
+	// float3 temp = input.pos.xyz;
+	temp.x = g_OrigVerts[index].sx;
+	temp.y = g_OrigVerts[index].sy;
+
+	// Normalize into the 0..2 or 0.0..1.0 range
+	//temp.xy *= vpScale.xy;
+	temp.x *= g_VSCBuffer.viewportScale[0];
+	temp.y *= g_VSCBuffer.viewportScale[1];
+	// Non-VR case:
+	//		temp.x is now normalized to the range (0,  2)
+	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
+	// Direct-SBS:
+	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
+	
+	if (g_bEnableVR) 
+	{ 
+		// SBSVertexShader
+		// temp.xy -= 0.5;
+		temp.x += -0.5f; 
+		temp.y += -0.5f;
+		// temp.xy is now in the range -0.5 ..  0.5
+	}
+	else
+	{ 
+		// VertexShader
+		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		temp.y +=  1.0f;
+		// temp.x is now in the range -1.0 ..  1.0 and
+		// temp.y is now in the range  1.0 .. -1.0
+	}
+	
+	if (g_bEnableVR) 
+	{
+		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+	}
+	else 
+	{
+		// The center of the screen may not be the center of projection. The y-axis seems to be a bit off.
+		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[2];
+		// temp.x is now in the range -0.5 ..  0.5 and (?)
+		// temp.y is now in the range  0.5 .. -0.5 (?)
+	}
+
+	// temp.z = METRIC_SCALE_FACTOR * w;
+	temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
+
+	// I'm going to skip the overrides because they don't apply to cockpit textures...
+	// The back-projection into 3D is now very simple:
+	//float3 P = float3(temp.z * temp.xy, temp.z);
+	P->x = temp.z * temp.x / g_fFocalDist;
+	P->y = temp.z * temp.y / g_fFocalDist;
+	P->z = temp.z;
+	if (g_bEnableVR) 
+	{
+		// Further adjustment of the coordinates for the DirectSBS case:
+		//output.pos3D = float4(P.x, -P.y, P.z, 1);
+		P->y = -P->y;
+		// Adjust the coordinate system for SteamVR:
+		//P.yz = -P.yz;
+	}
+}
+
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+{
+	Vector3 P = pos3D;
+	//float w;
+	// Whatever is placed in P is returned at the end of this function
+	
+	if (g_bEnableVR) {
+		float w;
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Q = projEyeMatrix * viewMatrix * Q;
+
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		w   = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
+		P.x /= w;
+		P.y /= w;
+		
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	} else {
+		// (x0,y0)-(x1,y1) are the viewport limits
+		float x0 = g_LaserPointerBuffer.x0;
+		float y0 = g_LaserPointerBuffer.y0;
+		float x1 = g_LaserPointerBuffer.x1;
+		float y1 = g_LaserPointerBuffer.y1;
+		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
+		
+		// Non-VR processing from this point on:
+		// P.xy = P.xy / P.z;
+		P.x *= g_fFocalDist / P.z;
+		P.y *= g_fFocalDist / P.z;
+
+		// Convert to vertex pos:
+		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[2]);
+		P.x -= -1.0f;
+		P.y -=  1.0f;
+		// P.xy /= vpScale.xy;
+		P.x /= g_VSCBuffer.viewportScale[0];
+		P.y /= g_VSCBuffer.viewportScale[1];
+		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
+
+		// P is now in in-game coordinates (CONFIRMED!), where:
+		// (0,0) is the upper-left *original* viewport corner, and:
+		// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// Note that the *original* viewport does not necessarily cover the whole screen
+		//return P; // Return in-game coords
+
+		// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
+		// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
+
+		// The following lines are simply implementing the following formulas used in the VertexShader:
+		//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+		//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+		P.x = (P.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+		P.y = (P.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		// P.x is now in -1 ..  1
+		// P.y is now in  1 .. -1
+
+		// Now convert to UV coords: (0, 1)-(1, 0):
+		// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
+		P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
+		P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
+	}
+	return P;
+}
+
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx,
+	Vector3 orig, Vector3 dir, 
+	//Vector3 *v0, Vector3 *v1, Vector3 *v2, Vector3 *P, 
+	bool debug) 
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	WORD index;
+	float u, v, U0, V0, U1, V1, U2, V2;
+	float best_t = 10000.0f;
+	bool bIntersection = false;
+
+	Vector3 tempv0, tempv1, tempv2, tempP;
+	float tempt, tu, tv;
+
+	if (debug)
+		log_debug("[DBG] START Geom");
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = triangle->v1;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
+		backProject(index, &tempv0);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f/vert.rhw, 
+				tempv0.x, tempv0.y, tempv0.z,
+				q.x, q.y, 1.0f/q.z);
+		}
+
+		index = triangle->v2;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
+		backProject(index, &tempv1);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f/vert.rhw, 
+				tempv1.x, tempv1.y, tempv1.z,
+				q.x, q.y, 1.0f/q.z);
+		}
+
+		index = triangle->v3;
+		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
+		backProject(index, &tempv2);
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f/vert.rhw,
+				tempv2.x, tempv2.y, tempv2.z,
+				q.x, q.y, 1.0f/q.z);
+		}
+
+		// Check the intersection with this triangle
+		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
+		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv)) 
+		{
+			if (tempt < g_fBestIntersectionDistance)
+			{
+				// Update the best intersection so far
+				g_fBestIntersectionDistance = tempt;
+				g_LaserPointer3DIntersection = tempP;
+				g_iBestIntersTexIdx = textureIdx;
+				g_debug_v0 = tempv0;
+				g_debug_v1 = tempv1;
+				g_debug_v2 = tempv2;
+				
+				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
+				//*P = tempP;
+
+				// Interpolate the texture UV using the barycentric (tu, tv) coords:
+				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+				
+				g_LaserPointerBuffer.uv[0] = u;
+				g_LaserPointerBuffer.uv[1] = v;
+
+				bIntersection = true;
+				g_LaserPointerBuffer.bIntersection = 1;
+			}
+		}
+		triangle++;
+	}
+
+	if (debug)
+		log_debug("[DBG] END Geom");
+	return bIntersection;
+}
+
 inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
 {
 	*x_out = left + x / g_fCurInGameWidth  * width;
 	*y_out = top  + y / g_fCurInGameHeight * height;
-}
-
-inline float lerp(float x, float y, float s) {
-	return x + s * (y - x);
 }
 
 /*
@@ -3552,6 +4797,12 @@ HRESULT Direct3DDevice::Execute(
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
+	/*if (!g_bCustomFOVApplied) {
+		log_debug("[DBG] [FOV] Applying Custom FOV from Execute()");
+		LoadFocalLength(); // Doesn't work here, need to do it after the first frame is rendered
+		g_bCustomFOVApplied = true;
+	}*/
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -3567,18 +4818,23 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer = { 0 };
 	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
-	g_VSCBuffer.z_override = -1.0f;
-	g_VSCBuffer.sz_override = -1.0f;
-	g_VSCBuffer.mult_z_override = -1.0f;
+	g_VSCBuffer.z_override		  = -1.0f;
+	g_VSCBuffer.sz_override		  = -1.0f;
+	g_VSCBuffer.mult_z_override	  = -1.0f;
 	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform = 0.0f;
-	g_VSCBuffer.bFullTransform = 0.0f;
+	g_VSCBuffer.bFullTransform	  = 0.0f;
+	g_VSCBuffer.metric_mult		  = g_fMetricMult;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
 	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
 	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
+	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
@@ -3682,15 +4938,20 @@ HRESULT Direct3DDevice::Execute(
 		} else {
 			g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
+			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
+			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
 		}
 		g_VSCBuffer.viewportScale[2] = scale;
+		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+		//g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
 
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_SSAO_PSCBuffer.vpScale[0] = g_VSCBuffer.viewportScale[0];
@@ -3942,6 +5203,7 @@ HRESULT Direct3DDevice::Execute(
 				// bIsSkyBox is true if we're about to render the SkyBox
 				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
+				bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
 				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
 				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
 				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
@@ -3962,6 +5224,7 @@ HRESULT Direct3DDevice::Execute(
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
+				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
@@ -3983,17 +5246,8 @@ HRESULT Direct3DDevice::Execute(
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
-					//		resources->_offscreenBuffer, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+					//		resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				//}
-
-				/*
-				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
-					// The skybox just finished, capture it, replace it, etc
-					g_bSkyBoxJustFinished = true;
-					// Capture the background:
-					// ...
-				}
-				*/
 
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
 					// The skybox just finished, capture it, replace it, etc
@@ -4002,6 +5256,7 @@ HRESULT Direct3DDevice::Execute(
 					// capture the black background used by the game!
 				}
 
+				// Clear the Dynamic Cockpit foreground and background RTVs
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
@@ -4026,30 +5281,59 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
 					bRenderToDynCockpitBGBuffer = true;
 
-				// Update the Hyperspace FSM -- but only updated it exactly once per frame
+				/*
+				Justagai shared the following information. Some phases are extremely quick and may not
+				be visible unless breakpoints are set.
+				0x6 may not be used in XWA -- it may be there from a previous game in the series
+				enum HyperspacePhase
+				{
+				  HyperspacePhase_None = 0x0,
+				  HyperspacePhase_Preparing = 0x1,
+				  HyperspacePhase_StartStreaks = 0x2,
+				  HyperspacePhase_Streaks = 0x3,
+				  HyperspacePhase_InTunnel = 0x4,
+				  HyperspacePhase_Exiting = 0x5,
+				  HyperspacePhase_Exited = 0x6,
+				};
+				*/
+				// Update the Hyperspace FSM -- but only update it exactly once per frame
+				// Also clear the shaderToyAuxBuf if any tracker is enabled
 				if (!g_bHyperspaceEffectRenderedOnCurrentFrame) {
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
-						if (PlayerDataTable->hyperspacePhase == 2) {
+						g_PSCBuffer.bInHyperspace = 0;
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
+							g_PSCBuffer.bInHyperspace = 1;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
-							if (PlayerDataTable->cockpitCameraYaw != g_fLastCockpitCameraYaw ||
-								PlayerDataTable->cockpitCameraPitch != g_fLastCockpitCameraPitch)
+							if (PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fLastCockpitCameraYaw ||
+								PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fLastCockpitCameraPitch)
 								g_bHyperHeadSnapped = true;
-							PlayerDataTable->cockpitCameraYaw = g_fLastCockpitCameraYaw;
-							PlayerDataTable->cockpitCameraPitch = g_fLastCockpitCameraPitch;
+							if (*numberOfPlayersInGame == 1) {
+								PlayerDataTable[*g_playerIndex].cockpitCameraYaw = g_fLastCockpitCameraYaw;
+								PlayerDataTable[*g_playerIndex].cockpitCameraPitch = g_fLastCockpitCameraPitch;
+							}
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
-						// it had when entering hyperspace
+						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
+						// are the user's head position moved anyway if 6dof is enabled.
 						if (!g_bClearedAuxBuffer &&
-							(PlayerDataTable->cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
-							 PlayerDataTable->cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame)) {
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
+							     (
+							        PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
+							        PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
+							     )
+							  )
+						   ) 
+						{
 							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 							g_bClearedAuxBuffer = true;
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4060,38 +5344,57 @@ HRESULT Direct3DDevice::Execute(
 							}
 						}
 
-						if (PlayerDataTable->hyperspacePhase == 4) {
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							// We're about to enter the hyperspace tunnel, change the color of the lights:
 							float fade = 1.0f;
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
 								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
 								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
-								g_LightColor[i].x = fade * 0.4f;
-								g_LightColor[i].y = fade * 0.5f;
-								g_LightColor[i].z = fade * 0.8f;
+								g_LightColor[i].x = fade * 0.3f;
+								g_LightColor[i].y = fade * 0.4f;
+								g_LightColor[i].z = fade * 0.9f;
 							}
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
-						if (PlayerDataTable->hyperspacePhase == 3) {
+						g_PSCBuffer.bInHyperspace = 1;
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							// Restore the previous color of the lights
 							for (int i = 0; i < 2; i++) {
 								memcpy(&g_LightVector[i], &g_TempLightVector[i], sizeof(Vector4));
 								memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
 							}
+
+							// Clear the previously-captured offscreen buffer: we don't want to display it again when exiting
+							// hyperspace
+							if (!g_bClearedAuxBuffer) 
+							{
+								float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+								g_bClearedAuxBuffer = true;
+								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								if (g_bUseSteamVR) {
+									//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+									context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								}
+							}
 						}
 						break;
 					case HS_HYPER_EXIT_ST:
-						if (PlayerDataTable->hyperspacePhase == 0) {
+						g_PSCBuffer.bInHyperspace = 1;
+						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
+						g_PSCBuffer.bInHyperspace = 1;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
 							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;
@@ -4108,7 +5411,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				/*************************************************************************
-					State management ends here
+					State management ends here, special state management starts
 				 *************************************************************************/
 
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
@@ -4121,14 +5424,11 @@ HRESULT Direct3DDevice::Execute(
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 						context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-						//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 						if (g_bUseSteamVR) {
 							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 							context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
 								resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-							//context->ResolveSubresource(resources->_normBufAsInputR, 0,
-							//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 						}
 						// DEBUG
 						//if (g_iPresentCounter == 100) {
@@ -4142,14 +5442,13 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 
-					// Process/Render the hyperspace effect
+					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+					// not travelling through hyperspace:
 					{
-						// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-						// not travelling through hyperspace:
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
-							g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-							g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+							g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
 
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -4158,24 +5457,18 @@ HRESULT Direct3DDevice::Execute(
 									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 							}
 						}
-
-						/*
-						// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-						if (g_HyperspacePhaseFSM != HS_INIT_ST)
-						{
-							// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-							//				  shadertoyBuf has a copy of the cockpit
-
-							// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-							// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-							RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-						}
-						*/
 					}
 				}
 
-				//if (PlayerDataTable[0].cockpitDisplayed)
-				//if (PlayerDataTable[0].cockpitDisplayed2)
+				/*************************************************************************
+					Special state management ends here
+				 *************************************************************************/
+
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture)
+				//	goto out;
+
+				//if (PlayerDataTable[*g_playerIndex].cockpitDisplayed)
+				//if (PlayerDataTable[*g_playerIndex].cockpitDisplayed2)
 				//	goto out;
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc && debugTexture == NULL) {
@@ -4233,10 +5526,10 @@ HRESULT Direct3DDevice::Execute(
 							//	box.x0, box.y0, box.x1, box.y1);
 							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 							//	elem_coords.x0, elem_coords.y0, elem_coords.x1, elem_coords.y1);
-							//uvfloat4 e = g_DCHUDBoxes.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
-							//log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-							//	e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
-							//	e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);
+							/*uvfloat4 e = g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].erase_coords;
+							log_debug("[DBG] [DC] Left Radar HUD erase coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								e.x0 * g_fCurScreenWidth, e.y0 * g_fCurScreenHeight,
+								e.x1 * g_fCurScreenWidth, e.y1 * g_fCurScreenHeight);*/
 						}
 					}
 
@@ -4559,15 +5852,63 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				// Active Cockpit: Intersect the current texture with the controller
+				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL && 
+					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest)) {
+					Vector3 orig, dir, v0, v1, v2, P;
+					//bool bIntersection;
+					//log_debug("[DBG] [AC] Testing for intersection...");
+
+					orig.x = g_contOriginViewSpace.x;
+					orig.y = g_contOriginViewSpace.y;
+					orig.z = g_contOriginViewSpace.z;
+
+					dir.x = g_contDirViewSpace.x;
+					dir.y = g_contDirViewSpace.y;
+					dir.z = g_contDirViewSpace.z;
+
+					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir);
+					//if (bIntersection) {
+						//Vector3 pos2D;
+
+						//if (t < g_fBestIntersectionDistance)
+						//{
+							
+							//g_fBestIntersectionDistance = t;
+							//g_LaserPointer3DIntersection = P;
+							// Project to 2D
+							//pos2D = project(g_LaserPointer3DIntersection);
+							//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+							//g_LaserPointerBuffer.intersection[1] = pos2D.y;
+							//g_LaserPointerBuffer.uv[0] = u;
+							//g_LaserPointerBuffer.uv[1] = v;
+							//g_LaserPointerBuffer.bIntersection = 1;
+							//g_debug_v0 = v0;
+							//g_debug_v1 = v1;
+							//g_debug_v2 = v2;
+
+							// DEBUG
+							//{
+								/*Vector3 q;
+								q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+								q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
+								/*
+								log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+									g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
+									pos2D.x, pos2D.y);
+								*/
+							//}
+							// DEBUG
+						//}
+					//}
+				}
+
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
 				//	goto out;
 					//log_debug("[DBG] NoZWrite, ZFunc: %d", _renderStates->GetZFunc());
 				//}
 
-				// Eliminate the default hyperspace animation:
-				//if (bIsHyperspaceTunnel) {
-				//	goto out;
-				//}
 
 				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR
@@ -4621,11 +5962,23 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
+				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
+				// then disable the pre-computed diffuse component:
+				//if (g_bAOEnabled && !g_bRendering3D) {
+				// Only disable the diffuse component during regular flight. 
+				// The tech room is unchanged (the tech room makes g_bRendering = false)
+				// We should also avoid touching the GUI elements
+				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) { 
+					bModifiedShaders = true;
+					g_PSCBuffer.fDisableDiffuse = 1.0f;
+				}
+
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
 				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
+					g_PSCBuffer.bIsShadeless = 1;
 				}
 
 				// Dim all the GUI elements
@@ -4645,33 +5998,78 @@ HRESULT Direct3DDevice::Execute(
 					// Send the skybox to infinity:
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
+					g_PSCBuffer.bIsShadeless = 1;
+				}
+
+				// Apply the material properties
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) { 
+					bModifiedShaders = true;
+					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
+					//g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+					/*log_debug("[DBG] [MAT] Applying: %s, %0.3f, %0.3f, %0.3f",
+						lastTextureSelected->_surface->_name,
+						lastTextureSelected->material.Metallic,
+						lastTextureSelected->material.Glossiness,
+						lastTextureSelected->material.Reflection);*/
+					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
+					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
+					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
+					g_PSCBuffer.fSpecVal	     = lastTextureSelected->material.SpecValue;
 				}
 
 				// Apply the SSAO mask
-				if (g_bAOEnabled && bLastTextureSelectedNotNULL) {
-					
-					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer) 
+				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
+				if (bLastTextureSelectedNotNULL)
+				{
+					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = 1.0f;
+						g_PSCBuffer.fSSAOMaskVal = min(1.0f, SHADELESS_MAT + bIsAimingHUD ? 0.15f : 0.0f);
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+						g_PSCBuffer.bIsShadeless = 1;
+
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-					} else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
+					} 
+					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
 						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
-						lastTextureSelected->is_Missile || lastTextureSelected->is_GenericSSAOTransparent) 
+						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = 0.0f;
+						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+
+						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+					}
+					else if (lastTextureSelected->is_Laser) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
+						g_PSCBuffer.fNMIntensity = 0.0f;
+						g_PSCBuffer.fSpecVal     = 0.0f;
+						g_PSCBuffer.bIsShadeless = 1;
+
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 				}
 
 				// When exiting hyperspace, the light textures will overwrite the alpha component. Fixing this
 				// requires changing the alpha blend state; but if I modify that, chances are something else will
-				// break. So instead of fixing it, how about skipping those draw calls sinces it's only going
+				// break. So instead of fixing it, how about skipping those draw calls since it's only going
 				// to be a few frames after exiting hyperspace.
-				if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
-					goto out;
+				//if (g_HyperspacePhaseFSM != HS_INIT_ST && g_bIsPlayerObject && lastTextureSelected->is_LightTexture)
+				//	goto out;
+				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
@@ -4797,34 +6195,10 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-				}
-
-				// Set the Hyperspace Bloom flags and render the new hyperspace effect
-				if (PlayerDataTable->hyperspacePhase) {
-					//log_debug("[DBG] phase: %d, timeInHyperspace: %d, related: %d",
-					//	PlayerDataTable->hyperspacePhase, PlayerDataTable->timeInHyperspace, PlayerDataTable->_hyperspaceRelated_);
-					// 2: Entering hyperspace
-					// 4: Traveling through hyperspace (animation plays back at this point)
-					// 3: Exiting hyperspace
-					if (bLastTextureSelectedNotNULL) {
-						// Set the Bloom strength for the hyperspace streaks
-						if (lastTextureSelected->is_FlatLightEffect) {
-							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
-							g_PSCBuffer.bIsHyperspaceStreak = 1;
-							// If this is a transition frame, render the new hyperspace streaks, if not, skip completely
-							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-							goto out; // Don't render the hyperspace streaks anymore
-						}
-
-						// Set the Bloom strength for the hyperspace tunnel
-						if (lastTextureSelected->is_HyperspaceAnim) {
-							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
-							g_PSCBuffer.bIsHyperspaceAnim = 1;
-							//RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-							goto out; // Don't render the original hyperspace tunnel
-						}
+					else if (lastTextureSelected->is_SkydomeLight) {
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 				}
 
@@ -4924,32 +6298,21 @@ HRESULT Direct3DDevice::Execute(
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-						ID3D11RenderTargetView *rtvs[5] = {
+						ID3D11RenderTargetView *rtvs[6] = {
 							//resources->_renderTargetView.Get(),
 							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							resources->_renderTargetViewBloomMask.Get(),
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
 								resources->_renderTargetViewDepthBuf2.Get(),
-							resources->_renderTargetViewNormBuf.Get(),
-							resources->_renderTargetViewSSAOMask.Get()
+							// The normals hook should not be allowed to write normals for light textures
+							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
+							//bIsAimingHUD ? NULL: resources->_renderTargetViewSSAOMask.Get(),
+							resources->_renderTargetViewSSAOMask.Get(),
+							resources->_renderTargetViewSSMask.Get(),
 						};
-						context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 					}
 
-					//if (bIsHyperspaceTunnel) {
-						//	UINT stride = sizeof(D3DTLVERTEX);
-						//	UINT offset = 0;
-						//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-						//	resources->InitInputLayout(resources->_inputLayout);
-						//	context->Draw(3, 0);
-						//	// TODO: Restore the original input layout here
-						//RenderHyperspaceEffect(&viewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-					//} else
-					//if (PlayerDataTable->hyperspacePhase != 0)
-					//if (PlayerDataTable->hyperspacePhase == 2 && !g_bIsPlayerObject) {
-						//	RenderHyperspaceEffect(&g_nonVRViewport, lastPixelShader, lastTextureSelected, &vertexBufferStride, &vertexBufferOffset);
-					//}
-					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					goto out;
 				}
@@ -5087,7 +6450,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -5095,10 +6458,12 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					} else {
 						// Direct SBS mode
@@ -5110,7 +6475,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -5118,10 +6483,12 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -5171,7 +6538,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewR.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
@@ -5179,10 +6546,12 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBufR.Get() : 
 									resources->_renderTargetViewDepthBuf2R.Get(),
-								resources->_renderTargetViewNormBufR.Get(),
-								resources->_renderTargetViewSSAOMaskR.Get()
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
+								resources->_renderTargetViewSSAOMaskR.Get(),
+								resources->_renderTargetViewSSMaskR.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 						}
 					} else {
 						// DirectSBS Mode
@@ -5194,7 +6563,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
-							ID3D11RenderTargetView *rtvs[5] = {
+							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
@@ -5202,10 +6571,12 @@ HRESULT Direct3DDevice::Execute(
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
-								resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get()
+								// The normals hook should not be allowed to write normals for light textures
+								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
+								resources->_renderTargetViewSSAOMask.Get(),
+								resources->_renderTargetViewSSMask.Get(),
 							};
-							context->OMSetRenderTargets(5, rtvs, resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
 					}
 
@@ -5261,18 +6632,24 @@ HRESULT Direct3DDevice::Execute(
 
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
-					g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-					g_VSCBuffer.z_override = -1.0f;
-					g_VSCBuffer.sz_override = -1.0f;
-					g_VSCBuffer.mult_z_override = -1.0f;
-					g_VSCBuffer.bPreventTransform = 0.0f;
-					g_VSCBuffer.bFullTransform = 0.0f;
+					g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
+					//g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
+					g_VSCBuffer.z_override        = -1.0f;
+					g_VSCBuffer.sz_override       = -1.0f;
+					g_VSCBuffer.mult_z_override   = -1.0f;
+					g_VSCBuffer.bPreventTransform =  0.0f;
+					g_VSCBuffer.bFullTransform    = 0.0f;
+					g_VSCBuffer.metric_mult       = g_fMetricMult;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
 					g_PSCBuffer.fBloomStrength	= 1.0f;
 					g_PSCBuffer.fPosNormalAlpha = 1.0f;
 					g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+					g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
+					g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+					g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+					g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
@@ -5610,7 +6987,7 @@ HRESULT Direct3DDevice::BeginScene()
 	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
 	bool bTransitionToHyperspace = false;
 	bPrevHyperspaceState = bCurHyperspaceState;
-	bCurHyperspaceState = PlayerDataTable->hyperspacePhase != 0;
+	bCurHyperspaceState = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0;
 	bTransitionToHyperspace = !bPrevHyperspaceState && bCurHyperspaceState;
 	// We want to capture the transition to hyperspace because we don't want to clear some buffers
 	// when this happens. The problem is that the game snaps the camera to the forward position as soon
@@ -5654,9 +7031,19 @@ HRESULT Direct3DDevice::BeginScene()
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
 		}
 
+	if (g_bReshadeEnabled && !bTransitionToHyperspace) {
+		float infinity[4] = { 0, 0, 32000.0f, 0 };
+		float zero[4] = { 0, 0, 0, 0 };
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
+		}
+	}
+
 	// Clear the AO RTVs
-	if (g_bAOEnabled) 
-		if (!bTransitionToHyperspace) {
+	if (g_bAOEnabled && !bTransitionToHyperspace) {
 			// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 			// on the sides of the screen
 			float infinity[4] = { 0, 0, 32000.0f, 0 };
@@ -5664,13 +7051,9 @@ HRESULT Direct3DDevice::BeginScene()
 
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
 			if (g_bUseSteamVR) {
 				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
 				context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
-				context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 			}
 		}
 
@@ -5730,8 +7113,8 @@ HRESULT Direct3DDevice::EndScene()
 		// not travelling through hyperspace:
 		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 		{
-			g_fLastCockpitCameraYaw = PlayerDataTable->cockpitCameraYaw;
-			g_fLastCockpitCameraPitch = PlayerDataTable->cockpitCameraPitch;
+			g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+			g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
 
 			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
 				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);

@@ -1,0 +1,53 @@
+[Default]
+Metallic   = 0.5
+Intensity  = 0.25
+Glossiness = 0.04
+
+; Solar panels
+[TEX00015]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00016]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00017]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00018]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00019]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00020]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00021]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3
+
+[TEX00022]
+Metallic    = 0.15
+Intensity   = 0.5
+Glossiness  = 0.1
+SpecularVal = 0.3

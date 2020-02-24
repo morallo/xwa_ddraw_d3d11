@@ -4,6 +4,9 @@
  * Adapted for XWA by Leo Reyes.
  * Licensed under the MIT license. See LICENSE.txt
  */
+#include "..\shader_common.h"
+#include "..\shading_system.h"
+
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
@@ -27,11 +30,6 @@ SamplerState sampSSAOMask : register(s4);
 // The bloom mask
 Texture2D    texBloomMask  : register(t5);
 SamplerState sampBloomMask : register(s5);
-
-#define INFINITY_Z0 15000
-#define INFINITY_Z1 20000
-#define INFINITY_FADEOUT_RANGE 5000
-static float METRIC_SCALE_FACTOR = 25.0;
 
 struct PixelShaderInput
 {
@@ -74,16 +72,8 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, ssao_unused1, ssao_unused2;
+	float shadow_k, ssao_unused0, ssao_unused1;
 	// 176 bytes
-};
-
-cbuffer ConstantBuffer : register(b4)
-{
-	float4 LightVector;
-	float4 LightColor;
-	float4 LightVector2;
-	float4 LightColor2;
 };
 
 struct BlurData {
@@ -138,12 +128,30 @@ float3 get_normal_from_color(float2 uv, float2 offset)
 	return normalize(normal);
 }
 
+// n1: base normal
+// n2: detail normal
 float3 blend_normals(float3 n1, float3 n2)
 {
+	// I got this from Pascal Gilcher; but there's more details here:
+	// https://blog.selfshadow.com/publications/blending-in-detail/
 	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-	n1 += float3( 0,  0, 1);
-	n2 *= float3(-1, -1, 1);
-	return n1 * dot(n1, n2) / n1.z - n2;
+
+	// UDN:
+	//return normalize(float3(n1.xy + n2.xy, n1.z));
+	
+	//n1 += float3( 0,  0, 1);
+	//n2 *= float3(-1, -1, 1);
+	//return n1 * dot(n1, n2) / n1.z - n2;
+
+	//float3 t = tex2D(texBase, uv).xyz*float3(2, 2, 2) + float3(-1, -1, 0);
+	n1.z += 1.0;
+	//float3 u = tex2D(texDetail, uv).xyz*float3(-2, -2, 2) + float3(1, 1, -1);
+	n2.xy = -n2.xy;
+
+	//float3 r = t * dot(t, u) / t.z - u;
+	//return normalize(n1 * dot(n1, n2) / n1.z - n2);
+	return normalize(n1 * dot(n1, n2) - n1.z * n2);
+	//return r * 0.5 + 0.5;
 }
 
 struct ColNorm {
@@ -183,7 +191,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
 	//const float dist = length(diff);
-	//const float3 v = normalize(diff);
+	const float3 v = normalize(diff);
 	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
 	//const float weight = 1.0 - saturate((diff.z*diff.z) / (max_dist*max_dist));
 	//const float weight = 1.0 - saturate(diff.z / max_dist);
@@ -205,30 +213,54 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	  If weight is close to 1, consider this a regular occluder and take the second path
 	  below.
 	 */
-	//const float occ_dot = dot(Normal, v);
-	//if (occ_dot < bias)
 	float3 B = 0;
+	const float occ_dot = dot(Normal, v);
+	
+	B.x = uv_diff.x;
+	B.y = -uv_diff.y;
+	//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
+	//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
+	B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
+	// Adding the normalized B to BentNormal seems to yield better normals
+	// if B is added to BentNormal before normalization, the resulting normals
+	// look more faceted
+	B = normalize(B);
+
+	//if (occ_dot < bias)
 	if (diff.z > 0.0 /* || weight < 0.5 */) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
 	{
-		B.x =  uv_diff.x;
-		B.y = -uv_diff.y;
-		//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
-		//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
-		B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
-		// Adding the normalized B to BentNormal seems to yield better normals
-		// if B is added to BentNormal before normalization, the resulting normals
-		// look more faceted
-		B = normalize(B);
-
 		// If weight == 0, use the current point's Normal to compute shading
 		// If weight == 1, use the Bent Normal
 		// Vary between these two values depending on 'weight':
 		//B = lerp(Normal, B, weight);
 		//B = Normal;
+		
+		// Let's postpone normal mapping until the final combination step
+		//if (fn_enable) {
+		//	B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
+		//	// DEBUG
+		//	//output.N = FakeNormal;
+		//}
 		output.N = B;
-		if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
-		output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-		output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+		//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+		output.col = saturate(dot(B, LightVector[0].xyz));
+		//output.col.y = 1.0;
+		/*
+		// Specular component
+		// Do I need to invert Z for pos3D?
+		float3 pos3D = P;
+		//pos3D.z = -pos3D.z;
+		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
+		// reflect expects an incident vector: a vector that goes from the light source to the current point.
+		// L goes from the current point to the light vector, so we have to use -L:
+		float3 refl_vec = normalize(reflect(-LightVector.xyz, B));
+		output.col.y = max(dot(eye_vec, refl_vec), 0.0);
+		output.col.z = 0.0;
+		*/
+
+		//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
+		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+
 		//output.col = weight;
 		//return output;
 		//output.col = float3(0, 1, 0);
@@ -243,6 +275,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 
 		output.N = 0;
 		output.col = 0;
+		//output.col.y = 1.0;
+		//output.col.y = 1.0 - saturate(dot(B, LightVector.xyz));
 
 		//B = lerp(-Normal, 0, weight);
 		//B = occluder_normal;
@@ -261,6 +295,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	return output;
 }
 
+// Convert Reconstructed 3D back to 2D and then to post-process UV coord
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
 	float w = P.z / METRIC_SCALE_FACTOR;
@@ -269,7 +304,8 @@ inline float2 projectToUV(in float3 pos3D) {
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
 	// (-1,-1)-(1, 1)
 	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
-	P.xy -= float2(-0.5, 0.5);
+	//P.xy -= float2(-0.5, 0.5); // Is this wrong? I think the y axis is inverted, so adding 0.5 would be fine (?)
+	P.xy -= float2(-1.0, 1.0); // DirectSBS may be different
 	P.xy /= vpScale.xy;
 	// We now have P = input.pos
 	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
@@ -288,7 +324,7 @@ inline float2 projectToUV(in float3 pos3D) {
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector.xyz;
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
@@ -359,6 +395,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius;
 	bool FGFlag;
 	
+	color = color * color; // Gamma correction (approx to pow 2.2)
+
 	output.ssao = 1;
 	output.bentNormal = float4(0, 0, 0.01, 1);
 
@@ -387,9 +425,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Enable perspective-correct radius
 	if (z_division) 	radius /= p.z;
 
-	float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
+	//float2 offset = float2(0.5 / screenSizeX, 0.5 / screenSizeY); // Test setting
+	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	//float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0; 
-	if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset);
+	//if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset); // Let's postpone normal mapping until the final combine stage
 
 	/*
 	// Compute shadows
@@ -438,7 +478,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
-	output.bentNormal.xyz = bentNormal * 0.5 + 0.5;
+	
+	
+	// DEBUG
+	//if (fn_enable) bentNormal = FakeNormal;
+	// DEBUG
+	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
+	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	
 	//output.bentNormal.xyz = output.ssao.xyz * bentNormal;
 	//output.bentNormal.xyz = radius * 100; // DEBUG! Use this to visualize the radius
 	return output;

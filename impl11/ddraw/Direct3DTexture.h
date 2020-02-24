@@ -6,6 +6,54 @@
 
 class TextureSurface;
 
+constexpr auto MAX_CACHED_MATERIALS = 32;
+constexpr auto MAX_TEXNAME = 40;
+constexpr auto MAX_OPT_NAME = 80;
+
+typedef struct TexnameStruct {
+	char name[MAX_TEXNAME];
+} TexnameType;
+
+/* 
+ Individual entry in the craft material definition file (*.mat). Maintains a copy
+ of one entry of the form:
+
+ [TEX000##]
+ Metallic   = X
+ Reflection = Y
+ Glossiness = Z
+
+*/
+typedef struct MaterialTexDefStruct {
+	Material material;
+	char texname[MAX_TEXNAME];
+} MaterialTexDef;
+
+/*
+ Contains all the entries from a *.mat file for a single craft, along with the
+ OPT name for this craft
+*/
+typedef struct CraftMaterialsStruct {
+	std::vector<MaterialTexDef> MaterialList;
+	char OPTname[MAX_OPT_NAME];
+} CraftMaterials;
+
+/*
+ Contains all the materials for all the OPTs currently loaded
+*/
+extern std::vector<CraftMaterials> g_Materials;
+
+typedef struct OPTNameStruct {
+	char name[MAX_OPT_NAME];
+} OPTNameType;
+
+void InitOPTnames();
+void ClearOPTnames();
+void InitCraftMaterials();
+void ClearCraftMaterials();
+int FindCraftMaterial(char *OPTname);
+Material FindMaterial(int CraftIndex, char *TexName, bool debug);
+
 class Direct3DTexture : public IDirect3DTexture
 {
 public:
@@ -62,8 +110,12 @@ public:
 	bool is_Chaff;
 	// True for all sorts of missiles. Used for Bloom and SSAO
 	bool is_Missile;
-	// True for all textures that should not render SSAO
-	bool is_GenericSSAOTransparent;
+	// True for all textures that should not render SSAO (sets SSAO mask to 1)
+	bool is_GenericSSAOMasked;
+	// True for all skydomes ("*Cielo*") in DTM's planetary maps
+	bool is_SkydomeLight;
+	// True if this is an Active Cockpit texture for VR
+	int ActiveCockpitIdx;
 
 	// **** DYNAMIC COCKPIT FLAGS **** //
 	// Textures in the cockpit that can be replaced with new textures
@@ -87,6 +139,10 @@ public:
 	bool is_DC_BeamBoxSrc;
 	bool is_DC_TopLeftSrc;
 	bool is_DC_TopRightSrc;
+
+	// **** Materials ****
+	bool bHasMaterial;
+	Material material;
 
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
