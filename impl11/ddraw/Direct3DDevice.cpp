@@ -739,10 +739,10 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
 	fprintf(file, "%s = %d\n\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
 
-	fprintf(file, "The following parameter will enable/disable SteamVR's lens distortion correction\n");
-	fprintf(file, "The default is 1, only set it to 0 if you're seeing distortion in SteamVR.\n");
-	fprintf(file, "If you set it to 0, I suggest you enable %s above to use the internal lens\n", BARREL_EFFECT_STATE_VRPARAM);
-	fprintf(file, "distortion correction instead\n");
+	fprintf(file, "; The following parameter will enable/disable SteamVR's lens distortion correction\n");
+	fprintf(file, "; The default is 1, only set it to 0 if you're seeing distortion in SteamVR.\n");
+	fprintf(file, "; If you set it to 0, I suggest you enable %s above to use the internal lens\n", BARREL_EFFECT_STATE_VRPARAM);
+	fprintf(file, "; distortion correction instead\n");
 	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
 
 	fprintf(file, "\n; Depth for various GUI elements in meters from the head's origin.\n");
