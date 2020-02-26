@@ -129,7 +129,8 @@ inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
 	float ao_factor = ao_dot * weight;
 	//return intensity * pow(ao_factor, power);
-	return intensity * ao_factor;
+	//return intensity * ao_factor;
+	return ao_factor; // Let's multiply by intensity only once outside the addition loop
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -188,7 +189,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
 	}
-	ao = 1 - ao / (float)samples;
+	//ao = 1 - ao / (float)samples;
+	ao = 1 - intensity * ao / (float)samples;
 	
 	/*
 	// Normal mapping should be applied *after* blurring the AO buffer or the normal map will also

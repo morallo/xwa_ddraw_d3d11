@@ -2412,27 +2412,27 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 void PrimarySurface::SetLights(float fSSDOEnabled) {
 	const auto &resources = this->_deviceResources;
 	Vector4 light[2];
+	
+	if (g_bOverrideLightPos) {
+		for (int i = 0; i < 2; i++) {
+			light[i].x = g_LightVector[i].x;
+			light[i].y = g_LightVector[i].y;
+			light[i].z = g_LightVector[i].z;
+		}
+	}
+	else
+		ComputeRotationMatrixFromXWAView(light, 2);
+
 	for (int i = 0; i < 2; i++) {
+		g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
+		g_ShadingSys_PSBuffer.LightVector[i].y = light[i].y;
+		g_ShadingSys_PSBuffer.LightVector[i].z = light[i].z;
+
 		g_ShadingSys_PSBuffer.LightColor[i].x = g_LightColor[i].x;
 		g_ShadingSys_PSBuffer.LightColor[i].y = g_LightColor[i].y;
 		g_ShadingSys_PSBuffer.LightColor[i].z = g_LightColor[i].z;
 	}
-
-	ComputeRotationMatrixFromXWAView(light, 2);
-	if (g_bOverrideLightPos) {
-		for (int i = 0; i < 2; i++) {
-			g_ShadingSys_PSBuffer.LightVector[i].x = g_LightVector[i].x;
-			g_ShadingSys_PSBuffer.LightVector[i].y = g_LightVector[i].y;
-			g_ShadingSys_PSBuffer.LightVector[i].z = g_LightVector[i].z;
-		}
-	}
-	else {
-		for (int i = 0; i < 2; i++) {
-			g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
-			g_ShadingSys_PSBuffer.LightVector[i].y = light[i].y;
-			g_ShadingSys_PSBuffer.LightVector[i].z = light[i].z;
-		}
-	}
+	
 	//Vector4 Rs, Us, Fs;
 	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
 	//light[0] = H * g_LightVector[0];
@@ -2452,6 +2452,13 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
+	/*
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_SSAO_PSCBuffer.x0 = x0;
+	g_SSAO_PSCBuffer.y0 = y0;
+	g_SSAO_PSCBuffer.x1 = x1;
+	g_SSAO_PSCBuffer.y1 = y1;*/
+	
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
 		D3D11_BUFFER_DESC vertexBufferDesc;
@@ -2516,7 +2523,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
 
-	// Set the lights
+	// Set the lights and set the Shading System Constant Buffer
+	g_ShadingSys_PSBuffer.spec_intensity       = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 	SetLights(0.0f);
 
 	// SSAO Computation, Left Image
@@ -3489,7 +3498,7 @@ void PrimarySurface::DeferredPass() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 
-	// Set the lights
+	// Set the lights and the Shading System Constant Buffer
 	SetLights(0.0f);
 
 	// Set the Vertex Shader Constant buffers

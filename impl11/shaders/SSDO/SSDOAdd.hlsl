@@ -361,10 +361,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		diffuse = shadeless ? 1.0 : diffuse;
 
 		// specular component
-		//float3 eye = 0.0;
 		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
-		//float3 spec_col = /* ssdo.x * */ spec_int;
-		//float3 spec_col = 0.35;
 		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
 		// reflect expects an incident vector: a vector that goes from the light source to the current point.
 		// L goes from the current point to the light vector, so we have to use -L:
@@ -375,7 +372,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		//float  exponent = 10.0;
 		float exponent = glossiness * gloss;
 		float spec_bloom_int = spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {

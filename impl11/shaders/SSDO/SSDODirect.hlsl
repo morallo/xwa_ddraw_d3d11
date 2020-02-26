@@ -160,13 +160,12 @@ struct ColNorm {
 };
 
 inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal,
-	in float cur_radius_sqr, in float max_radius_sqr,
-	in float nm_intensity)
+	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, out float ao)
 {
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
+	ao = 1.0;
 
 	// Early exit: darken the edges of the effective viewport
 	if (sample_uv.x < x0 || sample_uv.x > x1 ||
@@ -191,8 +190,9 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//       If the occluder is farther than P, then diff.z will be positive
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
+	const float diff_sqr = dot(diff, diff);
 	//const float dist = length(diff);
-	const float3 v = normalize(diff);
+	const float3 v = diff * rsqrt(diff_sqr); // normalize(diff)
 	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
 	//const float weight = 1.0 - saturate((diff.z*diff.z) / (max_dist*max_dist));
 	//const float weight = 1.0 - saturate(diff.z / max_dist);
@@ -232,74 +232,38 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	// look more faceted
 	B = normalize(B);
 
-	//if (occ_dot < bias)
-	if (diff.z > 0.0 /* || weight < 0.5 */) // The occluder is behind the current point: Unoccluded direction, compute Bent Normal
-	{
-		// If weight == 0, use the current point's Normal to compute shading
-		// If weight == 1, use the Bent Normal
-		// Vary between these two values depending on 'weight':
-		//B = lerp(Normal, B, weight);
-		//B = Normal;
+	// The occluder is behind the current point when diff.z > 0 (weight = 1)
+	// If weight = 1: Unoccluded direction, compute Bent Normal, etc
+	// If weight = 0: Occluded direction, Bent Normal contribution is 0
+	const float weight = diff.z > 0.0 ? 1.0 : 0.0; 
+	// Compute SSAO to get a better bent normal
+	const float max_dist_sqr = max_dist * max_dist;
+	const float ao_weight = saturate(1 - diff_sqr / max_dist_sqr);
+	const float ao_dot = max(0.0, dot(Normal, v) - bias);
+	ao = ao_dot * ao_weight;
+
+	// If weight == 0, use the current point's Normal to compute shading
+	// If weight == 1, use the Bent Normal
+	// Vary between these two values depending on 'weight':
+	//B = lerp(Normal, B, weight);
+	//B = Normal;
 		
-		// Let's postpone normal mapping until the final combination step
-		//if (fn_enable) {
-		//	B = blend_normals(B, lerp(B, FakeNormal, nm_intensity)); // This line can go before or after normalize(B)
-		//	// DEBUG
-		//	//output.N = FakeNormal;
-		//}
-		output.N = B; // ORIGINAL
-		//output.N = v; // This works; but I can't get the contact shadows right and everything looks overly bluish
+	// output.N = B; // ORIGINAL
+	output.N = lerp(0, B, weight);
+	//output.N = v; // This also works; but I can't get the contact shadows right and everything looks overly bluish -- maybe I need to scale down the Z axis?
 
-		//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
-		output.col = saturate(dot(B, LightVector[0].xyz));
-		//output.col.y = 1.0;
-		/*
-		// Specular component
-		// Do I need to invert Z for pos3D?
-		float3 pos3D = P;
-		//pos3D.z = -pos3D.z;
-		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
-		// reflect expects an incident vector: a vector that goes from the light source to the current point.
-		// L goes from the current point to the light vector, so we have to use -L:
-		float3 refl_vec = normalize(reflect(-LightVector.xyz, B));
-		output.col.y = max(dot(eye_vec, refl_vec), 0.0);
-		output.col.z = 0.0;
-		*/
-
-		//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
-
-		//output.col = weight;
-		//return output;
-		//output.col = float3(0, 1, 0);
-	} else { // The occluder is in front of the current point: i.e. The occluder *is* occluding the current point
+	//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+	output.col = lerp(0, saturate(dot(B, LightVector[0].xyz)), weight);
+	//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
+	//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+	
+	/*else { // The occluder is in front of the current point: i.e. The occluder *is* occluding the current point
 		// This is where we would be computing AO if this were SSAO.
 		// This is where the black/white halos appear around the foreground objects
-		//output.N = Normal;
-		//B = lerp(Normal, 0, weight);
-		//output.N = B;
-		//output.col = float3(1, 0, 0); // DEBUG
-		//output.col = lerp(1, 0, weight);
-
 		output.N = 0; // This is OK for bent normal accumulation, the accumulation is weighed by the occlusion factor
 		output.col = 0;
-		//output.col.y = 1.0;
-		//output.col.y = 1.0 - saturate(dot(B, LightVector.xyz));
-
-		//B = lerp(-Normal, 0, weight);
-		//B = occluder_normal;
-		//B = Normal;
-		//output.N = B;
-
-		//if (fn_enable) B = blend_normals(nm_intensity * FakeNormal, B); // This line can go before or after normalize(B)
-		//output.col  =  LightColor.rgb * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-		//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
-		
-		//output.col  = lerp(output.col, 0, weight);
-		//return output;
-		//output.col = float3(1, 0, 0);
 	}
-	
+	*/
 	return output;
 }
 
@@ -461,6 +425,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Then we multiply it by "radius", so now sample_direction has length "radius"
 	const float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
 	const float max_radius_sqr = max_radius * max_radius;
+	float ao_sum = 0.0, ao;
 
 	// SSDO Direct Calculation
 	ssdo = 0;
@@ -474,10 +439,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, radius_sqr, max_radius_sqr, nm_intensity);
+			p, n, radius_sqr, max_radius_sqr, ao);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
+		ao_sum += ao;
 	}
+	ao_sum = 1 - intensity * ao_sum / (float)samples;
 
 	// DEBUG
 	//if (fn_enable) bentNormal = FakeNormal;
@@ -505,6 +472,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssao.xyz = n;
 	if (ssao_debug == 5)
 		output.ssao.xyz = lerp(float3(1, 0, 0), float3(1, 1, 1), contactShadow);
+	if (ssao_debug == 6)
+		output.ssao.xyz = ao_sum;
 	if (ssao_debug != 0)
 		return output;
 	// DEBUG

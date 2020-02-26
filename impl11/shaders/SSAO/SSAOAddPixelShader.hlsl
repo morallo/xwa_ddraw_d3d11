@@ -178,12 +178,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssao      = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
 	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask    = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	//float  mask = max(dot(0.333, bloom.xyz), dot(0.333, ssaoMask));
-	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
+	float  mask      = ssaoMask.x;
 	float  gloss     = ssaoMask.y;
 	float  spec_int  = ssaoMask.z;
 	float  diff_int  = 1.0;
-	bool   shadeless = mask > GLASS_LO; //SHADELESS_LO;
+	bool   shadeless = mask > GLASS_LO; // SHADELESS_LO;
 	float  metallic  = mask / METAL_MAT;
 	float  nm_int    = ssMask.x;
 	float  spec_val  = ssMask.y;
@@ -280,9 +279,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 L = LightVector[i].xyz;
 		float LightInt = dot(LightColor[i].rgb, 0.333);
 		// diffuse component
-		//const float diff_max = 0.4;
-		//const float amb_max = 0.3;
-		//const float spec_max = 0.3;
 		float diffuse = max(dot(N, L), 0.0);
 		diffuse = ssao.x * diff_int * diffuse + ambient;
 		//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
@@ -294,7 +290,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		// specular component
 		//float3 eye = 0.0;
 		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
-		//float3 spec_col = /* ssdo.x * */ spec_int;
 		//float3 spec_col = 0.35;
 		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
 		// reflect expects an incident vector: a vector that goes from the light source to the current point.
@@ -306,7 +301,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		//float  exponent = 10.0;
 		float exponent = glossiness * gloss;
 		float spec_bloom_int = spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {
@@ -314,9 +308,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			spec_bloom_int *= 3.0; // Make the glass bloom more
 		}
 		float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		//spec = LightInt * spec_int * pow(spec, exponent); // ORIGINAL
-		// ssao.y is the contactShadow component
-		//spec = ssao.y * LightInt * spec_int * pow(spec, exponent);
+		spec = LightInt * spec_int * pow(spec, exponent);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);

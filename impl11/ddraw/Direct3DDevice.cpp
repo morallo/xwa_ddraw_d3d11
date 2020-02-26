@@ -2516,6 +2516,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.ambient = 0.15f;
 	g_SSAO_PSCBuffer.gamma = 1.25f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
+	g_SSAO_PSCBuffer.debug = 0;
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
