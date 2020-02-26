@@ -314,7 +314,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			spec_bloom_int *= 3.0; // Make the glass bloom more
 		}
 		float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		spec = /* ssao.x * */ LightInt * spec_int * pow(spec, exponent);
+		//spec = LightInt * spec_int * pow(spec, exponent); // ORIGINAL
+		// ssao.y is the contactShadow component
+		//spec = ssao.y * LightInt * spec_int * pow(spec, exponent);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);

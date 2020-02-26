@@ -72,7 +72,7 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, ssao_unused0, ssao_unused1;
+	float shadow_k, Bz_mult, ssao_unused1;
 	// 176 bytes
 };
 
@@ -161,8 +161,8 @@ struct ColNorm {
 
 inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal,
-	in float cur_radius, in float max_radius,
-	in float3 FakeNormal, in float nm_intensity)
+	in float cur_radius_sqr, in float max_radius_sqr,
+	in float nm_intensity)
 {
 	ColNorm output;
 	output.col = 0;
@@ -179,7 +179,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	float2 uv_diff = sample_uv - input_uv;
 	
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
-	float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
+	//float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
+	const float miplevel = 1.0;
 
 	float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
 	//float3 occluder_normal = getNormal(sample_uv, 0);
@@ -214,13 +215,18 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	  below.
 	 */
 	float3 B = 0;
-	const float occ_dot = dot(Normal, v);
+	//const float occ_dot = dot(Normal, v);
 	
-	B.x = uv_diff.x;
+	B.x =  uv_diff.x;
 	B.y = -uv_diff.y;
 	//B.z = 0.01 * (max_radius - cur_radius) / max_radius;
 	//B.z = sqrt(max_radius * max_radius - cur_radius * cur_radius);
-	B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius);
+	//B.z = 0.5 * sqrt(max_radius * max_radius - cur_radius * cur_radius); // Too bluish
+	//B.z = 0.1 * sqrt(max_radius * max_radius - cur_radius * cur_radius); // ORIGINAL
+	//B.z = 0.05 * sqrt(max_radius * max_radius - cur_radius * cur_radius); // Kind of OK
+	//B.z = 0.01 * sqrt(max_radius * max_radius - cur_radius * cur_radius); // Too noisy
+	B.z = Bz_mult * sqrt(max_radius_sqr - cur_radius_sqr);
+	//B.z = Bz_mult * sqrt(max_radius * max_radius - cur_radius * cur_radius) / max_radius; // Looks good for bzmult = 0.0025
 	// Adding the normalized B to BentNormal seems to yield better normals
 	// if B is added to BentNormal before normalization, the resulting normals
 	// look more faceted
@@ -241,7 +247,9 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//	// DEBUG
 		//	//output.N = FakeNormal;
 		//}
-		output.N = B;
+		output.N = B; // ORIGINAL
+		//output.N = v; // This works; but I can't get the contact shadows right and everything looks overly bluish
+
 		//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
 		output.col = saturate(dot(B, LightVector[0].xyz));
 		//output.col.y = 1.0;
@@ -273,7 +281,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 		//output.col = float3(1, 0, 0); // DEBUG
 		//output.col = lerp(1, 0, weight);
 
-		output.N = 0;
+		output.N = 0; // This is OK for bent normal accumulation, the accumulation is weighed by the occlusion factor
 		output.col = 0;
 		//output.col.y = 1.0;
 		//output.col.y = 1.0 - saturate(dot(B, LightVector.xyz));
@@ -389,6 +397,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
 	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
+	//float3 bentNormal = 0;
 	//float3 bentNormal = float3(0, 0, 0.01);
 	float3 ssdo;
 	float3 p;
@@ -399,6 +408,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	output.ssao = 1;
 	output.bentNormal = float4(0, 0, 0.01, 1);
+	//output.bentNormal = 0;
 
 	if (P1.z < P2.z) {
 		p = P1;
@@ -426,9 +436,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (z_division) 	radius /= p.z;
 
 	//float2 offset = float2(0.5 / screenSizeX, 0.5 / screenSizeY); // Test setting
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
+	//float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY); // Original setting
 	//float2 offset = 0.1 * float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	float3 FakeNormal = 0; 
+	//float3 FakeNormal = 0; 
 	//if (fn_enable) FakeNormal = get_normal_from_color(input.uv, offset); // Let's postpone normal mapping until the final combine stage
 
 	/*
@@ -449,7 +459,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// After sincos, sample_direction is unitary and 2D
 	sample_direction *= radius;
 	// Then we multiply it by "radius", so now sample_direction has length "radius"
-	float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
+	const float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
+	const float max_radius_sqr = max_radius * max_radius;
 
 	// SSDO Direct Calculation
 	ssdo = 0;
@@ -457,15 +468,49 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
+		float radius_sqr = radius * (j + sample_jitter);
+		radius_sqr *= radius_sqr;
+
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, radius * (j + sample_jitter), max_radius,
-			FakeNormal, nm_intensity);
+			p, n, radius_sqr, max_radius_sqr, nm_intensity);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 	}
+
+	// DEBUG
+	//if (fn_enable) bentNormal = FakeNormal;
+	// DEBUG
+	//bentNormal /= (float)samples;
+	bentNormal = normalize(bentNormal); // This looks a bit better
+	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
+	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	// Compute the contact shadow and put it in the y channel
+	float bentDiff = max(dot(bentNormal, LightVector[0].xyz), 0.0);
+	float normDiff = max(dot(n, LightVector[0].xyz), 0.0);
+	//float bentDiff = dot(bentNormal, LightVector[0].xyz); // Removing max also reduces the effect, looks better with max
+	//float normDiff = dot(n, LightVector[0].xyz);
+	float contactShadow = 1.0 - clamp(normDiff - bentDiff, 0.0, 1.0);
+
+	// DEBUG
+	if (ssao_debug == 1)
+		output.ssao.xyz = ssdo / (float)samples;
+	if (ssao_debug == 2)
+		output.ssao.xyz = bentDiff;
+	if (ssao_debug == 3)
+		output.ssao.xyz = bentNormal;
+	if (ssao_debug == 4)
+		output.ssao.xyz = n;
+	if (ssao_debug == 5)
+		output.ssao.xyz = lerp(float3(1, 0, 0), float3(1, 1, 1), contactShadow);
+	if (ssao_debug != 0)
+		return output;
+	// DEBUG
+
 	ssdo = saturate(intensity * ssdo / (float)samples); // * shadow;
+	ssdo.y = contactShadow;
 	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
 	ssdo = lerp(ssdo, 1, bloom_mask);
 	ssdo = pow(abs(ssdo), power);
@@ -480,12 +525,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized
 	
 	
-	// DEBUG
-	//if (fn_enable) bentNormal = FakeNormal;
-	// DEBUG
-	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
-	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
-	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	
 	
 	//output.bentNormal.xyz = output.ssao.xyz * bentNormal;
 	//output.bentNormal.xyz = radius * 100; // DEBUG! Use this to visualize the radius

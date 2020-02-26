@@ -2869,7 +2869,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
 	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
-	g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
+	//g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout

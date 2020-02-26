@@ -729,9 +729,9 @@ void SaveVRParams() {
 	fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
 	fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
 	fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
-	fprintf(file, "%s = %0.3f\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
+	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
-	fprintf(file, "\n; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
+	fprintf(file, "; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
 	fprintf(file, "; Positive values = convex warping; negative = concave warping. SteamVR already provides\n");
 	fprintf(file, "; it's own automatic warping effect, so you probably shouldn't enable this in SteamVR mode.\n");
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
@@ -745,7 +745,7 @@ void SaveVRParams() {
 	fprintf(file, "; distortion correction instead\n");
 	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
 
-	fprintf(file, "\n; Depth for various GUI elements in meters from the head's origin.\n");
+	fprintf(file, "; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
 	fprintf(file, "; As a reference, the background starfield is 65km meters away.\n");
 	fprintf(file, "%s = %0.3f\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
@@ -765,9 +765,9 @@ void SaveVRParams() {
 	fprintf(file, "; This is the depth added to the controls in the tech library. Make it negative to bring the\n");
 	fprintf(file, "; controls towards you. Objects in the tech library are obviously scaled by XWA, because there's\n");
 	fprintf(file, "; otherwise no way to visualize both a Star Destroyer and an A-Wing in the same volume.\n");
-	fprintf(file, "%s = %0.3f\n", TECH_LIB_PARALLAX_VRPARAM, g_fTechLibraryParallax);
+	fprintf(file, "%s = %0.3f\n\n", TECH_LIB_PARALLAX_VRPARAM, g_fTechLibraryParallax);
 
-	fprintf(file, "\n; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
+	fprintf(file, "; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
 	fprintf(file, "; able to see all the HUD simply by looking around. You may also lean forward to\n");
 	fprintf(file, "; zoom-in on the text messages to make them more readable.\n");
 	fprintf(file, "%s = %d\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
@@ -2515,6 +2515,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
 	g_SSAO_PSCBuffer.gamma = 1.25f;
+	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
@@ -2623,7 +2624,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
 			else if (_stricmp(param, "bent_normal_init") == 0) {
-				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Defaul: 0.2f
+				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Default: 0.2f
 			}
 			else if (_stricmp(param, "max_dist") == 0) {
 				g_SSAO_PSCBuffer.max_dist = fValue;
@@ -2720,6 +2721,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
+			}
+			else if (_stricmp(param, "Bz_mult") == 0) {
+				g_SSAO_PSCBuffer.Bz_mult = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
