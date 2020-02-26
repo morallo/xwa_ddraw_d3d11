@@ -2451,13 +2451,6 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-
-	/*
-	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	g_SSAO_PSCBuffer.x0 = x0;
-	g_SSAO_PSCBuffer.y0 = y0;
-	g_SSAO_PSCBuffer.x1 = x1;
-	g_SSAO_PSCBuffer.y1 = y1;*/
 	
 	// Create the VertexBuffer if necessary
 	if (resources->_barrelEffectVertBuffer == nullptr) {
@@ -2942,7 +2935,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-	g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+	//g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSDO Blur, Left Image
