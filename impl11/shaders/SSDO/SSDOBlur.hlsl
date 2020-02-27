@@ -118,11 +118,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
 
 		tap_weight = compute_spatial_tap_weight(center, tap);
-
 		blurweight += tap_weight;
+
 		ssao_sum += tap_ssao * tap_weight;
-		ssao_sum_noweight += tap_ssao;
 		bent_sum += tap_bent * tap_weight;
+		ssao_sum_noweight += tap_ssao;
 		bent_sum_noweight += tap_bent;
 	}
 
@@ -133,9 +133,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
+	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
+	// bent normal here:
+	output.bent.xyz = center.normal - output.bent.xyz;
 	return output;
 }
-
 
 /*
 PixelShaderOutput main(PixelShaderInput input) {

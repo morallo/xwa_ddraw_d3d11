@@ -154,36 +154,18 @@ float3 blend_normals(float3 n1, float3 n2)
 	//return r * 0.5 + 0.5;
 }
 
-inline float doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal, in float level)
-{
-	float3 occluder = FGFlag ? getPositionFG(sample_uv, level) : getPositionBG(sample_uv, level);
-	// diff: Vector from current pos (p) to sampled neighbor
-	float3 diff = occluder - P;
-	const float diff_sqr = dot(diff, diff);
-	// v: Normalized (occluder - P) vector
-	const float3 v = diff * rsqrt(diff_sqr);
-	const float max_dist_sqr = max_dist * max_dist;
-	const float weight = saturate(1 - diff_sqr / max_dist_sqr);
-
-	float ao_dot = max(0.0, dot(Normal, v) - bias);
-	float ao_factor = ao_dot * weight;
-	//return intensity * pow(ao_factor, power);
-	//return intensity * ao_factor;
-	return ao_factor; // Let's multiply by intensity only once outside the addition loop
-}
-
 struct ColNorm {
 	float3 col;
 	float3 N;
 };
 
 inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, out float ao)
+	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, out float ao_factor)
 {
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
-	ao = 0.0;
+	ao_factor  = 0;
 
 	// Early exit: darken the edges of the effective viewport
 	if (sample_uv.x < x0 || sample_uv.x > x1 ||
@@ -254,13 +236,12 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	// If weight = 1: Unoccluded direction, compute Bent Normal, etc
 	// If weight = 0: Occluded direction, Bent Normal contribution is 0
 	const float weight = diff.z > 0.0 ? 1.0 : 0.0; 
-	/*
 	// Compute SSAO to get a better bent normal
-	const float ao_dot = max(0.0, dot(Normal, v) - bias);
+	const float3 SSAO_Normal = float3(Normal.xy, -Normal.z);
+	const float ao_dot = max(0.0, dot(SSAO_Normal, v) - bias);
 	const float max_dist_sqr = max_dist * max_dist;
 	const float ao_weight = saturate(1 - diff_sqr / max_dist_sqr);
-	ao = ao_dot * ao_weight;
-	*/
+	ao_factor = ao_dot * ao_weight;
 
 	// If weight == 0, use the current point's Normal to compute shading
 	// If weight == 1, use the Bent Normal
@@ -373,14 +354,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	ColNorm ssdo_aux;
 	float3 P1 = getPositionFG(input.uv, 0);
 	float3 P2 = getPositionBG(input.uv, 0);
-	float3 n = getNormal(input.uv, 0);
+	float3 Normal = getNormal(input.uv, 0);
+	float3 SSAO_Normal = float3(Normal.xy, -Normal.z); // For SSAO we need to flip the Z component because the code expects a different coord system
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
 	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
 	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
-	float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
+	float3 bentNormal = bentNormalInit * Normal; // Initialize the bentNormal with the normal
 	//float3 bentNormal = 0;
 	//float3 bentNormal = float3(0, 0, 0.01);
 	float3 ssdo;
@@ -404,12 +386,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	// This apparently helps prevent z-fighting noise
 	// SSDO version:
-	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
-	p.z -= m_offset;
+	//float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
+	//p.z -= m_offset;
 
 	// SSAO version:
-	//float m_offset = moire_offset * (p.z * 0.1);
-	//p += m_offset * n;
+	float m_offset = moire_offset * (p.z * 0.1);
+	p += m_offset * SSAO_Normal;
 
 	// Early exit: do not compute SSDO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
@@ -448,7 +430,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Then we multiply it by "radius", so now sample_direction has length "radius"
 	const float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
 	const float max_radius_sqr = max_radius * max_radius;
-	float ao_sum = 0.0, ao = 0.0;
+	float ao_factor = 0.0, ao = 0.0;
 
 	// SSDO Direct Calculation
 	ssdo = 0;
@@ -462,31 +444,33 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, n, radius_sqr, max_radius_sqr, ao);
+			p, Normal, radius_sqr, max_radius_sqr, ao_factor);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 
-		ao_sum += doAmbientOcclusion(FGFlag, sample_uv, p, n, 0);
-		//ao_sum += ao;
+		ao += ao_factor;
 	}
-	//ao_sum = clamp(1.0 - intensity * ao_sum / (float)samples, 0.0, 1.0);
-	ao_sum = 1 - intensity * ao_sum / (float)samples;
-	//ao_sum = lerp(black_level, ao_sum, ao_sum);
+	ao = clamp(1.0 - intensity * ao / (float)samples, 0.0, 1.0);
+	//ao = 1 - intensity * ao / (float)samples;
+	//ao = lerp(black_level, ao, ao); // I don't think we need the black level for AO, since it's used as an interpolator here
 
 	// DEBUG
 	//if (fn_enable) bentNormal = FakeNormal;
 	// DEBUG
 	//bentNormal /= (float)samples;
 	bentNormal = normalize(bentNormal); // This looks a bit better
+	const float3 debugBentNormal = bentNormal;
 	// Let's make a cleaner bent normal. The bent normal is the smooth normal when there's no occlusion
 	// so let's use the AO term to select the normal or the bent normal
-	//bentNormal = lerp(bentNormal, n, ao_sum);
+	bentNormal = lerp(bentNormal, Normal, ao * ao); // Using ao^2 makes the dark areas darker... kind of looks better, I think
 	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
 	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	// Bent normal tweak: don't smooth the bent normal itself; but the difference with the smooth normal
+	output.bentNormal.xyz = Normal - output.bentNormal.xyz;
 	// Compute the contact shadow and put it in the y channel
 	float bentDiff = max(dot(bentNormal, LightVector[0].xyz), 0.0);
-	float normDiff = max(dot(n, LightVector[0].xyz), 0.0);
+	float normDiff = max(dot(Normal, LightVector[0].xyz), 0.0);
 	//float bentDiff = dot(bentNormal, LightVector[0].xyz); // Removing max also reduces the effect, looks better with max
 	//float normDiff = dot(n, LightVector[0].xyz);
 	float contactShadow = 1.0 - clamp(normDiff - bentDiff, 0.0, 1.0);
@@ -497,14 +481,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ssao_debug == 2)
 		output.ssao.xyz = bentDiff;
 	if (ssao_debug == 3)
-		output.ssao.xyz = bentNormal;
+		output.ssao.xyz = ao * ao; // Gamma correction (or at least makes it looks like the output from SSAO anyway)
 	if (ssao_debug == 4)
-		output.ssao.xyz = n;
+		output.ssao.xyz = debugBentNormal;
 	if (ssao_debug == 5)
-		output.ssao.xyz = lerp(float3(1, 0, 0), float3(1, 1, 1), contactShadow);
+		output.ssao.xyz = bentNormal;
 	if (ssao_debug == 6)
-		output.ssao.xyz = ao_sum;
-	if (ssao_debug != 0)
+		output.ssao.xyz = Normal;
+	if (ssao_debug == 7)
+		output.ssao.xyz = lerp(float3(0, 0, 0.1), float3(1, 1, 1), contactShadow);
+	
+	if (ssao_debug != 0) 
 		return output;
 	// DEBUG
 

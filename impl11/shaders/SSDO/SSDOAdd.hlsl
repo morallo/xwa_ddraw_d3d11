@@ -273,6 +273,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Toggle the SSDO component for debugging purposes:
 	ssdo = lerp(ssdo, 1.0, sso_disable);
+
+	// Recompute the contact shadow here...
 	
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
@@ -331,6 +333,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
+	// HACK: LET'S REMOVE SSDO FOR NOW
+	//ssdo = 1;
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	[unroll]

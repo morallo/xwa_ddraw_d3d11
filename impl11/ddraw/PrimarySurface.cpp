@@ -2894,11 +2894,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_ssaoMaskSRV.Get(),
 			resources->_offscreenAsInputBloomMaskSRV.Get(),
 		};
-		if (g_SSAO_Type == SSO_BENT_NORMALS)
-			resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
+		//if (g_SSAO_Type == SSO_BENT_NORMALS)
+			//resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
 			//resources->InitPixelShader(resources->_deathStarPS);
-		else
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+		//else
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+		resources->InitPixelShader(resources->_ssdoDirectPS);
+		//resources->InitPixelShader(resources->_ssaoPS); // Should be _ssdoDirectPS; but this will also work here
 
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 			ID3D11RenderTargetView *rtvs[2] = {
@@ -3124,7 +3126,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
 			resources->_renderTargetViewBloomMask.Get(),
-			resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
+			//resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
+			NULL,
 			NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
@@ -3143,8 +3146,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
+
 			resources->_normBufSRV.Get(),							// Normals buffer
 			//resources->_bentBufSRV.Get(),
+
 			resources->_ssMaskSRV.Get(),								// Shading System buffer
 		};
 		context->PSSetShaderResources(0, 7, srvs_pass2);
