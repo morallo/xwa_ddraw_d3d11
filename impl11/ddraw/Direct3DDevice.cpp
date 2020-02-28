@@ -2517,6 +2517,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.gamma = 1.25f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
+	g_SSAO_PSCBuffer.moire_scale = 0.1f;
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
@@ -2663,6 +2664,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "moire_offset") == 0) {
 				g_SSAO_PSCBuffer.moire_offset = fValue;
+			}
+			else if (_stricmp(param, "moire_scale") == 0) {
+				g_SSAO_PSCBuffer.moire_scale = fValue;
 			}
 			/* else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
 				g_SSAO_PSCBuffer.addSSDO = (int)fValue;

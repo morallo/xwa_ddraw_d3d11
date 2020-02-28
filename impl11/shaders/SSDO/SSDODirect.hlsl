@@ -72,7 +72,7 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, Bz_mult, ssao_unused1;
+	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 };
 
@@ -238,6 +238,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	const float weight = diff.z > 0.0 ? 1.0 : 0.0; 
 	// Compute SSAO to get a better bent normal
 	const float3 SSAO_Normal = float3(Normal.xy, -Normal.z);
+	//const float3 SSAO_Normal = Normal;
 	const float ao_dot = max(0.0, dot(SSAO_Normal, v) - bias);
 	const float max_dist_sqr = max_dist * max_dist;
 	const float ao_weight = saturate(1 - diff_sqr / max_dist_sqr);
@@ -254,6 +255,7 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//output.N = v; // This also works; but I can't get the contact shadows right and everything looks overly bluish -- maybe I need to scale down the Z axis?
 
 	//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+	//B.z = -B.z; // Flip the z component?
 	output.col = weight * saturate(dot(B, LightVector[0].xyz));
 	//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
 	//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
@@ -355,7 +357,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P1 = getPositionFG(input.uv, 0);
 	float3 P2 = getPositionBG(input.uv, 0);
 	float3 Normal = getNormal(input.uv, 0);
+	//Normal.z = -Normal.z;
 	float3 SSAO_Normal = float3(Normal.xy, -Normal.z); // For SSAO we need to flip the Z component because the code expects a different coord system
+	//float3 SSAO_Normal = Normal;
 	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
 	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
@@ -390,7 +394,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//p.z -= m_offset;
 
 	// SSAO version:
-	float m_offset = moire_offset * (p.z * 0.1);
+	//float m_offset = moire_offset * (p.z * 0.1);
+	float m_offset = moire_offset * (p.z * moire_scale);
 	p += m_offset * SSAO_Normal;
 
 	// Early exit: do not compute SSDO for objects at infinity
@@ -447,7 +452,6 @@ PixelShaderOutput main(PixelShaderInput input)
 			p, Normal, radius_sqr, max_radius_sqr, ao_factor);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
-
 		ao += ao_factor;
 	}
 	ao = clamp(1.0 - intensity * ao / (float)samples, 0.0, 1.0);
@@ -458,16 +462,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	//if (fn_enable) bentNormal = FakeNormal;
 	// DEBUG
 	//bentNormal /= (float)samples;
-	bentNormal = normalize(bentNormal); // This looks a bit better
-	const float3 debugBentNormal = bentNormal;
+	//bentNormal = normalize(bentNormal); // This looks a bit better
+	const float3 debugBentNormal = normalize(bentNormal);
 	// Let's make a cleaner bent normal. The bent normal is the smooth normal when there's no occlusion
 	// so let's use the AO term to select the normal or the bent normal
-	bentNormal = lerp(bentNormal, Normal, ao * ao); // Using ao^2 makes the dark areas darker... kind of looks better, I think
-	output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
+	bentNormal = normalize(lerp(bentNormal, Normal, ao * ao)); // Using ao^2 makes the dark areas darker... kind of looks better, I think
+	//output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
 	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 	// Bent normal tweak: don't smooth the bent normal itself; but the difference with the smooth normal
 	output.bentNormal.xyz = Normal - output.bentNormal.xyz;
+	
 	// Compute the contact shadow and put it in the y channel
 	float bentDiff = max(dot(bentNormal, LightVector[0].xyz), 0.0);
 	float normDiff = max(dot(Normal, LightVector[0].xyz), 0.0);
@@ -475,9 +480,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float normDiff = dot(n, LightVector[0].xyz);
 	float contactShadow = 1.0 - clamp(normDiff - bentDiff, 0.0, 1.0);
 
+	ssdo = saturate(intensity * ssdo / (float)samples); // * shadow;
+	//ssdo.y = contactShadow;
+	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
+	ssdo = lerp(ssdo, 1, bloom_mask);
+	ssdo = pow(abs(ssdo), power);
+	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
+	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+
 	// DEBUG
 	if (ssao_debug == 1)
-		output.ssao.xyz = ssdo / (float)samples;
+		output.ssao.xyz = output.ssao.xxx;
 	if (ssao_debug == 2)
 		output.ssao.xyz = bentDiff;
 	if (ssao_debug == 3)
@@ -490,22 +503,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssao.xyz = Normal;
 	if (ssao_debug == 7)
 		output.ssao.xyz = lerp(float3(0, 0, 0.1), float3(1, 1, 1), contactShadow);
-	
-	if (ssao_debug != 0) 
-		return output;
-	// DEBUG
 
-	ssdo = saturate(intensity * ssdo / (float)samples); // * shadow;
-	ssdo.y = contactShadow;
-	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
-	ssdo = lerp(ssdo, 1, bloom_mask);
-	ssdo = pow(abs(ssdo), power);
-	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
-	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
-	//bentNormal /= (float)samples;
-	//float BLength = length(bentNormal);
-	//ssdo = intensity * saturate(dot(bentNormal, light));
-	//output.ssao.rgb = ssdo;
+	//if (ssao_debug != 0)
+	//	return output;
+	// DEBUG
 	
 	//if (fn_enable) bentNormal = blend_normals(nm_intensity * FakeNormal, bentNormal); // bentNormal is not really used, it's just for debugging.
 	//bentNormal /= BLength; // Bent Normals are not supposed to get normalized

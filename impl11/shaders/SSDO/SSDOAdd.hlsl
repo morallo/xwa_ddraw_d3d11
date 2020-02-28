@@ -38,13 +38,17 @@ SamplerState samplerSSAOMask : register(s3);
 Texture2D texPos : register(t4);
 SamplerState sampPos : register(s4);
 
-// The (Flat) Normals buffer
+// The (Smooth) Normals buffer
 Texture2D texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
+// The Bent Normals buffer
+Texture2D texBent : register(t6);
+SamplerState samplerBent : register(s6);
+
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
+Texture2D texSSMask : register(t7);
+SamplerState samplerSSMask : register(s7);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -251,6 +255,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 color     = texColor.Sample(sampColor, input.uv).xyz;
 	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
 	float4 Normal    = texNormal.Sample(samplerNormal, input.uv);
+	float3 bentN     = texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo      = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd   = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
@@ -337,6 +342,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//ssdo = 1;
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
+	float contactShadow = 1.0;
 	[unroll]
 	for (uint i = 0; i < 2; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
@@ -344,6 +350,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		float LightInt = dot(LightColor[i].rgb, 0.333);
 		// diffuse component
 		float diffuse = max(dot(N, L), 0.0);
+
+		// Compute the contact shadow and put it in the y channel TODO: USE MULTIPLE LIGHTS
+		if (i == 0) {
+			float bentDiff = max(dot(bentN, L), 0.0);
+			//float bentDiff = dot(bentNormal, LightVector[0].xyz); // Removing max also reduces the effect, looks better with max
+			//float normDiff = dot(n, LightVector[0].xyz);
+			contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
+		}
 		/*
 		if (ss_debug == 1) {
 			output.color.xyz = diffuse + ambient;
@@ -382,8 +396,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			exponent *= 2.0;
 			spec_bloom_int *= 3.0; // Make the glass bloom more
 		}
-		float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
+		//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
+		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
+		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT
+		float spec_bloom = contactShadow * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
+		spec = contactShadow * LightInt * spec_int * pow(spec, exponent);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);
@@ -391,6 +408,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
+
+	if (ssao_debug == 8)
+		output.color.xyz = bentN.xyz;
+	if (ssao_debug == 9)
+		output.color.xyz = contactShadow;
+
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
 

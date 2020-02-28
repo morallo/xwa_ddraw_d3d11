@@ -3135,24 +3135,23 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *ssdoSRV = NULL;
-		if (g_SSAO_Type == SSO_BENT_NORMALS)
-			ssdoSRV = resources->_bentBufSRV.Get();
-		else
-			ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[7] = {
+		//if (g_SSAO_Type == SSO_BENT_NORMALS)
+		//	ssdoSRV = resources->_bentBufSRV.Get();
+		//else
+		//	ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom Mask
-			ssdoSRV,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
+			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_depthBufSRV.Get(),							// Depth buffer
 
 			resources->_normBufSRV.Get(),							// Normals buffer
-			//resources->_bentBufSRV.Get(),
-
+			resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),								// Shading System buffer
 		};
-		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
 	}
 

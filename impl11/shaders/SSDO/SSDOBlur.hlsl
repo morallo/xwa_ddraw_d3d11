@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:
-	output.bent.xyz = center.normal - output.bent.xyz;
+	output.bent.xyz = normalize(center.normal - output.bent.xyz);
 	return output;
 }
 
