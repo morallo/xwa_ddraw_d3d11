@@ -6308,14 +6308,11 @@ HRESULT Direct3DDevice::Execute(
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						ID3D11RenderTargetView *rtvs[6] = {
-							//resources->_renderTargetView.Get(),
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
-								resources->_renderTargetViewDepthBuf2.Get(),
+							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-							//bIsAimingHUD ? NULL: resources->_renderTargetViewSSAOMask.Get(),
 							resources->_renderTargetViewSSAOMask.Get(),
 							resources->_renderTargetViewSSMask.Get(),
 						};

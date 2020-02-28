@@ -46,6 +46,7 @@
 #include "../Debug/HyperCompose.h"
 #include "../Debug/HyperZoom.h"
 #include "../Debug/LaserPointerVR.h"
+#include "../Debug/FXAA.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -87,6 +88,7 @@
 #include "../Release/HyperCompose.h"
 #include "../Release/HyperZoom.h"
 #include "../Release/LaserPointerVR.h"
+#include "../Release/FXAA.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -1035,6 +1037,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_sampleDesc.Quality,
 			0);
 		oldFormat = desc.Format;
+		log_debug("[DBG] MSAA Count: %d, Quality: %d", this->_sampleDesc.Count, this->_sampleDesc.Quality);
 
 		step = "_offscreenBuffer";
 		hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBuffer);
@@ -2217,6 +2220,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2463,6 +2469,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

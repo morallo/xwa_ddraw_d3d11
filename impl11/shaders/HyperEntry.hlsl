@@ -14,7 +14,7 @@
 
 #include "ShaderToyDefs.h"
 
- // ShadertoyCBuffer
+// ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
 	float iTime, twirl, bloom_strength, unused;

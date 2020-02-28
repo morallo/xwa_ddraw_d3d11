@@ -85,6 +85,7 @@ extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 // DEBUG
 extern bool g_bKeybExitHyperspace;
+extern bool g_bFXAAEnabled;
 
 // ACTIVE COCKPIT
 extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
@@ -442,12 +443,15 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
+			case 'F':
+				g_bFXAAEnabled = !g_bFXAAEnabled;
+				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
 				return 0;
-			case 'F':
-				g_bDumpLaserPointerDebugInfo = true;
-				return 0;
+			//case 'F':
+			//	g_bDumpLaserPointerDebugInfo = true;
+			//	return 0;
 				// DEBUG
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
@@ -588,7 +592,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					if (error)
 						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
 					else
-						log_debug("[DBG] Screeshot %d taken", scrCounter);
+						log_debug("[DBG] Screenshot %d taken", scrCounter);
 					scrCounter++;
 				}
 				else {
