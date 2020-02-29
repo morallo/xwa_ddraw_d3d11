@@ -4369,9 +4369,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 }
 
-void PrimarySurface::RenderFXAA(D3D11_VIEWPORT *lastViewport,
-	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
-	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
+void PrimarySurface::RenderFXAA()
 {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -4380,7 +4378,8 @@ void PrimarySurface::RenderFXAA(D3D11_VIEWPORT *lastViewport,
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	D3D11_VIEWPORT viewport{};
 
-	// Reset the UV limits for this shader
+	// We only need the iResolution field from the shadertoy CB in the FXAA shader
+	// ... and maybe the UV limits; but that's it. I think we can safely re-use the CB
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
@@ -4390,89 +4389,87 @@ void PrimarySurface::RenderFXAA(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-	{
-		// Reset the viewport for non-VR mode:
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width    = g_fCurScreenWidth;
-		viewport.Height   = g_fCurScreenHeight;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		resources->InitViewport(&viewport);
+	// Reset the viewport for non-VR mode:
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = g_fCurScreenWidth;
+	viewport.Height   = g_fCurScreenHeight;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
 
-		// Reset the vertex shader to regular 2D post-process
-		// Set the Vertex Shader Constant buffers
-		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-		// Set/Create the VertexBuffer and set the topology, etc
-		if (resources->_barrelEffectVertBuffer == nullptr) {
-			D3D11_BUFFER_DESC vertexBufferDesc;
-			ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	// Reset the vertex shader to regular 2D post-process
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+	// Set/Create the VertexBuffer and set the topology, etc
+	if (resources->_barrelEffectVertBuffer == nullptr) {
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
-			vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vertexBufferDesc.CPUAccessFlags = 0;
-			vertexBufferDesc.MiscFlags = 0;
+		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = 0;
+		vertexBufferDesc.MiscFlags = 0;
 
-			D3D11_SUBRESOURCE_DATA vertexBufferData;
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
 
-			ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-			vertexBufferData.pSysMem = g_BarrelEffectVertices;
-			device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-		}
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = g_BarrelEffectVertices;
+		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+	}
 
-		UINT stride = sizeof(MainVertex), offset = 0;
-		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		resources->InitInputLayout(resources->_mainInputLayout);
+	UINT stride = sizeof(MainVertex), offset = 0;
+	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
 
-		resources->InitVertexShader(resources->_mainVertexShader);
-		resources->InitPixelShader(resources->_fxaaPS);
-		// Clear all the render target views
-		ID3D11RenderTargetView *rtvs_null[5] = {
-			NULL, // Main RTV
-			NULL, // Bloom
-			NULL, // Depth
-			NULL, // Norm Buf
-			NULL, // SSAO Mask
-		};
-		context->OMSetRenderTargets(5, rtvs_null, NULL);
+	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitPixelShader(resources->_fxaaPS);
+	// Clear all the render target views
+	ID3D11RenderTargetView *rtvs_null[5] = {
+		NULL, // Main RTV
+		NULL, // Bloom
+		NULL, // Depth
+		NULL, // Norm Buf
+		NULL, // SSAO Mask
+	};
+	context->OMSetRenderTargets(5, rtvs_null, NULL);
 
-		// Do we need to resolve the offscreen buffer?
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+	// Do we need to resolve the offscreen buffer?
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
+	ID3D11RenderTargetView *rtvs[1] = {
+		resources->_renderTargetViewPost.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+	// Set the SRVs:
+	ID3D11ShaderResourceView *srvs[1] = {
+		resources->_offscreenAsInputShaderResourceView.Get(), // Previous effect (trails or tunnel)
+	};
+	context->PSSetShaderResources(0, 1, srvs);
+	// TODO: Handle SteamVR cases
+	context->Draw(6, 0);
+
+	// Post-process the right image
+	if (g_bUseSteamVR) {
+		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewPost.Get(),
+			resources->_renderTargetViewPostR.Get(),
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
+
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[1] = {
-			resources->_offscreenAsInputShaderResourceView.Get(), // Previous effect (trails or tunnel)
+			resources->_offscreenAsInputShaderResourceViewR.Get(),
 		};
 		context->PSSetShaderResources(0, 1, srvs);
 		// TODO: Handle SteamVR cases
 		context->Draw(6, 0);
-
-		// Post-process the right image
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewPostR.Get(),
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-			
-			// Set the SRVs:
-			ID3D11ShaderResourceView *srvs[1] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),
-			};
-			context->PSSetShaderResources(0, 1, srvs);
-			// TODO: Handle SteamVR cases
-			context->Draw(6, 0);
-		}
 	}
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
@@ -4481,34 +4478,7 @@ void PrimarySurface::RenderFXAA(D3D11_VIEWPORT *lastViewport,
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
-	resources->InitInputLayout(resources->_inputLayout);
-	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
-		this->_deviceResources->_depthStencilViewL.Get());
-
-	/*
-	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
-	resources->InitViewport(lastViewport);
-	// TODO: None of these functions will actually *apply* any changes if they don't internally see
-	//       any difference. The fix is to use a proper InitXXX() above to update the internal state
-	//	     of these functions.
-	if (lastTextureSelected != NULL) {
-		lastTextureSelected->_refCount++;
-		context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
-		lastTextureSelected->_refCount--;
-	}
-	resources->InitInputLayout(resources->_inputLayout);
-	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
-	else
-		this->_deviceResources->InitVertexShader(resources->_vertexShader);
-	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	resources->InitPixelShader(lastPixelShader);
-	resources->InitRasterizerState(resources->_rasterizerState);
-	if (lastVertexBuffer != NULL)
-		resources->InitVertexBuffer(&lastVertexBuffer, lastVertexBufStride, lastVertexBufOffset);
-	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
-	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-	*/
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
 void DisplayACAction(WORD *scanCodes);
@@ -5601,7 +5571,6 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply FXAA
-			//if (g_bFXAAEnabled) 
 			if (g_bFXAAEnabled)
 			{
 				// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
@@ -5633,7 +5602,7 @@ HRESULT PrimarySurface::Flip(
 				resources->InitDepthStencilState(depthState, &desc);
 
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-				RenderFXAA(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+				RenderFXAA();
 			}
 
 			// Apply the Bloom effect

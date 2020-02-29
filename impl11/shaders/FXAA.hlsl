@@ -29,7 +29,7 @@ cbuffer ConstantBuffer : register(b7)
 {
 	float iTime, twirl, bloom_strength, unused;
 	// 16 bytes
-	float2 iResolution;
+	float2 iResolution; // <-- This is the only field used in this shader
 	uint bDirectSBS;
 	float y_center;
 	// 32 bytes
@@ -42,14 +42,11 @@ cbuffer ConstantBuffer : register(b7)
 	// 128 bytes
 };
 
-//vec3 FxaaPixelShader(vec4 uv, sampler2D tex, vec2 rcpFrame) {
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = 0;
 
-	//vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
-	//vec2 fragCoord = input.uv * iResolution.xy;
 	vec2 rcpFrame = 1.0 / iResolution.xy;
 	vec2 uv2 = input.uv - (rcpFrame * (0.5 + FXAA_SUBPIX_SHIFT));
 	
@@ -64,7 +61,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec3 rgbSE = colorTex.Sample(colorSamp, uv2 + vec2(1, 1)*rcpFrame.xy, 0.0).xyz;
 	vec3 rgbM  = colorTex.Sample(colorSamp, input.uv, 0.0).xyz;
 
-	vec3 luma = vec3(0.299, 0.587, 0.114);
+	vec3 luma    = vec3(0.299, 0.587, 0.114);
 	float lumaNW = dot(rgbNW, luma);
 	float lumaNE = dot(rgbNE, luma);
 	float lumaSW = dot(rgbSW, luma);
@@ -76,7 +73,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	vec2 dir;
 	dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
-	dir.y = ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+	dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
 
 	float dirReduce = max(
 		(lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),
@@ -84,8 +81,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
 
 	dir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX),
-		max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
-			dir * rcpDirMin)) * rcpFrame.xy;
+			  max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+				  dir * rcpDirMin)
+			 ) * rcpFrame.xy;
 
 	vec3 rgbA = (1.0 / 2.0) * (
 		colorTex.Sample(colorSamp, input.uv + dir * (1.0 / 3.0 - 0.5), 0.0).xyz +
@@ -100,8 +98,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color = vec4(rgbA, 1);
 	else 
 		output.color = vec4(rgbB, 1);
-	// DEBUG
-	//output.color.b += 0.05;
-	// DEBUG
+
 	return output;
 }

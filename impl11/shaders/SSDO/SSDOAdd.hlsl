@@ -343,21 +343,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	float contactShadow = 1.0;
+	float diffuse = 0.0, bentDiff = 0.0;
 	[unroll]
 	for (uint i = 0; i < 2; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz;
 		float LightInt = dot(LightColor[i].rgb, 0.333);
-		// diffuse component
-		float diffuse = max(dot(N, L), 0.0);
 
 		// Compute the contact shadow and put it in the y channel TODO: USE MULTIPLE LIGHTS
 		if (i == 0) {
-			float bentDiff = max(dot(bentN, L), 0.0);
-			//float bentDiff = dot(bentNormal, LightVector[0].xyz); // Removing max also reduces the effect, looks better with max
-			//float normDiff = dot(n, LightVector[0].xyz);
+			bentDiff = max(dot(bentN, L), 0.0);
 			contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
 		}
+
+		// diffuse component
+		if (ssao_debug == 11)
+			diffuse = max(dot(bentN, L), 0.0);
+		else
+			diffuse = max(dot(N, L), 0.0);
+
 		/*
 		if (ss_debug == 1) {
 			output.color.xyz = diffuse + ambient;
@@ -410,9 +414,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = tmp_bloom;
 
 	if (ssao_debug == 8)
-		output.color.xyz = bentN.xyz;
+		output.color.xyz = bentN.xyz * 0.5 + 0.5;
 	if (ssao_debug == 9)
 		output.color.xyz = contactShadow;
+	if (ssao_debug == 10)
+		output.color.xyz = bentDiff;
+	if (ssao_debug == 12)
+		output.color.xyz = color * (diff_int * bentDiff + ambient);
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
