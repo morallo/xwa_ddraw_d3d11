@@ -255,13 +255,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 color     = texColor.Sample(sampColor, input.uv).xyz;
 	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
 	float4 Normal    = texNormal.Sample(samplerNormal, input.uv);
-	float3 bentN     = texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo      = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd   = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	// Bent normals are supposed to encode the obscurance in their length, so
+	// let's enforce that condition by multiplying by ssdo:
+	float3 bentN     = ssdo.x * texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask    = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	//float  Navg     = dot(0.333, Normal.xyz);
 	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
 	float  gloss     = ssaoMask.y;
 	float  spec_int  = ssaoMask.z;
@@ -299,6 +300,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 N = normalize(Normal.xyz);
+	const float3 smoothN = N;
+	const float3 smoothB = bentN;
 
 	/*
 	// Compute shadows
@@ -320,9 +323,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Glass, Shadeless and Emission should not have normal mapping:
 	if (fn_enable && mask < GLASS_LO) {
 		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
+		//if (ssao_debug == 11)
+		bentN = ssdo.x * blend_normals(bentN, FakeNormal);
 		N = blend_normals(N, FakeNormal);
 	}
-	output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
+	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
 	// Specular color
 	float3 spec_col = 1.0;
@@ -350,33 +355,32 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 L = LightVector[i].xyz;
 		float LightInt = dot(LightColor[i].rgb, 0.333);
 
-		// Compute the contact shadow and put it in the y channel TODO: USE MULTIPLE LIGHTS
-		if (i == 0) {
-			bentDiff = max(dot(bentN, L), 0.0);
-			contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
-		}
-
 		// diffuse component
-		if (ssao_debug == 11)
+		bentDiff = max(dot(smoothB, L), 0.0);
+		// I know that bentN is already multiplied by ssdo.x above; but I'm
+		// multiplying it again here to make the contact shadows more obvious
+		contactShadow = 1.0 - clamp(max(dot(smoothN, L), 0.0) -
+									ssdo.x * bentDiff,
+									0.0, 1.0);
+		if (ssao_debug == 11) {
 			diffuse = max(dot(bentN, L), 0.0);
-		else
+			// Compute the contact shadow. TODO: USE MULTIPLE LIGHTS
+			//if (i == 0) {
+				//contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
+			//}
+			diffuse = diff_int * diffuse + ambient;
+		} 
+		else {
 			diffuse = max(dot(N, L), 0.0);
-
-		/*
-		if (ss_debug == 1) {
-			output.color.xyz = diffuse + ambient;
-			output.color.a = 1.0;
-			return output;
+			// Compute the contact shadow. TODO: USE MULTIPLE LIGHTS
+			//if (i == 0) {
+				
+			//}
+			diffuse = ssdo.x * diff_int * diffuse + ambient;
 		}
-		else if (ss_debug == 2)
-			//diffuse = ssdo.x * diff_int * diffuse + ambient;
-			diffuse = diff_int * min(ssdo.x, diffuse);
-		else if (ss_debug == 3)
-			diffuse *= ssdo.x;
-		else
-		*/
+
 		// Default case
-		diffuse = ssdo.x * diff_int * diffuse + ambient;
+		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
 		//diffuse = diff_int * diffuse + ambient;
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
@@ -421,6 +425,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = bentDiff;
 	if (ssao_debug == 12)
 		output.color.xyz = color * (diff_int * bentDiff + ambient);
+	if (ssao_debug == 13)
+		output.color.xyz = N.xyz * 0.5 + 0.5;
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
