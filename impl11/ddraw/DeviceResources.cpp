@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
+#include <ScreenGrab.h>
+#include <wincodec.h>
+
 #include "common.h"
 #include "DeviceResources.h"
 
@@ -638,6 +641,93 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	}
 }
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
+void DeviceResources::CreateRandomVectorTexture() {
+	auto& context = this->_d3dDeviceContext;
+	log_debug("[DBG] Creating random vector texture for SSDO");
+	const int NUM_SAMPLES = 64;
+	float rawData[NUM_SAMPLES * 3];
+	D3D11_TEXTURE1D_DESC textureDesc;
+	textureDesc.Width = NUM_SAMPLES * 3;
+	textureDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.MiscFlags = 0;
+	textureDesc.MipLevels = 1;
+	textureDesc.ArraySize = 1;
+	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(float) * 3 * NUM_SAMPLES;
+	textureData.SysMemSlicePitch = 0;
+
+	// Sample kernel
+	/*
+		std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+	std::default_random_engine generator;
+	std::vector<glm::vec3> ssdoKernel;
+	for (GLuint i = 0; i < 64; ++i)
+	{
+		// These samples are [-1..1, -1..1, 0..1], so it looks like a hemisphere
+		// I think these samples are used to compute the sssdo and bent normal
+		glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+		sample = glm::normalize(sample);
+		sample *= randomFloats(generator);
+		GLfloat scale = GLfloat(i) / 64.0;
+
+		// Scale samples s.t. they're more aligned to center of kernel
+		scale = lerp(0.1f, 1.0f, scale * scale);
+		sample *= scale;
+		ssdoKernel.push_back(sample);
+	}
+	*/
+	//std::uniform_real_distribution<float> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+	int j = 0;
+	for (int i = 0; i < NUM_SAMPLES; ++i)
+	{
+		// These samples are [-1..1, -1..1, 0..1], so it looks like a hemisphere
+		// I think these samples are used to compute the sssdo and bent normal
+		//glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+		Vector3 sample;
+		sample.x = ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
+		sample.y = ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
+		sample.x = ((float)rand() / RAND_MAX);
+		sample.normalize();
+		//sample *= randomFloats(generator);
+
+		float scale = (float )i / (float )NUM_SAMPLES;
+		// Scale samples s.t. they're more aligned to center of kernel
+		scale = lerp(0.1f, 1.0f, scale * scale);
+		sample *= scale;
+		rawData[j++] = sample.x;
+		rawData[j++] = sample.y;
+		rawData[j++] = sample.z;
+	}
+
+	ComPtr<ID3D11Texture1D> texture;
+	HRESULT hr = this->_d3dDevice->CreateTexture1D(&textureDesc, &textureData, &texture);
+	if (FAILED(hr)) {
+		log_debug("[DBG] Failed when calling CreateTexture2D on SSDO kernel, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+out:
+	//delete textureData;
+	// DEBUG
+	hr = DirectX::SaveDDSTextureToFile(context, texture, L"C:\\Temp\\_randomTex.dds");
+	log_debug("[DBG] Dumped randomTex to file, hr: 0x%x", hr);
+	texture->Release();
+	// DEBUG
+}
+
+void DeviceResources::DeleteRandomVectorTexture() {
+	// TODO
+}
+
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
 		if (this->dc_coverTexture[i] != nullptr) {
@@ -757,6 +847,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
 
+	DeleteRandomVectorTexture();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
 	this->_depthStencilL.Release();
@@ -1854,6 +1945,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// Build the HUD vertex buffer
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
+		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 	}
