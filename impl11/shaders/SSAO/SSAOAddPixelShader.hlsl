@@ -172,20 +172,20 @@ float3 blend_normals(float3 n1, float3 n2)
 PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
-	float3 color     = texColor.Sample(sampColor, input.uv).xyz;
-	float4 bloom     = texBloom.Sample(samplerBloom, input.uv);
-	float4 Normal    = texNormal.Sample(samplerNormal, input.uv);
-	float3 ssao      = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
-	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask    = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float  mask      = ssaoMask.x;
-	float  gloss     = ssaoMask.y;
-	float  spec_int  = ssaoMask.z;
-	float  diff_int  = 1.0;
-	bool   shadeless = mask > GLASS_LO; // SHADELESS_LO;
-	float  metallic  = mask / METAL_MAT;
-	float  nm_int    = ssMask.x;
-	float  spec_val  = ssMask.y;
+	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
+	float4 bloom         = texBloom.Sample(samplerBloom, input.uv);
+	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
+	float3 ssao          = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
+	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float  mask          = ssaoMask.x;
+	float  gloss_mask    = ssaoMask.y;
+	float  spec_int_mask = ssaoMask.z;
+	float  diff_int      = 1.0;
+	bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	float  metallic      = mask / METAL_MAT;
+	float  nm_int        = ssMask.x;
+	float  spec_val      = ssMask.y;
 	float3 pos3D;
 
 	PixelShaderOutput output;
@@ -301,17 +301,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		float exponent = glossiness * gloss;
-		float spec_bloom_int = spec_bloom_intensity;
+		float exponent = global_glossiness * gloss_mask;
+		float spec_bloom_int = global_spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {
 			exponent *= 2.0;
 			spec_bloom_int *= 3.0; // Make the glass bloom more
 		}
-		float spec_bloom = spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		spec = LightInt * spec_int * pow(spec, exponent);
+		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
+		spec = LightInt * spec_int_mask * pow(spec, exponent);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);
+		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
 		tmp_bloom += float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)

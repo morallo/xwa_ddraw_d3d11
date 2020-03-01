@@ -111,10 +111,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 		cur_offset_scaled = amplifyFactor * cur_offset;
 		tap_ssao = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		tap_bent = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		if (FGFlag)
-			tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
-		else
-			tap.pos = DepthTex2.Sample(DepthSampler2, input.uv + cur_offset).xyz;
+		//if (FGFlag)
+		tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
+		//else
+		//	tap.pos = DepthTex2.Sample(DepthSampler2, input.uv + cur_offset).xyz;
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
 
 		tap_weight = compute_spatial_tap_weight(center, tap);
@@ -135,7 +135,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:
-	output.bent.xyz = normalize(center.normal - output.bent.xyz);
+	//output.bent.xyz = normalize(center.normal - output.bent.xyz);
+	output.bent.xyz = center.normal - output.bent.xyz;
 	return output;
 }
 

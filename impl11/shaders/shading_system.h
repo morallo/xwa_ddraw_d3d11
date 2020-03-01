@@ -9,7 +9,7 @@ cbuffer ConstantBuffer : register(b4)
 	float4 LightColor[2];
 	// 48 bytes
 	// 64 bytes
-	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
+	float global_spec_intensity, global_glossiness, global_spec_bloom_intensity, global_bloom_glossiness_mult;
 	// 80 bytes
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint ss_debug;

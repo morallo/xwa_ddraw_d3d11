@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
-#include <ScreenGrab.h>
-#include <wincodec.h>
+//#include <ScreenGrab.h>
+//#include <wincodec.h>
 
 #include "common.h"
 #include "DeviceResources.h"
@@ -645,45 +645,53 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+// Sample kernel
+/*
+	std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+std::default_random_engine generator;
+std::vector<glm::vec3> ssdoKernel;
+for (GLuint i = 0; i < 64; ++i)
+{
+	// These samples are [-1..1, -1..1, 0..1], so it looks like a hemisphere
+	// I think these samples are used to compute the sssdo and bent normal
+	glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+	sample = glm::normalize(sample);
+	sample *= randomFloats(generator);
+	GLfloat scale = GLfloat(i) / 64.0;
+
+	// Scale samples s.t. they're more aligned to center of kernel
+	scale = lerp(0.1f, 1.0f, scale * scale);
+	sample *= scale;
+	ssdoKernel.push_back(sample);
+}
+*/
 void DeviceResources::CreateRandomVectorTexture() {
-	auto& context = this->_d3dDeviceContext;
-	log_debug("[DBG] Creating random vector texture for SSDO");
-	const int NUM_SAMPLES = 64;
-	float rawData[NUM_SAMPLES * 3];
-	D3D11_TEXTURE1D_DESC textureDesc;
-	textureDesc.Width = NUM_SAMPLES * 3;
-	textureDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	textureDesc.CPUAccessFlags = 0;
-	textureDesc.MiscFlags = 0;
-	textureDesc.MipLevels = 1;
-	textureDesc.ArraySize = 1;
-	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	D3D11_SUBRESOURCE_DATA textureData = { 0 };
-	textureData.pSysMem = rawData;
-	textureData.SysMemPitch = sizeof(float) * 3 * NUM_SAMPLES;
-	textureData.SysMemSlicePitch = 0;
-
-	// Sample kernel
 	/*
-		std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
-	std::default_random_engine generator;
-	std::vector<glm::vec3> ssdoKernel;
-	for (GLuint i = 0; i < 64; ++i)
-	{
-		// These samples are [-1..1, -1..1, 0..1], so it looks like a hemisphere
-		// I think these samples are used to compute the sssdo and bent normal
-		glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
-		sample = glm::normalize(sample);
-		sample *= randomFloats(generator);
-		GLfloat scale = GLfloat(i) / 64.0;
+	const int NUM_SAMPLES = 64;
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	float rawData[NUM_SAMPLES * 3];
+	D3D11_TEXTURE1D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	ComPtr<ID3D11Texture1D> texture = nullptr;
+	ComPtr<ID3D11ShaderResourceView> textureSRV = nullptr;
 
-		// Scale samples s.t. they're more aligned to center of kernel
-		scale = lerp(0.1f, 1.0f, scale * scale);
-		sample *= scale;
-		ssdoKernel.push_back(sample);
-	}
-	*/
+	log_debug("[DBG] Creating random vector texture for SSDO");
+
+	desc.Width = NUM_SAMPLES;
+	desc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(float) * NUM_SAMPLES;
+	textureData.SysMemSlicePitch = 0;
+	
 	//std::uniform_real_distribution<float> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
 	int j = 0;
 	for (int i = 0; i < NUM_SAMPLES; ++i)
@@ -707,21 +715,33 @@ void DeviceResources::CreateRandomVectorTexture() {
 		rawData[j++] = sample.z;
 	}
 
-	ComPtr<ID3D11Texture1D> texture;
-	HRESULT hr = this->_d3dDevice->CreateTexture1D(&textureDesc, &textureData, &texture);
+	HRESULT hr = device->CreateTexture1D(&desc, &textureData, &texture);
 	if (FAILED(hr)) {
 		log_debug("[DBG] Failed when calling CreateTexture2D on SSDO kernel, reason: 0x%x",
 			this->_d3dDevice->GetDeviceRemovedReason());
 		goto out;
 	}
+	
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D;
+	shaderResourceViewDesc.Texture1D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture1D.MipLevels = 1;
+	
+	hr = device->CreateShaderResourceView(texture, &shaderResourceViewDesc, &textureSRV);
+	if (FAILED(hr)) {
+		log_debug("[DBG] Failed when calling CreateShaderResourceView on SSDO kernel, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
 
 out:
-	//delete textureData;
 	// DEBUG
-	hr = DirectX::SaveDDSTextureToFile(context, texture, L"C:\\Temp\\_randomTex.dds");
-	log_debug("[DBG] Dumped randomTex to file, hr: 0x%x", hr);
-	texture->Release();
+	//hr = DirectX::SaveDDSTextureToFile(context, texture, L"C:\\Temp\\_randomTex.dds");
+	//log_debug("[DBG] Dumped randomTex to file, hr: 0x%x", hr);
 	// DEBUG
+	if (texture != nullptr) texture->Release();
+	if (textureSRV != nullptr) textureSRV->Release();
+	*/
 }
 
 void DeviceResources::DeleteRandomVectorTexture() {

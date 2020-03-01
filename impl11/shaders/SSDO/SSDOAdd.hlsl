@@ -166,6 +166,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	n1.z += 1.0;
 	n2.xy = -n2.xy;
 	return normalize(n1 * dot(n1, n2) - n1.z * n2);
+	//return n1 * dot(n1, n2) - n1.z * n2;
 }
 
 // (Sorry, don't remember very well) I think this function projects a 3D point back
@@ -249,28 +250,27 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	float2 input_uv_sub = input.uv * amplifyFactor;
+	float2 input_uv_sub  = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color     = texColor.Sample(sampColor, input.uv).xyz;
-	//float3 bentN    = texBent.Sample(samplerBent, input_uv_sub).xyz;
-	float4 Normal    = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo      = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd   = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D		     = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
-	// let's enforce that condition by multiplying by ssdo:
-	float3 bentN     = ssdo.x * texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask    = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float  mask      = ssaoMask.x; // dot(0.333, ssaoMask);
-	float  gloss     = ssaoMask.y;
-	float  spec_int  = ssaoMask.z;
-	float  diff_int  = 1.0;
-	bool   shadeless = mask > GLASS_LO; // SHADELESS_LO;
-	float  metallic  = mask / METAL_MAT;
-	float  nm_int    = ssMask.x;
-	float  spec_val  = ssMask.y;
+	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this enhances the effect)
+	float3 bentN         = ssdo.y * texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
+	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float  mask          = ssaoMask.x; // dot(0.333, ssaoMask);
+	float  gloss_mask    = ssaoMask.y;
+	float  spec_int_mask = ssaoMask.z;
+	float  diff_int      = 1.0;
+	bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	float  metallic      = mask / METAL_MAT;
+	float  nm_int_mask   = ssMask.x;
+	float  spec_val_mask = ssMask.y;
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
@@ -322,9 +322,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
 	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
-		//if (ssao_debug == 11)
-		bentN = ssdo.x * blend_normals(bentN, FakeNormal);
+		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask);
+		// After the normals have blended, we should restore the length of the bent normal:
+		// it should be weighed by AO, which is now in ssdo.y
+		bentN = ssdo.y *  blend_normals(bentN, FakeNormal);
 		N = blend_normals(N, FakeNormal);
 	}
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
@@ -336,39 +337,52 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (mask < METAL_HI) {
 		// The tint varies from 0 for plastic materials to 1 for fully metallic mats
 		float tint = lerp(0.0, 1.0, metallic);
-		float value = lerp(spec_val, 0.0, metallic);
+		float value = lerp(spec_val_mask, 0.0, metallic);
 		diff_int = lerp(1.0, 0.0, metallic); // Purely metallic surfaces have no diffuse component (?)
 		HSV.y *= tint * saturation_boost;
 		HSV.z = HSV.z * lightness_boost + value;
 		spec_col = HSVtoRGB(HSV);
 	}
 
-	// HACK: LET'S REMOVE SSDO FOR NOW
-	//ssdo = 1;
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	float contactShadow = 1.0;
-	float diffuse = 0.0, bentDiff = 0.0;
+	float diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
+	float debug_spec = 0.0;
 	[unroll]
-	for (uint i = 0; i < 2; i++) {
+	for (uint i = 0; i < 1; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz;
 		float LightInt = dot(LightColor[i].rgb, 0.333);
 
 		// diffuse component
-		bentDiff = max(dot(smoothB, L), 0.0);
+		bentDiff   = max(dot(smoothB, L), 0.0);
+		smoothDiff = max(dot(smoothN, L), 0.0);
 		// I know that bentN is already multiplied by ssdo.x above; but I'm
 		// multiplying it again here to make the contact shadows more obvious
-		contactShadow = 1.0 - clamp(max(dot(smoothN, L), 0.0) -
-									ssdo.x * bentDiff,
-									0.0, 1.0);
+		contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+		contactShadow *= contactShadow;
+
+		if (ssao_debug == 14)
+			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+		if (ssao_debug == 15) {
+			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+			contactShadow *= contactShadow;
+		}
+		if (ssao_debug == 16)
+			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+		if (ssao_debug == 17) {
+			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+			contactShadow *= contactShadow;
+		}
+
 		if (ssao_debug == 11) {
 			diffuse = max(dot(bentN, L), 0.0);
 			// Compute the contact shadow. TODO: USE MULTIPLE LIGHTS
 			//if (i == 0) {
 				//contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
 			//}
-			diffuse = diff_int * diffuse + ambient;
+			//diffuse = diff_int * diffuse + ambient;
 		} 
 		else {
 			diffuse = max(dot(N, L), 0.0);
@@ -376,8 +390,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			//if (i == 0) {
 				
 			//}
-			diffuse = ssdo.x * diff_int * diffuse + ambient;
 		}
+		diffuse = ssdo.x * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -385,6 +399,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
 		diffuse = shadeless ? 1.0 : diffuse;
+		contactShadow = shadeless ? 1.0 : contactShadow;
 
 		// specular component
 		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
@@ -392,14 +407,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		// reflect expects an incident vector: a vector that goes from the light source to the current point.
 		// L goes from the current point to the light vector, so we have to use -L:
 		float3 refl_vec = normalize(reflect(-L, N));
-		float  spec = max(dot(eye_vec, refl_vec), 0.0);
+		spec = max(dot(eye_vec, refl_vec), 0.0);
 
 		//float3 viewDir    = normalize(pos3D);
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		float exponent = glossiness * gloss;
-		float spec_bloom_int = spec_bloom_intensity;
+		float exponent = global_glossiness * gloss_mask;
+		float spec_bloom_int = global_spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {
 			exponent *= 2.0;
 			spec_bloom_int *= 3.0; // Make the glass bloom more
@@ -407,19 +422,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
 		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT
-		float spec_bloom = contactShadow * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		spec = contactShadow * LightInt * spec_int * pow(spec, exponent);
+		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
+		debug_spec = LightInt * spec_int_mask * pow(spec, exponent);
+		spec = contactShadow * debug_spec;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-		tmp_color += LightColor[i].rgb * (color * diffuse + spec_intensity * spec_col * spec);
-		tmp_bloom += float4(LightInt * spec_col * spec_bloom, spec_bloom);
+		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
+		tmp_bloom += contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
 
 	if (ssao_debug == 8)
 		output.color.xyz = bentN.xyz * 0.5 + 0.5;
-	if (ssao_debug == 9)
+	if (ssao_debug == 9 || ssao_debug >= 14)
 		output.color.xyz = contactShadow;
 	if (ssao_debug == 10)
 		output.color.xyz = bentDiff;
@@ -427,6 +443,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = color * (diff_int * bentDiff + ambient);
 	if (ssao_debug == 13)
 		output.color.xyz = N.xyz * 0.5 + 0.5;
+	if (ssao_debug == 18)
+		output.color.xyz = smoothDiff;
+	if (ssao_debug == 19)
+		output.color.xyz = spec;
+	if (ssao_debug == 20)
+		output.color.xyz = debug_spec;
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
