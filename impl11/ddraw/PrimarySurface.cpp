@@ -2936,7 +2936,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-	//g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+	g_BloomPSCBuffer.debug              = g_bShowSSAODebug;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSDO Blur, Left Image

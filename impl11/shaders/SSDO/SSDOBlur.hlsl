@@ -13,8 +13,8 @@ Texture2D DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
 // The BG Depth Buffer
-Texture2D DepthTex2 : register(t2);
-SamplerState DepthSampler2 : register(s2);
+//Texture2D DepthTex2 : register(t2);
+//SamplerState DepthSampler2 : register(s2);
 
 // The Normal Buffer
 Texture2D NormalTex : register(t3);
@@ -31,6 +31,7 @@ struct BlurData {
 
 // I'm reusing the constant buffer from the bloom blur shader; but
 // we're only using the amplifyFactor here.
+// BloomPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b2)
 {
 	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
@@ -39,7 +40,8 @@ cbuffer ConstantBuffer : register(b2)
 	uint unused1;
 	// 32 bytes
 	uint unused2;
-	float unused3, depth_weight, unused4;
+	float unused3, depth_weight;
+	int debug;
 	// 48 bytes
 };
 
@@ -70,10 +72,10 @@ float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 PixelShaderOutput main(PixelShaderInput input) {
 	static const float2 offsets[16] =
 	{
-		float2(1.5,0.5), float2(-1.5,-0.5), float2(-0.5,1.5), float2(0.5,-1.5),
-		float2(1.5,2.5), float2(-1.5,-2.5), float2(-2.5,1.5), float2(2.5,-1.5),
-		float2(-1.5,0.5), float2(1.5,-0.5), float2(0.5,1.5), float2(-0.5,-1.5),
-		float2(-1.5,2.5), float2(1.5,-2.5), float2(2.5,1.5), float2(-2.5,-1.5),
+		float2( 1.5, 0.5), float2(-1.5, -0.5), float2(-0.5, 1.5), float2( 0.5, -1.5),
+		float2( 1.5, 2.5), float2(-1.5, -2.5), float2(-2.5, 1.5), float2( 2.5, -1.5),
+		float2(-1.5, 0.5), float2( 1.5, -0.5), float2( 0.5, 1.5), float2(-0.5, -1.5),
+		float2(-1.5, 2.5), float2( 1.5, -2.5), float2( 2.5, 1.5), float2(-2.5, -1.5),
 	};
 	float2 cur_offset, cur_offset_scaled;
 	float2 pixelSize = float2(pixelSizeX, pixelSizeY);
@@ -83,14 +85,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
 	float3 tap_bent, bent_sum, bent_sum_noweight;
 	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
-	float3 Q = DepthTex2.Sample(DepthSampler2, input.uv).xyz;
-	float3 tapFG, tapBG;
-	bool FGFlag = true;
+	//float3 Q = DepthTex2.Sample(DepthSampler2, input.uv).xyz;
+	//float3 tapFG, tapBG;
+	//bool FGFlag = true;
 	center.pos = P;
-	if (Q.z < P.z) {
+	/*if (Q.z < P.z) {
 		FGFlag = false;
 		center.pos = Q;
-	}
+	}*/
 
 	PixelShaderOutput output;
 	output.ssao = float4(0, 0, 0, 1);
@@ -132,6 +134,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	bent_sum_noweight /= BLUR_SAMPLES;
 
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
+	if (debug)
+		output.ssao.xyz = output.ssao.xxx;
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:

@@ -458,6 +458,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'I':
 				g_bShadowEnable = !g_bShadowEnable;
+				log_debug("[DBG] Shadows Enabled: %d", g_bShadowEnable);
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;

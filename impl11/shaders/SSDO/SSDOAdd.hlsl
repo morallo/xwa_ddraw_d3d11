@@ -95,7 +95,7 @@ cbuffer ConstantBuffer : register(b3)
 	float4 vpScale;
 	// 160 bytes
 	uint shadow_enable;
-	float shadow_k, ssao_unused0, ssao_unused1;
+	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 };
 
@@ -178,7 +178,7 @@ inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
 	//float w = P.z / (METRIC_SCALE_FACTOR * metric_mult);
 	float w = P.z / METRIC_SCALE_FACTOR;
-	P.xy = P.xy / P.z;
+	P.xy = /* g_fFocalDist * */ P.xy / P.z;
 	// Convert to vertex pos:
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
 	// (-1,-1)-(1, 1)
@@ -187,9 +187,9 @@ inline float2 projectToUV(in float3 pos3D) {
 	P.xy -= float2(-1.0, 1.0); // DirectSBS may be different
 	P.xy /= vpScale.xy;
 	// We now have P = input.pos
-	P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
-	P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
-	//P *= 1.0f / w; // Don't know if this is 100% necessary... probably not
+	//P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
+	//P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
+	P.xy = (P.xy * vpScale.xy + float2(-1.0f, 1.0f)) * vpScale.z;
 
 	// Now convert to UV coords: (0, 1)-(1, 0):
 	//P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
@@ -201,10 +201,10 @@ inline float2 projectToUV(in float3 pos3D) {
 }
 
 /*
-float3 shadow_factor(in float3 P) {
+float3 old_shadow_factor(in float3 P) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector.xyz;
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float shadow_length = shadow_step_size * shadow_steps;
 	float cur_length = 0;
@@ -238,17 +238,67 @@ float3 shadow_factor(in float3 P) {
 }
 */
 
+float3 shadow_factor(in float3 P, float max_dist_sqr) {
+	float3 cur_pos = P, occluder, diff;
+	float2 cur_uv;
+	//float3 ray_step = shadow_step_size * float3(LightVector[0].xy, -LightVector[0].z);
+	float3 ray_step = shadow_step_size * LightVector[0].xyz;
+	int steps = (int)shadow_steps;
+	float max_shadow_length = shadow_step_size * shadow_steps;
+	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
+	max_shadow_length_sqr *= max_shadow_length_sqr;
+	float cur_length = 0, length_at_res = INFINITY_Z1;
+	float res = 1.0;
+	float weight = 1.0;
+	//float occ_dot;
+
+	// Handle samples that land outside the bounds of the image
+	// "negative" cur_diff should be ignored
+	[loop]
+	for (int i = 1; i <= steps; i++) {
+		cur_pos += ray_step;
+		cur_length += shadow_step_size;
+		cur_uv = projectToUV(cur_pos);
+
+		// If the ray has exited the current viewport, we're done:
+		if (cur_uv.x < x0 || cur_uv.x > x1 ||
+			cur_uv.y < y0 || cur_uv.y > y1) {
+			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+			res = lerp(1, res, weight);
+			return float3(res, cur_length / max_shadow_length, 1);
+		}
+
+		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
+		diff = occluder - cur_pos;
+		//v        = normalize(diff);
+		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
+
+		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+			// If diff.z is too large, ignore it. Or rather, fade with distance
+			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
+			//float dist = saturate(lerp(1, diff.z), weight);
+			float cur_res = saturate(shadow_k * diff.z / (cur_length + 0.00001));
+			//cur_res = saturate(lerp(1, cur_res, weight)); // Fadeout if diff.z is too big
+			if (cur_res < res) {
+				res = cur_res;
+				length_at_res = cur_length;
+			}
+		}
+
+		//cur_pos += ray_step;
+		//cur_length += shadow_step_size;
+	}
+	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
+	res = lerp(1, res, weight);
+	return float3(res, cur_length / max_shadow_length, 0);
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
 	output.bent  = 0;
-
-	// DEBUG
-	//output.color = float4(input.uv.xy, 0, 1);
-	//return output;
-	// DEBUG
 
 	float2 input_uv_sub  = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
@@ -259,11 +309,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
-	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this enhances the effect)
-	float3 bentN         = ssdo.y * texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
+	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
+	float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float  mask          = ssaoMask.x; // dot(0.333, ssaoMask);
+	float  mask          = ssaoMask.x;
 	float  gloss_mask    = ssaoMask.y;
 	float  spec_int_mask = ssaoMask.z;
 	float  diff_int      = 1.0;
@@ -271,6 +321,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  metallic      = mask / METAL_MAT;
 	float  nm_int_mask   = ssMask.x;
 	float  spec_val_mask = ssMask.y;
+	// ssMask.z is unused ATM
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
@@ -303,16 +354,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 smoothN = N;
 	const float3 smoothB = bentN;
 
-	/*
 	// Compute shadows
-	float m_offset = max(moire_offset, moire_offset * (pos3D.z * 0.1));
+	float3 SSAO_Normal = float3(N.xy, -N.z);
+	float m_offset = max(moire_offset, moire_offset * (-pos3D.z * moire_scale));
 	//pos3D.z -= m_offset;
-	pos3D += Normal * m_offset;
-	float3 shadow = shadow_factor(pos3D);
-	shadow = shadow.xxx;
-	if (!shadow_enable)
-		shadow = 1;
-	*/
+	float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset);
+	// SSAO version:
+	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
+	//float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z) + SSAO_Normal * m_offset;
+	float shadow = 1;
+	if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
 
 	//ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
 	//ssdo = lerp(ssdo, 1, mask);
@@ -360,11 +411,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		smoothDiff = max(dot(smoothN, L), 0.0);
 		// I know that bentN is already multiplied by ssdo.x above; but I'm
 		// multiplying it again here to make the contact shadows more obvious
-		contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+		//contactShadow  = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0); // This works almost perfect
+		contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
 		contactShadow *= contactShadow;
 
-		if (ssao_debug == 14)
-			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+		if (ssao_debug == 14) {
+			float temp = dot(smoothB, L);
+			contactShadow = 1.0 - clamp(smoothDiff - temp * temp, 0.0, 1.0);
+			//contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+			//contactShadow = clamp(dot(smoothB, L), 0.0, 1.0); // This wipes out spec component when diffuse goes to 0 -- when the light is right ahead, no spec
+			contactShadow *= contactShadow;
+		}
 		if (ssao_debug == 15) {
 			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
 			contactShadow *= contactShadow;
@@ -376,22 +433,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			contactShadow *= contactShadow;
 		}
 
-		if (ssao_debug == 11) {
+		// TODO: USE MULTIPLE LIGHTS
+		if (ssao_debug == 11)
 			diffuse = max(dot(bentN, L), 0.0);
-			// Compute the contact shadow. TODO: USE MULTIPLE LIGHTS
-			//if (i == 0) {
-				//contactShadow = 1.0 - clamp(diffuse - bentDiff, 0.0, 1.0);
-			//}
-			//diffuse = diff_int * diffuse + ambient;
-		} 
-		else {
+		else 
 			diffuse = max(dot(N, L), 0.0);
-			// Compute the contact shadow. TODO: USE MULTIPLE LIGHTS
-			//if (i == 0) {
-				
-			//}
-		}
-		diffuse = ssdo.x * diff_int * diffuse + ambient;
+		diffuse = min(shadow, ssdo.x) * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -424,11 +471,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightInt * spec_int_mask * pow(spec, exponent);
-		spec = contactShadow * debug_spec;
+		spec = min(contactShadow, shadow) * debug_spec;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
-		tmp_bloom += contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += min(shadow, contactShadow) * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
@@ -449,6 +496,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = spec;
 	if (ssao_debug == 20)
 		output.color.xyz = debug_spec;
+	if (ssao_debug == 21)
+		output.color.xyz = ssdo.z;
+	if (ssao_debug == 22)
+		output.color.xyz = shadow;
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
