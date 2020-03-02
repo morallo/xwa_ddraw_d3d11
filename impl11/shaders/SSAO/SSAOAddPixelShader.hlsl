@@ -10,6 +10,7 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 #include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -57,6 +58,7 @@ cbuffer ConstantBuffer : register(b2)
 	float norm_weight, unused2, unused3;
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -89,6 +91,7 @@ cbuffer ConstantBuffer : register(b3)
 	float shadow_k, ssao_unused0, ssao_unused1;
 	// 176 bytes
 };
+*/
 
 cbuffer ConstantBuffer : register(b4)
 {

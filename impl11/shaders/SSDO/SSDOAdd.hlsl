@@ -10,7 +10,9 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 #include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
+#define DEFAULT_FOCAL_DIST 2.0
 //#define diffuse_intensity 1.0
 //#define global_ambient 0.005
 
@@ -64,39 +66,6 @@ cbuffer ConstantBuffer : register(b2)
 	uint unused2;
 	float unused3, depth_weight;
 	uint debug;
-};
-
-// SSAOPixelShaderCBuffer
-cbuffer ConstantBuffer : register(b3)
-{
-	float screenSizeX, screenSizeY, indirect_intensity, bias;
-	// 16 bytes
-	float intensity, near_sample_radius, black_level;
-	uint samples;
-	// 32 bytes
-	uint z_division;
-	float bentNormalInit, max_dist, power;
-	// 48 bytes
-	uint ssao_debug;
-	float moire_offset, ssao_amplifyFactor;
-	uint fn_enable;
-	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
-	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
-	// 96 bytes
-	float x0, y0, x1, y1; // Viewport limits in uv space
-	// 112 bytes
-	float3 invLightColor;
-	float gamma;
-	// 128 bytes
-	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
-	// 144 bytes
-	float4 vpScale;
-	// 160 bytes
-	uint shadow_enable;
-	float shadow_k, Bz_mult, moire_scale;
-	// 176 bytes
 };
 
 struct PixelShaderInput
@@ -175,9 +144,11 @@ float3 blend_normals(float3 n1, float3 n2)
 // to make iteractions with controllers in VR or just when adding extra geometry to
 // the game later on.
 inline float2 projectToUV(in float3 pos3D) {
+	//const float g_fFocalDist = DEFAULT_FOCAL_DIST;
+	//const float g_fFocalDist = 1.0;
 	float3 P = pos3D;
 	//float w = P.z / (METRIC_SCALE_FACTOR * metric_mult);
-	float w = P.z / METRIC_SCALE_FACTOR;
+	//float w = P.z / METRIC_SCALE_FACTOR;
 	P.xy = /* g_fFocalDist * */ P.xy / P.z;
 	// Convert to vertex pos:
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
@@ -196,7 +167,7 @@ inline float2 projectToUV(in float3 pos3D) {
 	// The viewport used to render the original offscreenBuffer may not cover the full
 	// screen, so the uv coords have to be adjusted to the limits of the viewport within
 	// the full-screen quad:
-	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1.0) / 2.0);
 	return P.xy;
 }
 
@@ -241,8 +212,8 @@ float3 old_shadow_factor(in float3 P) {
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
-	//float3 ray_step = shadow_step_size * float3(LightVector[0].xy, -LightVector[0].z);
-	float3 ray_step = shadow_step_size * LightVector[0].xyz;
+	float3 ray_step = shadow_step_size * float3(LightVector[0].xy, -LightVector[0].z);
+	//float3 ray_step = shadow_step_size * LightVector[0].xyz;
 	int steps = (int)shadow_steps;
 	float max_shadow_length = shadow_step_size * shadow_steps;
 	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
@@ -262,18 +233,19 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 
 		// If the ray has exited the current viewport, we're done:
 		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1) {
+			cur_uv.y < y0 || cur_uv.y > y1) 
+		{
 			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 			res = lerp(1, res, weight);
 			return float3(res, cur_length / max_shadow_length, 1);
 		}
 
 		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		diff = occluder - cur_pos;
+		diff = cur_pos - occluder; // ATTENTION: The substraction is inverted wrt to SSDO!
 		//v        = normalize(diff);
 		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
 
-		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+		if (diff.z > shadow_epsilon /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
 			// If diff.z is too large, ignore it. Or rather, fade with distance
 			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
 			//float dist = saturate(lerp(1, diff.z), weight);
@@ -284,9 +256,6 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 				length_at_res = cur_length;
 			}
 		}
-
-		//cur_pos += ray_step;
-		//cur_length += shadow_step_size;
 	}
 	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 	res = lerp(1, res, weight);
@@ -356,12 +325,11 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Compute shadows
 	float3 SSAO_Normal = float3(N.xy, -N.z);
-	float m_offset = max(moire_offset, moire_offset * (-pos3D.z * moire_scale));
-	//pos3D.z -= m_offset;
-	float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset);
+	//float m_offset = max(moire_offset, moire_offset * (-pos3D.z * moire_scale));
+	//float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset);
 	// SSAO version:
-	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
-	//float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z) + SSAO_Normal * m_offset;
+	float m_offset = moire_offset * (-pos3D.z * moire_scale);
+	float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z) + SSAO_Normal * m_offset;
 	float shadow = 1;
 	if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
 

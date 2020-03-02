@@ -6,6 +6,7 @@
  */
 #include "..\shader_common.h"
 #include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
 #define INTENSITY 4.0
 
@@ -45,38 +46,7 @@ struct PixelShaderOutput
 	float4 bentNormal  : SV_TARGET1;
 };
 
-// SSAOPixelShaderCBuffer
-cbuffer ConstantBuffer : register(b3)
-{
-	float screenSizeX, screenSizeY, indirect_intensity, bias;
-	// 16 bytes
-	float intensity, near_sample_radius, black_level;
-	uint samples;
-	// 32 bytes
-	uint z_division;
-	float bentNormalInit, max_dist, power;
-	// 48 bytes
-	uint ssao_debug;
-	float moire_offset, ssao_amplifyFactor;
-	uint fn_enable;
-	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
-	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
-	// 96 bytes
-	float x0, y0, x1, y1; // Viewport limits in uv space
-	// 112 bytes
-	float3 invLightColor;
-	float gamma;
-	// 128 bytes
-	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
-	// 144 bytes
-	float4 vpScale;
-	// 160 bytes
-	uint shadow_enable;
-	float shadow_k, Bz_mult, moire_scale;
-	// 176 bytes
-};
+
 
 struct BlurData {
 	float3 pos;
@@ -132,6 +102,7 @@ float3 get_normal_from_color(float2 uv, float2 offset)
 }
 */
 
+/*
 // n1: base normal
 // n2: detail normal
 float3 blend_normals(float3 n1, float3 n2)
@@ -157,6 +128,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	return normalize(n1 * dot(n1, n2) - n1.z * n2);
 	//return r * 0.5 + 0.5;
 }
+*/
 
 struct ColNorm {
 	float3 col;
@@ -282,10 +254,11 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	return output;
 }
 
+/*
 // Convert Reconstructed 3D back to 2D and then to post-process UV coord
 inline float2 projectToUV(in float3 pos3D) {
 	float3 P = pos3D;
-	float w = P.z / METRIC_SCALE_FACTOR;
+	//float w = P.z / METRIC_SCALE_FACTOR;
 	P.xy = P.xy / P.z;
 	// Convert to vertex pos:
 	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
@@ -307,7 +280,9 @@ inline float2 projectToUV(in float3 pos3D) {
 	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
 	return P.xy;
 }
+*/
 
+/*
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
@@ -338,11 +313,11 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		}
 
 		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		diff = occluder - cur_pos;
+		diff = cur_pos - occluder;
 		//v        = normalize(diff);
 		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
 
-		if (diff.z > 0 /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+		if (diff.z > 0) { // Ignore negative z-diffs: the occluder is behind the ray
 			// If diff.z is too large, ignore it. Or rather, fade with distance
 			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
 			//float dist = saturate(lerp(1, diff.z), weight);
@@ -361,6 +336,7 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	res = lerp(1, res, weight);
 	return float3(res, cur_length / max_shadow_length, 0);
 }
+*/
 
 PixelShaderOutput main(PixelShaderInput input)
 {
@@ -372,7 +348,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//Normal.z = -Normal.z;
 	float3 SSAO_Normal = float3(Normal.xy, -Normal.z); // For SSAO we need to flip the Z component because the code expects a different coord system
 	//float3 SSAO_Normal = Normal;
-	float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
+	float3 color = 0;
 	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
 	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
 	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
@@ -386,7 +363,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float radius;
 	bool FGFlag;
 	
-	color = color * color; // Gamma correction (approx to pow 2.2)
+	//color = color * color; // Gamma correction (approx to pow 2.2)
 
 	output.ssao = 1;
 	output.bentNormal = float4(0, 0, 0.01, 1);
@@ -452,7 +429,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// SSDO Direct Calculation
 	ssdo = 0;
-	//uint num_samples = 0;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
@@ -466,7 +442,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 		ao += ao_factor;
-		//min_shadow_factor = min(min_shadow_factor, shadow_factor);
 	}
 	// This AO won't be displayed to the user, hard-code the intensity:
 	ao = clamp(1.0 - INTENSITY * ao / (float)samples, 0.0, 1.0);

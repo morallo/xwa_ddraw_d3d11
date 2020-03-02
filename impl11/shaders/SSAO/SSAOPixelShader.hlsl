@@ -4,6 +4,7 @@
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
 #include "..\shader_common.h"
+#include "..\SSAOPSConstantBuffer.h"
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -32,6 +33,7 @@ struct PixelShaderOutput
 	float4 ssao        : SV_TARGET0;
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -52,6 +54,7 @@ cbuffer ConstantBuffer : register(b3)
 	float far_sample_radius, nm_intensity_far, unused2, unused3;
 	// 96 bytes
 };
+*/
 
 struct BlurData {
 	float3 pos;

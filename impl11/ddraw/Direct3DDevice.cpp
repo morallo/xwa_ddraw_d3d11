@@ -2514,7 +2514,8 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
-	g_SSAO_PSCBuffer.gamma = 1.25f;
+	//g_SSAO_PSCBuffer.gamma = 1.25f;
+	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
 	g_SSAO_PSCBuffer.moire_scale = 0.1f;
@@ -2708,9 +2709,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "HDR_enabled") == 0) {
 				g_bHDREnabled = (bool)fValue;
 			}
+			/*
 			else if (_stricmp(param, "gamma") == 0) {
 				g_SSAO_PSCBuffer.gamma = fValue;
 			}
+			*/
 			else if (_stricmp(param, "shadow_step_size") == 0) {
 				g_SSAO_PSCBuffer.shadow_step_size = fValue;
 			}
@@ -2719,6 +2722,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "shadow_k") == 0) {
 				g_SSAO_PSCBuffer.shadow_k = fValue;
+			}
+			else if (_stricmp(param, "shadow_epsilon") == 0) {
+				g_SSAO_PSCBuffer.shadow_epsilon = fValue;
 			}
 			else if (_stricmp(param, "shadow_enable") == 0) {
 				g_bShadowEnable = (bool)fValue;
