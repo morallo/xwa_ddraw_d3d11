@@ -164,8 +164,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
 
-		if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
-			dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
+		//if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
+		//	dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
+		if (all(dyn_uv >= src[i].xy) &&
+			all(dyn_uv <= src[i].zw))
 		{
 			// Sample the dynamic cockpit texture:
 			hud_texelColor = texture1.Sample(sampler1, dyn_uv);

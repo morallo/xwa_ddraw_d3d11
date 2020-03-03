@@ -167,7 +167,8 @@ inline float2 projectToUV(in float3 pos3D) {
 	// The viewport used to render the original offscreenBuffer may not cover the full
 	// screen, so the uv coords have to be adjusted to the limits of the viewport within
 	// the full-screen quad:
-	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1.0) / 2.0);
+	//P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1.0) / 2.0);
+	P.xy = lerp(float2(p0.x, p1.y), float2(p1.x, p0.y), (P.xy + 1.0) / 2.0);
 	return P.xy;
 }
 
@@ -232,8 +233,10 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		cur_uv = projectToUV(cur_pos);
 
 		// If the ray has exited the current viewport, we're done:
-		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1) 
+		//if (cur_uv.x < x0 || cur_uv.x > x1 ||
+		//	cur_uv.y < y0 || cur_uv.y > y1) 
+		if (any(cur_uv < p0) ||
+			any(cur_uv > p1))
 		{
 			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 			res = lerp(1, res, weight);
@@ -296,9 +299,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// For the deferred pass, we don't have an SSDO component, so:
 	// Set the ssdo component to 1 if ssdo is disabled
 	ssdo = lerp(1.0, ssdo, ssdo_enabled);
+	ssdoInd = lerp(0.0, ssdoInd, ssdo_enabled);
 
 	// Toggle the SSDO component for debugging purposes:
 	ssdo = lerp(ssdo, 1.0, sso_disable);
+	ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
 
 	// Recompute the contact shadow here...
 	
@@ -383,6 +388,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
 		contactShadow *= contactShadow;
 
+		/*
 		if (ssao_debug == 14) {
 			float temp = dot(smoothB, L);
 			contactShadow = 1.0 - clamp(smoothDiff - temp * temp, 0.0, 1.0);
@@ -400,6 +406,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
 			contactShadow *= contactShadow;
 		}
+		*/
 
 		// TODO: USE MULTIPLE LIGHTS
 		if (ssao_debug == 11)
@@ -413,8 +420,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		//diffuse = diff_int * diffuse + ambient;
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
-		diffuse = shadeless ? 1.0 : diffuse;
-		contactShadow = shadeless ? 1.0 : contactShadow;
+		if (shadeless) {
+			diffuse = 1.0;
+			contactShadow = 1.0;
+			ssdoInd = 0.0;
+		}
 
 		// specular component
 		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
@@ -442,7 +452,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec = min(contactShadow, shadow) * debug_spec;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
+		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec + ssdoInd);
 		tmp_bloom += min(shadow, contactShadow) * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)

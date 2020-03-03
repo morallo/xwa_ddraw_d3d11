@@ -145,8 +145,11 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	//shadow_factor = 1.0;
 
 	// Early exit: darken the edges of the effective viewport
-	if (sample_uv.x < x0 || sample_uv.x > x1 ||
-		sample_uv.y < y0 || sample_uv.y > y1) {
+	//if (sample_uv.x < x0 || sample_uv.x > x1 ||
+	//	sample_uv.y < y0 || sample_uv.y > y1) 
+	if (any(sample_uv.xy < p0) ||
+		any(sample_uv.xy > p1))
+	{
 		//output.N = Normal;
 		//output.N = -Normal / (float)samples; // Darken this sample
 		//output.N = -Normal;
@@ -211,8 +214,8 @@ inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv
 	B = normalize(B);
 
 	// The occluder is behind the current point when diff.z > 0 (weight = 1)
-	// If weight = 1: Unoccluded direction, compute Bent Normal, etc
-	// If weight = 0: Occluded direction, Bent Normal/SSDO contribution is 0
+	// If (diff.z > 0) --> weight = 1: NO Occlusion, compute Bent Normal, etc
+	// If (diff.z < 0) --> weight = 0: Occluded direction, Bent Normal/SSDO contribution is 0
 	const float weight = diff.z > 0.0 ? 1.0 : 0.0; 
 
 	// Compute SSAO to get a better bent normal

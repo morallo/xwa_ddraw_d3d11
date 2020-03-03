@@ -9,7 +9,7 @@ cbuffer ConstantBuffer : register(b7)
 	uint bDirectSBS;
 	float y_center;
 	// 32 bytes
-	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	float p0, p1; // Limits in uv-coords of the viewport
 	// 48 bytes
 	matrix viewMat;
 	// 112 bytes

@@ -4,6 +4,8 @@
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
 #include "..\shader_common.h"
+#include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -39,6 +41,7 @@ struct PixelShaderOutput
 	//float4 bentNormal  : SV_TARGET1; // Bent normal map output
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -64,7 +67,9 @@ cbuffer ConstantBuffer : register(b3)
 	float unused4;
 	// 128 bytes
 };
+*/
 
+/*
 cbuffer ConstantBuffer : register(b4)
 {
 	matrix projEyeMatrix;
@@ -72,6 +77,7 @@ cbuffer ConstantBuffer : register(b4)
 	matrix fullViewMatrix;
 	float4 LightVector;
 };
+*/
 
 struct BlurData {
 	float3 pos;
@@ -102,25 +108,35 @@ inline float3 getNormal(in float2 uv, in float level) {
 }
 
 inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal,
-	in float cur_radius, in float max_radius)
+	in float cur_radius_sqr, in float max_radius_sqr)
 {
-	float miplevel = cur_radius / max_radius * 4;
-	float2 sample_uv_sub = sample_uv * amplifyFactor;
-	float3 occluder_Normal = getNormal(sample_uv, miplevel); // I can probably read this normal off of the bent buffer later (?)
-	float3 occluder_color = texColor.SampleLevel(sampColor, sample_uv, miplevel).xyz;
-	float3 occluder_ssdo  = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, miplevel).xyz;
-	float3 occluder = FGFlag ? getPositionFG(sample_uv, 0) : getPositionBG(sample_uv, miplevel);
+	if (any(sample_uv.xy < p0) ||
+		any(sample_uv.xy > p1))
+	{
+		return 0;
+	}
+
+	//float miplevel = cur_radius / max_radius * 4;
+	float3 L  			   = LightVector[0].xyz;
+	float2 sample_uv_sub   = sample_uv * ssao_amplifyFactor;
+	float3 occluder_Normal = getNormal(sample_uv, 0); // I can probably read this normal off of the bent buffer later (?)
+	float3 occluder_color  = texColor.SampleLevel(sampColor, sample_uv, 0).xyz; // I think this is supposed to be occ_diffuse * occ_color
+	float3 occluder_ssdo   = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xxx; // xyz
+	//float3 occluder = FGFlag ? getPositionFG(sample_uv, 0) : getPositionBG(sample_uv, miplevel);
+	float3 occluder        = getPositionFG(sample_uv, 0);
 	// diff: Vector from current pos (P) to the sampled neighbor
-	const float3 diff = occluder - P;
-	const float diff_sqr = dot(diff, diff);
+	const float3 diff      = occluder - P;
+	const float diff_sqr   = dot(diff, diff);
 	// v: Normalized (occluder - P) vector
 	const float3 v = diff * rsqrt(diff_sqr);
 	//const float max_dist_sqr = max_dist * max_dist;
 	//const float weight = saturate(1 - diff_sqr / max_dist_sqr);
-	const float weight = (1 - cur_radius * cur_radius / (max_radius * max_radius));
+	const float weight = (1 - cur_radius_sqr / (max_radius_sqr)); // ORIGINAL
 	// TODO: Make ambient a configurable parameter
-	const float ambient = 0.15;
-	occluder_color = (ambient + occluder_ssdo) * occluder_color;
+	//const float ambient = 0.15;
+	//occluder_color = (ambient + occluder_ssdo) * occluder_color; // ORIGINAL
+	float occ_diffuse = max(dot(L, occluder_Normal), 0.0);
+	occluder_color = occluder_ssdo * occ_diffuse * occluder_color;
 
 	//float ao_dot = max(0.0, dot(Normal, v) - bias);
 	//float ao_factor = ao_dot * weight;
@@ -130,7 +146,12 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in f
 	//float2 uv_diff = sample_uv - input_uv;
 	//float ssdo_dist = min(1, diff_sqr);
 	//float3 B = 0;
-	if (diff.z < 0.0) { // If there's occlusion, then compute B and indirect lighting
+
+	// if diff.z > 0.0 --> occ_weight = 0: NO occlusion
+	// if diff.z < 0.0 --> occ_weight = 1: There's occlusion
+	const float occ_weight = diff.z < 0.0 ? 1.0 : 0.0;
+
+	//if (diff.z < 0.0) { // If there's occlusion, then compute B and indirect lighting
 		// The bent normal is probably not needed for indirect lighting. Only the actual
 		// normal in the center point and the occluder's normal
 		//B.x =  uv_diff.x;
@@ -149,10 +170,10 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in f
 			//return float3(0, 1, 0);
 		//}
 		// According to the reference SSDO implementation, we should be doing something like this:
-		return occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
+		return occ_weight * occluder_color * saturate(dot(occluder_Normal, -v)) * weight;
 		//return occluder_color * saturate(dot(B, -occluder_Normal)) * weight;
-	}
-	return 0; // Center is not occluded, no indirect lighting
+	//else
+	//return 0; // Center is not occluded, no indirect lighting
 
 	
 	//return occluder_color * ssdo_area * saturate(dot(B, -occluder_Normal)) * weight;
@@ -162,7 +183,6 @@ inline float3 doSSDOIndirect(bool FGFlag, in float2 sample_uv, in float3 P, in f
 		else
 			return 0;
 	}*/
-	
 
 	//return visibility;
 	//return result + color * ao_factor * saturate(dot(Normal, light));
@@ -173,27 +193,31 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float3 P1 = getPositionFG(input.uv, 0);
-	float3 P2 = getPositionBG(input.uv, 0);
-	float3 n = getNormal(input.uv, 0);
-	float3 ssdo;
+	//float3 P2 = getPositionBG(input.uv, 0);
+	float3 Normal = getNormal(input.uv, 0);
+	float3 ssdoInd;
 	float3 p;
 	float radius;
 	bool FGFlag;
 	output.ssao = float4(0, 0, 0, 1);
 
-	if (P1.z < P2.z) {
+	//if (P1.z < P2.z) {
 		p = P1;
 		FGFlag = true;
-	}
-	else {
-		p = P2;
-		FGFlag = false;
-	}
+	//}
+	//else {
+	//	p = P2;
+	//	FGFlag = false;
+	//}
 	// This apparently helps prevent z-fighting noise
-	//p += 0.01 * n;
-	float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
-	//p += m_offset * n;
-	p.z -= m_offset;
+	////p += 0.01 * n;
+	//float m_offset = max(moire_offset, moire_offset * (p.z * moire_scale)); // ORIGINAL: 0.1 instead of moire_scale
+	////p += m_offset * n;
+	//p.z -= m_offset; // ORIGINAL
+
+	const float3 SSAO_Normal = float3(Normal.xy, -Normal.z);
+	float m_offset = moire_offset * (p.z * moire_scale);
+	p += m_offset * SSAO_Normal;
 
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
@@ -206,7 +230,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 light = 1;
 	//float3 light  = normalize(float3(1, 1, -0.5));
 	//float3 light = normalize(float3(-1, 1, -0.5));
-	float3 light = LightVector.xyz;
+	//float3 light = LightVector[0].xyz;
 	//light = mul(viewMatrix, float4(light, 0)).xyz;
 
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
@@ -214,22 +238,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
-	float max_radius = radius * (float)(samples + sample_jitter);
+	const float max_radius = radius * (float)(samples + sample_jitter);
+	const float max_radius_sqr = max_radius * max_radius;
+	float cur_radius;
 
 	// SSDO Indirect Calculation
-	ssdo = 0;
+	ssdoInd = 0;
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
+		cur_radius = radius * (j + sample_jitter);
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo += doSSDOIndirect(FGFlag, sample_uv, p, n, 
-			radius * (j + sample_jitter), max_radius);
+		ssdoInd += doSSDOIndirect(FGFlag, sample_uv, p, Normal, 
+			cur_radius * cur_radius, max_radius_sqr);
 	}
-	ssdo = indirect_intensity * ssdo / (float)samples;
+	ssdoInd = indirect_intensity * ssdoInd / (float)samples;
 	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
-	output.ssao.xyz = lerp(ssdo, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
-	//output.ssao.xyz = ssdo;
+	output.ssao.xyz = lerp(ssdoInd, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	//output.ssao.xyz = ssdoInd;
 
 	//ssdo = saturate(ssdo / (float)samples);
 	//output.ssao.xyz *= lerp(black_level, ao, ao);

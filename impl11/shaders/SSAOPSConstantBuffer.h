@@ -17,7 +17,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 80 bytes
 	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
 	// 96 bytes
-	float x0, y0, x1, y1; // Viewport limits in uv space
+	float2 p0, p1; // Viewport limits in uv space
 	// 112 bytes
 	float3 invLightColor;
 	float shadow_epsilon;

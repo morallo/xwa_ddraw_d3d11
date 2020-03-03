@@ -66,10 +66,10 @@ float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 PixelShaderOutput main(PixelShaderInput input) {
 	static const float2 offsets[16] =
 	{
-		float2(1.5,0.5), float2(-1.5,-0.5), float2(-0.5,1.5), float2(0.5,-1.5),
-		float2(1.5,2.5), float2(-1.5,-2.5), float2(-2.5,1.5), float2(2.5,-1.5),
-		float2(-1.5,0.5), float2(1.5,-0.5), float2(0.5,1.5), float2(-0.5,-1.5),
-		float2(-1.5,2.5), float2(1.5,-2.5), float2(2.5,1.5), float2(-2.5,-1.5),
+		float2( 1.5, 0.5), float2(-1.5, -0.5), float2(-0.5, 1.5), float2( 0.5, -1.5),
+		float2( 1.5, 2.5), float2(-1.5, -2.5), float2(-2.5, 1.5), float2( 2.5, -1.5),
+		float2(-1.5, 0.5), float2( 1.5, -0.5), float2( 0.5, 1.5), float2(-0.5, -1.5),
+		float2(-1.5, 2.5), float2( 1.5, -2.5), float2( 2.5, 1.5), float2(-2.5, -1.5),
 	};
 	float2 cur_offset, cur_offset_scaled;
 	float2 pixelSize = float2(pixelSizeX, pixelSizeY);

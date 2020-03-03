@@ -11,7 +11,7 @@ cbuffer ConstantBuffer : register(b7)
 	float FOVScale;
 	float2 iResolution;
 	// 16 bytes
-	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
+	float p0, p1; // Limits in uv-coords of the viewport
 	// 32 bytes
 	float2 contOrigin, intersection;
 	// 48 bytes
@@ -116,8 +116,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 		input.uv.x = input.uv.x * 0.5 + 0.5;
 
 	// Early exit: avoid rendering outside the original viewport edges
-	if (input.uv.x < x0 || input.uv.x > x1 ||
-		input.uv.y < y0 || input.uv.y > y1)
+	//if (input.uv.x < x0 || input.uv.x > x1 ||
+	//	input.uv.y < y0 || input.uv.y > y1)
+	if (any(input.uv < p0) ||
+		any(input.uv > p1))
 	{
 		output.color = 0.0;
 		return output;

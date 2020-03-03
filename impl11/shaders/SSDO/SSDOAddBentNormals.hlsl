@@ -204,7 +204,8 @@ inline float2 projectToUV(in float3 pos3D) {
 	// The viewport used to render the original offscreenBuffer may not cover the full
 	// screen, so the uv coords have to be adjusted to the limits of the viewport within
 	// the full-screen quad:
-	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	//P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	P.xy = lerp(float2(p0.x, p1.y), float2(p1.x, p0.y), (P.xy + 1) / 2);
 	return P.xy;
 }
 
@@ -230,8 +231,9 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		cur_uv		= projectToUV(cur_pos);
 
 		// If the ray has exited the current viewport, we're done:
-		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1) {
+		if (any(cur_uv < p0) ||
+			any(cur_uv > p1))
+		{
 			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 			res = lerp(1, res, weight);
 			return float3(res, cur_length / max_shadow_length, 1);
