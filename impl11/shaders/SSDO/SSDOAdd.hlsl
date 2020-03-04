@@ -478,6 +478,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = ssdo.z;
 	if (ssao_debug == 22)
 		output.color.xyz = shadow;
+	if (ssao_debug == 23)
+		output.color.xyz = ssdoInd; // Should display the mask instead of the ssdoInd color
+	if (ssao_debug == 24)
+		output.color.xyz = ssdoInd;
+	if (ssao_debug == 25)
+		output.color.xyz = ssdoInd; // Should display occ_weight of the ssdoInd color
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);

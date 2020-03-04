@@ -135,7 +135,7 @@ struct ColNorm {
 	float3 N;
 };
 
-inline ColNorm doSSDODirect(bool FGFlag, in float2 input_uv, in float2 sample_uv, in float3 color,
+inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, out float ao_factor)
 {
 	ColNorm output;
@@ -345,7 +345,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	ColNorm ssdo_aux;
-	float3 P1 = getPositionFG(input.uv, 0);
+	float3 p = getPositionFG(input.uv, 0);
 	//float3 P2 = getPositionBG(input.uv, 0);
 	float3 Normal = getNormal(input.uv, 0);
 	//Normal.z = -Normal.z;
@@ -362,9 +362,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 bentNormal = 0;
 	//float3 bentNormal = float3(0, 0, 0.01);
 	float3 ssdo;
-	float3 p;
 	float radius;
-	bool FGFlag;
+	//bool FGFlag;
 	
 	//color = color * color; // Gamma correction (approx to pow 2.2)
 
@@ -372,14 +371,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bentNormal = float4(0, 0, 0.01, 1);
 	//output.bentNormal = 0;
 
-	//if (P1.z < P2.z) {
-		p = P1;
-		FGFlag = true;
-	/*}
-	else {
-		p = P2;
-		FGFlag = false;
-	}*/
 	// This apparently helps prevent z-fighting noise
 	// SSDO version:
 	//float m_offset = max(moire_offset, moire_offset * (p.z * 0.1));
@@ -440,8 +431,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo_aux = doSSDODirect(FGFlag, input.uv, sample_uv, color,
-			p, Normal, radius_sqr, max_radius_sqr, ao_factor);
+		ssdo_aux = doSSDODirect(input.uv, sample_uv, color, p, Normal, 
+			radius_sqr, max_radius_sqr, ao_factor);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 		ao += ao_factor;

@@ -143,6 +143,7 @@ extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInSha
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
 extern float g_fViewYawSign, g_fViewPitchSign;
+float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.5f;
 
 // S0x07D4FA0
 struct XwaGlobalLight
@@ -2870,6 +2871,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
 	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	g_SSAO_PSCBuffer.moire_offset  = g_fMoireOffsetDir;
 	//g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
@@ -2936,7 +2938,22 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 	g_BloomPSCBuffer.uvStepSize			= 1.0f;
 	g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-	g_BloomPSCBuffer.debug              = g_bShowSSAODebug;
+	// The SSDO component currently encodes the AO component in the Y channel. If
+	// the SSDO buffer is displayed directly, it's hard to understand. So, instead, we
+	// have to code the following logic:
+	// If SSDO Indirect is disabled, then enable debug mode in the blur shader. This mode
+	// returns ssao.xxx so that the SSDO direct component can be visualized properly
+	// If SSDO Indirect is enabled, then we can't return ssao.xxx, because that'll wipe
+	// out the AO component needed for SSDO Indirect. In that case we just pass along the
+	// debug flag directly -- but the SSDO Direct buffer will be unreadable
+	if (g_bShowSSAODebug) {
+		if (!g_bEnableIndirectSSDO)
+			g_BloomPSCBuffer.debug = 1;
+		else
+			g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+	}
+	else
+		g_BloomPSCBuffer.debug = 0;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSDO Blur, Left Image
@@ -3008,6 +3025,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
 		g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
 		g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
+		g_SSAO_PSCBuffer.moire_offset   = g_fMoireOffsetInd;
 		g_SSAO_PSCBuffer.fn_enable      = g_bFNEnable;
 		resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
@@ -3021,9 +3039,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// in the previous steps
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs[5] = {
+		ID3D11ShaderResourceView *srvs[4] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
-			resources->_depthBuf2SRV.Get(), // BG Depth Buffer
 			resources->_normBufSRV.Get(),   // Normal Buffer
 			resources->_offscreenAsInputShaderResourceView.Get(), // Color Buffer
 			resources->_ssaoBufSRV.Get(),   // Direct SSDO from previous pass
@@ -3045,7 +3062,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
-		context->PSSetShaderResources(0, 5, srvs);
+		context->PSSetShaderResources(0, 4, srvs);
 		context->Draw(6, 0);
 	}
 
@@ -3061,7 +3078,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
-			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
 			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // ssaoBufR
 					resources->_bloomOutput1SRV.Get(), // ssaoBufR HDR
@@ -3098,9 +3114,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			}
 		}
 	}
-
+	
 	// Final combine, Left Image
 	{
+		// SSDO Indirect Blur
+		// DEBUG: REMOVE LATER: WE DON'T NEED TO SET THIS BUFFER ON EVERY FRAME!
+		g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+		// DEBUG
+
 		// input: offscreenAsInput (resolved here), bloomMask (removed?), ssaoBuf
 		// output: offscreenBuf, bloomMask?
 		if (g_SSAO_Type == SSO_BENT_NORMALS)

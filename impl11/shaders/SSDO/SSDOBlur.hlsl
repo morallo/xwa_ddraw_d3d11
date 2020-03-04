@@ -134,13 +134,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 	bent_sum_noweight /= BLUR_SAMPLES;
 
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
-	if (debug)
-		output.ssao.xyz = output.ssao.xxx;
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:
 	//output.bent.xyz = normalize(center.normal - output.bent.xyz);
 	output.bent.xyz = center.normal - output.bent.xyz;
+
+	if (0 < debug && debug < 22) {
+		output.ssao.xyz = output.ssao.xxx; // This is used to display the SSDO direct buffer in grayscale
+	}
+	
 	return output;
 }
 

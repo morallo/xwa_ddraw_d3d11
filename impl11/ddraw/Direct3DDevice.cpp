@@ -330,6 +330,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
@@ -2507,7 +2508,9 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 8;
-	g_SSAO_PSCBuffer.moire_offset = 0.02f;
+	g_fMoireOffsetDir = 0.02f;
+	g_fMoireOffsetInd = 0.5f;
+	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
 	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
 	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
@@ -2664,7 +2667,10 @@ bool LoadSSAOParams() {
 				g_bEnableIndirectSSDO = (bool)fValue;
 			}
 			else if (_stricmp(param, "moire_offset") == 0) {
-				g_SSAO_PSCBuffer.moire_offset = fValue;
+				g_fMoireOffsetDir = fValue;
+			}
+			else if (_stricmp(param, "moire_offset_ind") == 0) {
+				g_fMoireOffsetInd = fValue;
 			}
 			else if (_stricmp(param, "moire_scale") == 0) {
 				g_SSAO_PSCBuffer.moire_scale = fValue;
