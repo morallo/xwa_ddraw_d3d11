@@ -158,6 +158,7 @@ inline float3 doSSDOIndirect(in float ao_mask, in float2 sample_uv, in float3 P,
 	//const float occ_weight   = diff.z > 0.0 ? 1.0 : 0.0; // This is the visibility function used in SSDO Direct
 	//const float occ_weight = diff.z < 0.0 ? 1.0 /* ao_dot */ : 0.0; // occ_weight is our visibility function
 	//const float occ_weight = ao_mask;
+	//const float attenuation = cur_radius_sqr / max_radius_sqr; // Not sure this actually helps
 
 	if (ssao_debug == 25)
 		return occ_spec;

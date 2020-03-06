@@ -465,7 +465,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_color += LightColor[i].rgb * saturate(
 			color * diffuse + 
 			global_spec_intensity * spec_col * spec + 
-			/* diffuse_difference * */ ssdoInd);
+			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 		tmp_bloom += min(shadow, contactShadow) * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)

@@ -2501,12 +2501,12 @@ bool LoadSSAOParams() {
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
 	g_SSAO_PSCBuffer.intensity = 4.0f;
-	g_SSAO_PSCBuffer.indirect_intensity = 1.0f;
+	g_SSAO_PSCBuffer.indirect_intensity = 1.5f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
-	g_SSAO_PSCBuffer.bentNormalInit = 1.0f; // 0.2f
-	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
-	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
+	g_SSAO_PSCBuffer.bentNormalInit = 0.1f; // 0.2f
+	g_SSAO_PSCBuffer.near_sample_radius = 0.005f;
+	g_SSAO_PSCBuffer.far_sample_radius = 0.005f;
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 8;
 	g_fMoireOffsetDir = 0.02f;
@@ -2518,7 +2518,6 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
-	//g_SSAO_PSCBuffer.gamma = 1.25f;
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
