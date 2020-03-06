@@ -136,7 +136,8 @@ struct ColNorm {
 };
 
 inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 color,
-	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, out float ao_factor)
+	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, in float max_dist_sqr,
+	out float ao_factor)
 {
 	ColNorm output;
 	output.col = 0;
@@ -147,8 +148,7 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	// Early exit: darken the edges of the effective viewport
 	//if (sample_uv.x < x0 || sample_uv.x > x1 ||
 	//	sample_uv.y < y0 || sample_uv.y > y1) 
-	if (any(sample_uv.xy < p0) ||
-		any(sample_uv.xy > p1))
+	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
 	{
 		//output.N = Normal;
 		//output.N = -Normal / (float)samples; // Darken this sample
@@ -216,13 +216,12 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	// The occluder is behind the current point when diff.z > 0 (weight = 1)
 	// If (diff.z > 0) --> weight = 1: NO Occlusion, compute Bent Normal, etc
 	// If (diff.z < 0) --> weight = 0: Occluded direction, Bent Normal/SSDO contribution is 0
-	const float weight = diff.z > 0.0 ? 1.0 : 0.0; 
+	const float weight = diff.z > 0.0 ? 1.0 : 0.0;
 
 	// Compute SSAO to get a better bent normal
 	const float3 SSAO_Normal = float3(Normal.xy, -Normal.z);
 	//const float3 SSAO_Normal = Normal;
 	const float ao_dot = max(0.0, dot(SSAO_Normal, v) - bias);
-	const float max_dist_sqr = max_dist * max_dist;
 	const float ao_weight = saturate(1 - diff_sqr / max_dist_sqr);
 	ao_factor = ao_dot * ao_weight;
 
@@ -238,7 +237,8 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 
 	//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
 	//B.z = -B.z; // Flip the z component?
-	output.col = weight * saturate(dot(B, LightVector[0].xyz));
+	output.col = weight * saturate(dot(B, LightVector[0].xyz)); // ORIGINAL
+	//output.col = weight; // This doesn't produce a contact shadow because it does not depend on the light direction
 	//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
 	//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
 	
@@ -409,6 +409,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		shadow = 1;
 	*/
 
+	const float max_dist_sqr = max_dist * max_dist;
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
@@ -432,7 +433,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(input.uv, sample_uv, color, p, Normal, 
-			radius_sqr, max_radius_sqr, ao_factor);
+			radius_sqr, max_radius_sqr, max_dist_sqr, ao_factor);
 		ssdo += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
 		ao += ao_factor;
@@ -462,7 +463,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	////float normDiff = dot(n, LightVector[0].xyz);
 	//float contactShadow = 1.0 - clamp(normDiff - bentDiff, 0.0, 1.0);
 
-	ssdo   = saturate(intensity * ssdo / (float)samples); // * shadow;
+	ssdo   = clamp(intensity * ssdo / (float)samples, 0.0, 1.0); // * shadow;
 	ssdo.y = ao;
 	//ssdo.z = shadow_factor;
 	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975

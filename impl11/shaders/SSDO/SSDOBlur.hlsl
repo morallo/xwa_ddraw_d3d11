@@ -13,8 +13,8 @@ Texture2D DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
 // The BG Depth Buffer
-//Texture2D DepthTex2 : register(t2);
-//SamplerState DepthSampler2 : register(s2);
+Texture2D DepthTex2 : register(t2);
+SamplerState DepthSampler2 : register(s2);
 
 // The Normal Buffer
 Texture2D NormalTex : register(t3);
@@ -140,7 +140,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//output.bent.xyz = normalize(center.normal - output.bent.xyz);
 	output.bent.xyz = center.normal - output.bent.xyz;
 
-	if (0 < debug && debug < 22) {
+	if (0 < debug && debug < 10) {
 		output.ssao.xyz = output.ssao.xxx; // This is used to display the SSDO direct buffer in grayscale
 	}
 	

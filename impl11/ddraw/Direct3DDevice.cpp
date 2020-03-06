@@ -2500,7 +2500,8 @@ bool LoadSSAOParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
-	g_SSAO_PSCBuffer.intensity = 3.0f;
+	g_SSAO_PSCBuffer.intensity = 4.0f;
+	g_SSAO_PSCBuffer.indirect_intensity = 1.0f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
 	g_SSAO_PSCBuffer.bentNormalInit = 1.0f; // 0.2f

@@ -93,7 +93,7 @@ float3 getPositionFG(in float2 uv, in float level) {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
-float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
+float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity, out float diff)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
 	float nm_scale = fn_scale * nm_intensity;
@@ -117,6 +117,8 @@ float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 	float3 normal;
 	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
 	normal.z = 1.0;
+	diff = clamp(1.0 - (abs(normal.x) + abs(normal.y)), 0.0, 1.0);
+	//diff *= diff;
 
 	return normalize(normal);
 }
@@ -292,7 +294,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	float  metallic      = mask / METAL_MAT;
 	float  nm_int_mask   = ssMask.x;
-	float  spec_val_mask = ssMask.y;
+	float  spec_val_mask = ssMask.y; 
+	float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
@@ -346,11 +349,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
 	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask);
+		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask, diffuse_difference);
 		// After the normals have blended, we should restore the length of the bent normal:
 		// it should be weighed by AO, which is now in ssdo.y
-		bentN = ssdo.y *  blend_normals(bentN, FakeNormal);
+		bentN = ssdo.y * blend_normals(bentN, FakeNormal);
 		N = blend_normals(N, FakeNormal);
+		//diffuse_difference = 1.0 - length(N - TempN);
+		//diffuse_difference = dot(0.333, N - TempN);
+		//diffuse_difference *= diffuse_difference;
+		//N = TempN;
 	}
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
@@ -386,6 +393,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		// multiplying it again here to make the contact shadows more obvious
 		//contactShadow  = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0); // This works almost perfect
 		contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
+		// In low-lighting conditions, maybe we can lerp contactShadow with the AO mask?
+		// This helps a little bit; but mutes the spec reflections, need to think more about this
+		//contactShadow = lerp(ssdo.y, contactShadow, smoothDiff);
 		contactShadow *= contactShadow;
 
 		/*
@@ -452,7 +462,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec = min(contactShadow, shadow) * debug_spec;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec + ssdoInd);
+		tmp_color += LightColor[i].rgb * saturate(
+			color * diffuse + 
+			global_spec_intensity * spec_col * spec + 
+			/* diffuse_difference * */ ssdoInd);
 		tmp_bloom += min(shadow, contactShadow) * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
@@ -475,7 +488,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ssao_debug == 20)
 		output.color.xyz = debug_spec;
 	if (ssao_debug == 21)
-		output.color.xyz = ssdo.z;
+		output.color.xyz = diffuse_difference;
 	if (ssao_debug == 22)
 		output.color.xyz = shadow;
 	if (ssao_debug == 23)
@@ -483,7 +496,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ssao_debug == 24)
 		output.color.xyz = ssdoInd;
 	if (ssao_debug == 25)
-		output.color.xyz = ssdoInd; // Should display occ_weight of the ssdoInd color
+		output.color.xyz = ssdoInd; // Should display a debug value coming from SSDOInd
+	if (ssao_debug == 26)
+		output.color.xyz = 0.5 * ssdoInd;
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);

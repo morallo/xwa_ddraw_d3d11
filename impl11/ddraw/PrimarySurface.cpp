@@ -3072,7 +3072,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
 			// Copy the SSDO Indirect Buffer (ssaoBufR) to offscreenBufferAsInput -- we'll use it as temp buffer
 			// to blur the SSAO buffer
-			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
+			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR); // _ssaoBufR is 16bit floating point, so we use bloomOutput as temp buffer
 			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
@@ -3104,6 +3104,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				goto out1;
 			}
 			else {
+				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO_R.Get(),
 					NULL,
@@ -5585,7 +5586,8 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
