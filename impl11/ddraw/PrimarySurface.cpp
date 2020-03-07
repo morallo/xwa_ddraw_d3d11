@@ -4000,7 +4000,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
+	//const int CAPTURE_FRAME = 75; // Hyper-entry
+	//const int CAPTURE_FRAME = 150; // Tunnel
+
 	// Pre-render: Apply the hyperzoom if necessary
+	// input: shadertoyAuxBufSRV
+	// output: Renders to renderTargetViewPost, then resolves the output to shadertoyAuxBuf
 	if (bBGTextureAvailable)
 	{
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4008,7 +4013,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bUseSteamVR) {
-			viewport.Width = (float)resources->_backbufferWidth;
+			viewport.Width  = (float)resources->_backbufferWidth;
 			viewport.Height = (float)resources->_backbufferHeight;
 		}
 		viewport.TopLeftX = 0.0f;
@@ -4041,7 +4046,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.z_override  = 65535.0f;
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
@@ -4098,8 +4103,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// End of hyperzoom
 
 	// First render: Render the hyperspace effect itself
+	// input: None
+	// output: renderTargetViewPost
 	{
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the new viewport (a full quad covering the full screen)
 		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
@@ -4142,7 +4148,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.z_override  = 65535.0f;
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
@@ -4162,7 +4168,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -4198,6 +4203,14 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			context->Draw(6, 0);
 		}
 	}
+	
+	// DEBUG
+	/*if (g_iPresentCounter == CAPTURE_FRAME)
+	{
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+			L"C:\\Temp\\_offscreenBufferPost-0.jpg");
+	}*/
+	// DEBUG
 
 	// Second render: compose the cockpit over the previous effect
 	{
@@ -4258,22 +4271,21 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		};
 		context->OMSetRenderTargets(5, rtvs_null, NULL);
 
-		/*
 		// DEBUG
-		const int CAPTURE_FRAME = 15;
-		if (g_iPresentCounter == CAPTURE_FRAME) 
+		/*
+		if (g_iPresentCounter == CAPTURE_FRAME)
 		{
 			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
 				L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
 				L"C:\\Temp\\_shadertoyBuf.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_offscreenBuf-0.jpg");
+				L"C:\\Temp\\_offscreenBuf-1.jpg");
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_offscreenBufferPost-0.jpg");
+				L"C:\\Temp\\_offscreenBufferPost-1.jpg");
 		}
-		// DEBUG
 		*/
+		// DEBUG
 
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _offscreenBufferAsInput to re-use in the next step:
@@ -4281,21 +4293,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		if (g_bUseSteamVR)
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
-		/*
-		// DEBUG
-		if (g_iPresentCounter == CAPTURE_FRAME) {
-			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_shadertoyAuxBuf-0.jpg");
-			//DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
-			//	L"C:\\Temp\\_shadertoyBuf-0.jpg");
-			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf,
-				L"C:\\Temp\\_shadertoyBuf-0.dds");
-		}
-		// DEBUG
-		*/
-
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-
 		if (!g_bReshadeEnabled) {
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewPost.Get(),
@@ -4353,14 +4351,14 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 	}
 
-	/*
+	
 	// DEBUG
-	if (g_iPresentCounter == CAPTURE_FRAME) {
+	/*if (g_iPresentCounter == CAPTURE_FRAME) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-			L"C:\\Temp\\_offscreenBufferPost-1.jpg");
-	}
+			L"C:\\Temp\\_offscreenBufferPost-2.jpg");
+	}*/
 	// DEBUG
-	*/
+	
 
 //out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
@@ -5443,6 +5441,11 @@ HRESULT PrimarySurface::Flip(
 					UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 					// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
 					//				  shadertoyBuf has a copy of the cockpit
+					if (resources->_useMultisampling) {
+						context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
+					}
 
 					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
@@ -5450,7 +5453,7 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			// Resolve the Bloom mask before the SSAO and Bloom effects.
+			// Resolve the Bloom, Normals and SSMask before the SSAO and Bloom effects.
 			if (g_bReshadeEnabled) {
 				// Resolve whatever is in the _offscreenBufferBloomMask into _offscreenBufferAsInputBloomMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
@@ -5462,6 +5465,7 @@ HRESULT PrimarySurface::Flip(
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
 				// Resolve the normals, ssaoMask and ssMask buffers if necessary
+				// Notice how we don't care about the g_bDepthBufferResolved flag here, we just resolve and move on
 				if (resources->_useMultisampling) {
 					context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
 					context->ResolveSubresource(resources->_ssaoMask, 0, resources->_ssaoMaskMSAA, 0, AO_MASK_FORMAT);
@@ -5471,7 +5475,9 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_ssaoMaskR, 0, resources->_ssaoMaskMSAA_R, 0, AO_MASK_FORMAT);
 						context->ResolveSubresource(resources->_ssMaskR, 0, resources->_ssMaskMSAA_R, 0, AO_MASK_FORMAT);
 					}
-				}
+				} 
+				// if MSAA is not enabled, then the RTVs already populated normBuf, ssaoMask and ssMask, 
+				// so nothing to do here!
 			}
 
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
@@ -5482,14 +5488,11 @@ HRESULT PrimarySurface::Flip(
 					// external camera is active.
 					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-					//context->ResolveSubresource(resources->_normBufAsInput, 0, resources->_normBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 					if (g_bUseSteamVR) {
 						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 						context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
 							resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-						//context->ResolveSubresource(resources->_normBufAsInputR, 0,
-						//	 resources->_normBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 					}
 				}
 

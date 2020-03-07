@@ -878,6 +878,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
 	this->_shadertoyAuxBuf.Release();
 	this->_shadertoyRTV.Release();
@@ -892,6 +893,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
 		this->_shadertoyAuxBufR.Release();
 		this->_shadertoyRTV_R.Release();
@@ -1347,6 +1349,32 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.Format = oldFormat;
 				desc.MipLevels = 1;
 			}
+
+			// shadertoyMSAA
+			{
+				DXGI_FORMAT oldFormat = desc.Format;
+
+				desc.Format = BACKBUFFER_FORMAT;
+				step = "_shadertoyBufMSAA";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufMSAA);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				if (g_bUseSteamVR) {
+					step = "_shadertoyBufMSAA_R";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufMSAA_R);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
+				}
+
+				desc.Format = oldFormat;
+			}
 		}
 
 		// No MSAA after this point
@@ -1406,6 +1434,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 				log_err("Flags: 0x%x\n", desc.BindFlags);
 
+				// TODO: Do I need to create _bloomOutput1R in the SteamVR case? I think bloomOutput1 is
+				// used as a temporary buffer for SSDO; but maybe we're using the same buffer for both
+				// left and right eyes then?
 				step = "_bloomOutput1";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1);
 				if (FAILED(hr)) {
@@ -1415,11 +1446,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
-				else {
-					log_err("Successfully created _bloomOutput1 with combined flags\n");
-				}
-				desc.Format = oldFormat;
-
+				
+				desc.Format = BACKBUFFER_FORMAT;
 				step = "_shadertoyBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBuf);
 				if (FAILED(hr)) {
@@ -1453,6 +1481,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 						goto out;
 					}
 				}
+
+				desc.Format = oldFormat;
 			}
 
 			if (g_bBloomEnabled) {
@@ -2075,8 +2105,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (FAILED(hr)) goto out;
 
 		step = "_shadertoyRTV";
-		// This RTV writes to a non-MSAA texture
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBuf, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV);
+		hr = this->_d3dDevice->CreateRenderTargetView(
+			this->_useMultisampling ? this->_shadertoyBufMSAA : this->_shadertoyBuf, 
+			this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA, 
+			&this->_shadertoyRTV);
 		if (FAILED(hr)) {
 			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
 			goto out;
@@ -2097,7 +2129,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			step = "_shadertoyRTV_R";
 			// This RTV writes to a non-MSAA texture
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_shadertoyBufR, &renderTargetViewDescNoMSAA, &this->_shadertoyRTV_R);
+			hr = this->_d3dDevice->CreateRenderTargetView(
+				this->_useMultisampling ? this->_shadertoyBufMSAA_R : this->_shadertoyBufR,
+				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&this->_shadertoyRTV_R);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [ST] _shadertoyRTV_R FAILED");
 				goto out;

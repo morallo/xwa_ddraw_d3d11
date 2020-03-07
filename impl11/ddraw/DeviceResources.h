@@ -531,6 +531,8 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// ShaderToy effects
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;
 	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // No MSAA
