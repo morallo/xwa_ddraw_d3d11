@@ -522,8 +522,8 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
 	// Dynamic Cockpit
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
 	// Barrel effect
@@ -531,9 +531,9 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// ShaderToy effects
-	ComPtr<ID3D11Texture2D> _shadertoyBuf;  // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyBufR; // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;  // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
 	// Bloom
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
@@ -560,12 +560,18 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
 	// Shading System
-	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssMask;			// No MSAA
-	ComPtr<ID3D11Texture2D> _ssMaskR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _normBufMSAA;
+	ComPtr<ID3D11Texture2D> _normBufMSAA_R;
+	ComPtr<ID3D11Texture2D> _normBuf;		 // No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA;
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA_R;
+	ComPtr<ID3D11Texture2D> _ssaoMask;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
+	ComPtr<ID3D11Texture2D> _ssMask;			 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -585,11 +591,11 @@ public:
 	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask  = NULL; // Renders to _offscreenBufferBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR = NULL; // Renders to _offscreenBufferBloomMaskR
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1;    // Renders to bloomOutput1
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2;    // Renders to bloomOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum;  // Renders to bloomOutputSum
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R;   // Renders to bloomOutput1R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R;   // Renders to bloomOutput2R
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 	// Ambient Occlusion
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf;
@@ -612,8 +618,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	// Dynamic Cockpit
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;   // SRV for HUD elements without background
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
 	// Shadertoy
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
@@ -622,28 +628,28 @@ public:
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
-	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV;     // SRV for bloomOutput1
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV;     // SRV for bloomOutput2
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV;   // SRV for bloomOutputSum
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R;   // SRV for bloomOutput1R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R;   // SRV for bloomOutput2R
 	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	// Ambient Occlusion
-	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;   // SRV for depthBufAsInput
-	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
+	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
+	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
-	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
-	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R;   // SRV for ssaoBuf
 	// Shading System
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
-	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
-	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
-	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV; // SRV for ssMask
-	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R; // SRV for ssMaskR
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV;     // SRV for normBuf
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;   // SRV for normBufR
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV;    // SRV for ssaoMask
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R;  // SRV for ssaoMaskR
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

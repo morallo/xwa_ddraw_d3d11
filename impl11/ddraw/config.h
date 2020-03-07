@@ -29,6 +29,7 @@ public:
 	bool EnhanceEngineGlow;
 	bool EnhanceExplosions;
 
+	bool FXAAEnabled;
 	bool StayInHyperspace;
 };
 

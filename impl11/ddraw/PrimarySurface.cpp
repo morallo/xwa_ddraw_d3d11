@@ -40,7 +40,7 @@ extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
 extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
-bool g_bKeybExitHyperspace = false, g_bFXAAEnabled = true;
+bool g_bKeybExitHyperspace = false;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
 // DYNAMIC COCKPIT
@@ -2137,8 +2137,8 @@ void PrimarySurface::DrawHUDVertices() {
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Set the HUD foreground and background textures:
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
-	context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpitBG.GetAddressOf());
+	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
+	context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitBG_SRV.GetAddressOf());
 	// Draw the Left Image
 	context->Draw(6, 0);
 
@@ -5595,7 +5595,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply FXAA
-			if (g_bFXAAEnabled)
+			if (g_config.StayInHyperspace)
 			{
 				// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
 				// SSAO uses that mask to prevent applying SSAO on bright areas

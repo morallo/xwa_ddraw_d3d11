@@ -48,11 +48,12 @@ float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as ab
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
-int g_KeySet = 2;
+
 /* 
    1 = Arrow keys move the lights
    2 = Arrow keys change the FOV
 */
+int g_KeySet = 2;
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
@@ -6265,7 +6266,7 @@ HRESULT Direct3DDevice::Execute(
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
-							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
+							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
 							if (g_PSCBuffer.bUseCoverTexture) {
 								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", resources->dc_coverTexture[idx].GetAddressOf());
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
@@ -6473,7 +6474,7 @@ HRESULT Direct3DDevice::Execute(
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ?
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures

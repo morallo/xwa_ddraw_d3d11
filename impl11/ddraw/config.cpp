@@ -37,6 +37,7 @@ Config::Config()
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
 
+	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
 
 	ifstream file("ddraw.cfg");
@@ -129,6 +130,10 @@ Config::Config()
 			else if (name == "EnhanceExplosions")
 			{
 				this->EnhanceExplosions = (bool)stoi(value);
+			}
+			else if (name == "EnableFXAA")
+			{
+				this->FXAAEnabled = (bool)stoi(value);
 			}
 			else if (name == "StayInHyperspace")
 			{

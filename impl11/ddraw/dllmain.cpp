@@ -13,6 +13,7 @@
 #include <vector>
 #include "Vectors.h"
 #include "Matrices.h"
+#include "config.h"
 
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
@@ -444,7 +445,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			case 'F':
-				g_bFXAAEnabled = !g_bFXAAEnabled;
+				g_config.FXAAEnabled = !g_config.FXAAEnabled;
 				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
