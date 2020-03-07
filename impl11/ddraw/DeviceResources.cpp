@@ -1351,11 +1351,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// No MSAA after this point
 		{
-			// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
 			desc.SampleDesc.Count = 1;
 			desc.SampleDesc.Quality = 0;
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
+			// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
 			step = "offscreenBufferAsInput";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInput);
 			if (FAILED(hr)) {
@@ -1728,17 +1728,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		// Create the shader resource views
+		/* SRVs */
 		{
 			D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
-			// Create a shader resource view for the _offscreenBuffer
 			shaderResourceViewDesc.Format = desc.Format;
 			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
 
-			/* SRVs */
 			// Create the shader resource view for offscreenBufferAsInput
 			step = "offscreenAsInputShaderResourceView";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInput,
@@ -2106,6 +2104,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
+		// Dynamic Cockpit RTVs
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_renderTargetViewDynCockpit";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &renderTargetViewDesc, &this->_renderTargetViewDynCockpit);
@@ -2148,18 +2147,29 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
 
+			renderTargetViewDesc.Format = AO_MASK_FORMAT;
 			renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 			step = "_renderTargetViewSSAOMask";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoMask, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAOMask);
+			hr = this->_d3dDevice->CreateRenderTargetView(
+				this->_useMultisampling ? this->_ssaoMaskMSAA : this->_ssaoMask,
+				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&this->_renderTargetViewSSAOMask);
 			if (FAILED(hr)) goto out;
 
 			step = "_renderTargetViewSSMask";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssMask, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSMask);
+			hr = this->_d3dDevice->CreateRenderTargetView(
+				this->_useMultisampling ? this->_ssMaskMSAA : this->_ssMask,
+				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&this->_renderTargetViewSSMask);
 			if (FAILED(hr)) goto out;
 
+			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 			renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 			step = "_renderTargetViewNormBuf";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_normBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBuf);
+			hr = this->_d3dDevice->CreateRenderTargetView(
+				this->_useMultisampling ? this->_normBufMSAA : this->_normBuf,
+				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&this->_renderTargetViewNormBuf);
 			if (FAILED(hr)) goto out;
 
 			if (g_bUseSteamVR) {
@@ -2168,18 +2178,29 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 
+				renderTargetViewDesc.Format = AO_MASK_FORMAT;
 				renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 				step = "_renderTargetViewSSAOMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoMaskR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAOMaskR);
+				hr = this->_d3dDevice->CreateRenderTargetView(
+					this->_useMultisampling ? this->_ssaoMaskMSAA_R : this->_ssaoMaskR,
+					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&this->_renderTargetViewSSAOMaskR);
 				if (FAILED(hr)) goto out;
 
 				step = "_renderTargetViewSSMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_ssMaskR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSMaskR);
+				hr = this->_d3dDevice->CreateRenderTargetView(
+					this->_useMultisampling ? this->_ssMaskMSAA_R : this->_ssMaskR,
+					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&this->_renderTargetViewSSMaskR);
 				if (FAILED(hr)) goto out;
 
+				renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_renderTargetViewNormBufR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_normBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewNormBufR);
+				hr = this->_d3dDevice->CreateRenderTargetView(
+					this->_useMultisampling ? this->_normBufMSAA_R : this->_normBufR,
+					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&this->_renderTargetViewNormBufR);
 				if (FAILED(hr)) goto out;
 			}
 
@@ -3829,6 +3850,9 @@ void DeviceResources::CheckMultisamplingSupport()
 			{
 				this->_sampleDesc.Count = i;
 				this->_sampleDesc.Quality = numQualityLevels - 1;
+				// Stop checking for MSAA levels if we reached the limit set by the user
+				if (g_config.MSAACount > 1 && this->_sampleDesc.Count == g_config.MSAACount)
+					break;
 			}
 		}
 	}

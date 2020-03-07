@@ -5461,11 +5461,17 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
-				// DEBUG
-				/*if (g_iPresentCounter == 100) {
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask.dds");
-				}*/
-				// DEBUG
+				// Resolve the normals, ssaoMask and ssMask buffers if necessary
+				if (resources->_useMultisampling) {
+					context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
+					context->ResolveSubresource(resources->_ssaoMask, 0, resources->_ssaoMaskMSAA, 0, AO_MASK_FORMAT);
+					context->ResolveSubresource(resources->_ssMask, 0, resources->_ssMaskMSAA, 0, AO_MASK_FORMAT);
+					if (g_bUseSteamVR) {
+						context->ResolveSubresource(resources->_normBufR, 0, resources->_normBufMSAA_R, 0, AO_DEPTH_BUFFER_FORMAT);
+						context->ResolveSubresource(resources->_ssaoMaskR, 0, resources->_ssaoMaskMSAA_R, 0, AO_MASK_FORMAT);
+						context->ResolveSubresource(resources->_ssMaskR, 0, resources->_ssMaskMSAA_R, 0, AO_MASK_FORMAT);
+					}
+				}
 			}
 
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer

@@ -10,6 +10,7 @@ public:
 
 	bool AspectRatioPreserved;
 	bool MultisamplingAntialiasingEnabled;
+	int MSAACount;
 	bool AnisotropicFilteringEnabled;
 	bool VSyncEnabled;
 	bool WireframeFillMode;

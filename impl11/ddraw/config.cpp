@@ -19,6 +19,7 @@ Config::Config()
 {
 	this->AspectRatioPreserved = true;
 	this->MultisamplingAntialiasingEnabled = false;
+	this->MSAACount = 1;
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
 	this->WireframeFillMode = false;
@@ -78,6 +79,10 @@ Config::Config()
 			else if (name == "EnableMultisamplingAntialiasing")
 			{
 				this->MultisamplingAntialiasingEnabled = stoi(value) != 0;
+			}
+			else if (name == "MSAACount")
+			{
+				this->MSAACount = stoi(value);
 			}
 			else if (name == "EnableAnisotropicFiltering")
 			{
