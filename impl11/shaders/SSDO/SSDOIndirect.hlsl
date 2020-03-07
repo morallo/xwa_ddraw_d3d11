@@ -101,15 +101,17 @@ inline float3 doSSDOIndirect(in float ao_mask, in float2 sample_uv, in float3 P,
 	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
 		return 0;
 
-	float3 occluder = getPositionFG(sample_uv, 0);
+	//float miplevel = cur_radius_sqr / max_radius_sqr * 4;
+	const float miplevel = 0;
+	float3 occluder = getPositionFG(sample_uv, miplevel);
 	if (occluder.z >= INFINITY_Z1) return 0;
 
-	//float miplevel = cur_radius / max_radius * 4;
+	
 	float3 L = LightVector[0].xyz;
 	float2 sample_uv_sub   = sample_uv * ssao_amplifyFactor;
-	float3 occluder_Normal = getNormal(sample_uv, 0); // I can probably read this normal off of the bent buffer later (?)
-	float3 occluder_color  = texColor.SampleLevel(sampColor, sample_uv, 0).xyz; // I think this is supposed to be occ_diffuse * occ_color
-	float3 occluder_ssdo   = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xxx; // xyz
+	float3 occluder_Normal = getNormal(sample_uv, miplevel); // I can probably read this normal off of the bent buffer later (?)
+	float3 occluder_color  = texColor.SampleLevel(sampColor, sample_uv, miplevel).xyz; // I think this is supposed to be occ_diffuse * occ_color
+	//float3 occluder_ssdo   = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xxx; // xyz
 	// diff: Vector from current pos (P) to the sampled neighbor
 	const float3 diff      = occluder - P;
 	float diff_sqr         = dot(diff, diff);

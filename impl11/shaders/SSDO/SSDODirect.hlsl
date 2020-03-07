@@ -158,8 +158,8 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	const float2 uv_diff = sample_uv - input_uv;
 	
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
-	//float miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
-	const float miplevel = 1.0;
+	//const float miplevel = cur_radius_sqr / max_radius_sqr * 4; // Is this miplevel better than using L?
+	const float miplevel = 0.0;
 
 	//float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
 	float3 occluder = getPositionFG(sample_uv, miplevel);

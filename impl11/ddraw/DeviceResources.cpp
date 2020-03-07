@@ -1241,6 +1241,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		if (g_bAOEnabled) {
 			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			desc.MipLevels = 1; // 4;
 			
 			// _depthBuf will be used as a renderTarget
 			step = "_depthBuf";
@@ -1279,6 +1280,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			desc.Format = oldFormat;
+			desc.MipLevels = 1;
 		}
 
 		// No MSAA after this point
@@ -1528,6 +1530,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			desc.MipLevels = 1; // 4;
 			step = "_normBuf";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBuf);
 			if (FAILED(hr)) {
@@ -1538,6 +1541,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			if (g_bUseSteamVR) {
 				desc.Format = AO_MASK_FORMAT;
+				desc.MipLevels = 1; // 4;
 				step = "_ssaoMaskR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskR);
 				if (FAILED(hr)) {
@@ -1565,6 +1569,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			desc.Format = oldFormat;
+			desc.MipLevels = 1;
 			desc.BindFlags = oldFlags;
 		}
 
@@ -1574,6 +1579,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.SampleDesc.Count = 1;
 			desc.SampleDesc.Quality = 0;
 			desc.Format = AO_DEPTH_BUFFER_FORMAT;
+			desc.MipLevels = 1; // 4;
 
 			step = "_depthBufAsInput";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInput);
@@ -1647,6 +1653,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			desc.Format = oldFormat;
 			desc.BindFlags = oldFlags;
+			desc.MipLevels = 1;
 		}
 
 		// Create the shader resource views for both offscreen buffers
@@ -1806,6 +1813,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 			shaderResourceViewDesc.Format = AO_MASK_FORMAT;
+
 			step = "_ssaoMaskSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMask, &shaderResourceViewDesc, &this->_ssaoMaskSRV);
 			if (FAILED(hr)) {
@@ -1823,6 +1831,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+			shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;
 			step = "_normBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_normBuf, &shaderResourceViewDesc, &this->_normBufSRV);
 			if (FAILED(hr)) {
@@ -1833,6 +1842,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			if (g_bUseSteamVR) {
 				shaderResourceViewDesc.Format = AO_MASK_FORMAT;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
 				step = "_ssaoMaskSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoMaskR, &shaderResourceViewDesc, &this->_ssaoMaskSRV_R);
 				if (FAILED(hr)) {
@@ -1850,6 +1860,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;
 				step = "_normBufSRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_normBufR, &shaderResourceViewDesc, &this->_normBufSRV_R);
 				if (FAILED(hr)) {
@@ -1859,11 +1870,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 			shaderResourceViewDesc.Format = oldFormat;
+			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 		}
 
 		// AO SRVs
 		if (g_bAOEnabled) {
 			shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+			shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;
 
 			step = "_depthBufSRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInput,
@@ -1938,6 +1951,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			}
 			shaderResourceViewDesc.Format = oldFormat;
+			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 		}
 
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1962,7 +1976,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 		}
 
-		// Build the HUD vertex buffer
+		// Build the vertex buffers
+		// TODO: Put the barrel effect vertex buffer here
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		CreateRandomVectorTexture();

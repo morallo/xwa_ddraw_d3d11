@@ -395,7 +395,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
 		// In low-lighting conditions, maybe we can lerp contactShadow with the AO mask?
 		// This helps a little bit; but mutes the spec reflections, need to think more about this
-		//contactShadow = lerp(ssdo.y, contactShadow, smoothDiff);
+		//contactShadow = lerp(ssdo.y, contactShadow * contactShadow, smoothDiff);
 		contactShadow *= contactShadow;
 
 		/*
