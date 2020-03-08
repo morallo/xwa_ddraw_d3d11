@@ -175,43 +175,6 @@ inline float2 projectToUV(in float3 pos3D) {
 }
 
 /*
-float3 old_shadow_factor(in float3 P) {
-	float3 cur_pos = P, occluder, diff;
-	float2 cur_uv;
-	float3 ray_step = shadow_step_size * LightVector[0].xyz;
-	int steps = (int)shadow_steps;
-	float shadow_length = shadow_step_size * shadow_steps;
-	float cur_length = 0;
-	float res = 1.0;
-
-	// Handle samples that land outside the bounds of the image
-	// "negative" cur_diff should be ignored
-	[loop]
-	for (int i = 1; i <= steps; i++) {
-		cur_pos += ray_step;
-		cur_length += shadow_step_size;
-		cur_uv = projectToUV(cur_pos);
-
-		// If the ray has exited the current viewport, we're done:
-		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1)
-			return float3(res, cur_length / shadow_length, 1);
-
-		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		diff = occluder - cur_pos;
-		if (diff.z > 0) { // Ignore negative z-diffs: the occluder is behind the ray
-			//if (diff.z < 0.01)
-			//	return float3(0, cur_length / shadow_length, 0);
-			res = min(res, saturate(shadow_k * diff.z / (cur_length + 0.00001)));
-		}
-
-		//cur_pos += ray_step;
-		//cur_length += shadow_step_size;
-	}
-	return float3(res, cur_length / shadow_length, 0);
-}
-*/
-
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	float3 cur_pos = P, occluder, diff;
 	float2 cur_uv;
@@ -250,7 +213,7 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		//v        = normalize(diff);
 		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
 
-		if (diff.z > shadow_epsilon /* && diff.z < max_dist */) { // Ignore negative z-diffs: the occluder is behind the ray
+		if (diff.z > shadow_epsilon) { // Ignore negative z-diffs: the occluder is behind the ray
 			// If diff.z is too large, ignore it. Or rather, fade with distance
 			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
 			//float dist = saturate(lerp(1, diff.z), weight);
@@ -266,6 +229,7 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 	res = lerp(1, res, weight);
 	return float3(res, cur_length / max_shadow_length, 0);
 }
+*/
 
 PixelShaderOutput main(PixelShaderInput input)
 {
@@ -338,8 +302,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SSAO version:
 	float m_offset = moire_offset * (-pos3D.z * moire_scale);
 	float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z) + SSAO_Normal * m_offset;
-	float shadow = 1;
-	if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
+	//float shadow = 1;
+	//if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
 
 	//ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
 	//ssdo = lerp(ssdo, 1, mask);
@@ -423,7 +387,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			diffuse = max(dot(bentN, L), 0.0);
 		else 
 			diffuse = max(dot(N, L), 0.0);
-		diffuse = min(shadow, ssdo.x) * diff_int * diffuse + ambient;
+		diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -459,14 +423,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightInt * spec_int_mask * pow(spec, exponent);
-		spec = min(contactShadow, shadow) * debug_spec;
+		spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * saturate(
 			color * diffuse + 
 			global_spec_intensity * spec_col * spec + 
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
-		tmp_bloom += min(shadow, contactShadow) * float4(LightInt * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
@@ -489,8 +453,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = debug_spec;
 	if (ssao_debug == 21)
 		output.color.xyz = diffuse_difference;
-	if (ssao_debug == 22)
-		output.color.xyz = shadow;
+	//if (ssao_debug == 22)
+	//	output.color.xyz = shadow;
 	if (ssao_debug == 23)
 		output.color.xyz = ssdoInd; // Should display the mask instead of the ssdoInd color
 	if (ssao_debug == 24)
