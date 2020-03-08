@@ -2511,7 +2511,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 8;
 	g_fMoireOffsetDir = 0.02f;
-	g_fMoireOffsetInd = 0.5f;
+	g_fMoireOffsetInd = 0.1f;
 	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
 	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
 	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
@@ -2522,7 +2522,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
-	g_SSAO_PSCBuffer.moire_scale = 0.1f;
+	g_SSAO_PSCBuffer.moire_scale = 0.5f; // Previous: 0.1f
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)

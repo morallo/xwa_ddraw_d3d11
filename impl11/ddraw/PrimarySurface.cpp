@@ -143,7 +143,7 @@ extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInSha
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
 extern float g_fViewYawSign, g_fViewPitchSign;
-float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.5f;
+float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 
 // S0x07D4FA0
 struct XwaGlobalLight
