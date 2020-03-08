@@ -20,8 +20,8 @@ Texture2D    texColor  : register(t2);
 SamplerState sampColor : register(s2);
 
 // The SSDO buffer with direct lighting from the previous pass
-Texture2D    texSSDO  : register(t3);
-SamplerState sampSSDO : register(s3);
+//Texture2D    texSSDO  : register(t3);
+//SamplerState sampSSDO : register(s3);
 
 struct PixelShaderInput
 {
@@ -47,7 +47,8 @@ inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
 }
 
-inline float3 doSSDOIndirect_ok(in float ao_mask, in float2 sample_uv, in float3 P, in float3 Normal,
+/*
+inline float3 doSSDOIndirect_ok(in float2 sample_uv, in float3 P, in float3 Normal,
 	in float cur_radius_sqr, in float max_radius_sqr)
 {
 	if (any(sample_uv.xy < p0) ||
@@ -94,8 +95,9 @@ inline float3 doSSDOIndirect_ok(in float ao_mask, in float2 sample_uv, in float3
 	//return occ_weight * radius_weight * occluder_color * saturate(dot(occluder_Normal, -v));
 	return occ_weight * max(dot(occluder_Normal, -v), 0.0) * occluder_color;
 }
+*/
 
-inline float3 doSSDOIndirect(in float ao_mask, in float2 sample_uv, in float3 P, in float3 Normal,
+inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 	in float cur_radius_sqr, in float max_radius_sqr)
 {
 	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
@@ -156,7 +158,7 @@ inline float3 doSSDOIndirect(in float ao_mask, in float2 sample_uv, in float3 P,
 	// if diff.z > 0.0 --> occ_weight = 0: NO occlusion
 	// if diff.z < 0.0 --> occ_weight = 1: There's occlusion
 	//const float occ_weight = diff.z < 0.0 ? 1.0 : 0.0;
-	const float occ_weight = 1.0;
+	//const float occ_weight = 1.0; // This works fine
 	//const float occ_weight   = diff.z > 0.0 ? 1.0 : 0.0; // This is the visibility function used in SSDO Direct
 	//const float occ_weight = diff.z < 0.0 ? 1.0 /* ao_dot */ : 0.0; // occ_weight is our visibility function
 	//const float occ_weight = ao_mask;
@@ -171,7 +173,7 @@ inline float3 doSSDOIndirect(in float ao_mask, in float2 sample_uv, in float3 P,
 
 	// According to the reference SSDO implementation, we should be doing something like this:
 	//return occ_weight * radius_weight * occluder_color * saturate(dot(occluder_Normal, -v));
-	return occ_weight * cosSi * cosRi * occluder_color / diff_sqr; // As == indirect_intensity and we multiply *once* outside this loop
+	return /* occ_weight * */ cosSi * cosRi * occluder_color / diff_sqr; // As == indirect_intensity and we multiply *once* outside this loop
 	//return occ_weight * cosSi * cosRi * occluder_color * (cur_radius_sqr / max_radius_sqr); // As == indirect_intensity and we multiply *once* outside this loop
 	//return clamp(occ_weight * cosSi * cosRi * occluder_color / diff_sqr, 0.0, 1.0); // As == indirect_intensity and we multiply *once* outside this loop
 }
@@ -181,11 +183,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.ssao = 0;
 
-	float3 p       = getPositionFG(input.uv, 0);
+	const float3 p       = getPositionFG(input.uv, 0);
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
-	float3 Normal  = normalize(getNormal(input.uv, 0));
-	float3 ssdoDir = texSSDO.SampleLevel(sampSSDO, input.uv, 0).xyz;
+	const float3 Normal  = normalize(getNormal(input.uv, 0));
+	//float3 ssdoDir = texSSDO.SampleLevel(sampSSDO, input.uv, 0).xyz;
 	float3 ssdoInd = 0;
 	float radius;
 	output.ssao = float4(0, 0, 0, 1);
@@ -222,14 +224,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		cur_radius = radius * (j + sample_jitter);
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdoInd += doSSDOIndirect(1.0 - ssdoDir.y, sample_uv, p, Normal, 
-			cur_radius * cur_radius, max_radius_sqr);
+		ssdoInd += doSSDOIndirect(sample_uv, p, Normal, cur_radius * cur_radius, max_radius_sqr);
 	}
 
+	/*
 	if (ssao_debug == 23) {
 		output.ssao.xyz = 1.0 - ssdoDir.y;
 		return output;
 	}
+	*/
 	if (ssao_debug == 25) { // Display occ_weight
 		//output.ssao.xyz = ssdoInd / (float)samples;
 		//output.ssao.xz = 0;

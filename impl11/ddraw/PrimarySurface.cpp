@@ -3038,11 +3038,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// in the previous steps
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs[4] = {
+		ID3D11ShaderResourceView *srvs[3] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
 			resources->_normBufSRV.Get(),   // Normal Buffer
 			resources->_offscreenAsInputShaderResourceView.Get(), // Color Buffer
-			resources->_ssaoBufSRV.Get(),   // Direct SSDO from previous pass
+			//resources->_ssaoBufSRV.Get(),   // Direct SSDO from the previous pass
 		};
 		
 		// DEBUG
@@ -3061,7 +3061,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
-		context->PSSetShaderResources(0, 4, srvs);
+		context->PSSetShaderResources(0, 3, srvs);
 		context->Draw(6, 0);
 	}
 
@@ -3320,12 +3320,11 @@ out1:
 			// in the previous steps
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs[5] = {
+			ID3D11ShaderResourceView *srvs[3] = {
 				resources->_depthBufSRV_R.Get(),  // FG Depth Buffer
-				resources->_depthBuf2SRV_R.Get(), // BG Depth Buffer
 				resources->_normBufSRV_R.Get(),   // Normal Buffer
 				resources->_offscreenAsInputShaderResourceViewR.Get(), // Color Buffer
-				resources->_ssaoBufSRV_R.Get(),   // Direct SSDO from previous pass
+				//resources->_ssaoBufSRV_R.Get(),   // Direct SSDO from previous pass
 			};
 
 			// DEBUG
@@ -3344,7 +3343,7 @@ out1:
 				};
 				context->OMSetRenderTargets(1, rtvs, NULL);
 			}
-			context->PSSetShaderResources(0, 5, srvs);
+			context->PSSetShaderResources(0, 3, srvs);
 			context->Draw(6, 0);
 		}
 
