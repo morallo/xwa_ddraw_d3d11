@@ -2887,9 +2887,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass1[6] = {
+		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
-			resources->_depthBuf2SRV.Get(),
 			resources->_normBufSRV.Get(),
 			resources->_offscreenAsInputShaderResourceView.Get(),
 			resources->_ssaoMaskSRV.Get(),
@@ -2911,7 +2910,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 6, srvs_pass1);
+			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 			goto out1;
 		}
@@ -2923,7 +2922,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
-			context->PSSetShaderResources(0, 6, srvs_pass1);
+			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 		}
 	}
@@ -3194,9 +3193,8 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass1[6] = {
+			ID3D11ShaderResourceView *srvs_pass1[5] = {
 				resources->_depthBufSRV_R.Get(),
-				resources->_depthBuf2SRV_R.Get(),
 				resources->_normBufSRV_R.Get(),
 				resources->_offscreenAsInputShaderResourceViewR.Get(),
 				resources->_ssaoMaskSRV_R.Get(),
@@ -3211,7 +3209,7 @@ out1:
 				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 6, srvs_pass1);
+				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
 				goto out2;
 			}
@@ -3223,7 +3221,7 @@ out1:
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 6, srvs_pass1);
+				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
 			}
 		}
@@ -3439,12 +3437,12 @@ out1:
 out2:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
-	viewport.Width = screen_res_x;
+	viewport.Width  = screen_res_x;
 	viewport.Height = screen_res_y;
 	resources->InitViewport(&viewport);
 	resources->InitInputLayout(resources->_inputLayout);
-	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
-		this->_deviceResources->_depthStencilViewL.Get());
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
+		resources->_depthStencilViewL.Get());
 }
 
 /* Regular deferred shading with fake HDR, no SSAO */
@@ -5587,6 +5585,7 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
@@ -5600,7 +5599,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply FXAA
-			if (g_config.StayInHyperspace)
+			if (g_config.FXAAEnabled)
 			{
 				// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
 				// SSAO uses that mask to prevent applying SSAO on bright areas
@@ -5765,7 +5764,7 @@ HRESULT PrimarySurface::Flip(
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
-			// The offscreenBuffer contains the fully-rendered image at this point.
+			// The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR) {
 					if (!g_bDisableBarrelEffect) {

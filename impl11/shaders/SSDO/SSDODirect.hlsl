@@ -15,24 +15,24 @@ Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
 
 // The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t1);
-SamplerState sampPos2 : register(s1);
+//Texture2D    texPos2  : register(t1);
+//SamplerState sampPos2 : register(s1);
 
 // The normal buffer
-Texture2D    texNorm   : register(t2);
-SamplerState sampNorm  : register(s2);
+Texture2D    texNorm   : register(t1);
+SamplerState sampNorm  : register(s1);
 
 // The color buffer
-Texture2D    texColor  : register(t3);
-SamplerState sampColor : register(s3);
+Texture2D    texColor  : register(t2);
+SamplerState sampColor : register(s2);
 
 // The ssao mask
-Texture2D    texSSAOMask  : register(t4);
-SamplerState sampSSAOMask : register(s4);
+Texture2D    texSSAOMask  : register(t3);
+SamplerState sampSSAOMask : register(s3);
 
 // The bloom mask
-Texture2D    texBloomMask  : register(t5);
-SamplerState sampBloomMask : register(s5);
+Texture2D    texBloomMask  : register(t4);
+SamplerState sampBloomMask : register(s4);
 
 struct PixelShaderInput
 {
@@ -60,9 +60,11 @@ float3 getPositionFG(in float2 uv, in float level) {
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 
+/*
 float3 getPositionBG(in float2 uv, in float level) {
 	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
+*/
 
 inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
