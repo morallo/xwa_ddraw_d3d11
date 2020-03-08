@@ -55,6 +55,7 @@ struct PixelShaderOutput
 
 float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
 {
+	// TODO: This hard-coded value should be replaced by INFINITY_Z1 or something like that
 	if (tap.pos.z > 30000.0) return 0;
 	const float depth_term = saturate(depth_weight - abs(tap.pos.z - center.pos.z));
 	//const float normal_term = saturate(dot(tap.normal.xyz, center.normal.xyz));
@@ -100,9 +101,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	{
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
-		tap_ssao = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap_bent = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
+		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
 
 		tap_weight = compute_spatial_tap_weight(center, tap);
