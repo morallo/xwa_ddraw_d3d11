@@ -2972,11 +2972,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
-			ID3D11ShaderResourceView *srvs[5] = {
+			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
-					resources->_depthBuf2SRV.Get(),
 					resources->_normBufSRV.Get(),
 					resources->_bentBufSRV_R.Get(),
 			};
@@ -2988,7 +2987,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					resources->_renderTargetViewBentBuf.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
@@ -3003,7 +3002,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					resources->_renderTargetViewBentBuf.Get()
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				context->Draw(6, 0);
 			}
 		}
@@ -3078,11 +3077,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
-			ID3D11ShaderResourceView *srvs[4] = {
+			ID3D11ShaderResourceView *srvs[3] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // ssaoBufR
 					resources->_bloomOutput1SRV.Get(), // ssaoBufR HDR
 					resources->_depthBufSRV.Get(),
-					resources->_depthBuf2SRV.Get(),
 					resources->_normBufSRV.Get(),
 					//resources->_bentBufSRV_R.Get(),
 			};
@@ -3095,7 +3093,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					NULL,
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
+				context->PSSetShaderResources(0, 3, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
@@ -3110,7 +3108,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					NULL,
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
+				context->PSSetShaderResources(0, 3, srvs);
 				context->Draw(6, 0);
 			}
 		}
@@ -3258,11 +3256,10 @@ out1:
 				// Clear the destination buffers: the blur will re-populate them
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
-				ID3D11ShaderResourceView *srvs[5] = {
+				ID3D11ShaderResourceView *srvs[4] = {
 						//resources->_offscreenAsInputShaderResourceViewR.Get(),
 						resources->_bloomOutput1SRV.Get(),
 						resources->_depthBufSRV_R.Get(),
-						resources->_depthBuf2SRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
 						resources->_bentBufSRV.Get(),
 				};
@@ -3273,7 +3270,7 @@ out1:
 						resources->_renderTargetViewBentBufR.Get(),
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 5, srvs);
+					context->PSSetShaderResources(0, 4, srvs);
 					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
 					// DEBUG: Enable the following line to display the normals
@@ -3287,7 +3284,7 @@ out1:
 						resources->_renderTargetViewBentBufR.Get()
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 5, srvs);
+					context->PSSetShaderResources(0, 4, srvs);
 					context->Draw(6, 0);
 				}
 			}
@@ -3364,11 +3361,10 @@ out1:
 				// Clear the destination buffers: the blur will re-populate them
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
-				ID3D11ShaderResourceView *srvs[4] = {
+				ID3D11ShaderResourceView *srvs[3] = {
 						//resources->_offscreenAsInputShaderResourceViewR.Get(), // ssaoBuf, direct lighting
 						resources->_bloomOutput1SRV.Get(), // ssaoBuf, direct lighting HDR
 						resources->_depthBufSRV_R.Get(),
-						resources->_depthBuf2SRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
 						//resources->_bentBufSRV.Get(), // with a copy of bentBufR
 				};
@@ -3381,7 +3377,7 @@ out1:
 						NULL,
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 4, srvs);
+					context->PSSetShaderResources(0, 3, srvs);
 					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
 					// DEBUG: Enable the following line to display the normals
@@ -3395,7 +3391,7 @@ out1:
 						NULL, // bentBufR output
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 4, srvs);
+					context->PSSetShaderResources(0, 3, srvs);
 					context->Draw(6, 0);
 				}
 			}
