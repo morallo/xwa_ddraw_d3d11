@@ -878,7 +878,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
-	this->_shadertoyBufMSAA.Release();
+	if (this->_useMultisampling)
+		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
 	this->_shadertoyAuxBuf.Release();
 	this->_shadertoyRTV.Release();
@@ -893,7 +894,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
-		this->_shadertoyBufMSAA_R.Release();
+		if (this->_useMultisampling)
+			this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
 		this->_shadertoyAuxBufR.Release();
 		this->_shadertoyRTV_R.Release();
@@ -936,9 +938,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_ssaoMaskSRV.Release();
 		this->_ssMaskSRV.Release();
 		this->_normBufSRV.Release();
-		this->_ssaoMaskMSAA.Release();
-		this->_ssMaskMSAA.Release();
-		this->_normBufMSAA.Release();
+		if (this->_useMultisampling) {
+			this->_ssaoMaskMSAA.Release();
+			this->_ssMaskMSAA.Release();
+			this->_normBufMSAA.Release();
+		}
 
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewSSAOMask.Release();
@@ -952,9 +956,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_ssaoMaskR.Release();
 			this->_ssMaskR.Release();
 			this->_normBufR.Release();
-			this->_ssaoMaskMSAA_R.Release();
-			this->_ssMaskMSAA_R.Release();
-			this->_normBufMSAA_R.Release();
+			if (this->_useMultisampling) {
+				this->_ssaoMaskMSAA_R.Release();
+				this->_ssMaskMSAA_R.Release();
+				this->_normBufMSAA_R.Release();
+			}
 
 			this->_ssaoMaskSRV_R.Release();
 			this->_ssMaskSRV_R.Release();
@@ -1238,31 +1244,34 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				desc.Format = AO_MASK_FORMAT;
-				step = "_ssaoMaskMSAA";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskMSAA);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
+				// Create ssaoMaskMSAA, ssMaskMSAA and normBufMSSA
+				if (this->_useMultisampling) {
+					desc.Format = AO_MASK_FORMAT;
+					step = "_ssaoMaskMSAA";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskMSAA);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
 
-				step = "_ssMaskMSAA";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssMaskMSAA);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
+					step = "_ssMaskMSAA";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssMaskMSAA);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
 
-				desc.Format = AO_DEPTH_BUFFER_FORMAT;
-				desc.MipLevels = 1; // 4;
-				step = "_normBufMSAA";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufMSAA);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
+					desc.Format = AO_DEPTH_BUFFER_FORMAT;
+					desc.MipLevels = 1; // 4;
+					step = "_normBufMSAA";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufMSAA);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
 				}
 
 				if (g_bUseSteamVR) {
@@ -1275,31 +1284,34 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 						goto out;
 					}
 
-					desc.Format = AO_MASK_FORMAT;
-					step = "_ssaoMaskMSAA_R";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskMSAA_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
+					// Create ssaoMaskMSAA_R, ssMaskMSAA_R and normBufMSSA_R
+					if (this->_useMultisampling) {
+						desc.Format = AO_MASK_FORMAT;
+						step = "_ssaoMaskMSAA_R";
+						hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoMaskMSAA_R);
+						if (FAILED(hr)) {
+							log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+							log_err_desc(step, hWnd, hr, desc);
+							goto out;
+						}
 
-					step = "_ssMaskMSAA_R";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssMaskMSAA_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
+						step = "_ssMaskMSAA_R";
+						hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssMaskMSAA_R);
+						if (FAILED(hr)) {
+							log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+							log_err_desc(step, hWnd, hr, desc);
+							goto out;
+						}
 
-					desc.Format = AO_DEPTH_BUFFER_FORMAT;
-					desc.MipLevels = 1; // 4;
-					step = "_normBufMSAA_R";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufMSAA_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
+						desc.Format = AO_DEPTH_BUFFER_FORMAT;
+						desc.MipLevels = 1; // 4;
+						step = "_normBufMSAA_R";
+						hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_normBufMSAA_R);
+						if (FAILED(hr)) {
+							log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+							log_err_desc(step, hWnd, hr, desc);
+							goto out;
+						}
 					}
 				}
 
@@ -1351,7 +1363,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// shadertoyMSAA
-			{
+			if (this->_useMultisampling) {
 				DXGI_FORMAT oldFormat = desc.Format;
 
 				desc.Format = BACKBUFFER_FORMAT;

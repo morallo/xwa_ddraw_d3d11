@@ -228,7 +228,7 @@ typedef struct SSAOPixelShaderCBStruct {
 } SSAOPixelShaderCBuffer;
 
 typedef struct ShadertoyCBStruct {
-	float iTime, twirl, bloom_strength, unused;
+	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
 	int bDirectSBS; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state

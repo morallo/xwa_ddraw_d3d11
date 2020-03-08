@@ -17,7 +17,7 @@
 // ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
-	float iTime, twirl, bloom_strength, unused;
+	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float2 iResolution;
 	uint bDirectSBS;
@@ -32,14 +32,6 @@ cbuffer ConstantBuffer : register(b7)
 	// 128 bytes
 };
 
-// Color buffer (foreground/cockpit)
-//Texture2D fgColorTex : register(t0);
-//SamplerState fgColorSampler : register(s0);
-//
-//// Color buffer (background)
-//Texture2D bgColorTex : register(t1);
-//SamplerState bgColorSampler : register(s1);
-
 // The way this shader works is by looking at the screen as if it were a disk and then
 // this disk is split into a number of slices centered at the origin. Each slice renders
 // a single trail. So this setting controls the overall density of the effect:
@@ -52,9 +44,9 @@ cbuffer ConstantBuffer : register(b7)
 // This is the length of the effect in seconds:
 #define T_MAX 2.0
 // T_JUMP is in normalized [0..1] time: this is the time when the 
-// trails zoom out of view because we've jumped into hyperspace:
+// trails speed out of view because we've jumped into hyperspace:
 #define T_JUMP 0.75
-// This is the speed during the final jump:
+// This is the speed during the final jump, at time T_JUMP:
 #define jump_speed 15.0
 
 #define FLARE 1
@@ -62,17 +54,9 @@ cbuffer ConstantBuffer : register(b7)
 // I've noticed that the effect tends to have a bluish tint. In this 
 // shader, the blue color is towards the start of the trail, and the 
 // white color towards the end:
-static const vec3 blue_col = vec3(0.3, 0.3, 0.5);
+static const vec3 blue_col  = vec3(0.3, 0.3, 0.5);
 static const vec3 white_col = vec3(0.85, 0.85, 0.9);
 static const vec3 flare_col = vec3(0.9, 0.9, 1.4);
-
-/*
-struct PixelShaderInput
-{
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
-};
-*/
 
 struct PixelShaderInput
 {
@@ -85,7 +69,6 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	//float4 bloom    : SV_TARGET1;
 };
 
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
@@ -96,7 +79,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
 }
 
 float rand(vec2 co) {
-	return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	return fract(sin(dot(co.xy + srand, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 vec3 lensflare(vec3 uv, vec3 pos, float flare_size, float ang_offset)
@@ -148,8 +131,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 	}
 
-	//float4 fgcol = fgColorTex.Sample(fgColorSampler, input.uv);
-	//float4 bgcol = bgColorTex.Sample(bgColorSampler, input.uv);
 	float t = mod(iTime, T_MAX) / T_MAX;
 	vec2 p;
 	//if (bDirectSBS) {
@@ -192,7 +173,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 		// Without dist, all trails get stuck to the walls of the
 		// tunnel.
-		float dist = 10.0 * rand(vec2(slice, 1.0 + i * 10.0)) - 5.0;
+		float dist = 10.0 * rand(vec2(slice, 1.0 + i * 10.0)) - 5.0 /* + srand */;
 		float z = dist * v.z / length(v.xy);
 
 		// When dist is negative we have to invert a number of things:

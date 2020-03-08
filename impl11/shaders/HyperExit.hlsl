@@ -15,7 +15,7 @@
  // ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
-	float iTime, twirl, bloom_strength, unused;
+	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float2 iResolution;
 	uint bDirectSBS;
@@ -222,7 +222,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
 }
 
 float rand(vec2 co) {
-	return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	return fract(sin(dot(co.xy + srand, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 PixelShaderOutput main(PixelShaderInput input) {

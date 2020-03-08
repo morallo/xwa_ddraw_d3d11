@@ -256,7 +256,7 @@ float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value i
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
-float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
+float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
@@ -5340,6 +5340,8 @@ HRESULT Direct3DDevice::Execute(
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+							// Compute a new random seed for this hyperspace jump
+							g_fHyperspaceRand = (float)rand() / (float)RAND_MAX;
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
