@@ -16,11 +16,13 @@
 #include "config.h"
 
 #include "XWAObject.h"
+
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
 
 extern int g_KeySet;
@@ -581,6 +583,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			}
 			*/
+
+			// Ctrl+K --> Enable Mouse Look
+			case 'K': {
+				*mouseLook = !*mouseLook;
+				return 0;
+			}
 
 			case 'P':
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {

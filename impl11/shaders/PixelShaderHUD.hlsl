@@ -3,29 +3,24 @@
 // This shader should only be called to render the HUD FG/BG
 #include "shader_common.h"
 
+// texture0 == HUD foreground
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// texture1 == HUD background
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
 
-// If bRenderHUD is set:
-// texture0 == HUD foreground
-// texture1 == HUD background
-
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
+	float4 pos   : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
+	float2 tex   : TEXCOORD;
 };
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
-	float4 bloom  : SV_TARGET1;
-	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
+	float4 color : SV_TARGET0;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -57,21 +52,14 @@ cbuffer ConstantBuffer : register(b1)
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	float4 texelColor   = texture0.Sample(sampler0, input.tex);
 	float4 texelColorBG = texture1.Sample(sampler1, input.tex);
-	float alpha = texelColor.w;
-	float alphaBG = texelColorBG.w;
+	float  alpha   = texelColor.w;
+	float  alphaBG = texelColorBG.w;
 	float3 diffuse = input.color.xyz;
 	uint i;
 
-	// Zero-out the bloom, pos3d and normal masks.
-	output.bloom  = float4(0, 0, 0, 0);
-	output.pos3D  = float4(0, 0, 0, 0);
-	output.normal = float4(0, 0, 0, 0);
-	output.color = texelColor;
-
-	// This code assumes bRenderHUD is set -- so this is flag is now
-	// redundant
+	output.color  = texelColor;
 
 	// Render the captured HUD, execute the move_region commands.
 	// texture0 == HUD foreground

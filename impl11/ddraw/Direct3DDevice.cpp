@@ -2821,6 +2821,9 @@ bool LoadSSAOParams() {
 				g_KeySet = (int)fValue;
 				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
 			}
+			else if (_stricmp(param, "emission_intensity") == 0) {
+				g_ShadingSys_PSBuffer.emission_intensity = fValue;
+			}
 			
 		}
 	}
@@ -6025,7 +6028,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.bIsShadeless = 1;
 				}
 
-				// Apply the material properties
+				// Apply specific material properties for the current texture
 				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) { 
 					bModifiedShaders = true;
 					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;

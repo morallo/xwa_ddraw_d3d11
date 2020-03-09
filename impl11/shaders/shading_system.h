@@ -14,5 +14,5 @@ cbuffer ConstantBuffer : register(b4)
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint ss_debug;
 	// 96 bytes
-	float sso_disable, ssunused0, ssunused1, ssunused2;
+	float sso_disable, emission_intensity, ssunused1, ssunused2;
 };

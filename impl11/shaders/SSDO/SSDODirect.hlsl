@@ -8,15 +8,11 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 
-#define INTENSITY 4.0
+#define AO_INTENSITY 4.0
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
-
-// The Background 3D position buffer (linear X,Y,Z)
-//Texture2D    texPos2  : register(t1);
-//SamplerState sampPos2 : register(s1);
 
 // The normal buffer
 Texture2D    texNorm   : register(t1);
@@ -37,34 +33,22 @@ SamplerState sampBloomMask : register(s4);
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
 
 struct PixelShaderOutput
 {
-	float4 ssao        : SV_TARGET0;
-	float4 bentNormal  : SV_TARGET1;
+	float4 ssao        : SV_TARGET0; // SSDO Direct output
+	float4 bentNormal  : SV_TARGET1; // Bent Normal
+	float4 emission    : SV_TARGET2; // Emission Mask
 };
 
-
-
-struct BlurData {
-	float3 pos;
-	float3 normal;
-};
-
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPositionFG(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
-
-/*
-float3 getPositionBG(in float2 uv, in float level) {
-	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
-}
-*/
 
 inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
@@ -133,8 +117,9 @@ float3 blend_normals(float3 n1, float3 n2)
 */
 
 struct ColNorm {
-	float3 col;
-	float3 N;
+	float3 col; // SSDO Direct Color
+	float3 N;   // Normal
+	float3 E;   // Emission color
 };
 
 inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 color,
@@ -144,6 +129,7 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
+	output.E   = 0;
 	ao_factor  = 0;
 	//shadow_factor = 1.0;
 
@@ -151,29 +137,27 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	//if (sample_uv.x < x0 || sample_uv.x > x1 ||
 	//	sample_uv.y < y0 || sample_uv.y > y1) 
 	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
-	{
-		//output.N = Normal;
-		//output.N = -Normal / (float)samples; // Darken this sample
-		//output.N = -Normal;
 		return output;
-	}
 	const float2 uv_diff = sample_uv - input_uv;
 	
 	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
 	//const float miplevel = cur_radius_sqr / max_radius_sqr * 4; // Is this miplevel better than using L?
 	const float miplevel = 0.0;
 
-	//float3 occluder = FGFlag ? getPositionFG(sample_uv, miplevel) : getPositionBG(sample_uv, miplevel);
 	float3 occluder = getPositionFG(sample_uv, miplevel);
+	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, sample_uv, 0).xyz;
+	float  occ_material = occ_mask.x;
+
 	//float3 occluder_normal = getNormal(sample_uv, 0);
 	//if (occluder.z > INFINITY_Z) // The sample is at infinity, don't compute any SSDO
 	//	return output;
 	//output.was_sampled = occluder.z < INFINITY_Z;
+
 	// diff: Vector from current pos (P) to the sampled neighbor
 	//       If the occluder is farther than P, then diff.z will be positive
 	//		 If the occluder is closer than P, then  diff.z will be negative
 	const float3 diff = occluder - P;
-	const float diff_sqr = dot(diff, diff);
+	const float  diff_sqr = dot(diff, diff);
 	//const float dist = length(diff);
 	const float3 v = diff * rsqrt(diff_sqr); // normalize(diff)
 	// weight = 1 when the occluder is close, 0 when the occluder is at max_dist
@@ -256,6 +240,15 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 		output.col = 0;
 	}
 	*/
+
+	// Compute emission, if applicable
+	if (occ_material > EMISSION_LO) {
+		float3 occ_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+		// v = occluder - P, so it goes from the current point to the occluder
+		//output.E = occ_color * max(dot(B, -v), 0); // Should I use B or Normal?
+		//output.E = occ_color * max(dot(SSAO_Normal, -v), 0); // Should I use B or Normal?
+		output.E = occ_color;
+	}
 	return output;
 }
 
@@ -355,7 +348,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 SSAO_Normal = Normal;
 	//float3 color = texColor.SampleLevel(sampColor, input.uv, 0).xyz;
 	float3 color = 0;
-	float ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).x;
+	//float3 ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).xyz;
+	//float  material  = mask.x;
 	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
 	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
 	//float3 bentNormal = float3(0, 0, 0);
@@ -370,8 +364,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//color = color * color; // Gamma correction (approx to pow 2.2)
 
 	output.ssao = 1;
-	output.bentNormal = float4(0, 0, 0.01, 1);
-	//output.bentNormal = 0;
+	output.bentNormal = float4(0, 0, 0.01, 1); //output.bentNormal = 0;
+	output.emission = 0;	
 
 	// This apparently helps prevent z-fighting noise
 	// SSDO version:
@@ -422,6 +416,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
 	const float max_radius_sqr = max_radius * max_radius;
 	float ao_factor = 0.0, ao = 0.0;
+	float3 emission = 0;
 	//float shadow_factor = 1.0, min_shadow_factor = 1.0;
 
 	// SSDO Direct Calculation
@@ -436,12 +431,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ssdo_aux = doSSDODirect(input.uv, sample_uv, color, p, Normal, 
 			radius_sqr, max_radius_sqr, max_dist_sqr, ao_factor);
-		ssdo += ssdo_aux.col;
+		ssdo       += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
-		ao += ao_factor;
+		emission   += ssdo_aux.E;
+		ao         += ao_factor;
 	}
 	// This AO won't be displayed to the user, hard-code the intensity:
-	ao = clamp(1.0 - INTENSITY * ao / (float)samples, 0.0, 1.0);
+	ao = saturate(1.0 - AO_INTENSITY * ao / (float)samples);
 
 	// DEBUG
 	//if (fn_enable) bentNormal = FakeNormal;
@@ -465,7 +461,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	////float normDiff = dot(n, LightVector[0].xyz);
 	//float contactShadow = 1.0 - clamp(normDiff - bentDiff, 0.0, 1.0);
 
-	ssdo   = clamp(intensity * ssdo / (float)samples, 0.0, 1.0); // * shadow;
+	ssdo   = saturate(intensity * ssdo / (float)samples); // * shadow;
 	ssdo.y = ao;
 	//ssdo.z = shadow_factor;
 	if (bloom_mask < 0.975) bloom_mask = 0.0; // Only inhibit SSDO when bloom > 0.975
@@ -473,6 +469,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	ssdo = pow(abs(ssdo), power);
 	// Start fading the effect at INFINITY_Z0 and fade out completely at INFINITY_Z1
 	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+
+	// Compute the final emission component
+	output.emission = float4(saturate(emission_intensity * emission / (float)samples), 1);
 
 	// DEBUG
 	if (ssao_debug == 1)
