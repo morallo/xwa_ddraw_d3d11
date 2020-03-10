@@ -21,8 +21,8 @@ Texture2D BentTex : register(t3);
 SamplerState BentSampler : register(s3);
 
 // The Emission Mask
-Texture2D EmissionTex : register(t4);
-SamplerState EmissionSampler : register(s4);
+//Texture2D EmissionTex : register(t4);
+//SamplerState EmissionSampler : register(s4);
 
 struct BlurData {
 	float3 pos;
@@ -55,7 +55,7 @@ struct PixelShaderOutput
 {
 	float4 ssao     : SV_TARGET0;
 	float4 bent     : SV_TARGET1;
-	float4 emission : SV_TARGET2;
+	//float4 emission : SV_TARGET2;
 };
 
 float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
@@ -85,7 +85,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float  blurweight = 0, tap_weight;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
 	float3 tap_bent, bent_sum, bent_sum_noweight;
-	float3 tap_em, em_sum, em_sum_noweight;
+	//float3 tap_em, em_sum, em_sum_noweight;
 	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
 	BlurData center, tap;
 	center.pos = P;
@@ -93,16 +93,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	output.ssao     = float4(0, 0, 0, 1);
 	output.bent     = float4(0, 0, 0, 1);
-	output.emission = float4(0, 0, 0, 1);
+	//output.emission = float4(0, 0, 0, 1);
 
 	ssao_sum = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
 	bent_sum = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
-	em_sum   = EmissionTex.Sample(EmissionSampler, input_uv_scaled).xyz;
+	//em_sum   = EmissionTex.Sample(EmissionSampler, input_uv_scaled).xyz;
 	center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
 	blurweight = 1;
 	ssao_sum_noweight = ssao_sum;
 	bent_sum_noweight = bent_sum;
-	em_sum_noweight   = em_sum;
+	//em_sum_noweight   = em_sum;
 
 	[unroll]
 	for (int i = 0; i < BLUR_SAMPLES; i++)
@@ -111,7 +111,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		cur_offset_scaled = amplifyFactor * cur_offset;
 		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap_em     = EmissionTex.Sample(EmissionSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		//tap_em     = EmissionTex.Sample(EmissionSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
 
@@ -120,22 +120,22 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 		ssao_sum += tap_ssao * tap_weight;
 		bent_sum += tap_bent * tap_weight;
-		em_sum   += tap_em   * tap_weight;
+		//em_sum   += tap_em   * tap_weight;
 		ssao_sum_noweight += tap_ssao;
 		bent_sum_noweight += tap_bent;
-		em_sum_noweight   += tap_em;
+		//em_sum_noweight   += tap_em;
 	}
 
 	ssao_sum /= blurweight;
 	bent_sum /= blurweight;
-	em_sum   /= blurweight;
+	//em_sum   /= blurweight;
 	ssao_sum_noweight /= BLUR_SAMPLES;
 	bent_sum_noweight /= BLUR_SAMPLES;
-	em_sum_noweight   /= BLUR_SAMPLES;
+	//em_sum_noweight   /= BLUR_SAMPLES;
 
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
 	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
-	output.emission = float4(lerp(em_sum, em_sum_noweight, blurweight < 2), 1);
+	//output.emission = float4(lerp(em_sum, em_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:
 	//output.bent.xyz = normalize(center.normal - output.bent.xyz);

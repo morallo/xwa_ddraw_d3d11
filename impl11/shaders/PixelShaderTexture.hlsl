@@ -111,8 +111,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
-		output.ssaoMask.a = 1;
-		//output.ssaoMask.a = 0; // We should let the regular material properties on lasers so that they become emitters
+		//output.ssaoMask.a = 1; // Needed to write the emission material for lasers
+		output.ssaoMask.a = 0; // We should let the regular material properties on lasers so that they become emitters
 		output.ssMask.a = 0;
 		//output.diffuse = 0;
 		// This is a laser texture, process the bloom mask accordingly

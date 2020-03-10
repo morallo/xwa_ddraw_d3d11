@@ -40,7 +40,7 @@ struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0; // SSDO Direct output
 	float4 bentNormal  : SV_TARGET1; // Bent Normal
-	float4 emission    : SV_TARGET2; // Emission Mask
+	//float4 emission    : SV_TARGET2; // Emission Mask
 };
 
 inline float3 getPositionFG(in float2 uv, in float level) {
@@ -119,7 +119,7 @@ float3 blend_normals(float3 n1, float3 n2)
 struct ColNorm {
 	float3 col; // SSDO Direct Color
 	float3 N;   // Normal
-	float3 E;   // Emission color
+	//float3 E;   // Emission color
 };
 
 inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 color,
@@ -129,7 +129,7 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	ColNorm output;
 	output.col = 0;
 	output.N   = 0;
-	output.E   = 0;
+	//output.E   = 0;
 	ao_factor  = 0;
 	//shadow_factor = 1.0;
 
@@ -241,14 +241,18 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	}
 	*/
 
+	/*
 	// Compute emission, if applicable
 	if (occ_material > EMISSION_LO) {
 		float3 occ_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
+		// NOTE: We're not writing the 3D pos for lasers because we don't want lasers to contribute to
+		//       SSAO/SSDO, so there's no point trying to compute v for these elements!
 		// v = occluder - P, so it goes from the current point to the occluder
 		//output.E = occ_color * max(dot(B, -v), 0); // Should I use B or Normal?
 		//output.E = occ_color * max(dot(SSAO_Normal, -v), 0); // Should I use B or Normal?
 		output.E = occ_color;
 	}
+	*/
 	return output;
 }
 
@@ -365,7 +369,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	output.ssao = 1;
 	output.bentNormal = float4(0, 0, 0.01, 1); //output.bentNormal = 0;
-	output.emission = 0;	
+	//output.emission = 0;	
 
 	// This apparently helps prevent z-fighting noise
 	// SSDO version:
@@ -416,7 +420,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float max_radius = radius * (float)(samples + sample_jitter); // Using samples - 1 causes imaginary numbers in B.z (because of the sqrt)
 	const float max_radius_sqr = max_radius * max_radius;
 	float ao_factor = 0.0, ao = 0.0;
-	float3 emission = 0;
+	//float3 emission = 0;
 	//float shadow_factor = 1.0, min_shadow_factor = 1.0;
 
 	// SSDO Direct Calculation
@@ -433,7 +437,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			radius_sqr, max_radius_sqr, max_dist_sqr, ao_factor);
 		ssdo       += ssdo_aux.col;
 		bentNormal += ssdo_aux.N;
-		emission   += ssdo_aux.E;
+		//emission   += ssdo_aux.E;
 		ao         += ao_factor;
 	}
 	// This AO won't be displayed to the user, hard-code the intensity:
@@ -471,7 +475,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssao.xyz = lerp(ssdo, 1, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 
 	// Compute the final emission component
-	output.emission = float4(saturate(emission_intensity * emission / (float)samples), 1);
+	//output.emission = float4(saturate(emission_intensity * emission / (float)samples), 1);
 
 	// DEBUG
 	if (ssao_debug == 1)

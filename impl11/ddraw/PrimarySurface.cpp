@@ -218,6 +218,18 @@ void XwaVector3Transform(XwaVector3* A4, const XwaMatrix3x3* A8)
 	A4->z = A4_08;
 }
 
+void DumpXwaTransform(char *name, XwaTransform *t) {
+	log_debug("[DBG] ********************");
+	log_debug("[DBG] %s", name);
+	log_debug("[DBG] Rotation:");
+	log_debug("[DBG] %0.3f, %0.3f, %0.3f", t->Rotation._11, t->Rotation._12, t->Rotation._13);
+	log_debug("[DBG] %0.3f, %0.3f, %0.3f", t->Rotation._21, t->Rotation._22, t->Rotation._23);
+	log_debug("[DBG] %0.3f, %0.3f, %0.3f", t->Rotation._31, t->Rotation._32, t->Rotation._33);
+	log_debug("[DBG] Translation:");
+	log_debug("[DBG] %0.3f, %0.3f, %0.3f", t->Position.x, t->Position.y, t->Position.z);
+	log_debug("[DBG] ********************");
+}
+
 void DumpGlobalLights()
 {
 	std::ostringstream str;
@@ -231,15 +243,33 @@ void DumpGlobalLights()
 	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
 	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);
 
-	for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+	//DumpXwaTransform("ViewTransform", ViewTransform);
+	//DumpXwaTransform("WorldTransform", WorldTransform);
+
+	//for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+	int i = 0;
 	{
-		str << std::endl;
-		str << "\t\t" << s_XwaGlobalLights[i].PositionX << ";" << s_XwaGlobalLights[i].PositionY << ";" << s_XwaGlobalLights[i].PositionZ;
-		str << "\t\t" << s_XwaGlobalLights[i].DirectionX << ";" << s_XwaGlobalLights[i].DirectionY << ";" << s_XwaGlobalLights[i].DirectionZ;
+		log_debug("[DBG] ***************************");
+		//str << std::endl;
+		//log_debug("[DBG] light[%d], pos: (%0.3f, %0.3f, %0.3f)",
+		//	i, s_XwaGlobalLights[i].PositionX, s_XwaGlobalLights[i].PositionY, s_XwaGlobalLights[i].PositionZ);
+		log_debug("[DBG] light[%d], dir: [%0.3f, %0.3f, %0.3f]",
+			i, s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ);
 
 		XwaVector3 viewDir = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
 		XwaVector3Transform(&viewDir, &ViewTransform->Rotation);
-		str << "\t\t" << viewDir.x << ";" << viewDir.y << ";" << viewDir.z;
+		log_debug("[DBG] light[%d], viewDir: [%0.3f, %0.3f, %0.3f]", i, viewDir.x,  viewDir.y, viewDir.z);
+
+		XwaVector3 worldDir = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
+		XwaVector3Transform(&worldDir, &WorldTransform->Rotation);
+		log_debug("[DBG] light[%d], worldDir: [%0.3f, %0.3f, %0.3f]", i, worldDir.x, worldDir.y, worldDir.z);
+
+		XwaVector3 worlViewDir = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
+		XwaVector3Transform(&worlViewDir, &WorldTransform->Rotation);
+		XwaVector3Transform(&worlViewDir, &ViewTransform->Rotation);
+		log_debug("[DBG] light[%d], worldViewDir: [%0.3f, %0.3f, %0.3f]", 
+			i, worlViewDir.x, worlViewDir.y, worlViewDir.z);
+		log_debug("[DBG] ***************************");
 	}
 
 	//LogText(str.str());
@@ -2423,10 +2453,28 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		ComputeRotationMatrixFromXWAView(light, 2);
 
-	for (int i = 0; i < 2; i++) {
+	/*int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+
+	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
+	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
+
+	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
+	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);*/
+
+	int i = 0;
+	//XwaVector3 xwaLight = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
+	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
+	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
+	
+	for (i = 0; i < 2; i++) {
 		g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
 		g_ShadingSys_PSBuffer.LightVector[i].y = light[i].y;
 		g_ShadingSys_PSBuffer.LightVector[i].z = light[i].z;
+
+		/*g_ShadingSys_PSBuffer.LightVector[i].x = xwaLight.x;
+		g_ShadingSys_PSBuffer.LightVector[i].y = xwaLight.y;
+		g_ShadingSys_PSBuffer.LightVector[i].z = xwaLight.z;*/
 
 		g_ShadingSys_PSBuffer.LightColor[i].x = g_LightColor[i].x;
 		g_ShadingSys_PSBuffer.LightColor[i].y = g_LightColor[i].y;
@@ -2849,6 +2897,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
+	// Set the lights and set the Shading System Constant Buffer
 	SetLights(1.0f);
 
 #ifdef DEATH_STAR
@@ -2902,29 +2951,29 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		resources->InitPixelShader(resources->_ssdoDirectPS);
 		//resources->InitPixelShader(resources->_ssaoPS); // Should be _ssdoDirectPS; but this will also work here
 
-		context->ClearRenderTargetView(resources->_renderTargetViewEmissionMask.Get(), black);
+		//context->ClearRenderTargetView(resources->_renderTargetViewEmissionMask.Get(), black);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
-			ID3D11RenderTargetView *rtvs[3] = {
+			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
 				resources->_renderTargetViewBentBuf.Get(),
-				resources->_renderTargetViewEmissionMask.Get(),
+				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(3, rtvs, NULL);
+			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 			goto out1;
 		}
 		else {
-			ID3D11RenderTargetView *rtvs[3] = {
+			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetViewSSAO.Get(),
 				resources->_renderTargetViewBentBuf.Get(),
-				resources->_renderTargetViewEmissionMask.Get(),
+				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(3, rtvs, NULL);
+			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 		}
@@ -2959,7 +3008,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// SSDO Direct Blur, Left Image
-	// input: bloomOutput1 (with a copy of the ssaoBuf), depthBuf, bentBufR (with a copy of bentBuf), normBuf, offscreenAsInput (with a copy of the emission mask)
+	// input: bloomOutput1 (with a copy of the ssaoBuf), depthBuf, bentBufR (with a copy of bentBuf), normBuf
 	// output: ssaoBuf, bentBuf
 	if (g_bBlurSSAO) 
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
@@ -2968,7 +3017,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			// to blur the SSAO buffer
 			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
 			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
-			context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssEmissionMask);
+			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssEmissionMask);
 			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
 			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
@@ -2989,12 +3038,12 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// If both are set and MSAA is active, nothing gets rendered -- even with a NULL depth stencil.
 				// The solution here is to avoid setting the renderTargetViewBentBuf if MSAA is active
 				// Alternatively, we could change renderTargetViewBentBuf to be MSAA too, just like I did for ssMaskMSAA, etc; but... eh...
-				ID3D11RenderTargetView *rtvs[3] = {
+				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
 					resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
-					resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
+					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(3, rtvs, NULL);
+				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
@@ -3005,12 +3054,12 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				goto out1;
 			}
 			else {
-				ID3D11RenderTargetView *rtvs[3] = {
+				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO.Get(),
 					resources->_renderTargetViewBentBuf.Get(),
-					resources->_renderTargetViewEmissionMask.Get(),
+					//resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(3, rtvs, NULL);
+				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs);
 				context->Draw(6, 0);
 			}
@@ -3167,7 +3216,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		//	ssdoSRV = resources->_bentBufSRV.Get();
 		//else
 		//	ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
@@ -3179,9 +3228,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),								// Shading System buffer
 			
-			resources->_ssEmissionMaskSRV.Get(),						// Emission mask
+			//resources->_ssEmissionMaskSRV.Get(),						// Emission mask
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -5558,7 +5607,7 @@ HRESULT PrimarySurface::Flip(
 					//	L"C:\\Temp\\_ssaoMask.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_ssEmissionMask, L"C:\\Temp\\_ssEmissionMask.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_ssEmissionMask, L"C:\\Temp\\_ssEmissionMask.dds");
 					log_debug("[DBG] [AO] Captured debug buffers");
 				}
 

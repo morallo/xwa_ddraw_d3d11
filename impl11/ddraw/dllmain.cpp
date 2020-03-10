@@ -48,6 +48,7 @@ void IncreaseNoDrawAfterHUD(int Delta);
 
 // Debug functions
 void log_debug(const char *format, ...);
+void DumpGlobalLights();
 
 typedef struct float4_struct {
 	float x, y, z, w;
@@ -115,7 +116,6 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
-
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
@@ -452,6 +452,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'X':
 				g_bDumpSSAOBuffers = true;
 				return 0;
+			case 'G':
+				DumpGlobalLights();
+				return 0;
 			//case 'F':
 			//	g_bDumpLaserPointerDebugInfo = true;
 			//	return 0;
@@ -584,7 +587,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			*/
 
-			// Ctrl+K --> Enable Mouse Look
+			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
 				return 0;

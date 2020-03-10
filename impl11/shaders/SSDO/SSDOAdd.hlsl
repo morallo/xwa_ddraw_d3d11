@@ -53,8 +53,8 @@ Texture2D texSSMask : register(t7);
 SamplerState samplerSSMask : register(s7);
 
 // The Emission Mask buffer
-Texture2D texEmissionMask : register(t8);
-SamplerState samplerEmissionMask : register(s8);
+//Texture2D texEmissionMask : register(t8);
+//SamplerState samplerEmissionMask : register(s8);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -255,7 +255,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
+	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
 	float  mask          = ssaoMask.x;
 	float  gloss_mask    = ssaoMask.y;
 	float  spec_int_mask = ssaoMask.z;
@@ -434,8 +434,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_color += LightColor[i].rgb * saturate(
 			color * diffuse +
 			global_spec_intensity * spec_col * spec +
-			/* diffuse_difference * */ /* color * */ ssdoInd + // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
-			emissionMask);
+			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
+			//emissionMask);
 		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)

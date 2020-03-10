@@ -2821,9 +2821,9 @@ bool LoadSSAOParams() {
 				g_KeySet = (int)fValue;
 				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
 			}
-			else if (_stricmp(param, "emission_intensity") == 0) {
+			/*else if (_stricmp(param, "emission_intensity") == 0) {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
-			}
+			}*/
 			
 		}
 	}

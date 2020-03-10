@@ -304,7 +304,7 @@ typedef struct PSShadingSystemCBStruct {
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
 	// 96 bytes
-	float sso_disable, emission_intensity, ssunused1, ssunused2;
+	float sso_disable, ssunused0, ssunused1, ssunused2;
 	// 112 bytes
 } PSShadingSystemCB;
 
@@ -575,8 +575,8 @@ public:
 	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
 	ComPtr<ID3D11Texture2D> _ssMask;			 // No MSAA
 	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssEmissionMask;	  // No MSAA, Screen-Space emission mask
-	ComPtr<ID3D11Texture2D> _ssEmissionMaskR; // No MSAA, Screen-Space emission mask
+	//ComPtr<ID3D11Texture2D> _ssEmissionMask;	  // No MSAA, Screen-Space emission mask
+	//ComPtr<ID3D11Texture2D> _ssEmissionMaskR; // No MSAA, Screen-Space emission mask
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -618,8 +618,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMask;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMaskR;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMask;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -657,8 +657,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R;  // SRV for ssaoMaskR
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
-	ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV;    // SRV for ssEmissionMask
-	ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV_R;  // SRV for ssEmissionMaskR
+	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV;    // SRV for ssEmissionMask
+	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV_R;  // SRV for ssEmissionMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
