@@ -11,7 +11,7 @@ cbuffer ConstantBuffer : register(b7)
 	float FOVScale;
 	float2 iResolution;
 	// 16 bytes
-	float p0, p1; // Limits in uv-coords of the viewport
+	float2 p0, p1; // Limits in uv-coords of the viewport
 	// 32 bytes
 	float2 contOrigin, intersection;
 	// 48 bytes
