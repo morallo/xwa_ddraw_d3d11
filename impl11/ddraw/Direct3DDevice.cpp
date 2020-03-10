@@ -4994,7 +4994,8 @@ HRESULT Direct3DDevice::Execute(
 	if (SUCCEEDED(hr))
 	{
 		step = "VertexBuffer";
-
+		
+		g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
 		g_ExecuteVertexCount += executeBuffer->_executeData.dwVertexCount;
 
 		if (!g_config.D3dHookExists)
@@ -5005,7 +5006,7 @@ HRESULT Direct3DDevice::Execute(
 			if (SUCCEEDED(hr))
 			{
 				size_t length = sizeof(D3DTLVERTEX) * executeBuffer->_executeData.dwVertexCount;
-				g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
+				
 				memcpy(map.pData, executeBuffer->_buffer, length);
 				//memset((char*)map.pData + length, 0, this->_maxExecuteBufferSize - length);
 
