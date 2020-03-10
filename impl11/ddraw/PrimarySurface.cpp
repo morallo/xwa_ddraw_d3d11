@@ -1466,7 +1466,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	UINT offset = 0;
 	resources->InitVertexBuffer(resources->_mainVertexBuffer.GetAddressOf(), &stride, &offset);
 	//resources->InitVertexBuffer(resources->_steamVRPresentVertexBuffer.GetAddressOf(), &stride, &offset);
-	resources->InitIndexBuffer(resources->_mainIndexBuffer);
+	resources->InitIndexBuffer(resources->_mainIndexBuffer, false);
 
 	// Set Primitive Topology
 	// This is probably an opportunity for an optimization: let's use the same topology everywhere?

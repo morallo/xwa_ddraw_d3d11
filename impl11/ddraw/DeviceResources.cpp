@@ -2994,6 +2994,18 @@ void DeviceResources::InitRasterizerState(ID3D11RasterizerState* state)
 	}
 }
 
+void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView)
+{
+	static ID3D11ShaderResourceView* currentTexView = nullptr;
+
+	if (texView != currentTexView)
+	{
+		ID3D11ShaderResourceView* view = texView;
+		this->_d3dDeviceContext->PSSetShaderResources(0, 1, &view);
+		currentTexView = texView;
+	}
+}
+
 HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SAMPLER_DESC* desc)
 {
 	static ID3D11SamplerState** currentSampler = nullptr;
@@ -3107,14 +3119,14 @@ void DeviceResources::InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT
 	}
 }
 
-void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer)
+void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32)
 {
 	static ID3D11Buffer* currentBuffer = nullptr;
 
 	if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->IASetIndexBuffer(buffer, DXGI_FORMAT_R16_UINT, 0);
+		this->_d3dDeviceContext->IASetIndexBuffer(buffer, isFormat32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, 0);
 	}
 }
 
@@ -3353,7 +3365,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	DWORD pitchDelta;
 
 	ID3D11Texture2D* tex = nullptr;
-	ID3D11ShaderResourceView** texView = nullptr;
+	ID3D11ShaderResourceView* texView = nullptr;
 
 	/*
 	if (g_bUseSteamVR) {
@@ -3377,7 +3389,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			{
 				pitchDelta = displayMap.RowPitch - width * bpp;
 				tex = this->_mainDisplayTexture;
-				texView = this->_mainDisplayTextureView.GetAddressOf();
+				texView = this->_mainDisplayTextureView.Get();
 			}
 		}
 		else
@@ -3428,7 +3440,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 				{
 					pitchDelta = displayMap.RowPitch - width * ((bpp == 2 && this->_use16BppMainDisplayTexture) ? 2 : 4);
 					tex = this->_mainDisplayTextureTemp;
-					texView = this->_mainDisplayTextureViewTemp.GetAddressOf();
+					texView = this->_mainDisplayTextureViewTemp.Get();
 				}
 			}
 		}
@@ -3711,7 +3723,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	{
 		step = "Texture2D ShaderResourceView";
 
-		this->_d3dDeviceContext->PSSetShaderResources(0, 1, texView);
+		this->InitPSShaderResourceView(texView);
 	}
 
 	if (SUCCEEDED(hr))
@@ -3722,7 +3734,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		UINT offset = 0;
 
 		this->InitVertexBuffer(this->_mainVertexBuffer.GetAddressOf(), &stride, &offset);
-		this->InitIndexBuffer(this->_mainIndexBuffer);
+		this->InitIndexBuffer(this->_mainIndexBuffer, false);
 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;

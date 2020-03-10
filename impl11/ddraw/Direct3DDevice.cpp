@@ -3613,6 +3613,12 @@ bool HandleVRInput()
 // End of SteamVR functions
 ////////////////////////////////////////////////////////////////
 
+int g_ExecuteCount;
+int g_ExecuteVertexCount;
+int g_ExecuteIndexCount;
+int g_ExecuteStateCount;
+int g_ExecuteTriangleCount;
+
 class RenderStates
 {
 public:
@@ -4006,7 +4012,7 @@ HRESULT Direct3DDevice::CreateExecuteBuffer(
 		return DDERR_INVALIDPARAMS;
 	}
 
-	if (lpDesc->dwBufferSize > this->_maxExecuteBufferSize)
+	if (lpDesc->dwBufferSize > this->_maxExecuteBufferSize || lpDesc->dwBufferSize < this->_maxExecuteBufferSize / 4)
 	{
 		auto& device = this->_deviceResources->_d3dDevice;
 
@@ -4035,7 +4041,7 @@ HRESULT Direct3DDevice::CreateExecuteBuffer(
 		this->_maxExecuteBufferSize = lpDesc->dwBufferSize;
 	}
 
-	*lplpDirect3DExecuteBuffer = new Direct3DExecuteBuffer(this->_deviceResources, lpDesc->dwBufferSize);
+	*lplpDirect3DExecuteBuffer = new Direct3DExecuteBuffer(this->_deviceResources, lpDesc->dwBufferSize * 2, this);
 
 #if LOGGER
 	str.str("");
@@ -4797,6 +4803,8 @@ HRESULT Direct3DDevice::Execute(
 	LogText(str.str());
 #endif
 
+	g_ExecuteCount++;
+
 	if (lpDirect3DExecuteBuffer == nullptr)
 	{
 #if LOGGER
@@ -4837,7 +4845,6 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	D3D11_MAPPED_SUBRESOURCE map;
 	bool bModifiedShaders = false, bZWriteEnabled = false;
 
 	g_VSCBuffer = { 0 };
@@ -4864,10 +4871,6 @@ HRESULT Direct3DDevice::Execute(
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
 
-	// Save the current viewMatrix: if the Dynamic Cockpit is enabled, we'll need it later to restore the transform
-	//Matrix4 currentViewMat = g_VSMatrixCB.viewMat;
-	//bool bModifiedViewMatrix = false;
-	
 	char* step = "";
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
@@ -4881,21 +4884,8 @@ HRESULT Direct3DDevice::Execute(
 	this->_deviceResources->InitRasterizerState(resources->_rasterizerState);
 	ID3D11PixelShader *lastPixelShader = resources->_pixelShaderTexture;
 
-	int numVerts = executeBuffer->_executeData.dwVertexCount;
-	size_t vertsLength = sizeof(D3DTLVERTEX) * numVerts;
-	g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
 	float displayWidth  = (float)resources->_displayWidth;
 	float displayHeight = (float)resources->_displayHeight;
-
-	// Copy the vertex data to the vertexbuffers
-	step = "VertexBuffer";
-	hr = context->Map(this->_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-	if (SUCCEEDED(hr))
-	{
-		memcpy(map.pData, g_OrigVerts, vertsLength);
-		context->Unmap(this->_vertexBuffer, 0);
-	}
-	resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
 
 	// Constant Buffer step (and aspect ratio)
 	if (SUCCEEDED(hr))
@@ -4957,6 +4947,7 @@ HRESULT Direct3DDevice::Execute(
 			scale *= g_config.Concourse3DScale;
 		}
 
+		//const float viewportScale[4] = { 2.0f / (float)this->_deviceResources->_displayWidth, -2.0f / (float)this->_deviceResources->_displayHeight, scale, 0 };
 		if (g_bEnableVR) {
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
@@ -4985,6 +4976,7 @@ HRESULT Direct3DDevice::Execute(
 		g_SSAO_PSCBuffer.vpScale[3] = g_VSCBuffer.viewportScale[3];
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+		//this->_deviceResources->InitConstantBuffer(this->_deviceResources->_constantBuffer.GetAddressOf(), viewportScale);
 		//g_fXWAScale = scale; // Store the current scale, the Dynamic Cockpit will use this value
 
 		/*
@@ -4999,56 +4991,89 @@ HRESULT Direct3DDevice::Execute(
 		*/
 	}
 
+	if (SUCCEEDED(hr))
+	{
+		step = "VertexBuffer";
+
+		g_ExecuteVertexCount += executeBuffer->_executeData.dwVertexCount;
+
+		if (!g_config.D3dHookExists)
+		{
+			D3D11_MAPPED_SUBRESOURCE map;
+			hr = context->Map(this->_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
+			{
+				size_t length = sizeof(D3DTLVERTEX) * executeBuffer->_executeData.dwVertexCount;
+				g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
+				memcpy(map.pData, executeBuffer->_buffer, length);
+				//memset((char*)map.pData + length, 0, this->_maxExecuteBufferSize - length);
+
+				context->Unmap(this->_vertexBuffer, 0);
+			}
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			UINT stride = sizeof(D3DTLVERTEX);
+			UINT offset = 0;
+
+			this->_deviceResources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &stride, &offset);
+		}
+	}
+
 	// IndexBuffer Step
 	if (SUCCEEDED(hr))
 	{
 		step = "IndexBuffer";
 
-		D3D11_MAPPED_SUBRESOURCE map;
-		hr = context->Map(this->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
+		if (!g_config.D3dHookExists)
 		{
-			char* pData = executeBuffer->_buffer + executeBuffer->_executeData.dwInstructionOffset;
-			char* pDataEnd = pData + executeBuffer->_executeData.dwInstructionLength;
+			D3D11_MAPPED_SUBRESOURCE map;
+			hr = context->Map(this->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 
-			WORD* index = (WORD*)map.pData;
-
-			while (pData < pDataEnd)
+			if (SUCCEEDED(hr))
 			{
-				LPD3DINSTRUCTION instruction = (LPD3DINSTRUCTION)pData;
-				pData += sizeof(D3DINSTRUCTION) + instruction->bSize * instruction->wCount;
-				int aux_idx = 0;
+				char* pData = executeBuffer->_buffer + executeBuffer->_executeData.dwInstructionOffset;
+				char* pDataEnd = pData + executeBuffer->_executeData.dwInstructionLength;
 
-				switch (instruction->bOpcode)
-				{
-				case D3DOP_TRIANGLE:
-				{
-					LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+				WORD* indice = (WORD*)map.pData;
 
-					for (WORD i = 0; i < instruction->wCount; i++)
+				while (pData < pDataEnd)
+				{
+					LPD3DINSTRUCTION instruction = (LPD3DINSTRUCTION)pData;
+					pData += sizeof(D3DINSTRUCTION) + instruction->bSize * instruction->wCount;
+
+					switch (instruction->bOpcode)
 					{
-						*index = triangle->v1;
-						index++;
+					case D3DOP_TRIANGLE:
+					{
+						LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 
-						*index = triangle->v2;
-						index++;
+						for (WORD i = 0; i < instruction->wCount; i++)
+						{
+							*indice = triangle->v1;
+							indice++;
 
-						*index = triangle->v3;
-						index++;
+							*indice = triangle->v2;
+							indice++;
 
-						triangle++;
+							*indice = triangle->v3;
+							indice++;
+
+							triangle++;
+						}
+					}
 					}
 				}
-				}
-			}
 
-			context->Unmap(this->_indexBuffer, 0);
+				context->Unmap(this->_indexBuffer, 0);
+			}
 		}
 
 		if (SUCCEEDED(hr))
 		{
-			this->_deviceResources->InitIndexBuffer(this->_indexBuffer);
+			this->_deviceResources->InitIndexBuffer(this->_indexBuffer, g_config.D3dHookExists);
 		}
 	}
 
@@ -5072,6 +5097,8 @@ HRESULT Direct3DDevice::Execute(
 				// lastTextureSelected is updated here, in the TEXTUREHANDLE subcase
 			case D3DOP_STATERENDER:
 			{
+				g_ExecuteStateCount += instruction->wCount;
+
 				LPD3DSTATE state = (LPD3DSTATE)(instruction + 1);
 
 				for (WORD i = 0; i < instruction->wCount; i++)
@@ -5085,9 +5112,7 @@ HRESULT Direct3DDevice::Execute(
 
 						if (texture == nullptr)
 						{
-							ID3D11ShaderResourceView* view = nullptr;
-							context->PSSetShaderResources(0, 1, &view);
-
+							resources->InitPSShaderResourceView(nullptr);
 							pixelShader = resources->_pixelShaderSolid;
 							// Nullify the last texture selected
 							lastTextureSelected = NULL;
@@ -5095,7 +5120,7 @@ HRESULT Direct3DDevice::Execute(
 						else
 						{
 							texture->_refCount++;
-							context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
+							this->_deviceResources->InitPSShaderResourceView(texture->_textureView.Get());
 							texture->_refCount--;
 
 							pixelShader = resources->_pixelShaderTexture;
@@ -5146,6 +5171,9 @@ HRESULT Direct3DDevice::Execute(
 
 			case D3DOP_TRIANGLE:
 			{
+				g_ExecuteTriangleCount++;
+				g_ExecuteIndexCount += instruction->wCount * 3;
+
 				step = "SamplerState";
 				D3D11_SAMPLER_DESC samplerDesc = this->_renderStates->GetSamplerDesc();
 				if (FAILED(hr = this->_deviceResources->InitSamplerState(nullptr, &samplerDesc)))
@@ -7020,6 +7048,12 @@ HRESULT Direct3DDevice::BeginScene()
 	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
 	// clearing these buffers on that same frame or the effect will "blink"
 
+	g_ExecuteCount = 0;
+	g_ExecuteVertexCount = 0;
+	g_ExecuteIndexCount = 0;
+	g_ExecuteStateCount = 0;
+	g_ExecuteTriangleCount = 0;
+
 	if (!this->_deviceResources->_renderTargetView)
 	{
 #if LOGGER
@@ -7166,6 +7200,17 @@ HRESULT Direct3DDevice::EndScene()
 	this->_deviceResources->sceneRendered = true;
 
 	this->_deviceResources->inScene = false;
+
+	/*if (g_config.D3dHookExists)
+	{
+		OutputDebugString((
+			std::string("EndScene")
+			+ " E=" + std::to_string(g_ExecuteCount)
+			+ " S=" + std::to_string(g_ExecuteStateCount)
+			+ " T=" + std::to_string(g_ExecuteTriangleCount)
+			+ " V=" + std::to_string(g_ExecuteVertexCount)
+			+ " I=" + std::to_string(g_ExecuteIndexCount)).c_str());
+	}*/
 
 	return D3D_OK;
 }

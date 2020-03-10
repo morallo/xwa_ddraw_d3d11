@@ -25,6 +25,8 @@ public:
 
 	int ProcessAffinityCore;
 
+	bool D3dHookExists;
+
 	bool EnhanceLasers;
 	bool EnhanceIllumination;
 	bool EnhanceEngineGlow;
@@ -32,6 +34,7 @@ public:
 
 	bool FXAAEnabled;
 	bool StayInHyperspace;
+	
 };
 
 extern Config g_config;
