@@ -57,7 +57,7 @@ extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
@@ -4694,7 +4694,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	Matrix4 viewMatrix = g_viewMatrix;
 	viewMatrix.invert();
 	if (bProjectContOrigin) {
-		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft);
+		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -4712,9 +4712,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay = g_LaserPointer3DIntersection;
 		if (g_LaserPointerBuffer.bDebugMode) {
 			Vector3 q;
-			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 		}
 	} 
 	else {
@@ -4724,7 +4724,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
-	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft);
+	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 	g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
@@ -4788,14 +4788,17 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
-		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
+		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
-			short width = g_ACElements[g_iBestIntersTexIdx].width;
-			short height = g_ACElements[g_iBestIntersTexIdx].height;
+			short width = g_iBestIntersTexIdx > -1 ? g_ACElements[g_iBestIntersTexIdx].width : 0;
+			short height = g_iBestIntersTexIdx > -1 ? g_ACElements[g_iBestIntersTexIdx].height : 0;
 			log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
-			log_debug("[DBG] [AC] Texture: %s", g_ACElements[g_iBestIntersTexIdx].name);
+			if (g_iBestIntersTexIdx > -1)
+				log_debug("[DBG] [AC] Texture: %s", g_ACElements[g_iBestIntersTexIdx].name);
+			else
+				log_debug("[DBG] [AC] NULL Texture name (-1 index)");
 			log_debug("[DBG] [AC] intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
 				pos3D.x, pos3D.y, pos3D.z, p.x, p.y);
 			log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
@@ -4874,7 +4877,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight);
+				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
@@ -4883,15 +4886,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight);
+			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT

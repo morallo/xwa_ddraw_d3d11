@@ -452,12 +452,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'X':
 				g_bDumpSSAOBuffers = true;
 				return 0;
-			case 'G':
-				DumpGlobalLights();
-				return 0;
-			//case 'F':
-			//	g_bDumpLaserPointerDebugInfo = true;
+			//case 'G':
+			//	DumpGlobalLights();
 			//	return 0;
+			case 'G':
+				g_bDumpLaserPointerDebugInfo = true;
+				return 0;
 				// DEBUG
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;

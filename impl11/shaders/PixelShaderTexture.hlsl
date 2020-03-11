@@ -65,7 +65,8 @@ cbuffer ConstantBuffer : register(b0)
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse; 
+	uint AC_debug, unusedPS3;
 	// 80 bytes
 };
 
@@ -205,8 +206,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	// The HUD is shadeless and has transparency and some planets in the background are also 
-	// transparent. So glass is a non-shadeless surface with transparency:
+	// The HUD is shadeless and has transparency. Some planets in the background are also 
+	// transparent -- CHECK IF Jeremy's latest hooks fixed this. So glass is a non-shadeless 
+	// surface with transparency:
 	if (fSSAOMaskVal < SHADELESS_LO && !bIsShadeless && alpha < 0.95) {
 		// Change the material and do max glossiness and spec_intensity
 		output.ssaoMask.r = GLASS_MAT;
@@ -220,6 +222,12 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	/*
+	if (AC_debug) {
+		output.color.rb *= 0.1;
+		output.color.b += 0.9;
+	}
+	*/
 
 	// hook_normals code:
 	/*

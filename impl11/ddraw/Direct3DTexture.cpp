@@ -399,7 +399,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->bHasMaterial = false;
 	// Create the default material for this texture
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
-	this->material.Intensity = DEFAULT_SPEC_INT;
+	this->material.Intensity  = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
 }
 
@@ -851,10 +851,10 @@ void Direct3DTexture::TagTexture() {
 				/* Process Active Cockpit destination textures: */
 				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
 				if (idx > -1) {
-					log_debug("[DBG] [AC] %s is an Active Cockpit Texture", surface->_name);
 					// "Point back" into the right ac_element index:
 					this->ActiveCockpitIdx = idx;
 					g_ACElements[idx].bActive = true;
+					log_debug("[DBG] [AC] %s is an AC Texture, ActiveCockpitIdx: %d", surface->_name, this->ActiveCockpitIdx);
 				}
 			}
 		}

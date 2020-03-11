@@ -7,6 +7,8 @@
 #include "Direct3DExecuteBuffer.h"
 #include "BackbufferSurface.h"
 
+extern D3DTLVERTEX *g_OrigVerts;
+
 Direct3DExecuteBuffer::Direct3DExecuteBuffer(DeviceResources* deviceResources, DWORD bufferSize, Direct3DDevice* d3dDevice)
 {
 	this->_refCount = 1;
@@ -171,6 +173,7 @@ HRESULT Direct3DExecuteBuffer::Lock(
 
 		lpDesc->dwCaps = (DWORD)vertexMap.pData;
 		lpDesc->dwFlags = (DWORD)indexMap.pData;
+		g_OrigVerts = (D3DTLVERTEX *)vertexMap.pData;
 	}
 
 	return D3D_OK;

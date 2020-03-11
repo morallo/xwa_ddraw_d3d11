@@ -55,7 +55,7 @@ bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once 
 */
 int g_KeySet = 2;
 
-const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
+const float DEFAULT_FOCAL_DIST = 1.0f; // A value != 1.0 will break AC. This value (2) was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
 
@@ -4491,13 +4491,13 @@ inline void backProject(WORD index, Vector3 *P) {
 	}
 
 	// temp.z = METRIC_SCALE_FACTOR * w;
-	temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
+	temp.z = (float)METRIC_SCALE_FACTOR * /* g_fMetricMult * */ (1.0f / g_OrigVerts[index].rhw);
 
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy, temp.z);
-	P->x = temp.z * temp.x / g_fFocalDist;
-	P->y = temp.z * temp.y / g_fFocalDist;
+	P->x = temp.z * temp.x /* / g_fFocalDist */ ;
+	P->y = temp.z * temp.y /* / g_fFocalDist */ ;
 	P->z = temp.z;
 	if (g_bEnableVR) 
 	{
@@ -4509,7 +4509,8 @@ inline void backProject(WORD index, Vector3 *P) {
 	}
 }
 
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+// The return values sx,sy are the screen coords (in in-game coords). Use them for debug purposes only
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */)
 {
 	Vector3 P = pos3D;
 	//float w;
@@ -4550,8 +4551,8 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		
 		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
-		P.x *= g_fFocalDist / P.z;
-		P.y *= g_fFocalDist / P.z;
+		P.x *= /* g_fFocalDist * */ 1.0f / P.z;
+		P.y *= /* g_fFocalDist * */ 1.0f / P.z;
 
 		// Convert to vertex pos:
 		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
@@ -4564,11 +4565,14 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		P.y /= g_VSCBuffer.viewportScale[1];
 		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
 
+		// *******************************************************
 		// P is now in in-game coordinates (CONFIRMED!), where:
 		// (0,0) is the upper-left *original* viewport corner, and:
 		// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
 		// Note that the *original* viewport does not necessarily cover the whole screen
 		//return P; // Return in-game coords
+		//if (sx != NULL) *sx = P.x;
+		//if (sy != NULL) *sy = P.y;
 
 		// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
 		// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
@@ -4589,15 +4593,13 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 	return P;
 }
 
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx,
-	Vector3 orig, Vector3 dir, 
-	//Vector3 *v0, Vector3 *v1, Vector3 *v2, Vector3 *P, 
-	bool debug) 
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, char *texName,
+	Vector3 orig, Vector3 dir, bool debug) 
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	WORD index;
-	float u, v, U0, V0, U1, V1, U2, V2;
+	float u, v, U0, V0, U1, V1, U2, V2; // , dx, dy;
 	float best_t = 10000.0f;
 	bool bIntersection = false;
 
@@ -4615,11 +4617,11 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv0);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
 		index = triangle->v2;
@@ -4628,11 +4630,11 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv1);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
 		index = triangle->v3;
@@ -4641,19 +4643,23 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		backProject(index, &tempv2);
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
 		// Check the intersection with this triangle
 		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
-		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv)) 
+		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv))
 		{
+			if (g_bDumpLaserPointerDebugInfo)
+				log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
 			if (tempt < g_fBestIntersectionDistance)
 			{
+				if (g_bDumpLaserPointerDebugInfo)
+					log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
 				// Update the best intersection so far
 				g_fBestIntersectionDistance = tempt;
 				g_LaserPointer3DIntersection = tempP;
@@ -4661,20 +4667,24 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				g_debug_v0 = tempv0;
 				g_debug_v1 = tempv1;
 				g_debug_v2 = tempv2;
-				
+
 				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
 				//*P = tempP;
 
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
 				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
 				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-				
+
 				g_LaserPointerBuffer.uv[0] = u;
 				g_LaserPointerBuffer.uv[1] = v;
 
 				bIntersection = true;
 				g_LaserPointerBuffer.bIntersection = 1;
 			}
+		}
+		else {
+			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
+				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
 		}
 		triangle++;
 	}
@@ -4830,11 +4840,7 @@ HRESULT Direct3DDevice::Execute(
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
-	/*if (!g_bCustomFOVApplied) {
-		log_debug("[DBG] [FOV] Applying Custom FOV from Execute()");
-		LoadFocalLength(); // Doesn't work here, need to do it after the first frame is rendered
-		g_bCustomFOVApplied = true;
-	}*/
+	// Applying the custom FOV doesn't work here, it has to be done after the first frame is rendered
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -4853,10 +4859,10 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
-	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
-	g_VSCBuffer.bPreventTransform = 0.0f;
-	g_VSCBuffer.bFullTransform	  = 0.0f;
-	g_VSCBuffer.metric_mult		  = g_fMetricMult;
+	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
+	g_VSCBuffer.bPreventTransform =  0.0f;
+	g_VSCBuffer.bFullTransform	  =  0.0f;
+	g_VSCBuffer.metric_mult		  =  g_fMetricMult;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -4991,11 +4997,12 @@ HRESULT Direct3DDevice::Execute(
 		*/
 	}
 
+	// VertexBuffer Step
 	if (SUCCEEDED(hr))
 	{
 		step = "VertexBuffer";
 		
-		g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
+		//g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
 		g_ExecuteVertexCount += executeBuffer->_executeData.dwVertexCount;
 
 		if (!g_config.D3dHookExists)
@@ -5006,7 +5013,7 @@ HRESULT Direct3DDevice::Execute(
 			if (SUCCEEDED(hr))
 			{
 				size_t length = sizeof(D3DTLVERTEX) * executeBuffer->_executeData.dwVertexCount;
-				
+				g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
 				memcpy(map.pData, executeBuffer->_buffer, length);
 				//memset((char*)map.pData + length, 0, this->_maxExecuteBufferSize - length);
 
@@ -5278,7 +5285,7 @@ HRESULT Direct3DDevice::Execute(
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
-				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
+				const bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
@@ -5326,6 +5333,7 @@ HRESULT Direct3DDevice::Execute(
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					}
 				}
+
 				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				bool bRenderToDynCockpitBGBuffer = false;
@@ -5909,11 +5917,17 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Active Cockpit: Intersect the current texture with the controller
-				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL && 
-					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest)) {
+				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
+					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
+				{
 					Vector3 orig, dir, v0, v1, v2, P;
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
+					//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
+
+					/*if (strstr(lastTextureSelected->_surface->_name, "TEX00080,color") != NULL &&
+						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL)
+						log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);*/
 
 					orig.x = g_contOriginViewSpace.x;
 					orig.y = g_contOriginViewSpace.y;
@@ -5923,41 +5937,47 @@ HRESULT Direct3DDevice::Execute(
 					dir.y = g_contDirViewSpace.y;
 					dir.z = g_contDirViewSpace.z;
 
-					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir);
-					//if (bIntersection) {
-						//Vector3 pos2D;
+					//bool debug = g_bDumpLaserPointerDebugInfo && (strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL);
+					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
+						lastTextureSelected->_surface->_name, orig, dir /*, debug */);
 
-						//if (t < g_fBestIntersectionDistance)
-						//{
-							
-							//g_fBestIntersectionDistance = t;
-							//g_LaserPointer3DIntersection = P;
-							// Project to 2D
-							//pos2D = project(g_LaserPointer3DIntersection);
-							//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-							//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-							//g_LaserPointerBuffer.uv[0] = u;
-							//g_LaserPointerBuffer.uv[1] = v;
-							//g_LaserPointerBuffer.bIntersection = 1;
-							//g_debug_v0 = v0;
-							//g_debug_v1 = v1;
-							//g_debug_v2 = v2;
+					// Commented block follows:
+					{
+						//if (bIntersection) {
+							//Vector3 pos2D;
 
-							// DEBUG
+							//if (t < g_fBestIntersectionDistance)
 							//{
-								/*Vector3 q;
-								q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-								q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
-								/*
-								log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-									g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
-									pos2D.x, pos2D.y);
-								*/
+
+								//g_fBestIntersectionDistance = t;
+								//g_LaserPointer3DIntersection = P;
+								// Project to 2D
+								//pos2D = project(g_LaserPointer3DIntersection);
+								//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+								//g_LaserPointerBuffer.intersection[1] = pos2D.y;
+								//g_LaserPointerBuffer.uv[0] = u;
+								//g_LaserPointerBuffer.uv[1] = v;
+								//g_LaserPointerBuffer.bIntersection = 1;
+								//g_debug_v0 = v0;
+								//g_debug_v1 = v1;
+								//g_debug_v2 = v2;
+
+								// DEBUG
+								//{
+									/*Vector3 q;
+									q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+									q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+									q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
+									/*
+									log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+										g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
+										pos2D.x, pos2D.y);
+									*/
+									//}
+									// DEBUG
+								//}
 							//}
-							// DEBUG
-						//}
-					//}
+					}
 				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
@@ -6005,6 +6025,15 @@ HRESULT Direct3DDevice::Execute(
 				// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders = false;
+
+				// DEBUG
+				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
+				/*if (bIsActiveCockpit && lastTextureSelected->ActiveCockpitIdx == 9)
+				{
+					bModifiedShaders = true;
+					g_PSCBuffer.AC_debug = 1;
+				}*/
+				// DEBUG
 
 				//if (g_bDynCockpitEnabled && !g_bPrevIsFloatingGUI3DObject && g_bIsFloating3DObject) {
 					// The targeted craft is about to be drawn!
@@ -6685,14 +6714,14 @@ HRESULT Direct3DDevice::Execute(
 
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
-					g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
+					g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
 					//g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
 					g_VSCBuffer.z_override        = -1.0f;
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
-					g_VSCBuffer.bFullTransform    = 0.0f;
-					g_VSCBuffer.metric_mult       = g_fMetricMult;
+					g_VSCBuffer.bFullTransform    =  0.0f;
+					g_VSCBuffer.metric_mult       =  g_fMetricMult;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;

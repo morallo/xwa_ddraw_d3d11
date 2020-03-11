@@ -331,7 +331,8 @@ typedef struct PixelShaderCBStruct {
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse;
+	uint32_t AC_debug, unusedPS3;
 	// 80 bytes
 } PixelShaderCBuffer;
 
