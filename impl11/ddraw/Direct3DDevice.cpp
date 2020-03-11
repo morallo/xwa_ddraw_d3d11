@@ -55,7 +55,7 @@ bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once 
 */
 int g_KeySet = 2;
 
-const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
+const float DEFAULT_FOCAL_DIST = 1.0f; // A FOV of 2.0 breaks AC! This value (2.0) was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
 
