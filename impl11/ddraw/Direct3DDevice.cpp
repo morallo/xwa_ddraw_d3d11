@@ -3332,6 +3332,16 @@ void Test2DMesh() {
 
 bool InitSteamVR()
 {
+	/*
+	How to enable the null driver:
+	https://www.reddit.com/r/Vive/comments/6uo053/how_to_use_steamvr_tracked_devices_without_a_hmd/
+
+	steamvr.vrsettings file:
+	C:\Program Files (x86)\Steam\config
+
+	null driver config file:
+	C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers\null\resources\settings
+	*/
 	char *strDriver = NULL;
 	char *strDisplay = NULL;
 	FILE *file = NULL;
