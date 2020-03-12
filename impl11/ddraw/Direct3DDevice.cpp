@@ -49,13 +49,11 @@ float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), 
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
 
-/* 
-   1 = Arrow keys move the lights
-   2 = Arrow keys change the FOV
-*/
-int g_KeySet = 2;
+#define MOVE_LIGHTS_KEY_SET 1
+#define CHANGE_FOV_KEY_SET 2
+int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV, I can always override this with the "key_set" SSAO.cfg param
 
-const float DEFAULT_FOCAL_DIST = 1.0f; // A value != 1.0 will break AC. This value (2) was determined experimentally.
+const float DEFAULT_FOCAL_DIST = 2.0f; // This value (2.0f) was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
 
@@ -4464,40 +4462,38 @@ inline void backProject(WORD index, Vector3 *P) {
 		temp.x += -0.5f; 
 		temp.y += -0.5f;
 		// temp.xy is now in the range -0.5 ..  0.5
+
+		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+
+		// TODO: The code below hasn't been tested in VR:
+		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
 	}
 	else
 	{ 
-		// VertexShader
+		// Code from VertexShader
 		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
 		temp.y +=  1.0f;
 		// temp.x is now in the range -1.0 ..  1.0 and
 		// temp.y is now in the range  1.0 .. -1.0
-	}
-	
-	if (g_bEnableVR) 
-	{
-		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
-	}
-	else 
-	{
+
 		// The center of the screen may not be the center of projection. The y-axis seems to be a bit off.
 		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[2];
 		// temp.x is now in the range -0.5 ..  0.5 and (?)
 		// temp.y is now in the range  0.5 .. -0.5 (?)
+
+		// temp.z = METRIC_SCALE_FACTOR * w;
+		temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
 	}
-
-	// temp.z = METRIC_SCALE_FACTOR * w;
-	temp.z = (float)METRIC_SCALE_FACTOR * /* g_fMetricMult * */ (1.0f / g_OrigVerts[index].rhw);
-
+	
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy, temp.z);
-	P->x = temp.z * temp.x /* / g_fFocalDist */ ;
-	P->y = temp.z * temp.y /* / g_fFocalDist */ ;
+	P->x = temp.z * temp.x / g_fFocalDist;
+	P->y = temp.z * temp.y / g_fFocalDist;
 	P->z = temp.z;
 	if (g_bEnableVR) 
 	{
@@ -4551,8 +4547,8 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		
 		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
-		P.x *= /* g_fFocalDist * */ 1.0f / P.z;
-		P.y *= /* g_fFocalDist * */ 1.0f / P.z;
+		P.x *= g_fFocalDist / P.z;
+		P.y *= g_fFocalDist / P.z;
 
 		// Convert to vertex pos:
 		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
@@ -4593,7 +4589,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 	return P;
 }
 
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, char *texName,
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex,
 	Vector3 orig, Vector3 dir, bool debug) 
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
@@ -4654,12 +4650,13 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
 		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv))
 		{
-			if (g_bDumpLaserPointerDebugInfo)
-				log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
+			//if (isACTex) tempt -= 0.01f; // Make AC elements a little more likely to be considered before other textures
+			//if (g_bDumpLaserPointerDebugInfo)
+			//	log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
 			if (tempt < g_fBestIntersectionDistance)
 			{
-				if (g_bDumpLaserPointerDebugInfo)
-					log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
+				//if (g_bDumpLaserPointerDebugInfo)
+				//	log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
 				// Update the best intersection so far
 				g_fBestIntersectionDistance = tempt;
 				g_LaserPointer3DIntersection = tempP;
@@ -4682,10 +4679,10 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				g_LaserPointerBuffer.bIntersection = 1;
 			}
 		}
-		else {
+		/*else {
 			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
 				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
-		}
+		}*/
 		triangle++;
 	}
 
@@ -5939,7 +5936,7 @@ HRESULT Direct3DDevice::Execute(
 
 					//bool debug = g_bDumpLaserPointerDebugInfo && (strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL);
 					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
-						lastTextureSelected->_surface->_name, orig, dir /*, debug */);
+						bIsActiveCockpit, orig, dir /*, debug */);
 
 					// Commented block follows:
 					{
