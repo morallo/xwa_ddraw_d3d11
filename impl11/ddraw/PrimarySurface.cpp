@@ -1185,7 +1185,8 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 		NULL, NULL, NULL, NULL,
 	};
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 
 	resources->InitViewport(&viewport);
 	context->Draw(6, 0);
@@ -1404,12 +1405,14 @@ void PrimarySurface::barrelEffectSteamVR() {
 		NULL, NULL, NULL, NULL,
 	};
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	context->Draw(6, 0);
 
 	rtvs[0] = resources->_renderTargetViewPostR.Get();
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	context->Draw(6, 0);
 
 #ifdef DBG_VR
@@ -1547,7 +1550,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
