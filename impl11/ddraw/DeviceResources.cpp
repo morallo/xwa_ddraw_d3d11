@@ -2998,7 +2998,7 @@ void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView
 {
 	static ID3D11ShaderResourceView* currentTexView = nullptr;
 
-	if (texView != currentTexView)
+	//if (texView != currentTexView) // Temporarily allow setting this all the time
 	{
 		ID3D11ShaderResourceView* view = texView;
 		this->_d3dDeviceContext->PSSetShaderResources(0, 1, &view);

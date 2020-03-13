@@ -3028,13 +3028,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
-			ID3D11ShaderResourceView *srvs[5] = {
+			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_normBufSRV.Get(),
 					resources->_bentBufSRV_R.Get(),
-					resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
+					//resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 	g_SSAO_Type != SSO_BENT_NORMALS) {
 				context->ClearRenderTargetView(resources->_renderTargetView, black);
@@ -3048,7 +3048,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
@@ -3064,7 +3064,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				context->Draw(6, 0);
 			}
 		}
@@ -3117,6 +3117,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		}
 		// DEBUG
 		else {
+			// _renderTargetViewSSAO_R is used for the LEFT eye (and viceversa). THIS IS NOT A BUG
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO_R.Get(),
@@ -3178,23 +3179,23 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	
 	// Final combine, Left Image
 	{
-		// SSDO Indirect Blur
 		// DEBUG: REMOVE LATER: WE DON'T NEED TO SET THIS BUFFER ON EVERY FRAME!
-		g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
-		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+		//g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+		//resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 		// DEBUG
 
 		// input: offscreenAsInput (resolved here), bloomMask (removed?), ssaoBuf
 		// output: offscreenBuf, bloomMask?
-		if (g_SSAO_Type == SSO_BENT_NORMALS)
+		//if (g_SSAO_Type == SSO_BENT_NORMALS)
 			//resources->InitPixelShader(resources->_hyperspacePS);
 #ifndef DEATH_STAR
-			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
 #else
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif
-		else
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+		//else
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			resources->InitPixelShader(resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX	= 0.0f;
 		viewport.TopLeftY	= 0.0f;
@@ -3230,7 +3231,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			resources->_bentBufSRV.Get(),							// Bent Normals
-			resources->_ssMaskSRV.Get(),								// Shading System buffer
+			resources->_ssMaskSRV.Get(),								// Shading System Mask buffer
 			
 			//resources->_ssEmissionMaskSRV.Get(),						// Emission mask
 		};
@@ -3238,6 +3239,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->Draw(6, 0);
 	}
 
+	/*******************************************************************************
+	 START PROCESS FOR THE RIGHT EYE, STEAMVR MODE
+	 *******************************************************************************/
 out1:
 	// Draw the right image when SteamVR is enabled
 	if (g_bUseSteamVR) {
@@ -3264,8 +3268,9 @@ out1:
 				resources->_ssaoMaskSRV_R.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
 			};
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
-			if (!g_bBlurSSAO && g_bShowSSAODebug) {
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+			resources->InitPixelShader(resources->_ssdoDirectPS);
+			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewR.Get(),
 					resources->_renderTargetViewBentBufR.Get(),
@@ -3300,11 +3305,26 @@ out1:
 		g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 		g_BloomPSCBuffer.uvStepSize			= 1.0f;
 		g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-		g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+		// The SSDO component currently encodes the AO component in the Y channel. If
+		// the SSDO buffer is displayed directly, it's hard to understand. So, instead, we
+		// have to code the following logic:
+		// If SSDO Indirect is disabled, then enable debug mode in the blur shader. This mode
+		// returns ssao.xxx so that the SSDO direct component can be visualized properly
+		// If SSDO Indirect is enabled, then we can't return ssao.xxx, because that'll wipe
+		// out the AO component needed for SSDO Indirect. In that case we just pass along the
+		// debug flag directly -- but the SSDO Direct buffer will be unreadable
+		if (g_bShowSSAODebug) {
+			if (!g_bEnableIndirectSSDO)
+				g_BloomPSCBuffer.debug = 1;
+			else
+				g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+		}
+		else
+			g_BloomPSCBuffer.debug = 0;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-		// SSDO Blur, Right Image
-		// input: offscreenAsInputR (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
+		// SSDO Direct Blur, Right Image
+		// input: bloomOutput1 (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
 		// output: ssaoBufR, bentBufR
 		if (g_bBlurSSAO)
 			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
@@ -3319,8 +3339,8 @@ out1:
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
 				ID3D11ShaderResourceView *srvs[4] = {
-						//resources->_offscreenAsInputShaderResourceViewR.Get(),
-						resources->_bloomOutput1SRV.Get(),
+						//resources->_offscreenAsInputShaderResourceViewR.Get(), // LDR
+						resources->_bloomOutput1SRV.Get(), // HDR
 						resources->_depthBufSRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
 						resources->_bentBufSRV.Get(),
@@ -3370,6 +3390,7 @@ out1:
 			//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
 			g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
 			g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
+			g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetInd;
 			g_SSAO_PSCBuffer.fn_enable		= g_bFNEnable;
 			resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
@@ -3400,6 +3421,7 @@ out1:
 			}
 			// DEBUG
 			else {
+				// _renderTargetViewSSAO is used for the RIGHT eye (and viceversa). THIS IS NOT A BUG
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
 				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO.Get(),
@@ -3463,7 +3485,8 @@ out1:
 		{
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			resources->InitPixelShader(resources->_ssdoAddPS);
 			// Reset the viewport for the final SSAO combine
 			viewport.TopLeftX	= 0.0f;
 			viewport.TopLeftY	= 0.0f;
@@ -3494,7 +3517,7 @@ out1:
 				resources->_depthBufSRV_R.Get(),							// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
 				resources->_bentBufSRV_R.Get(),							// Bent Normals
-				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
+				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
 			};
 			context->PSSetShaderResources(0, 8, srvs_pass2);
 			context->Draw(6, 0);

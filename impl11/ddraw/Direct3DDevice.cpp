@@ -6390,6 +6390,7 @@ HRESULT Direct3DDevice::Execute(
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
 							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
@@ -6535,13 +6536,11 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							// SteamVR, left image. Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ?
@@ -6560,13 +6559,11 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							// DirectSBS, Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -6598,15 +6595,6 @@ HRESULT Direct3DDevice::Execute(
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image
-					//if (bIsHyperspaceTunnel) {
-					//	UINT stride = sizeof(D3DTLVERTEX);
-					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-					//	resources->InitInputLayout(resources->_inputLayout);
-					//	context->Draw(6, 0);
-					//	// TODO: Restore the original input layout here
-					//}
-					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
@@ -6623,10 +6611,9 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
 							};
-							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetViewR.GetAddressOf(),
-								resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets
+							// SteamVR, Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
@@ -6648,8 +6635,7 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
 							};
-							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
@@ -6686,10 +6672,6 @@ HRESULT Direct3DDevice::Execute(
 					g_VSMatrixCB.projEye = g_fullMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
-					//if (bIsHyperspaceTunnel) {
-					//	context->Draw(6, 0);
-					//	// TODO: Restore the original input layout here
-					//} else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
@@ -6722,7 +6704,6 @@ HRESULT Direct3DDevice::Execute(
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
 					g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
-					//g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
 					g_VSCBuffer.z_override        = -1.0f;
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;
