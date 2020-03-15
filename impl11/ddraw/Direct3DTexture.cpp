@@ -18,6 +18,8 @@
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 
+std::vector<ColorLightPair> g_TextureVector;
+
 std::vector<char *> HUD_ResNames = {
 	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire. (master branch)
 	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available. (master branch)
@@ -615,6 +617,8 @@ void Direct3DTexture::TagTexture() {
 		// Catch the space debris
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
 			this->is_Debris = true;
+		if (strstr(surface->_name, "dat,") != NULL)
+			this->is_DAT = true;
 		// Catch the trails
 		if (isInVector(surface->_name, Trails_ResNames))
 			this->is_Trail = true;
@@ -728,6 +732,14 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
+
+			// DEBUG
+			// Looks like we always tag the color texture before the light texture.
+			// Then we Load() the color and light textures.
+			//if (strstr(surface->_name, "TEX00061") != NULL)
+			//log_debug("[DBG] [AC] Tagging: %s", surface->_name);
+			// DEBUG
+
 			/* 
 			   Here's a funny story: you can change the craft when in the hangar. So we need to pay attention
 			   to changes in the cockpit's name. One way to do this is by resetting DC when textures are freed;
@@ -788,6 +800,47 @@ void Direct3DTexture::TagTexture() {
 		// Catch light textures and mark them appropriately
 		if (strstr(surface->_name, ",light,") != NULL)
 			this->is_LightTexture = true;
+
+		// Link light and color textues:
+		/*
+		{
+			if (!this->is_LightTexture) {
+				this->lightTexture = nullptr;
+				g_TextureVector.push_back(ColorLightPair(this));
+			}
+			else {
+				// Find the corresponding color texture and link it
+				// TODO: Do I need to worry about .DAT textures? Maybe not because they don't have "light"
+				//       textures? I didn't see a single DAT file using the following line:
+				//log_debug("[DBG] LIGHT: %s", this->_surface->_name);
+				for (int i = g_TextureVector.size() - 1; i >= 0; i--) {
+					char *light_name = this->_surface->_name;
+					char *color_name = g_TextureVector[i].color->_surface->_name;
+					char *light_start, *light_end, *color_start, *color_end;
+					int len = 0;
+
+					// Find the "TEX#####" token:
+					light_start = strstr(light_name, ".opt,");
+					if (light_start == NULL) break;
+					light_start += 5; // Skip the ".opt," part
+					light_end = strstr(light_start, ",");
+					if (light_end == NULL) break;
+					len = light_end - light_start;
+
+					color_start = color_name + (light_start - light_name);
+					color_end = color_name + (light_end - light_name);
+					if (_strnicmp(light_start, color_start, len) == 0)
+					{
+						//log_debug("[DBG] %d, %s maps to %s", i, light_start, color_start);
+						g_TextureVector[i].light = this;
+						g_TextureVector[i].color->lightTexture = this;
+						// After the color and light textures have been linked, g_TextureVector can be cleared
+						break;
+					}
+				}
+			}
+		}
+		*/
 
 		//if (strstr(surface->_name, "color-transparent") != NULL) {
 			//this->is_ColorTransparent = true;
@@ -939,6 +992,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Missile = d3dTexture->is_Missile;
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
+	this->is_DAT = d3dTexture->is_DAT;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
@@ -965,7 +1019,16 @@ HRESULT Direct3DTexture::Load(
 
 	this->material = d3dTexture->material;
 	this->bHasMaterial = d3dTexture->bHasMaterial;
+	//this->lightTexture = d3dTexture->lightTexture;
 
+	// DEBUG
+	// Looks like we always tag the color texture before the light texture.
+	// Then we Load() the color and light textures.
+	//if (this->is_CockpitTex) {
+		//	log_debug("[DBG] [AC] Loading: %s", surface->_name);
+	//}
+
+	// DEBUG
 	if (d3dTexture->_textureView)
 	{
 #if LOGGER

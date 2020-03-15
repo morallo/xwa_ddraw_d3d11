@@ -332,7 +332,7 @@ typedef struct PixelShaderCBStruct {
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint32_t AC_debug, unusedPS3;
+	uint32_t AC_debug, bIsBackground;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -445,6 +445,17 @@ typedef struct MaterialStruct {
 		SpecValue   = DEFAULT_SPEC_VALUE;
 	}
 } Material;
+
+// Color-Light links
+class Direct3DTexture;
+typedef struct ColorLightPairStruct {
+	Direct3DTexture *color, *light;
+
+	ColorLightPairStruct(Direct3DTexture *color) {
+		this->color = color;
+		this->light = NULL;
+	}
+} ColorLightPair;
 
 class DeviceResources
 {

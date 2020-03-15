@@ -222,8 +222,10 @@ D3DTLVERTEX *g_OrigVerts = NULL;
 // right images have been rendered.
 int g_iDrawCounter = 0, g_iNoDrawBeforeIndex = 0, g_iNoDrawAfterIndex = -1, g_iDrawCounterAfterHUD = -1;
 // Similar to the above, but only get incremented after each Execute() is finished.
-int g_iExecBufCounter = 0, g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
-int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold for the Skybox
+int /* g_iExecBufCounter = 0, */ g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
+// The Skybox cannot be detected using g_iExecBufCounter anymore when using the hook_d3d because the whole frame is
+// rendered with a single Execute call
+//int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold for the Skybox
 // g_iSkyBoxExecIndex is compared against g_iExecBufCounter to determine when the SkyBox is rendered
 // This is important because in XWAU the SkyBox is *not* rendered at infinity and causes a lot of
 // visual contention if not handled properly.
@@ -562,10 +564,10 @@ void IncreaseSkipNonZBufferDrawIdx(int Delta) {
 	log_debug("[DBG] New g_iSkipNonZBufferDrawIdx: %d", g_iSkipNonZBufferDrawIdx);
 }
 
-void IncreaseSkyBoxIndex(int Delta) {
-	g_iSkyBoxExecIndex += Delta;
-	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
-}
+//void IncreaseSkyBoxIndex(int Delta) {
+//	g_iSkyBoxExecIndex += Delta;
+//	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
+//}
 
 void IncreaseLensK1(float Delta) {
 	g_fLensK1 += Delta;
@@ -603,7 +605,7 @@ void ResetVRParams() {
 	g_fLensK3 = DEFAULT_LENS_K3;
 
 	g_bFixSkyBox = true;
-	g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX;
+	//g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX;
 	g_bSkipText = false;
 	g_bSkipGUI = false;
 	g_bSkipSkyBox = false;
@@ -4599,8 +4601,12 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 	return P;
 }
 
+// DEBUG
+//FILE *colorFile = NULL, *lightFile = NULL;
+// DEBUG
+
 bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex,
-	Vector3 orig, Vector3 dir, bool debug) 
+	Vector3 orig, Vector3 dir, bool debug)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
@@ -4612,6 +4618,17 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 	Vector3 tempv0, tempv1, tempv2, tempP;
 	float tempt, tu, tv;
 
+	/*
+	FILE *outFile = NULL;
+	if (g_bDumpSSAOBuffers) {
+		if (colorFile == NULL)
+			fopen_s(&colorFile, "./colorVertices.obj", "wt");
+		if (lightFile == NULL)
+			fopen_s(&lightFile, "./lightVertices.obj", "wt");
+		outFile = texture->is_LightTexture ? lightFile : colorFile;
+	}
+	*/
+
 	if (debug)
 		log_debug("[DBG] START Geom");
 
@@ -4621,10 +4638,15 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		backProject(index, &tempv0);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
@@ -4634,10 +4656,15 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		backProject(index, &tempv1);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
@@ -4647,10 +4674,15 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		backProject(index, &tempv2);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)=(%0.3f, %0.3f)",
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
@@ -4882,7 +4914,7 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
 	
 	g_DCPSCBuffer = { 0 };
-	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
+	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
 
 	char* step = "";
 
@@ -4973,7 +5005,6 @@ HRESULT Direct3DDevice::Execute(
 		g_VSCBuffer.viewportScale[2] = scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		//g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
@@ -5085,7 +5116,7 @@ HRESULT Direct3DDevice::Execute(
 				context->Unmap(this->_indexBuffer, 0);
 			}
 		}
-
+		
 		if (SUCCEEDED(hr))
 		{
 			this->_deviceResources->InitIndexBuffer(this->_indexBuffer, g_config.D3dHookExists);
@@ -5109,7 +5140,7 @@ HRESULT Direct3DDevice::Execute(
 
 			switch (instruction->bOpcode)
 			{
-				// lastTextureSelected is updated here, in the TEXTUREHANDLE subcase
+			// lastTextureSelected is updated here, in the TEXTUREHANDLE subcase
 			case D3DOP_STATERENDER:
 			{
 				g_ExecuteStateCount += instruction->wCount;
@@ -5249,7 +5280,8 @@ HRESULT Direct3DDevice::Execute(
 					We're using a non-exhaustive list of GUI CRCs to tell when the 3D content has finished drawing.
 				*/
 
-				/* ZWriteEnabled is false when rendering the background starfield or when
+				/* 
+				 * ZWriteEnabled is false when rendering the background starfield or when
 				 * rendering the GUI elements -- except that the targetting computer GUI
 				 * is rendered with ZWriteEnabled == true. This is probably done to clear
 				 * the depth stencil in the area covered by the targeting computer, so that
@@ -5257,40 +5289,33 @@ HRESULT Direct3DDevice::Execute(
 				 * interfering with the z-values of the cockpit.
 				 */
 				bZWriteEnabled = this->_renderStates->GetZWriteEnabled();
-
 				/* If we have drawn at least one Floating GUI element and now the ZWrite has been enabled
 				   again, then we're about to draw the floating 3D element. Although, g_bTargetCompDrawn
 				   isn't fully semantically correct because it should be set to true *after* it has actually
 				   been drawn. Here it's being set *before* it's drawn. */
 				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
 					g_bTargetCompDrawn = true;
-				bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
-				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
-				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				// lastTextureSelected can be NULL. This happens when drawing the square
+				// brackets around the currently-selected object (and maybe other situations)
+				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
+				const bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
+				const bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
+				const bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
+				const bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
+				const bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
+				const bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
+				const bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
+				const bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
+				const bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
+				const bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
-				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				//g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				g_bIsSkyBox = !bZWriteEnabled && !g_bSkyBoxJustFinished && bLastTextureSelectedNotNULL && lastTextureSelected->is_DAT;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
-				bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
-				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
-				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
-				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
-				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
-				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
-				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
-				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
-				bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
-				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
 				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
-				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
-				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
-				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
-				// Shadows  are rendered with ZFunc D3DCMP_GREATEREQUAL (7)
-				// Cockpit Glass & Engine Glow are rendered with ZFunc D3DCMP_GREATER (5)
-				bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
-					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
-				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
+				const bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
 				const bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
@@ -5299,6 +5324,24 @@ HRESULT Direct3DDevice::Execute(
 					!lastTextureSelected->is_Text && !lastTextureSelected->is_TrianglePointer &&
 					!lastTextureSelected->is_HUD && !lastTextureSelected->is_Floating_GUI &&
 					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
+
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					// Capture the background; but only if we're not in hyperspace -- we don't want to
+					// capture the black background used by the game!
+				}
+				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
+				// bIsBracket depends on bIsNoZWrite 
+				//const bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				const bool bIsNoZWrite = !bZWriteEnabled && g_bSkyBoxJustFinished;
+				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
+				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
+				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
+				// Shadows  are rendered with ZFunc D3DCMP_GREATEREQUAL (7)
+				// Cockpit Glass & Engine Glow are rendered with ZFunc D3DCMP_GREATER (5)
+				const bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
+					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
@@ -5307,22 +5350,12 @@ HRESULT Direct3DDevice::Execute(
 				g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
 				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsAimingHUD && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
 
-				// lastTextureSelected can be NULL. This happens when drawing the square
-				// brackets around the currently-selected object (and maybe other situations)
-
 				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 					//	context->ResolveSubresource(resources->_offscreenBufferAsInputReshade, 0,
 					//		resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				//}
-
-				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
-					// The skybox just finished, capture it, replace it, etc
-					g_bSkyBoxJustFinished = true;
-					// Capture the background; but only if we're not in hyperspace -- we don't want to
-					// capture the black background used by the game!
-				}
 
 				// Clear the Dynamic Cockpit foreground and background RTVs
 				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
@@ -5341,7 +5374,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+				const bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				bool bRenderToDynCockpitBGBuffer = false;
 
@@ -5928,13 +5961,21 @@ HRESULT Direct3DDevice::Execute(
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
 				{
 					Vector3 orig, dir, v0, v1, v2, P;
+					//bool debug = false;
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
 					//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
-
-					/*if (strstr(lastTextureSelected->_surface->_name, "TEX00080,color") != NULL &&
-						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL)
-						log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);*/
+					
+					// DEBUG
+					/*
+					if (strstr(lastTextureSelected->_surface->_name, "TEX00061") != NULL &&
+						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL) {
+						debug = g_bDumpSSAOBuffers;
+						if (debug)
+							log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);
+					}
+					*/
+					// DEBUG
 
 					orig.x = g_contOriginViewSpace.x;
 					orig.y = g_contOriginViewSpace.y;
@@ -5948,7 +5989,7 @@ HRESULT Direct3DDevice::Execute(
 					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
 						bIsActiveCockpit, orig, dir /*, debug */);
 
-					// Commented block follows:
+					// Commented block follows (debug bock for LaserPointer):
 					{
 						//if (bIntersection) {
 							//Vector3 pos2D;
@@ -6033,6 +6074,24 @@ HRESULT Direct3DDevice::Execute(
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders = false;
 
+				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
+#ifdef DISABLED
+				if (false && g_bEnableVR && bLastTextureSelectedNotNULL) {
+					if (bIsLightTexture)
+						goto out;
+					else {
+						// Bind the light texture too
+						if (lastTextureSelected->lightTexture != nullptr) {
+							bModifiedShaders = true;
+							lastTextureSelected->lightTexture->_refCount++;
+							context->PSSetShaderResources(1, 1, lastTextureSelected->lightTexture->_textureView.GetAddressOf());
+							lastTextureSelected->lightTexture->_refCount--;
+							g_PSCBuffer.bLightTextureAvailable = 1;
+						}
+					}
+				}
+#endif DISABLED
+
 				// DEBUG
 				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
 				/*if (bIsActiveCockpit && lastTextureSelected->ActiveCockpitIdx == 9)
@@ -6060,7 +6119,7 @@ HRESULT Direct3DDevice::Execute(
 				// Only disable the diffuse component during regular flight. 
 				// The tech room is unchanged (the tech room makes g_bRendering = false)
 				// We should also avoid touching the GUI elements
-				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) { 
+				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
@@ -6071,6 +6130,7 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					g_PSCBuffer.bIsShadeless = 1;
+					//g_PSCBuffer.bIsBackground = g_bIsSkyBox;
 				}
 
 				// Dim all the GUI elements
@@ -6094,7 +6154,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Apply specific material properties for the current texture
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) { 
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) {
 					bModifiedShaders = true;
 					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
 					//g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
@@ -6164,7 +6224,7 @@ HRESULT Direct3DDevice::Execute(
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
 				{					
 					// Looks like we don't need to restore the blend/depth state???
@@ -6411,15 +6471,15 @@ HRESULT Direct3DDevice::Execute(
 				   Modify the state of the render for VR
 				 ********************************************************************/
 
-				 // Elements that are drawn with ZBuffer disabled:
-				 // * All GUI HUD elements except for the targetting computer (why?)
-				 // * Lens flares.
-				 // * All the text and brackets around objects. The brackets have their own draw call.
-				 // * Glasses on other cockpits and engine glow <-- Good candidate for bloom!
-				 // * Maybe explosions and other animations? I think explosions are actually rendered at depth (?)
-				 // * Cockpit sparks?
+				// Elements that are drawn with ZBuffer disabled:
+				// * All GUI HUD elements except for the targetting computer (why?)
+				// * Lens flares.
+				// * All the text and brackets around objects. The brackets have their own draw call.
+				// * Glasses on other cockpits and engine glow <-- Good candidate for bloom!
+				// * Maybe explosions and other animations? I think explosions are actually rendered at depth (?)
+				// * Cockpit sparks?
 
-				 // Reduce the scale for GUI elements, except for the HUD and Lens Flare
+				// Reduce the scale for GUI elements, except for the HUD and Lens Flare
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
 					g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
@@ -6429,20 +6489,19 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Enable the full transform for the hyperspace tunnel
-				if (bIsHyperspaceTunnel) {
-					bModifiedShaders = true;
-					//g_VSCBuffer.bFullTransform = 1.0f;
-					//g_VSCBuffer.sz_override = 0.01f;
-					//g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
-				}
+				//if (bIsHyperspaceTunnel) {
+					//bModifiedShaders = true; // TODO: Check the hyperspace tunnel in VR mode
+					////g_VSCBuffer.bFullTransform = 1.0f; // This was already commented out! Do we need to set bModifiedShaders?
+				//}
 
 				// The game renders brackets with ZWrite disabled; but we need to enable it temporarily so that we
 				// can place the brackets at infinity and avoid visual contention
-				if (bIsBracket) {
+				if (bIsBracket) 	{
 					bModifiedShaders = true;
 					QuickSetZWriteEnabled(TRUE);
 					g_VSCBuffer.sz_override = 0.05f;
 					g_VSCBuffer.z_override = g_fZBracketOverride;
+					//g_PSCBuffer.bIsBackground = 1;
 				}
 
 				/* // Looks like we no longer need to clear the depth buffers for the targeted object
@@ -6751,7 +6810,8 @@ HRESULT Direct3DDevice::Execute(
 	}
 
 //noexec:
-	g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
+	//g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
+	// This variable is useless with the hook_d3d: it stays at 1, meaning that this function is called exactly *once* per frame.
 
 	if (FAILED(hr))
 	{

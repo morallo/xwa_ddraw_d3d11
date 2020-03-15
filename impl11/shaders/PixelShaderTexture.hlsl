@@ -14,11 +14,11 @@ SamplerState sampler0 : register(s0);
 // Z+: Away from the camera
 // (0,0,0) is the camera center, (0,0,Z) is the center of the screen
 
-#define diffuse_intensity 0.95
+//#define diffuse_intensity 0.95
 
-static float3 light_dir = float3(0.9, 1.0, -0.8);
-#define ambient 0.03
-static float3 ambient_col = float3(0.025, 0.025, 0.03);
+//static float3 light_dir = float3(0.9, 1.0, -0.8);
+//#define ambient 0.03
+//static float3 ambient_col = float3(0.025, 0.025, 0.03);
 //static float3 ambient_col = float3(0.10, 0.10, 0.15);
 
 struct PixelShaderInput
@@ -66,7 +66,7 @@ cbuffer ConstantBuffer : register(b0)
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse; 
-	uint AC_debug, unusedPS3;
+	uint AC_debug, bIsBackground;
 	// 80 bytes
 };
 
@@ -83,7 +83,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color  = texelColor;
 	output.pos3D  = float4(P, SSAOAlpha);
 	output.ssMask = 0;
-	
+
 	// Original code:
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	// Since Z increases away from the camera, the normals end up being negative when facing the
@@ -151,6 +151,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		float val = HSV.z;
+		// Enhance = true
 		if (bIsLightTexture > 1) {
 			// Make the light textures brighter in 32-bit mode
 			HSV.z *= 1.25;
@@ -165,6 +166,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			}
 			output.color = float4(color, alpha);
 		}
+		// Enhance = false
 		else {
 			if (val > 0.8 && alpha > 0.5) {
 				output.bloom = float4(val * texelColor.rgb, 1);

@@ -63,7 +63,7 @@ cbuffer ConstantBuffer : register(b0)
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint AC_debug, unusedPS3;
+	uint AC_debug, bIsBackground;
 	// 80 bytes
 };
 

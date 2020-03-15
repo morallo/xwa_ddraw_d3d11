@@ -133,6 +133,8 @@ int g_iBloomPasses[8] = {
 	1, 1, 1, 1, 1, 1, 1, 1
 };
 
+//extern FILE *colorFile, *lightFile;
+
 // SSAO
 extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
@@ -5436,8 +5438,22 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
-					if (g_bDumpSSAOBuffers)
+					if (g_bDumpSSAOBuffers) {
+						/*
+						if (colorFile != NULL) {
+							fflush(colorFile);
+							fclose(colorFile);
+							colorFile = NULL;
+						}
+
+						if (lightFile != NULL) {
+							fflush(lightFile);
+							fclose(lightFile);
+							lightFile = NULL;
+						}
+						*/
 						g_bDumpSSAOBuffers = false;
+					}
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
@@ -5883,8 +5899,9 @@ HRESULT PrimarySurface::Flip(
 			else // Non-VR mode
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
+			//log_debug("[DBG] g_iExecBufCounter:%d at end of frame", g_iExecBufCounter);
 			// Let's reset some frame counters and other control variables
-			g_iDrawCounter = 0; g_iExecBufCounter = 0;
+			g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 			g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
 			g_iFloatingGUIDrawnCounter = 0;
 			g_bTargetCompDrawn = false;

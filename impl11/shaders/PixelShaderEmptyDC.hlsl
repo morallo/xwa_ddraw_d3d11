@@ -36,29 +36,33 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
+// PixelShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
 {
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint bIsHyperspaceAnim;
+	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
+	uint DynCockpitSlots;		// (Unused here) How many DC slots will be used.
+	uint bUseCoverTexture;		// (Unused here) When set, use the first texture as cover texture for the dynamic cockpit
+	uint bIsHyperspaceAnim;		// 1 if we're rendering the hyperspace animation
 	// 16 bytes
 
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bInHyperspace;
+	uint bInHyperspace;			// 1 if we're rendering while in hyperspace
+	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect
-	float fPosNormalAlpha;		// (Ignored) Override for pos3D and normal output alpha
-	float fSSAOMaskVal;			// (Ignored) SSAO mask value
-	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
+	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
+	float fSSAOMaskVal;			// SSAO mask value
+	float fSSAOAlphaOfs;			// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
+	// 48 bytes
 
 	uint bIsShadeless;
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse;
+	uint AC_debug, bIsBackground;
 	// 80 bytes
 };
 
@@ -138,6 +142,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, alpha); // Normal Mapping intensity, Specular Value
 	output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 	output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+	if (bInHyperspace) output.color.a = 1.0; // Hyperspace transparency fix
 	return output;
 
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);

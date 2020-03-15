@@ -8,12 +8,16 @@ cbuffer ConstantBuffer : register(b0)
 	float aspect_ratio;
 	float parallax;
 	float brightness; // This isn't used in the vertex shader
+
 	float use_3D; // Use the 3D projection matrix or not
 };
 
+// VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)
 {
 	matrix projEyeMatrix;
+	matrix viewMatrix;
+	matrix fullViewMatrix;
 };
 
 struct VertexShaderInput

@@ -165,6 +165,8 @@ extern bool g_bAOEnabled;
 
 FILE *g_DebugFile = NULL;
 
+extern std::vector<ColorLightPair> g_TextureVector;
+
 /* SteamVR HMD */
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
@@ -867,6 +869,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
 
+	g_TextureVector.clear();
 	DeleteRandomVectorTexture();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
