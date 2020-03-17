@@ -6177,14 +6177,14 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fSpecVal	     = lastTextureSelected->material.SpecValue;
 				}
 
-				// Apply the SSAO mask
+				// Apply the SSAO mask/Special materials, like lasers and HUD
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
 					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked) 
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = min(1.0f, SHADELESS_MAT + bIsAimingHUD ? 0.15f : 0.0f);
+						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
@@ -6192,6 +6192,10 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsShadeless = 1;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+						// DEBUG
+						//g_PSCBuffer.bIsBackground = bIsAimingHUD;
+						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||

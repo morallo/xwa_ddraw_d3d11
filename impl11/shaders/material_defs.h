@@ -11,9 +11,15 @@
 #define DEFAULT_SPEC_VALUE 0.0f
 // Default material, neither plastic nor metal; but halfway through:
 //#define DEFAULT_MAT     0.25
+// Default material: a bit plasticky; but not completely plastic:
 #define DEFAULT_MAT		0.15f
 
 // Material values
+// The first channel of SSAOMask is the material. In this channel we have:
+// Plastic-Metallicity in the range 0.0..0.5
+// Glass: 0.6
+// Shadeless: 0.75
+// Emission: 1.0
 #define PLASTIC_MAT		0.00
 #define METAL_MAT		0.50
 #define GLASS_MAT		0.60

@@ -209,8 +209,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent -- CHECK IF Jeremy's latest hooks fixed this. So glass is a non-shadeless 
-	// surface with transparency:
+	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
+	// So glass is a non-shadeless surface with transparency:
 	if (fSSAOMaskVal < SHADELESS_LO && !bIsShadeless && alpha < 0.95) {
 		// Change the material and do max glossiness and spec_intensity
 		output.ssaoMask.r = GLASS_MAT;
