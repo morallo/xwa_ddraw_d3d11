@@ -264,7 +264,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	int unusedA[3];
+	float cursor_radius, unused[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 
@@ -331,7 +331,8 @@ typedef struct PixelShaderCBStruct {
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse;
+	uint32_t AC_debug, bIsBackground;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -445,6 +446,17 @@ typedef struct MaterialStruct {
 	}
 } Material;
 
+// Color-Light links
+class Direct3DTexture;
+typedef struct ColorLightPairStruct {
+	Direct3DTexture *color, *light;
+
+	ColorLightPairStruct(Direct3DTexture *color) {
+		this->color = color;
+		this->light = NULL;
+	}
+} ColorLightPair;
+
 class DeviceResources
 {
 public:
@@ -463,11 +475,12 @@ public:
 	void InitPixelShader(ID3D11PixelShader* pixelShader);
 	void InitTopology(D3D_PRIMITIVE_TOPOLOGY topology);
 	void InitRasterizerState(ID3D11RasterizerState* state);
+	void InitPSShaderResourceView(ID3D11ShaderResourceView* texView);
 	HRESULT InitSamplerState(ID3D11SamplerState** sampler, D3D11_SAMPLER_DESC* desc);
 	HRESULT InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DESC* desc);
 	HRESULT InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc);
 	void InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT* offset);
-	void InitIndexBuffer(ID3D11Buffer* buffer);
+	void InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32);
 	void InitViewport(D3D11_VIEWPORT* viewport);
 	void InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer);
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);

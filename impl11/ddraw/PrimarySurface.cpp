@@ -57,7 +57,7 @@ extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
@@ -132,6 +132,8 @@ float g_fBloomSpread[8] = {
 int g_iBloomPasses[8] = {
 	1, 1, 1, 1, 1, 1, 1, 1
 };
+
+//extern FILE *colorFile, *lightFile;
 
 // SSAO
 extern SSAOTypeEnum g_SSAO_Type;
@@ -1185,7 +1187,8 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 		NULL, NULL, NULL, NULL,
 	};
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 
 	resources->InitViewport(&viewport);
 	context->Draw(6, 0);
@@ -1404,12 +1407,14 @@ void PrimarySurface::barrelEffectSteamVR() {
 		NULL, NULL, NULL, NULL,
 	};
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	context->Draw(6, 0);
 
 	rtvs[0] = resources->_renderTargetViewPostR.Get();
 	context->OMSetRenderTargets(5, rtvs, NULL);
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	context->Draw(6, 0);
 
 #ifdef DBG_VR
@@ -1466,7 +1471,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	UINT offset = 0;
 	resources->InitVertexBuffer(resources->_mainVertexBuffer.GetAddressOf(), &stride, &offset);
 	//resources->InitVertexBuffer(resources->_steamVRPresentVertexBuffer.GetAddressOf(), &stride, &offset);
-	resources->InitIndexBuffer(resources->_mainIndexBuffer);
+	resources->InitIndexBuffer(resources->_mainIndexBuffer, false);
 
 	// Set Primitive Topology
 	// This is probably an opportunity for an optimization: let's use the same topology everywhere?
@@ -1547,7 +1552,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -3024,13 +3030,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
-			ID3D11ShaderResourceView *srvs[5] = {
+			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_normBufSRV.Get(),
 					resources->_bentBufSRV_R.Get(),
-					resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
+					//resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 	g_SSAO_Type != SSO_BENT_NORMALS) {
 				context->ClearRenderTargetView(resources->_renderTargetView, black);
@@ -3044,7 +3050,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
@@ -3060,7 +3066,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs);
+				context->PSSetShaderResources(0, 4, srvs);
 				context->Draw(6, 0);
 			}
 		}
@@ -3113,6 +3119,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		}
 		// DEBUG
 		else {
+			// _renderTargetViewSSAO_R is used for the LEFT eye (and viceversa). THIS IS NOT A BUG
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO_R.Get(),
@@ -3174,23 +3181,23 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	
 	// Final combine, Left Image
 	{
-		// SSDO Indirect Blur
 		// DEBUG: REMOVE LATER: WE DON'T NEED TO SET THIS BUFFER ON EVERY FRAME!
-		g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
-		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
+		//g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+		//resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 		// DEBUG
 
 		// input: offscreenAsInput (resolved here), bloomMask (removed?), ssaoBuf
 		// output: offscreenBuf, bloomMask?
-		if (g_SSAO_Type == SSO_BENT_NORMALS)
+		//if (g_SSAO_Type == SSO_BENT_NORMALS)
 			//resources->InitPixelShader(resources->_hyperspacePS);
 #ifndef DEATH_STAR
-			resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
+			//resources->InitPixelShader(resources->_ssdoAddBentNormalsPS);
 #else
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif
-		else
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+		//else
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			resources->InitPixelShader(resources->_ssdoAddPS);
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX	= 0.0f;
 		viewport.TopLeftY	= 0.0f;
@@ -3226,7 +3233,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			resources->_bentBufSRV.Get(),							// Bent Normals
-			resources->_ssMaskSRV.Get(),								// Shading System buffer
+			resources->_ssMaskSRV.Get(),								// Shading System Mask buffer
 			
 			//resources->_ssEmissionMaskSRV.Get(),						// Emission mask
 		};
@@ -3234,6 +3241,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->Draw(6, 0);
 	}
 
+	/*******************************************************************************
+	 START PROCESS FOR THE RIGHT EYE, STEAMVR MODE
+	 *******************************************************************************/
 out1:
 	// Draw the right image when SteamVR is enabled
 	if (g_bUseSteamVR) {
@@ -3260,8 +3270,9 @@ out1:
 				resources->_ssaoMaskSRV_R.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
 			};
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
-			if (!g_bBlurSSAO && g_bShowSSAODebug) {
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+			resources->InitPixelShader(resources->_ssdoDirectPS);
+			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewR.Get(),
 					resources->_renderTargetViewBentBufR.Get(),
@@ -3296,11 +3307,26 @@ out1:
 		g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
 		g_BloomPSCBuffer.uvStepSize			= 1.0f;
 		g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-		g_BloomPSCBuffer.debug				= g_iSSDODebug; // Do I still use this?
+		// The SSDO component currently encodes the AO component in the Y channel. If
+		// the SSDO buffer is displayed directly, it's hard to understand. So, instead, we
+		// have to code the following logic:
+		// If SSDO Indirect is disabled, then enable debug mode in the blur shader. This mode
+		// returns ssao.xxx so that the SSDO direct component can be visualized properly
+		// If SSDO Indirect is enabled, then we can't return ssao.xxx, because that'll wipe
+		// out the AO component needed for SSDO Indirect. In that case we just pass along the
+		// debug flag directly -- but the SSDO Direct buffer will be unreadable
+		if (g_bShowSSAODebug) {
+			if (!g_bEnableIndirectSSDO)
+				g_BloomPSCBuffer.debug = 1;
+			else
+				g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
+		}
+		else
+			g_BloomPSCBuffer.debug = 0;
 		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-		// SSDO Blur, Right Image
-		// input: offscreenAsInputR (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
+		// SSDO Direct Blur, Right Image
+		// input: bloomOutput1 (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
 		// output: ssaoBufR, bentBufR
 		if (g_bBlurSSAO)
 			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
@@ -3315,8 +3341,8 @@ out1:
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
 				ID3D11ShaderResourceView *srvs[4] = {
-						//resources->_offscreenAsInputShaderResourceViewR.Get(),
-						resources->_bloomOutput1SRV.Get(),
+						//resources->_offscreenAsInputShaderResourceViewR.Get(), // LDR
+						resources->_bloomOutput1SRV.Get(), // HDR
 						resources->_depthBufSRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
 						resources->_bentBufSRV.Get(),
@@ -3366,6 +3392,7 @@ out1:
 			//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
 			g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
 			g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
+			g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetInd;
 			g_SSAO_PSCBuffer.fn_enable		= g_bFNEnable;
 			resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
@@ -3396,6 +3423,7 @@ out1:
 			}
 			// DEBUG
 			else {
+				// _renderTargetViewSSAO is used for the RIGHT eye (and viceversa). THIS IS NOT A BUG
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
 				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO.Get(),
@@ -3459,7 +3487,8 @@ out1:
 		{
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
-			resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+			resources->InitPixelShader(resources->_ssdoAddPS);
 			// Reset the viewport for the final SSAO combine
 			viewport.TopLeftX	= 0.0f;
 			viewport.TopLeftY	= 0.0f;
@@ -3490,7 +3519,7 @@ out1:
 				resources->_depthBufSRV_R.Get(),							// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
 				resources->_bentBufSRV_R.Get(),							// Bent Normals
-				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
+				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
 			};
 			context->PSSetShaderResources(0, 8, srvs_pass2);
 			context->Draw(6, 0);
@@ -4694,7 +4723,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	Matrix4 viewMatrix = g_viewMatrix;
 	viewMatrix.invert();
 	if (bProjectContOrigin) {
-		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft);
+		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -4712,9 +4741,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay = g_LaserPointer3DIntersection;
 		if (g_LaserPointerBuffer.bDebugMode) {
 			Vector3 q;
-			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 		}
 	} 
 	else {
@@ -4724,7 +4753,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
-	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft);
+	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 	g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
@@ -4788,14 +4817,17 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
-		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft);
+		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
-			short width = g_ACElements[g_iBestIntersTexIdx].width;
-			short height = g_ACElements[g_iBestIntersTexIdx].height;
+			short width = g_iBestIntersTexIdx > -1 ? g_ACElements[g_iBestIntersTexIdx].width : 0;
+			short height = g_iBestIntersTexIdx > -1 ? g_ACElements[g_iBestIntersTexIdx].height : 0;
 			log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
-			log_debug("[DBG] [AC] Texture: %s", g_ACElements[g_iBestIntersTexIdx].name);
+			if (g_iBestIntersTexIdx > -1)
+				log_debug("[DBG] [AC] Texture: %s", g_ACElements[g_iBestIntersTexIdx].name);
+			else
+				log_debug("[DBG] [AC] NULL Texture name (-1 index)");
 			log_debug("[DBG] [AC] intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
 				pos3D.x, pos3D.y, pos3D.z, p.x, p.y);
 			log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
@@ -4874,7 +4906,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight);
+				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
@@ -4883,15 +4915,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight);
+			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT
@@ -5406,8 +5438,22 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
-					if (g_bDumpSSAOBuffers)
+					if (g_bDumpSSAOBuffers) {
+						/*
+						if (colorFile != NULL) {
+							fflush(colorFile);
+							fclose(colorFile);
+							colorFile = NULL;
+						}
+
+						if (lightFile != NULL) {
+							fflush(lightFile);
+							fclose(lightFile);
+							lightFile = NULL;
+						}
+						*/
 						g_bDumpSSAOBuffers = false;
+					}
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
@@ -5853,8 +5899,9 @@ HRESULT PrimarySurface::Flip(
 			else // Non-VR mode
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
+			//log_debug("[DBG] g_iExecBufCounter:%d at end of frame", g_iExecBufCounter);
 			// Let's reset some frame counters and other control variables
-			g_iDrawCounter = 0; g_iExecBufCounter = 0;
+			g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 			g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
 			g_iFloatingGUIDrawnCounter = 0;
 			g_bTargetCompDrawn = false;

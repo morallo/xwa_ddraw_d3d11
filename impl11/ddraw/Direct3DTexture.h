@@ -114,6 +114,8 @@ public:
 	bool is_GenericSSAOMasked;
 	// True for all skydomes ("*Cielo*") in DTM's planetary maps
 	bool is_SkydomeLight;
+	// True for all *.dat files
+	bool is_DAT;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 
@@ -143,6 +145,9 @@ public:
 	// **** Materials ****
 	bool bHasMaterial;
 	Material material;
+
+	// **** Back-pointer to the light texture
+	Direct3DTexture *lightTexture;
 
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 

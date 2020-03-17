@@ -62,7 +62,8 @@ cbuffer ConstantBuffer : register(b0)
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse;
+	uint AC_debug, bIsBackground;
 	// 80 bytes
 };
 

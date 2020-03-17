@@ -34,12 +34,19 @@ Config::Config()
 
 	this->ProcessAffinityCore = 2;
 
+	this->D3dHookExists = false;
+
 	this->EnhanceLasers = false;
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
 
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
+
+	if (ifstream("Hook_D3d.dll"))
+	{
+		this->D3dHookExists = true;
+	}
 
 	ifstream file("ddraw.cfg");
 
@@ -179,7 +186,7 @@ Config::Config()
 					{
 						processAffinityMask &= ~mask;
 					}
-	
+
 					currentCore++;
 				}
 
