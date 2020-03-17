@@ -13,19 +13,20 @@ cbuffer ConstantBuffer : register(b7)
 	// 16 bytes
 	float2 p0, p1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float2 contOrigin, intersection;
+	float2 contOrigin, intersection; // 2D coords of the controller's origin and the intersection
 	// 48 bytes
 	bool bContOrigin;		    // True if contOrigin is valid (can be displayed)
 	bool bIntersection;		    // True if there is an intersection to display
 	bool bHoveringOnActiveElem; // True if the cursor is hovering over an action element
 	int DirectSBSEye; // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
 	// 64 bytes
-	float2 v0, v1; // DEBUG
+	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
 	// 80 bytes
 	float2 v2, uv; // DEBUG
 	// 96 bytes
 	bool bDebugMode;
-	int unusedA0, unusedA1, unusedA2;
+	float cursor_radius;
+	float unusedA1, unusedA2;
 	// 112 bytes
 };
 
@@ -118,8 +119,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// Early exit: avoid rendering outside the original viewport edges
 	//if (input.uv.x < x0 || input.uv.x > x1 ||
 	//	input.uv.y < y0 || input.uv.y > y1)
-	if (any(input.uv < p0) ||
-		any(input.uv > p1))
+	if (any(input.uv < p0) || any(input.uv > p1))
 	{
 		output.color = 0.0;
 		return output;
@@ -157,28 +157,31 @@ PixelShaderOutput main(PixelShaderInput input) {
 		dotcol = float3(0.0, 0.0, 1.0);
 
 	float v = 0.0, d = 10000.0;
-	if (bContOrigin) {
-		d = sdCircle(p, contOrigin, 0.0);
-		d += 0.005;
-		v += exp(-(d * d) * 5000.0);
-	}
+	//if (bContOrigin) {
+	//	d = sdCircle(p, contOrigin, 0.0);
+	//	d += 0.005;
+	//	v += exp(-(d * d) * 5000.0);
+	//}
 
 	if (bIntersection) 
 	{
-		d = sdCircle(p, intersection, 0.0);
-		d += 0.01;
-		v += exp(-(d * d) * 10000.0);
+		d = sdCircle(p, intersection, cursor_radius);
+		v += smoothstep(0.0015, 0.0, abs(d));
+		// Add a second ring if we're hovering on an active element
+		if (bHoveringOnActiveElem) {
+			//d = sdCircle(p, intersection, cursor_radius + 0.005);
+			v += smoothstep(0.0015, 0.0, abs(d - 0.005));
+		}
 	}
 
-	//if (bIntersection && bContOrigin)
-	if (bContOrigin) 
-	{
-		d = sdLine(p, contOrigin, intersection);
-		d += 0.01;
-		v += exp(-(d * d) * 7500.0);
-	}
+	//if (bContOrigin) 
+	//{
+	//	d = sdLine(p, contOrigin, intersection);
+	//	d += 0.01;
+	//	v += exp(-(d * d) * 7500.0);
+	//}
 
-	v = clamp(1.2 * v, 0.0, 1.0);
+	//v = clamp(1.2 * v, 0.0, 1.0);
 	float3 pointer_col = bIntersection ? dotcol : 0.7;
 	col = lerp(bgColor, pointer_col, v);
 

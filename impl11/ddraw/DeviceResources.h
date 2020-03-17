@@ -264,7 +264,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	int unusedA[3];
+	float cursor_radius, unused[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 

@@ -469,6 +469,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
 				return 0;
+			// Ctrl+Alt+O
 			case 'O':
 				g_bAOEnabled = !g_bAOEnabled;
 				return 0;
@@ -575,6 +576,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
+			// Ctrl+O
+			//case 'O':
+			//	g_bAOEnabled = !g_bAOEnabled;
+			//	return 0;
 
 			/*
 			case 'K': {

@@ -281,7 +281,7 @@ float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = true;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iLaserDirSelector = 3;
@@ -2190,6 +2190,9 @@ bool LoadACParams() {
 		bActiveCockpitParamsLoaded = LoadIndividualACParams(sFileName);
 	}
 
+	g_LaserPointerBuffer.bDebugMode = 0;
+	g_LaserPointerBuffer.cursor_radius = 0.01f;
+
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
@@ -2259,6 +2262,9 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "cursor_radius") == 0) {
+				g_LaserPointerBuffer.cursor_radius = fValue;
 			}
 		}
 	}
