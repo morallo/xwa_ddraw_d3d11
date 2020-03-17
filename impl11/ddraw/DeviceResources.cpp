@@ -3959,7 +3959,7 @@ void DeviceResources::CheckMultisamplingSupport()
 				this->_sampleDesc.Count = i;
 				this->_sampleDesc.Quality = numQualityLevels - 1;
 				// Stop checking for MSAA levels if we reached the limit set by the user
-				if (g_config.MSAACount > 1 && this->_sampleDesc.Count == g_config.MSAACount)
+				if (g_config.MSAACount > 0 && this->_sampleDesc.Count == g_config.MSAACount)
 					break;
 			}
 		}
