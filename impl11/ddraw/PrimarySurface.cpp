@@ -96,6 +96,7 @@ extern float g_fPosXMultiplier, g_fPosYMultiplier, g_fPosZMultiplier;
 extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
+extern float g_fFrameTimeRemaining;
 extern Vector3 g_headCenter;
 extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
 extern vr::IVRSystem *g_pHMD;
@@ -4805,7 +4806,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 	g_bACActionTriggered = false;
 
-	// Temporarily disable ZWrite: we won't need it for the barrel effect
+	// Temporarily disable ZWrite: we won't need it for post-proc
 	D3D11_DEPTH_STENCIL_DESC desc;
 	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = FALSE;
@@ -6304,9 +6305,7 @@ HRESULT PrimarySurface::Flip(
 				//g_pVRCompositor->PostPresentHandoff();
 			}
 
-			//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
-			//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
-			//if (timeRemaining < 0.005) WaitGetPoses();
+			
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
 			if (!g_bRendering3D) {
@@ -6347,6 +6346,10 @@ HRESULT PrimarySurface::Flip(
 				g_pVRCompositor->PostPresentHandoff();
 				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
 				//if (seconds > 0.008)
+
+				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
+				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
+				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
 				WaitGetPoses();
 			}
 		}

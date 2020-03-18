@@ -749,7 +749,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
+				//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
 				g_fFakeRoll = 0.0f;
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
 				break;

@@ -179,7 +179,8 @@ typedef enum {
 VRModeEnum g_VRMode = VR_MODE_DIRECT_SBS;
 */
 
-/* SteamVR HMD */
+// ***************************************************************
+// SteamVR HMD
 vr::IVRSystem *g_pHMD = NULL;
 vr::IVRCompositor *g_pVRCompositor = NULL;
 vr::IVRScreenshots *g_pVRScreenshots = NULL;
@@ -195,7 +196,7 @@ vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
-float g_fMetricMult = DEFAULT_METRIC_MULT;
+float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -2232,13 +2233,13 @@ bool LoadACParams() {
 			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
 				g_bOriginFromHMD = (bool)fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_x") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_x") == 0) {
 				g_contOriginWorldSpace.x = fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_y") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_y") == 0) {
 				g_contOriginWorldSpace.y = fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_z") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_z") == 0) {
 				g_contOriginWorldSpace.z = fValue;
 			}
 			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
@@ -3082,6 +3083,10 @@ void LoadVRParams() {
 
 			else if (_stricmp(param, "manual_dc_activate") == 0) {
 				g_bDCManualActivate = (bool)fValue;
+			}
+
+			else if (_stricmp(param, "frame_time_remaining") == 0) {
+				g_fFrameTimeRemaining = fValue;
 			}
 
 			param_read_count++;
