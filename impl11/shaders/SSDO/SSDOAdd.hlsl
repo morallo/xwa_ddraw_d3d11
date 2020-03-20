@@ -448,15 +448,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
-		float3 L = LightPoint[i].xyz - pos3D;
-		//float3 L = LightPoint[i].xyz - P;
+		//float3 L = LightPoint[i].xyz - pos3D;
+		float3 L = LightPoint[i].xyz - P;
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
 		// calculate basic attenuation
 		const float attenuation = 1.0 / (1.0 + light_point_radius * distance_sqr);
 		//const float attenuation = 1.0;
-		const float3 diffuse = attenuation * LightPointColor[i].rgb * max(dot(N, L), 0.0);
-		tmp_color += diffuse;
+		float diff_val = pow(max(dot(N, L), 0.0), 64.0); // Compute the diffuse component, and make the highlight a bit smaller
+		//diff_val *= diff_val;
+		//diff_val *= diff_val;
+		tmp_color += attenuation * diff_val * LightPointColor[i].rgb;
 	}
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
