@@ -91,9 +91,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P = input.pos3D.xyz;
 	output.pos3D = float4(P, 1);
 
-	float3 N = normalize(cross(ddx(P), ddy(P)));
-	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
-	// Do not flip N.z -- that causes flat unoccluded surfaces to be shaded in SSAO
+	// hook_normals code:
+	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	N.z = -N.z;
 	output.normal = float4(N, 1);
 
 	//output.ssaoMask = 0;

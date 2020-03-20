@@ -128,7 +128,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-	
 	output.normal = float4(N, 1);
 
 	//output.ssaoMask.r = PLASTIC_MAT;

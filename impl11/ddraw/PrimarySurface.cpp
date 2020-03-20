@@ -106,7 +106,7 @@ extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 // LASER LIGHTS
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights;
-Vector3 g_LaserPointDebug(1.0f, 0.0f, 0.0f);
+Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
@@ -2471,9 +2471,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		// DEBUG
 		/*
 		g_ShadingSys_PSBuffer.num_lasers = 1;
-		g_ShadingSys_PSBuffer.LightPoint[0].x = g_LaserPointDebug.x;
-		g_ShadingSys_PSBuffer.LightPoint[0].y = g_LaserPointDebug.y;
-		g_ShadingSys_PSBuffer.LightPoint[0].z = g_LaserPointDebug.z;
+		g_ShadingSys_PSBuffer.LightPoint[0].x =  g_LaserPointDebug.x;
+		g_ShadingSys_PSBuffer.LightPoint[0].y =  g_LaserPointDebug.y;
+		g_ShadingSys_PSBuffer.LightPoint[0].z = -g_LaserPointDebug.z;
 
 		g_ShadingSys_PSBuffer.LightPointColor[0].x = 1.0f;
 		g_ShadingSys_PSBuffer.LightPointColor[0].y = 0.0f;
@@ -2482,16 +2482,11 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		// DEBUG
 		int num_lasers = g_LaserList._size;
 		g_ShadingSys_PSBuffer.num_lasers = num_lasers;
-		// DEBUG
-		/*if (num_lasers > 0 && g_LaserList._elems[0].P.z < 100.0f) {
-			log_debug("[DBG] min P.z: %0.3f", g_LaserList._elems[0].P.z);
-		}*/
-		// DEBUG
 		for (i = 0; i < num_lasers; i++) {
 			// Set the lights from the lasers
-			g_ShadingSys_PSBuffer.LightPoint[i].x = g_LaserList._elems[i].P.x;
-			g_ShadingSys_PSBuffer.LightPoint[i].y = g_LaserList._elems[i].P.y;
-			g_ShadingSys_PSBuffer.LightPoint[i].z = g_LaserList._elems[i].P.z;
+			g_ShadingSys_PSBuffer.LightPoint[i].x =  g_LaserList._elems[i].P.x;
+			g_ShadingSys_PSBuffer.LightPoint[i].y =  g_LaserList._elems[i].P.y;
+			g_ShadingSys_PSBuffer.LightPoint[i].z = -g_LaserList._elems[i].P.z;
 
 			g_ShadingSys_PSBuffer.LightPointColor[i].x = g_LaserList._elems[i].col.x;
 			g_ShadingSys_PSBuffer.LightPointColor[i].y = g_LaserList._elems[i].col.y;

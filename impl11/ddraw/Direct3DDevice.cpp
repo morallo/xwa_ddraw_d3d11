@@ -2616,6 +2616,8 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
+	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f;
+	g_ShadingSys_PSBuffer.laser_light_intensity = 0.1f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -2887,8 +2889,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enable_laser_lights") == 0) {
 				g_bEnableLaserLights = (bool)fValue;
 			}
-			else if (_stricmp(param, "laser_light_radius") == 0) {
-				g_ShadingSys_PSBuffer.light_point_radius = fValue;
+			else if (_stricmp(param, "sqr_attenuation") == 0) {
+				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
+			}
+			else if (_stricmp(param, "laser_light_intensity") == 0) {
+				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
 			}
 
 			/*else if (_stricmp(param, "emission_intensity") == 0) {

@@ -304,8 +304,8 @@ typedef struct PSShadingSystemCBStruct {
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
 	// 96 bytes
-	float sso_disable, light_point_radius;
-	uint32_t num_lasers, ssunused2;
+	float sso_disable, sqr_attenuation, laser_light_intensity;
+	uint32_t num_lasers;
 	// 112 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128

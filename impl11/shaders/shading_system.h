@@ -14,8 +14,8 @@ cbuffer ConstantBuffer : register(b4)
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint ss_debug;
 	// 96 bytes
-	float sso_disable, light_point_radius;
-	uint num_lasers, ssunused2;
+	float sso_disable, sqr_attenuation, laser_light_intensity;
+	uint num_lasers;
 	// 112 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
 	// 112 + 128 = 240 bytes

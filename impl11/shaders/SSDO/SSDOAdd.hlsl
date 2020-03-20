@@ -354,6 +354,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
 	float debug_spec = 0.0;
 	uint i;
+
+	// Compute the light contribution from the main lights
 	[unroll]
 	for (i = 0; i < 1; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
@@ -445,21 +447,29 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Add the laser lights
+#define L_FADEOUT_0 500.0
+#define L_FADEOUT_1 1000.0
+	float3 laser_light_sum = 0.0;
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
-		//float3 L = LightPoint[i].xyz - pos3D;
-		float3 L = LightPoint[i].xyz - P;
+		// P is the original point
+		// pos3D = (P.xy, -P.z)
+		// LightPoint already comes with z inverted (-z) from ddraw
+		float3 L = LightPoint[i].xyz - pos3D;
+		//float3 L = LightPoint[i].xyz - P;
+		
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
 		// calculate basic attenuation
-		const float attenuation = 1.0 / (1.0 + light_point_radius * distance_sqr);
-		//const float attenuation = 1.0;
-		float diff_val = pow(max(dot(N, L), 0.0), 64.0); // Compute the diffuse component, and make the highlight a bit smaller
-		//diff_val *= diff_val;
-		//diff_val *= diff_val;
-		tmp_color += attenuation * diff_val * LightPointColor[i].rgb;
+		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		const float depth_attenuation = smoothstep(L_FADEOUT_1, L_FADEOUT_0, -LightPoint[i].z);
+		// compute the diffuse contribution
+		float diff_val = pow(max(dot(N, L), 0.0), 2.0); // Compute the diffuse component, and make the highlight a bit smaller
+		// add everything up
+		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}
+	tmp_color += laser_light_intensity * laser_light_sum;
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
