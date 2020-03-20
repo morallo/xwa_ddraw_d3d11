@@ -42,7 +42,6 @@ void IncreaseNoDrawAfterIndex(int Delta);
 //void IncreaseNoExecIndices(int DeltaBefore, int DeltaAfter);
 //void IncreaseZOverride(float Delta);
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
-void IncreaseSkyBoxIndex(int Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
 
@@ -96,6 +95,8 @@ extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
+
+extern Vector3 g_LaserPointDebug;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -319,6 +320,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseFOV(50.0f);
 					SaveFocalLength();
 					break;
+				case 3:
+					g_LaserPointDebug.x += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -344,6 +350,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					IncreaseFOV(-50.0f);
 					SaveFocalLength();
+					break;
+				case 3:
+					g_LaserPointDebug.x -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				}
 
@@ -372,6 +383,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseMetricMult(0.1f);
 					SaveVRParams();
 					break;
+				case 3:
+					g_LaserPointDebug.y += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				}
 
 				//g_contOriginWorldSpace.y += 0.02f;
@@ -386,6 +402,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					IncreaseMetricMult(-0.1f);
 					SaveVRParams();
+					break;
+				case 3:
+					g_LaserPointDebug.y -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				}
 
@@ -640,6 +661,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//IncreasePostProjScale(0.1f);
 					SaveVRParams();
 					break;
+				case 3:
+					g_LaserPointDebug.z += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -654,6 +680,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseScreenScale(-0.1f);
 					//IncreasePostProjScale(-0.1f);
 					SaveVRParams();
+					break;
+				case 3:
+					g_LaserPointDebug.z -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				}
 				return 0;
@@ -752,6 +783,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
 				g_fFakeRoll = 0.0f;
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
+				g_LaserPointDebug.x = 0.0f;
+				g_LaserPointDebug.y = 0.0f;
+				g_LaserPointDebug.z = 0.0f;
 				break;
 			}
 		}

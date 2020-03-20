@@ -21,20 +21,20 @@ const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 std::vector<ColorLightPair> g_TextureVector;
 
 std::vector<char *> HUD_ResNames = {
-	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire. (master branch)
-	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available. (master branch)
-	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser HUD (master branch).
-	"dat,12000,1500,", // 0x1c5e0b86, // HUD warning indicator, left. (master branch)
-	"dat,12000,1600,", // 0xc54d8171, // HUD warning indicator, mid-left. (master branch)
-	"dat,12000,1700,", // 0xf4388255, // HUD warning indicator, mid-right. (master branch)
-	"dat,12000,1800,", // 0xee802582, // HUD warning indicator, right. (master branch)
-	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead HUD. (master branch)
-	"dat,12000,1900,", // 0x671e8041, // Warhead HUD, left. (master branch)
-	"dat,12000,2000,", // 0x6cd5d81f, // Warhead HUD, mid-left,right (master branch) CRC collision!
-	"dat,12000,2100,", // 0x6cd5d81f, // Warhead HUD, mid-left,right (master branch) CRC collision!
-	"dat,12000,2200,", // 0xc33a94b3, // Warhead HUD, right. (master branch)
-	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon. (master branch)
-	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired. (master branch)
+	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
+	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available.
+	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser HUD.
+	"dat,12000,1500,", // 0x1c5e0b86, // HUD warning indicator, left.
+	"dat,12000,1600,", // 0xc54d8171, // HUD warning indicator, mid-left.
+	"dat,12000,1700,", // 0xf4388255, // HUD warning indicator, mid-right.
+	"dat,12000,1800,", // 0xee802582, // HUD warning indicator, right.
+	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead HUD.
+	"dat,12000,1900,", // 0x671e8041, // Warhead HUD, left.
+	"dat,12000,2000,", // 0x6cd5d81f, // Warhead HUD, mid-left,right
+	"dat,12000,2100,", // 0x6cd5d81f, // Warhead HUD, mid-left,right
+	"dat,12000,2200,", // 0xc33a94b3, // Warhead HUD, right.
+	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon.
+	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired.
 };
 
 std::vector<char *> Text_ResNames = {

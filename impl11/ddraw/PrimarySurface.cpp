@@ -103,6 +103,11 @@ extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot;
 extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
 
+// LASER LIGHTS
+extern SmallestK g_LaserList;
+extern bool g_bEnableLaserLights;
+Vector3 g_LaserPointDebug(1.0f, 0.0f, 0.0f);
+
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
 //bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
@@ -2449,7 +2454,9 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 void PrimarySurface::SetLights(float fSSDOEnabled) {
 	const auto &resources = this->_deviceResources;
 	Vector4 light[2];
-	
+	int i;
+	static bool bInit = false;
+
 	if (g_bOverrideLightPos) {
 		for (int i = 0; i < 2; i++) {
 			light[i].x = g_LightVector[i].x;
@@ -2460,6 +2467,40 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		ComputeRotationMatrixFromXWAView(light, 2);
 
+	if (g_bEnableLaserLights) {
+		// DEBUG
+		/*
+		g_ShadingSys_PSBuffer.num_lasers = 1;
+		g_ShadingSys_PSBuffer.LightPoint[0].x = g_LaserPointDebug.x;
+		g_ShadingSys_PSBuffer.LightPoint[0].y = g_LaserPointDebug.y;
+		g_ShadingSys_PSBuffer.LightPoint[0].z = g_LaserPointDebug.z;
+
+		g_ShadingSys_PSBuffer.LightPointColor[0].x = 1.0f;
+		g_ShadingSys_PSBuffer.LightPointColor[0].y = 0.0f;
+		g_ShadingSys_PSBuffer.LightPointColor[0].z = 0.0f;
+		*/
+		// DEBUG
+		int num_lasers = g_LaserList._size;
+		g_ShadingSys_PSBuffer.num_lasers = num_lasers;
+		// DEBUG
+		/*if (num_lasers > 0 && g_LaserList._elems[0].P.z < 100.0f) {
+			log_debug("[DBG] min P.z: %0.3f", g_LaserList._elems[0].P.z);
+		}*/
+		// DEBUG
+		for (i = 0; i < num_lasers; i++) {
+			// Set the lights from the lasers
+			g_ShadingSys_PSBuffer.LightPoint[i].x = g_LaserList._elems[i].P.x;
+			g_ShadingSys_PSBuffer.LightPoint[i].y = g_LaserList._elems[i].P.y;
+			g_ShadingSys_PSBuffer.LightPoint[i].z = g_LaserList._elems[i].P.z;
+
+			g_ShadingSys_PSBuffer.LightPointColor[i].x = g_LaserList._elems[i].col.x;
+			g_ShadingSys_PSBuffer.LightPointColor[i].y = g_LaserList._elems[i].col.y;
+			g_ShadingSys_PSBuffer.LightPointColor[i].z = g_LaserList._elems[i].col.z;
+		}
+	}
+	else
+		g_ShadingSys_PSBuffer.num_lasers = 0;
+
 	/*int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 
@@ -2469,7 +2510,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
 	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);*/
 
-	int i = 0;
 	//XwaVector3 xwaLight = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
 	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
 	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
@@ -3648,17 +3688,19 @@ void PrimarySurface::DeferredPass() {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[7] = {
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
 			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
+			NULL,													// Bent Normals
 			resources->_ssMaskSRV.Get(),								// Shading System buffer
 		};
-		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3696,17 +3738,19 @@ void PrimarySurface::DeferredPass() {
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[7] = {
+			ID3D11ShaderResourceView *srvs_pass2[8] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
 				//resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
 				NULL,													// SSDO Direct Component
 				NULL,													// SSDO Indirect Component
 				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+
 				resources->_depthBufSRV_R.Get(),							// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
+				NULL,													// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
 			};
-			context->PSSetShaderResources(0, 7, srvs_pass2);
+			context->PSSetShaderResources(0, 8, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
@@ -5941,6 +5985,10 @@ HRESULT PrimarySurface::Flip(
 				g_fBestIntersectionDistance = 10000.0f;
 				g_iBestIntersTexIdx = -1;
 			}
+
+			// Clear the laser list for the next frame
+			if (g_bEnableLaserLights)
+				g_LaserList.clear();
 
 			// Apply the custom FOV
 			// I tried applying these settings on DLL load, and on the first draw call in Execute(); but they didn't work.

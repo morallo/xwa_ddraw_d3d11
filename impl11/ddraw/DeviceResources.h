@@ -304,8 +304,15 @@ typedef struct PSShadingSystemCBStruct {
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
 	// 96 bytes
-	float sso_disable, ssunused0, ssunused1, ssunused2;
+	float sso_disable, light_point_radius;
+	uint32_t num_lasers, ssunused2;
 	// 112 bytes
+	float4 LightPoint[MAX_CB_POINT_LIGHTS];
+	// 8 * 16 = 128
+	// 240 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 8 * 16 = 128
+	// 368 bytes
 } PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {
@@ -436,6 +443,7 @@ typedef struct MaterialStruct {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
+	Vector3 Light;
 
 	MaterialStruct() {
 		Metallic    = DEFAULT_METALLIC;
@@ -443,6 +451,7 @@ typedef struct MaterialStruct {
 		Glossiness  = DEFAULT_GLOSSINESS;
 		NMIntensity = DEFAULT_NM_INT;
 		SpecValue   = DEFAULT_SPEC_VALUE;
+		Light.set(0.0f, 0.0f, 0.0f);
 	}
 } Material;
 
@@ -456,6 +465,31 @@ typedef struct ColorLightPairStruct {
 		this->light = NULL;
 	}
 } ColorLightPair;
+
+#define MAX_HEAP_ELEMS 32
+class VectorColor {
+public:
+	Vector3 P;
+	Vector3 col;
+};
+
+class SmallestK {
+public:
+	// Insert-sort-like algorithm to keep the k smallest elements from a constant flow
+	VectorColor _elems[MAX_CB_POINT_LIGHTS];
+	int _size;
+
+public:
+	SmallestK() {
+		clear();
+	}
+
+	inline void clear() {
+		_size = 0;
+	}
+
+	void insert(Vector3 P, Vector3 col);
+};
 
 class DeviceResources
 {

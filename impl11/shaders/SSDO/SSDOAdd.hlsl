@@ -144,6 +144,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	//return n1 * dot(n1, n2) - n1.z * n2;
 }
 
+#ifdef DISABLED
 // (Sorry, don't remember very well) I think this function projects a 3D point back
 // into 2D and then converts the 2D coord into its equivalent UV-coord used in post
 // processing. This function is going to be useful to project 3D into 2D when trying
@@ -177,6 +178,7 @@ inline float2 projectToUV(in float3 pos3D) {
 	P.xy = lerp(float2(p0.x, p1.y), float2(p1.x, p0.y), (P.xy + 1.0) / 2.0);
 	return P.xy;
 }
+#endif
 
 /*
 float3 shadow_factor(in float3 P, float max_dist_sqr) {
@@ -283,6 +285,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
 	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
 	// normals.
+	const float3 P = pos3D.xyz;
 	pos3D.z = -pos3D.z;
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
@@ -303,10 +306,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Compute shadows
 	float3 SSAO_Normal = float3(N.xy, -N.z);
 	//float m_offset = max(moire_offset, moire_offset * (-pos3D.z * moire_scale));
-	//float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset);
+	////float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset
+	//float3 shadow_pos3D = P - m_offset;
 	// SSAO version:
 	float m_offset = moire_offset * (-pos3D.z * moire_scale);
-	float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z) + SSAO_Normal * m_offset;
+	//float3 shadow_pos3D = P + SSAO_Normal * m_offset;
 	//float shadow = 1;
 	//if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
 
@@ -349,8 +353,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float contactShadow = 1.0;
 	float diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
 	float debug_spec = 0.0;
+	uint i;
 	[unroll]
-	for (uint i = 0; i < 1; i++) {
+	for (i = 0; i < 1; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz;
 		float LightInt = dot(LightColor[i].rgb, 0.333);
@@ -438,9 +443,26 @@ PixelShaderOutput main(PixelShaderInput input)
 			//emissionMask);
 		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
 	}
+
+	// Add the laser lights
+	[loop]
+	for (i = 0; i < num_lasers; i++)
+	{
+		float3 L = LightPoint[i].xyz - pos3D;
+		//float3 L = LightPoint[i].xyz - P;
+		const float distance_sqr = dot(L, L);
+		L *= rsqrt(distance_sqr); // Normalize L
+		// calculate basic attenuation
+		const float attenuation = 1.0 / (1.0 + light_point_radius * distance_sqr);
+		//const float attenuation = 1.0;
+		const float3 diffuse = attenuation * LightPointColor[i].rgb * max(dot(N, L), 0.0);
+		tmp_color += diffuse;
+	}
+
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
 
+#ifdef DISABLED
 	if (ssao_debug == 8)
 		output.color.xyz = bentN.xyz * 0.5 + 0.5;
 	if (ssao_debug == 9 || ssao_debug >= 14)
@@ -469,6 +491,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = ssdoInd; // Should display a debug value coming from SSDOInd
 	if (ssao_debug == 26)
 		output.color.xyz = 0.5 * ssdoInd;
+#endif
 
 	return output;
 	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);

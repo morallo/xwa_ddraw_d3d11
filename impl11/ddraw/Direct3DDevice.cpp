@@ -51,6 +51,7 @@ bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once 
 
 #define MOVE_LIGHTS_KEY_SET 1
 #define CHANGE_FOV_KEY_SET 2
+#define MOVE_POINT_LIGHT_KEY_SET 3
 int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV, I can always override this with the "key_set" SSAO.cfg param
 
 const float DEFAULT_FOCAL_DIST = 2.0f; // This value (2.0f) was determined experimentally.
@@ -437,6 +438,27 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
 bool InitDirectSBS();
 void LoadFocalLength();
+
+SmallestK g_LaserList;
+bool g_bEnableLaserLights = true;
+
+void SmallestK::insert(Vector3 P, Vector3 col) {
+	int i = _size - 1;
+	while (i >= 0 && P.z < _elems[i].P.z) {
+		// Copy the i-th element to the (i+1)-th index to make space at i
+		if (i + 1 < MAX_CB_POINT_LIGHTS)
+			_elems[i + 1] = _elems[i];
+		i--;
+	}
+
+	// Insert at i + 1 (if possible) and we're done
+	if (i + 1 < MAX_CB_POINT_LIGHTS) {
+		_elems[i + 1].P = P;
+		_elems[i + 1].col = col;
+		if (_size < MAX_CB_POINT_LIGHTS)
+			_size++;
+	}
+}
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -1624,6 +1646,35 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 }
 
 /*
+ * Loads a Light color row
+ */
+bool LoadLightColor(char *buf, Vector3 *Light)
+{
+	int res = 0;
+	char *c = NULL;
+	float r, g, b;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f", &r, &g, &b);
+			if (res < 3) {
+				log_debug("[DBG] [DC] Error (skipping), expected at least 3 elements in '%s'", c);
+			}
+			Light->x = r;
+			Light->y = g;
+			Light->z = b;
+		}
+		catch (...) {
+			log_debug("[DBG] [DC] Could not read 'r, g, b' from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+/*
  * Load the material parameters for an individual OPT.
  */
 bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
@@ -1777,6 +1828,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			}
 			else if (_stricmp(param, "SpecularVal") == 0) {
 				curMaterialTexDef.material.SpecValue = fValue;
+			}
+			else if (_stricmp(param, "Light") == 0) {
+				LoadLightColor(buf, &(curMaterialTexDef.material.Light));
+				log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
+					curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 			}
 		}
 	}
@@ -2826,8 +2882,15 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "key_set") == 0) {
 				g_KeySet = (int)fValue;
-				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
+				log_debug("[DBG] key_set: %d", g_KeySet);
 			}
+			else if (_stricmp(param, "enable_laser_lights") == 0) {
+				g_bEnableLaserLights = (bool)fValue;
+			}
+			else if (_stricmp(param, "laser_light_radius") == 0) {
+				g_ShadingSys_PSBuffer.light_point_radius = fValue;
+			}
+
 			/*else if (_stricmp(param, "emission_intensity") == 0) {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
 			}*/
@@ -4744,6 +4807,50 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 	return bIntersection;
 }
 
+void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	WORD index;
+	float u,v;
+	Vector3 pos3D;
+
+	// XWA batch renders all lasers that share the same texture, so we may see several
+	// lasers when parsing this instruction. So, to detect each individual laser, we need
+	// to look at the uv's: if the current uv is close to (1,1), then we know that's the
+	// tip of one individual laser and we add it to the current list.
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = triangle->v1;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		index = triangle->v2;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		index = triangle->v3;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		triangle++;
+	}
+}
+
 inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
 {
 	*x_out = left + x / g_fCurInGameWidth  * width;
@@ -5309,6 +5416,7 @@ HRESULT Direct3DDevice::Execute(
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
+				const bool bIsLaser = bLastTextureSelectedNotNULL && lastTextureSelected->is_Laser;
 				const bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
 				const bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
 				const bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
@@ -6301,6 +6409,11 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Modify the state for both VR and regular game modes...
+
+				// Maintain the k-closest lasers to the camera
+				if (g_bEnableLaserLights && bIsLaser) {
+					AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
+				}
 
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)

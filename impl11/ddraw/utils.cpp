@@ -15,6 +15,13 @@
 
 using namespace Gdiplus;
 
+void toupper(char *string)
+{
+	int i = 0;
+	while (string[i])
+		string[i] = toupper(string[i]);
+}
+
 std::string wchar_tostring(LPCWSTR text)
 {
 	std::wstring wstr(text);

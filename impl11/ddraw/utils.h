@@ -3,6 +3,8 @@
 
 #pragma once
 
+void toupper(char *string);
+
 std::string wchar_tostring(LPCWSTR text);
 
 #if LOGGER
