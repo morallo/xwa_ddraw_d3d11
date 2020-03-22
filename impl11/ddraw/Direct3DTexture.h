@@ -116,6 +116,8 @@ public:
 	bool is_SkydomeLight;
 	// True for all *.dat files
 	bool is_DAT;
+	// True if this is a blast mark
+	bool is_BlastMark;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 

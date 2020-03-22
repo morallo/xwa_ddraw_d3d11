@@ -304,7 +304,7 @@ dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
-bool g_bDCManualActivate = true;
+bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -440,7 +440,7 @@ bool InitDirectSBS();
 void LoadFocalLength();
 
 SmallestK g_LaserList;
-bool g_bEnableLaserLights = true;
+bool g_bEnableLaserLights = false;
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
@@ -2210,6 +2210,9 @@ bool LoadDCParams() {
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = value;
 			}
+			else if (_stricmp(param, "ignore_erase_commands") == 0) {
+				g_bDCIgnoreEraseCommands = (bool)value;
+			}
 		}
 	}
 	fclose(file);
@@ -2617,7 +2620,7 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
 	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f;
-	g_ShadingSys_PSBuffer.laser_light_intensity = 0.1f;
+	g_ShadingSys_PSBuffer.laser_light_intensity = 0.25f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -4828,7 +4831,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v1;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
+		//if (u > 0.9f && v > 0.9f)
+		if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -4837,7 +4841,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v2;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
+		//if (u > 0.9f && v > 0.9f)
+		if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -4846,7 +4851,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v3;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
+		//if (u > 0.9f && v > 0.9f)
+		if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -5421,17 +5427,26 @@ HRESULT Direct3DDevice::Execute(
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
-				const bool bIsLaser = bLastTextureSelectedNotNULL && lastTextureSelected->is_Laser;
-				const bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
-				const bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
-				const bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
-				const bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
-				const bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
-				const bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
-				const bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
-				const bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
-				const bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
-				const bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
+				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsAimingHUD = false;
+				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
+				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false;
+				if (bLastTextureSelectedNotNULL) {
+					bIsLaser = lastTextureSelected->is_Laser;
+					bIsLightTexture = lastTextureSelected->is_LightTexture;
+					bIsText = lastTextureSelected->is_Text;
+					bIsAimingHUD = lastTextureSelected->is_HUD;
+					bIsGUI = lastTextureSelected->is_GUI;
+					bIsLensFlare = lastTextureSelected->is_LensFlare;
+					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
+					bIsSun = lastTextureSelected->is_Sun;
+					bIsCockpit = lastTextureSelected->is_CockpitTex;
+					bIsGunner = lastTextureSelected->is_GunnerTex;
+					bIsExterior = lastTextureSelected->is_Exterior;
+					bIsDAT = lastTextureSelected->is_DAT;
+					bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
+					bIsBlastMark = lastTextureSelected->is_BlastMark;
+				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
 				//g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
@@ -5441,7 +5456,6 @@ HRESULT Direct3DDevice::Execute(
 				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
 				const bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
 				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
-				const bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
 				// Hysteresis detection (state is about to switch to render something different, like the HUD)
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
@@ -6590,8 +6604,9 @@ HRESULT Direct3DDevice::Execute(
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-							resources->_renderTargetViewSSAOMask.Get(),
-							resources->_renderTargetViewSSMask.Get(),
+							// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+							bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+							bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 						};
 						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 					}
@@ -6740,8 +6755,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -6763,8 +6779,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -6816,8 +6833,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2R.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
-								resources->_renderTargetViewSSAOMaskR.Get(),
-								resources->_renderTargetViewSSMaskR.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 						}
@@ -6840,8 +6858,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}

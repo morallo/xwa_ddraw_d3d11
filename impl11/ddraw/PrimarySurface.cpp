@@ -49,6 +49,7 @@ extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
+extern bool g_bDCIgnoreEraseCommands;
 //extern float g_fXWAScale;
 
 // ACTIVE COCKPIT
@@ -2011,6 +2012,10 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 
 void PrimarySurface::ClearHUDRegions() {
 	D3D11_VIEWPORT viewport = { 0 };
+	// Ignore the "erase_region" commands if the global toggle is set:
+	if (g_bDCIgnoreEraseCommands)
+		return;
+
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
 	viewport.Width    = (float )_deviceResources->_backbufferWidth;

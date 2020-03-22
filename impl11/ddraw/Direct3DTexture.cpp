@@ -617,8 +617,12 @@ void Direct3DTexture::TagTexture() {
 		// Catch the space debris
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
 			this->is_Debris = true;
+		// Catch DAT files
 		if (strstr(surface->_name, "dat,") != NULL)
 			this->is_DAT = true;
+		// Catch blast marks
+		if (strstr(surface->_name, "dat,3050,") != NULL)
+			this->is_BlastMark = true;
 		// Catch the trails
 		if (isInVector(surface->_name, Trails_ResNames))
 			this->is_Trail = true;
@@ -993,6 +997,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
 	this->is_DAT = d3dTexture->is_DAT;
+	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available

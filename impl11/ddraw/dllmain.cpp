@@ -79,7 +79,7 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable,
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
-extern bool bFreePIEAlreadyInitialized;
+extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands;
 void ShutdownFreePIE();
 
 // DEBUG
@@ -527,7 +527,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				LoadVRParams();
 				return 0;
 			case 'H':
-				ToggleCockpitPZHack();
+				//ToggleCockpitPZHack();
+				g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
 				return 0;
 			case 'W':
 				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;

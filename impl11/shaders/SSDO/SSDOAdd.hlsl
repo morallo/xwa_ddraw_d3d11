@@ -457,19 +457,19 @@ PixelShaderOutput main(PixelShaderInput input)
 		// pos3D = (P.xy, -P.z)
 		// LightPoint already comes with z inverted (-z) from ddraw
 		float3 L = LightPoint[i].xyz - pos3D;
-		//float3 L = LightPoint[i].xyz - P;
 		
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
-		// calculate basic attenuation
+		// calculate attenuation
 		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
 		const float depth_attenuation = smoothstep(L_FADEOUT_1, L_FADEOUT_0, -LightPoint[i].z);
 		// compute the diffuse contribution
-		float diff_val = pow(max(dot(N, L), 0.0), 2.0); // Compute the diffuse component, and make the highlight a bit smaller
+		//float diff_val = pow(max(dot(N, L), 0.0), 1.0); // Compute the diffuse component, and make the highlight a bit smaller
 		// add everything up
-		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
+		laser_light_sum += depth_attenuation * attenuation * max(dot(N, L), 0.0) * LightPointColor[i].rgb;
 	}
 	tmp_color += laser_light_intensity * laser_light_sum;
+	tmp_bloom += float4(laser_light_sum, laser_light_intensity);
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
