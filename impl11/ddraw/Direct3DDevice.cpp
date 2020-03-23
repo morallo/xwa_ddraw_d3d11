@@ -2619,8 +2619,8 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
-	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f;
-	g_ShadingSys_PSBuffer.laser_light_intensity = 0.25f;
+	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f; // Smaller numbers fade less
+	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");

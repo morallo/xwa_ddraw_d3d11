@@ -1173,6 +1173,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		oldFormat = desc.Format;
 		log_debug("[DBG] [MSAA] Count: %d, Quality: %d, Use MSAA: %d",
 			this->_sampleDesc.Count, this->_sampleDesc.Quality, this->_useMultisampling);
+		//log_debug("[DBG] [MSAA] STD MSAA Q LEVEL: %d", D3D11_STANDARD_MULTISAMPLE_PATTERN);
 
 		// MSAA Buffers
 		{
@@ -1334,6 +1335,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				// _depthBuf will be used as a renderTarget
 				step = "_depthBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBuf);
+				//log_debug("[DBG] [MSAA] depthBuf, samples: %d, q: %d", desc.SampleDesc.Count, desc.SampleDesc.Quality);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -3958,6 +3960,7 @@ void DeviceResources::CheckMultisamplingSupport()
 			{
 				this->_sampleDesc.Count = i;
 				this->_sampleDesc.Quality = numQualityLevels - 1;
+				//this->_sampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 				// Stop checking for MSAA levels if we reached the limit set by the user
 				if (g_config.MSAACount > 0 && this->_sampleDesc.Count == g_config.MSAACount)
 					break;

@@ -447,9 +447,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Add the laser lights
-#define L_FADEOUT_0 500.0
-#define L_FADEOUT_1 1000.0
+#define L_FADEOUT_A_0 30.0
+#define L_FADEOUT_A_1 50.0
+#define L_FADEOUT_B_0 50.0
+#define L_FADEOUT_B_1 1000.0
 	float3 laser_light_sum = 0.0;
+	float laser_light_alpha = 0.0;
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
@@ -457,19 +460,29 @@ PixelShaderOutput main(PixelShaderInput input)
 		// pos3D = (P.xy, -P.z)
 		// LightPoint already comes with z inverted (-z) from ddraw
 		float3 L = LightPoint[i].xyz - pos3D;
+		const float Z = -LightPoint[i].z;
 		
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
-		// calculate attenuation
+		// calculate the attenuation
+		const float depth_attenuation_A = smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
+		const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
+		const float depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
+		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
+		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
 		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
-		const float depth_attenuation = smoothstep(L_FADEOUT_1, L_FADEOUT_0, -LightPoint[i].z);
 		// compute the diffuse contribution
-		//float diff_val = pow(max(dot(N, L), 0.0), 1.0); // Compute the diffuse component, and make the highlight a bit smaller
+		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
+		laser_light_alpha += diff_val;
 		// add everything up
-		laser_light_sum += depth_attenuation * attenuation * max(dot(N, L), 0.0) * LightPointColor[i].rgb;
+		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}
 	tmp_color += laser_light_intensity * laser_light_sum;
-	tmp_bloom += float4(laser_light_sum, laser_light_intensity);
+	// Blend the existing tmp_bloom with the new one:
+	//laser_light_alpha = laser_light_intensity * saturate(laser_light_alpha);
+	//tmp_bloom.xyz = lerp(tmp_bloom.xyz, laser_light_sum, laser_light_alpha);
+	//tmp_bloom.xyz += laser_light_alpha * laser_light_sum;
+	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;

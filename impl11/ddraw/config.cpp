@@ -19,7 +19,7 @@ Config::Config()
 {
 	this->AspectRatioPreserved = true;
 	this->MultisamplingAntialiasingEnabled = false;
-	this->MSAACount = 1;
+	this->MSAACount = -1;
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
 	this->WireframeFillMode = false;
