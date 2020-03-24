@@ -185,7 +185,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  gloss_mask    = ssaoMask.y;
 	float  spec_int_mask = ssaoMask.z;
 	float  diff_int      = 1.0;
-	bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	float  metallic      = mask / METAL_MAT;
 	float  nm_int        = ssMask.x;
 	float  spec_val      = ssMask.y;
@@ -198,17 +199,24 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
-	if (Normal.w < 0.01) { // The skybox gets this alpha value
+	if (Normal.w < 0.001) { // The skybox gets this alpha value
 		output.color = float4(color, 1);
 		return output;
 	}
+	// Avoid harsh transitions
+	// The substraction below should be 1.0 - Normal.w; but I see alpha = 0.5 coming from the normals buf
+	// because that gets written in PixelShaderTexture.hlsl in the alpha channel... I've got to check why
+	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
+	// or I'll get negative numbers
+	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
-	ssao = clamp(pow(abs(ssao), power), 0.0, 1.0); // Increase ssao contrast
+	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
 	float3 N = normalize(Normal.xyz);
 
 	// For shadeless areas, make ssao 1
-	ssao = shadeless ? 1.0 : ssao;
+	//ssao = shadeless ? 1.0 : ssao;
+	ssao = lerp(ssao, 1.0, shadeless);
 	if (ssao_debug) {
 		ssao = sqrt(ssao); // Gamma correction
 		output.color = float4(ssao, 1);
@@ -276,11 +284,11 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
+	// Compute the shading contribution from the main lights
 	[unroll]
 	for (uint i = 0; i < 2; i++) {
-		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz;
-		float LightInt = dot(LightColor[i].rgb, 0.333);
+		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 		// diffuse component
 		float diffuse = max(dot(N, L), 0.0);
 		diffuse = ssao.x * diff_int * diffuse + ambient;
@@ -288,7 +296,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//diffuse = diff_int * diffuse + ambient;
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
-		diffuse = shadeless ? 1.0 : diffuse;
+		//diffuse = shadeless ? 1.0 : diffuse;
+		diffuse = lerp(diffuse, 1.0, shadeless);
 
 		// specular component
 		//float3 eye = 0.0;
@@ -300,7 +309,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 refl_vec = normalize(reflect(-L, N));
 		float  spec = max(dot(eye_vec, refl_vec), 0.0);
 
-		//float3 viewDir    = normalize(pos3D);
+		//float3 viewDir    = normalize(-pos3D);
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
@@ -311,12 +320,46 @@ PixelShaderOutput main(PixelShaderInput input)
 			spec_bloom_int *= 3.0; // Make the glass bloom more
 		}
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
-		spec = LightInt * spec_int_mask * pow(spec, exponent);
+		spec = LightIntensity * spec_int_mask * pow(spec, exponent);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
-		tmp_bloom += float4(LightInt * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
+
+	// Add the laser lights
+#define L_FADEOUT_A_0 30.0
+#define L_FADEOUT_A_1 50.0
+#define L_FADEOUT_B_0 50.0
+#define L_FADEOUT_B_1 1000.0
+	float3 laser_light_sum = 0.0;
+	float laser_light_alpha = 0.0;
+	[loop]
+	for (i = 0; i < num_lasers; i++)
+	{
+		// P is the original point
+		// pos3D = (P.xy, -P.z)
+		// LightPoint already comes with z inverted (-z) from ddraw
+		float3 L = LightPoint[i].xyz - pos3D;
+		const float Z = -LightPoint[i].z;
+
+		const float distance_sqr = dot(L, L);
+		L *= rsqrt(distance_sqr); // Normalize L
+		// calculate the attenuation
+		const float depth_attenuation_A = smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
+		const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
+		const float depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
+		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
+		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
+		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		// compute the diffuse contribution
+		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
+		laser_light_alpha += diff_val;
+		// add everything up
+		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
+	}
+	tmp_color += laser_light_intensity * laser_light_sum;
+
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	output.bloom = tmp_bloom;
 	return output;

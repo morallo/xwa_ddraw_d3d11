@@ -249,12 +249,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D		     = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
-	float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
+	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
 	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
@@ -266,7 +266,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  nm_int_mask   = ssMask.x;
 	float  spec_val_mask = ssMask.y;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	float      shadeless = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
@@ -295,7 +295,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// If I remove the following, then the bloom mask is messed up!
-	if (Normal.w < 0.005) { // The skybox gets this alpha value
+	if (Normal.w < 0.001) { // The skybox gets this alpha value
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -309,15 +309,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 N = normalize(Normal.xyz);
 	const float3 smoothN = N;
-	const float3 smoothB = bentN;
+	//const float3 smoothB = bentN;
 
 	// Compute shadows
-	float3 SSAO_Normal = float3(N.xy, -N.z);
-	//float m_offset = max(moire_offset, moire_offset * (-pos3D.z * moire_scale));
-	////float3 shadow_pos3D = float3(pos3D.xy, -pos3D.z - m_offset
-	//float3 shadow_pos3D = P - m_offset;
+	//float3 SSAO_Normal = float3(N.xy, -N.z);
 	// SSAO version:
-	float m_offset = moire_offset * (-pos3D.z * moire_scale);
+	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
 	//float3 shadow_pos3D = P + SSAO_Normal * m_offset;
 	//float shadow = 1;
 	//if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
@@ -326,20 +323,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	//ssdo = lerp(ssdo, 1, mask);
 	//ssdoInd = lerp(ssdoInd, 0, mask);
 
+	// Compute normal mapping
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
-	nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
+	//nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
 	if (fn_enable && mask < GLASS_LO) {
 		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask /*, diffuse_difference */);
 		// After the normals have blended, we should restore the length of the bent normal:
 		// it should be weighed by AO, which is now in ssdo.y
-		bentN = ssdo.y * blend_normals(bentN, FakeNormal);
+		//bentN = ssdo.y * blend_normals(bentN, FakeNormal);
 		N = blend_normals(N, FakeNormal);
-		//diffuse_difference = 1.0 - length(N - TempN);
-		//diffuse_difference = dot(0.333, N - TempN);
-		//diffuse_difference *= diffuse_difference;
-		//N = TempN;
 	}
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 
@@ -364,15 +358,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	float debug_spec = 0.0;
 	uint i;
 
-	// Compute the light contribution from the main lights
+	// Compute the shading contribution from the main lights
 	[unroll]
 	for (i = 0; i < 1; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz;
-		float LightInt = dot(LightColor[i].rgb, 0.333);
+		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 
 		// diffuse component
-		bentDiff   = max(dot(smoothB, L), 0.0);
+		//bentDiff   = max(dot(smoothB, L), 0.0);
 		smoothDiff = max(dot(smoothN, L), 0.0);
 		// I know that bentN is already multiplied by ssdo.x above; but I'm
 		// multiplying it again here to make the contact shadows more obvious
@@ -431,16 +425,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 
 		// specular component
-		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
 		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
 		// reflect expects an incident vector: a vector that goes from the light source to the current point.
 		// L goes from the current point to the light vector, so we have to use -L:
 		float3 refl_vec = normalize(reflect(-L, N));
 		spec = max(dot(eye_vec, refl_vec), 0.0);
 
-		//float3 viewDir    = normalize(pos3D);
-		//float3 halfwayDir = normalize(L + viewDir);
-		//float spec = max(dot(N, halfwayDir), 0.0);
+		//const float3 H = normalize(L + eye_vec);
+		//spec = max(dot(N, H), 0.0);
 
 		float exponent = global_glossiness * gloss_mask;
 		float spec_bloom_int = global_spec_bloom_intensity;
@@ -452,7 +444,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
-		debug_spec = LightInt * spec_int_mask * pow(spec, exponent);
+		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
 		spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
 
 		// Avoid harsh transitions (the lines below will also kill glass spec)
@@ -465,7 +457,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 			//emissionMask);
-		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightInt * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
 
 	// Add the laser lights

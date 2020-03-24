@@ -125,9 +125,6 @@ PixelShaderOutput main(PixelShaderInput input)
 			HSV.z *= 2.0;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
-			// Enhance the saturation even more for the bloom laser mask
-			//HSV.y *= 4.0;
-			//color = HSVtoRGB(HSV);
 			output.bloom = float4(color, alpha);
 		}
 		else {
@@ -159,20 +156,22 @@ PixelShaderOutput main(PixelShaderInput input)
 			// make it [0, 1]
 			alpha *= 10.0;
 			float3 color = HSVtoRGB(HSV);
-			if (val > 0.8 && alpha > 0.5) {
-				output.bloom = float4(val * color, 1);
-				output.ssaoMask.ra = 1;
-				output.ssMask.a = 1;
-			}
+			//if (val > 0.8 && alpha > 0.5) {
+			float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
+			output.bloom = float4(val * color, bloom_alpha);
+			output.ssaoMask.ra = bloom_alpha;
+			output.ssMask.a = bloom_alpha;
+			//}
 			output.color = float4(color, alpha);
 		}
 		// Enhance = false
 		else {
-			if (val > 0.8 && alpha > 0.5) {
-				output.bloom = float4(val * texelColor.rgb, 1);
-				output.ssaoMask.ra = 1;
-				output.ssMask.a = 1;
-			}
+			//if (val > 0.8 && alpha > 0.5) {
+			float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
+			output.bloom = float4(val * texelColor.rgb, bloom_alpha);
+			output.ssaoMask.ra = bloom_alpha;
+			output.ssMask.a = bloom_alpha;
+			//}
 			output.color = texelColor;	// Return the original color when 32-bit mode is off
 		}
 		output.bloom.rgb *= fBloomStrength;
