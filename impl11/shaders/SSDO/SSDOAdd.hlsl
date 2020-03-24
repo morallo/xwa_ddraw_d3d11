@@ -97,7 +97,7 @@ float3 getPositionFG(in float2 uv, in float level) {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
-float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity, out float diff)
+float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity /*, out float diff */)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
 	float nm_scale = fn_scale * nm_intensity;
@@ -121,8 +121,8 @@ float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensi
 	float3 normal;
 	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
 	normal.z = 1.0;
-	diff = clamp(1.0 - (abs(normal.x) + abs(normal.y)), 0.0, 1.0);
-	//diff *= diff;
+	//diff = clamp(1.0 - (abs(normal.x) + abs(normal.y)), 0.0, 1.0);
+	////diff *= diff;
 
 	return normalize(normal);
 }
@@ -249,7 +249,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		     = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
@@ -262,11 +262,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  gloss_mask    = ssaoMask.y;
 	float  spec_int_mask = ssaoMask.z;
 	float  diff_int      = 1.0;
-	bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	float  metallic      = mask / METAL_MAT;
 	float  nm_int_mask   = ssMask.x;
-	float  spec_val_mask = ssMask.y; 
-	float  diffuse_difference = 1.0;
+	float  spec_val_mask = ssMask.y;
+	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	float      shadeless = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
@@ -293,10 +294,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
-	if (Normal.w < 0.01) { // The skybox gets this alpha value
+	// If I remove the following, then the bloom mask is messed up!
+	if (Normal.w < 0.005) { // The skybox gets this alpha value
 		output.color = float4(color, 1);
 		return output;
 	}
+	// Avoid harsh transitions
+	// The substraction below should be 1.0 - Normal.w; but I see alpha = 0.5 coming from the normals buf
+	// because that gets written in PixelShaderTexture.hlsl in the alpha channel... I've got to check why
+	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
+	// or I'll get negative numbers
+	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 N = normalize(Normal.xyz);
@@ -321,8 +329,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
+	nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
 	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask, diffuse_difference);
+		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask /*, diffuse_difference */);
 		// After the normals have blended, we should restore the length of the bent normal:
 		// it should be weighed by AO, which is now in ssdo.y
 		bentN = ssdo.y * blend_normals(bentN, FakeNormal);
@@ -395,10 +404,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		*/
 
 		// TODO: USE MULTIPLE LIGHTS
+		/*
 		if (ssao_debug == 11)
 			diffuse = max(dot(bentN, L), 0.0);
 		else 
 			diffuse = max(dot(N, L), 0.0);
+		*/
+		diffuse = max(dot(N, L), 0.0);
 		diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
 
 		// Default case
@@ -406,11 +418,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		//diffuse = diff_int * diffuse + ambient;
 
 		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
+		/*
 		if (shadeless) {
 			diffuse = 1.0;
 			contactShadow = 1.0;
 			ssdoInd = 0.0;
 		}
+		*/
+		// Avoid harsh transitions
+		diffuse = lerp(diffuse, 1.0, shadeless);
+		contactShadow = lerp(contactShadow, 1.0, shadeless);
+		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 
 		// specular component
 		//float3 spec_col = lerp(min(6.0 * color, 1.0), 1.0, mask); // Force spec_col to be white on masked (DC) areas
@@ -432,10 +450,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
 		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
-		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT
+		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightInt * spec_int_mask * pow(spec, exponent);
 		spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+
+		// Avoid harsh transitions (the lines below will also kill glass spec)
+		//spec_col = lerp(spec_col, 0.0, shadeless);
+		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * saturate(

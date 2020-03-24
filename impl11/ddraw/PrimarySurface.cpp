@@ -3714,7 +3714,7 @@ void PrimarySurface::DeferredPass() {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			NULL,													// Bent Normals
-			resources->_ssMaskSRV.Get(),								// Shading System buffer
+			resources->_ssMaskSRV.Get(),							// Shading System buffer
 		};
 		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);

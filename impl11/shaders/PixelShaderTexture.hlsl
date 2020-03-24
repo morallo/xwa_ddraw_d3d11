@@ -74,9 +74,9 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	float  alpha		  = texelColor.w;
+	float  alpha	  = texelColor.w;
 	float3 diffuse    = lerp(input.color.xyz, 1.0, fDisableDiffuse);
-	float3 P			  = input.pos3D.xyz;
+	float3 P		  = input.pos3D.xyz;
 	float  SSAOAlpha  = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
 	output.bloom  = 0;
