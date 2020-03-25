@@ -84,6 +84,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D  = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 
+	// DEBUG
+		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
+		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
+		//output.ssMask = 0;
+		//output.normal = 0;
+		//return output;
+	// DEBUG
+
 	// Original code:
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	// Since Z increases away from the camera, the normals end up being negative when facing the
@@ -141,39 +149,35 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Process light textures (make them brighter in 32-bit mode)
 	if (bIsLightTexture) {
 		output.normal.a = 0;
+		//output.ssaoMask.r = SHADELESS_MAT;
 		output.ssMask = 0; // Normal Mapping intensity --> 0
 		//output.pos3D = 0;
 		//output.normal = 0;
 		//output.diffuse = 0;
+		float3 color = texelColor.rgb;
 		// This is a light texture, process the bloom mask accordingly
-		float3 HSV = RGBtoHSV(texelColor.xyz);
+		float3 HSV = RGBtoHSV(color);
 		float val = HSV.z;
 		// Enhance = true
 		if (bIsLightTexture > 1) {
 			// Make the light textures brighter in 32-bit mode
 			HSV.z *= 1.25;
+			val *= 1.25; // Not sure if it's a good idea to increase val here
 			// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to
 			// make it [0, 1]
 			alpha *= 10.0;
-			float3 color = HSVtoRGB(HSV);
-			//if (val > 0.8 && alpha > 0.5) {
-			float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
-			output.bloom = float4(val * color, bloom_alpha);
-			output.ssaoMask.ra = bloom_alpha;
-			output.ssMask.a = bloom_alpha;
-			//}
-			output.color = float4(color, alpha);
+			color = HSVtoRGB(HSV);
 		}
-		// Enhance = false
-		else {
-			//if (val > 0.8 && alpha > 0.5) {
-			float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
-			output.bloom = float4(val * texelColor.rgb, bloom_alpha);
-			output.ssaoMask.ra = bloom_alpha;
-			output.ssMask.a = bloom_alpha;
-			//}
-			output.color = texelColor;	// Return the original color when 32-bit mode is off
-		}
+		//if (val > 0.8 && alpha > 0.5) {
+		//float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
+		// We can't do smoothstep(0.0, 0.8, val) because the hangar will bloom all over the
+		// place. Many other textures may have similar problems too.
+		const float bloom_alpha = smoothstep(0.5, 0.8, val) * smoothstep(0.0, 0.5, alpha);
+		output.bloom = float4(val * color, bloom_alpha);
+		output.ssaoMask.ra = bloom_alpha;
+		output.ssMask.a = bloom_alpha;
+		//}
+		output.color = float4(color, alpha);
 		output.bloom.rgb *= fBloomStrength;
 		if (bInHyperspace && output.bloom.a < 0.5) {
 			//output.color.a = 1.0;
@@ -190,19 +194,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.normal.a = 0;
 		output.ssaoMask.a = 0;
 		output.ssMask.a = 0;
-		texelColor.xyz *= input.color.xyz;
+		float3 color = texelColor.rgb * input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
 			// Enhance the glow in 32-bit mode
-			float3 HSV = RGBtoHSV(texelColor.xyz);
+			float3 HSV = RGBtoHSV(color);
 			//HSV.y *= 1.15;
 			HSV.y *= 1.25;
 			HSV.z *= 1.25;
-			float3 color = HSVtoRGB(HSV);
-			output.color = float4(color, alpha);
+			color = HSVtoRGB(HSV);
 		} 
-		else
-			output.color = texelColor; // Return the original color when 32-bit mode is off
+		output.color = float4(color, alpha);
 		output.bloom = float4(fBloomStrength * output.color.rgb, alpha);
 		return output;
 	}

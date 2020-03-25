@@ -99,5 +99,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	else 
 		output.color = vec4(rgbB, 1);
 
+	// Something like the following can be used to modulate the effect:
+	// output.color.rgb = lerp(rgbM, output.color.rgb, 0.5); 
 	return output;
 }
