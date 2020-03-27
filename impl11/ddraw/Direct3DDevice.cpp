@@ -252,6 +252,7 @@ bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffe
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
+bool g_bToggleSkipDC = false;
 
 /*********************************************************/
 // HYPERSPACE
@@ -4831,8 +4832,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v1;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		//if (u > 0.9f && v > 0.9f)
-		if (u < 0.1f && v < 0.1f)
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -4841,8 +4842,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v2;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		//if (u > 0.9f && v > 0.9f)
-		if (u < 0.1f && v < 0.1f)
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -4851,8 +4852,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		index = triangle->v3;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
-		//if (u > 0.9f && v > 0.9f)
-		if (u < 0.1f && v < 0.1f)
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -6094,6 +6095,18 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				/*
+				if (g_bToggleSkipDC && bLastTextureSelectedNotNULL &&
+					((strstr(lastTextureSelected->_surface->_name, "TEX00150") != NULL) ||
+					 (strstr(lastTextureSelected->_surface->_name, "TEX00151") != NULL) ||
+					 (strstr(lastTextureSelected->_surface->_name, "TEX00129") != NULL)
+				    )
+				   )
+				{
+					goto out;
+				}
+				*/
+
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
@@ -6127,7 +6140,7 @@ HRESULT Direct3DDevice::Execute(
 					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
 						bIsActiveCockpit, orig, dir /*, debug */);
 
-					// Commented block follows (debug bock for LaserPointer):
+					// Commented block follows (debug block for LaserPointer):
 					{
 						//if (bIntersection) {
 							//Vector3 pos2D;
@@ -6342,7 +6355,6 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSpecVal     = 0.0f;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-
 					}
 					else if (lastTextureSelected->is_Laser) {
 						bModifiedShaders = true;

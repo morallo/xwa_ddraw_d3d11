@@ -333,7 +333,7 @@ PixelShaderOutput main(PixelShaderInput input)
 #define L_FADEOUT_B_0 50.0
 #define L_FADEOUT_B_1 1000.0
 	float3 laser_light_sum = 0.0;
-	float laser_light_alpha = 0.0;
+	//float laser_light_alpha = 0.0;
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
@@ -354,7 +354,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
-		laser_light_alpha += diff_val;
+		//laser_light_alpha += diff_val;
 		// add everything up
 		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}

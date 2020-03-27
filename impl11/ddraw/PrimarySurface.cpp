@@ -2936,11 +2936,15 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	blendDesc.AlphaToCoverageEnable = FALSE;
 	blendDesc.IndependentBlendEnable = FALSE;
 	blendDesc.RenderTarget[0].BlendEnable = TRUE;
-	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_COLOR;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_DEST_COLOR;
 	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	resources->InitBlendState(nullptr, &blendDesc);
@@ -3714,7 +3718,7 @@ void PrimarySurface::DeferredPass() {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			NULL,													// Bent Normals
-			resources->_ssMaskSRV.Get(),							// Shading System buffer
+			resources->_ssMaskSRV.Get(),							    // Shading System buffer
 		};
 		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
@@ -5746,7 +5750,7 @@ HRESULT PrimarySurface::Flip(
 						break;
 					case SSO_DEFERRED:
 						DeferredPass();
-						// Resolve the bloom mask again: SSDO can modify this mask
+						// Resolve the bloom mask again: the deferred pass can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 						if (g_bUseSteamVR)

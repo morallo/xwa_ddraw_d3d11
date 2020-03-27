@@ -426,7 +426,7 @@ enum HyperspacePhaseEnum {
 	HS_HYPER_EXIT_ST = 3,		// HyperExit streaks are being rendered
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
-const int MAX_POST_HYPER_EXIT_FRAMES = 20;
+const int MAX_POST_HYPER_EXIT_FRAMES = 10; // I had 20 here up to version 1.1.1. Making this smaller makes the zoom faster
 
 // General types and globals
 typedef enum {

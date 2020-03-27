@@ -126,10 +126,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		//output.diffuse = 0;
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
+		HSV.y *= 1.5;
 		if (bIsLaser > 1) {
 			// Enhance the lasers in 32-bit mode
 			// Increase the saturation and lightness
-			HSV.y *= 1.5;
 			HSV.z *= 2.0;
 			float3 color = HSVtoRGB(HSV);
 			output.color = float4(color, alpha);
@@ -138,7 +138,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		else {
 			output.color = texelColor; // Return the original color when 32-bit mode is off
 			// Enhance the saturation for lasers
-			HSV.y *= 1.5;
 			float3 color = HSVtoRGB(HSV);
 			output.bloom = float4(color, alpha);
 		}

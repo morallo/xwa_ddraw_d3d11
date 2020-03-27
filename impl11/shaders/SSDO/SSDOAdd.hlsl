@@ -466,7 +466,7 @@ PixelShaderOutput main(PixelShaderInput input)
 #define L_FADEOUT_B_0 50.0
 #define L_FADEOUT_B_1 1000.0
 	float3 laser_light_sum = 0.0;
-	float laser_light_alpha = 0.0;
+	//float laser_light_alpha = 0.0;
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
@@ -487,15 +487,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
-		laser_light_alpha += diff_val;
+		//laser_light_alpha += diff_val;
 		// add everything up
 		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}
 	tmp_color += laser_light_intensity * laser_light_sum;
 	// Blend the existing tmp_bloom with the new one:
-	//laser_light_alpha = laser_light_intensity * saturate(laser_light_alpha);
-	//tmp_bloom.xyz = lerp(tmp_bloom.xyz, laser_light_sum, laser_light_alpha);
-	//tmp_bloom.xyz += laser_light_alpha * laser_light_sum;
+	//laser_light_alpha = saturate(laser_light_alpha);
+	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
