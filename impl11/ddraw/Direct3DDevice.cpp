@@ -2361,6 +2361,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength	  = 0.5f;
 	g_BloomConfig.fSkydomeLightStrength = 0.1f;
+	g_BloomPSCBuffer.general_bloom_strength = 1.0f;
 	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2381,6 +2382,11 @@ bool LoadBloomParams() {
 			}
 
 			// Bloom
+			else if (_stricmp(param, "general_bloom_strength") == 0) {
+				g_BloomPSCBuffer.general_bloom_strength = fValue;
+				log_debug("[DBG] [Bloom] general bloom strength: %0.3f",
+					g_BloomPSCBuffer.general_bloom_strength);
+			}
 			else if (_stricmp(param, "saturation_strength") == 0) {
 				g_BloomConfig.fSaturationStrength = fValue;
 			}

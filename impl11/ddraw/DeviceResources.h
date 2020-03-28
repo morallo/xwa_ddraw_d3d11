@@ -186,7 +186,7 @@ typedef struct BloomConfigStruct {
 } BloomConfig;
 
 typedef struct BloomPixelShaderCBStruct {
-	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
+	float pixelSizeX, pixelSizeY, general_bloom_strength, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength;
 	int unused1;

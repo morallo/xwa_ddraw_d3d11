@@ -40,13 +40,16 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 	return length(p - center) - radius;
 }
 
+/*
 float sdLine(in vec2 p, in vec2 a, in vec2 b)
 {
 	vec2 pa = p - a, ba = b - a;
 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
 	return length(pa - ba * h);
 }
+*/
 
+/*
 float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 {
 	vec2 e0 = p1 - p0, e1 = p2 - p1, e2 = p0 - p2;
@@ -60,6 +63,12 @@ float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 		vec2(dot(pq2, pq2), s*(v2.x*e2.y - v2.y*e2.x)));
 	return -sqrt(d.x)*sign(d.y);
 }
+
+float debug_map(in vec2 p)
+{
+	return sdTriangle(p, v0, v1, v2);
+}
+*/
 
 //=====================================================
 
@@ -77,21 +86,6 @@ float map(in vec2 p)
 	//d = min(d, sdCircle(p, debugPoint, 0.005));
 	return d;
 }
-*/
-
-float debug_map(in vec2 p) 
-{
-	return sdTriangle(p, v0, v1, v2);
-}
-
-/*
-struct PixelShaderInput
-{
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 uv     : TEXCOORD0;
-	float4 pos3D  : COLOR1;
-};
 */
 
 struct PixelShaderInput
@@ -117,8 +111,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 		input.uv.x = input.uv.x * 0.5 + 0.5;
 
 	// Early exit: avoid rendering outside the original viewport edges
-	//if (input.uv.x < x0 || input.uv.x > x1 ||
-	//	input.uv.y < y0 || input.uv.y > y1)
 	if (any(input.uv < p0) || any(input.uv > p1))
 	{
 		output.color = 0.0;
@@ -186,8 +178,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col = lerp(bgColor, pointer_col, v);
 
 	// Draw the triangle uv-color-coded
-	if (bDebugMode && bIntersection && debug_map(p) < 0.001)
-		col = lerp(col, float3(uv, 0.0), 0.5);
+	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
+	//	col = lerp(col, float3(uv, 0.0), 0.5);
 
 	output.color = vec4(col, 1.0);
 	return output;
