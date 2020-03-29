@@ -326,6 +326,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
 		tmp_bloom += float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
+	output.bloom = tmp_bloom;
 
 	// Add the laser lights
 #define L_FADEOUT_A_0 30.0
@@ -361,6 +362,5 @@ PixelShaderOutput main(PixelShaderInput input)
 	tmp_color += laser_light_intensity * laser_light_sum;
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-	output.bloom = tmp_bloom;
 	return output;
 }

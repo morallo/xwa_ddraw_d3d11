@@ -136,7 +136,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	bloom = bloom / (bloom + 1);
 	float3 HSV = RGBtoHSV(bloom);
 	HSV.y = saturate(lerp(HSV.y, HSV.y * saturationStrength, HSV.z));
-	bloom = general_bloom_strength * saturate(HSVtoRGB(HSV));
+	//bloom = general_bloom_strength * saturate(HSVtoRGB(HSV));
+	bloom = saturate(HSVtoRGB(HSV));
 
 	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
 	color.rgb = pow(max(0, color.rgb), BLOOM_TONEMAP_COMPRESSION);

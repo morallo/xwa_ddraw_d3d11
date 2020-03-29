@@ -459,6 +459,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			//emissionMask);
 		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
+	output.bloom = tmp_bloom;
 
 	// Add the laser lights
 #define L_FADEOUT_A_0 30.0
@@ -498,7 +499,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-	output.bloom = tmp_bloom;
+	
 
 #ifdef DISABLED
 	if (ssao_debug == 8)

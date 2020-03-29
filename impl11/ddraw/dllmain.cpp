@@ -79,7 +79,7 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable,
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
-extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands;
+extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
 void ShutdownFreePIE();
 
 // DEBUG
@@ -617,12 +617,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			*/
 
+			// Ctrl+D --> Toggle dynamic lights
+			case 'D': {
+				g_bEnableLaserLights = !g_bEnableLaserLights;
+				return 0;
+			}
+
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
 				return 0;
 			}
 
+			// Ctrl+L is the landing gear
+
+			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
 			case 'P':
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;

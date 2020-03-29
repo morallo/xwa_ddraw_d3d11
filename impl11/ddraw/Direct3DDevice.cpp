@@ -8,6 +8,50 @@
 // _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- SCREEN Resolution
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
+/*
+	The variable that defines if the HUDs are visible is a byte situated at offset 0x0064 in the player table.
+
+		s_XwaPlayers[playerIndex].IsHudVisible
+		0x0064  byte IsHudVisible;
+
+	The variable that define if the left MFD is visible is a byte situated at offset 0x0067 in the player table.
+
+		!KEY_DELETE!169 Delete Toggle left MFD
+		Key_DELETE
+		s_XwaPlayers[playerIndex].IsHudMfd1Visible
+		0x0067 byte IsHudMfd1Visible;
+
+	The variable that define if the right MFD is visible is a byte situated at offset 0x0068 in the player table.
+
+		!KEY_PAGEDOWN!173 PageDown Toggle right MFD
+		Key_NEXT
+		s_XwaPlayers[playerIndex].IsHudMfd2Visible
+		0x0068 byte IsHudMfd2Visible;
+
+	The variable that define if the left sensor / indicator is visible is a byte situated at offset 0x005B5338.
+
+		!KEY_INSERT!168 Insert Toggle Left Sensor / Shield Indicator
+		Key_INSERT
+		byte s_V0x05B5338 = (byte)0x01;
+
+	The variable that define if the right sensor / indicator is visible is a byte situated at offset 0x005B533C.
+
+		!KEY_PAGEUP!172 PageUp Toggle Right Sensor / Beam Indicator
+		Key_PRIOR
+		byte s_V0x05B533C = (byte)0x01;
+	The variable that define if the center indicators are visible is a byte situated at offset 0x005B5340.
+
+		!KEY_HOME!170 Home Center indicators
+		Key_HOME
+		byte s_V0x05B5340 = (byte)0x01;
+
+	The variable that define if the toggle CMD is visible is a byte situated at offset 0x005B5334.
+
+		!KEY_END!171 End Toggle CMD
+		Key_END
+		byte s_V0x05B5334 = (byte)0x01;
+*/
+
 #include "common.h"
 #include "..\shaders\material_defs.h"
 #include "DeviceResources.h"
@@ -319,6 +363,7 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
 TrackerType g_TrackerType = TRACKER_NONE;
+bool g_bCockpitInertiaEnabled = false;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -883,6 +928,11 @@ void LoadCockpitLookParams() {
 					log_debug("Tracking disabled");
 					g_TrackerType = TRACKER_NONE;
 				}
+				
+			}
+			else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
+				g_bCockpitInertiaEnabled = (bool)fValue;
+				log_debug("[DBG] Cockpit Inertia: %d", g_bCockpitInertiaEnabled);
 			}
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
@@ -2382,11 +2432,13 @@ bool LoadBloomParams() {
 			}
 
 			// Bloom
+			/*
 			else if (_stricmp(param, "general_bloom_strength") == 0) {
 				g_BloomPSCBuffer.general_bloom_strength = fValue;
 				log_debug("[DBG] [Bloom] general bloom strength: %0.3f",
 					g_BloomPSCBuffer.general_bloom_strength);
 			}
+			*/
 			else if (_stricmp(param, "saturation_strength") == 0) {
 				g_BloomConfig.fSaturationStrength = fValue;
 			}
@@ -5572,10 +5624,11 @@ HRESULT Direct3DDevice::Execute(
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
-						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
-						// are the user's head position moved anyway if 6dof is enabled.
+						// it had when entering hyperspace, or clear it if we're using any VR mode/cockpit inertia, 
+						// because chances are the user's head position moved anyway if 6dof is enabled or the cockpit
+						// inertia will move it
 						if (!g_bClearedAuxBuffer &&
-							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR || g_bCockpitInertiaEnabled ||
 							     (
 							        PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
 							        PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
@@ -5589,7 +5642,8 @@ HRESULT Direct3DDevice::Execute(
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 							if (g_bUseSteamVR) {
 								//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								//context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+								context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 							}
 						}
 

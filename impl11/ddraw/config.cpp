@@ -40,6 +40,7 @@ Config::Config()
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
 
+	this->SwapJoystickXZAxes = false;
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
 
