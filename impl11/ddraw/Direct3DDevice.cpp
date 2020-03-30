@@ -364,7 +364,7 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
 TrackerType g_TrackerType = TRACKER_NONE;
-bool g_bCockpitInertiaEnabled = false;
+//bool g_bCockpitInertiaEnabled = false;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -931,10 +931,10 @@ void LoadCockpitLookParams() {
 				}
 				
 			}
-			else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
+			/*else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
 				g_bCockpitInertiaEnabled = (bool)fValue;
 				log_debug("[DBG] Cockpit Inertia: %d", g_bCockpitInertiaEnabled);
-			}
+			}*/
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
 				g_iFreePIESlot = (int)fValue;
@@ -5628,6 +5628,14 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						// UPDATE 3/30/2020:
+						// This whole block was removed to support cockpit inertia. The aux buffer can't be cleared
+						// on the first hyperspace frame because it will otherwise "blink". We have to clear this
+						// buffer *after* the first hyperspace frame has been rendered. This is now done in
+						// PrimarySurface::Flip() after the first hyperspace frame has been presented. I also removed
+						// all the conditions, so this buffer is now cleared all the time. Later I'll have to fix
+						// that to allow blending the background with the trails; but... later
+
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
 						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
 						// are the user's head position moved anyway if 6dof is enabled.
@@ -5637,6 +5645,7 @@ HRESULT Direct3DDevice::Execute(
 						// this.
 						// This whole block may have to be removed for TrackIR/VR; but we also need to make sure we're
 						// inhibiting the first frame in those cases.
+						/*
 						if (!g_bClearedAuxBuffer &&
 							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR || // g_bCockpitInertiaEnabled ||
 							     (
@@ -5658,6 +5667,7 @@ HRESULT Direct3DDevice::Execute(
 							if (g_bUseSteamVR)
 								context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 						}
+						*/
 
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
@@ -6655,6 +6665,12 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
+				// Don't render the first hyperspace frame: use all the buffers from the previous frame instead. Otherwise
+				// the craft will jerk or blink because XWA resets the cockpit camera and the craft's orientation on this
+				// frame.
+				if (g_bHyperspaceFirstFrame)
+					goto out;
+
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
 				if (!g_bEnableVR) {
@@ -6664,8 +6680,6 @@ HRESULT Direct3DDevice::Execute(
 					// the game resets the yaw/pitch on the first frame and we don't want that
 					//if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
 					//	goto out;
-					if (g_bHyperspaceFirstFrame)
-						goto out;
 
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
