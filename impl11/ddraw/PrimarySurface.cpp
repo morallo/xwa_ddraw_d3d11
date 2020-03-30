@@ -32,12 +32,14 @@ void LoadFocalLength();
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+extern int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 extern float g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
 extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
 extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
+extern bool g_bClearedAuxBuffer;
 extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 bool g_bKeybExitHyperspace = false;
@@ -5175,13 +5177,17 @@ HRESULT PrimarySurface::Flip(
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
-		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		if (!g_bHyperspaceFirstFrame) {
+			context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+			context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+		}
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
-		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
+			if (!g_bHyperspaceFirstFrame) {
+				context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
+				context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+			}
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
-			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
 		/*
 		if (g_bDynCockpitEnabled) {
@@ -5191,8 +5197,11 @@ HRESULT PrimarySurface::Flip(
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
 		}
 		*/
-		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+
+		if (!g_bHyperspaceFirstFrame) {
+			context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		}
 	}
 
 	/* Present 2D content */
@@ -5591,15 +5600,15 @@ HRESULT PrimarySurface::Flip(
 					// not travelling through hyperspace:
 					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					{
-						g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+						g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
 						g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
+						g_lastCockpitXReference = PlayerDataTable[*g_playerIndex].cockpitXReference;
+						g_lastCockpitYReference = PlayerDataTable[*g_playerIndex].cockpitYReference;
+						g_lastCockpitZReference = PlayerDataTable[*g_playerIndex].cockpitZReference;
 
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-							resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR) {
-							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-								resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-						}
+						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+						if (g_bUseSteamVR)
+							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 					}
 				}
 
@@ -5993,6 +6002,15 @@ HRESULT PrimarySurface::Flip(
 				g_iHyperExitPostFrames++;
 			else
 				g_iHyperExitPostFrames = 0;
+			// If we just rendered the first hyperspace frame, then it's safe to clear the aux buffer:
+			if (g_bHyperspaceFirstFrame && !g_bClearedAuxBuffer) {
+				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				g_bClearedAuxBuffer = true;
+				context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+				context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+				if (g_bUseSteamVR)
+					context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
+			}
 			g_bHyperspaceFirstFrame = false;
 			g_bHyperHeadSnapped = false;
 			//*g_playerInHangar = 0;

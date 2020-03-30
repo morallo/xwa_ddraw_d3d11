@@ -306,6 +306,7 @@ int g_iHyperExitPostFrames = 0;
 float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
 // DEBUG
 //#define HYPER_OVERRIDE
@@ -5613,6 +5614,10 @@ HRESULT Direct3DDevice::Execute(
 							if (*numberOfPlayersInGame == 1) {
 								PlayerDataTable[*g_playerIndex].cockpitCameraYaw = g_fLastCockpitCameraYaw;
 								PlayerDataTable[*g_playerIndex].cockpitCameraPitch = g_fLastCockpitCameraPitch;
+								// Restoring the cockpitX/Y/Z/Reference didn't seem to have any effect when cockpit inertia was on:
+								//PlayerDataTable[*g_playerIndex].cockpitXReference = g_lastCockpitXReference;
+								//PlayerDataTable[*g_playerIndex].cockpitYReference = g_lastCockpitYReference;
+								//PlayerDataTable[*g_playerIndex].cockpitZReference = g_lastCockpitZReference;
 							}
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
@@ -5624,11 +5629,16 @@ HRESULT Direct3DDevice::Execute(
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
-						// it had when entering hyperspace, or clear it if we're using any VR mode/cockpit inertia, 
-						// because chances are the user's head position moved anyway if 6dof is enabled or the cockpit
-						// inertia will move it
+						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
+						// are the user's head position moved anyway if 6dof is enabled.
+						// If we clear this buffer *at this point* when cockpit inertia is enabled, then we'll see
+						// the screen blink. We need to preserve this buffer for the first hyperspace frame: it can
+						// be cleared later. When rendering non-VR, we inhibit the first hyperspace frame, so we need
+						// this.
+						// This whole block may have to be removed for TrackIR/VR; but we also need to make sure we're
+						// inhibiting the first frame in those cases.
 						if (!g_bClearedAuxBuffer &&
-							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR || g_bCockpitInertiaEnabled ||
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR || // g_bCockpitInertiaEnabled ||
 							     (
 							        PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
 							        PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
@@ -5638,13 +5648,15 @@ HRESULT Direct3DDevice::Execute(
 						{
 							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 							g_bClearedAuxBuffer = true;
+							// DEBUG save the aux buffer for analysis
+							//DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+							//	L"C:\\Temp\\_shadertoyBuf.jpg");
+							// DEBUG
+
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-							if (g_bUseSteamVR) {
-								//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-								//context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+							if (g_bUseSteamVR)
 								context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
-							}
 						}
 
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
@@ -5681,10 +5693,8 @@ HRESULT Direct3DDevice::Execute(
 								g_bClearedAuxBuffer = true;
 								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								if (g_bUseSteamVR) {
-									//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-									context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								}
+								if (g_bUseSteamVR)
+									context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 							}
 						}
 						break;
@@ -5712,6 +5722,8 @@ HRESULT Direct3DDevice::Execute(
 					// DEBUG
 //#endif
 				}
+				//if (g_bHyperspaceFirstFrame)
+				//	goto out;
 
 				/*************************************************************************
 					State management ends here, special state management starts
@@ -5745,19 +5757,20 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 
-					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+					// Capture the current-frame-so-far (cockpit+background) for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
 					{
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
-							g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+							g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
 							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
+							g_lastCockpitXReference   = PlayerDataTable[*g_playerIndex].cockpitXReference;
+							g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].cockpitYReference;
+							g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
 
-							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 							if (g_bUseSteamVR) {
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 							}
 						}
 					}
@@ -6649,7 +6662,9 @@ HRESULT Direct3DDevice::Execute(
 
 					// Don't render the very first frame when entering hyperspace if we were not looking forward:
 					// the game resets the yaw/pitch on the first frame and we don't want that
-					if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
+					//if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
+					//	goto out;
+					if (g_bHyperspaceFirstFrame)
 						goto out;
 
 					if (bModifiedShaders) {
@@ -7347,8 +7362,8 @@ HRESULT Direct3DDevice::BeginScene()
 	// when this happens. The problem is that the game snaps the camera to the forward position as soon
 	// as we jump into hyperspace; but that causes glitches with the new hyperspace effect. To solve this
 	// I'm storing the heading of the camera right before the jump and then I restore it as soon as possible
-	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
-	// clearing these buffers on that same frame or the effect will "blink"
+	// while I inhibit the draw calls for the very first hyperspace frame. However, this means that I must 
+	// also inhibit clearing these buffers on that same frame or the effect will "blink"
 
 	g_ExecuteCount = 0;
 	g_ExecuteVertexCount = 0;
@@ -7462,41 +7477,8 @@ HRESULT Direct3DDevice::EndScene()
 	auto& context = resources->_d3dDeviceContext;
 
 	/*
-	I can't do this here because it will break the display of the main menu after exiting a mission
+	I can't render hyperspace here because it will break the display of the main menu after exiting a mission
 	Looks like even the menu uses EndScene and I'm messing it up even when using the "g_bRendering3D" flag!
-
-	// Render the hyperspace effect when no GUI is present
-	if (g_bRendering3D && !g_bSwitchedToGUI)
-	{
-		g_bSwitchedToGUI = true;
-		// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-		// not travelling through hyperspace:
-		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-		{
-			g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
-			g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
-
-			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-			if (g_bUseSteamVR) {
-				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-					resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-			}
-		}
-
-		// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-		if (g_HyperspacePhaseFSM != HS_INIT_ST)
-		{
-			UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-			// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-			//				  shadertoyBuf has a copy of the cockpit
-
-			// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-			// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-			// TODO: Fix the effect for VR
-			RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, &vertexBufferStride, &vertexBufferOffset);
-		}
-	}
 	*/
 
 	this->_deviceResources->sceneRendered = true;
