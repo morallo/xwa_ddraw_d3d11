@@ -1192,7 +1192,7 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
 		action[i] = toupper(action[i]);
-	log_debug("[DBG] [AC] Translating [%s]", action);
+	//log_debug("[DBG] [AC] Translating [%s]", action);
 
 	// Stop further parsing if this is a void action
 	if (strstr(action, "VOID") != NULL)
@@ -1367,7 +1367,7 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 		else {
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
 			TranslateACAction(&(coords->action[idx][0]), action);
-			DisplayACAction(&(coords->action[idx][0]));
+			//DisplayACAction(&(coords->action[idx][0]));
 
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
@@ -1568,12 +1568,11 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 	int craftIdx = FindCraftMaterial(OPTname);
 	if (craftIdx < 0) {
 		// New Craft Material
-		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
-		//craftIdx = g_Materials.size();
+		//log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
 	}
 	else {
 		// Existing Craft Material, clear it
-		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		//log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
 		g_Materials[craftIdx].MaterialList.clear();
 	}
 	CraftMaterials craftMat;
@@ -1684,7 +1683,7 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 
 	// DEBUG
 	// Print out the materials for this craft
-	log_debug("[DBG] [MAT] *********************");
+	/*log_debug("[DBG] [MAT] *********************");
 	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
 	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
 		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
@@ -1692,7 +1691,7 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 			g_Materials[craftIdx].MaterialList[i].texname,
 			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	}
-	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] *********************");*/
 	// DEBUG
 	return true;
 }
@@ -1922,7 +1921,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 
 	// DEBUG
 	// Print out the materials for this craft
-	log_debug("[DBG] [MAT] *********************");
+	/*log_debug("[DBG] [MAT] *********************");
 	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
 	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
 		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
@@ -1930,7 +1929,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			g_Materials[craftIdx].MaterialList[i].texname,
 			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	}
-	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] *********************");*/
 	// DEBUG
 	return true;
 }
@@ -2142,8 +2141,8 @@ bool LoadIndividualACParams(char *sFileName) {
 					log_debug("[DBG] [AC] Resetting coords of existing AC elem @ idx: %d", lastACElemSelected);
 				}
 				else if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT) {
-					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
-						ac_elem.name, g_iNumACElements);
+					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+					//	ac_elem.name, g_iNumACElements);
 					//ac_elem.idx = g_iNumACElements; // Generate a unique ID
 					ac_elem.coords = { 0 };
 					ac_elem.bActive = false;
@@ -2151,7 +2150,7 @@ bool LoadIndividualACParams(char *sFileName) {
 					g_ACElements[g_iNumACElements] = ac_elem;
 					lastACElemSelected = g_iNumACElements;
 					g_iNumACElements++;
-					log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
+					//log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
 				}
 				else {
 					if (g_iNumACElements >= MAX_AC_TEXTURES_PER_COCKPIT)
@@ -2161,7 +2160,7 @@ bool LoadIndividualACParams(char *sFileName) {
 			else if (_stricmp(param, "texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
 				LoadDCCoverTextureSize(buf, &tex_width, &tex_height);
-				log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
+				//log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
 			}
 			else if (_stricmp(param, "action") == 0) {
 				if (g_iNumACElements == 0) {
@@ -2174,13 +2173,13 @@ bool LoadIndividualACParams(char *sFileName) {
 				}
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
 				// DEBUG
-				g_ACElements[lastACElemSelected].width = (short)tex_width;
+				/*g_ACElements[lastACElemSelected].width = (short)tex_width;
 				g_ACElements[lastACElemSelected].height = (short)tex_height;
 				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
 				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					coords->area[idx].x0, coords->area[idx].y0,
-					coords->area[idx].x1, coords->area[idx].y1);
+					coords->area[idx].x1, coords->area[idx].y1);*/
 				// DEBUG
 			}
 			

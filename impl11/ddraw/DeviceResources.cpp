@@ -1174,6 +1174,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		log_debug("[DBG] [MSAA] Count: %d, Quality: %d, Use MSAA: %d",
 			this->_sampleDesc.Count, this->_sampleDesc.Quality, this->_useMultisampling);
 		//log_debug("[DBG] [MSAA] STD MSAA Q LEVEL: %d", D3D11_STANDARD_MULTISAMPLE_PATTERN);
+		log_debug("[DBG] display W,H: %d, %d", this->_displayWidth, this->_displayHeight);
+		log_debug("[DBG] backbuffer W,H: %d, %d", this->_backbufferWidth, this->_backbufferHeight);
 
 		// MSAA Buffers
 		{

@@ -4850,7 +4850,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					short width = g_ACElements[g_iBestIntersTexIdx].width;
 					short height = g_ACElements[g_iBestIntersTexIdx].height;
 					
-					log_debug("[DBG} *************");
+					/*log_debug("[DBG} *************");
 					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
 					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
 					log_debug("[DBG] [AC] numCoords: %d", g_ACElements[g_iBestIntersTexIdx].coords.numCoords);
@@ -4860,11 +4860,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 						coords->area[i].x1, coords->area[i].y1);
 					log_debug("[DBG] [AC] laser uv (raw): (%0.3f, %0.3f)", u0, v0);
 					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
-						u, v, (short)(width * u), (short)(height * v));
+						u, v, (short)(width * u), (short)(height * v));*/
 					
 					// Run the action itself
 					ACRunAction(coords->action[i]);
-					log_debug("[DBG} *************");
+					//log_debug("[DBG} *************");
 				}
 				break;
 			}
@@ -5174,6 +5174,8 @@ HRESULT PrimarySurface::Flip(
 	auto &device = resources->_d3dDevice;
 	this->_deviceResources->sceneRenderedEmpty = this->_deviceResources->sceneRendered == false;
 	this->_deviceResources->sceneRendered = false;
+
+	//log_debug("[DBG] %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{

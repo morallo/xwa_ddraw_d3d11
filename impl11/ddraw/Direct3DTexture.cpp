@@ -697,7 +697,7 @@ void Direct3DTexture::TagTexture() {
 			int size = end - start;
 			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
 			if (!isInVector(OPTname.name, g_OPTnames)) {
-				log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
 				// Add the name to the list of OPTnames so that we don't try to process it again
 				g_OPTnames.push_back(OPTname);
 				char sFileName[80];
@@ -911,7 +911,7 @@ void Direct3DTexture::TagTexture() {
 					// "Point back" into the right ac_element index:
 					this->ActiveCockpitIdx = idx;
 					g_ACElements[idx].bActive = true;
-					log_debug("[DBG] [AC] %s is an AC Texture, ActiveCockpitIdx: %d", surface->_name, this->ActiveCockpitIdx);
+					//log_debug("[DBG] [AC] %s is an AC Texture, ActiveCockpitIdx: %d", surface->_name, this->ActiveCockpitIdx);
 				}
 			}
 		}

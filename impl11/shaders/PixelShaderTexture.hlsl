@@ -161,20 +161,21 @@ PixelShaderOutput main(PixelShaderInput input)
 		if (bIsLightTexture > 1) {
 			// Make the light textures brighter in 32-bit mode
 			HSV.z *= 1.25;
-			val *= 1.25; // Not sure if it's a good idea to increase val here
+			//val *= 1.25; // Not sure if it's a good idea to increase val here
+			// It's not! It'll make a few OPTs bloom when they didn't in 1.1.1
 			// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to
 			// make it [0, 1]
 			alpha *= 10.0;
 			color = HSVtoRGB(HSV);
 		}
 		//if (val > 0.8 && alpha > 0.5) {
-		//float bloom_alpha = saturate(val / 0.8) * saturate(alpha / 0.5);
-		// We can't do smoothstep(0.0, 0.8, val) because the hangar will bloom all over the
-		// place. Many other textures may have similar problems too.
-		const float bloom_alpha = smoothstep(0.5, 0.8, val) * smoothstep(0.0, 0.5, alpha);
-		output.bloom = float4(val * color, bloom_alpha);
-		output.ssaoMask.ra = bloom_alpha;
-		output.ssMask.a = bloom_alpha;
+			// We can't do smoothstep(0.0, 0.8, val) because the hangar will bloom all over the
+			// place. Many other textures may have similar problems too.
+			const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
+			//const float bloom_alpha = smoothstep(0.75, 0.81, val) * smoothstep(0.45, 0.51, alpha);
+			output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
+			output.ssaoMask.ra = bloom_alpha;
+			output.ssMask.a = bloom_alpha;
 		//}
 		output.color = float4(color, alpha);
 		output.bloom.rgb *= fBloomStrength;
