@@ -262,6 +262,8 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 
 /* Vertices that will be used for the VertexBuffer. */
 D3DTLVERTEX *g_OrigVerts = NULL;
+/* Indices used when D3D hook is present */
+uint32_t *g_OrigIndex = NULL;
 
 // Counter for calls to DrawIndexed() (This helps us know where were are in the rendering process)
 // Gets reset everytime the backbuffer is presented and is increased only after BOTH the left and
@@ -296,7 +298,7 @@ bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffe
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
-bool g_bToggleSkipDC = false;
+bool g_bResetDC = false;
 
 /*********************************************************/
 // HYPERSPACE
@@ -1167,6 +1169,8 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			//	uColor = (uColor << 8) | 0xFF;
 			coords->uBGColor[idx] = uColor;
 			coords->numCoords++;
+			//log_debug("[DBG] [DC] src_slot: %d, (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+			//	src_slot, x0 / width, y0 / height, x1 / width, y1 / height);
 		}
 	}
 	catch (...) {
@@ -4366,9 +4370,15 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 	float *minU, float *minV, float *maxU, float *maxV,
 	bool debug) 
 {
+	/* 
+	 * If the D3D hook is active, we need to use the index buffer directly and 
+	 * switch to 32-bit indices. If not, we can continue to use the triangle and
+	 * 16-bit indices.
+	 */
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	float px, py, u, v;
 	*maxX = -1000000; *maxY = -1000000;
 	*minX =  1000000; *minY =  1000000;
@@ -4378,7 +4388,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -4390,7 +4400,8 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
 		}
 
-		index = triangle->v2;
+		//index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -4402,7 +4413,8 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
 		}
 
-		index = triangle->v3;
+		//index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -5804,7 +5816,16 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				// Capture the bounds for all the Dynamic Cockpit Elements
+				// Reset the DC HUD Regions
+				if (g_bResetDC) {
+					for (unsigned int i = 0; i < g_DCHUDRegions.boxes.size(); i++) {
+						g_DCHUDRegions.boxes[i].bLimitsComputed = false;
+					}
+					g_bResetDC = false;
+					log_debug("[DBG] [DC] DC HUD Regions reset");
+				}
+
+				// Capture the bounds for all the HUDs elements to use later in the Dynamic Cockpit
 				{
 					// Capture the bounds for the left sensor:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
@@ -5818,6 +5839,9 @@ HRESULT Direct3DDevice::Execute(
 							Box box;
 							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
 								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							//log_debug("[DBG] [DC] Left Radar. in-game coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	minX, minY, maxX, maxY);
+
 							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
 							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
 							// Store the pixel coordinates
@@ -5825,8 +5849,9 @@ HRESULT Direct3DDevice::Execute(
 							// Compute and store the erase coordinates for this HUD Box
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+
 							dcSrcBox->bLimitsComputed = true;
-							//log_debug("[DBG] [DC] Left Radar Region captured");
+							//log_debug("[DBG] [DC] Left Sensor Region captured");
 
 							// Get the limits for the left radar:
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
@@ -5847,6 +5872,7 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
+							//log_debug("[DBG] [DC] g_iPresentCounter: %d, currentIndexLocation: %d", g_iPresentCounter, currentIndexLocation);
 							//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 							//	box.x0, box.y0, box.x1, box.y1);
 							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
@@ -6177,6 +6203,7 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				// Hide the text boxes for the X-Wing (this was a little experiment to see if this is possible)
 				/*
 				if (g_bToggleSkipDC && bLastTextureSelectedNotNULL &&
 					((strstr(lastTextureSelected->_surface->_name, "TEX00150") != NULL) ||
@@ -6401,7 +6428,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
 					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
-					g_PSCBuffer.fSpecVal	     = lastTextureSelected->material.SpecValue;
+					g_PSCBuffer.fSpecVal	 = lastTextureSelected->material.SpecValue;
 				}
 
 				// Apply the SSAO mask/Special materials, like lasers and HUD
@@ -6524,9 +6551,8 @@ HRESULT Direct3DDevice::Execute(
 				// Modify the state for both VR and regular game modes...
 
 				// Maintain the k-closest lasers to the camera
-				if (g_bEnableLaserLights && bIsLaser) {
+				if (g_bEnableLaserLights && bIsLaser)
 					AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
-				}
 
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
@@ -6623,6 +6649,7 @@ HRESULT Direct3DDevice::Execute(
 								// Skip src boxes that haven't been computed yet
 								if (!src_box->bComputed)
 									continue;
+
 								uvfloat4 uv_src;
 								uv_src.x0 = src_box->coords.x0; uv_src.y0 = src_box->coords.y0;
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
@@ -6643,8 +6670,10 @@ HRESULT Direct3DDevice::Execute(
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
 								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
 								context->PSSetShaderResources(0, 1, resources->dc_coverTexture[idx].GetAddressOf());
+								//resources->InitPSShaderResourceView(resources->dc_coverTexture[idx].Get());
 							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+								//resources->InitPSShaderResourceView(lastTextureSelected->_textureView.Get());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.

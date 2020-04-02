@@ -109,15 +109,16 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 coverColor = texture0.Sample(sampler0, input.tex); // coverColor is the cover texture
-	float coverAlpha = coverColor.w; // alpha of the cover texture
+	const float coverAlpha = coverColor.w; // alpha of the cover texture
+	// DEBUG: Make the cover texture transparent to show the DC contents clearly
+	//const float coverAlpha = 0.0;
+	// DEBUG
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = coverColor;
-
-	float3 P = input.pos3D.xyz;
-	output.pos3D = float4(P, 1);
+	output.pos3D = float4(input.pos3D.xyz, 1);
 
 	// hook_normals code:
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
@@ -169,7 +170,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		{
 			// Sample the dynamic cockpit texture:
 			hud_texelColor = texture1.Sample(sampler1, dyn_uv);
-			float hud_alpha = hud_texelColor.w;
+			const float hud_alpha = hud_texelColor.w;
+			// DEBUG: Display the source UVs
+			//const float hud_alpha = 1.0;
+			//hud_texelColor = float4(dyn_uv, 0, 1);
+			// DEBUG
+			
 			// Add the background color to the dynamic cockpit display:
 			hud_texelColor = lerp(uintColorToFloat4(getBGColor(i)), hud_texelColor, hud_alpha);
 		}

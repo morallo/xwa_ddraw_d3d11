@@ -2036,6 +2036,7 @@ void PrimarySurface::ClearHUDRegions() {
 				//log_debug("[DBG] [DC] ACTIVATED: '%s'", dc_elem->name);
 			}
 		}
+
 		// Only clear HUD regions for active dc_elements
 		if (!dc_elem->bActive)
 			continue;
@@ -6416,6 +6417,14 @@ HRESULT PrimarySurface::Flip(
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
 			g_iPresentCounter++;
+			//static bool bPrevPlayerInHangar = false;
+			//if (bPrevPlayerInHangar && !*g_playerInHangar) {
+			//	// We just exited the hanger, let's reset the present counter
+			//	g_iPresentCounter = 0;
+			//	log_debug("[DBG] Exited Hangar, resetting g_iPresentCounter and HUD regions");
+			//}
+			//bPrevPlayerInHangar = *g_playerInHangar;
+
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))
 			// For VR, we probably want to disable VSync to get as much frames a possible:
