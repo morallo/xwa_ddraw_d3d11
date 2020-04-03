@@ -112,6 +112,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SSAO Mask/Material, Glossiness, Spec_Intensity
 	// Glossiness is multiplied by 128 to compute the exponent
 	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
+	// ssaoMask.r: Material
+	// ssaoMask.g: Glossiness
+	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, unused
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);

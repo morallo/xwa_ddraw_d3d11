@@ -249,7 +249,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
 	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		     = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
@@ -266,6 +266,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  nm_int_mask   = ssMask.x;
 	float  spec_val_mask = ssMask.y;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
+	// An area is "shadeless" if it's GLASS_MAT or above
 	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM

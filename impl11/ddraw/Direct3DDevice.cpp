@@ -1545,6 +1545,7 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
 /*
  * Load the material parameters for an individual OPT.
  */
+/*
 bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 
 	FILE *file;
@@ -1685,20 +1686,9 @@ bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
 		g_Materials[craftIdx] = craftMat;
 	}
 
-	// DEBUG
-	// Print out the materials for this craft
-	/*log_debug("[DBG] [MAT] *********************");
-	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
-	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
-		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
-		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
-			g_Materials[craftIdx].MaterialList[i].texname,
-			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
-	}
-	log_debug("[DBG] [MAT] *********************");*/
-	// DEBUG
 	return true;
 }
+*/
 
 /*
  * Loads a Light color row
@@ -1780,6 +1770,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
 	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
 	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	curMaterialTexDef.material.IsShadeless = false;
 	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
 	// The default material will always be in slot 0:
 	craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1884,10 +1875,13 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			else if (_stricmp(param, "SpecularVal") == 0) {
 				curMaterialTexDef.material.SpecValue = fValue;
 			}
+			else if (_stricmp(param, "Shadeless") == 0) {
+				curMaterialTexDef.material.IsShadeless = (bool)fValue;
+			}
 			else if (_stricmp(param, "Light") == 0) {
 				LoadLightColor(buf, &(curMaterialTexDef.material.Light));
-				log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
-					curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
+				//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
+				//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 			}
 		}
 	}
@@ -6429,7 +6423,10 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->material.Metallic,
 						lastTextureSelected->material.Glossiness,
 						lastTextureSelected->material.Reflection);*/
-					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+					if (lastTextureSelected->material.IsShadeless)
+						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+					else
+						g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
 					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;

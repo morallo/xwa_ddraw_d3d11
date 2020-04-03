@@ -443,6 +443,7 @@ typedef struct MaterialStruct {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
+	bool IsShadeless;
 	Vector3 Light;
 
 	MaterialStruct() {
@@ -451,6 +452,7 @@ typedef struct MaterialStruct {
 		Glossiness  = DEFAULT_GLOSSINESS;
 		NMIntensity = DEFAULT_NM_INT;
 		SpecValue   = DEFAULT_SPEC_VALUE;
+		IsShadeless = false;
 		Light.set(0.0f, 0.0f, 0.0f);
 	}
 } Material;
