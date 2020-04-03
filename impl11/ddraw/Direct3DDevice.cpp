@@ -4296,6 +4296,7 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+/*
 // Should this function be inlined?
 // See:
 // xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
@@ -4341,24 +4342,26 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 		triangle++;
 	}
 }
+*/
 
 void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	
 	log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		vert = g_OrigVerts[index];
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
 
-		index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 
-		index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		triangle++;
 	}
@@ -4763,7 +4766,8 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	float u, v, U0, V0, U1, V1, U2, V2; // , dx, dy;
 	float best_t = 10000.0f;
 	bool bIntersection = false;
@@ -4787,7 +4791,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		backProject(index, &tempv0);
@@ -4805,7 +4809,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		backProject(index, &tempv1);
@@ -4823,7 +4827,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		backProject(index, &tempv2);
@@ -4889,7 +4893,8 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	float u,v;
 	Vector3 pos3D;
 
@@ -4899,7 +4904,7 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 	// tip of one individual laser and we add it to the current list.
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
@@ -4909,7 +4914,7 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 			g_LaserList.insert(pos3D, texture->material.Light);
 		}
 
-		index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
@@ -4919,7 +4924,7 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 			g_LaserList.insert(pos3D, texture->material.Light);
 		}
 
-		index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
