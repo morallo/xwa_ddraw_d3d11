@@ -221,12 +221,11 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	output.N = weight * B; // The bent normal should be weighed by the occlusion: it should be smaller on more occluded areas (I think)
 	//output.N = weight * v; // This also works; but I can't get the contact shadows right and everything looks overly bluish -- maybe I need to scale down the Z axis?
 
-	//output.col = LightColor.rgb * saturate(dot(B, LightVector.xyz));
+	//output.col = LightColor.rgb * saturate(dot(B, MainLight.xyz));
 	//B.z = -B.z; // Flip the z component?
-	output.col = weight * saturate(dot(B, LightVector[0].xyz)); // ORIGINAL
+	output.col = weight * saturate(dot(B, MainLight.xyz)); // ORIGINAL
 	//output.col = weight; // This doesn't produce a contact shadow because it does not depend on the light direction
-	//output.col  = LightColor.rgb  * saturate(dot(B, LightVector.xyz)) + invLightColor * saturate(dot(B, -LightVector.xyz));
-	//output.col += LightColor2.rgb * saturate(dot(B, LightVector2.xyz)); // +invLightColor * saturate(dot(B, -LightVector2.xyz));
+	//output.col  = LightColor.rgb  * saturate(dot(B, MainColor.xyz)) + invLightColor * saturate(dot(B, -MainLight.xyz));
 	
 	// Compute the shadow factor
 	// If the sample vector B points right in the direction of L, and weight = 0, then this

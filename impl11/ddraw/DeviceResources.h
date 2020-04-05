@@ -295,24 +295,29 @@ typedef struct float4_struct {
 } float4;
 
 typedef struct PSShadingSystemCBStruct {
-	float4  LightVector[2];
+	float3 MainLight;
+	uint32_t LightCount;
+	// 16 bytes
+	float4 MainColor;
 	// 32 bytes
-	float4  LightColor[2];
-	// 64 bytes
+	float4 LightVector[MAX_XWA_LIGHTS];
+	// 32+128 = 160 bytes
+	float4 LightColor[MAX_XWA_LIGHTS];
+	// 160+128 = 288 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
-	// 80 bytes
+	// 304 bytes
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
-	// 96 bytes
+	// 320 bytes
 	float sso_disable, sqr_attenuation, laser_light_intensity;
 	uint32_t num_lasers;
-	// 112 bytes
+	// 336 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
-	// 240 bytes
+	// 464 bytes
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
-	// 368 bytes
+	// 592 bytes
 } PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {

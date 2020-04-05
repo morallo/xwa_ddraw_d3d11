@@ -2373,7 +2373,7 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
  */
 void PrimarySurface::SetLights(float fSSDOEnabled) {
 	const auto &resources = this->_deviceResources;
-	Vector4 light[2];
+	Vector4 light;
 	int i;
 
 	/*
@@ -2403,9 +2403,11 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	Matrix4 H = GetCurrentHeadingViewMatrix();
 	// In skirmish mode, the light with the highest intensity seems to be in index 1 and it matches the 
 	// position o the Sun/Nebula. However, in regular missions, the main light source seems to come from
-	// index 0 and index 1 is a secondary light like a big planet or nebula or similar
-	//for (int i = 0; i < 2; i++) 
-	i = 1;
+	// index 0 and index 1 is a secondary light like a big planet or nebula or similar.
+	// We need to find the light with the highest intensity and use that for SSDO
+	float maxIntensity = -1.0;
+	int maxIdx = -1;
+	for (int i = 0; i < s_XwaGlobalLightsCount; i++) 
 	{
 		//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
 		Vector4 xwaLight = Vector4(
@@ -2414,15 +2416,34 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		    s_XwaGlobalLights[i].PositionZ / 32768.0f, 
 			0.0f);
 		
-		//light[i] = H * g_LightVector[i];
-		light[0]   = H * xwaLight;
-		light[0].z = -light[0].z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
-		//light[i] = xwaLight;
+		light   = H * xwaLight;
+		light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
 		//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
 		//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
-		g_LightColor[0].set(s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB, 0.0f);
-		g_LightColor[0] *= s_XwaGlobalLights[i].Intensity;
+		g_ShadingSys_PSBuffer.LightVector[i].x = light.x;
+		g_ShadingSys_PSBuffer.LightVector[i].y = light.y;
+		g_ShadingSys_PSBuffer.LightVector[i].z = light.z;
+		g_ShadingSys_PSBuffer.LightVector[i].w = 0.0f;
+
+		g_ShadingSys_PSBuffer.LightColor[i].x = s_XwaGlobalLights[i].Intensity * s_XwaGlobalLights[i].ColorR;
+		g_ShadingSys_PSBuffer.LightColor[i].y = s_XwaGlobalLights[i].Intensity * s_XwaGlobalLights[i].ColorG;
+		g_ShadingSys_PSBuffer.LightColor[i].z = s_XwaGlobalLights[i].Intensity * s_XwaGlobalLights[i].ColorB;
+		g_ShadingSys_PSBuffer.LightColor[i].w = s_XwaGlobalLights[i].Intensity;
+
+		// Keep track of the light with the highest intensity
+		if (s_XwaGlobalLights[i].Intensity > maxIntensity) {
+			maxIntensity = s_XwaGlobalLights[i].Intensity;
+			maxIdx = i;
+		}
+
+		//g_LightColor[i].set(s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB, 0.0f);
+		//g_LightColor[i] *= s_XwaGlobalLights[i].Intensity;
 	}
+	g_ShadingSys_PSBuffer.LightCount = s_XwaGlobalLightsCount;
+	g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
+	g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
+	g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
+	g_ShadingSys_PSBuffer.MainColor = g_ShadingSys_PSBuffer.LightColor[maxIdx];
 
 	if (g_bEnableLaserLights) {
 		// DEBUG
@@ -2453,29 +2474,29 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		g_ShadingSys_PSBuffer.num_lasers = 0;
 	
-	
-	
+	/*
 	for (i = 0; i < 2; i++) {
 		g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
 		g_ShadingSys_PSBuffer.LightVector[i].y = light[i].y;
 		g_ShadingSys_PSBuffer.LightVector[i].z = light[i].z;
 
-		/*g_ShadingSys_PSBuffer.LightVector[i].x = xwaLight.x;
-		g_ShadingSys_PSBuffer.LightVector[i].y = xwaLight.y;
-		g_ShadingSys_PSBuffer.LightVector[i].z = xwaLight.z;*/
-
 		g_ShadingSys_PSBuffer.LightColor[i].x = g_LightColor[i].x;
 		g_ShadingSys_PSBuffer.LightColor[i].y = g_LightColor[i].y;
 		g_ShadingSys_PSBuffer.LightColor[i].z = g_LightColor[i].z;
 	}
+	*/
 	
-	//if (g_bDumpSSAOBuffers || g_SSAO_PSCBuffer.debug == 30) 
-	//{
-		//log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-		//	g_ShadingSys_PSBuffer.LightVector[0].x, g_ShadingSys_PSBuffer.LightVector[0].y, g_ShadingSys_PSBuffer.LightVector[0].z);
-		//log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
-		//	g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
-	//}
+	if (g_bDumpSSAOBuffers) 
+	{
+		log_debug("[DBG] LightCount: %d, maxIdx: %d", g_ShadingSys_PSBuffer.LightCount, maxIdx);
+		for (uint32_t i = 0; i < g_ShadingSys_PSBuffer.LightCount; i++) {
+			log_debug("[DBG] light[%d], I: %0.3f: [%0.3f, %0.3f, %0.3f]",
+				i, g_ShadingSys_PSBuffer.LightVector[i].w,
+				g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z);
+			//log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
+			//	g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
+		}
+	}
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);

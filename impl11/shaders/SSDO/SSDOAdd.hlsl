@@ -360,8 +360,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint i;
 
 	// Compute the shading contribution from the main lights
-	[unroll]
-	for (i = 0; i < 1; i++) {
+	[loop]
+	for (i = 0; i < LightCount; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
