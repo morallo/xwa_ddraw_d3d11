@@ -363,7 +363,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	[unroll]
 	for (i = 0; i < 1; i++) {
 		//float3 L = normalize(LightVector[i].xyz);
-		float3 L = LightVector[i].xyz;
+		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 
 		// diffuse component
@@ -472,11 +472,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (i = 0; i < num_lasers; i++)
 	{
-		// P is the original point
+		// P is the original point, pos3D has z inverted:
 		// pos3D = (P.xy, -P.z)
-		// LightPoint already comes with z inverted (-z) from ddraw
+		// LightPoint already comes with z inverted (-z) from ddraw, so we can subtract LightPoint - pos3D
+		// because both points have -z:
 		float3 L = LightPoint[i].xyz - pos3D;
-		const float Z = -LightPoint[i].z;
+		const float Z = -LightPoint[i].z; // Z is positive depth
 		
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L

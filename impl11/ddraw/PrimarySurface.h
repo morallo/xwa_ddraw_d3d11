@@ -73,6 +73,8 @@ public:
 
 	void DeferredPass();
 
+	void InitHeadingMatrix();
+
 	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 
 	void GetCockpitViewMatrix(Matrix4 * result, bool invert);

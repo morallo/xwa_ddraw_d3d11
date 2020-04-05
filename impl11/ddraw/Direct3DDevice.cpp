@@ -9,6 +9,11 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
 /*
+
+The HUD scale is stored here:
+// V0x006002B8
+float s_XwaHudScale = 1.0f;
+
 	The variable that defines if the HUDs are visible is a byte situated at offset 0x0064 in the player table.
 
 		s_XwaPlayers[playerIndex].IsHudVisible
@@ -6418,11 +6423,17 @@ HRESULT Direct3DDevice::Execute(
 					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
 					//g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
 					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-					/*log_debug("[DBG] [MAT] Applying: %s, %0.3f, %0.3f, %0.3f",
-						lastTextureSelected->_surface->_name,
-						lastTextureSelected->material.Metallic,
-						lastTextureSelected->material.Glossiness,
-						lastTextureSelected->material.Reflection);*/
+					// DEBUG
+					/*
+					if (strstr(lastTextureSelected->_surface->_name, "XwingExterior") != NULL) {
+						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f",
+							lastTextureSelected->_surface->_name,
+							lastTextureSelected->material.Metallic,
+							lastTextureSelected->material.Glossiness,
+							lastTextureSelected->material.Intensity);
+					}*/
+					// DEBUG
+
 					if (lastTextureSelected->material.IsShadeless)
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 					else

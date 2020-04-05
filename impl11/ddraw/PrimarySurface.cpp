@@ -29,6 +29,7 @@ const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
 extern bool g_bCustomFOVApplied;
 void LoadFocalLength();
+Matrix4 g_ReflRotX;
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
@@ -215,6 +216,8 @@ struct XwaTransform
 	/* 0x0000 */ XwaVector3 Position;
 	/* 0x000C */ XwaMatrix3x3 Rotation;
 };
+
+void ShowMatrix4(const Matrix4 &mat, char *name);
 
 // S0x0000001
 // L00439B30
@@ -469,6 +472,7 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
 	// When pitch == 90, the craft is actually seeing the horizon
 	// When pitch == 0, the craft is looking towards the sun
+	// When entering hyperspace, yaw,pitch,raw = (0,90,0), so that's probably the "home" orientation: level and looking forward
 	// New approach: let's build a TBN system here to avoid the gimbal lock problem
 	float cosTheta, cosPhi, sinTheta, sinPhi;
 	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
@@ -774,6 +778,8 @@ PrimarySurface::PrimarySurface(DeviceResources* deviceResources, bool hasBackbuf
 	}
 
 	this->_flipFrames = 0;
+
+	InitHeadingMatrix();
 }
 
 PrimarySurface::~PrimarySurface()
@@ -2475,6 +2481,40 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		ComputeRotationMatrixFromXWAView(light, 2);
 
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+
+	//int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
+	//int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
+
+	//XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
+	//XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);*/
+	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
+	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
+
+	// DEBUG: Use the heading matrix to move the lights
+	Vector4 Rs, Us, Fs;
+	Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, false, false);
+	//for (int i = 0; i < 2; i++) 
+	i = 1;
+	{
+		//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
+		Vector4 xwaLight = Vector4(
+			s_XwaGlobalLights[i].PositionX / 32768.0f, 
+			s_XwaGlobalLights[i].PositionY / 32768.0f, 
+		    s_XwaGlobalLights[i].PositionZ / 32768.0f, 
+			0.0f);
+		
+		//light[i] = H * g_LightVector[i];
+		light[0]   = H * xwaLight;
+		light[0].z = -light[0].z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+		//light[i] = xwaLight;
+		//log_debug("[DBG] light[%d], I: %0.3f, [%0.3f, %0.3f, %0.3f]",
+		//	i, s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
+		g_LightColor[0].set(s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB, 0.0f);
+		g_LightColor[0] *= s_XwaGlobalLights[i].Intensity;
+	}
+
 	if (g_bEnableLaserLights) {
 		// DEBUG
 		/*
@@ -2503,19 +2543,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	}
 	else
 		g_ShadingSys_PSBuffer.num_lasers = 0;
-
-	/*int s_XwaGlobalLightsCount = *(int*)0x00782848;
-	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
-	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
-	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
-
-	XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
-	XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);*/
-
-	//XwaVector3 xwaLight = { s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ };
-	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
-	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
+	
+	
 	
 	for (i = 0; i < 2; i++) {
 		g_ShadingSys_PSBuffer.LightVector[i].x = light[i].x;
@@ -2531,15 +2560,13 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.LightColor[i].z = g_LightColor[i].z;
 	}
 	
-	//Vector4 Rs, Us, Fs;
-	//Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, true, false);
-	//light[0] = H * g_LightVector[0];
-	if (g_bDumpSSAOBuffers) {
-		log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector[0].x, g_ShadingSys_PSBuffer.LightVector[0].y, g_ShadingSys_PSBuffer.LightVector[0].z);
-		log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
-			g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
-	}
+	//if (g_bDumpSSAOBuffers || g_SSAO_PSCBuffer.debug == 30) 
+	//{
+		//log_debug("[DBG] light[0]: [%0.3f, %0.3f, %0.3f]",
+		//	g_ShadingSys_PSBuffer.LightVector[0].x, g_ShadingSys_PSBuffer.LightVector[0].y, g_ShadingSys_PSBuffer.LightVector[0].z);
+		//log_debug("[DBG] light[1]: [%0.3f, %0.3f, %0.3f]",
+		//	g_ShadingSys_PSBuffer.LightVector[1].x, g_ShadingSys_PSBuffer.LightVector[1].y, g_ShadingSys_PSBuffer.LightVector[1].z);
+	//}
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
@@ -3788,6 +3815,39 @@ void PrimarySurface::DeferredPass() {
 		this->_deviceResources->_depthStencilViewL.Get());
 }
 
+
+void PrimarySurface::InitHeadingMatrix() {
+	/*
+	Matrix4 rotX, refl;
+	rotX.identity();
+	rotX.rotateX(90.0f);
+	refl.set(
+		1,  0,  0,  0,
+		0, -1,  0,  0,
+		0,  0,  1,  0,
+		0,  0,  0,  1
+	);
+	g_ReflRotX = refl * rotX;
+	static bool bFirstTime = true;
+	if (bFirstTime) {
+		ShowMatrix4(g_ReflRotX, "g_ReflRotX");
+	}
+
+	// This is the matrix we want (looks like it's a simple Y-Z axis swap
+		[14444][DBG] 1.000000, 0.000000, 0.000000, 0.000000
+		[14444][DBG] 0.000000, 0.000000, 1.000000, 0.000000
+		[14444][DBG] 0.000000, 1.000000, 0.000000, 0.000000
+		[14444][DBG] 0.000000, 0.000000, 0.000000, 1.000000
+	*/
+
+	g_ReflRotX.set(
+		1.0, 0.0, 0.0, 0.0, // 1st column
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 1.0, 0.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+}
+
 /*
  * Compute the current ship's orientation. Returns:
  * Rs: The "Right" vector in global coordinates
@@ -3834,7 +3894,7 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	N = rotMatrixPitch * rotMatrixYaw * N;
 	//log_debug("[DBG] N(DEBUG): %0.3f, %0.3f, %0.3f", N.x, N.y, N.z); // --> displays (0,1,0)
 	B.x = 0; B.y = 0; B.z = -1; B.w = 0;
-	T.x = 1; T.y = 0; T.z = 0; T.w = 0;
+	T.x = 1; T.y = 0; T.z =  0; T.w = 0;
 	B = rotMatrixRoll * B;
 	T = rotMatrixRoll * T;
 	// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
@@ -3844,18 +3904,9 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 	B = rotMatrixFull * B;
 	N = rotMatrixFull * N;
 	// Our TBN basis is now in absolute coordinates
-	Matrix4 rotX, refl;
-	rotX.identity();
-	rotX.rotateX(90.0f);
-	refl.set(
-		1,  0,  0,  0,
-		0, -1,  0,  0,
-		0,  0,  1,  0,
-		0,  0,  0,  1
-	);
-	Fs = refl * rotX * N;
-	Us = refl * rotX * B;
-	Rs = refl * rotX * T;
+	Fs = g_ReflRotX * N;
+	Us = g_ReflRotX * B;
+	Rs = g_ReflRotX * T;
 	Fs.w = 0; Rs.w = 0; Us.w = 0;
 	// This transform chain gets us the orientation of the craft in XWA's coord system:
 	// [1,0,0] is right, [0,1,0] is forward, [0,0,1] is up
