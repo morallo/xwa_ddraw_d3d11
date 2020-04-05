@@ -391,7 +391,9 @@ extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
-float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
+float g_fSSAOAlphaOfs = 0.5f;
+//float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
+float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
@@ -2670,9 +2672,9 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.invLightR = 0.2666f;
 	g_SSAO_PSCBuffer.invLightG = 0.2941f;
 	g_SSAO_PSCBuffer.invLightB = 0.3254f;
-	// Default view-yaw/pitch signs
-	g_fViewYawSign = 1.0f;
-	g_fViewPitchSign = -1.0f;
+	// Default view-yaw/pitch signs for SSAO.cfg-based lights
+	//g_fViewYawSign = 1.0f;
+	//g_fViewPitchSign = -1.0f;
 
 	// Default values for the shading system CB
 	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;

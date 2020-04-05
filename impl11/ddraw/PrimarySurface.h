@@ -77,6 +77,8 @@ public:
 
 	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 
+	Matrix4 GetCurrentHeadingViewMatrix();
+
 	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
 	void GetCraftViewMatrix(Matrix4 *result);

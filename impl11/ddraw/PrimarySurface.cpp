@@ -451,6 +451,7 @@ void ShowXWAVector(char *msg, const XwaVector3 &v) {
 	log_debug("[DBG] %s [%0.4f, %0.4f, %0.4f]", msg, v.x, v.y, v.z);
 }
 
+/*
 void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	Vector4 tmpL[2], T, B, N;
 	// Compute the full rotation
@@ -552,102 +553,7 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 
 	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
 }
-
-void ComputeRotationMatrixFromXWAView_new(Vector4 *light, int num_lights) {
-	Vector4 tmpL[2], T, B, N;
-	// Compute the full rotation
-	float yaw = PlayerDataTable[*g_playerIndex].yaw / 65536.0f * 360.0f;
-	float pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
-	float roll = PlayerDataTable[*g_playerIndex].roll / 65536.0f * 360.0f;
-
-	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
-	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-	rotMatrixFull.identity();
-	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll); // Z or Y?
-
-	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
-	// rotMatrixPitch * rotMatrixYaw aligns the orientation with y+ (x --> 0 && z --> 0)
-	// so the remaining rotation must be around the y axis (?)
-	// DEBUG, x = z, y = x, z = y;
-	// The yaw is indeed the y-axis rotation, it goes from -180 to 0 to 180.
-	// When pitch == 90, the craft is actually seeing the horizon
-	// When pitch == 0, the craft is looking towards the sun
-	// New approach: let's build a TBN system here to avoid the gimbal lock problem
-	float cosTheta, cosPhi, sinTheta, sinPhi;
-	cosTheta = cos(yaw * DEG2RAD), sinTheta = sin(yaw * DEG2RAD);
-	cosPhi = cos(pitch * DEG2RAD), sinPhi = sin(pitch * DEG2RAD);
-	N.z = cosTheta * sinPhi;
-	N.x = sinTheta * sinPhi;
-	N.y = cosPhi;
-	N.w = 0;
-
-	// This transform chain will always transform (x,y,z) into (0, 1, 0):
-	// To make an orthonormal basis, we need x+ and z+
-	N = rotMatrixPitch * rotMatrixYaw * N;
-	B.x = 0; B.y = 0; B.z = 1; B.w = 0;
-	T.x = 1; T.y = 0; T.z = 0; T.w = 0;
-	// In this space we now need to rotate B and T around the Y axis by "roll" degrees
-	B = rotMatrixRoll * B;
-	T = rotMatrixRoll * T;
-	// Our new basis is T,B,N; but we need to invert the yaw/pitch rotation we applied
-	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
-	rotMatrixFull.invert();
-	T = rotMatrixFull * T;
-	B = rotMatrixFull * B;
-	N = rotMatrixFull * N;
-	// Our TBN basis is now in absolute coordinates
-	rotMatrixFull.identity();
-	rotMatrixFull.set(
-		T.x, B.x, N.x, 0,
-		T.y, B.y, N.y, 0,
-		T.z, B.z, N.z, 0,
-		0, 0, 0, 1
-	);
-
-	for (int i = 0; i < num_lights; i++)
-		tmpL[i] = rotMatrixFull * g_LightVector[i];
-
-	// tmpL is now the light's direction in view space. We need to further transform this
-	// to compensate for camera rotation
-
-	// TODO: Switch between cockpit and external cameras -- apply the external camera rotation
-	float viewYaw, viewPitch;
-	if (PlayerDataTable[*g_playerIndex].externalCamera) {
-		viewYaw = PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
-	}
-	else {
-		viewYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-		viewPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-	}
-	Matrix4 viewMatrixYaw, viewMatrixPitch;
-	viewMatrixYaw.identity();
-	viewMatrixPitch.identity();
-	viewMatrixYaw.rotateY(g_fViewYawSign * viewYaw);
-	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
-	for (int i = 0; i < num_lights; i++)
-		light[i] = viewMatrixPitch * viewMatrixYaw * tmpL[i];
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); sph: [%0.3f, %0.3f, %0.3f], pos: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, x, y, z, tmp.x, tmp.y, tmp.z);
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); T: [%0.3f, %0.3f, %0.3f], B: [%0.3f, %0.3f, %0.3f], N: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, light->x, light->y, light->z);
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); camYP: (%0.3f, %0.3f), light: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, viewYaw, viewPitch, light->x, light->y, light->z);
-	// DEBUG
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f), L: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, light->x, light->y, light->z);
-
-	//log_debug("[DBG] [AO] ypr: (%0.3f, %0.3f, %0.3f); light: [%0.3f, %0.3f, %0.3f]",
-	//	yaw, pitch, roll, tmplight.x, tmplight.y, tmplight.z);
-
-	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
-}
+*/
 
 void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
 {
@@ -2469,8 +2375,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	const auto &resources = this->_deviceResources;
 	Vector4 light[2];
 	int i;
-	static bool bInit = false;
 
+	/*
 	if (g_bOverrideLightPos) {
 		for (int i = 0; i < 2; i++) {
 			light[i].x = g_LightVector[i].x;
@@ -2480,6 +2386,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	}
 	else
 		ComputeRotationMatrixFromXWAView(light, 2);
+	*/
 
 	int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
@@ -2492,9 +2399,11 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
 	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
 
-	// DEBUG: Use the heading matrix to move the lights
-	Vector4 Rs, Us, Fs;
-	Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, false, false);
+	// Use the heading matrix to move the lights
+	Matrix4 H = GetCurrentHeadingViewMatrix();
+	// In skirmish mode, the light with the highest intensity seems to be in index 1 and it matches the 
+	// position o the Sun/Nebula. However, in regular missions, the main light source seems to come from
+	// index 0 and index 1 is a secondary light like a big planet or nebula or similar
 	//for (int i = 0; i < 2; i++) 
 	i = 1;
 	{
@@ -2509,8 +2418,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		light[0]   = H * xwaLight;
 		light[0].z = -light[0].z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
 		//light[i] = xwaLight;
-		//log_debug("[DBG] light[%d], I: %0.3f, [%0.3f, %0.3f, %0.3f]",
-		//	i, s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
+		//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
+		//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
 		g_LightColor[0].set(s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB, 0.0f);
 		g_LightColor[0] *= s_XwaGlobalLights[i].Intensity;
 	}
@@ -3936,6 +3845,31 @@ Matrix4 PrimarySurface::GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector
 		// Rs, Us, Fs is an orthonormal basis
 	}
 	return viewMatrix;
+}
+
+/*
+ * Get the combined Heading + Cockpit Camera View matrix that transforms from XWA's system to
+ * PixelShader (Z+) coordinates.
+ */
+Matrix4 PrimarySurface::GetCurrentHeadingViewMatrix() {
+	Vector4 Rs, Us, Fs;
+	Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, false, false);
+
+	float viewYaw, viewPitch;
+	if (PlayerDataTable[*g_playerIndex].externalCamera) {
+		viewYaw   = PlayerDataTable[*g_playerIndex].cameraYaw   / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+	}
+	else {
+		viewYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f;
+		viewPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+	}
+	Matrix4 viewMatrixYaw, viewMatrixPitch;
+	viewMatrixYaw.identity();
+	viewMatrixPitch.identity();
+	viewMatrixYaw.rotateY(g_fViewYawSign   * viewYaw);
+	viewMatrixYaw.rotateX(g_fViewPitchSign * viewPitch);
+	return viewMatrixPitch * viewMatrixYaw * H;
 }
 
 void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
