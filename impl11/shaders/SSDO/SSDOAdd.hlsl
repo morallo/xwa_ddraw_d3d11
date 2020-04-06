@@ -398,7 +398,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		*/
 
-		// TODO: USE MULTIPLE LIGHTS
 		/*
 		if (ssao_debug == 11)
 			diffuse = max(dot(bentN, L), 0.0);

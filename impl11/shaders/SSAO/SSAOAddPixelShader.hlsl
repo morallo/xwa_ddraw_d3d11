@@ -286,8 +286,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 tmp_bloom = 0.0;
 	// Compute the shading contribution from the main lights
 	[unroll]
-	for (uint i = 0; i < 2; i++) {
-		float3 L = LightVector[i].xyz;
+	for (uint i = 0; i < LightCount; i++) {
+		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 		// diffuse component
 		float diffuse = max(dot(N, L), 0.0);
