@@ -753,6 +753,7 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
+	ComPtr<ID3D11PixelShader> _externalHUDPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

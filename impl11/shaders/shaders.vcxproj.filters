@@ -56,6 +56,7 @@
     <FxCompile Include="HyperZoom.hlsl" />
     <FxCompile Include="LaserPointerVR.hlsl" />
     <FxCompile Include="FXAA.hlsl" />
+    <FxCompile Include="ExternalHUDShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

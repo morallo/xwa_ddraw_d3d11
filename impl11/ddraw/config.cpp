@@ -43,6 +43,7 @@ Config::Config()
 	this->SwapJoystickXZAxes = false;
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
+	this->ExternalHUDEnabled = false;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -151,6 +152,10 @@ Config::Config()
 			else if (name == "StayInHyperspace")
 			{
 				this->StayInHyperspace = (bool)stoi(value);
+			}
+			else if (name == "ExternalHUDEnabled") 
+			{
+				this->ExternalHUDEnabled = (bool)stoi(value);
 			}
 		}
 	}

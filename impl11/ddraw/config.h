@@ -34,6 +34,7 @@ public:
 
 	bool FXAAEnabled;
 	bool StayInHyperspace;
+	bool ExternalHUDEnabled;
 	
 };
 

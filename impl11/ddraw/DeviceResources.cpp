@@ -50,6 +50,7 @@
 #include "../Debug/HyperZoom.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
+#include "../Debug/ExternalHUDShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -92,6 +93,7 @@
 #include "../Release/HyperZoom.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
+#include "../Release/ExternalHUDShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2548,6 +2550,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2797,6 +2802,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

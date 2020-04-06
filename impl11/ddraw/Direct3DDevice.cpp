@@ -1884,6 +1884,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			}
 			else if (_stricmp(param, "Shadeless") == 0) {
 				curMaterialTexDef.material.IsShadeless = (bool)fValue;
+				log_debug("[DBG] Shadeless texture loaded");
 			}
 			else if (_stricmp(param, "Light") == 0) {
 				LoadLightColor(buf, &(curMaterialTexDef.material.Light));
@@ -6429,13 +6430,16 @@ HRESULT Direct3DDevice::Execute(
 					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
 					// DEBUG
 					/*
-					if (strstr(lastTextureSelected->_surface->_name, "XwingExterior") != NULL) {
-						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f",
+					if (strstr(lastTextureSelected->_surface->_name, "TieInterceptor") != NULL) {
+						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f, %d",
 							lastTextureSelected->_surface->_name,
 							lastTextureSelected->material.Metallic,
 							lastTextureSelected->material.Glossiness,
-							lastTextureSelected->material.Intensity);
-					}*/
+							lastTextureSelected->material.Intensity,
+							lastTextureSelected->material.IsShadeless
+						);
+					}
+					*/
 					// DEBUG
 
 					if (lastTextureSelected->material.IsShadeless)
