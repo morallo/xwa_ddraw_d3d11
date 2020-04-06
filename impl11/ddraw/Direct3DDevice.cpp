@@ -2836,8 +2836,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "alpha_to_solid_offset") == 0) {
 				g_fSSAOAlphaOfs = fValue;
 			}
-			else if (_stricmp(param, "ssdo_ambient") == 0) {
+			else if (_stricmp(param, "ssdo_ambient") == 0 ||
+					 _stricmp(param, "ambient") == 0) {
 				g_SSAO_PSCBuffer.ambient = fValue;
+				g_ShadingSys_PSBuffer.ambient = fValue;
 			}
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
@@ -5694,9 +5696,9 @@ HRESULT Direct3DDevice::Execute(
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
 								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
 								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
-								g_LightColor[i].x = fade * 0.3f;
-								g_LightColor[i].y = fade * 0.4f;
-								g_LightColor[i].z = fade * 0.9f;
+								g_LightColor[i].x = /* fade * */ 0.10f;
+								g_LightColor[i].y = /* fade * */ 0.15f;
+								g_LightColor[i].z = /* fade * */ 1.50f;
 							}
 						}
 						break;

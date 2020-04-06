@@ -2406,69 +2406,90 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	// index 0 and index 1 is a secondary light like a big planet or nebula or similar.
 	// We need to find the light with the highest intensity and use that for SSDO
 	float maxIntensity = -1.0;
-	int maxIdx = -1;
+	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, s_XwaGlobalLightsCount);
 	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] LightCount: %d", s_XwaGlobalLightsCount);
-	for (int i = 0; i < s_XwaGlobalLightsCount; i++) 
+		log_debug("[DBG] s_XwaGlobalLightsCount: %d", s_XwaGlobalLightsCount);
+	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
 	{
-		//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
-		Vector4 col;
-		float intensity;
-		Vector4 xwaLight = Vector4(
-			s_XwaGlobalLights[i].PositionX / 32768.0f, 
-			s_XwaGlobalLights[i].PositionY / 32768.0f, 
-		    s_XwaGlobalLights[i].PositionZ / 32768.0f, 
-			0.0f);
-		
-		light   = H * xwaLight;
-		light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
-		//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
-		//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
-		g_ShadingSys_PSBuffer.LightVector[i].x = light.x;
-		g_ShadingSys_PSBuffer.LightVector[i].y = light.y;
-		g_ShadingSys_PSBuffer.LightVector[i].z = light.z;
-		g_ShadingSys_PSBuffer.LightVector[i].w = 0.0f;
-
-		col.x = s_XwaGlobalLights[i].ColorR;
-		col.y = s_XwaGlobalLights[i].ColorG;
-		col.z = s_XwaGlobalLights[i].ColorB;
-		col.w = 0.0f;
-		
-		intensity = s_XwaGlobalLights[i].Intensity;
-		// Normalize the colors if the intensity is above 1
-		if (intensity > 1.0f)
-			// Compute the intensity: use Luma to approx intensity
-			intensity = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
-		//else
-			// Tone down the current color according to its intensity (?)
-			//col *= intensity;
-		
-		g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
-		g_ShadingSys_PSBuffer.LightColor[i].y = col.y;
-		g_ShadingSys_PSBuffer.LightColor[i].z = col.z;
-		g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
-
-		// Keep track of the light with the highest intensity
-		if (intensity > maxIntensity) {
-			maxIntensity = intensity;
-			maxIdx = i;
-		}
-
-		if (g_bDumpSSAOBuffers)
+		for (int i = 0; i < maxLights; i++)
 		{
-			log_debug("[DBG] light[%d], I: %0.3f: i: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)",
-				i, s_XwaGlobalLights[i].Intensity, intensity,
-				g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
-				s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
-				g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
-			);
+			//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
+			Vector4 col;
+			float intensity;
+			Vector4 xwaLight = Vector4(
+				s_XwaGlobalLights[i].PositionX / 32768.0f,
+				s_XwaGlobalLights[i].PositionY / 32768.0f,
+				s_XwaGlobalLights[i].PositionZ / 32768.0f,
+				0.0f);
+
+			light = H * xwaLight;
+			light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
+			//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
+			g_ShadingSys_PSBuffer.LightVector[i].x = light.x;
+			g_ShadingSys_PSBuffer.LightVector[i].y = light.y;
+			g_ShadingSys_PSBuffer.LightVector[i].z = light.z;
+			g_ShadingSys_PSBuffer.LightVector[i].w = 0.0f;
+
+			col.x = s_XwaGlobalLights[i].ColorR;
+			col.y = s_XwaGlobalLights[i].ColorG;
+			col.z = s_XwaGlobalLights[i].ColorB;
+			col.w = 0.0f;
+
+			intensity = s_XwaGlobalLights[i].Intensity;
+			// Normalize the colors if the intensity is above 1
+			if (intensity > 1.0f)
+				// Compute the intensity: use Luma to approx intensity
+				intensity = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
+			//else
+				// Tone down the current color according to its intensity (?)
+				//col *= intensity;
+
+			g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
+			g_ShadingSys_PSBuffer.LightColor[i].y = col.y;
+			g_ShadingSys_PSBuffer.LightColor[i].z = col.z;
+			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
+
+			// Keep track of the light with the highest intensity
+			if (intensity > maxIntensity) {
+				maxIntensity = intensity;
+				maxIdx = i;
+			}
+
+			if (g_bDumpSSAOBuffers)
+			{
+				log_debug("[DBG] light[%d], I: %0.3f: i: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)",
+					i, s_XwaGlobalLights[i].Intensity, intensity,
+					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
+					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
+					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
+				);
+			}
 		}
+		g_ShadingSys_PSBuffer.LightCount  = s_XwaGlobalLightsCount;
+		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
+		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
+		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
+		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
 	}
-	g_ShadingSys_PSBuffer.LightCount  = s_XwaGlobalLightsCount;
-	g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
-	g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
-	g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
-	g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
+	else 
+	{
+		// Hyper tunnel lights
+		g_ShadingSys_PSBuffer.LightCount = 2;
+		for (int i = 0; i < 2; i++) {
+			g_ShadingSys_PSBuffer.LightVector[i].x = g_LightVector[i].x;
+			g_ShadingSys_PSBuffer.LightVector[i].y = g_LightVector[i].y;
+			g_ShadingSys_PSBuffer.LightVector[i].z = g_LightVector[i].z;
+
+			g_ShadingSys_PSBuffer.LightColor[i].x = g_LightColor[i].x;
+			g_ShadingSys_PSBuffer.LightColor[i].y = g_LightColor[i].y;
+			g_ShadingSys_PSBuffer.LightColor[i].z = g_LightColor[i].z;
+		}
+		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[0].x;
+		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[0].y;
+		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[0].z;
+		g_ShadingSys_PSBuffer.MainColor = g_ShadingSys_PSBuffer.LightColor[0];
+	}
 
 	if (g_bEnableLaserLights) {
 		// DEBUG
