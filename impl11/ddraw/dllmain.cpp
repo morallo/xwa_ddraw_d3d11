@@ -105,6 +105,7 @@ WNDPROC OldWindowProc = 0;
 void ResetVRParams(); // Restores default values for the view params
 void SaveVRParams();
 void LoadVRParams();
+void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
@@ -200,9 +201,11 @@ void LoadFocalLength() {
 
 void ApplyFOV(float FOV) 
 {
+	log_debug("[DBG] Old FOV: %0.3f", *g_fRawFOVDist);
 	*g_fRawFOVDist = FOV;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+	ComputeHyperFOVParams();
 }
 
 void IncreaseFOV(float delta) 
@@ -212,6 +215,7 @@ void IncreaseFOV(float delta)
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
 	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
 		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+	ComputeHyperFOVParams();
 }
 
 void IncreaseMetricMult(float delta) 

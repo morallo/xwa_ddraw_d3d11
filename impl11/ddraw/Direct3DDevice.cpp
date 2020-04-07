@@ -92,10 +92,11 @@ uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 // Data provided by keiranhalcyon7:
-uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
+uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+//float g_fOverrideFOVScale = 1.0f;
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
 
 #define MOVE_LIGHTS_KEY_SET 1
@@ -445,7 +446,7 @@ VertexShaderMatrixCB g_VSMatrixCB;
 VertexShaderCBuffer  g_VSCBuffer;
 PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
-ShadertoyCBuffer		 g_ShadertoyBuffer;
+ShadertoyCBuffer	 g_ShadertoyBuffer;
 LaserPointerCBuffer	 g_LaserPointerBuffer;
 
 struct MainVertex
@@ -3002,6 +3003,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
+	g_bHyperDebugMode = false;
 
 	try {
 		error = fopen_s(&file, "./hyperspace.cfg", "rt");
@@ -3031,7 +3033,7 @@ bool LoadHyperParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "y_center") == 0) {
-				g_ShadertoyBuffer.y_center = fValue;
+				//g_ShadertoyBuffer.y_center = fValue;
 			}
 			else if (_stricmp(param, "disney_style") == 0) {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
@@ -3043,7 +3045,8 @@ bool LoadHyperParams() {
 				g_ShadertoyBuffer.twirl = fValue;
 			}
 			else if (_stricmp(param, "FOV_scale") == 0) {
-				g_ShadertoyBuffer.FOVscale = fValue;
+				//g_fOverrideFOVScale = fValue;
+				//g_ShadertoyBuffer.FOVscale = fValue;
 			}
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bHyperDebugMode = (bool)fValue;

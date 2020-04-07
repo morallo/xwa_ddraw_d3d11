@@ -27,6 +27,7 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+extern float *g_fRawFOVDist;
 extern bool g_bCustomFOVApplied;
 void LoadFocalLength();
 Matrix4 g_ReflRotX;
@@ -652,6 +653,19 @@ extern uint32_t g_steamVRWidth, g_steamVRHeight;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 void *g_pSurface = NULL;
 void WaitGetPoses();
+
+
+/**
+ * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
+ */
+void ComputeHyperFOVParams() {
+	// The FOV is set, we can read it now to compute FOV_Scale
+	g_ShadertoyBuffer.FOVscale = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
+	// Compute y_center too
+	g_ShadertoyBuffer.y_center = 153.0f / g_fCurInGameHeight;
+	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale);
+}
 
 // void capture()
 //#ifdef DBR_VR
@@ -2441,9 +2455,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			if (intensity > 1.0f)
 				// Compute the intensity: use Luma to approx intensity
 				intensity = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
-			//else
+			else
 				// Tone down the current color according to its intensity (?)
-				//col *= intensity;
+				col *= intensity;
 
 			g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
 			g_ShadingSys_PSBuffer.LightColor[i].y = col.y;
@@ -6267,9 +6281,10 @@ HRESULT PrimarySurface::Flip(
 			// I tried applying these settings on DLL load, and on the first draw call in Execute(); but they didn't work.
 			// Apparently I have to wait until the first frame is fully executed in order to apply the custom FOV
 			if (!g_bCustomFOVApplied) {
-				log_debug("[DBG] [FOV] Applying Custom FOV from Flip()");
+				log_debug("[DBG] [FOV] Applying Custom FOV from Flip(). Old FOVDist: %0.3f", *g_fRawFOVDist);
 				LoadFocalLength();
 				g_bCustomFOVApplied = true;
+				ComputeHyperFOVParams();
 			}
 
 //#define HYPER_OVERRIDE 1
