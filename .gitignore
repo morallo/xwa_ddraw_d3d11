@@ -228,3 +228,4 @@ $RECYCLE.BIN/
 *.msi
 *.msm
 *.msp
+/impl11/.vs/impl11/v16
