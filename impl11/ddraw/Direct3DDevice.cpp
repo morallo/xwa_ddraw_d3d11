@@ -98,6 +98,7 @@ float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), 
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 //float g_fOverrideFOVScale = 1.0f;
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
+bool g_bLastFrameWasExterior = false; // Keeps track of the state of the exterior camera on the last frame
 
 #define MOVE_LIGHTS_KEY_SET 1
 #define CHANGE_FOV_KEY_SET 2
@@ -316,6 +317,7 @@ float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFra
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
+bool g_bHyperExternalToCockpitTransition = false;
 // DEBUG
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
@@ -395,7 +397,7 @@ float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0
 float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
-float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f;
+float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -2842,6 +2844,12 @@ bool LoadSSAOParams() {
 					 _stricmp(param, "ambient") == 0) {
 				g_SSAO_PSCBuffer.ambient = fValue;
 				g_ShadingSys_PSBuffer.ambient = fValue;
+			}
+			else if (_stricmp(param, "xwa_lights_saturation") == 0) {
+				g_fXWALightsSaturation = fValue;
+			}
+			else if (_stricmp(param, "xwa_lights_intensity") == 0) {
+				g_fXWALightsIntensity = fValue;
 			}
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
@@ -5625,6 +5633,7 @@ HRESULT Direct3DDevice::Execute(
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
 						g_PSCBuffer.bInHyperspace = 0;
+						g_bHyperExternalToCockpitTransition = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
@@ -5647,6 +5656,9 @@ HRESULT Direct3DDevice::Execute(
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
 							// Compute a new random seed for this hyperspace jump
 							g_fHyperspaceRand = (float)rand() / (float)RAND_MAX;
+							if (g_bLastFrameWasExterior)
+								// External view --> Cockpit transition for the hyperspace jump
+								g_bHyperExternalToCockpitTransition = true;
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
@@ -5812,6 +5824,14 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					Special state management ends here
 				 *************************************************************************/
+
+				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
+				// switching to the cockpit while entering hyperspace was not a problem. Now, the HUD
+				// can be rendered in the exterior view and when we switch to the cockpit for the
+				// hyperspace effect we apparently keep rendering it partially, causing artifacts in
+				// the cockpit while in hyperspace. It's better to skip those calls instead.
+				if (g_bHyperExternalToCockpitTransition && g_bIsScaleableGUIElem && g_PSCBuffer.bInHyperspace)
+					goto out;
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture)
 				//	goto out;
@@ -6459,7 +6479,8 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked) 
+					if (g_bIsScaleableGUIElem || bIsAimingHUD || bIsText || g_bIsTrianglePointer || 
+						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;

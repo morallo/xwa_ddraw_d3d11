@@ -11,8 +11,6 @@ cbuffer ConstantBuffer : register(b4)
 	float4 LightVector[MAX_XWA_LIGHTS];
 	// 32+128 = 160 bytes
 	float4 LightColor[MAX_XWA_LIGHTS];
-	float ambient, ss_unused0, ss_unused1, ss_unused2;
-	float4 ss_padding;
 	// 160+128 = 288 bytes
 	float global_spec_intensity, global_glossiness, global_spec_bloom_intensity, global_bloom_glossiness_mult;
 	// 304 bytes
@@ -28,4 +26,6 @@ cbuffer ConstantBuffer : register(b4)
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
 	// 592 bytes
+	float ambient, ss_unused0, ss_unused1, ss_unused2;
+	// 608 bytes
 };

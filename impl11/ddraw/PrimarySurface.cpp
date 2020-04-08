@@ -28,7 +28,7 @@ const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
 extern float *g_fRawFOVDist;
-extern bool g_bCustomFOVApplied;
+extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 Matrix4 g_ReflRotX;
 
@@ -599,7 +599,9 @@ struct MainVertex
 BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
-// Bloom
+// Main Pixel Shader constant buffer
+MainShadersCBuffer			g_MSCBuffer;
+// Constant Buffers
 BloomPixelShaderCBuffer		g_BloomPSCBuffer;
 SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
@@ -607,11 +609,10 @@ extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled;
 extern float g_fBloomAmplifyFactor;
-extern float g_fSpecIntensity, g_fSpecBloomIntensity;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
 
-// Main Pixel Shader constant buffer
-MainShadersCBuffer g_MSCBuffer;
+
 extern float g_fConcourseScale, g_fConcourseAspectRatio;
 extern int   g_iDraw2DCounter;
 extern bool  g_bStartedGUI, g_bPrevStartedGUI, g_bIsScaleableGUIElem, g_bPrevIsScaleableGUIElem, g_bScaleableHUDStarted, g_bDynCockpitEnabled;
@@ -633,7 +634,7 @@ MainVertex g_BarrelEffectVertices[6] = {
 	MainVertex( 1, -1, 1, 1),
 	MainVertex( 1,  1, 1, 0),
 
-	MainVertex(1,  1, 1, 0),
+	MainVertex( 1,  1, 1, 0),
 	MainVertex(-1,  1, 0, 0),
 	MainVertex(-1, -1, 0, 1),
 };
@@ -2416,7 +2417,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	// Use the heading matrix to move the lights
 	Matrix4 H = GetCurrentHeadingViewMatrix();
 	// In skirmish mode, the light with the highest intensity seems to be in index 1 and it matches the 
-	// position o the Sun/Nebula. However, in regular missions, the main light source seems to come from
+	// position of the Sun/Nebula. However, in regular missions, the main light source seems to come from
 	// index 0 and index 1 is a secondary light like a big planet or nebula or similar.
 	// We need to find the light with the highest intensity and use that for SSDO
 	float maxIntensity = -1.0;
@@ -2429,7 +2430,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		{
 			//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
 			Vector4 col;
-			float intensity;
+			float intensity, value;
 			Vector4 xwaLight = Vector4(
 				s_XwaGlobalLights[i].PositionX / 32768.0f,
 				s_XwaGlobalLights[i].PositionY / 32768.0f,
@@ -2451,17 +2452,25 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			col.w = 0.0f;
 
 			intensity = s_XwaGlobalLights[i].Intensity;
+			// Compute the value: use Luma to approximate it
+			value = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
 			// Normalize the colors if the intensity is above 1
 			if (intensity > 1.0f)
-				// Compute the intensity: use Luma to approx intensity
-				intensity = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
-			else
+				intensity = value;
+			//else
 				// Tone down the current color according to its intensity (?)
-				col *= intensity;
+				//col *= intensity;
 
-			g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
-			g_ShadingSys_PSBuffer.LightColor[i].y = col.y;
-			g_ShadingSys_PSBuffer.LightColor[i].z = col.z;
+			// Change the saturation of the lights. The idea here is that we're
+			// using a vector gray = vec3(value) and then computing col - gray, and then
+			// we interpolate between col and gray depending on the saturation setting
+			col.x = value + g_fXWALightsSaturation * (col.x - value);
+			col.y = value + g_fXWALightsSaturation * (col.y - value);
+			col.z = value + g_fXWALightsSaturation * (col.z - value);
+
+			g_ShadingSys_PSBuffer.LightColor[i].x = g_fXWALightsIntensity * col.x;
+			g_ShadingSys_PSBuffer.LightColor[i].y = g_fXWALightsIntensity * col.y;
+			g_ShadingSys_PSBuffer.LightColor[i].z = g_fXWALightsIntensity * col.z;
 			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
 
 			// Keep track of the light with the highest intensity
@@ -4730,6 +4739,8 @@ void PrimarySurface::RenderExternalHUD()
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	if (g_bDumpSSAOBuffers)
+		ShowMatrix4(g_ShadertoyBuffer.viewMat, "Shadertoy viewMat");
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -6243,6 +6254,7 @@ HRESULT PrimarySurface::Flip(
 			g_bIsPlayerObject = false;
 			// Disable the Dynamic Cockpit whenever we're in external camera mode:
 			g_bDCManualActivate = !PlayerDataTable[*g_playerIndex].externalCamera;
+			g_bLastFrameWasExterior = PlayerDataTable[*g_playerIndex].externalCamera;
 			g_bDepthBufferResolved = false;
 			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
 			g_bSwitchedToGUI = false;

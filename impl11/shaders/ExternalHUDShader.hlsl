@@ -1,15 +1,10 @@
 /*
- * Hyperspace jump trails.
+ * External Aiming Reticle Shader.
  *
  * You can use it under the terms of the MIT license, see LICENSE.TXT
  * (free to use even in commercial projects, attribution required)
  *
- * Adapted from 	https://www.shadertoy.com/view/MlKBWw by Leo Reyes
- * Shadertoy implementation: https://www.shadertoy.com/view/3l3Gz8
- *
- * Lens flare from: https://www.shadertoy.com/view/XdfXRX
- * and: https://www.shadertoy.com/view/4sX3Rs
- * (c) Leo Reyes, 2019.
+ * (c) Leo Reyes, 2020.
  */
 
 #include "ShaderToyDefs.h"
@@ -19,8 +14,22 @@ Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
 #define cursor_radius 0.04
+#define thickness 0.007
+#define scale 2.0
 
- // ShadertoyCBuffer
+/*
+	// saturation test:
+
+	vec3 col = vec3(0.0, 0.0, 1.0);
+	float g = dot(vec3(0.333), col);
+	vec3 gray = vec3(g);
+	// saturation test
+	float sat = 2.0;
+	vec3 final_col = gray + sat * (col - gray);
+
+ */
+
+// ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
 	float iTime, twirl, bloom_strength, srand;
@@ -51,13 +60,23 @@ struct PixelShaderOutput
 	float4 color    : SV_TARGET0;
 };
 
+/*
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
 {
 	vec2 pa = p - a, ba = b - a;
 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
 	return length(pa - ba * h) - ring;
 }
+*/
 
+float sdLine(in vec2 p, in vec2 a, in vec2 b)
+{
+	vec2 pa = p - a, ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+
+/*
 vec3 lensflare(vec3 uv, vec3 pos, float flare_size, float ang_offset)
 {
 	float z = uv.z / length(uv.xy);
@@ -82,6 +101,7 @@ vec3 cc(vec3 color, float factor, float factor2) // color modifier
 	float w = color.x + color.y + color.z;
 	return mix(color, w * factor, w * factor2);
 }
+*/
 
 float sdCircle(in vec2 p, in vec2 center, float radius)
 {
@@ -102,23 +122,34 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// DEBUG
 
 	// Early exit: avoid rendering outside the original viewport edges
-	if (any(input.uv < p0) ||
-		any(input.uv > p1))
-	{
+	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
-	}
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
-	//p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
-
-	float p_len = length(p);
 	vec3 v = vec3(p, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
 
-	float col = 0.0;
-	float d = sdCircle(v.xy, vec2(0.0, 0.0), cursor_radius);
-	col += smoothstep(0.0015, 0.0, abs(d));
+	float3 col = float3(0.2, 0.2, 0.8); // Reticle color
+	float d, dm;
+	d   = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
+	dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
+	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
 
-	output.color.rgb += col;
+	d = sdLine(v.xy, scale * vec2(-0.05, 0.0), scale * vec2(-0.03, 0.0));
+	dm += smoothstep(thickness, 0.0, abs(d));
+
+	d = sdLine(v.xy, scale * vec2(0.05, 0.0), scale * vec2(0.03, 0.0));
+	dm += smoothstep(thickness, 0.0, abs(d));
+
+	// Negative Y: down
+	d = sdLine(v.xy, scale * vec2(0.0, -0.05), scale * vec2(0.0, -0.03));
+	dm += smoothstep(thickness, 0.0, abs(d));
+
+	d = sdLine(v.xy, scale * vec2(0.0, 0.05), scale * vec2(0.0, 0.03));
+	dm += smoothstep(thickness, 0.0, abs(d));
+	
+	dm = clamp(dm, 0.0, 1.0);
+	col *= dm;
+	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	return output;
 }

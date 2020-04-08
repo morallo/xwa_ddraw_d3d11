@@ -43,6 +43,6 @@
 #define EMISSION_LO		0.875
 #define EMISSION_HI		1.000
 
-#define MAX_XWA_LIGHTS 7
+#define MAX_XWA_LIGHTS 8
 // Currently only used for the lasers
 #define MAX_CB_POINT_LIGHTS 8
