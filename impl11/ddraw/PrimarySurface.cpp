@@ -607,7 +607,7 @@ SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
-extern bool g_bBloomEnabled, g_bAOEnabled;
+extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
@@ -2422,8 +2422,10 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	// We need to find the light with the highest intensity and use that for SSDO
 	float maxIntensity = -1.0;
 	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, s_XwaGlobalLightsCount);
-	if (g_bDumpSSAOBuffers)
+	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", s_XwaGlobalLightsCount);
+		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", s_XwaGlobalLightsCount, maxLights);
+	}
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
 	{
 		for (int i = 0; i < maxLights; i++)
@@ -2457,9 +2459,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			// Normalize the colors if the intensity is above 1
 			if (intensity > 1.0f)
 				intensity = value;
-			//else
+			else if (g_bApplyXWALightsIntensity)
 				// Tone down the current color according to its intensity (?)
-				//col *= intensity;
+				col *= intensity;
 
 			// Change the saturation of the lights. The idea here is that we're
 			// using a vector gray = vec3(value) and then computing col - gray, and then
@@ -2487,9 +2489,17 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
 				);
+				log_file("[DBG] light[%d], I: %0.3f: i: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)\n",
+					i, s_XwaGlobalLights[i].Intensity, intensity,
+					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
+					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
+					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
+				);
 			}
 		}
-		g_ShadingSys_PSBuffer.LightCount  = s_XwaGlobalLightsCount;
+		if (g_bDumpSSAOBuffers)
+			log_file("[DBG] maxIdx: %d\n\n", maxIdx);
+		g_ShadingSys_PSBuffer.LightCount  = maxLights;
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
@@ -5995,7 +6005,7 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");

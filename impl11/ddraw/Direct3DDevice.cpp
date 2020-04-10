@@ -398,6 +398,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
+bool g_bApplyXWALightsIntensity = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -2848,7 +2849,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "xwa_lights_saturation") == 0) {
 				g_fXWALightsSaturation = fValue;
 			}
-			else if (_stricmp(param, "xwa_lights_intensity") == 0) {
+			else if (_stricmp(param, "xwa_lights_apply_original_intensity") == 0) {
+				g_bApplyXWALightsIntensity = (bool)fValue;
+			}
+			else if (_stricmp(param, "xwa_lights_global_intensity") == 0) {
 				g_fXWALightsIntensity = fValue;
 			}
 			else if (_stricmp(param, "viewYawSign") == 0) {
