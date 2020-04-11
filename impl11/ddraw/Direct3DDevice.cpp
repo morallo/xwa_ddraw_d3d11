@@ -5504,6 +5504,7 @@ HRESULT Direct3DDevice::Execute(
 					We're using a non-exhaustive list of GUI CRCs to tell when the 3D content has finished drawing.
 				*/
 
+				const bool bExternalCamera = (bool)PlayerDataTable[*g_playerIndex].externalCamera;
 				/* 
 				 * ZWriteEnabled is false when rendering the background starfield or when
 				 * rendering the GUI elements -- except that the targetting computer GUI
@@ -6850,6 +6851,10 @@ HRESULT Direct3DDevice::Execute(
 				if (bIsAimingHUD) {
 					bModifiedShaders = true;
 					g_VSCBuffer.z_override = g_fHUDDepth;
+					// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
+					// infinity
+					if (bExternalCamera)
+						g_VSCBuffer.z_override = 65536.0f;
 					if (g_bFloatingAimingHUD)
 						g_VSCBuffer.bPreventTransform = 1.0f;
 				}
