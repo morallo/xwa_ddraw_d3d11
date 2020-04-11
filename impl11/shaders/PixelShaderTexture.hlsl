@@ -119,6 +119,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, unused
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
 
+	// DEBUG
+	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	//return output;
+	// DEBUG
+
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;

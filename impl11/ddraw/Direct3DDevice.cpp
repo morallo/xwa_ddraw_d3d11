@@ -5579,7 +5579,11 @@ HRESULT Direct3DDevice::Execute(
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
-				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI;
+				// Apr 10, 2020: g_bDisableDiffuse will make the reticle look white when the HUD is
+				// hidden. To prevent this, I added bIsAimingHUD to g_bStartedGUI; but I don't know
+				// if this breaks VR. If it does, then I need to add !bIsAimingHUD around line 6425,
+				// where I'm setting fDisableDiffuse = 1.0f
+				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsAimingHUD;
 				// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 				g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
 				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsAimingHUD && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
