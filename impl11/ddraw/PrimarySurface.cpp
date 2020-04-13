@@ -4987,10 +4987,11 @@ void PrimarySurface::RenderSun()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[1] = {
+		ID3D11ShaderResourceView *srvs[2] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_depthBufSRV.Get(),
 		};
-		context->PSSetShaderResources(0, 1, srvs);
+		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 
 		// Render the right image
@@ -5025,10 +5026,11 @@ void PrimarySurface::RenderSun()
 			else {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
+				ID3D11ShaderResourceView *srvs[2] = {
 					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_depthBufSRV_R.Get(),
 				};
-				context->PSSetShaderResources(0, 1, srvs);
+				context->PSSetShaderResources(0, 2, srvs);
 			}
 			context->Draw(6, 0);
 		}

@@ -14,9 +14,18 @@
 Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
+// The depth buffer: we'll use this as a mask since the sun should be at infinity
+Texture2D    depthTex     : register(t1);
+SamplerState depthSampler : register(s1);
+
+#define INFINITY_Z 30000.0
+
+// DEBUG
 #define cursor_radius 0.04
 #define thickness 0.02 //0.007
 #define scale 2.0
+// DEBUG
+
 
 /*
 	// saturation test:
@@ -80,7 +89,7 @@ float lensflare(vec2 uv, vec2 pos, float flare_size, float ang_offset)
 	float ang = atan2(main.y, main.x) + ang_offset;
 
 	float f0 = 1.0 / (dist * inv_size + 1.0);
-	f0 = f0 + f0 * (0.1 * sin((sin(ang*12.0 + pos.x)*4.0 - cos(ang*3.0 + pos.y)) * num_points) + disk_size);
+	f0 = f0 + f0 * (0.1 * sin((sin(ang*4.0 + pos.x)*4.0 - cos(ang*3.0 + pos.y)) * num_points) + disk_size);
 	return f0;
 }
 
@@ -101,6 +110,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 fragCoord = input.uv * iResolution.xy;
 	vec3 color = 0.0;
 	output.color = bgTex.Sample(bgSampler, input.uv);
+	float3 pos3D = depthTex.Sample(depthSampler, input.uv).xyz;
 
 	// DEBUG
 	//output.color = float4(input.uv, 0.0, 1.0);
@@ -110,6 +120,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))
+		return output;
+	// If we're not rendering at infinity, then we're done
+	if (pos3D.z < INFINITY_Z)
 		return output;
 
 	float d, dm;
@@ -143,7 +156,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	*/
 
 	const float V_2 = dot(v.xy, v.xy);
-	const float disk = saturate(pow(0.03 / V_2, 1.8));
+	//const float disk = saturate(pow(0.01 / V_2, 1.8));
+	const float disk = exp(-V_2 * 25.0);
 
 	//float flare = lensflare(v.xy, sunPos), 0.1, 0.0);
 	float flare = lensflare(v.xy, sunPos, 0.5 * sun_intensity, 0.0);

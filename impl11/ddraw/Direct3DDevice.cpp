@@ -6750,9 +6750,13 @@ HRESULT Direct3DDevice::Execute(
 						Vector4 light = H * xwaLight;
 						// Compute the matrix that transforms [0,0,1] into the light's direction:
 						Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+						Vector2 Lcenter = Vector2(light.x, light.y);
+						float intensity = 0.9f - Lcenter.length();
+						if (intensity < 0.0f) intensity = 0.0f;
 						// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-						float intensity = light.z * light.z;
-						g_ShadertoyBuffer.sun_intensity = intensity * intensity * intensity;
+						//float intensity = light.z * light.z;
+						//g_ShadertoyBuffer.sun_intensity = intensity * intensity * intensity;
+						g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						g_ShadertoyBuffer.viewMat = DirMatrix;
 						light.z = -light.z;
 
