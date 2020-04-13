@@ -127,9 +127,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = 0;
 		output.ssMask = 0;
 
-		const float3 v = float3(input.tex.xy - 0.5, 5.0);
-		const float v_xy = length(v.xy);
-		const float intensity = saturate(pow(0.025 * v.z / v_xy, 1.8));
+		const float2 v = float2(input.tex.xy - 0.5);
+		const float V_2 = dot(v, v);
+		const float intensity = saturate(pow(0.03 / V_2, 1.8));
 		output.color = float4(diffuse * intensity, intensity);
 		//output.color.xyz *= output.color.xyz; // Gamma compensation?
 		output.bloom = float4(fBloomStrength * output.color.xyz, 0.5 * intensity);

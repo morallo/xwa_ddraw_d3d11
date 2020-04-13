@@ -80,7 +80,7 @@ float lensflare(vec2 uv, vec2 pos, float flare_size, float ang_offset)
 	float ang = atan2(main.y, main.x) + ang_offset;
 
 	float f0 = 1.0 / (dist * inv_size + 1.0);
-	f0 = f0 + f0 * (0.1 * sin((sin(ang*2.0 + pos.x)*4.0 - cos(ang*3.0 + pos.y)) * num_points) + disk_size);
+	f0 = f0 + f0 * (0.1 * sin((sin(ang*12.0 + pos.x)*4.0 - cos(ang*3.0 + pos.y)) * num_points) + disk_size);
 	return f0;
 }
 
@@ -142,8 +142,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	*/
 
+	const float V_2 = dot(v.xy, v.xy);
+	const float disk = saturate(pow(0.03 / V_2, 1.8));
+
 	//float flare = lensflare(v.xy, sunPos), 0.1, 0.0);
-	float flare = lensflare(v.xy, sunPos, 0.2 * sun_intensity, 0.0);
-	output.color.rgb = lerp(output.color.rgb, flare, 0.8 * flare);
+	float flare = lensflare(v.xy, sunPos, 0.5 * sun_intensity, 0.0);
+	flare *= flare;
+	flare += disk;
+	color = /* light_color * */ flare;
+	output.color.rgb = lerp(output.color.rgb, color, 0.8 * flare * sun_intensity);
 	return output;
 }

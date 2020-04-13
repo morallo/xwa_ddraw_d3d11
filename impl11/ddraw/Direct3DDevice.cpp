@@ -6751,7 +6751,8 @@ HRESULT Direct3DDevice::Execute(
 						// Compute the matrix that transforms [0,0,1] into the light's direction:
 						Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
 						// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-						g_ShadertoyBuffer.sun_intensity = light.z * light.z * light.z;
+						float intensity = light.z * light.z;
+						g_ShadertoyBuffer.sun_intensity = intensity * intensity * intensity;
 						g_ShadertoyBuffer.viewMat = DirMatrix;
 						light.z = -light.z;
 
