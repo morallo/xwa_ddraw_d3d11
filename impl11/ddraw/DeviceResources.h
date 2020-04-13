@@ -243,6 +243,8 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
+	float SunX, SunY, sun_intensity, st_unused1;
+	// 144 bytes
 } ShadertoyCBuffer;
 
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
@@ -346,7 +348,7 @@ typedef struct PixelShaderCBStruct {
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint32_t AC_debug, bIsBackground;
+	uint32_t debug, unused;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -474,6 +476,43 @@ typedef struct ColorLightPairStruct {
 		this->light = NULL;
 	}
 } ColorLightPair;
+
+class XWALightInfoStruct {
+public:
+	bool Tested, IsSun;
+
+public:
+	XWALightInfoStruct() {
+		Tested = false;
+		IsSun = false;
+	}
+};
+
+// S0x07D4FA0
+struct XwaGlobalLight
+{
+	/* 0x0000 */ int PositionX;
+	/* 0x0004 */ int PositionY;
+	/* 0x0008 */ int PositionZ;
+	/* 0x000C */ float DirectionX;
+	/* 0x0010 */ float DirectionY;
+	/* 0x0014 */ float DirectionZ;
+	/* 0x0018 */ float Intensity;
+	/* 0x001C */ float XwaGlobalLight_m1C;
+	/* 0x0020 */ float ColorR;
+	/* 0x0024 */ float ColorB;
+	/* 0x0028 */ float ColorG;
+	/* 0x002C */ float BlendStartIntensity;
+	/* 0x0030 */ float BlendStartColor1C;
+	/* 0x0034 */ float BlendStartColorR;
+	/* 0x0038 */ float BlendStartColorB;
+	/* 0x003C */ float BlendStartColorG;
+	/* 0x0040 */ float BlendEndIntensity;
+	/* 0x0044 */ float BlendEndColor1C;
+	/* 0x0048 */ float BlendEndColorR;
+	/* 0x004C */ float BlendEndColorB;
+	/* 0x0050 */ float BlendEndColorG;
+};
 
 #define MAX_HEAP_ELEMS 32
 class VectorColor {
@@ -754,6 +793,7 @@ public:
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
 	ComPtr<ID3D11PixelShader> _externalHUDPS;
+	ComPtr<ID3D11PixelShader> _sunPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

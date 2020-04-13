@@ -8,6 +8,10 @@ class BackbufferSurface;
 
 class Direct3DTexture;
 
+void InitHeadingMatrix();
+Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+Matrix4 GetCurrentHeadingViewMatrix();
+
 class PrimarySurface : public IDirectDrawSurface
 {
 public:
@@ -73,11 +77,11 @@ public:
 
 	void DeferredPass();
 
-	void InitHeadingMatrix();
+	//void InitHeadingMatrix();
 
-	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+	//Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 
-	Matrix4 GetCurrentHeadingViewMatrix();
+	//Matrix4 GetCurrentHeadingViewMatrix();
 
 	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
@@ -90,6 +94,8 @@ public:
 	void RenderFXAA();
 
 	void RenderExternalHUD();
+
+	void RenderSun();
 
 	void ACRunAction(WORD * action);
 

@@ -374,7 +374,13 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
 TrackerType g_TrackerType = TRACKER_NONE;
-//bool g_bCockpitInertiaEnabled = false;
+
+XWALightInfoStruct g_bXWALightAuxInfo[MAX_XWA_LIGHTS];
+//void InitHeadingMatrix();
+//Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+Matrix4 GetCurrentHeadingViewMatrix();
+Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+float g_fDebugFOV = -2.0f;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -398,7 +404,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
-bool g_bApplyXWALightsIntensity = true;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bSunVisible = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -2855,6 +2861,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "xwa_lights_global_intensity") == 0) {
 				g_fXWALightsIntensity = fValue;
 			}
+			else if (_stricmp(param, "procedural_suns") == 0) {
+				g_bProceduralSuns = (bool)fValue;
+			}
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
 			}
@@ -4453,6 +4462,12 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
+inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
+{
+	*x_out = left + x / g_fCurInGameWidth * width;
+	*y_out = top + y / g_fCurInGameHeight * height;
+}
+
 /*
 bool rayTriangleIntersect_old(
 	const Vector3 &orig, const Vector3 &dir,
@@ -4622,15 +4637,15 @@ bool rayTriangleIntersect(
 #endif 
 }
 
-// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// Back-project a 2D vertex (specified in in-game coords)
 // into 3D, just like we do in the VertexShader or SBS VertexShader:
-inline void backProject(WORD index, Vector3 *P) {
+inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 	// The code to back-project is slightly different in DirectSBS/SteamVR
 	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
 	float3 temp;
 	// float3 temp = input.pos.xyz;
-	temp.x = g_OrigVerts[index].sx;
-	temp.y = g_OrigVerts[index].sy;
+	temp.x = sx;
+	temp.y = sy;
 
 	// Normalize into the 0..2 or 0.0..1.0 range
 	//temp.xy *= vpScale.xy;
@@ -4641,12 +4656,12 @@ inline void backProject(WORD index, Vector3 *P) {
 	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// Direct-SBS:
 	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
-	
-	if (g_bEnableVR) 
-	{ 
+
+	if (g_bEnableVR)
+	{
 		// SBSVertexShader
 		// temp.xy -= 0.5;
-		temp.x += -0.5f; 
+		temp.x += -0.5f;
 		temp.y += -0.5f;
 		// temp.xy is now in the range -0.5 ..  0.5
 
@@ -4655,13 +4670,13 @@ inline void backProject(WORD index, Vector3 *P) {
 		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
 
 		// TODO: The code below hasn't been tested in VR:
-		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
+		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / rhw);
 	}
 	else
-	{ 
+	{
 		// Code from VertexShader
 		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y +=  1.0f;
+		temp.y += 1.0f;
 		// temp.x is now in the range -1.0 ..  1.0 and
 		// temp.y is now in the range  1.0 .. -1.0
 
@@ -4673,16 +4688,16 @@ inline void backProject(WORD index, Vector3 *P) {
 		// temp.y is now in the range  0.5 .. -0.5 (?)
 
 		// temp.z = METRIC_SCALE_FACTOR * w;
-		temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / g_OrigVerts[index].rhw);
+		temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw);
 	}
-	
+
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy, temp.z);
 	P->x = temp.z * temp.x / g_fFocalDist;
 	P->y = temp.z * temp.y / g_fFocalDist;
 	P->z = temp.z;
-	if (g_bEnableVR) 
+	if (g_bEnableVR)
 	{
 		// Further adjustment of the coordinates for the DirectSBS case:
 		//output.pos3D = float4(P.x, -P.y, P.z, 1);
@@ -4690,6 +4705,12 @@ inline void backProject(WORD index, Vector3 *P) {
 		// Adjust the coordinate system for SteamVR:
 		//P.yz = -P.yz;
 	}
+}
+
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into 3D, just like we do in the VertexShader or SBS VertexShader:
+inline void backProject(WORD index, Vector3 *P) {
+	backProject(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
 }
 
 // The return values sx,sy are the screen coords (in in-game coords). Use them for debug purposes only
@@ -4724,7 +4745,8 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		// So let's transform to the range 0..1 for post-proc coords:
 		P.x = P.x * 0.5f + 0.5f;
 		P.y = P.y * 0.5f + 0.5f;
-	} else {
+	} 
+	else {
 		// (x0,y0)-(x1,y1) are the viewport limits
 		float x0 = g_LaserPointerBuffer.x0;
 		float y0 = g_LaserPointerBuffer.y0;
@@ -4751,7 +4773,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		// *******************************************************
 		// P is now in in-game coordinates (CONFIRMED!), where:
 		// (0,0) is the upper-left *original* viewport corner, and:
-		// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// (g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
 		// Note that the *original* viewport does not necessarily cover the whole screen
 		//return P; // Return in-game coords
 		//if (sx != NULL) *sx = P.x;
@@ -4774,6 +4796,287 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
 	}
 	return P;
+}
+
+/*
+inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+{
+	Vector3 P = pos3D;
+	//float w;
+	// Whatever is placed in P is returned at the end of this function
+
+	if (g_bEnableVR) {
+		float w;
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Q = projEyeMatrix * viewMatrix * Q;
+
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		w = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
+		P.x /= w;
+		P.y /= w;
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	}
+	else {
+		// (x0,y0)-(x1,y1) are the viewport limits
+		float x0 = g_LaserPointerBuffer.x0;
+		float y0 = g_LaserPointerBuffer.y0;
+		float x1 = g_LaserPointerBuffer.x1;
+		float y1 = g_LaserPointerBuffer.y1;
+		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
+
+		// Non-VR processing from this point on:
+		// P.xy = P.xy / P.z;
+		P.x *= g_fFocalDist / P.z;
+		P.y *= g_fFocalDist / P.z;
+
+		// Convert to vertex pos:
+		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[2]);
+		P.x -= -1.0f;
+		P.y -= 1.0f;
+		// P.xy /= vpScale.xy;
+		P.x /= g_VSCBuffer.viewportScale[0];
+		P.y /= g_VSCBuffer.viewportScale[1];
+		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
+
+		// *******************************************************
+		// P is now in in-game coordinates (CONFIRMED!), where:
+		// (0,0) is the upper-left *original* viewport corner, and:
+		// (g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// Note that the *original* viewport does not necessarily cover the whole screen
+		//return P; // Return in-game coords
+	}
+	return P;
+}
+*/
+
+// From: https://blackpawn.com/texts/pointinpoly/default.html
+bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C) {
+	// Compute vectors        
+	Vector2 v0 = C - A;
+	Vector2 v1 = B - A;
+	Vector2 v2 = P - A;
+
+	// Compute dot products
+	float dot00 = v0.dot(v0);
+	float dot01 = v0.dot(v1);
+	float dot02 = v0.dot(v2);
+	float dot11 = v1.dot(v1);
+	float dot12 = v1.dot(v2);
+
+	// Compute barycentric coordinates
+	float invDenom = 1.0f / (dot00 * dot11 - dot01 * dot01);
+	float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+	float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+	// Check if point is in triangle
+	//return (u >= 0.0f) && (v >= 0.0f) && (u + v < 1.0f);
+	return (u >= -0.001f) && (v >= -0.001f) && (u + v < 1.001f);
+}
+
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, bool debug)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	uint32_t index;
+	UINT idx = curIndex;
+	float U0, V0, U1, V1, U2, V2;
+	float px0, py0, rhw0, px1, py1, rhw1, px2, py2, rhw2;
+	Vector2 P0, P1, P2;
+
+	Vector3 tempv0, tempv1, tempv2, tempP;
+	float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+	int samples = 0, numTriangles = 0;
+
+	// Convert (LX, LY) into in-game pixels:
+	LX = (LX + 0.5f) * g_fCurInGameWidth;
+	LY = (-LY + 0.5f) * g_fCurInGameHeight;
+	//Vector3 P = Vector3(LX, LY, LZ);
+	//Vector3 Q = projectToInGameCoors(P, g_viewMatrix, g_fullMatrixLeft);
+	//log_debug("[DBG] LX,LY: %0.3f %0.3f", LX, LY);
+	//log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
+	Vector2 L = Vector2(LX, LY);
+
+	if (debug)
+		log_debug("[DBG] START Geom");
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		px0 = g_OrigVerts[index].sx; py0 = g_OrigVerts[index].sy; rhw0 = 1.0f / g_OrigVerts[index].rhw;
+		P0.x = g_OrigVerts[index].sx; P0.y = g_OrigVerts[index].sy;
+		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
+		//backProject(index, &tempv0);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f / vert.rhw,
+				tempv0.x, tempv0.y, tempv0.z,
+				q.x, q.y, 1.0f / q.z /*, dx, dy */);
+		}
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		px1 = g_OrigVerts[index].sx; py1 = g_OrigVerts[index].sy; rhw1 = 1.0f / g_OrigVerts[index].rhw;
+		P1.x = g_OrigVerts[index].sx; P1.y = g_OrigVerts[index].sy;
+		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
+		//backProject(index, &tempv1);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f / vert.rhw,
+				tempv1.x, tempv1.y, tempv1.z,
+				q.x, q.y, 1.0f / q.z /*, dx, dy */);
+		}
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		px2 = g_OrigVerts[index].sx; py2 = g_OrigVerts[index].sy; rhw2 = 1.0f / g_OrigVerts[index].rhw;
+		P2.x = g_OrigVerts[index].sx; P2.y = g_OrigVerts[index].sy;
+		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
+		//backProject(index, &tempv2);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
+		if (debug) {
+			vert = g_OrigVerts[index];
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
+				vert.sx, vert.sy, 1.0f / vert.rhw,
+				tempv2.x, tempv2.y, tempv2.z,
+				q.x, q.y, 1.0f / q.z /*, dx, dy */);
+		}
+
+		if (IsInsideTriangle(L, P0, P1, P2)) {
+			if (debug)
+				log_debug("[DBG] L inside (%0.3f,%0.3f), (%0.3f,%0.3f), (%0.3f,%0.3f)",
+					P0.x, P0.y, P1.x, P1.y, P2.x, P2.y);
+			// Convert in-game to screen coords:
+			float X, Y;
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
+			g_ShadertoyBuffer.SunX = X;
+			g_ShadertoyBuffer.SunY = Y;
+			return true;
+		}
+
+		/*
+		// We now have the 3 vertices of the triangle in p0, p1, p2, with UVs uv0, uv1, uv2
+		// We need to extrapolate the position that corresponds to uvs = 0.5
+		float x, y;
+		float d1 = U0 - U1;
+		float d2 = U0 - U2;
+		float d3 = U1 - U2;
+		if (fabs(d1) > fabs(d2) && fabs(d1) > fabs(d2)) {
+			float factor0 = (0.5f - U1) / d1;
+			float factor1 = (U0 - 0.5f) / d1;
+			x = px0 * factor0 + px1 * factor1;
+			y = py0 * factor0 + py1 * factor1;
+			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
+			samples++;
+		}
+		else if (fabs(d2) > fabs(d1) && fabs(d2) > fabs(d3)) {
+			float factor0 = (0.5f - U2) / d2;
+			float factor2 = (U0 - 0.5f) / d2;
+			x = px0 * factor0 + px2 * factor2;
+			y = py0 * factor0 + py2 * factor2;
+			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
+			samples++;
+		}
+		else if (fabs(d3) > fabs(d1) && fabs(d3) > fabs(d2)) {
+			float factor0 = (0.5f - U2) / d3;
+			float factor2 = (U1 - 0.5f) / d3;
+			x = px1 * factor0 + px2 * factor2;
+			y = py1 * factor0 + py2 * factor2;
+			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
+			samples++;
+		}
+		*/
+
+		/*
+		d1 = V0 - V1;
+		d2 = V0 - V2;
+		if (fabs(d1) > fabs(d2)) {
+			float factor0 = (0.5f - V1) / d1;
+			float factor1 = (V0 - 0.5f) / d1;
+			y = py0 * factor0 + py1 * factor1;
+		}
+		else {
+			float factor0 = (0.5f - V2) / d2;
+			float factor2 = (V0 - 0.5f) / d2;
+			y = py0 * factor0 + py2 * factor2;
+		}
+		*/
+		
+		triangle++; numTriangles++;
+	}
+
+	/*
+	if (samples > 0) {
+		cx /= (float)samples;
+		cy /= (float)samples;
+		cz /= (float)samples;
+	}
+
+	log_debug("[DBG] [%d] [%d], cx,cy,rhw: %0.3f, %0.3f, %0.3f", samples, numTriangles, cx, cy, cz);
+	float X, Y;
+	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, cx, cy, &X, &Y);
+	log_debug("[DBG] X,Y: %0.3f %0.3f", X, Y);
+	//X /= g_fCurScreenWidth;
+	//Y /= g_fCurScreenHeight;
+	g_ShadertoyBuffer.SunXL = X; // Raw pixel position
+	g_ShadertoyBuffer.SunYL = Y;
+	*/
+
+	// For DirectSBS and especially for SteamVR, we need to backproject this
+	// 2D coordinate into 3D and then project it into each eye using the
+	// camera matrices.
+	/*
+	Vector3 P, Q;
+	backProject(cx, cy, 1.0f / cz, &P);
+	Q = project(P, g_viewMatrix, g_fullMatrixLeft);
+	g_ShadertoyBuffer.SunXL = Q.x;
+	g_ShadertoyBuffer.SunYL = Q.y;
+	log_debug("[DBG] Qx,Qy: %0.3f, %0.3f, %0.3f", Q.x, Q.y);
+	if (g_bUseSteamVR) {
+		Q = project(P, g_viewMatrix, g_fullMatrixLeft);
+		g_ShadertoyBuffer.SunXR = Q.x;
+		g_ShadertoyBuffer.SunYR = Q.y;
+	}
+	*/
+
+	if (debug)
+		log_debug("[DBG] END Geom");
+	return false;
 }
 
 // DEBUG
@@ -4955,12 +5258,6 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 
 		triangle++;
 	}
-}
-
-inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
-{
-	*x_out = left + x / g_fCurInGameWidth  * width;
-	*y_out = top  + y / g_fCurInGameHeight * height;
 }
 
 /*
@@ -6424,6 +6721,59 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
+
+				// DEBUG: Replace the sun textures
+				if (g_bProceduralSuns && bIsSun) {
+					int s_XwaGlobalLightsCount = *(int*)0x00782848;
+					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+					Matrix4 H = GetCurrentHeadingViewMatrix();
+
+					bModifiedShaders = true;
+					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+					g_PSCBuffer.debug = 1;
+
+					float x0, y0, x1, y1;
+					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+					// ComputeCentroid uses project() which needs the viewport coords in g_LaserPointerBuffer:
+					// Does it, though? I don't think it does anymore...
+					g_LaserPointerBuffer.x0 = x0;
+					g_LaserPointerBuffer.y0 = y0;
+					g_LaserPointerBuffer.x1 = x1;
+					g_LaserPointerBuffer.y1 = y1;
+					for (int i = 1; i < s_XwaGlobalLightsCount; i++) {
+						Vector4 xwaLight = Vector4(
+							s_XwaGlobalLights[i].PositionX / 32768.0f,
+							s_XwaGlobalLights[i].PositionY / 32768.0f,
+							s_XwaGlobalLights[i].PositionZ / 32768.0f,
+							0.0f);
+						// Convert the XWA light into viewspace coordinates:
+						Vector4 light = H * xwaLight;
+						// Compute the matrix that transforms [0,0,1] into the light's direction:
+						Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+						// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
+						g_ShadertoyBuffer.sun_intensity = light.z * light.z * light.z;
+						g_ShadertoyBuffer.viewMat = DirMatrix;
+						light.z = -light.z;
+
+						if (light.z < 0.0f) {
+							/* if (g_bXWALightAuxInfo[i].Tested && g_bXWALightAuxInfo[i].IsSun) {
+								g_ShadertoyBuffer.SunXL = light.x;
+								g_ShadertoyBuffer.SunYL = light.y;
+							}
+							else */
+							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, false))
+							{
+								g_bXWALightAuxInfo[i].Tested = true;
+								g_bXWALightAuxInfo[i].IsSun = true;
+								//log_debug("[DBG] light: %d is a Sun", i);
+								g_ShadertoyBuffer.SunX = light.x;
+								g_ShadertoyBuffer.SunY = light.y;
+							}
+						}
+					}
+					g_bSunVisible = true;
+				}
+				// DEBUG
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!

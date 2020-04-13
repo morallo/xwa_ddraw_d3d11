@@ -137,6 +137,16 @@ std::vector<char *> Sun_ResNames = {
 	"dat,9010,",
 };
 
+/*
+// With a few exceptions, all planets are in the dat,6XXX, series. It's 
+// probably more efficient to parse that algorithmically.
+std::vector<char *> Planet_ResNames = {
+	"dat,6010,",
+	"dat,6010,",
+	...
+};
+*/
+
 std::vector<char *> SpaceDebris_ResNames = {
 	"dat,4000,",
 	"dat,4001,",
@@ -372,6 +382,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
 	this->is_Sun = false;
+	this->XWALightTested = false;
 	this->is_Debris = false;
 	this->is_Trail = false;
 	this->is_Spark = false;
@@ -988,6 +999,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
+	this->XWALightTested = d3dTexture->XWALightTested;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
 	this->is_Spark = d3dTexture->is_Spark;

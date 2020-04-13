@@ -98,6 +98,8 @@ public:
 	bool is_LensFlare;
 	// True for suns in the backdrop dat files
 	bool is_Sun;
+	// True when this texture has been tested against an XWA light
+	bool XWALightTested;
 	// True for space debris (used to inhibit them for SSAO)
 	bool is_Debris;
 	// True for warhead trails (used to inhibit SSAO)

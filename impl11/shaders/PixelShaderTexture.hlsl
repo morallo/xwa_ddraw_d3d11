@@ -66,7 +66,7 @@ cbuffer ConstantBuffer : register(b0)
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse; 
-	uint AC_debug, bIsBackground;
+	uint debug, unused;
 	// 80 bytes
 };
 
@@ -118,6 +118,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, unused
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
+
+	if (debug)
+	{
+		// Disable depth-buffer write for sun textures
+		output.pos3D = 0;
+		output.normal = 0;
+		output.ssaoMask = 0;
+		output.ssMask = 0;
+
+		const float3 v = float3(input.tex.xy - 0.5, 5.0);
+		const float v_xy = length(v.xy);
+		const float intensity = saturate(pow(0.025 * v.z / v_xy, 1.8));
+		output.color = float4(diffuse * intensity, intensity);
+		//output.color.xyz *= output.color.xyz; // Gamma compensation?
+		output.bloom = float4(fBloomStrength * output.color.xyz, 0.5 * intensity);
+		return output;
+	}
 
 	// DEBUG
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
@@ -233,12 +250,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	/*
-	if (AC_debug) {
-		output.color.rb *= 0.1;
-		output.color.b += 0.9;
-	}
-	*/
 
 	// hook_normals code:
 	/*

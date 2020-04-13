@@ -109,7 +109,7 @@ inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 	if (occluder.z >= INFINITY_Z1) return 0;
 
 	
-	float3 L = LightVector[0].xyz;
+	float3 L			   = LightVector[0].xyz;
 	float2 sample_uv_sub   = sample_uv * ssao_amplifyFactor;
 	float3 occluder_Normal = getNormal(sample_uv, miplevel); // I can probably read this normal off of the bent buffer later (?)
 	float3 occluder_color  = texColor.SampleLevel(sampColor, sample_uv, miplevel).xyz; // I think this is supposed to be occ_diffuse * occ_color
@@ -131,7 +131,7 @@ inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 	// if the occluder is pointing towards P or away from it. v goes from P to the occluder, so we
 	// use -v to point from the occluder towards P and so we use dot(occluder_Normal, -v):
 	const float cosSi = max(dot(occluder_Normal, -v), 0.0);
-	const float cosRi = max(dot_N_v, 0.0); // This guy probably doesn't help much? It helps if occ_weight is 1, though
+	const float cosRi = max(dot_N_v, 0.0); // This guy probably doesn't help much? --> It helps if occ_weight is 1
 	
 	
 	// We're supposed to read the color from the previous SSDO pass; but we're not

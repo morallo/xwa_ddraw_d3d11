@@ -37,13 +37,12 @@ public:
 
 	HRESULT QuickSetZWriteEnabled(BOOL);
 
-	void GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
-		float * minX, float * minY, float * maxX, float * maxY, bool debug=false);
-
 	void GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 		float *minX, float *minY, float *maxX, float *maxY,
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
+
+	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, bool debug);
 
 	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
 

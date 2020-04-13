@@ -57,6 +57,7 @@
     <FxCompile Include="LaserPointerVR.hlsl" />
     <FxCompile Include="FXAA.hlsl" />
     <FxCompile Include="ExternalHUDShader.hlsl" />
+    <FxCompile Include="SunShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

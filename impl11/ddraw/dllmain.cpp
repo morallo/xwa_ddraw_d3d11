@@ -24,6 +24,7 @@ extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
+extern float g_fDebugFOV;
 
 extern int g_KeySet;
 extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio;
@@ -74,7 +75,7 @@ extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEna
 //extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
 extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
 // extern bool g_bDumpBloomBuffers, 
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC;
+extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
@@ -329,6 +330,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
+				case 4:
+					g_fDebugFOV += 0.05f;
+					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -359,6 +364,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_LaserPointDebug.x -= 0.1f;
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
+				case 4:
+					g_fDebugFOV -= 0.05f;
+					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
 					break;
 				}
 
@@ -634,7 +643,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 
 			case 'R': {
-				g_bResetDC = true;
+				//g_bResetDC = true;
+				g_bProceduralSuns = !g_bProceduralSuns;
 				return 0;
 			}
 

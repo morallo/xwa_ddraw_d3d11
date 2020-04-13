@@ -51,6 +51,7 @@
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
 #include "../Debug/ExternalHUDShader.h"
+#include "../Debug/SunShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -94,6 +95,7 @@
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
 #include "../Release/ExternalHUDShader.h"
+#include "../Release/SunShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2553,6 +2555,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2807,6 +2812,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -2918,8 +2926,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the Hyperspace (ShaderToy) constant buffer
-	constantBufferDesc.ByteWidth = 128;
-	static_assert(sizeof(ShadertoyCBuffer) == 128, "sizeof(ShadertoyCBuffer) must be 128");
+	constantBufferDesc.ByteWidth = 144;
+	static_assert(sizeof(ShadertoyCBuffer) == 144, "sizeof(ShadertoyCBuffer) must be 144");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 
