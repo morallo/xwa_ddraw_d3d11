@@ -7,19 +7,22 @@
 #include "shader_common.h"
 #include "shading_system.h"
 
+// Cover texture
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// HUD foreground
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
+
+// HUD text
+Texture2D    texture2 : register(t2);
+SamplerState sampler2 : register(s2);
 
 // When the Dynamic Cockpit is active:
 // texture0 == cover texture and
 // texture1 == HUD offscreen buffer
-
-// If bRenderHUD is set: Is this used anymore???
-// texture0 == HUD foreground
-// texture1 == HUD background
+// texture2 == Text buffer
 
 struct PixelShaderInput
 {
@@ -170,6 +173,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		{
 			// Sample the dynamic cockpit texture:
 			hud_texelColor = texture1.Sample(sampler1, dyn_uv);
+			// Sample the text texture and fix the alpha:
+			float4 texelText = texture2.Sample(sampler2, dyn_uv);
+			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
+			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
+			hud_texelColor.w = max(hud_texelColor.w, textAlpha);
+
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs
 			//const float hud_alpha = 1.0;

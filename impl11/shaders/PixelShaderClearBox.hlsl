@@ -16,6 +16,7 @@ struct PixelShaderOutput
 {
 	float4 color0 : SV_TARGET0;
 	float4 color1 : SV_TARGET1;
+	float4 color2 : SV_TARGET2;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -23,5 +24,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color0 = input.color;
 	output.color1 = input.color;
+	output.color2 = input.color;
 	return output;
 }

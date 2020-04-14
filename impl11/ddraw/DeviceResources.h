@@ -622,6 +622,8 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
+	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text
+	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders
 	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
@@ -681,6 +683,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
+	ComPtr<ID3D11RenderTargetView> _DCTextRTV;
+	ComPtr<ID3D11RenderTargetView> _DCTextAsInputRTV;
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
@@ -720,8 +724,9 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	// Dynamic Cockpit
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;   // SRV for HUD elements without background
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
+	ComPtr<ID3D11ShaderResourceView> _DCTextSRV;						// SRV for the HUD text
 	// Shadertoy
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;

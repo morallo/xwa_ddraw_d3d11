@@ -5948,19 +5948,22 @@ HRESULT Direct3DDevice::Execute(
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+						context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					}
 				}
 
-				const bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
+				const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+				const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					(bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem);
 				bool bRenderToDynCockpitBGBuffer = false;
 
 				// Render HUD backgrounds to their own layer (HUD BG)
-				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
+				if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					(bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc))
 					bRenderToDynCockpitBGBuffer = true;
 
 				/*
@@ -6944,8 +6947,10 @@ HRESULT Direct3DDevice::Execute(
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
+				if (
+					 (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					  (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
+				   )
 				{					
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
@@ -7121,7 +7126,10 @@ HRESULT Direct3DDevice::Execute(
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
+							// slot 2 is the text buffer
 							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
+							context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
+							// Set the cover texture:
 							if (g_PSCBuffer.bUseCoverTexture) {
 								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", resources->dc_coverTexture[idx].GetAddressOf());
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
