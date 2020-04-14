@@ -13,6 +13,7 @@
 #include "FreePIE.h"
 #include "Matrices.h"
 #include "Direct3DTexture.h"
+#include "XwaDrawTextHook.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
@@ -5986,6 +5987,7 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			this->RenderText();
 			// Render the hyperspace effect if necessary
 			{
 				if (!g_bSwitchedToGUI) {
@@ -6833,7 +6835,6 @@ HRESULT PrimarySurface::Flip(
 			if (g_bUseSteamVR) {
 				//if (!g_pHMD->GetTimeSinceLastVsync(&seconds, &frame))
 				//	log_debug("[DBG] No Vsync info available");
-
 				vr::EVRCompositorError error = vr::VRCompositorError_None;
 				vr::Texture_t leftEyeTexture;
 				vr::Texture_t rightEyeTexture;
@@ -7424,4 +7425,100 @@ HRESULT PrimarySurface::UpdateOverlayZOrder(
 #endif
 
 	return DDERR_UNSUPPORTED;
+}
+
+void PrimarySurface::RenderText()
+{
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+
+	UINT w;
+	UINT h;
+
+	if (g_config.AspectRatioPreserved)
+	{
+		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		{
+			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+		}
+	}
+	else
+	{
+		w = this->_deviceResources->_backbufferWidth;
+		h = this->_deviceResources->_backbufferHeight;
+	}
+
+	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
+	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+	ComPtr<IDWriteTextFormat> textFormats[3];
+	int fontSizes[] = { 12, 16, 10 };
+
+	for (int index = 0; index < 3; index++)
+	{
+		this->_deviceResources->_dwriteFactory->CreateTextFormat(
+			g_config.TextFontFamily.c_str(),
+			nullptr,
+			DWRITE_FONT_WEIGHT_NORMAL,
+			DWRITE_FONT_STYLE_NORMAL,
+			DWRITE_FONT_STRETCH_NORMAL,
+			(float)fontSizes[index] * min(scaleX, scaleY),
+			L"en-US",
+			&textFormats[index]);
+	}
+
+	ComPtr<ID2D1SolidColorBrush> brush;
+	unsigned int brushColor = 0;
+
+	IDWriteTextFormat* textFormat = nullptr;
+	int fontSize = 0;
+
+	for (const auto& xwaText : g_xwa_text)
+	{
+		if (xwaText.color != brushColor)
+		{
+			brushColor = xwaText.color;
+			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+		}
+
+		if (xwaText.fontSize != fontSize)
+		{
+			fontSize = xwaText.fontSize;
+
+			for (int index = 0; index < 3; index++)
+			{
+				if (fontSize == fontSizes[index])
+				{
+					textFormat = textFormats[index];
+				}
+			}
+		}
+
+		float x = (float)left + (float)xwaText.positionX * scaleX;
+		float y = (float)top + (float)xwaText.positionY * scaleY;
+
+		std::wstring wtext = char_towstring(xwaText.text.c_str());
+
+		this->_deviceResources->_d2d1RenderTarget->DrawTextA(
+			wtext.c_str(),
+			wtext.length(),
+			textFormat,
+			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
+			brush);
+	}
+
+	this->_deviceResources->_d2d1RenderTarget->EndDraw();
+	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	g_xwa_text.clear();
+	g_xwa_text.reserve(4096);
 }

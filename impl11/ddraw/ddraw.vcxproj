@@ -133,6 +133,7 @@ copy /Y $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Star Wars X
     <ClCompile Include="PrimarySurface.cpp" />
     <ClCompile Include="TextureSurface.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="XwaDrawTextHook.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BackbufferSurface.h" />
@@ -166,6 +167,7 @@ copy /Y $(TargetPath) "C:\Program Files (x86)\Steam\steamapps\common\Star Wars X
     <ClInclude Include="XWAFramework.h" />
     <ClInclude Include="XWAObject.h" />
     <ClInclude Include="XWATypes.h" />
+    <ClInclude Include="XwaDrawTextHook.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ddraw.rc" />
