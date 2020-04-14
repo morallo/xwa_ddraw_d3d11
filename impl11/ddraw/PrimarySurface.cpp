@@ -3836,9 +3836,11 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert) {
 	rotX.rotateX(AngX);
 	rotY.rotateY(AngY);
 	rotFull = rotY * rotX;
-	//Vector4 debugFs = rotY * rotX * temp;
+	// DEBUG
+	//Vector4 debugFs = rotFull * temp;
 	// The following line should always display: (0,0,1)
 	//log_debug("[DBG] debugFs: %0.3f, %0.3f, %0.3f", debugFs.x, debugFs.y, debugFs.z);
+	// DEBUG
 	if (invert)
 		rotFull.invert(); // Full inversion for now, should replace for either transpose, or just invert AngX,AngY
 	return rotFull;

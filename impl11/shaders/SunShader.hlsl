@@ -111,6 +111,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec3 color = 0.0;
 	output.color = bgTex.Sample(bgSampler, input.uv);
 	float3 pos3D = depthTex.Sample(depthSampler, input.uv).xyz;
+	vec2 sunPos = 0.0;
 
 	// DEBUG
 	//output.color = float4(input.uv, 0.0, 1.0);
@@ -128,9 +129,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float d, dm;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
-	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
-	vec3 v = vec3(p.x, -p.y, -FOVscale);
-	v = mul(viewMat, vec4(v, 0.0)).xyz;
+	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
+	//vec3 v = vec3(p.x, -p.y, -FOVscale); // Use this for light vectors
+	vec3 v = vec3(p, -FOVscale);
+	//v = mul(viewMat, vec4(v, 0.0)).xyz;
 	//vec3 v = vec3(p, 0.0);
 	//vec2 sunPos = (vec2(SunXL, SunYL) - 0.5) * 2.0;
 	
@@ -141,29 +143,31 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = -2.35 * vec2(-SunXL.x, SunYL);
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
-	vec2 sunPos = 0.0;
-
 	// DEBUG
 	/*
-	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
+	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
+	float3 col = float3(1.0, 0.0, 0.0); // Reticle color
 	d = sdCircle(v.xy, sunPos, scale * cursor_radius);
 	dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
-
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	*/
+	// DEBUG
 
-	const float V_2 = dot(v.xy, v.xy);
+	vec3 light_color = vec3(0.3, 0.3, 1.0);
+	// sunPos = 0.0;
+	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
+	vec2 dcenter = v.xy - sunPos;
+	const float V_2 = dot(dcenter, dcenter);
 	//const float disk = saturate(pow(0.01 / V_2, 1.8));
-	const float disk = exp(-V_2 * 25.0);
+	const float disk = exp(-V_2 * 15.0);
 
-	//float flare = lensflare(v.xy, sunPos), 0.1, 0.0);
 	float flare = lensflare(v.xy, sunPos, 0.5 * sun_intensity, 0.0);
-	flare *= flare;
-	flare += disk;
-	color = /* light_color * */ flare;
+	flare = flare * flare + disk;
+	color = light_color * flare;
 	output.color.rgb = lerp(output.color.rgb, color, 0.8 * flare * sun_intensity);
+	
 	return output;
 }

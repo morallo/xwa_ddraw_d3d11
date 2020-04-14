@@ -130,7 +130,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float2 v = float2(input.tex.xy - 0.5);
 		const float V_2 = dot(v, v);
 		const float intensity = saturate(pow(0.03 / V_2, 1.8));
-		output.color = float4(diffuse * intensity, intensity);
+		//const float3 light_color = float3(0.3, 0.3, 1.0);
+		const float3 light_color = 1.0;
+		output.color = float4(light_color * intensity, intensity);
 		//output.color.xyz *= output.color.xyz; // Gamma compensation?
 		output.bloom = float4(fBloomStrength * output.color.xyz, 0.5 * intensity);
 		return output;

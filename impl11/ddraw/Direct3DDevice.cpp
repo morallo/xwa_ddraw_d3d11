@@ -4890,7 +4890,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C) {
 	return (u >= -0.001f) && (v >= -0.001f) && (u + v < 1.001f);
 }
 
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, bool debug)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, float *radius, bool debug)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
@@ -4903,6 +4903,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	Vector3 tempv0, tempv1, tempv2, tempP;
 	float cx = 0.0f, cy = 0.0f, cz = 0.0f;
 	int samples = 0, numTriangles = 0;
+	*radius = 1.5f;
 
 	// Convert (LX, LY) into in-game pixels:
 	LX = (LX + 0.5f) * g_fCurInGameWidth;
@@ -4975,6 +4976,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 				q.x, q.y, 1.0f / q.z /*, dx, dy */);
 		}
 
+		/*
 		if (IsInsideTriangle(L, P0, P1, P2)) {
 			if (debug)
 				log_debug("[DBG] L inside (%0.3f,%0.3f), (%0.3f,%0.3f), (%0.3f,%0.3f)",
@@ -4987,39 +4989,82 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			g_ShadertoyBuffer.SunY = Y;
 			return true;
 		}
+		*/
 
-		/*
 		// We now have the 3 vertices of the triangle in p0, p1, p2, with UVs uv0, uv1, uv2
 		// We need to extrapolate the position that corresponds to uvs = 0.5
 		float x, y;
-		float d1 = U0 - U1;
-		float d2 = U0 - U2;
-		float d3 = U1 - U2;
-		if (fabs(d1) > fabs(d2) && fabs(d1) > fabs(d2)) {
-			float factor0 = (0.5f - U1) / d1;
-			float factor1 = (U0 - 0.5f) / d1;
-			x = px0 * factor0 + px1 * factor1;
-			y = py0 * factor0 + py1 * factor1;
-			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
-			samples++;
+		if (((U0 < 0.01f && U1 > 0.99f) || (U0 > 0.99f && U1 < 0.01f)) &&
+			((V0 < 0.01f && V1 > 0.99f) || (V0 > 0.99f && V1 < 0.01f))) 
+		//if (((U0 < 0.4f && U1 > 0.6f) || (U0 > 0.6f && U1 < 0.4f)) &&
+		//	((V0 < 0.4f && V1 > 0.6f) || (V0 > 0.6f && V1 < 0.4f)))
+		{
+			//float d01 = U0 - U1;
+			//float factor0 = (U - U1) / d01;
+			//float factor1 = (U0 - U) / d01;
+			//x = px0 * factor0 + px1 * factor1;
+			//y = py0 * factor0 + py1 * factor1;
+			float s = (0.5f - U0) / (U1 - U0);
+			x = lerp(px0, px1, s);
+			y = lerp(py0, py1, s);
+			float X, Y;
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
+			x = x / g_fCurInGameWidth - 0.5f;
+			y = y / g_fCurInGameHeight - 0.5f;
+			*radius = sqrt(x*x + y*y);
+			g_ShadertoyBuffer.SunX = X;
+			g_ShadertoyBuffer.SunY = Y;
+			return true;
+			//cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
+			//samples++;
 		}
-		else if (fabs(d2) > fabs(d1) && fabs(d2) > fabs(d3)) {
-			float factor0 = (0.5f - U2) / d2;
-			float factor2 = (U0 - 0.5f) / d2;
-			x = px0 * factor0 + px2 * factor2;
-			y = py0 * factor0 + py2 * factor2;
-			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
-			samples++;
+		if (((U0 < 0.01f && U2 > 0.99f) || (U0 > 0.99f && U2 < 0.01f)) &&
+			((V0 < 0.01f && V2 > 0.99f) || (V0 > 0.99f && V2 < 0.01f)))
+		//if (((U0 < 0.4f && U2 > 0.6f) || (U0 > 0.6f && U2 < 0.4f)) &&
+		//	((V0 < 0.4f && V2 > 0.6f) || (V0 > 0.6f && V2 < 0.4f)))
+		{
+			//float d02 = U0 - U2;
+			//float factor0 = (U - U2) / d02;
+			//float factor2 = (U0 - U) / d02;
+			//x = px0 * factor0 + px2 * factor2;
+			//y = py0 * factor0 + py2 * factor2;
+			float s = (0.5f - U0) / (U2 - U0);
+			x = lerp(px0, px2, s);
+			y = lerp(py0, py2, s);
+			float X, Y;
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
+			x = x / g_fCurInGameWidth - 0.5f;
+			y = y / g_fCurInGameHeight - 0.5f;
+			*radius = sqrt(x*x + y*y);
+			g_ShadertoyBuffer.SunX = X;
+			g_ShadertoyBuffer.SunY = Y;
+			return true;
 		}
-		else if (fabs(d3) > fabs(d1) && fabs(d3) > fabs(d2)) {
-			float factor0 = (0.5f - U2) / d3;
-			float factor2 = (U1 - 0.5f) / d3;
-			x = px1 * factor0 + px2 * factor2;
-			y = py1 * factor0 + py2 * factor2;
-			cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
-			samples++;
+		if (((U1 < 0.01f && U2 > 0.99f) || (U1 > 0.99f && U2 < 0.01f)) &&
+			((V1 < 0.01f && V2 > 0.99f) || (V1 > 0.99f && V2 < 0.01f)))
+		//if (((U1 < 0.4f && U2 > 0.6f) || (U1 > 0.6f && U2 < 0.4f)) &&
+		//	((V1 < 0.4f && V2 > 0.6f) || (V1 > 0.6f && V2 < 0.4f)))
+		{
+			//float d12 = U1 - U2;
+			//float factor1 = (U - U2) / d12;
+			//float factor2 = (U1 - U) / d12;
+			//x = px1 * factor1 + px2 * factor2;
+			//y = py1 * factor1 + py2 * factor2;
+			float s = (0.5f - U1) / (U2 - U1);
+			x = lerp(px1, px2, s);
+			y = lerp(py1, py2, s);
+			float X, Y;
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
+			x = x / g_fCurInGameWidth - 0.5f;
+			y = y / g_fCurInGameHeight - 0.5f;
+			*radius = sqrt(x*x + y*y);
+			g_ShadertoyBuffer.SunX = X;
+			g_ShadertoyBuffer.SunY = Y;
+			return true;
 		}
-		*/
 
 		/*
 		d1 = V0 - V1;
@@ -6740,7 +6785,7 @@ HRESULT Direct3DDevice::Execute(
 					g_LaserPointerBuffer.y0 = y0;
 					g_LaserPointerBuffer.x1 = x1;
 					g_LaserPointerBuffer.y1 = y1;
-					for (int i = 1; i < s_XwaGlobalLightsCount; i++) {
+					for (int i = 0; i < s_XwaGlobalLightsCount; i++) {
 						Vector4 xwaLight = Vector4(
 							s_XwaGlobalLights[i].PositionX / 32768.0f,
 							s_XwaGlobalLights[i].PositionY / 32768.0f,
@@ -6750,13 +6795,12 @@ HRESULT Direct3DDevice::Execute(
 						Vector4 light = H * xwaLight;
 						// Compute the matrix that transforms [0,0,1] into the light's direction:
 						Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
-						Vector2 Lcenter = Vector2(light.x, light.y);
-						float intensity = 0.9f - Lcenter.length();
-						if (intensity < 0.0f) intensity = 0.0f;
+						float radius = 0.0f;
+						//Vector2 Lcenter = Vector2(light.x, light.y);
+						//float intensity = 0.9f - Lcenter.length();
+						//if (intensity < 0.0f) intensity = 0.0f;
 						// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-						//float intensity = light.z * light.z;
-						//g_ShadertoyBuffer.sun_intensity = intensity * intensity * intensity;
-						g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						g_ShadertoyBuffer.viewMat = DirMatrix;
 						light.z = -light.z;
 
@@ -6766,17 +6810,21 @@ HRESULT Direct3DDevice::Execute(
 								g_ShadertoyBuffer.SunYL = light.y;
 							}
 							else */
-							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, false))
+							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, &radius, false))
 							{
+								float intensity = 0.8f - radius;
+								if (intensity < 0.0f) intensity = 0.0f;
+								g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 								g_bXWALightAuxInfo[i].Tested = true;
 								g_bXWALightAuxInfo[i].IsSun = true;
 								//log_debug("[DBG] light: %d is a Sun", i);
-								g_ShadertoyBuffer.SunX = light.x;
-								g_ShadertoyBuffer.SunY = light.y;
+								//g_ShadertoyBuffer.SunX = light.x;
+								//g_ShadertoyBuffer.SunY = light.y;
+								g_bSunVisible = true;
+								break;
 							}
 						}
 					}
-					g_bSunVisible = true;
 				}
 				// DEBUG
 
