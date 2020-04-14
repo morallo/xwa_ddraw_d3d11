@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <string>
+
 class Config
 {
 public:
@@ -26,6 +28,8 @@ public:
 	int ProcessAffinityCore;
 
 	bool D3dHookExists;
+	std::wstring TextFontFamily;
+	int TextWidthDelta;
 
 	bool EnhanceLasers;
 	bool EnhanceIllumination;
@@ -35,7 +39,6 @@ public:
 	bool FXAAEnabled;
 	bool StayInHyperspace;
 	bool ExternalHUDEnabled;
-	
 };
 
 extern Config g_config;

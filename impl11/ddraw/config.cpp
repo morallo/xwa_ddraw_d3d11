@@ -36,6 +36,9 @@ Config::Config()
 
 	this->D3dHookExists = false;
 
+	this->TextFontFamily = L"Verdana";
+	this->TextWidthDelta = 0;
+
 	this->EnhanceLasers = false;
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
@@ -74,7 +77,8 @@ Config::Config()
 			name.erase(remove_if(name.begin(), name.end(), std::isspace), name.end());
 
 			string value = line.substr(pos + 1);
-			value.erase(remove_if(value.begin(), value.end(), std::isspace), value.end());
+			value.erase(0, value.find_first_not_of(" \t\n\r\f\v"));
+			value.erase(value.find_last_not_of(" \t\n\r\f\v") + 1);
 
 			if (!name.length() || !value.length())
 			{
@@ -153,9 +157,17 @@ Config::Config()
 			{
 				this->StayInHyperspace = (bool)stoi(value);
 			}
-			else if (name == "ExternalHUDEnabled") 
+			else if (name == "ExternalHUDEnabled")
 			{
 				this->ExternalHUDEnabled = (bool)stoi(value);
+			}
+			else if (name == "TextFontFamily")
+			{
+				this->TextFontFamily = string_towstring(value);
+			}
+			else if (name == "TextWidthDelta")
+			{
+				this->TextWidthDelta = stoi(value);
 			}
 		}
 	}

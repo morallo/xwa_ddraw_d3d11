@@ -13,6 +13,7 @@
 #include "FreePIE.h"
 #include "Matrices.h"
 #include "Direct3DTexture.h"
+#include "XwaDrawTextHook.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
@@ -1896,13 +1897,13 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	resources->InitVertexShader(resources->_passthroughVertexShader);
 	resources->InitPixelShader(resources->_pixelShaderClearBox);
 	// Change the render target
-	// Set two RTVs: one for the foreground HUD and one for the HUD background
-	// Binding 2 RTVs implies that _pixelShaderSolid can output to 2 SV_TARGETs
-	ID3D11RenderTargetView *rtvs[2] = {
+	// Set three RTVs: Foreground HUD, Background HUD and HUD Text
+	ID3D11RenderTargetView *rtvs[3] = {
 		resources->_renderTargetViewDynCockpitAsInput.Get(),
-		resources->_renderTargetViewDynCockpitAsInputBG.Get() 
+		resources->_renderTargetViewDynCockpitAsInputBG.Get(),
+		resources->_DCTextAsInputRTV.Get(),
 	};
-	context->OMSetRenderTargets(2, rtvs, NULL);
+	context->OMSetRenderTargets(3, rtvs, NULL);
 
 	// Set the viewport
 	resources->InitViewport(viewport);
@@ -2091,6 +2092,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Set the HUD foreground and background textures:
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
 	context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitBG_SRV.GetAddressOf());
+	context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
 	// Draw the Left Image
 	context->Draw(6, 0);
 
@@ -4736,6 +4738,9 @@ void PrimarySurface::RenderFXAA()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+/*
+ * Render an aiming reticle in external view. Made obsolete by Jeremy's exterior hook.
+ */
 void PrimarySurface::RenderExternalHUD()
 {
 	auto& resources = this->_deviceResources;
@@ -5986,6 +5991,9 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// Render the text buffer and flush it
+			this->RenderText();
+
 			// Render the hyperspace effect if necessary
 			{
 				if (!g_bSwitchedToGUI) {
@@ -6052,6 +6060,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
+			// Render the Deferred, SSAO or SSDO passes
 			if (g_bAOEnabled) {
 				if (!g_bDepthBufferResolved) {
 					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here.
@@ -6214,7 +6223,8 @@ HRESULT PrimarySurface::Flip(
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
-			if (g_config.ExternalHUDEnabled)
+			//if (g_config.ExternalHUDEnabled)
+			if (false)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -6386,10 +6396,11 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Apply the HUD *after* we have re-shaded it (if necessary)
-			if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+			if ((g_bDCManualActivate || bExteriorCamera)&& (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
-				// Clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled)
+				// If we're not in external view, then clear everything we don't want to display from the HUD
+				if (g_bDynCockpitEnabled && !bExteriorCamera)
 					ClearHUDRegions();
 				
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
@@ -6437,62 +6448,63 @@ HRESULT PrimarySurface::Flip(
 			else // Non-VR mode
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
-			//log_debug("[DBG] g_iExecBufCounter:%d at end of frame", g_iExecBufCounter);
-			// Let's reset some frame counters and other control variables
-			g_iDrawCounter = 0; // g_iExecBufCounter = 0;
-			g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
-			g_iFloatingGUIDrawnCounter = 0;
-			g_bTargetCompDrawn = false;
-			g_bPrevIsFloatingGUI3DObject = false;
-			g_bIsFloating3DObject = false;
-			g_bStartedGUI = false;
-			g_bPrevStartedGUI = false;
-			g_bIsScaleableGUIElem = false;
-			g_bPrevIsScaleableGUIElem = false;
-			g_bScaleableHUDStarted = false;
-			g_bIsTrianglePointer = false;
-			g_bLastTrianglePointer = false;
-			g_iHUDOffscreenCommandsRendered = 0;
-			g_bSkyBoxJustFinished = false;
-			g_bPrevIsPlayerObject = false;
-			g_bIsPlayerObject = false;
-			g_bLastFrameWasExterior = PlayerDataTable[*g_playerIndex].externalCamera;
-			// Disable the Dynamic Cockpit whenever we're in external camera mode:
-			g_bDCManualActivate = !g_bLastFrameWasExterior;
-			g_bDepthBufferResolved = false;
-			g_bHyperspaceEffectRenderedOnCurrentFrame = false; 
-			g_bSwitchedToGUI = false;
-			g_bSunVisible = false;
-			// Increase the post-hyperspace-exit frames; but only when we're in the right state:
-			if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-				g_iHyperExitPostFrames++;
-			else
-				g_iHyperExitPostFrames = 0;
-			// If we just rendered the first hyperspace frame, then it's safe to clear the aux buffer:
-			if (g_bHyperspaceFirstFrame && !g_bClearedAuxBuffer) {
-				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				g_bClearedAuxBuffer = true;
-				context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-				context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
-					context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
-			}
-			g_bHyperspaceFirstFrame = false;
-			g_bHyperHeadSnapped = false;
-			//*g_playerInHangar = 0;
-			if (g_bDumpSSAOBuffers)
-				g_bDumpSSAOBuffers = false;
+			// Reset some frame counters and other control variables; clear vectors, etc.
+			{
+				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
+				g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
+				g_iFloatingGUIDrawnCounter = 0;
+				g_bTargetCompDrawn = false;
+				g_bPrevIsFloatingGUI3DObject = false;
+				g_bIsFloating3DObject = false;
+				g_bStartedGUI = false;
+				g_bPrevStartedGUI = false;
+				g_bIsScaleableGUIElem = false;
+				g_bPrevIsScaleableGUIElem = false;
+				g_bScaleableHUDStarted = false;
+				g_bIsTrianglePointer = false;
+				g_bLastTrianglePointer = false;
+				g_iHUDOffscreenCommandsRendered = 0;
+				g_bSkyBoxJustFinished = false;
+				g_bPrevIsPlayerObject = false;
+				g_bIsPlayerObject = false;
+				g_bLastFrameWasExterior = PlayerDataTable[*g_playerIndex].externalCamera;
+				// Disable the Dynamic Cockpit whenever we're in external camera mode:
+				g_bDCManualActivate = !g_bLastFrameWasExterior;
+				g_bDepthBufferResolved = false;
+				g_bHyperspaceEffectRenderedOnCurrentFrame = false;
+				g_bSwitchedToGUI = false;
+				g_bSunVisible = false;
+				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
+				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+					g_iHyperExitPostFrames++;
+				else
+					g_iHyperExitPostFrames = 0;
+				// If we just rendered the first hyperspace frame, then it's safe to clear the aux buffer:
+				if (g_bHyperspaceFirstFrame && !g_bClearedAuxBuffer) {
+					float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+					g_bClearedAuxBuffer = true;
+					context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+					if (g_bUseSteamVR)
+						context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
+				}
+				g_bHyperspaceFirstFrame = false;
+				g_bHyperHeadSnapped = false;
+				//*g_playerInHangar = 0;
+				if (g_bDumpSSAOBuffers)
+					g_bDumpSSAOBuffers = false;
 
-			// Reset the laser pointer intersection
-			if (g_bActiveCockpitEnabled) {
-				g_LaserPointerBuffer.bIntersection = 0;
-				g_fBestIntersectionDistance = 10000.0f;
-				g_iBestIntersTexIdx = -1;
-			}
+				// Reset the laser pointer intersection
+				if (g_bActiveCockpitEnabled) {
+					g_LaserPointerBuffer.bIntersection = 0;
+					g_fBestIntersectionDistance = 10000.0f;
+					g_iBestIntersTexIdx = -1;
+				}
 
-			// Clear the laser list for the next frame
-			if (g_bEnableLaserLights)
-				g_LaserList.clear();
+				// Clear the laser list for the next frame
+				if (g_bEnableLaserLights)
+					g_LaserList.clear();
+			}
 
 			// Apply the custom FOV
 			// I tried applying these settings on DLL load, and on the first draw call in Execute(); but they didn't work.
@@ -6521,26 +6533,29 @@ HRESULT PrimarySurface::Flip(
 			*/
 //#endif
 
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			// Resolve the Dynamic Cockpit FG, BG and Text buffers.
+			// This step has to be done here, after we clear the HUD regions, or we'll erase
+			// the contents of these buffers for the next frame
+			if (g_bDynCockpitEnabled || g_bReshadeEnabled) 
+			{
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				auto &context = resources->_d3dDeviceContext;
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
 					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(_deviceResources->_DCTextAsInput,
+					0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
 
 				/*static bool bDump = true;
 				if (g_iPresentCounter == 100 && bDump) {
-					capture(0, resources->_offscreenAsInputDynCockpit, L"C:\\Temp\\_DC-FG.jpg");
-					capture(0, resources->_offscreenAsInputDynCockpitBG, L"C:\\Temp\\_DC-BG.jpg");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatPng,
+						L"C:\\Temp\\_DC-FG.png");
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpitBG, GUID_ContainerFormatPng,
+						L"C:\\Temp\\_DC-BG.png");
 					bDump = false;
 				}*/
 			}
-
-			//// Perform the lean left/right etc animations
-			//animTickX();
-			//animTickY();
-			//animTickZ();
 			
 			// Enable roll (formerly this was 6dof)
 			if (g_bUseSteamVR) {
@@ -6631,7 +6646,8 @@ HRESULT PrimarySurface::Flip(
 				g_VSMatrixCB.viewMat = g_viewMatrix;
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
-			else { // non-VR and DirectSBS modes, read the roll and position from FreePIE
+			else // non-VR and DirectSBS modes, read the roll and position from FreePIE
+			{ 
 				//float pitch, yaw, roll, pitchSign = -1.0f;
 				float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
 				static Vector4 headCenterPos(0, 0, 0, 0);
@@ -6833,7 +6849,6 @@ HRESULT PrimarySurface::Flip(
 			if (g_bUseSteamVR) {
 				//if (!g_pHMD->GetTimeSinceLastVsync(&seconds, &frame))
 				//	log_debug("[DBG] No Vsync info available");
-
 				vr::EVRCompositorError error = vr::VRCompositorError_None;
 				vr::Texture_t leftEyeTexture;
 				vr::Texture_t rightEyeTexture;
@@ -6857,8 +6872,6 @@ HRESULT PrimarySurface::Flip(
 				}
 				//g_pVRCompositor->PostPresentHandoff();
 			}
-
-			
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
 			if (!g_bRendering3D) {
@@ -7424,4 +7437,116 @@ HRESULT PrimarySurface::UpdateOverlayZOrder(
 #endif
 
 	return DDERR_UNSUPPORTED;
+}
+
+void PrimarySurface::RenderText()
+{
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+
+	UINT w;
+	UINT h;
+
+	if (g_config.AspectRatioPreserved)
+	{
+		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		{
+			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+		}
+	}
+	else
+	{
+		w = this->_deviceResources->_backbufferWidth;
+		h = this->_deviceResources->_backbufferHeight;
+	}
+
+	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
+	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+	ComPtr<IDWriteTextFormat> textFormats[3];
+	int fontSizes[] = { 12, 16, 10 };
+
+	for (int index = 0; index < 3; index++)
+	{
+		this->_deviceResources->_dwriteFactory->CreateTextFormat(
+			g_config.TextFontFamily.c_str(),
+			nullptr,
+			DWRITE_FONT_WEIGHT_NORMAL,
+			DWRITE_FONT_STYLE_NORMAL,
+			DWRITE_FONT_STRETCH_NORMAL,
+			(float)fontSizes[index] * min(scaleX, scaleY),
+			L"en-US",
+			&textFormats[index]);
+	}
+
+	ComPtr<ID2D1SolidColorBrush> brush;
+	unsigned int brushColor = 0;
+
+	IDWriteTextFormat* textFormat = nullptr;
+	int fontSize = 0;
+
+	for (const auto& xwaText : g_xwa_text)
+	{
+		if (xwaText.color != brushColor)
+		{
+			brushColor = xwaText.color;
+			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+		}
+
+		if (xwaText.fontSize != fontSize)
+		{
+			fontSize = xwaText.fontSize;
+
+			for (int index = 0; index < 3; index++)
+			{
+				if (fontSize == fontSizes[index])
+				{
+					textFormat = textFormats[index];
+					break;
+				}
+			}
+		}
+
+		if (!brush)
+		{
+			continue;
+		}
+
+		if (!textFormat)
+		{
+			continue;
+		}
+
+		std::wstring wtext = string_towstring(xwaText.text);
+
+		if (wtext.empty())
+		{
+			continue;
+		}
+
+		float x = (float)left + (float)xwaText.positionX * scaleX;
+		float y = (float)top + (float)xwaText.positionY * scaleY;
+
+		this->_deviceResources->_d2d1RenderTarget->DrawTextA(
+			wtext.c_str(),
+			wtext.length(),
+			textFormat,
+			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
+			brush);
+	}
+
+	this->_deviceResources->_d2d1RenderTarget->EndDraw();
+	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	g_xwa_text.clear();
+	g_xwa_text.reserve(4096);
 }

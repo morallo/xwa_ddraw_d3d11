@@ -419,6 +419,16 @@ HRESULT DeviceResources::Initialize()
 
 	if (SUCCEEDED(hr))
 	{
+		hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &this->_d2d1Factory);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(this->_dwriteFactory), (IUnknown**)&this->_dwriteFactory);
+	}
+
+	if (SUCCEEDED(hr))
+	{
 		this->CheckMultisamplingSupport();
 	}
 
@@ -879,6 +889,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilViewR.Release();
 	this->_depthStencilL.Release();
 	this->_depthStencilR.Release();
+	this->_d2d1RenderTarget.Release();
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
@@ -922,6 +933,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputDynCockpitBG.Release();
 		this->_offscreenAsInputDynCockpitSRV.Release();
 		this->_offscreenAsInputDynCockpitBG_SRV.Release();
+		this->_DCTextMSAA.Release();
+		this->_DCTextAsInput.Release();
+		this->_DCTextSRV.Release();
+		this->_DCTextRTV.Release();
+		this->_DCTextAsInputRTV.Release();
 	}
 
 	if (g_bActiveCockpitEnabled) {
@@ -1223,6 +1239,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				step = "_offscreenBufferDynCockpitBG";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferDynCockpitBG);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_DCTextMSAA";
+				// _DCTextMSAA should be just like offscreenBuffer because it will be used as a renderTarget
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_DCTextMSAA);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1629,6 +1654,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 				else {
 					log_err("Successfully created _offscreenBufferAsInputDynCockpitBG with combined flags\n");
+				}
+
+				step = "_DCTextAsInput";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_DCTextAsInput);
+				if (FAILED(hr)) {
+					log_err("Failed to create _DCTextAsInput, error: 0x%x\n", hr);
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_err("Successfully created _DCTextAsInput with combined flags\n");
 				}
 
 				// Restore the previous bind flags, just in case there is a dependency on these later on
@@ -2136,6 +2174,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
+
+				step = "_DCTextSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_DCTextAsInput,
+					&shaderResourceViewDesc, &this->_DCTextSRV);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
 			}
 		}
 	}
@@ -2215,6 +2262,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitBG FAILED");
 				goto out;
 			}
+
+			step = "_DCTextRTV";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextMSAA, &renderTargetViewDesc, &this->_DCTextRTV);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _DCTextRTV FAILED");
+				goto out;
+			}
 			
 			step = "_renderTargetViewDynCockpitAsInput";
 			// This RTV writes to a non-MSAA texture
@@ -2231,6 +2285,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				&this->_renderTargetViewDynCockpitAsInputBG);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitAsInputBG FAILED");
+				goto out;
+			}
+
+			step = "_DCTextAsInputRTV";
+			// This RTV writes to a non-MSAA texture
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextAsInput, &renderTargetViewDescNoMSAA, &_DCTextAsInputRTV);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [DC] _DCTextAsInputRTV FAILED");
 				goto out;
 			}
 		}
@@ -2480,6 +2542,35 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_displayTempWidth = 0;
 	this->_displayTempHeight = 0;
 	this->_displayTempBpp = 0;
+
+	if (SUCCEEDED(hr))
+	{
+		step = "CreateDxgiSurfaceRenderTarget";
+		ComPtr<IDXGISurface> surface;
+		if (!g_bDynCockpitEnabled)
+			hr = this->_offscreenBuffer.As(&surface);
+		else
+			hr = this->_DCTextMSAA.As(&surface);
+
+		if (SUCCEEDED(hr))
+		{
+			auto properties = D2D1::RenderTargetProperties();
+			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);
+			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
+
+			if (SUCCEEDED(hr))
+			{
+				this->_d2d1RenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+				this->_d2d1RenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+			}
+		}
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		step = "CreateDrawingStateBlock";
+		hr = this->_d2d1Factory->CreateDrawingStateBlock(&this->_d2d1DrawingStateBlock);
+	}
 
 out:
 	if (FAILED(hr))

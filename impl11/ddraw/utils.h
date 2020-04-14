@@ -6,6 +6,7 @@
 void toupper(char *string);
 
 std::string wchar_tostring(LPCWSTR text);
+std::wstring string_towstring(const std::string& text);
 
 #if LOGGER
 
