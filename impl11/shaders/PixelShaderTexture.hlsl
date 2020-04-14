@@ -121,7 +121,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	if (debug)
 	{
-		// Disable depth-buffer write for sun textures
+		// Disable depth-buffer write, etc. for sun textures
 		output.pos3D = 0;
 		output.normal = 0;
 		output.ssaoMask = 0;

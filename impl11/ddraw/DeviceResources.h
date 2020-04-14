@@ -364,7 +364,8 @@ typedef struct DCPixelShaderCBStruct {
 	// 4 * MAX_DC_COORDS = 48
 	// 432 bytes thus far
 
-	float ct_brightness, unused[3];
+	float ct_brightness, dc_brightness;
+	float unused[2];
 	// 448 bytes
 } DCPixelShaderCBuffer;
 

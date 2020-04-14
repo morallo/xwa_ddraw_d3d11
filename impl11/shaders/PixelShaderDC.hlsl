@@ -66,7 +66,7 @@ cbuffer ConstantBuffer : register(b0)
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint AC_debug, bIsBackground;
+	uint debug, unused;
 	// 80 bytes
 };
 
@@ -79,7 +79,8 @@ cbuffer ConstantBuffer : register(b1)
 												  // So each elem here is actually 4 bgColors.
 
 	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
-	float unused1, unused2, unused3;
+	float dc_brightness;				  // DC element brightness
+	float unused2, unused3;
 };
 
 float4 uintColorToFloat4(uint color) {
@@ -177,7 +178,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float4 texelText = texture2.Sample(sampler2, dyn_uv);
 			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
-			hud_texelColor.w = max(hud_texelColor.w, textAlpha);
+			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
 
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs

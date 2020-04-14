@@ -442,6 +442,7 @@ bool g_bZoomOut = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
+float g_fDCBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
@@ -2279,6 +2280,9 @@ bool LoadDCParams() {
 			}
 			else if (_stricmp(param, "ignore_erase_commands") == 0) {
 				g_bDCIgnoreEraseCommands = (bool)value;
+			}
+			else if (_stricmp(param, "dc_brightness") == 0) {
+				g_fDCBrightness = value;
 			}
 		}
 	}
@@ -5481,6 +5485,7 @@ HRESULT Direct3DDevice::Execute(
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
+	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
 
 	char* step = "";
 
