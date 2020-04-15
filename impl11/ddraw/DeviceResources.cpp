@@ -876,6 +876,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// When using SteamVR, let's override the size with the recommended size
 		dwWidth = g_steamVRWidth;
 		dwHeight = g_steamVRHeight;
+		log_debug("[DBG] Using SteamVR settings: %u, %u", dwWidth, dwHeight);
 	}
 
 	// Reset the present counter
@@ -1102,8 +1103,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			DXGI_SWAP_CHAIN_DESC sd{};
 			sd.BufferCount = 2;
 			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
-			sd.BufferDesc.Width  = 0;
-			sd.BufferDesc.Height = 0;
+			sd.BufferDesc.Width  = g_bUseSteamVR ? g_steamVRWidth : 0;
+			sd.BufferDesc.Height = g_bUseSteamVR ? g_steamVRHeight : 0;
 			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1135,12 +1136,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
 				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
 				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
-				//log_debug("[DBG] Fullscreen size: %d, %d", g_FullScreenWidth, g_FullScreenHeight);
+				log_debug("[DBG] SwapChain size: %d, %d", g_FullScreenWidth, g_FullScreenHeight);
 			}
 		}
 
 		if (SUCCEEDED(hr))
 		{
+			log_debug("[DBG] Getting _backBuffer from the _swapChain");
 			hr = this->_swapChain->GetBuffer(0, IID_PPV_ARGS(&this->_backBuffer));
 		}
 	}
@@ -1161,6 +1163,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			0,
 			0);
 
+		log_debug("[DBG] backbuffer input W,H: %u, %u", dwWidth, dwHeight);
 		hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_backBuffer);
 	}
 
@@ -1171,6 +1174,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		this->_backbufferWidth = backBufferDesc.Width;
 		this->_backbufferHeight = backBufferDesc.Height;
+		log_debug("[DBG] backbuffer actual W,H: %u, %u", this->_backbufferWidth, this->_backbufferHeight);
 		//g_fCurScreenWidth = _backbufferWidth;
 		//g_fCurScreenHeight = _backbufferHeight;
 		//log_debug("[DBG] Screen size: %f, %f", g_fCurScreenWidth, g_fCurScreenHeight);
@@ -1201,6 +1205,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		{
 			step = "_offscreenBuffer";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBuffer);
+			log_debug("[DBG] _offscreenBuffer: %u, %u", desc.Width, desc.Height);
 			if (FAILED(hr)) {
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
