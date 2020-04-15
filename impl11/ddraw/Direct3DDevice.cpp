@@ -6795,7 +6795,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
 					g_PSCBuffer.debug = 1;
 					g_PSCBuffer.iTime = iTime;
-					iTime += 0.01;
+					iTime += 0.01f;
 
 					float x0, y0, x1, y1;
 					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
