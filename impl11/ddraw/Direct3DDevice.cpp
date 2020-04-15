@@ -6779,7 +6779,7 @@ HRESULT Direct3DDevice::Execute(
 				// Only disable the diffuse component during regular flight. 
 				// The tech room is unchanged (the tech room makes g_bRendering = false)
 				// We should also avoid touching the GUI elements
-				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) {
+				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
