@@ -2547,10 +2547,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	{
 		step = "CreateDxgiSurfaceRenderTarget";
 		ComPtr<IDXGISurface> surface;
-		if (!g_bDynCockpitEnabled)
-			hr = this->_offscreenBuffer.As(&surface);
-		else
-			hr = this->_DCTextMSAA.As(&surface);
+		// The logic for the Dynamic Cockpit expects the text to be in its own
+		// buffer so that the alpha can be fixed and the text can be blended
+		// properly. So, instead of using _offscreenBuffer, we always write to
+		// _DCTextMSAA instead and then blend that to the _offscreenBuffer as if
+		// DC was always enabled.
+		hr = this->_DCTextMSAA.As(&surface);
 
 		if (SUCCEEDED(hr))
 		{
