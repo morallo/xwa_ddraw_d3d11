@@ -6786,6 +6786,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// DEBUG: Replace the sun textures
 				if (g_bProceduralSuns && bIsSun) {
+					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 					Matrix4 H = GetCurrentHeadingViewMatrix();
@@ -6793,6 +6794,8 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
 					g_PSCBuffer.debug = 1;
+					g_PSCBuffer.iTime = iTime;
+					iTime += 0.01;
 
 					float x0, y0, x1, y1;
 					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);

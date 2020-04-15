@@ -39,7 +39,7 @@ SamplerState depthSampler : register(s1);
 
  */
 
- // ShadertoyCBuffer
+// ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
 	float iTime, twirl, bloom_strength, srand;

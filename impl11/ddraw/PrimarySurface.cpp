@@ -6258,7 +6258,8 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the external sun (if applicable)
-			if (g_bProceduralSuns && g_bSunVisible)
+			//if (g_bProceduralSuns && g_bSunVisible)
+			if (false)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
