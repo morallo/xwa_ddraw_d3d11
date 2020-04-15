@@ -83,12 +83,14 @@ cbuffer ConstantBuffer : register(b1)
 	float unused2, unused3;
 };
 
-float4 uintColorToFloat4(uint color) {
-	return float4(
-		((color >> 16) & 0xFF) / 255.0,
-		((color >> 8) & 0xFF) / 255.0,
-		(color & 0xFF) / 255.0,
-		1);
+float4 uintColorToFloat4(uint color, out float intensity) {
+	float4 result = float4(
+		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
+		((color >>  8) & 0xFF) / 255.0,  // G 0x00FF00
+		 (color        & 0xFF) / 255.0,  // B 0x0000FF
+		                             1); // Alpha
+	intensity = ((color >> 24) & 0xFF) / 64.0;
+	return result;
 }
 
 /*
@@ -159,18 +161,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	input.tex = frac(input.tex);
 	if (input.tex.x < 0.0) input.tex.x += 1.0;
 	if (input.tex.y < 0.0) input.tex.y += 1.0;
-	float4 hud_texelColor = uintColorToFloat4(getBGColor(0));
+	float intensity;
+	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity);
 	//[unroll] unroll or loop?
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
+		float4 bgColor = uintColorToFloat4(getBGColor(i), intensity);
 
 		//if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
 		//	dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
-		if (all(dyn_uv >= src[i].xy) &&
-			all(dyn_uv <= src[i].zw))
+		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the dynamic cockpit texture:
 			hud_texelColor = texture1.Sample(sampler1, dyn_uv);
@@ -179,6 +182,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
 			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
+			hud_texelColor = saturate(intensity * hud_texelColor);
 
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs
@@ -187,7 +191,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			// DEBUG
 			
 			// Add the background color to the dynamic cockpit display:
-			hud_texelColor = lerp(uintColorToFloat4(getBGColor(i)), hud_texelColor, hud_alpha);
+			hud_texelColor = lerp(bgColor, hud_texelColor, hud_alpha);
 		}
 	}
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor

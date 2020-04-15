@@ -1127,9 +1127,9 @@ int ReadNameFromLine(char *buf, char *name)
  */
 bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coords)
 {
-	float x0, y0, x1, y1;
+	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor;
+	uint32_t uColor, uIntensity;
 	int res = 0, idx = coords->numCoords;
 	char *substr = NULL;
 	char slot_name[50];
@@ -1153,6 +1153,8 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 	try {
 		int len;
 		uColor = 0x121233;
+		intensity = 1.0f;
+		uIntensity = 64;
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -1173,7 +1175,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x", &x0, &y0, &x1, &y1, &uColor);
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f", &x0, &y0, &x1, &y1, &uColor, &intensity);
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -1185,7 +1187,14 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			coords->dst[idx].y1 = y1 / height;
 			//if (res == 5) // A color was read, add the alpha
 			//	uColor = (uColor << 8) | 0xFF;
-			coords->uBGColor[idx] = uColor;
+			if (res == 6)
+			{
+				uIntensity = (uint32_t )(intensity * 64.0f);
+				// Clamp: The maximum value is 255, which is divided by 64 in the shader
+				// so the maximum intensity is ~4.0 in the DC file
+				uIntensity = (uIntensity > 255) ? 255 : uIntensity;
+			}
+			coords->uBGColor[idx] = uColor | (uIntensity << 24);
 			coords->numCoords++;
 			//log_debug("[DBG] [DC] src_slot: %d, (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 			//	src_slot, x0 / width, y0 / height, x1 / width, y1 / height);
