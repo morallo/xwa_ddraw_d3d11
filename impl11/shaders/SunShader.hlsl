@@ -162,7 +162,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			continue; // Skip lights behind the camera
 		col = float3(0.0, 1.0, 0.0); // Reticle color
 		vec2 sunPos = -2.35 * vec2(-LightVector[i].x, LightVector[i].y);
-		//v = vec3(p + vec2(0, y_center), -FOVscale);
+		v = vec3(p, -FOVscale);
 		//v = mul(viewMat, vec4(v, 0.0)).xyz;
 
 		d = sdCircle(v.xy, sunPos, scale * cursor_radius);
