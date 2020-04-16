@@ -152,7 +152,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	
+	return output;
+
 	// Display each light in the system
 	p += vec2(0, y_center);
 	[loop]

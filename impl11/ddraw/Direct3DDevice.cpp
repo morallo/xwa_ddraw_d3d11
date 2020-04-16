@@ -4811,7 +4811,6 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 	return P;
 }
 
-/*
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
 	Vector3 P = pos3D;
@@ -4877,7 +4876,6 @@ inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 
 	}
 	return P;
 }
-*/
 
 // From: https://blackpawn.com/texts/pointinpoly/default.html
 bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v) {
@@ -4941,7 +4939,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	LX = (LX + 0.5f) * g_fCurInGameWidth;
 	LY = (-LY + 0.5f) * g_fCurInGameHeight;
 	//Vector3 P = Vector3(LX, LY, LZ);
-	//Vector3 Q = projectToInGameCoors(P, g_viewMatrix, g_fullMatrixLeft);
+	//Vector3 Q = projectToInGameCoords(P, g_viewMatrix, g_fullMatrixLeft);
 	//log_debug("[DBG] LX,LY: %0.3f %0.3f", LX, LY);
 	//log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
 	Vector2 L = Vector2(LX, LY);
@@ -4964,7 +4962,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		P0.x = g_OrigVerts[index].sx; P0.y = g_OrigVerts[index].sy;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
-		//backProject(index, &tempv0);
+		backProject(index, &tempv0);
 		if (g_bDumpSSAOBuffers) {
 			fprintf(outFile, "px0,py0,rhw0: %0.6f, %0.6f %0.6f\n", px0, py0, rhw0);
 			fprintf(outFile, "U0,V0: %0.6f, %0.6f\n", U0, V0);
@@ -4986,7 +4984,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		P1.x = g_OrigVerts[index].sx; P1.y = g_OrigVerts[index].sy;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
-		//backProject(index, &tempv1);
+		backProject(index, &tempv1);
 		if (g_bDumpSSAOBuffers) {
 			fprintf(outFile, "px1,py1,rhw1: %0.6f, %0.6f, %0.6f\n", px1, py1, rhw1);
 			fprintf(outFile, "U1,V1: %0.6f, %0.6f\n", U1, V1);
@@ -5009,7 +5007,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		P2.x = g_OrigVerts[index].sx; P2.y = g_OrigVerts[index].sy;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
-		//backProject(index, &tempv2);
+		backProject(index, &tempv2);
 		if (g_bDumpSSAOBuffers) {
 			fprintf(outFile, "px2,py2,rhw2: %0.6f, %0.6f, %0.6f\n", px2, py2, rhw2);
 			fprintf(outFile, "U2,V2: %0.6f, %0.6f\n", U2, V2);
@@ -5046,9 +5044,16 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			// Confirm:
 			//Vector2 Q = UV0 + u * (UV2 - UV0) + v * (UV1 - UV0);
 			//log_debug("[DBG] Q: %0.3f, %0.3f", Q.x, Q.y);
+			
 			// Compute the vertex coordinates for the solution found:
-			Z = Z0 + u * (Z2 - Z0) + v * (Z1 - Z0);
-			P = P0 + u * (P2 - P0) + v * (P1 - P0);
+			//P = P0 + u * (P2 - P0) + v * (P1 - P0);
+			// Let's do the interpolation in metric 3D so that it's automatically
+			// perspective-correct when projected back into 2D:
+			tempP = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			Vector3 q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
+			P.x = q.x;
+			P.y = q.y;
+			
 			//P = P0/Z0 + u * (P2/Z2 - P0/Z0) + v * (P1/Z1 - P0/Z0);
 			//P *= Z;
 
@@ -6892,7 +6897,7 @@ HRESULT Direct3DDevice::Execute(
 					Matrix4 H = GetCurrentHeadingViewMatrix();
 
 					bModifiedShaders = true;
-					g_bSunVisible = true;
+					//g_bSunVisible = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
 					g_PSCBuffer.debug = 1;
 					g_PSCBuffer.iTime = iTime;
@@ -6938,6 +6943,7 @@ HRESULT Direct3DDevice::Execute(
 								g_bXWALightAuxInfo[i].Tested = true;
 								g_bXWALightAuxInfo[i].IsSun = true;
 								g_ShadertoyBuffer.viewMat = DirMatrix;
+								g_bSunVisible = true;
 								//log_debug("[DBG] light: %d is a Sun", i);
 								//g_ShadertoyBuffer.SunX = light.x;
 								//g_ShadertoyBuffer.SunY = light.y;
