@@ -144,7 +144,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
 	// DEBUG
-	/*
 	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
 	float3 col = float3(1.0, 0.0, 0.0); // Reticle color
 	d = sdCircle(v.xy, sunPos, scale * cursor_radius);
@@ -153,9 +152,29 @@ PixelShaderOutput main(PixelShaderInput input) {
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	*/
+	
+	// Display each light in the system
+	p += vec2(0, y_center);
+	[loop]
+	for (uint i = 0; i < LightCount; i++)
+	{
+		if (LightVector[i].z > 0.0)
+			continue; // Skip lights behind the camera
+		col = float3(0.0, 1.0, 0.0); // Reticle color
+		vec2 sunPos = -2.35 * vec2(-LightVector[i].x, LightVector[i].y);
+		//v = vec3(p + vec2(0, y_center), -FOVscale);
+		//v = mul(viewMat, vec4(v, 0.0)).xyz;
+
+		d = sdCircle(v.xy, sunPos, scale * cursor_radius);
+		dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
+		dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
+		dm = clamp(dm, 0.0, 1.0);
+		col *= dm;
+		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+	}
 	// DEBUG
 
+	/*
 	vec3 light_color = vec3(0.3, 0.3, 1.0);
 	// sunPos = 0.0;
 	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
@@ -168,6 +187,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	flare = flare * flare + disk;
 	color = light_color * flare;
 	output.color.rgb = lerp(output.color.rgb, color, 0.8 * flare * sun_intensity);
+	*/
 	
 	return output;
 }
