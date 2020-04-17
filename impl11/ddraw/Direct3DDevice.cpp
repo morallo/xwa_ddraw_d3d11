@@ -4760,6 +4760,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		P.y = P.y * 0.5f + 0.5f;
 	} 
 	else {
+		// Non-VR processing from this point on:
 		// (x0,y0)-(x1,y1) are the viewport limits
 		float x0 = g_LaserPointerBuffer.x0;
 		float y0 = g_LaserPointerBuffer.y0;
@@ -4767,7 +4768,6 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		float y1 = g_LaserPointerBuffer.y1;
 		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
 		
-		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
 		P.x *= g_fFocalDist / P.z;
 		P.y *= g_fFocalDist / P.z;
@@ -4919,21 +4919,17 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 	 q  is the cursor that goes from 0 to 1
 	 A  is the attribute at the current point we're interpolating
  */
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, float *radius, bool debug)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, Vector2 *Centroid, bool debug)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
 	uint32_t index;
 	UINT idx = curIndex;
-	float U0, V0, U1, V1, U2, V2, Z0, Z1, Z2;
-	float px0, py0, rhw0, px1, py1, rhw1, px2, py2, rhw2;
-	Vector2 P0, P1, P2, P;
-	Vector2 UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
+	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
 
 	Vector3 tempv0, tempv1, tempv2, tempP;
-	float cx = 0.0f, cy = 0.0f, cz = 0.0f;
-	int samples = 0, numTriangles = 0;
-	*radius = 1.5f;
+	int numTriangles = 0;
+	//*radius = 1.5f;
 
 	// Convert (LX, LY) into in-game pixels:
 	LX = (LX + 0.5f) * g_fCurInGameWidth;
@@ -4944,31 +4940,29 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	//log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
 	Vector2 L = Vector2(LX, LY);
 
-	FILE *outFile = NULL;
-	if (g_bDumpSSAOBuffers) {
-		fopen_s(&outFile, "./Centroid.txt", "wt");
-	}
+	//FILE *outFile = NULL;
+	//if (g_bDumpSSAOBuffers) {
+	//	fopen_s(&outFile, "./Centroid.txt", "wt");
+	//}
 
 	if (debug)
 		log_debug("[DBG] START Geom");
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		if (g_bDumpSSAOBuffers)
-			fprintf(outFile, "-----------------\n");
+		//if (g_bDumpSSAOBuffers)
+		//	fprintf(outFile, "-----------------\n");
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
-		px0 = g_OrigVerts[index].sx; py0 = g_OrigVerts[index].sy; rhw0 = g_OrigVerts[index].rhw;
-		Z0 = (float)METRIC_SCALE_FACTOR * 1.0f / rhw0;
-		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
-		P0.x = g_OrigVerts[index].sx; P0.y = g_OrigVerts[index].sy;
+		//px0 = g_OrigVerts[index].sx; py0 = g_OrigVerts[index].sy; rhw0 = g_OrigVerts[index].rhw;
+		//U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv0);
-		if (g_bDumpSSAOBuffers) {
-			fprintf(outFile, "px0,py0,rhw0: %0.6f, %0.6f %0.6f\n", px0, py0, rhw0);
-			fprintf(outFile, "U0,V0: %0.6f, %0.6f\n", U0, V0);
+		//if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "px0,py0,rhw0: %0.6f, %0.6f %0.6f\n", px0, py0, rhw0);
+			//fprintf(outFile, "U0,V0: %0.6f, %0.6f\n", U0, V0);
 			//Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		}
+		//}
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
@@ -4979,19 +4973,17 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		}
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
-		px1 = g_OrigVerts[index].sx; py1 = g_OrigVerts[index].sy; rhw1 = g_OrigVerts[index].rhw;
-		Z1 = (float)METRIC_SCALE_FACTOR * 1.0f / rhw1;
-		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
-		P1.x = g_OrigVerts[index].sx; P1.y = g_OrigVerts[index].sy;
+		//px1 = g_OrigVerts[index].sx; py1 = g_OrigVerts[index].sy; rhw1 = g_OrigVerts[index].rhw;
+		//U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv1);
-		if (g_bDumpSSAOBuffers) {
-			fprintf(outFile, "px1,py1,rhw1: %0.6f, %0.6f, %0.6f\n", px1, py1, rhw1);
-			fprintf(outFile, "U1,V1: %0.6f, %0.6f\n", U1, V1);
+		//if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "px1,py1,rhw1: %0.6f, %0.6f, %0.6f\n", px1, py1, rhw1);
+			//fprintf(outFile, "U1,V1: %0.6f, %0.6f\n", U1, V1);
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
 			//Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		}
+		//}
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
@@ -5002,18 +4994,16 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		}
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
-		px2 = g_OrigVerts[index].sx; py2 = g_OrigVerts[index].sy; rhw2 = g_OrigVerts[index].rhw;
-		Z2 = (float)METRIC_SCALE_FACTOR * 1.0f / rhw2;
-		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
-		P2.x = g_OrigVerts[index].sx; P2.y = g_OrigVerts[index].sy;
+		//px2 = g_OrigVerts[index].sx; py2 = g_OrigVerts[index].sy; rhw2 = g_OrigVerts[index].rhw;
+		//U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv2);
-		if (g_bDumpSSAOBuffers) {
-			fprintf(outFile, "px2,py2,rhw2: %0.6f, %0.6f, %0.6f\n", px2, py2, rhw2);
-			fprintf(outFile, "U2,V2: %0.6f, %0.6f\n", U2, V2);
+		//if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "px2,py2,rhw2: %0.6f, %0.6f, %0.6f\n", px2, py2, rhw2);
+			//fprintf(outFile, "U2,V2: %0.6f, %0.6f\n", U2, V2);
 			//Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		}
+		//}
 		if (debug) {
 			vert = g_OrigVerts[index];
 			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
@@ -5043,30 +5033,29 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			// Confirm:
 			//Vector2 Q = UV0 + u * (UV2 - UV0) + v * (UV1 - UV0);
-			//log_debug("[DBG] Q: %0.3f, %0.3f", Q.x, Q.y);
+			//log_debug("[DBG] Q: %0.3f, %0.3f", Q.x, Q.y); // This should *always* display 0.5, 0.5
 			
-			// Compute the vertex coordinates for the solution found:
-			//P = P0 + u * (P2 - P0) + v * (P1 - P0);
-			// Let's do the interpolation in metric 3D so that it's automatically
-			// perspective-correct when projected back into 2D:
+			// Compute the 3D vertex where the UV coords are 0.5, 0.5. By using the back-projected
+			// 3D vertices, we automatically get perspective-correct results when projecting back to 2D:
 			tempP = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
 			Vector3 q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
-			P.x = q.x;
-			P.y = q.y;
 			
 			float X, Y;
 			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, P.x, P.y, &X, &Y);
-			if (g_bDumpSSAOBuffers) {
-				fprintf(outFile, "UV (0.5, 0.5) found in this triangle, u: %0.6f, v: %0.6f, P: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n",
-					u, v, P.x, P.y, X, Y);
-				fclose(outFile);
-			}
-			P.x = P.x / g_fCurInGameWidth - 0.5f;
-			P.y = P.y / g_fCurInGameHeight - 0.5f;
-			*radius = sqrt(P.x * P.x + P.y * P.y);
-			g_ShadertoyBuffer.SunX = X;
-			g_ShadertoyBuffer.SunY = Y;
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+			Centroid->x = X;
+			Centroid->y = Y;
+			//if (g_bDumpSSAOBuffers) {
+			//	fprintf(outFile, "UV (0.5, 0.5) found in this triangle, u: %0.6f, v: %0.6f, q: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n",
+			//		u, v, q.x, q.y, X, Y);
+			//	fclose(outFile);
+			//}
+			//g_ShadertoyBuffer.SunX = X;
+			//g_ShadertoyBuffer.SunY = Y;
+
+			//P.x = P.x / g_fCurInGameWidth - 0.5f;
+			//P.y = P.y / g_fCurInGameHeight - 0.5f;
+			//*radius = sqrt(P.x * P.x + P.y * P.y);
 			return true;
 		}
 		
@@ -5090,8 +5079,8 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	}
 	*/
 
-	if (g_bDumpSSAOBuffers)
-		fclose(outFile);
+	//if (g_bDumpSSAOBuffers)
+	//	fclose(outFile);
 
 	if (debug)
 		log_debug("[DBG] END Geom");
@@ -6759,6 +6748,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.iTime = iTime;
 					iTime += 0.01f;
 
+					Vector2 Centroid;
 					float x0, y0, x1, y1;
 					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 					// ComputeCentroid uses project() which needs the viewport coords in g_LaserPointerBuffer:
@@ -6791,11 +6781,18 @@ HRESULT Direct3DDevice::Execute(
 								g_ShadertoyBuffer.SunYL = light.y;
 							}
 							else */
-							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, &radius, false))
+							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, &Centroid, false))
 							{
-								float intensity = 0.8f - radius;
+								float radius, intensity;
+								Vector2 P = Centroid;
+								P.x = P.x * g_fCurScreenWidthRcp - 0.5f;
+								P.y = P.y * g_fCurScreenHeightRcp - 0.5f;
+								radius = sqrt(P.x*P.x + P.y*P.y);
+								intensity = 0.8f - radius;
 								if (intensity < 0.0f) intensity = 0.0f;
 								g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+								g_ShadertoyBuffer.SunX = Centroid.x;
+								g_ShadertoyBuffer.SunY = Centroid.y;
 								g_bXWALightAuxInfo[i].Tested = true;
 								g_bXWALightAuxInfo[i].IsSun = true;
 								//g_ShadertoyBuffer.viewMat = DirMatrix;

@@ -42,7 +42,7 @@ public:
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
 
-	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, float *radius, bool debug);
+	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, Vector2 *Centroid, bool debug);
 
 	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
 

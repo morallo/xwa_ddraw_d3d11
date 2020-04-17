@@ -58,7 +58,8 @@ cbuffer ConstantBuffer : register(b7)
 	uint bDisneyStyle, hyperspace_phase;
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float SunX, SunY, sun_intensity, st_unused1;
+	float2 SunCoords; // Coordinates in desktop resolution
+	float sun_intensity, st_unused1;
 	// 144 bytes
 };
 
@@ -72,7 +73,7 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
+	float4 color	: SV_TARGET0;
 };
 
 /*
@@ -121,7 +122,7 @@ vec3 lensflare(vec2 coord, vec2 flare_pos)
 
 	float ang = atan2(main.y, main.x);
 	float dist = length(main); dist = pow(dist, .1);
-	float n = noise(vec2((ang - iTime / 9.0)*16.0, dist*32.0));
+	//float n = noise(vec2((ang - iTime / 9.0)*16.0, dist*32.0));
 
 	float f0 = 0.0;
 	//f0 = 1.0/(length(uv-flare_pos)*16.0+1.0);
@@ -134,35 +135,35 @@ vec3 lensflare(vec2 coord, vec2 flare_pos)
 
 	vec2 uvx = mix(coord, uvd, -0.5);
 
-	float f4 = max(0.01 - pow(length(uvx + 0.4*flare_pos), 2.4), .0)*6.0;
-	float f42 = max(0.01 - pow(length(uvx + 0.45*flare_pos), 2.4), .0)*5.0;
-	float f43 = max(0.01 - pow(length(uvx + 0.5*flare_pos), 2.4), .0)*3.0;
+	float f4  = max(0.01 - pow(length(uvx + 0.40 * flare_pos), 2.4), 0.0) * 6.0;
+	float f42 = max(0.01 - pow(length(uvx + 0.45 * flare_pos), 2.4), 0.0) * 5.0;
+	float f43 = max(0.01 - pow(length(uvx + 0.50 * flare_pos), 2.4), 0.0) * 3.0;
 
-	uvx = mix(coord, uvd, -.4);
+	uvx = mix(coord, uvd, -0.4);
 
-	float f5 = max(0.01 - pow(length(uvx + 0.2*flare_pos), 5.5), .0)*2.0;
-	float f52 = max(0.01 - pow(length(uvx + 0.4*flare_pos), 5.5), .0)*2.0;
-	float f53 = max(0.01 - pow(length(uvx + 0.6*flare_pos), 5.5), .0)*2.0;
+	float f5  = max(0.01 - pow(length(uvx + 0.2 * flare_pos), 5.5), 0.0) * 2.0;
+	float f52 = max(0.01 - pow(length(uvx + 0.4 * flare_pos), 5.5), 0.0) * 2.0;
+	float f53 = max(0.01 - pow(length(uvx + 0.6 * flare_pos), 5.5), 0.0) * 2.0;
 
 	uvx = mix(coord, uvd, -0.5);
 
-	float f6 = max(0.01 - pow(length(uvx - 0.3*flare_pos), 1.6), .0)*6.0;
-	float f62 = max(0.01 - pow(length(uvx - 0.325*flare_pos), 1.6), .0)*3.0;
-	float f63 = max(0.01 - pow(length(uvx - 0.35*flare_pos), 1.6), .0)*5.0;
+	float f6  = max(0.01 - pow(length(uvx - 0.300 * flare_pos), 1.6), 0.0) * 6.0;
+	float f62 = max(0.01 - pow(length(uvx - 0.325 * flare_pos), 1.6), 0.0) * 3.0;
+	float f63 = max(0.01 - pow(length(uvx - 0.350 * flare_pos), 1.6), 0.0) * 5.0;
 
 	vec3 c = 0.0;
-
 	c.r += f2 + f4 + f5 + f6; c.g += f22 + f42 + f52 + f62; c.b += f23 + f43 + f53 + f63;
 	//c+=vec3(f0);
-
 	return c;
 }
 
+/*
 vec3 cc(vec3 color, float factor, float factor2) // color modifier
 {
 	float w = color.x + color.y + color.z;
 	return mix(color, w * factor, w * factor2);
 }
+*/
 
 float sdCircle(in vec2 p, in vec2 center, float radius)
 {
@@ -197,9 +198,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = -2.35 * vec2(-SunXL.x, SunYL);
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
-	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
+	sunPos = (2.0 * SunCoords - iResolution.xy) / min(iResolution.x, iResolution.y);
 	// Sample the depth at the location of the sun:
-	sunPos3D = depthTex.Sample(depthSampler, vec2(SunX, SunY) / iResolution.xy).xyz;
+	sunPos3D = depthTex.Sample(depthSampler, SunCoords / iResolution.xy).xyz;
 	// Avoid displaying any flare if the sun is occluded:
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
@@ -211,7 +212,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	return output;
 
 	// DEBUG
-	float3 col = float3(1.0, 0.0, 0.0); // Reticle color
+	float3 col;
+	/*
+	// Draw a reticle on top of the Sun:
+	col = float3(1.0, 0.0, 0.0); // Reticle color
 	d = sdCircle(v.xy, sunPos, scale * cursor_radius);
 	dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
@@ -219,6 +223,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	return output;
+	*/
 
 	// Display each light in the system
 	p += vec2(0, y_center);
