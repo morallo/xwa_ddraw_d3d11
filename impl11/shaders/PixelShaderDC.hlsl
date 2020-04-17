@@ -6,6 +6,7 @@
 #include "HSV.h"
 #include "shader_common.h"
 #include "shading_system.h"
+#include "PixelShaderTextureCommon.h"
 
 // Cover texture
 Texture2D    texture0 : register(t0);
@@ -41,33 +42,6 @@ struct PixelShaderOutput
 	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
 	float4 ssMask   : SV_TARGET5;
-};
-
-cbuffer ConstantBuffer : register(b0)
-{
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint bIsHyperspaceAnim;
-	// 16 bytes
-
-	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bInHyperspace;
-
-	float fBloomStrength;		// General multiplier for the bloom effect
-	float fPosNormalAlpha;		// (Ignored) Override for pos3D and normal output alpha
-	float fSSAOMaskVal;			// (Ignored) SSAO mask value
-	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
-
-	uint bIsShadeless;
-	float fGlossiness, fSpecInt, fNMIntensity;
-	// 64 bytes
-
-	float fSpecVal, fDisableDiffuse;
-	uint debug, unused;
-	// 80 bytes
 };
 
 // DCPixelShaderCBuffer

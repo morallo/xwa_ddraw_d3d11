@@ -346,6 +346,7 @@
   <ItemGroup>
     <ClInclude Include="HSV.h" />
     <ClInclude Include="material_defs.h" />
+    <ClInclude Include="PixelShaderTextureCommon.h" />
     <ClInclude Include="ShaderToyDefs.h" />
     <ClInclude Include="shader_common.h" />
     <ClInclude Include="shading_system.h" />

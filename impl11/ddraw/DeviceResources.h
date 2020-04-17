@@ -30,6 +30,14 @@ typedef struct uvfloat4_struct {
 	float x0, y0, x1, y1;
 } uvfloat4;
 
+typedef struct float3_struct {
+	float x, y, z;
+} float3;
+
+typedef struct float4_struct {
+	float x, y, z, w;
+} float4;
+
 // Region names. Used in the erase_region and move_region commands
 const int LEFT_RADAR_HUD_BOX_IDX		= 0;
 const int RIGHT_RADAR_HUD_BOX_IDX	= 1;
@@ -243,8 +251,10 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float SunX, SunY, sun_intensity, st_unused1;
+	float SunX, SunY, LightX, LightY;
 	// 144 bytes
+	float SunColor[4];
+	// 160 bytes
 } ShadertoyCBuffer;
 
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
@@ -288,14 +298,6 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
-typedef struct float3_struct {
-	float x, y, z;
-} float3;
-
-typedef struct float4_struct {
-	float x, y, z, w;
-} float4;
-
 typedef struct PSShadingSystemCBStruct {
 	float3 MainLight;
 	uint32_t LightCount;
@@ -328,13 +330,13 @@ typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
-	uint32_t bIsHyperspaceAnim;
+	uint32_t bInHyperspace;
 	// 16 bytes
 	
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bInHyperspace;
+	uint32_t bIsSun;
 	// 32 bytes
 
 	float fBloomStrength;
@@ -351,6 +353,8 @@ typedef struct PixelShaderCBStruct {
 	uint32_t debug;
 	float iTime;
 	// 80 bytes
+	float SunColor[4];
+	// 96 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

@@ -4905,6 +4905,12 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 }
 
 /*
+ Computes the centroid of the given texture, in desktop coordinates.
+ We're using this to find the center of the Suns to add lens flare, etc.
+
+ Returns true if the centroid could be computed (i.e. if the centroid is visible)
+ 
+ ------------------------------------------------------------------------------------
  Perspective-correct interpolation, from: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/perspective-correct-interpolation-vertex-attributes
 
  A = Z * (A0/Z0 * (1 - q) + A1/Z1 * q)
@@ -4919,7 +4925,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 	 q  is the cursor that goes from 0 to 1
 	 A  is the attribute at the current point we're interpolating
  */
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, float LX, float LY, float LZ, Vector2 *Centroid, bool debug)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 *Centroid, bool debug)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
@@ -4932,13 +4938,14 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	//*radius = 1.5f;
 
 	// Convert (LX, LY) into in-game pixels:
-	LX = (LX + 0.5f) * g_fCurInGameWidth;
-	LY = (-LY + 0.5f) * g_fCurInGameHeight;
-	//Vector3 P = Vector3(LX, LY, LZ);
-	//Vector3 Q = projectToInGameCoords(P, g_viewMatrix, g_fullMatrixLeft);
-	//log_debug("[DBG] LX,LY: %0.3f %0.3f", LX, LY);
-	//log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
-	Vector2 L = Vector2(LX, LY);
+	//LX = (LX + 0.5f) * g_fCurInGameWidth;
+	//LY = (-LY + 0.5f) * g_fCurInGameHeight;
+	
+	////Vector3 P = Vector3(LX, LY, LZ);
+	////Vector3 Q = projectToInGameCoords(P, g_viewMatrix, g_fullMatrixLeft);
+	////log_debug("[DBG] LX,LY: %0.3f %0.3f", LX, LY);
+	////log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
+	//Vector2 L = Vector2(LX, LY);
 
 	//FILE *outFile = NULL;
 	//if (g_bDumpSSAOBuffers) {
@@ -5050,12 +5057,6 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			//		u, v, q.x, q.y, X, Y);
 			//	fclose(outFile);
 			//}
-			//g_ShadertoyBuffer.SunX = X;
-			//g_ShadertoyBuffer.SunY = Y;
-
-			//P.x = P.x / g_fCurInGameWidth - 0.5f;
-			//P.y = P.y / g_fCurInGameHeight - 0.5f;
-			//*radius = sqrt(P.x * P.x + P.y * P.y);
 			return true;
 		}
 		
@@ -6734,78 +6735,103 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
 
-				// DEBUG: Replace the sun textures
+				// Replace the sun textures
 				if (g_bProceduralSuns && bIsSun) {
 					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 					Matrix4 H = GetCurrentHeadingViewMatrix();
 
+					// The Sun's texture will be displayed, so let's update some values
 					bModifiedShaders = true;
 					//g_bSunVisible = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
-					g_PSCBuffer.debug = 1;
+					g_PSCBuffer.bIsSun = 1;
 					g_PSCBuffer.iTime = iTime;
+					//g_PSCBuffer.SunColor = ...
 					iTime += 0.01f;
 
+					// Get the centroid of the sun
 					Vector2 Centroid;
 					float x0, y0, x1, y1;
 					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 					// ComputeCentroid uses project() which needs the viewport coords in g_LaserPointerBuffer:
-					// Does it, though? I don't think it does anymore...
 					g_LaserPointerBuffer.x0 = x0;
 					g_LaserPointerBuffer.y0 = y0;
 					g_LaserPointerBuffer.x1 = x1;
 					g_LaserPointerBuffer.y1 = y1;
-					for (int i = 0; i < s_XwaGlobalLightsCount; i++) {
-						Vector4 xwaLight = Vector4(
-							s_XwaGlobalLights[i].PositionX / 32768.0f,
-							s_XwaGlobalLights[i].PositionY / 32768.0f,
-							s_XwaGlobalLights[i].PositionZ / 32768.0f,
-							0.0f);
-						// Convert the XWA light into viewspace coordinates:
-						Vector4 light = H * xwaLight;
-						// Compute the matrix that transforms [0,0,1] into the light's direction:
-						//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
-						float radius = 0.0f;
-						//Vector2 Lcenter = Vector2(light.x, light.y);
-						//float intensity = 0.9f - Lcenter.length();
-						//if (intensity < 0.0f) intensity = 0.0f;
-						// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
-						light.z = -light.z;
+					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
+					{
+						float radius, intensity;
+						Vector2 P = Centroid;
+						P.x = P.x * g_fCurScreenWidthRcp - 0.5f;
+						P.y = P.y * g_fCurScreenHeightRcp - 0.5f;
+						radius = sqrt(P.x*P.x + P.y*P.y);
+						intensity = 0.8f - radius;
+						if (intensity < 0.0f) intensity = 0.0f;
 
-						if (light.z < 0.0f) {
-							/* if (g_bXWALightAuxInfo[i].Tested && g_bXWALightAuxInfo[i].IsSun) {
-								g_ShadertoyBuffer.SunXL = light.x;
-								g_ShadertoyBuffer.SunYL = light.y;
-							}
-							else */
-							if (ComputeCentroid(instruction, currentIndexLocation, light.x, light.y, light.z, &Centroid, false))
-							{
-								float radius, intensity;
-								Vector2 P = Centroid;
-								P.x = P.x * g_fCurScreenWidthRcp - 0.5f;
-								P.y = P.y * g_fCurScreenHeightRcp - 0.5f;
-								radius = sqrt(P.x*P.x + P.y*P.y);
-								intensity = 0.8f - radius;
-								if (intensity < 0.0f) intensity = 0.0f;
-								g_ShadertoyBuffer.sun_intensity = intensity * intensity;
-								g_ShadertoyBuffer.SunX = Centroid.x;
-								g_ShadertoyBuffer.SunY = Centroid.y;
+						// If the centroid is visible, then let's display the sun flare:
+						g_bSunFlareVisible = true;
+						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+						g_ShadertoyBuffer.SunX = Centroid.x;
+						g_ShadertoyBuffer.SunY = Centroid.y;
+						//g_ShadertoyBuffer.SunColor = ...
+						
+						// If this texture hasn't been tagged, then let's find its corresponding light source:
+						for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+						{
+							Vector4 xwaLight = Vector4(
+								s_XwaGlobalLights[i].PositionX / 32768.0f,
+								s_XwaGlobalLights[i].PositionY / 32768.0f,
+								s_XwaGlobalLights[i].PositionZ / 32768.0f,
+								0.0f);
+							// Convert the XWA light into viewspace coordinates:
+							Vector4 light = H * xwaLight;
+							// Compute the matrix that transforms [0,0,1] into the light's direction:
+							//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+							//Vector2 Lcenter = Vector2(light.x, light.y);
+							//float intensity = 0.9f - Lcenter.length();
+							//if (intensity < 0.0f) intensity = 0.0f;
+							// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
+							//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+							//light.z = -light.z;
+
+							// Only test lights in front of the camera:
+							if (light.z > 0.0f) {
+								// Convert the light direction into a position:
+								light *= 65536.0f;
+								Vector3 L = Vector3(light.x, light.y, light.z);
+								//L = project(L, g_viewMatrix, g_fullMatrixLeft);
+								L = projectToInGameCoords(L, g_viewMatrix, g_fullMatrixLeft);
+								// Convert in-game coords to desktop coords:
+								float X, Y;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
+								// Get the distance from the centroid, in desktop pixels:
+								Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
+								float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
+								// The distance near the edges of the screen is ~0.099, that's our threshold...
+
+								// In Skirmish mode, light index 1 is always the sun. So let's use that to
+								// debug things:
+								if (i == 1) {
+									//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
+									//log_debug("[DBG] D: %0.6f", D);
+									g_ShadertoyBuffer.LightX = X;
+									g_ShadertoyBuffer.LightY = Y;
+								}
+								/* if (g_bXWALightAuxInfo[i].Tested && g_bXWALightAuxInfo[i].IsSun) {
+									g_ShadertoyBuffer.SunXL = light.x;
+									g_ShadertoyBuffer.SunYL = light.y;
+								}
+								else
 								g_bXWALightAuxInfo[i].Tested = true;
 								g_bXWALightAuxInfo[i].IsSun = true;
-								//g_ShadertoyBuffer.viewMat = DirMatrix;
-								g_bSunFlareVisible = true;
-								//log_debug("[DBG] light: %d is a Sun", i);
-								//g_ShadertoyBuffer.SunX = light.x;
-								//g_ShadertoyBuffer.SunY = light.y;
-								break;
+								*/
 							}
 						}
 					}
 				}
-				// DEBUG
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
