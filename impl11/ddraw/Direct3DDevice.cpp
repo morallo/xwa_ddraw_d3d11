@@ -404,7 +404,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
-bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bSunVisible = false;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bSunFlareVisible = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -4925,7 +4925,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	D3DTLVERTEX vert;
 	uint32_t index;
 	UINT idx = curIndex;
-	float U0, V0, U1, V1, U2, V2, Z, Z0, Z1, Z2;
+	float U0, V0, U1, V1, U2, V2, Z0, Z1, Z2;
 	float px0, py0, rhw0, px1, py1, rhw1, px2, py2, rhw2;
 	Vector2 P0, P1, P2, P;
 	Vector2 UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
@@ -5054,13 +5054,6 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			P.x = q.x;
 			P.y = q.y;
 			
-			//P = P0/Z0 + u * (P2/Z2 - P0/Z0) + v * (P1/Z1 - P0/Z0);
-			//P *= Z;
-
-			////float Z = 1.0f / rhw0 + u * (1.0f / rhw2 - 1.0f / rhw0) + v * (1.0f / rhw1 - 1.0f / rhw0);
-			//float Z = 1.0f / (rhw0 + u * (rhw2 - rhw0) + v * (rhw1 - rhw0));
-			//P = P0 * rhw0 + u * (P2 * rhw2 - P0 * rhw0) + v * (P1 * rhw1 - P0 * rhw0);
-			//P = Z * P;
 			float X, Y;
 			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, P.x, P.y, &X, &Y);
@@ -5076,146 +5069,9 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			g_ShadertoyBuffer.SunY = Y;
 			return true;
 		}
-
-		/*
-		//px0 *= rhw0; px1 *= rhw1; px2 *= rhw2;
-		//py0 *= rhw0; py1 *= rhw1; py2 *= rhw2;
-		// We now have the 3 vertices of the triangle in p0, p1, p2, with UVs uv0, uv1, uv2
-		// We need to extrapolate the position that corresponds to uvs = 0.5
-		float x, y;
-		//if (((U0 < 0.01f && U1 > 0.99f) || (U0 > 0.99f && U1 < 0.01f)) &&
-		//	((V0 < 0.01f && V1 > 0.99f) || (V0 > 0.99f && V1 < 0.01f))) 
-		if (((U0 < 0.4f && U1 > 0.6f) || (U0 > 0.6f && U1 < 0.4f)) &&
-			((V0 < 0.4f && V1 > 0.6f) || (V0 > 0.6f && V1 < 0.4f)))
-		{
-			if (g_bDumpSSAOBuffers)
-				fprintf(outFile, "Intersection case 1 U0-U1	\n");
-			//float d01 = U0 - U1;
-			//float factor0 = (U - U1) / d01;
-			//float factor1 = (U0 - U) / d01;
-			//x = px0 * factor0 + px1 * factor1;
-			//y = py0 * factor0 + py1 * factor1;
-			//U0 *= rhw0; U1 *= rhw1; U2 *= rhw2;
-			float s = (0.5f - U0) / (U1 - U0);
-			float Z = lerp(1.0f / rhw0, 1.0f / rhw1, s);
-			x = lerp(px0, px1, s);
-			y = lerp(py0, py1, s);
-			float X, Y;
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
-			if (g_bDumpSSAOBuffers) {
-				fprintf(outFile, "s: %0.6f, Z: %0.6f, x,y: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n", s, Z, x, y, X, Y);
-				fclose(outFile);
-			}
-			x = x / g_fCurInGameWidth - 0.5f;
-			y = y / g_fCurInGameHeight - 0.5f;
-			*radius = sqrt(x*x + y*y);
-			g_ShadertoyBuffer.SunX = X;
-			g_ShadertoyBuffer.SunY = Y;
-			return true;
-			//cx += x; cy += y; cz += (rhw0 + rhw1 + rhw2) / 3.0f;
-			//samples++;
-		}
-		//if (((U0 < 0.01f && U2 > 0.99f) || (U0 > 0.99f && U2 < 0.01f)) &&
-		//	((V0 < 0.01f && V2 > 0.99f) || (V0 > 0.99f && V2 < 0.01f)))
-		if (((U0 < 0.4f && U2 > 0.6f) || (U0 > 0.6f && U2 < 0.4f)) &&
-			((V0 < 0.4f && V2 > 0.6f) || (V0 > 0.6f && V2 < 0.4f)))
-		{
-			if (g_bDumpSSAOBuffers)
-				fprintf(outFile, "Intersection case 2 U0-U2\n");
-			//float d02 = U0 - U2;
-			//float factor0 = (U - U2) / d02;
-			//float factor2 = (U0 - U) / d02;
-			//x = px0 * factor0 + px2 * factor2;
-			//y = py0 * factor0 + py2 * factor2;
-			//U0 *= rhw0; U1 *= rhw1; U2 *= rhw2;
-			float s = (0.5f - U0) / (U2 - U0);
-			float Z = lerp(1.0f / rhw0, 1.0f / rhw2, s);
-			x = lerp(px0, px2, s);
-			y = lerp(py0, py2, s);
-			float X, Y;
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
-			if (g_bDumpSSAOBuffers) {
-				fprintf(outFile, "s: %0.6f, Z: %0.6f, x,y: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n", s, Z, x, y, X, Y);
-				fclose(outFile);
-			}
-			x = x / g_fCurInGameWidth - 0.5f;
-			y = y / g_fCurInGameHeight - 0.5f;
-			*radius = sqrt(x*x + y*y);
-			g_ShadertoyBuffer.SunX = X;
-			g_ShadertoyBuffer.SunY = Y;
-			return true;
-		}
-		//if (((U1 < 0.01f && U2 > 0.99f) || (U1 > 0.99f && U2 < 0.01f)) &&
-		//	((V1 < 0.01f && V2 > 0.99f) || (V1 > 0.99f && V2 < 0.01f)))
-		if (((U1 < 0.4f && U2 > 0.6f) || (U1 > 0.6f && U2 < 0.4f)) &&
-			((V1 < 0.4f && V2 > 0.6f) || (V1 > 0.6f && V2 < 0.4f)))
-		{
-			if (g_bDumpSSAOBuffers)
-				fprintf(outFile, "Intersection case 3 U1-U2\n");
-			//float d12 = U1 - U2;
-			//float factor1 = (U - U2) / d12;
-			//float factor2 = (U1 - U) / d12;
-			//x = px1 * factor1 + px2 * factor2;
-			//y = py1 * factor1 + py2 * factor2;
-			//U0 *= rhw0; U1 *= rhw1; U2 *= rhw2;
-			float s = (0.5f - U1) / (U2 - U1);
-			float Z = lerp(1.0f / rhw1, 1.0f / rhw2, s);
-			x = lerp(px1, px2, s);
-			y = lerp(py1, py2, s);
-			float X, Y;
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, &X, &Y);
-			if (g_bDumpSSAOBuffers) {
-				fprintf(outFile, "s: %0.6f, Z: %0.6f, x,y: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n", s, Z, x, y, X, Y);
-				fclose(outFile);
-			}
-			x = x / g_fCurInGameWidth - 0.5f;
-			y = y / g_fCurInGameHeight - 0.5f;
-			*radius = sqrt(x*x + y*y);
-			g_ShadertoyBuffer.SunX = X;
-			g_ShadertoyBuffer.SunY = Y;
-			return true;
-		}
-		*/
-
-
-		/*
-		d1 = V0 - V1;
-		d2 = V0 - V2;
-		if (fabs(d1) > fabs(d2)) {
-			float factor0 = (0.5f - V1) / d1;
-			float factor1 = (V0 - 0.5f) / d1;
-			y = py0 * factor0 + py1 * factor1;
-		}
-		else {
-			float factor0 = (0.5f - V2) / d2;
-			float factor2 = (V0 - 0.5f) / d2;
-			y = py0 * factor0 + py2 * factor2;
-		}
-		*/
 		
 		triangle++; numTriangles++;
 	}
-
-	/*
-	if (samples > 0) {
-		cx /= (float)samples;
-		cy /= (float)samples;
-		cz /= (float)samples;
-	}
-
-	log_debug("[DBG] [%d] [%d], cx,cy,rhw: %0.3f, %0.3f, %0.3f", samples, numTriangles, cx, cy, cz);
-	float X, Y;
-	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, cx, cy, &X, &Y);
-	log_debug("[DBG] X,Y: %0.3f %0.3f", X, Y);
-	//X /= g_fCurScreenWidth;
-	//Y /= g_fCurScreenHeight;
-	g_ShadertoyBuffer.SunXL = X; // Raw pixel position
-	g_ShadertoyBuffer.SunYL = Y;
-	*/
 
 	// For DirectSBS and especially for SteamVR, we need to backproject this
 	// 2D coordinate into 3D and then project it into each eye using the
@@ -6920,7 +6776,7 @@ HRESULT Direct3DDevice::Execute(
 						// Convert the XWA light into viewspace coordinates:
 						Vector4 light = H * xwaLight;
 						// Compute the matrix that transforms [0,0,1] into the light's direction:
-						Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+						//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
 						float radius = 0.0f;
 						//Vector2 Lcenter = Vector2(light.x, light.y);
 						//float intensity = 0.9f - Lcenter.length();
@@ -6942,8 +6798,8 @@ HRESULT Direct3DDevice::Execute(
 								g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 								g_bXWALightAuxInfo[i].Tested = true;
 								g_bXWALightAuxInfo[i].IsSun = true;
-								g_ShadertoyBuffer.viewMat = DirMatrix;
-								g_bSunVisible = true;
+								//g_ShadertoyBuffer.viewMat = DirMatrix;
+								g_bSunFlareVisible = true;
 								//log_debug("[DBG] light: %d is a Sun", i);
 								//g_ShadertoyBuffer.SunX = light.x;
 								//g_ShadertoyBuffer.SunY = light.y;

@@ -583,7 +583,7 @@ SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
-extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunVisible;
+extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
@@ -6258,7 +6258,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the external sun (if applicable)
-			if (g_bProceduralSuns && g_bSunVisible)
+			if (g_bProceduralSuns && g_bSunFlareVisible)
 			//if (g_bProceduralSuns)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -6474,7 +6474,7 @@ HRESULT PrimarySurface::Flip(
 				g_bDepthBufferResolved = false;
 				g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 				g_bSwitchedToGUI = false;
-				g_bSunVisible = false;
+				g_bSunFlareVisible = false;
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;

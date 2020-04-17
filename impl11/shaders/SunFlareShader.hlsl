@@ -171,24 +171,16 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-	vec3 color = 0.0;
-	output.color = bgTex.Sample(bgSampler, input.uv);
-	float3 pos3D = depthTex.Sample(depthSampler, input.uv).xyz;
+	vec3 sunPos3D, color = 0.0;
+	//float3 pos3D = depthTex.Sample(depthSampler, input.uv).xyz;
 	vec2 sunPos = 0.0;
-
-	// DEBUG
-	//output.color = float4(input.uv, 0.0, 1.0);
-	//output.color.b += 0.1;
-	//return output;
-	// DEBUG
+	float d, dm;
+	output.color = bgTex.Sample(bgSampler, input.uv);
 
 	// Early exit: avoid rendering outside the original viewport edges, or when we're not rendering at infinity
 	if (any(input.uv < p0) || any(input.uv > p1)) // || pos3D.z < INFINITY_Z) We can display the lens flare on top of everything else
 		return output;
-
-	float d, dm;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
@@ -206,6 +198,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
 	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
+	// Sample the depth at the location of the sun:
+	sunPos3D = depthTex.Sample(depthSampler, vec2(SunX, SunY) / iResolution.xy).xyz;
+	// Avoid displaying any flare if the sun is occluded:
+	if (sunPos3D.z < INFINITY_Z)
+		return output;
+
 	vec3 flare = 2.0 * lensflare(v.xy, sunPos);
 	//float intensity = dot(0.333, flare);
 	//output.color.rgb = lerp(output.color.rgb, flare, intensity);
