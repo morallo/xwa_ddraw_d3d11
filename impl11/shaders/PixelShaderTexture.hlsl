@@ -76,7 +76,7 @@ cbuffer ConstantBuffer : register(b0)
 // I should remove this later...
 #include "ShaderToyDefs.h"
 
-#define SPEED 0.3
+#define SPEED 0.25
 #define PERIOD 4.0 // Increase this to make more/thinner rays
 
 // 3D noise from: https://www.shadertoy.com/view/4sfGzS
