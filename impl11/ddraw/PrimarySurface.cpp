@@ -32,7 +32,7 @@ extern float *g_fRawFOVDist;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 Matrix4 g_ReflRotX;
-extern XWALightInfoStruct g_bXWALightAuxInfo[MAX_XWA_LIGHTS];
+//extern XWALightInfoStruct g_bXWALightAuxInfo[MAX_XWA_LIGHTS];
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;

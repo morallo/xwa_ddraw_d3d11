@@ -146,7 +146,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = 0;
 		output.ssMask = 0;
 
-		vec3 corona_color = vec3(0.3, 0.3, 1.0);
+		// SunColor.a selects either white (0) or a light color (1) specified by SunColor.rgb:
+		float3 corona_color = lerp(1.0, SunColor.rgb, SunColor.a);
 		float2 v = float2(input.tex.xy - 0.5);
 		const float V_2 = dot(v, v);
 		float intensity = saturate(pow(0.01 / V_2, 1.8));
@@ -157,7 +158,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = float4(fBloomStrength * output.color.xyz * corona_color, intensity);
 
 		// Add the corona
-		vec2 pos = 8.0 * v;
+		float2 pos = 8.0 * v;
 		float r = length(pos);
 		v = pos / r;
 		r -= 1.0;

@@ -170,6 +170,7 @@ extern bool g_bAOEnabled;
 FILE *g_DebugFile = NULL;
 
 extern std::vector<ColorLightPair> g_TextureVector;
+extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 /* SteamVR HMD */
 extern vr::IVRSystem *g_pHMD;
@@ -861,16 +862,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	char* step = "";
 	DXGI_FORMAT oldFormat;
 
-	//log_debug("[DBG] OnSizeChanged called");
+	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
+
 	// Generic VR Initialization
 	// Replace the game's WndProc
 	if (!g_bWndProcReplaced) {
 		ReplaceWindowProc(hWnd);
 		g_bWndProcReplaced = true;
 	}
-
-	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
-
+	
 	if (g_bUseSteamVR) {
 		// dwWidth, dwHeight are the in-game's resolution
 		// When using SteamVR, let's override the size with the recommended size
@@ -885,6 +885,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_bCustomFOVApplied = false;
 
 	g_TextureVector.clear();
+	g_AuxTextureVector.clear();
 	DeleteRandomVectorTexture();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();

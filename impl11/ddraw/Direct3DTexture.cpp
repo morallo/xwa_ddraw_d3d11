@@ -19,6 +19,13 @@ const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 
 std::vector<ColorLightPair> g_TextureVector;
+/*
+ * Used to store a list of textures for fast lookup. For instance, all suns must
+ * have their associated lights reset after jumping through hyperspace; and all
+ * textures with materials can be placed here so that material properties can be
+ * applied while flying.
+ */
+std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 std::vector<char *> HUD_ResNames = {
 	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
@@ -362,7 +369,6 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
-	//this->crc = 0;
 	this->is_Tagged = false;
 	this->is_HUD = false;
 	this->is_TrianglePointer = false;
@@ -382,7 +388,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
 	this->is_Sun = false;
-	this->XWALightTested = false;
+	this->AssociatedXWALight = -1;
 	this->is_Debris = false;
 	this->is_Trail = false;
 	this->is_Spark = false;
@@ -623,8 +629,10 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, "dat,3051,") != NULL)
 			this->is_HyperspaceAnim = true;
 		// Catch the backdrup suns and mark them
-		if (isInVector(surface->_name, Sun_ResNames))
+		if (isInVector(surface->_name, Sun_ResNames)) {
 			this->is_Sun = true;
+			g_AuxTextureVector.push_back(this);
+		}
 		// Catch the space debris
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
 			this->is_Debris = true;
@@ -999,7 +1007,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
-	this->XWALightTested = d3dTexture->XWALightTested;
+	this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
 	this->is_Spark = d3dTexture->is_Spark;

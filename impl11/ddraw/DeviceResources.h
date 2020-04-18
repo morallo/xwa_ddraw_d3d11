@@ -483,6 +483,19 @@ typedef struct ColorLightPairStruct {
 	}
 } ColorLightPair;
 
+/*
+ * Used to store a list of textures for fast lookup. For instance, all suns must
+ * have their associated lights reset after jumping through hyperspace; and all
+ * textures with materials can be placed here so that material properties can be
+ * re-applied while flying.
+ */
+/*
+typedef struct AuxTextureDataStruct {
+	Direct3DTexture *texture;
+} AuxTextureData;
+*/
+
+/*
 class XWALightInfoStruct {
 public:
 	bool Tested, IsSun;
@@ -493,6 +506,7 @@ public:
 		IsSun = false;
 	}
 };
+*/
 
 // S0x07D4FA0
 struct XwaGlobalLight
