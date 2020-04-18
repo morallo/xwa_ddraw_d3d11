@@ -1570,6 +1570,45 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
 	snprintf(sFileName, iFileNameSize, "Materials\\%s.mat", OPTName);
 }
 
+bool GetGroupIdImageIdFromDATName(char *DATName, int *GroupId, int *ImageId) {
+	// Extract the Group Id and Image Id from the dat name:
+	// Sample dat name:
+	// [dat,9002,1200,0,0]
+	char *idx = strstr(DATName, "dat,");
+	if (idx == NULL) {
+		log_debug("[DBG] [MAT] Could not find 'dat,' substring in [%s]", DATName);
+		return false;
+	}
+	idx += 4; // Skip the "dat," token, we're now pointing to the first char of the Group Id
+	*GroupId = atoi(idx); // Convert the current string to the Group Id
+
+	// Advance to the next comma
+	idx = strstr(idx, ",");
+	if (idx == NULL) {
+		log_debug("[DBG] [MAT] Error while parsing [%s], could not find ImageId", DATName);
+		return false;
+	}
+	idx += 1; // Skip the comma
+	*ImageId = atoi(idx); // Convert the current string to the Image Id
+	return true;
+}
+
+/*
+ * Convert a DAT name into a MAT params file of the form:
+ * Materials\dat-<GroupId>-<ImageId>.mat
+ */
+void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize) {
+	int GroupId, ImageId;
+	// Get the GroupId and ImageId from the DATName, nullify sFileName if we can't extract
+	// the data from the name
+	if (!GetGroupIdImageIdFromDATName(DATName, &GroupId, &ImageId)) {
+		sFileName[0] = 0;
+		return;
+	}
+	// Build the material filename for the DAT texture:
+	snprintf(sFileName, iFileNameSize, "Materials\\dat-%d-%d.mat", GroupId, ImageId);
+}
+
 /*
  * Load the material parameters for an individual OPT.
  */
@@ -1748,7 +1787,7 @@ bool LoadLightColor(char *buf, Vector3 *Light)
 }
 
 /*
- * Load the material parameters for an individual OPT.
+ * Load the material parameters for an individual OPT or DAT
  */
 bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
@@ -6739,7 +6778,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
 
-				// Replace the sun textures
+				// Replace the sun textures with procedurally-generated suns
 				if (g_bProceduralSuns && bIsSun) {
 					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
@@ -6764,6 +6803,16 @@ HRESULT Direct3DDevice::Execute(
 					g_LaserPointerBuffer.y0 = y0;
 					g_LaserPointerBuffer.x1 = x1;
 					g_LaserPointerBuffer.y1 = y1;
+					// Use the material properties of this Sun -- if it has any associated with it
+					if (lastTextureSelected->bHasMaterial) {
+						g_PSCBuffer.SunColor[0] = lastTextureSelected->material.Light.x;
+						g_PSCBuffer.SunColor[1] = lastTextureSelected->material.Light.y;
+						g_PSCBuffer.SunColor[2] = lastTextureSelected->material.Light.z;
+						g_PSCBuffer.SunColor[3] = 1.0f;
+					} else
+						// By default suns don't have any color. We specify that by setting the alpha component to 0:
+						g_PSCBuffer.SunColor[3] = 0.0f;
+
 					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
 					{
 						float radius, intensity;
@@ -6779,83 +6828,82 @@ HRESULT Direct3DDevice::Execute(
 						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						g_ShadertoyBuffer.SunX = Centroid.x;
 						g_ShadertoyBuffer.SunY = Centroid.y;
-						//g_ShadertoyBuffer.SunColor = ...
-						
-						// By default suns don't have any color. We specify that by setting the alpha component to 0:
-						g_PSCBuffer.SunColor[3] = 0.0f;
 
 						// If this texture hasn't been tagged, then let's find its corresponding light source:
-						if (lastTextureSelected->AssociatedXWALight == -1) 
-						{
-							for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+						if (!lastTextureSelected->bHasMaterial) {
+							
+							// Associate an XWA light to this texture
+							if (lastTextureSelected->AssociatedXWALight == -1)
 							{
-								Vector4 xwaLight = Vector4(
-									s_XwaGlobalLights[i].PositionX / 32768.0f,
-									s_XwaGlobalLights[i].PositionY / 32768.0f,
-									s_XwaGlobalLights[i].PositionZ / 32768.0f,
-									0.0f);
-								// Convert the XWA light into viewspace coordinates:
-								Vector4 light = H * xwaLight;
-								// Compute the matrix that transforms [0,0,1] into the light's direction:
-								//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
-								//Vector2 Lcenter = Vector2(light.x, light.y);
-								//float intensity = 0.9f - Lcenter.length();
-								//if (intensity < 0.0f) intensity = 0.0f;
-								// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-								//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
-								//light.z = -light.z;
+								for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+								{
+									Vector4 xwaLight = Vector4(
+										s_XwaGlobalLights[i].PositionX / 32768.0f,
+										s_XwaGlobalLights[i].PositionY / 32768.0f,
+										s_XwaGlobalLights[i].PositionZ / 32768.0f,
+										0.0f);
+									// Convert the XWA light into viewspace coordinates:
+									Vector4 light = H * xwaLight;
+									// Compute the matrix that transforms [0,0,1] into the light's direction:
+									//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+									//Vector2 Lcenter = Vector2(light.x, light.y);
+									//float intensity = 0.9f - Lcenter.length();
+									//if (intensity < 0.0f) intensity = 0.0f;
+									// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
+									//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+									//light.z = -light.z;
 
-								// Only test lights in front of the camera:
-								if (light.z > 0.0f) {
-									// Convert the light direction into a position and project it into the screen
-									light *= 65536.0f;
-									Vector3 L = Vector3(light.x, light.y, light.z);
-									//L = project(L, g_viewMatrix, g_fullMatrixLeft);
-									L = projectToInGameCoords(L, g_viewMatrix, g_fullMatrixLeft);
-									// Convert in-game coords to desktop coords:
-									float X, Y;
-									InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-										(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
-									// Get the distance between the projected light source and the Sun's centroid, in desktop pixels:
-									Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
-									float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
+									// Only test lights in front of the camera:
+									if (light.z > 0.0f) {
+										// Convert the light direction into a position and project it into the screen
+										light *= 65536.0f;
+										Vector3 L = Vector3(light.x, light.y, light.z);
+										//L = project(L, g_viewMatrix, g_fullMatrixLeft);
+										L = projectToInGameCoords(L, g_viewMatrix, g_fullMatrixLeft);
+										// Convert in-game coords to desktop coords:
+										float X, Y;
+										InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+											(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
+										// Get the distance between the projected light source and the Sun's centroid, in desktop pixels:
+										Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
+										float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
 
-									// Empirically, I noticed that the maximum distance D between a sun's centroid and its matching
-									// light is near the edges of the screen, and this was ~0.099, so that's our threshold.
-									if (D < 0.125f) {
-										// Associate an XWA light to this texture and stop checking
-										lastTextureSelected->AssociatedXWALight = i;
-										log_debug("[DBG] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
-										log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
-											s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
-										break;
+										// Empirically, I noticed that the maximum distance D between a sun's centroid and its matching
+										// light is near the edges of the screen, and this was ~0.099, so that's our threshold.
+										if (D < 0.125f) {
+											// Associate an XWA light to this texture and stop checking
+											lastTextureSelected->AssociatedXWALight = i;
+											log_debug("[DBG] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
+											log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
+												s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
+											break;
+										}
+										/*
+										// In Skirmish mode, light index 1 is always the sun. So let's use that to
+										// debug things:
+
+				if (i == 1) {
+											//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
+											//log_debug("[DBG] D: %0.6f", D);
+											g_ShadertoyBuffer.LightX = X;
+											g_ShadertoyBuffer.LightY = Y;
+										}
+										*/
 									}
-									/*
-									// In Skirmish mode, light index 1 is always the sun. So let's use that to
-									// debug things:
-						
-			if (i == 1) {
-										//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
-										//log_debug("[DBG] D: %0.6f", D);
-										g_ShadertoyBuffer.LightX = X;
-										g_ShadertoyBuffer.LightY = Y;
-									}
-									*/
 								}
 							}
-						}
 
-						// This sun has an associated XWA light, let's send the color down to the pixel shader
-						if (lastTextureSelected->AssociatedXWALight != -1) {
-							int idx = lastTextureSelected->AssociatedXWALight;
-							float intensity = s_XwaGlobalLights[idx].Intensity;
-							intensity = min(intensity, 1.0f);
-							g_PSCBuffer.SunColor[0] = intensity * s_XwaGlobalLights[idx].ColorR;
-							g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
-							g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
-							g_PSCBuffer.SunColor[3] = 1.0f;
+							// This sun has an associated XWA light, let's send the color down to the pixel shader
+							if (lastTextureSelected->AssociatedXWALight != -1) {
+								int idx = lastTextureSelected->AssociatedXWALight;
+								float intensity = s_XwaGlobalLights[idx].Intensity;
+								intensity = min(intensity, 1.0f);
+								g_PSCBuffer.SunColor[0] = intensity * s_XwaGlobalLights[idx].ColorR;
+								g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
+								g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
+								g_PSCBuffer.SunColor[3] = 1.0f;
+							}
 						}
-
 					}
 				}
 

@@ -193,6 +193,7 @@ std::vector<CraftMaterials> g_Materials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
+void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
@@ -277,12 +278,14 @@ int FindCraftMaterial(char *OPTname) {
 
 /*
 Find the material in the specified CraftIndex of g_Materials that corresponds to
-TexName. Returns the default material if it wasn't found.
+TexName. Returns the default material if it wasn't found or if TexName is null/empty
 */
 Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
 	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
 	// Slot should always be present and it should be the default craft material
 	Material defMat = craftMats->MaterialList[0].material;
+	if (TexName == NULL || TexName[0] == 0)
+		return defMat;
 	for (uint32_t i = 1; i < craftMats->MaterialList.size(); i++) {
 		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
 			defMat = craftMats->MaterialList[i].material;
@@ -711,6 +714,7 @@ void Direct3DTexture::TagTexture() {
 		// Capture the OPT name
 		char *start = strstr(surface->_name, "\\");
 		char *end = strstr(surface->_name, ".opt");
+		char sFileName[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
 			int size = end - start;
@@ -719,11 +723,17 @@ void Direct3DTexture::TagTexture() {
 				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
 				// Add the name to the list of OPTnames so that we don't try to process it again
 				g_OPTnames.push_back(OPTname);
-				char sFileName[80];
-				OPTNameToMATParamsFile(OPTname.name, sFileName, 80);
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
 				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
 				LoadIndividualMATParams(OPTname.name, sFileName);
 			}
+		}
+		else if (strstr(surface->_name, "dat,") != NULL) {
+			// For DAT images, OPTname.name is the full DAT name:
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
+			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			if (sFileName[0] != 0)
+				LoadIndividualMATParams(OPTname.name, sFileName);
 		}
 	}
 
@@ -941,18 +951,33 @@ void Direct3DTexture::TagTexture() {
 		{
 			int craftIdx = FindCraftMaterial(OPTname.name);
 			if (craftIdx > -1) {
-				//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
-				char *start = strstr(surface->_name, ".opt");
-				// Skip the ".opt," part
-				start += 5;
-				// Find the next comma
-				char *end = strstr(start, ",");
-				int size = end - start;
 				char texname[MAX_TEXNAME];
-				strncpy_s(texname, MAX_TEXNAME, start, size);
+				bool bIsDat = strstr(OPTname.name, "dat,") != NULL;
+				// We need to check if this is a DAT or an OPT first
+				if (bIsDat) 
+				{
+					texname[0] = 0; // Retrieve the default material
+				}
+				else 
+				{
+					//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+					char *start = strstr(surface->_name, ".opt");
+					// Skip the ".opt," part
+					start += 5;
+					// Find the next comma
+					char *end = strstr(start, ",");
+					int size = end - start;
+					strncpy_s(texname, MAX_TEXNAME, start, size);
+				}
 				//log_debug("[DBG] [MAT] Looking for material for %s", texname);
 				this->material = FindMaterial(craftIdx, texname);
 				this->bHasMaterial = true;
+				// DEBUG
+				if (bIsDat) {
+					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
+						surface->_name, material.Light.x, material.Light.y, material.Light.z);
+				}
+				// DEBUG
 			}
 			//else {
 				// Material not found, use the default material (already created in the constructor)...
