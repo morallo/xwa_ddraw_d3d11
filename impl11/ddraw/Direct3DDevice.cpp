@@ -6812,6 +6812,7 @@ HRESULT Direct3DDevice::Execute(
 					} else
 						// By default suns don't have any color. We specify that by setting the alpha component to 0:
 						g_PSCBuffer.SunColor[3] = 0.0f;
+					memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
 
 					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
 					{
@@ -6902,6 +6903,7 @@ HRESULT Direct3DDevice::Execute(
 								g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
 								g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
 								g_PSCBuffer.SunColor[3] = 1.0f;
+								memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
 							}
 						}
 					}

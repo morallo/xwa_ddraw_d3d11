@@ -2,3 +2,9 @@
 Metallic   = 0.50
 Intensity  = 0.80
 Glossiness = 0.04
+
+; Enable the following to kill the glint in the cockpit glass near the top
+[TEX00030]
+Shadeless  = 1.0
+Intensity  = 0.0
+Glossiness = 0.0

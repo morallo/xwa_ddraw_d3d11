@@ -7,6 +7,7 @@
  * from: https://www.shadertoy.com/view/XdfXRX
  * musk's lense flare, modified by icecool.
  * See the original at: https://www.shadertoy.com/view/4sX3Rs
+ * Also from: https://www.shadertoy.com/view/Xlc3D2
  *
  * (c) Leo Reyes, 2020.
  */
@@ -61,6 +62,8 @@ cbuffer ConstantBuffer : register(b7)
 	float2 SunCoords; // Coordinates in desktop resolution
 	float2 LightPos; // Coordinates of the associated light
 	// 144 bytes
+	float4 SunColor;
+	// 160 bytes
 };
 
 struct PixelShaderInput
@@ -114,6 +117,44 @@ float lensflare(vec2 uv, vec2 pos, float flare_size, float ang_offset)
 }
 */
 
+float rnd(float w)
+{
+	float f = fract(sin(w)*1000.);
+	return f;
+}
+
+float regShape(vec2 p, int N)
+{
+	float f;
+	float a = atan2(p.x, p.y) + 0.2;
+	float b = 6.28319 / float(N);
+	f = smoothstep(0.5, 0.51, cos(floor(0.5 + a / b)*b - a) * length(p.xy));
+	return f;
+}
+
+float anamorphicFlare(vec2 U)
+{
+	vec2 A = vec2(0.0, 1.0);
+	U = mul(
+		float2x2(32, 2, 1, 2),
+		abs(mul(float2x2(A, -A.y, A.x), U))
+	);
+	return 0.05 / max(U.x, U.y);
+}
+
+// Hexagonal rays for the sun
+// from https://www.shadertoy.com/view/ltfGDs
+// 2dFoldings, inspired by Gaz/Knighty  see: https://www.shadertoy.com/view/4tX3DS
+vec2 foldHex(in vec2 p)
+{
+	p.xy = abs(p.xy);
+	const vec2 pl1 = vec2(-0.5, 0.8657);
+	const vec2 pl2 = vec2(-0.8657, 0.5);
+	p -= pl1 * 2.*min(0., dot(p, pl1));
+	p -= pl2 * 2.*min(0., dot(p, pl2));
+	return p;
+}
+
 // Full lens flare (the star spikes have been commented out)
 vec3 lensflare(vec2 coord, vec2 flare_pos)
 {
@@ -162,6 +203,27 @@ vec3 lensflare(vec2 coord, vec2 flare_pos)
 	c.g += f22 + f42 + f52 + f62 + fA2; 
 	c.b += f23 + f43 + f53 + f63 + fA3;
 	//c+=vec3(f0);
+
+	// Add hexagon lens flares
+	for (float i = 0.0; i < 5.0; i++) {
+		float dist = rnd(i * 20.0) * 3.0 + 0.2;
+		vec3 regColor = cos(vec3(0.44, 0.24, 0.2) * 8.0 + i * 4.0) * 0.5 + 0.5;
+		float s = max(0.01 - pow(regShape(coord * 5.0 + flare_pos * dist*5.0 + 0.9, 6), 1.0), 0.0);
+		c += s * regColor;
+	}
+
+	// Add a horizontal flare
+	vec3 flareColor = lerp(1.0, SunColor.rgb, SunColor.w);
+	c += flareColor * anamorphicFlare(coord - flare_pos);
+
+	/*
+	// Add hexagonal rays
+	float L = exp(-length(coord - flare_pos) * 5.0);
+	vec2 hexflare = foldHex(coord - flare_pos);
+	float f = 0.025 / hexflare.x * L;
+	c += flareColor * 0.05 * f;
+	*/
+
 	return c;
 }
 
