@@ -6789,15 +6789,15 @@ HRESULT Direct3DDevice::Execute(
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 					Matrix4 H = GetCurrentHeadingViewMatrix();
 
+					bModifiedShaders = true;
 					// Change the pixel shader to the SunShader:
 					bModifiedPixelShader = true;
 					resources->InitPixelShader(resources->_sunShaderPS);
 					// The Sun's texture will be displayed, so let's update some values
-					bModifiedShaders = true;
 					//g_bSunVisible = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
 					//g_PSCBuffer.bIsSun = 1; // No longer used
-					g_PSCBuffer.iTime = iTime;
+					g_ShadertoyBuffer.iTime = iTime;
 					//g_PSCBuffer.SunColor = ...
 					iTime += 0.01f;
 
@@ -6813,14 +6813,13 @@ HRESULT Direct3DDevice::Execute(
 					// Use the material properties of this Sun -- if it has any associated with it
 					// TODO: g_PSCBuffer.SunColor is no longer used, write the color directly to the shadertoy CB
 					if (lastTextureSelected->bHasMaterial) {
-						g_PSCBuffer.SunColor[0] = lastTextureSelected->material.Light.x;
-						g_PSCBuffer.SunColor[1] = lastTextureSelected->material.Light.y;
-						g_PSCBuffer.SunColor[2] = lastTextureSelected->material.Light.z;
-						g_PSCBuffer.SunColor[3] = 1.0f;
+						g_ShadertoyBuffer.SunColor[0] = lastTextureSelected->material.Light.x;
+						g_ShadertoyBuffer.SunColor[1] = lastTextureSelected->material.Light.y;
+						g_ShadertoyBuffer.SunColor[2] = lastTextureSelected->material.Light.z;
+						g_ShadertoyBuffer.SunColor[3] = 1.0f;
 					} else
 						// By default suns don't have any color. We specify that by setting the alpha component to 0:
-						g_PSCBuffer.SunColor[3] = 0.0f;
-					memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
+						g_ShadertoyBuffer.SunColor[3] = 0.0f;
 
 					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
 					{
@@ -6919,6 +6918,8 @@ HRESULT Direct3DDevice::Execute(
 						}
 						*/
 					}
+					// Set the constant buffer
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)

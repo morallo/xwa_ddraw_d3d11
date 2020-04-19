@@ -336,7 +336,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bIsSun; // TODO: No longer used in this shader, remove later
+	uint32_t ps_unused1; // Formerly this was bIsSun
 	// 32 bytes
 
 	float fBloomStrength;
@@ -351,10 +351,8 @@ typedef struct PixelShaderCBStruct {
 
 	float fSpecVal, fDisableDiffuse;
 	uint32_t debug;
-	float iTime;
+	float ps_unused2;
 	// 80 bytes
-	float SunColor[4]; // TODO: This has to be removed later
-	// 96 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

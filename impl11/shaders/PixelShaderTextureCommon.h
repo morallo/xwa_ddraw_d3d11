@@ -10,7 +10,7 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsSun;				// 1 if we're rendering a sun
+	uint ps_unused1;				// Formerly this was bIsSun
 	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect
@@ -25,10 +25,7 @@ cbuffer ConstantBuffer : register(b0)
 
 	float fSpecVal, fDisableDiffuse;
 	uint debug;
-	float iTime;
+	float ps_unused2;
 	// 80 bytes
-
-	float4 SunColor;
-	// 96 bytes
 };
 
