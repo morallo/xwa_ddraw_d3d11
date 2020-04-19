@@ -1,22 +1,5 @@
 #include "ShaderToyDefs.h"
-
-// ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, unused;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float2 p0, p1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-};
+#include "ShadertoyCBuffer.h"
 
 // This is the length of the effect in seconds: (used to be named "t2")
 static const float t2 = 2.0;
@@ -136,7 +119,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 uv = input.uv;
 	float x0 = 0.0, x1 = 1.0;
 
-	if (bDirectSBS) 
+	if (VRmode) 
 	{
 		if (uv.x < 0.5) {
 			scr_center = vec2(0.25, 0.5);

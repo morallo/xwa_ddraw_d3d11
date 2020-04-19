@@ -12,8 +12,9 @@
  * (c) Leo Reyes, 2020.
  */
 
-#include "ShaderToyDefs.h"
 #include "shading_system.h"
+#include "ShaderToyDefs.h"
+#include "ShadertoyCBuffer.h"
 
  // The background texture
 Texture2D    bgTex     : register(t0);
@@ -42,30 +43,6 @@ SamplerState depthSampler : register(s1);
 	vec3 final_col = gray + sat * (col - gray);
 
  */
-
-// ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, srand;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float2 p0, p1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-	float3 SunCoords; // Coordinates in desktop resolution
-	uint bVRmode;
-	//float2 LightPos; // Coordinates of the associated light
-	// 144 bytes
-	float4 SunColor;
-	// 160 bytes
-};
 
 struct PixelShaderInput
 {
@@ -324,7 +301,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	vec3 flare = 3.5 * lensflare(v.xy, sunPos);
+	vec3 flare = flare_intensity * lensflare(v.xy, sunPos);
 	//float intensity = dot(0.333, flare);
 	//output.color.rgb = lerp(output.color.rgb, flare, intensity);
 	output.color.rgb += flare;

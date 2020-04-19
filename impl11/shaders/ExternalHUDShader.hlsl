@@ -9,6 +9,7 @@
 
 #include "ShaderToyDefs.h"
 #include "shading_system.h"
+#include "ShadertoyCBuffer.h"
 
  // The background texture
 Texture2D    bgTex     : register(t0);
@@ -29,24 +30,6 @@ SamplerState bgSampler : register(s0);
 	vec3 final_col = gray + sat * (col - gray);
 
  */
-
-// ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, srand;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float2 p0, p1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-};
 
 struct PixelShaderInput
 {

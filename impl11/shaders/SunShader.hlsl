@@ -7,6 +7,7 @@
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
 #include "ShaderToyDefs.h"
+#include "ShadertoyCBuffer.h"
 
 #define SPEED 0.25
 #define PERIOD 4.0 // Increase this to make more/thinner rays
@@ -31,30 +32,6 @@ struct PixelShaderOutput
 	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
 	float4 ssMask   : SV_TARGET5;
-};
-
-// ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, srand;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float2 p0, p1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-	float3 SunCoords; // Coordinates in desktop resolution
-	//float2 LightPos; // Coordinates of the associated light
-	uint bVRmode;
-	// 144 bytes
-	float4 SunColor;
-	// 160 bytes
 };
 
 // 3D noise from: https://www.shadertoy.com/view/4sfGzS

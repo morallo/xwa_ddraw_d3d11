@@ -2750,6 +2750,8 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f; // Smaller numbers fade less
 	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
 
+	g_ShadertoyBuffer.flare_intensity = 2.0f;
+
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -2916,6 +2918,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "procedural_suns") == 0) {
 				g_bProceduralSuns = (bool)fValue;
+			}
+			else if (_stricmp(param, "flare_intensity") == 0) {
+				g_ShadertoyBuffer.flare_intensity = fValue;
 			}
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
@@ -6735,7 +6740,7 @@ HRESULT Direct3DDevice::Execute(
 							g_ShadertoyBuffer.SunX = Centroid.x;
 							g_ShadertoyBuffer.SunY = Centroid.y;
 							g_ShadertoyBuffer.SunZ = Centroid.z;
-							g_ShadertoyBuffer.bVRmode = 1;
+							g_ShadertoyBuffer.VRmode = 1;
 						}
 						else {
 							float X, Y;
@@ -6746,7 +6751,7 @@ HRESULT Direct3DDevice::Execute(
 							g_ShadertoyBuffer.SunX = X;
 							g_ShadertoyBuffer.SunY = Y;
 							g_ShadertoyBuffer.SunZ = 0.0f;
-							g_ShadertoyBuffer.bVRmode = 0;
+							g_ShadertoyBuffer.VRmode = 0;
 						}
 
 						// If this texture hasn't been tagged, then let's find its corresponding light source:

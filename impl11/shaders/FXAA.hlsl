@@ -3,6 +3,7 @@ From: https://www.shadertoy.com/view/ls3GWS
 and http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-glsl-opengl-test-radeon-geforce/3/
 */
 #include "ShaderToyDefs.h"
+#include "ShadertoyCBuffer.h"
 
 // The texture to apply AA to
 Texture2D    colorTex  : register(t0);
@@ -22,24 +23,6 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
-};
-
-// ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, unused;
-	// 16 bytes
-	float2 iResolution; // <-- This is the only field used in this shader
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
 };
 
 PixelShaderOutput main(PixelShaderInput input)

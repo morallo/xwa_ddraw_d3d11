@@ -4226,7 +4226,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.srand = g_fHyperspaceRand;
 	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
@@ -4762,7 +4762,7 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = 0;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
-	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
@@ -4918,7 +4918,7 @@ void PrimarySurface::RenderSun()
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
-	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader

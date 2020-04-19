@@ -239,7 +239,10 @@ typedef struct ShadertoyCBStruct {
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
-	int bDirectSBS; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	// 0: Non-VR, 1: DirectSBS, 2: SteamVR. 
+	// Set to 1 when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	// Used in the SunShader too.
+	int VRmode; 
 	float y_center;
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
@@ -251,8 +254,7 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float SunX, SunY, SunZ;
-	uint32_t bVRmode;
+	float SunX, SunY, SunZ, flare_intensity;
 	// 144 bytes
 	float4 SunColor;
 	// 160 bytes
