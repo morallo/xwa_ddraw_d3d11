@@ -251,9 +251,10 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float SunX, SunY, LightX, LightY;
+	float SunX, SunY, SunZ;
+	uint32_t bVRmode;
 	// 144 bytes
-	float SunColor[4];
+	float4 SunColor;
 	// 160 bytes
 } ShadertoyCBuffer;
 

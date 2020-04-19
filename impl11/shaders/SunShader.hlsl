@@ -49,8 +49,9 @@ cbuffer ConstantBuffer : register(b7)
 	uint bDisneyStyle, hyperspace_phase;
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float2 SunCoords; // Coordinates in desktop resolution
-	float2 LightPos; // Coordinates of the associated light
+	float3 SunCoords; // Coordinates in desktop resolution
+	//float2 LightPos; // Coordinates of the associated light
+	uint bVRmode;
 	// 144 bytes
 	float4 SunColor;
 	// 160 bytes

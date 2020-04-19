@@ -4904,6 +4904,7 @@ void PrimarySurface::RenderSun()
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	static float iTime = 0.0f;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -4915,12 +4916,13 @@ void PrimarySurface::RenderSun()
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.iTime = 0;
+	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
 	g_ShadertoyBuffer.bDirectSBS = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+	iTime += 0.01f;
 
 	resources->InitPixelShader(resources->_sunFlareShaderPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);

@@ -59,8 +59,9 @@ cbuffer ConstantBuffer : register(b7)
 	uint bDisneyStyle, hyperspace_phase;
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float2 SunCoords; // Coordinates in desktop resolution
-	float2 LightPos; // Coordinates of the associated light
+	float3 SunCoords; // Coordinates in desktop resolution
+	uint bVRmode;
+	//float2 LightPos; // Coordinates of the associated light
 	// 144 bytes
 	float4 SunColor;
 	// 160 bytes
@@ -155,6 +156,51 @@ vec2 foldHex(in vec2 p)
 	return p;
 }
 
+// Generates thick rays at regular intervals given by num_points
+float thickRays(vec2 uv, vec2 pos, float flare_size)
+{
+	vec2 main = uv - pos;
+	float dist = length(main);
+	float num_points = 6.0;
+	float inv_size = 1.0 / flare_size;
+	float ang = atan2(main.y, main.x) - 0.25;
+
+	float f0 = 1.0 / (dist * inv_size + 1.0);
+
+	//float ofs = 0.5 * iTime;
+	float ofs = 0.0;
+	float f1 = sin(ang * num_points);
+	f0 = f0 * f1;
+	//f0 = exp(-f0 * 100.0);
+	return max(0.0, f0);
+}
+
+float multiRays(vec2 uv, vec2 pos, float freq1, float freq2, float speed)
+{
+	vec2 main = uv - pos;
+	vec2 uvd = uv * (length(uv));
+
+	float ang = atan2(main.y, main.x);
+	float dist = length(main); dist = pow(dist, .1);
+	//float n = noise(vec2((ang-iTime/9.0)*16.0,dist*32.0));
+
+	float ofs = speed * iTime;
+	float f0 = 0.0;
+	f0 = 1.0 / (length(uv - pos) * 16.0 + 1.0);
+	//f0 = f0 * (sin(ang * 64.0) * 1.9 /* + dist * 0.1+0.8 */);
+
+	f0 = f0 * (
+		sin(
+			( 
+		      sin(ang*freq1 + pos.x + ofs) * 4.0 +
+			  cos(ang*freq2 + pos.y + ofs)
+			) * (2.5 + sin(ofs))
+		)
+	);
+
+	return max(f0*f0, 0.0);
+}
+
 // Full lens flare (the star spikes have been commented out)
 vec3 lensflare(vec2 coord, vec2 flare_pos)
 {
@@ -224,6 +270,9 @@ vec3 lensflare(vec2 coord, vec2 flare_pos)
 	c += flareColor * 0.05 * f;
 	*/
 
+	// Add hexagonal rays
+	//c += 3.5 * 3.0 * flareColor * thickRays(coord, flare_pos, 0.05) * multiRays(coord, flare_pos, 5.7, 5.2, 0.1);
+
 	return c;
 }
 
@@ -268,9 +317,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = -2.35 * vec2(-SunXL.x, SunYL);
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
-	sunPos = (2.0 * SunCoords - iResolution.xy) / min(iResolution.x, iResolution.y);
+	sunPos = (2.0 * SunCoords.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	// Sample the depth at the location of the sun:
-	sunPos3D = depthTex.Sample(depthSampler, SunCoords / iResolution.xy).xyz;
+	sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy / iResolution.xy).xyz;
 	// Avoid displaying any flare if the sun is occluded:
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
@@ -282,7 +331,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	return output;
 
 	// DEBUG
-	float3 col;
+	//float3 col;
 	/*
 	// Draw a reticle on top of the Sun:
 	col = float3(1.0, 0.0, 0.0); // Reticle color
@@ -295,6 +344,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	return output;
 	*/
 
+	/*
 	// Display the associated light
 	col = float3(0.0, 0.0, 1.0);
 	p += vec2(0, y_center);
@@ -307,6 +357,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	return output;
+	*/
 
 	// Display each light in the system
 	/*

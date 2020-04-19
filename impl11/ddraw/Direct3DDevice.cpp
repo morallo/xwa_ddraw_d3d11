@@ -4945,7 +4945,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 }
 
 /*
- Computes the centroid of the given texture, in desktop coordinates.
+ Computes the centroid of the given texture, returns a metric 3D point in space.
  We're using this to find the center of the Suns to add lens flare, etc.
 
  Returns true if the centroid could be computed (i.e. if the centroid is visible)
@@ -4965,117 +4965,30 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 	 q  is the cursor that goes from 0 to 1
 	 A  is the attribute at the current point we're interpolating
  */
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 *Centroid, bool debug)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX vert;
 	uint32_t index;
 	UINT idx = curIndex;
 	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
 
 	Vector3 tempv0, tempv1, tempv2, tempP;
-	int numTriangles = 0;
-	//*radius = 1.5f;
-
-	// Convert (LX, LY) into in-game pixels:
-	//LX = (LX + 0.5f) * g_fCurInGameWidth;
-	//LY = (-LY + 0.5f) * g_fCurInGameHeight;
-	
-	////Vector3 P = Vector3(LX, LY, LZ);
-	////Vector3 Q = projectToInGameCoords(P, g_viewMatrix, g_fullMatrixLeft);
-	////log_debug("[DBG] LX,LY: %0.3f %0.3f", LX, LY);
-	////log_debug("[DBG] Q.x,y: %0.3f, %0.3f", Q.x, Q.y);
-	//Vector2 L = Vector2(LX, LY);
-
-	//FILE *outFile = NULL;
-	//if (g_bDumpSSAOBuffers) {
-	//	fopen_s(&outFile, "./Centroid.txt", "wt");
-	//}
-
-	if (debug)
-		log_debug("[DBG] START Geom");
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		//if (g_bDumpSSAOBuffers)
-		//	fprintf(outFile, "-----------------\n");
+		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
-		//px0 = g_OrigVerts[index].sx; py0 = g_OrigVerts[index].sy; rhw0 = g_OrigVerts[index].rhw;
-		//U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv0);
-		//if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "px0,py0,rhw0: %0.6f, %0.6f %0.6f\n", px0, py0, rhw0);
-			//fprintf(outFile, "U0,V0: %0.6f, %0.6f\n", U0, V0);
-			//Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		//}
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f / vert.rhw,
-				tempv0.x, tempv0.y, tempv0.z,
-				q.x, q.y, 1.0f / q.z /*, dx, dy */);
-		}
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
-		//px1 = g_OrigVerts[index].sx; py1 = g_OrigVerts[index].sy; rhw1 = g_OrigVerts[index].rhw;
-		//U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv1);
-		//if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "px1,py1,rhw1: %0.6f, %0.6f, %0.6f\n", px1, py1, rhw1);
-			//fprintf(outFile, "U1,V1: %0.6f, %0.6f\n", U1, V1);
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
-			//Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		//}
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f / vert.rhw,
-				tempv1.x, tempv1.y, tempv1.z,
-				q.x, q.y, 1.0f / q.z /*, dx, dy */);
-		}
-
+		
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
-		//px2 = g_OrigVerts[index].sx; py2 = g_OrigVerts[index].sy; rhw2 = g_OrigVerts[index].rhw;
-		//U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
 		backProject(index, &tempv2);
-		//if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "px2,py2,rhw2: %0.6f, %0.6f, %0.6f\n", px2, py2, rhw2);
-			//fprintf(outFile, "U2,V2: %0.6f, %0.6f\n", U2, V2);
-			//Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		//}
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f / vert.rhw,
-				tempv2.x, tempv2.y, tempv2.z,
-				q.x, q.y, 1.0f / q.z /*, dx, dy */);
-		}
 
-		/*
-		if (IsInsideTriangle(L, P0, P1, P2)) {
-			if (debug)
-				log_debug("[DBG] L inside (%0.3f,%0.3f), (%0.3f,%0.3f), (%0.3f,%0.3f)",
-					P0.x, P0.y, P1.x, P1.y, P2.x, P2.y);
-			// Convert in-game to screen coords:
-			float X, Y;
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
-			g_ShadertoyBuffer.SunX = X;
-			g_ShadertoyBuffer.SunY = Y;
-			return true;
-		}
-		*/
-
-		// This code works fairly well; but there's still a little displacement in a few places
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			// Confirm:
@@ -5084,23 +4997,21 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			
 			// Compute the 3D vertex where the UV coords are 0.5, 0.5. By using the back-projected
 			// 3D vertices, we automatically get perspective-correct results when projecting back to 2D:
-			tempP = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			Vector3 q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
+			*Centroid = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			
+			/*
+			q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
 			
 			float X, Y;
 			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
 			Centroid->x = X;
 			Centroid->y = Y;
-			//if (g_bDumpSSAOBuffers) {
-			//	fprintf(outFile, "UV (0.5, 0.5) found in this triangle, u: %0.6f, v: %0.6f, q: %0.6f, %0.6f, X,Y: %0.6f, %0.6f\n",
-			//		u, v, q.x, q.y, X, Y);
-			//	fclose(outFile);
-			//}
+			*/
 			return true;
 		}
 		
-		triangle++; numTriangles++;
+		triangle++;
 	}
 
 	// For DirectSBS and especially for SteamVR, we need to backproject this
@@ -5120,11 +5031,6 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	}
 	*/
 
-	//if (g_bDumpSSAOBuffers)
-	//	fclose(outFile);
-
-	if (debug)
-		log_debug("[DBG] END Geom");
 	return false;
 }
 
@@ -6794,34 +6700,23 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedPixelShader = true;
 					resources->InitPixelShader(resources->_sunShaderPS);
 					// The Sun's texture will be displayed, so let's update some values
-					//g_bSunVisible = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
-					//g_PSCBuffer.bIsSun = 1; // No longer used
 					g_ShadertoyBuffer.iTime = iTime;
-					//g_PSCBuffer.SunColor = ...
 					iTime += 0.01f;
 
 					// Get the centroid of the sun
-					Vector2 Centroid;
-					float x0, y0, x1, y1;
-					GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-					// ComputeCentroid uses project() which needs the viewport coords in g_LaserPointerBuffer:
-					g_LaserPointerBuffer.x0 = x0;
-					g_LaserPointerBuffer.y0 = y0;
-					g_LaserPointerBuffer.x1 = x1;
-					g_LaserPointerBuffer.y1 = y1;
+					Vector3 Centroid;
+					// By default suns don't have any color. We specify that by setting the alpha component to 0:
+					g_ShadertoyBuffer.SunColor.w = 0.0f;
 					// Use the material properties of this Sun -- if it has any associated with it
-					// TODO: g_PSCBuffer.SunColor is no longer used, write the color directly to the shadertoy CB
 					if (lastTextureSelected->bHasMaterial) {
-						g_ShadertoyBuffer.SunColor[0] = lastTextureSelected->material.Light.x;
-						g_ShadertoyBuffer.SunColor[1] = lastTextureSelected->material.Light.y;
-						g_ShadertoyBuffer.SunColor[2] = lastTextureSelected->material.Light.z;
-						g_ShadertoyBuffer.SunColor[3] = 1.0f;
-					} else
-						// By default suns don't have any color. We specify that by setting the alpha component to 0:
-						g_ShadertoyBuffer.SunColor[3] = 0.0f;
+						g_ShadertoyBuffer.SunColor.x = lastTextureSelected->material.Light.x;
+						g_ShadertoyBuffer.SunColor.y = lastTextureSelected->material.Light.y;
+						g_ShadertoyBuffer.SunColor.z = lastTextureSelected->material.Light.z;
+						g_ShadertoyBuffer.SunColor.w = 1.0f;
+					}
 
-					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
+					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid))
 					{
 						/*
 						float radius, intensity;
@@ -6836,8 +6731,23 @@ HRESULT Direct3DDevice::Execute(
 						// If the centroid is visible, then let's display the sun flare:
 						g_bSunFlareVisible = true;
 						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
-						g_ShadertoyBuffer.SunX = Centroid.x;
-						g_ShadertoyBuffer.SunY = Centroid.y;
+						if (g_bEnableVR) {
+							g_ShadertoyBuffer.SunX = Centroid.x;
+							g_ShadertoyBuffer.SunY = Centroid.y;
+							g_ShadertoyBuffer.SunZ = Centroid.z;
+							g_ShadertoyBuffer.bVRmode = 1;
+						}
+						else {
+							float X, Y;
+							Vector3 q = projectToInGameCoords(Centroid, g_viewMatrix, g_fullMatrixLeft);
+
+							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+							g_ShadertoyBuffer.SunX = X;
+							g_ShadertoyBuffer.SunY = Y;
+							g_ShadertoyBuffer.SunZ = 0.0f;
+							g_ShadertoyBuffer.bVRmode = 0;
+						}
 
 						// If this texture hasn't been tagged, then let's find its corresponding light source:
 						// Finding the associated XWA light wasn't useful: most lights are white, so it's better
