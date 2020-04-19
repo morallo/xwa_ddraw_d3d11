@@ -130,9 +130,10 @@ bool ShutDownDirectSBS();
 extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
+extern uint32_t g_steamVRHeight;
 bool InitSteamVR();
 void ShutDownSteamVR();
-void ApplyFOV(float FOV);
+void ApplyFOV(float FOV, uint32_t displayHeight, bool calculateFocalLength);
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -190,19 +191,31 @@ void LoadFocalLength() {
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, "focal_length") == 0) {
-				ApplyFOV(fValue);
-				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
+				log_debug("[DBG] [FOV] Loaded focal_length to apply: %0.6f", fValue);
+				ApplyFOV(fValue, g_steamVRHeight, false);				
+			}
+			else if (_stricmp(param, "vFOV_degrees") == 0) {
+				log_debug("[DBG] [FOV] Loaded vFOV to apply (degrees): %0.6f", fValue);
+				ApplyFOV(fValue, g_steamVRHeight, true);				
 			}
 		}
 	}
 	fclose(file);
 }
 
-void ApplyFOV(float FOV) 
+void ApplyFOV(float FOV, uint32_t displayHeight, bool calculateFocalLength)
 {
+	if (calculateFocalLength) {
+		float FOV_rad = FOV / 57.295779513f;
+		FOV = (float)displayHeight / 2 / tan(FOV_rad/ 2);
+		log_debug("[DBG] [FOV] displayHeight for FOV calculation: %u", displayHeight);
+	}
+	
+	log_debug("[DBG] [FOV] Applying focal_length: %0.6f", FOV);
 	*g_fRawFOVDist = FOV;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+	
 }
 
 void IncreaseFOV(float delta) 
