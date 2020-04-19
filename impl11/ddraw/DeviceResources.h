@@ -336,7 +336,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bIsSun;
+	uint32_t bIsSun; // TODO: No longer used in this shader, remove later
 	// 32 bytes
 
 	float fBloomStrength;
@@ -353,7 +353,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t debug;
 	float iTime;
 	// 80 bytes
-	float SunColor[4];
+	float SunColor[4]; // TODO: This has to be removed later
 	// 96 bytes
 } PixelShaderCBuffer;
 
@@ -823,7 +823,8 @@ public:
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
 	ComPtr<ID3D11PixelShader> _externalHUDPS;
-	ComPtr<ID3D11PixelShader> _sunPS;
+	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
+	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

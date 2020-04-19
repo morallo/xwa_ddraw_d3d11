@@ -4922,7 +4922,7 @@ void PrimarySurface::RenderSun()
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
-	resources->InitPixelShader(resources->_sunPS);
+	resources->InitPixelShader(resources->_sunFlareShaderPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);

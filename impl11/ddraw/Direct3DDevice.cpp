@@ -5460,7 +5460,7 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	bool bModifiedShaders = false, bZWriteEnabled = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
 
 	g_VSCBuffer = { 0 };
 	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
@@ -5748,7 +5748,10 @@ HRESULT Direct3DDevice::Execute(
 						}
 
 						resources->InitPixelShader(pixelShader);
+						// Save the last pixel shader set (in this case, that's either the
+						// pixelshadertexture or the pixelshadersolid
 						lastPixelShader = pixelShader;
+						bModifiedPixelShader = false;
 						break;
 					}
 
@@ -6727,6 +6730,7 @@ HRESULT Direct3DDevice::Execute(
 				// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders = false;
+				bModifiedPixelShader = false;
 
 				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
 #ifdef DISABLED
@@ -6785,11 +6789,14 @@ HRESULT Direct3DDevice::Execute(
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 					Matrix4 H = GetCurrentHeadingViewMatrix();
 
+					// Change the pixel shader to the SunShader:
+					bModifiedPixelShader = true;
+					resources->InitPixelShader(resources->_sunShaderPS);
 					// The Sun's texture will be displayed, so let's update some values
 					bModifiedShaders = true;
 					//g_bSunVisible = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
-					g_PSCBuffer.bIsSun = 1;
+					//g_PSCBuffer.bIsSun = 1; // No longer used
 					g_PSCBuffer.iTime = iTime;
 					//g_PSCBuffer.SunColor = ...
 					iTime += 0.01f;
@@ -6804,6 +6811,7 @@ HRESULT Direct3DDevice::Execute(
 					g_LaserPointerBuffer.x1 = x1;
 					g_LaserPointerBuffer.y1 = y1;
 					// Use the material properties of this Sun -- if it has any associated with it
+					// TODO: g_PSCBuffer.SunColor is no longer used, write the color directly to the shadertoy CB
 					if (lastTextureSelected->bHasMaterial) {
 						g_PSCBuffer.SunColor[0] = lastTextureSelected->material.Light.x;
 						g_PSCBuffer.SunColor[1] = lastTextureSelected->material.Light.y;
@@ -6816,6 +6824,7 @@ HRESULT Direct3DDevice::Execute(
 
 					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid, false))
 					{
+						/*
 						float radius, intensity;
 						Vector2 P = Centroid;
 						P.x = P.x * g_fCurScreenWidthRcp - 0.5f;
@@ -6823,6 +6832,7 @@ HRESULT Direct3DDevice::Execute(
 						radius = sqrt(P.x*P.x + P.y*P.y);
 						intensity = 0.8f - radius;
 						if (intensity < 0.0f) intensity = 0.0f;
+						*/
 
 						// If the centroid is visible, then let's display the sun flare:
 						g_bSunFlareVisible = true;
@@ -6831,6 +6841,9 @@ HRESULT Direct3DDevice::Execute(
 						g_ShadertoyBuffer.SunY = Centroid.y;
 
 						// If this texture hasn't been tagged, then let's find its corresponding light source:
+						// Finding the associated XWA light wasn't useful: most lights are white, so it's better
+						// to read the properties from the MAT file.
+						/*
 						if (!lastTextureSelected->bHasMaterial) {
 							
 							// Associate an XWA light to this texture
@@ -6879,17 +6892,15 @@ HRESULT Direct3DDevice::Execute(
 												s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
 											break;
 										}
-										/*
+										
 										// In Skirmish mode, light index 1 is always the sun. So let's use that to
 										// debug things:
-
-				if (i == 1) {
-											//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
-											//log_debug("[DBG] D: %0.6f", D);
-											g_ShadertoyBuffer.LightX = X;
-											g_ShadertoyBuffer.LightY = Y;
-										}
-										*/
+										//if (i == 1) {
+										//	//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
+										//	//log_debug("[DBG] D: %0.6f", D);
+										//	g_ShadertoyBuffer.LightX = X;
+										//	g_ShadertoyBuffer.LightY = Y;
+										//}
 									}
 								}
 							}
@@ -6906,6 +6917,7 @@ HRESULT Direct3DDevice::Execute(
 								memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
 							}
 						}
+						*/
 					}
 				}
 
@@ -7082,6 +7094,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Restore the previous pixel shader
+					//bModifiedPixelShader = true;
 					//resources->InitPixelShader(lastPixelShader);
 
 					// Restore the original blend state
@@ -7222,10 +7235,14 @@ HRESULT Direct3DDevice::Execute(
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							if (g_PSCBuffer.DynCockpitSlots > 0)
+							if (g_PSCBuffer.DynCockpitSlots > 0) {
+								bModifiedPixelShader = true;
 								resources->InitPixelShader(resources->_pixelShaderDC);
-							else if (g_PSCBuffer.bUseCoverTexture)
+							}
+							else if (g_PSCBuffer.bUseCoverTexture) {
+								bModifiedPixelShader = true;
 								resources->InitPixelShader(resources->_pixelShaderEmptyDC);
+							}
 						} // if dc_element->bActive
 					}
 					// TODO: I should probably put an assert here since this shouldn't happen
@@ -7614,8 +7631,12 @@ HRESULT Direct3DDevice::Execute(
 						g_DCPSCBuffer = { 0 };
 						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;
 						// Restore the regular pixel shader (disable the PixelShaderDC)
-						resources->InitPixelShader(lastPixelShader);
+						//resources->InitPixelShader(lastPixelShader);
 					}
+
+					if (bModifiedPixelShader)
+						resources->InitPixelShader(lastPixelShader);
+
 					// Remove the cover texture
 					//context->PSSetShaderResources(1, 1, NULL);
 					//g_PSCBuffer.bUseCoverTexture  = 0;
