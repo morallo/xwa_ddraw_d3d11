@@ -32,7 +32,14 @@ extern float *g_fRawFOVDist;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 Matrix4 g_ReflRotX;
-//extern XWALightInfoStruct g_bXWALightAuxInfo[MAX_XWA_LIGHTS];
+
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
+inline void backProject(float sx, float sy, float rhw, Vector3 *P);
+inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+bool rayTriangleIntersect(
+	const Vector3 &orig, const Vector3 &dir,
+	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
+	float &t, Vector3 &P, float &u, float &v);
 
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
@@ -64,7 +71,6 @@ extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g
 extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx;
@@ -108,7 +114,7 @@ extern Vector3 g_headCenter;
 extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot;
-extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
+extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -2086,7 +2092,7 @@ void PrimarySurface::DrawHUDVertices() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the left projection matrix
-	g_VSMatrixCB.projEye = g_fullMatrixLeft;
+	g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Set the HUD foreground and background textures:
@@ -2120,7 +2126,7 @@ void PrimarySurface::DrawHUDVertices() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the right projection matrix
-	g_VSMatrixCB.projEye = g_fullMatrixRight;
+	g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
 	context->Draw(6, 0);
@@ -4286,7 +4292,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4323,7 +4329,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
@@ -4388,7 +4394,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -4400,7 +4406,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		else
 			// The original (non-VR) code used _vertexShader:
 			resources->InitVertexShader(resources->_vertexShader);
-		
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4429,7 +4434,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -4818,7 +4823,7 @@ void PrimarySurface::RenderExternalHUD()
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -4863,14 +4868,14 @@ void PrimarySurface::RenderExternalHUD()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_fullMatrixRight;
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
 				ID3D11ShaderResourceView *srvs[1] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
 				};
 				context->PSSetShaderResources(0, 1, srvs);
 			}
@@ -4878,7 +4883,7 @@ void PrimarySurface::RenderExternalHUD()
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 				// Set the SRVs:
 				ID3D11ShaderResourceView *srvs[1] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_offscreenAsInputShaderResourceView.Get(),
 				};
 				context->PSSetShaderResources(0, 1, srvs);
 			}
@@ -4895,7 +4900,7 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
-void PrimarySurface::RenderSun()
+void PrimarySurface::RenderSunFlare()
 {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -4905,13 +4910,10 @@ void PrimarySurface::RenderSun()
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	static float iTime = 0.0f;
+	Vector3 Q, QL, QR, Centroid;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	// We don't set the craft's direction here. If a Sun is visible, the direction matrix is
-	// computed in the Execute() function and it must be set already by the time we reach
-	// this point.
-	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -4921,6 +4923,83 @@ void PrimarySurface::RenderSun()
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	Centroid.x = g_ShadertoyBuffer.SunX;
+	Centroid.y = g_ShadertoyBuffer.SunY;
+	Centroid.z = g_ShadertoyBuffer.SunZ;
+	/*
+	 * The following circus happens because the vertex buffer we're using to render the flare
+	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
+	 * from the camera through the Centroid and then extend that until it intersects the vertex
+	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
+	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
+	 * canvas (the vertex buffer at ~21km) that gets transformed with the regular projection matrices.
+	 */
+	if (g_bEnableVR) {
+		float U0, U1, U2;
+		float V0, V1, V2;
+		Vector3 v0, v1, v2, P, orig = Vector3(0.0f, 0.0f, 0.0f), dir;
+		float t, tu, tv, u, v;
+		// The depth of the hyperspace buffer is: 
+		float hb_rhw_depth = 0.000863f;
+		//g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
+
+		/*
+		// Back-project to the depth of the vertex buffer we're using here:
+		backProject(QL.x, QL.y, hb_rhw_depth, &QL);
+		backProject(QR.x, QR.y, hb_rhw_depth, &QR);
+		log_debug("[DBG] Centroid: %0.3f, %0.3f, %0.3f --> Q: %0.3f, %0.3f, %0.3f",
+			Centroid.x, Centroid.y, Centroid.z, QL.x, QL.y, QL.z);
+		*/
+
+		// Convert the centroid into a direction coming from the origin:
+		dir = Centroid;
+		dir.normalize();
+
+		backProject(0.0f, 0.0f, hb_rhw_depth, &v0);
+		backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
+		backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+		
+		if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv)) {
+			U0 = 0.0f; U1 = 1.0f; U2 = 0.0f;
+			V0 = 0.0f; V1 = 0.0f; V2 = 1.0f;
+			// Interpolate the texture UV using the barycentric (tu, tv) coords:
+			u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+			v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+			//log_debug("[DBG] P: %0.3f, %0.3f, %0.3f, uv: %0.3f, %0.3f",
+			//	P.x, P.y, P.z, u, v);
+			// Change the range to -1..1:
+			u = 2.0f * u - 1.0f;
+			v = 2.0f * v - 1.0f;
+			// Apply the aspect ratio
+			u *= g_fAspectRatio;
+			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
+			QL.y = QR.y = v;
+		}
+		else {
+			backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
+			backProject(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
+			backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+			U0 = 1.0f; U1 = 1.0f; U2 = 0.0f;
+			V0 = 0.0f; V1 = 1.0f; V2 = 1.0f;
+			rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv);
+			// Interpolate the texture UV using the barycentric (tu, tv) coords:
+			u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+			v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+			//log_debug("[DBG] P: %0.3f, %0.3f, %0.3f, uv: %0.3f, %0.3f",
+			//	P.x, P.y, P.z, u, v);
+			// Change the range to -1..1:
+			u = 2.0f * u - 1.0f;
+			v = 2.0f * v - 1.0f;
+			// Apply the aspect ratio
+			u *= g_fAspectRatio;
+			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
+			QL.y = QR.y = v;
+		}
+
+		// Overwrite the centroid with the new 2D coordinates for the left image
+		g_ShadertoyBuffer.SunX = QL.x;
+		g_ShadertoyBuffer.SunY = QL.y;
+	}
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	iTime += 0.01f;
 
@@ -4930,10 +5009,11 @@ void PrimarySurface::RenderSun()
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-	// Render the Sun
+
+	// Render the Sun Flare
 	{
 		// Set the new viewport (a full quad covering the full screen)
-		viewport.Width = g_fCurScreenWidth;
+		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
@@ -4951,13 +5031,13 @@ void PrimarySurface::RenderSun()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
-		g_VSCBuffer.bPreventTransform = 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
+		g_VSCBuffer.aspect_ratio		=  g_fAspectRatio;
+		g_VSCBuffer.z_override			= -1.0f;
+		g_VSCBuffer.sz_override			= -1.0f;
+		g_VSCBuffer.mult_z_override		= -1.0f;
+		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.bPreventTransform	=  0.0f;
+		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR)
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
@@ -4965,17 +5045,17 @@ void PrimarySurface::RenderSun()
 		}
 		else
 		{
-			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.z_override	= 65535.0f;
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -4986,7 +5066,6 @@ void PrimarySurface::RenderSun()
 			resources->InitVertexShader(resources->_sbsVertexShader);
 		else
 			resources->InitVertexShader(resources->_vertexShader);
-
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -5003,45 +5082,166 @@ void PrimarySurface::RenderSun()
 		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 
-		// Render the right image
+		
 		if (g_bEnableVR) {
-			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
-			viewport.Height = (float)resources->_backbufferHeight;
-			viewport.TopLeftY = 0.0f;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_fullMatrixRight;
-			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+			// Render the right image
+			{
+				// VIEWPORT-RIGHT
+				if (g_bUseSteamVR) {
+					context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+					viewport.Width = (float)resources->_backbufferWidth;
+					viewport.TopLeftX = 0.0f;
+				}
+				else {
+					viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+					viewport.TopLeftX = (float)viewport.Width;
+				}
+				viewport.Height = (float)resources->_backbufferHeight;
+				viewport.TopLeftY = 0.0f;
+				viewport.MinDepth = D3D11_MIN_DEPTH;
+				viewport.MaxDepth = D3D11_MAX_DEPTH;
+				resources->InitViewport(&viewport);
+				// Set the right projection matrix
+				g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+				resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+				// Overwrite the centroid with the new 2D coordinates for the right image
+				g_ShadertoyBuffer.SunX = QR.x;
+				g_ShadertoyBuffer.SunY = QR.y;
+				resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+				if (g_bUseSteamVR) {
+					context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+					// Set the SRVs:
+					ID3D11ShaderResourceView *srvs[2] = {
+						resources->_offscreenAsInputShaderResourceViewR.Get(),
+						resources->_depthBufSRV_R.Get(),
+					};
+					context->PSSetShaderResources(0, 2, srvs);
+				}
+				else {
+					// DirectSBS case
+					context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+					// Set the SRVs:
+					ID3D11ShaderResourceView *srvs[2] = {
+						resources->_offscreenAsInputShaderResourceView.Get(),
+						resources->_depthBufSRV.Get(),
+					};
+					context->PSSetShaderResources(0, 2, srvs);
+				}
+				context->Draw(6, 0);
+			}
+
+			// Post-process: compose the flare on top of the offscreen buffers
+			{
+				// Reset the viewport for non-VR mode:
+				viewport.TopLeftX = 0.0f;
+				viewport.TopLeftY = 0.0f;
+				viewport.Width    = g_fCurScreenWidth;
+				viewport.Height   = g_fCurScreenHeight;
+				viewport.MaxDepth = D3D11_MAX_DEPTH;
+				viewport.MinDepth = D3D11_MIN_DEPTH;
+				resources->InitViewport(&viewport);
+
+				// Reset the vertex shader to regular 2D post-process
+				// Set the Vertex Shader Constant buffers
+				resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+					0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+				// Set/Create the VertexBuffer and set the topology, etc
+				if (resources->_barrelEffectVertBuffer == nullptr) {
+					D3D11_BUFFER_DESC vertexBufferDesc;
+					ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+					vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+					vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+					vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+					vertexBufferDesc.CPUAccessFlags = 0;
+					vertexBufferDesc.MiscFlags = 0;
+
+					D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+					ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+					vertexBufferData.pSysMem = g_BarrelEffectVertices;
+					device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
+				}
+
+				UINT stride = sizeof(MainVertex), offset = 0;
+				resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+				resources->InitInputLayout(resources->_mainInputLayout);
+				resources->InitVertexShader(resources->_mainVertexShader);
+
+				// Reset the UV limits for this shader
+				GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+				g_ShadertoyBuffer.x0 = x0;
+				g_ShadertoyBuffer.y0 = y0;
+				g_ShadertoyBuffer.x1 = x1;
+				g_ShadertoyBuffer.y1 = y1;
+				g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+				g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+				// Project the centroid to the left/right eyes
+				QL = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+				g_ShadertoyBuffer.SunX = QL.x;
+				g_ShadertoyBuffer.SunY = QL.y;
+				resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+				resources->InitPixelShader(resources->_sunFlareComposeShaderPS);
+
+				// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+				// to _shaderToyBuf to re-use in the next step:
+				context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+				if (g_bUseSteamVR)
+					context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+				context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+				if (!g_bReshadeEnabled) {
+					ID3D11RenderTargetView *rtvs[1] = {
+						resources->_renderTargetViewPost.Get(),
+					};
+					context->OMSetRenderTargets(1, rtvs, NULL);
+				}
+				else {
+					ID3D11RenderTargetView *rtvs[1] = {
+						resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+					};
+					context->OMSetRenderTargets(1, rtvs, NULL);
+				}
 				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
+				ID3D11ShaderResourceView *srvs[3] = {
 					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_shadertoySRV.Get(),
+					resources->_depthBufSRV.Get(),
 				};
-				context->PSSetShaderResources(0, 1, srvs);
+				context->PSSetShaderResources(0, 3, srvs);
+				context->Draw(6, 0);
+
+				// Post-process the right image
+				if (g_bUseSteamVR) {
+					QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+					g_ShadertoyBuffer.SunX = QR.x;
+					g_ShadertoyBuffer.SunY = QR.y;
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+					context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+					if (!g_bReshadeEnabled) {
+						ID3D11RenderTargetView *rtvs[1] = {
+							resources->_renderTargetViewPostR.Get(),
+						};
+						context->OMSetRenderTargets(1, rtvs, NULL);
+					}
+					else {
+						ID3D11RenderTargetView *rtvs[1] = {
+							resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+						};
+						context->OMSetRenderTargets(1, rtvs, NULL);
+					}
+					// Set the SRVs:
+					ID3D11ShaderResourceView *srvs[3] = {
+						resources->_offscreenAsInputShaderResourceViewR.Get(),
+						resources->_shadertoySRV_R.Get(),
+						resources->_depthBufSRV_R.Get(),
+					};
+					context->PSSetShaderResources(0, 3, srvs);
+					context->Draw(6, 0);
+				}
 			}
-			else {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_depthBufSRV_R.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			context->Draw(6, 0);
 		}
 
 		// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
@@ -5189,7 +5389,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	Matrix4 viewMatrix = g_viewMatrix;
 	viewMatrix.invert();
 	if (bProjectContOrigin) {
-		pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
+		pos2D = project(contOriginDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -5207,9 +5407,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay = g_LaserPointer3DIntersection;
 		if (g_LaserPointerBuffer.bDebugMode) {
 			Vector3 q;
-			q = project(g_debug_v0, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = project(g_debug_v1, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = project(g_debug_v2, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			q = project(g_debug_v0, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = project(g_debug_v1, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = project(g_debug_v2, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 		}
 	} 
 	else {
@@ -5219,7 +5419,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
-	pos2D = project(intersDisplay, viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
+	pos2D = project(intersDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 	g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
@@ -5283,7 +5483,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
-		Vector3 p = project(pos3D, g_viewMatrix, g_fullMatrixLeft /*, NULL, NULL*/);
+		Vector3 p = project(pos3D, g_viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
@@ -5372,7 +5572,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				pos2D = project(contOriginDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
+				pos2D = project(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
@@ -5381,15 +5581,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = project(intersDisplay, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/);
+			pos2D = project(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = project(g_debug_v0, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, viewMatrix, g_fullMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				q = project(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = project(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = project(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT
@@ -6187,6 +6387,42 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
+			// Render the sun flare (if applicable)
+			if (g_bProceduralSuns && g_bSunFlareVisible)
+			{
+				// We need to set the blend state properly for Bloom, or else we might get
+				// different results when brackets are rendered because they alter the 
+				// blend state
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it for post-proc effects
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				RenderSunFlare();
+			}
+
+			if (g_bDumpSSAOBuffers) {
+				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost.png");
+				//DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferPost, L"C:\\Temp\\_offscreenBufferPost.dds");
+			}
+
 			// Apply FXAA
 			if (g_config.FXAAEnabled)
 			{
@@ -6257,41 +6493,6 @@ HRESULT PrimarySurface::Flip(
 				if (g_bUseSteamVR)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
-			}
-
-			// Render the external sun (if applicable)
-			if (g_bProceduralSuns && g_bSunFlareVisible)
-			//if (g_bProceduralSuns)
-			{
-				// We need to set the blend state properly for Bloom, or else we might get
-				// different results when brackets are rendered because they alter the 
-				// blend state
-				D3D11_BLEND_DESC blendDesc{};
-				blendDesc.AlphaToCoverageEnable = FALSE;
-				blendDesc.IndependentBlendEnable = FALSE;
-				blendDesc.RenderTarget[0].BlendEnable = TRUE;
-				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-				hr = resources->InitBlendState(nullptr, &blendDesc);
-
-				// Temporarily disable ZWrite: we won't need it to display Bloom
-				D3D11_DEPTH_STENCIL_DESC desc;
-				ComPtr<ID3D11DepthStencilState> depthState;
-				desc.DepthEnable = FALSE;
-				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-				desc.StencilEnable = FALSE;
-				resources->InitDepthStencilState(depthState, &desc);
-
-				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-				RenderSun();
 			}
 
 			// Apply the Bloom effect
@@ -6398,7 +6599,7 @@ HRESULT PrimarySurface::Flip(
 				// DEBUG
 			}
 
-			// Apply the HUD *after* we have re-shaded it (if necessary)
+			// Draw the HUD
 			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 			if ((g_bDCManualActivate || bExteriorCamera)&& (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
@@ -6415,7 +6616,6 @@ HRESULT PrimarySurface::Flip(
 			// Render the Laser Pointer for VR
 			if (g_bActiveCockpitEnabled && g_bRendering3D && !PlayerDataTable[*g_playerIndex].externalCamera)
 			{
-				
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
@@ -6426,7 +6626,7 @@ HRESULT PrimarySurface::Flip(
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
-			// The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
+			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR) {
 					if (!g_bDisableBarrelEffect) {

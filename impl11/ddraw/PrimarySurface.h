@@ -95,7 +95,7 @@ public:
 
 	void RenderExternalHUD();
 
-	void RenderSun();
+	void RenderSunFlare();
 
 	void ACRunAction(WORD * action);
 

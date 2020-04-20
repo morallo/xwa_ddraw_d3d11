@@ -59,6 +59,7 @@
     <FxCompile Include="ExternalHUDShader.hlsl" />
     <FxCompile Include="SunFlareShader.hlsl" />
     <FxCompile Include="SunShader.hlsl" />
+    <FxCompile Include="SunFlareCompose.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

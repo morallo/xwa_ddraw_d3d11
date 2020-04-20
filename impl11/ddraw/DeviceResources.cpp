@@ -53,6 +53,7 @@
 #include "../Debug/ExternalHUDShader.h"
 #include "../Debug/SunFlareShader.h"
 #include "../Debug/SunShader.h"
+#include "../Debug/SunFlareCompose.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -98,6 +99,7 @@
 #include "../Release/ExternalHUDShader.h"
 #include "../Release/SunFlareShader.h"
 #include "../Release/SunShader.h"
+#include "../Release/SunFlareCompose.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -119,7 +121,7 @@ extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio, g_bCusto
 extern int g_iPresentCounter;
 int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
-extern Matrix4 g_fullMatrixLeft, g_fullMatrixRight;
+extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 extern VertexShaderMatrixCB g_VSMatrixCB;
 // DYNAMIC COCKPIT
 extern dc_element g_DCElements[];
@@ -2662,6 +2664,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2920,6 +2925,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -3894,7 +3902,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
-		g_VSMatrixCB.projEye = g_fullMatrixLeft;
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		if (g_bUseSteamVR)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
@@ -3919,7 +3927,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-		g_VSMatrixCB.projEye = g_fullMatrixRight;
+		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		if (g_bUseSteamVR)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());

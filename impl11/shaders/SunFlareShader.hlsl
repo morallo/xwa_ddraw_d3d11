@@ -32,6 +32,14 @@ SamplerState depthSampler : register(s1);
 #define scale 2.0
 // DEBUG
 
+// VertexShaderMatrixCB
+cbuffer ConstantBuffer : register(b1)
+{
+	matrix projEyeMatrix;
+	matrix viewMatrix;
+	matrix fullViewMatrix;
+};
+
 /*
 	// saturation test:
 
@@ -273,11 +281,17 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//float3 pos3D = depthTex.Sample(depthSampler, input.uv).xyz;
 	vec2 sunPos = 0.0;
 	float d, dm;
-	output.color = bgTex.Sample(bgSampler, input.uv);
+	if (VRmode == 1)
+		//output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0));
+		output.color = float4(0, 0, 0, 1);
+	else
+		output.color = bgTex.Sample(bgSampler, input.uv);
 
-	// Early exit: avoid rendering outside the original viewport edges, or when we're not rendering at infinity
-	if (any(input.uv < p0) || any(input.uv > p1)) // || pos3D.z < INFINITY_Z) We can display the lens flare on top of everything else
+	// Early exit: avoid rendering outside the original viewport edges
+	if (any(input.uv < p0) || any(input.uv > p1)) {
+		output.color = float4(0, 0, 1, 1); // DEBUG
 		return output;
+	}
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
@@ -294,22 +308,41 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//vec2 sunPos = -2.35 * vec2(-SunXL.x, SunYL);
 	//vec2 sunPos = debugFOV * vec2(-SunXL.x, SunYL);
 
-	sunPos = (2.0 * SunCoords.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
-	// Sample the depth at the location of the sun:
-	sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy / iResolution.xy).xyz;
+	// Non-VR path: coords are already 2D
+	if (VRmode == 0) {
+		// sunPos is (0,0) at the screen center and is in the range -1..1 for each axis
+		sunPos = (2.0 * SunCoords.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+		// Sample the depth at the location of the sun:
+		sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy / iResolution.xy).xyz;
+	}
+	else {
+		//p = 2.0 * input.uv - 1.0;
+		//float4 pos = mul(projEyeMatrix, mul(fullViewMatrix, float4(SunCoords.x, -SunCoords.y, -SunCoords.z, 1)));
+		//sunPos.xy = pos.xy / pos.w;
+		//sunPos.xy = SunCoords.xy;
+		//sunPos = (2.0 * iResolution.xy * SunCoords.xy - iResolution.xy) / iResolution.xy;
+		//sunPos = 2.0 * SunCoords.xy - 1.0;
+		sunPos = SunCoords.xy;
+		//sunPos = float2(0.0, -1.0);
+		// Sample the depth at the location of the sun:
+		//sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy * 0.5 + 0.5).xyz;
+		sunPos3D.z = INFINITY_Z + 500; // DEBUG, compute the right depth value later
+		//output.color.rg = sunPos.xy;
+		//output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0));
+		//output.color.rg = input.uv;
+		//return output;
+	}
+
 	// Avoid displaying any flare if the sun is occluded:
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
 	vec3 flare = flare_intensity * lensflare(v.xy, sunPos);
-	//float intensity = dot(0.333, flare);
-	//output.color.rgb = lerp(output.color.rgb, flare, intensity);
 	output.color.rgb += flare;
 	return output;
 
 	// DEBUG
-	//float3 col;
-	/*
+	float3 col;
 	// Draw a reticle on top of the Sun:
 	col = float3(1.0, 0.0, 0.0); // Reticle color
 	d = sdCircle(v.xy, sunPos, scale * cursor_radius);
@@ -317,9 +350,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
-	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+	output.color.rgb = lerp(output.color.rgb, col, dm);
 	return output;
-	*/
 
 	/*
 	// Display the associated light

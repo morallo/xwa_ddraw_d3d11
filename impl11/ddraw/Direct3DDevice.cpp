@@ -247,7 +247,7 @@ bool g_bSteamVRDistortionEnabled = true;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
-Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
+Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
@@ -3538,7 +3538,7 @@ void Test2DMesh() {
 		MainVertex(-1,  1, 0, 0),
 	};
 	*/
-	Matrix4 fullMatrixLeft = g_fullMatrixLeft;
+	Matrix4 fullMatrixLeft = g_FullProjMatrixLeft;
 	//fullMatrixLeft.invertGeneral();
 	Vector4 P, Q;
 
@@ -3640,8 +3640,8 @@ bool InitSteamVR()
 	// Override all of the above with the Pimax matrices
 	//TestPimax();
 
-	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
-	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
+	g_FullProjMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
+	g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
 
 	//Test2DMesh();
 
@@ -3798,8 +3798,8 @@ bool InitDirectSBS()
 	g_projLeft.transpose();
 	g_projRight = g_projLeft;
 
-	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
-	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
+	g_FullProjMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
+	g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
 
 	//ShowMatrix4(g_EyeMatrixLeftInv, "g_EyeMatrixLeftInv");
 	//ShowMatrix4(g_projLeft, "g_projLeft");
@@ -4349,9 +4349,9 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 
 	PX.set(X, -Y, -Z, 1.0f);
 	if (eye == vr::EVREye::Eye_Left) {
-		PX = g_fullMatrixLeft * PX;
+		PX = g_FullProjMatrixLeft * PX;
 	} else {
-		PX = g_fullMatrixRight * PX;
+		PX = g_FullProjMatrixRight * PX;
 	}
 	// Project
 	PX /= PX[3];
@@ -5084,7 +5084,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			Vector3 q = project(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
@@ -5102,7 +5102,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			Vector3 q = project(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
@@ -5120,7 +5120,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft /*, &dx, &dy */);
+			Vector3 q = project(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,
@@ -6741,10 +6741,16 @@ HRESULT Direct3DDevice::Execute(
 							g_ShadertoyBuffer.SunY = Centroid.y;
 							g_ShadertoyBuffer.SunZ = Centroid.z;
 							g_ShadertoyBuffer.VRmode = 1;
+							// DEBUG
+							// Project the centroid to the left image and log the coords
+							//Vector3 q = project(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+							//log_debug("[DBG] Centroid: %0.3f, %0.3f, %0.3f --> %0.3f, %0.3f",
+							//	Centroid.x, Centroid.y, Centroid.z, q.x, q.y);
+							// DEBUG
 						}
 						else {
 							float X, Y;
-							Vector3 q = projectToInGameCoords(Centroid, g_viewMatrix, g_fullMatrixLeft);
+							Vector3 q = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
 
 							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
@@ -7411,7 +7417,7 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the left projection matrix
-					g_VSMatrixCB.projEye = g_fullMatrixLeft;
+					g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image
@@ -7491,7 +7497,7 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the right projection matrix
-					g_VSMatrixCB.projEye = g_fullMatrixRight;
+					g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
