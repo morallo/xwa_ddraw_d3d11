@@ -5799,7 +5799,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsAimingHUD = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
-				bool bIsActiveCockpit = false, bIsBlastMark = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false; // , bIsSkyDome = false;
 				if (bLastTextureSelectedNotNULL) {
 					bIsLaser = lastTextureSelected->is_Laser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
@@ -5815,6 +5815,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsDAT = lastTextureSelected->is_DAT;
 					bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
 					bIsBlastMark = lastTextureSelected->is_BlastMark;
+					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -6857,7 +6858,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
-				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
+				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket /* || bIsSkyDome */) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					g_PSCBuffer.bIsShadeless = 1;

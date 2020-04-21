@@ -28,7 +28,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color	= input.color;
-	output.bloom	= fBloomStrength;
+	output.bloom	= float4(fBloomStrength * input.color.rgb, fBloomStrength);
 	output.pos3D	= 0;
 	output.normal	= 0;
 	output.ssaoMask = float4(1.0, 0.0, 0.0, 1.0);

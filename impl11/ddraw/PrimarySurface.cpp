@@ -6392,7 +6392,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the sun flare (if applicable)
-			if (g_bProceduralSuns && g_bSunFlareVisible)
+			if (g_bProceduralSuns && g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 

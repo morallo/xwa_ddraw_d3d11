@@ -125,8 +125,19 @@ float anamorphicFlare(vec2 U)
 		float2x2(32, 2, 1, 2),
 		abs(mul(float2x2(A, -A.y, A.x), U))
 	);
-	return 0.05 / max(U.x, U.y);
+	return 0.075 / max(U.x, U.y);
 }
+
+/*
+// The following uses a squashed Gaussian to do the anamorphic flare. It works; but
+// it feels too "thick" so I didn't quite like it. Maybe I had to dim it a little more.
+float anamorphicFlare(vec2 pos)
+{
+	pos.x *= 0.02;
+	float L = dot(pos, pos);
+	return 0.1 * exp(-L * 2500.0);
+}
+*/
 
 // Hexagonal rays for the sun
 // from https://www.shadertoy.com/view/ltfGDs
@@ -282,16 +293,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 sunPos = 0.0;
 	float d, dm;
 	if (VRmode == 1)
-		//output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0));
 		output.color = float4(0, 0, 0, 1);
 	else
 		output.color = bgTex.Sample(bgSampler, input.uv);
 
 	// Early exit: avoid rendering outside the original viewport edges
-	if (any(input.uv < p0) || any(input.uv > p1)) {
-		output.color = float4(0, 0, 1, 1); // DEBUG
+	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
-	}
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
@@ -317,7 +325,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 	else {
 		sunPos = SunCoords.xy;
-		sunPos3D.z = INFINITY_Z + 500; // DEBUG, compute the right depth value later
+		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later
 	}
 
 	// Avoid displaying any flare if the sun is occluded:
