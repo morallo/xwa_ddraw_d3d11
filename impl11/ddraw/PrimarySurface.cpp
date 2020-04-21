@@ -593,6 +593,7 @@ extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProced
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
+//extern float g_fFlareAspectMult;
 
 
 extern float g_fConcourseScale, g_fConcourseAspectRatio;
@@ -4972,7 +4973,10 @@ void PrimarySurface::RenderSunFlare()
 			u = 2.0f * u - 1.0f;
 			v = 2.0f * v - 1.0f;
 			// Apply the aspect ratio
-			u *= g_fAspectRatio;
+			if (g_bUseSteamVR)
+				u *= g_fCurScreenWidth / g_fCurScreenHeight;
+			else
+				u *= g_fAspectRatio;
 			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
 			QL.y = QR.y = v;
 		}
@@ -4992,7 +4996,11 @@ void PrimarySurface::RenderSunFlare()
 			u = 2.0f * u - 1.0f;
 			v = 2.0f * v - 1.0f;
 			// Apply the aspect ratio
-			u *= g_fAspectRatio;
+			// Apply the aspect ratio
+			if (g_bUseSteamVR)
+				u *= g_fCurScreenWidth / g_fCurScreenHeight;
+			else
+				u *= g_fAspectRatio;
 			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
 			QL.y = QR.y = v;
 		}
@@ -5136,10 +5144,12 @@ void PrimarySurface::RenderSunFlare()
 		}
 	}
 	
+	/*
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
 	}
+	*/
 
 	// Post-process: compose the flare on top of the offscreen buffers
 	if (g_bEnableVR)

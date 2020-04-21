@@ -412,6 +412,7 @@ bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNorm
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+//float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -2926,6 +2927,13 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "flare_intensity") == 0) {
 				g_ShadertoyBuffer.flare_intensity = fValue;
 			}
+			/*
+			else if (_stricmp(param, "flare_aspect_mult") == 0) {
+				g_fFlareAspectMult = fValue;
+				log_debug("[DBG] g_fFlareAspectMult: %0.3f", g_fFlareAspectMult);
+			}
+			*/
+
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
 			}
