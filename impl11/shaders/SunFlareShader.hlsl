@@ -316,21 +316,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 		sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy / iResolution.xy).xyz;
 	}
 	else {
-		//p = 2.0 * input.uv - 1.0;
-		//float4 pos = mul(projEyeMatrix, mul(fullViewMatrix, float4(SunCoords.x, -SunCoords.y, -SunCoords.z, 1)));
-		//sunPos.xy = pos.xy / pos.w;
-		//sunPos.xy = SunCoords.xy;
-		//sunPos = (2.0 * iResolution.xy * SunCoords.xy - iResolution.xy) / iResolution.xy;
-		//sunPos = 2.0 * SunCoords.xy - 1.0;
 		sunPos = SunCoords.xy;
-		//sunPos = float2(0.0, -1.0);
-		// Sample the depth at the location of the sun:
-		//sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy * 0.5 + 0.5).xyz;
 		sunPos3D.z = INFINITY_Z + 500; // DEBUG, compute the right depth value later
-		//output.color.rg = sunPos.xy;
-		//output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0));
-		//output.color.rg = input.uv;
-		//return output;
 	}
 
 	// Avoid displaying any flare if the sun is occluded:
@@ -341,6 +328,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color.rgb += flare;
 	return output;
 
+	/*
 	// DEBUG
 	float3 col;
 	// Draw a reticle on top of the Sun:
@@ -352,6 +340,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, dm);
 	return output;
+	*/
 
 	/*
 	// Display the associated light

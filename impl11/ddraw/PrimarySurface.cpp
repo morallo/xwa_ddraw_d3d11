@@ -4920,7 +4920,8 @@ void PrimarySurface::RenderSunFlare()
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
-	g_ShadertoyBuffer.VRmode = bDirectSBS;
+	//g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = g_bEnableVR;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	Centroid.x = g_ShadertoyBuffer.SunX;
@@ -5011,9 +5012,12 @@ void PrimarySurface::RenderSunFlare()
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	// Render the Sun Flare
+	// output: _offscreenBufferPost, _offscreenBufferPostR
+	// The non-VR case produces a fully-finished image.
+	// The VR case produces only the flare on these buffers. The flare must be composed on top of the image in a further step
 	{
 		// Set the new viewport (a full quad covering the full screen)
-		viewport.Width  = g_fCurScreenWidth;
+		viewport.Width = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
@@ -5051,7 +5055,7 @@ void PrimarySurface::RenderSunFlare()
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override	= 65535.0f;
+		g_VSCBuffer.z_override = 65535.0f;
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
@@ -5082,176 +5086,166 @@ void PrimarySurface::RenderSunFlare()
 		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 
-		
-		if (g_bEnableVR) {
-			// Render the right image
-			{
-				// VIEWPORT-RIGHT
-				if (g_bUseSteamVR) {
-					context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-					viewport.Width = (float)resources->_backbufferWidth;
-					viewport.TopLeftX = 0.0f;
-				}
-				else {
-					viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-					viewport.TopLeftX = (float)viewport.Width;
-				}
-				viewport.Height = (float)resources->_backbufferHeight;
-				viewport.TopLeftY = 0.0f;
-				viewport.MinDepth = D3D11_MIN_DEPTH;
-				viewport.MaxDepth = D3D11_MAX_DEPTH;
-				resources->InitViewport(&viewport);
-				// Set the right projection matrix
-				g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-				resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-				// Overwrite the centroid with the new 2D coordinates for the right image
-				g_ShadertoyBuffer.SunX = QR.x;
-				g_ShadertoyBuffer.SunY = QR.y;
-				resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-
-				if (g_bUseSteamVR) {
-					context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-					// Set the SRVs:
-					ID3D11ShaderResourceView *srvs[2] = {
-						resources->_offscreenAsInputShaderResourceViewR.Get(),
-						resources->_depthBufSRV_R.Get(),
-					};
-					context->PSSetShaderResources(0, 2, srvs);
-				}
-				else {
-					// DirectSBS case
-					context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-					// Set the SRVs:
-					ID3D11ShaderResourceView *srvs[2] = {
-						resources->_offscreenAsInputShaderResourceView.Get(),
-						resources->_depthBufSRV.Get(),
-					};
-					context->PSSetShaderResources(0, 2, srvs);
-				}
-				context->Draw(6, 0);
-			}
-
-			// Post-process: compose the flare on top of the offscreen buffers
-			{
-				// Reset the viewport for non-VR mode:
+		// Render the right image
+		if (g_bEnableVR)
+		{
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
-				viewport.TopLeftY = 0.0f;
-				viewport.Width    = g_fCurScreenWidth;
-				viewport.Height   = g_fCurScreenHeight;
-				viewport.MaxDepth = D3D11_MAX_DEPTH;
-				viewport.MinDepth = D3D11_MIN_DEPTH;
-				resources->InitViewport(&viewport);
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-				// Reset the vertex shader to regular 2D post-process
-				// Set the Vertex Shader Constant buffers
-				resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-					0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-				// Set/Create the VertexBuffer and set the topology, etc
-				if (resources->_barrelEffectVertBuffer == nullptr) {
-					D3D11_BUFFER_DESC vertexBufferDesc;
-					ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+			// Overwrite the centroid with the new 2D coordinates for the right image
+			g_ShadertoyBuffer.SunX = QR.x;
+			g_ShadertoyBuffer.SunY = QR.y;
+			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-					vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-					vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-					vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-					vertexBufferDesc.CPUAccessFlags = 0;
-					vertexBufferDesc.MiscFlags = 0;
-
-					D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-					ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-					vertexBufferData.pSysMem = g_BarrelEffectVertices;
-					device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-				}
-
-				UINT stride = sizeof(MainVertex), offset = 0;
-				resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
-				resources->InitInputLayout(resources->_mainInputLayout);
-				resources->InitVertexShader(resources->_mainVertexShader);
-
-				// Reset the UV limits for this shader
-				GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-				g_ShadertoyBuffer.x0 = x0;
-				g_ShadertoyBuffer.y0 = y0;
-				g_ShadertoyBuffer.x1 = x1;
-				g_ShadertoyBuffer.y1 = y1;
-				g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
-				g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-				// Project the centroid to the left/right eyes
-				QL = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
-				g_ShadertoyBuffer.SunX = QL.x;
-				g_ShadertoyBuffer.SunY = QL.y;
-				resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-				resources->InitPixelShader(resources->_sunFlareComposeShaderPS);
-
-				// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
-				// to _shaderToyBuf to re-use in the next step:
-				context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
-
-				context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-				if (!g_bReshadeEnabled) {
-					ID3D11RenderTargetView *rtvs[1] = {
-						resources->_renderTargetViewPost.Get(),
-					};
-					context->OMSetRenderTargets(1, rtvs, NULL);
-				}
-				else {
-					ID3D11RenderTargetView *rtvs[1] = {
-						resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-					};
-					context->OMSetRenderTargets(1, rtvs, NULL);
-				}
+			if (g_bUseSteamVR) {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[3] = {
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_depthBufSRV_R.Get(),
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+			}
+			else {
+				// DirectSBS case
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
 					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_shadertoySRV.Get(),
 					resources->_depthBufSRV.Get(),
 				};
-				context->PSSetShaderResources(0, 3, srvs);
-				context->Draw(6, 0);
-
-				// Post-process the right image
-				if (g_bUseSteamVR) {
-					QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
-					g_ShadertoyBuffer.SunX = QR.x;
-					g_ShadertoyBuffer.SunY = QR.y;
-					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-					context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-					if (!g_bReshadeEnabled) {
-						ID3D11RenderTargetView *rtvs[1] = {
-							resources->_renderTargetViewPostR.Get(),
-						};
-						context->OMSetRenderTargets(1, rtvs, NULL);
-					}
-					else {
-						ID3D11RenderTargetView *rtvs[1] = {
-							resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-						};
-						context->OMSetRenderTargets(1, rtvs, NULL);
-					}
-					// Set the SRVs:
-					ID3D11ShaderResourceView *srvs[3] = {
-						resources->_offscreenAsInputShaderResourceViewR.Get(),
-						resources->_shadertoySRV_R.Get(),
-						resources->_depthBufSRV_R.Get(),
-					};
-					context->PSSetShaderResources(0, 3, srvs);
-					context->Draw(6, 0);
-				}
+				context->PSSetShaderResources(0, 2, srvs);
 			}
+			context->Draw(6, 0);
+		}
+	}
+	
+	if (g_bDumpSSAOBuffers) {
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
+	}
+
+	// Post-process: compose the flare on top of the offscreen buffers
+	if (g_bEnableVR)
+	{
+		// Reset the viewport for non-VR mode:
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// Reset the vertex shader to regular 2D post-process
+		// Set the Vertex Shader Constant buffers
+		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+		// Set/Create the VertexBuffer and set the topology, etc
+		if (resources->_barrelEffectVertBuffer == nullptr) {
+			D3D11_BUFFER_DESC vertexBufferDesc;
+			ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+			vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+			vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			vertexBufferDesc.CPUAccessFlags = 0;
+			vertexBufferDesc.MiscFlags = 0;
+
+			D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+			ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+			vertexBufferData.pSysMem = g_BarrelEffectVertices;
+			device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
 		}
 
-		// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
-		context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-		if (g_bUseSteamVR)
-			context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+		UINT stride = sizeof(MainVertex), offset = 0;
+		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_mainInputLayout);
+		resources->InitVertexShader(resources->_mainVertexShader);
 
-		// Restore previous rendertarget, etc
-		resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+		// Reset the UV limits for this shader
+		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+		g_ShadertoyBuffer.x0 = x0;
+		g_ShadertoyBuffer.y0 = y0;
+		g_ShadertoyBuffer.x1 = x1;
+		g_ShadertoyBuffer.y1 = y1;
+		g_ShadertoyBuffer.VRmode = bDirectSBS;
+		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+		// Project the centroid to the left/right eyes
+		QL = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+		g_ShadertoyBuffer.SunX = QL.x;
+		g_ShadertoyBuffer.SunY = QL.y;
+		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+		resources->InitPixelShader(resources->_sunFlareComposeShaderPS);
+
+		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+		// to _shaderToyBuf to re-use in the next step:
+		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		if (g_bUseSteamVR) {
+			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+		}
+		
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[3] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_shadertoySRV.Get(),
+			resources->_depthBufSRV.Get(),
+		};
+		context->PSSetShaderResources(0, 3, srvs);
+		context->Draw(6, 0);
+
+		// Post-process the right image
+		if (g_bUseSteamVR) {
+			QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			g_ShadertoyBuffer.SunX = QR.x;
+			g_ShadertoyBuffer.SunY = QR.y;
+			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPostR.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[3] = {
+				resources->_offscreenAsInputShaderResourceViewR.Get(),
+				resources->_shadertoySRV_R.Get(),
+				resources->_depthBufSRV_R.Get(),
+			};
+			context->PSSetShaderResources(0, 3, srvs);
+			context->Draw(6, 0);
+		}
 	}
+
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
 void DisplayACAction(WORD *scanCodes);
@@ -6418,10 +6412,10 @@ HRESULT PrimarySurface::Flip(
 				RenderSunFlare();
 			}
 
-			if (g_bDumpSSAOBuffers) {
-				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost.png");
+			//if (g_bDumpSSAOBuffers) {
+				//DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost.png");
 				//DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferPost, L"C:\\Temp\\_offscreenBufferPost.dds");
-			}
+			//}
 
 			// Apply FXAA
 			if (g_config.FXAAEnabled)
