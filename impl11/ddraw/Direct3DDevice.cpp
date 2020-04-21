@@ -2480,6 +2480,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength	  = 0.5f;
 	g_BloomConfig.fSkydomeLightStrength = 0.1f;
+	g_BloomConfig.fBracketStrength    = 0.0f;
 	g_BloomPSCBuffer.general_bloom_strength = 1.0f;
 	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
@@ -2564,6 +2565,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "skydome_light_strength") == 0) {
 				g_BloomConfig.fSkydomeLightStrength = fValue;
+			}
+			else if (_stricmp(param, "bracket_strength") == 0) {
+				g_BloomConfig.fBracketStrength = fValue;
 			}
 			
 			// Bloom strength per pyramid level
@@ -7096,6 +7100,12 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
+				}
+
+				// Apply BLOOM flags for textureless objects
+				if (bIsBracket) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fBloomStrength = g_BloomConfig.fBracketStrength;
 				}
 
 				// Dynamic Cockpit: Replace textures at run-time:
