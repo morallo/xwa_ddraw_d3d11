@@ -461,18 +461,6 @@ DCPixelShaderCBuffer g_DCPSCBuffer;
 ShadertoyCBuffer	 g_ShadertoyBuffer;
 LaserPointerCBuffer	 g_LaserPointerBuffer;
 
-struct MainVertex
-{
-	float pos[2];
-	float tex[2];
-	MainVertex() {}
-	MainVertex(float x, float y, float tx, float ty) {
-		pos[0] = x; pos[1] = y;
-		tex[0] = tx; tex[1] = ty;
-	}
-};
-extern MainVertex g_BarrelEffectVertices[6];
-
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
 

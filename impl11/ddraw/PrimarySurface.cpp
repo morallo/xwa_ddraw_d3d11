@@ -612,16 +612,6 @@ extern DWORD g_FullScreenWidth, g_FullScreenHeight;
 extern Matrix4 g_viewMatrix;
 extern VertexShaderMatrixCB g_VSMatrixCB;
 
-MainVertex g_BarrelEffectVertices[6] = {
-	MainVertex(-1, -1, 0, 1),
-	MainVertex( 1, -1, 1, 1),
-	MainVertex( 1,  1, 1, 0),
-
-	MainVertex( 1,  1, 1, 0),
-	MainVertex(-1,  1, 0, 0),
-	MainVertex(-1, -1, 0, 1),
-};
-
 extern bool g_bStart3DCapture, g_bDo3DCapture;
 extern FILE *g_HackFile;
 #ifdef DBR_VR
@@ -1033,29 +1023,10 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	float screen_res_y = (float)resources->_backbufferHeight;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	/* Create the VertexBuffer if necessary */
-	if (resources->_barrelEffectVertBuffer == nullptr)
-	{
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
-
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// This is probably an opportunity for an optimization: let's use the same topology everywhere?
@@ -1126,27 +1097,10 @@ void PrimarySurface::barrelEffect3D() {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -1237,25 +1191,10 @@ void PrimarySurface::barrelEffectSteamVR() {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -1529,27 +1468,10 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -2146,27 +2068,10 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	g_BloomPSCBuffer.uvStepSize = 1.0f;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -2560,27 +2465,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 	
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -2907,27 +2795,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -3626,27 +3497,10 @@ void PrimarySurface::DeferredPass() {
 	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
-	// Create the VertexBuffer if necessary
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
 	// Set the vertex buffer... we probably need another vertex buffer here
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 
 	// Set Primitive Topology
 	// Opportunity for optimization? Make all draw calls use the same topology?
@@ -4469,26 +4323,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Set the Vertex Shader Constant buffers
 		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
 		// Set/Create the VertexBuffer and set the topology, etc
-		if (resources->_barrelEffectVertBuffer == nullptr) {
-			D3D11_BUFFER_DESC vertexBufferDesc;
-			ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-			vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vertexBufferDesc.CPUAccessFlags = 0;
-			vertexBufferDesc.MiscFlags = 0;
-
-			D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-			ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-			vertexBufferData.pSysMem = g_BarrelEffectVertices;
-			device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-		}
-
 		UINT stride = sizeof(MainVertex), offset = 0;
-		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
 		resources->InitVertexShader(resources->_mainVertexShader);
 
@@ -4665,26 +4503,10 @@ void PrimarySurface::RenderFXAA()
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
 	// Set/Create the VertexBuffer and set the topology, etc
-	if (resources->_barrelEffectVertBuffer == nullptr) {
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
-
 	UINT stride = sizeof(MainVertex), offset = 0;
-	resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
@@ -5167,26 +4989,10 @@ void PrimarySurface::RenderSunFlare()
 		// Set the Vertex Shader Constant buffers
 		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
 		// Set/Create the VertexBuffer and set the topology, etc
-		if (resources->_barrelEffectVertBuffer == nullptr) {
-			D3D11_BUFFER_DESC vertexBufferDesc;
-			ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-			vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-			vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vertexBufferDesc.CPUAccessFlags = 0;
-			vertexBufferDesc.MiscFlags = 0;
-
-			D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-			ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-			vertexBufferData.pSysMem = g_BarrelEffectVertices;
-			device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-		}
-
 		UINT stride = sizeof(MainVertex), offset = 0;
-		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
 		resources->InitVertexShader(resources->_mainVertexShader);
 
@@ -5339,29 +5145,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
 	// because this is a post-process effect
 
-	/* Create the VertexBuffer if necessary */
-	if (resources->_barrelEffectVertBuffer == nullptr)
-	{
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = g_BarrelEffectVertices;
-		device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, resources->_barrelEffectVertBuffer.GetAddressOf());
-	}
-
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR) {
+	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-	}
 
 	resources->InitPixelShader(resources->_laserPointerPS);
 
@@ -5555,7 +5341,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Set the vertex buffer
 		UINT stride = sizeof(MainVertex);
 		UINT offset = 0;
-		resources->InitVertexBuffer(resources->_barrelEffectVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		resources->InitInputLayout(resources->_mainInputLayout);
 		

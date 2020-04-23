@@ -601,6 +601,7 @@ public:
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void BuildPostProcVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
@@ -863,7 +864,7 @@ public:
 	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
-	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;
+	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;

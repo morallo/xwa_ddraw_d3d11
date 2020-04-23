@@ -254,6 +254,7 @@ struct MainVertex
 	}
 };
 
+
 const char *DC_TARGET_COMP_SRC_RESNAME		= "dat,12000,1100,";
 const char *DC_LEFT_SENSOR_SRC_RESNAME		= "dat,12000,4500,";
 const char *DC_LEFT_SENSOR_2_SRC_RESNAME		= "dat,12000,300,";
@@ -358,7 +359,7 @@ DeviceResources::DeviceResources()
 	this->sceneRenderedEmpty = false;
 	this->inScene = false;
 
-	this->_barrelEffectVertBuffer = nullptr;
+	this->_postProcessVertBuffer = nullptr;
 	this->_HUDVertexBuffer = nullptr;
 	this->_clearHUDVertexBuffer = nullptr;
 	this->_hyperspaceVertexBuffer = nullptr;
@@ -659,6 +660,41 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_hyperspaceVertexBuffer);
 	if (FAILED(hr)) {
 		log_debug("[DBG] [DC] Could not create g_HyperspaceVertexBuffer");
+	}
+}
+
+void DeviceResources::BuildPostProcVertexBuffer() 
+{
+	auto &device = this->_d3dDevice;
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	MainVertex g_BarrelEffectVertices[6] = {
+		MainVertex(-1, -1, 0, 1),
+		MainVertex( 1, -1, 1, 1),
+		MainVertex( 1,  1, 1, 0),
+
+		MainVertex( 1,  1, 1, 0),
+		MainVertex(-1,  1, 0, 0),
+		MainVertex(-1, -1, 0, 1),
+	};
+
+	if (this->_postProcessVertBuffer != NULL) {
+		this->_postProcessVertBuffer->Release();
+		this->_postProcessVertBuffer = NULL;
+	}
+
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(MainVertex) * ARRAYSIZE(g_BarrelEffectVertices);
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = g_BarrelEffectVertices;
+	HRESULT hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, this->_postProcessVertBuffer.GetAddressOf());
+	if (FAILED(hr)) {
+		log_debug("[DBG] Could not create _barrelEffectVertBuffer");
 	}
 }
 
@@ -2203,7 +2239,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// TODO: Put the barrel effect vertex buffer here
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
-		//BuildPostProcVertexBuffer();
+		BuildPostProcVertexBuffer();
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
