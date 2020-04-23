@@ -307,6 +307,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
+	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
+	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
+	//float distance_fade = saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
+	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
+
 	color = color * color; // Gamma correction (approx pow 2.2)
 	float3 N = normalize(Normal.xyz);
 	const float3 smoothN = N;
@@ -361,8 +366,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Compute the shading contribution from the main lights
 	[loop]
-	for (i = 0; i < LightCount; i++) {
-		//float3 L = normalize(LightVector[i].xyz);
+	for (i = 0; i < LightCount; i++)
+	{
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 
@@ -434,7 +439,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//const float3 H = normalize(L + eye_vec);
 		//spec = max(dot(N, H), 0.0);
 
-		float exponent = global_glossiness * gloss_mask;
+		 // We can't have exponent == 0 or we'll see a lot of shading artifacts:
+		float exponent = max(global_glossiness * gloss_mask, 0.05);
 		float spec_bloom_int = global_spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {
 			exponent *= 2.0;
@@ -450,6 +456,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
+		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
+		// intact
+		spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
+		spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * saturate(

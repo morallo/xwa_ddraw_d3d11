@@ -1141,7 +1141,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
 				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
 				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
-				log_debug("[DBG] SwapChain size: %d, %d", g_FullScreenWidth, g_FullScreenHeight);
+				log_debug("[DBG] g_fCurScreenW/H: %f, %f", g_fCurScreenWidth, g_fCurScreenHeight);
 			}
 		}
 
@@ -1203,7 +1203,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		log_debug("[DBG] [MSAA] Count: %d, Quality: %d, Use MSAA: %d",
 			this->_sampleDesc.Count, this->_sampleDesc.Quality, this->_useMultisampling);
 		//log_debug("[DBG] [MSAA] STD MSAA Q LEVEL: %d", D3D11_STANDARD_MULTISAMPLE_PATTERN);
-		log_debug("[DBG] display W,H: %d, %d", this->_displayWidth, this->_displayHeight);
+		log_debug("[DBG] (in-game) display W,H: %d, %d", this->_displayWidth, this->_displayHeight);
 		log_debug("[DBG] backbuffer W,H: %d, %d", this->_backbufferWidth, this->_backbufferHeight);
 
 		// MSAA Buffers
@@ -2203,6 +2203,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// TODO: Put the barrel effect vertex buffer here
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
+		//BuildPostProcVertexBuffer();
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;

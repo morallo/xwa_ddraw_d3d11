@@ -210,6 +210,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
+	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
+	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
+	//float distance_fade = saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
+	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
+
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
 	float3 N = normalize(Normal.xyz);
@@ -313,7 +318,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		float exponent = global_glossiness * gloss_mask;
+		// We can't have exponent == 0 or we'll see a lot of shading artifacts:
+		float exponent = max(global_glossiness * gloss_mask, 0.05);
 		float spec_bloom_int = global_spec_bloom_intensity;
 		if (GLASS_LO <= mask && mask < GLASS_HI) {
 			exponent *= 2.0;
@@ -321,6 +327,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		spec = LightIntensity * spec_int_mask * pow(spec, exponent);
+
+		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
+		// intact
+		spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
+		spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
