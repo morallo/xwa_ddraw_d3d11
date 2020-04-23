@@ -187,7 +187,7 @@ extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);
 void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
-extern bool g_b3DSunPresent, g_b3DSydomePresent;
+extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 
 // MATERIALS
 // Contains all the materials for all the OPTs currently loaded
@@ -898,7 +898,7 @@ void Direct3DTexture::TagTexture() {
 			strstr(surface->_name, "Skydome") != NULL)
 		{
 			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
-			g_b3DSydomePresent = true;
+			g_b3DSkydomePresent = true;
 			this->is_GenericSSAOMasked = true;
 			if (this->is_LightTexture) {
 				this->is_SkydomeLight = true;

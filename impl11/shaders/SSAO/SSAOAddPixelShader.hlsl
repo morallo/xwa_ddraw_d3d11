@@ -210,11 +210,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
-	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
-	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
-	//float distance_fade = saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
-	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
-
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
 	float3 N = normalize(Normal.xyz);
@@ -241,6 +236,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		pos3D = P2;
 		FGFlag = false;
 	}
+
+	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
+	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
+	float distance_fade = enable_dist_fade * saturate((pos3D.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
+	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	/*
 	if (fn_enable) {

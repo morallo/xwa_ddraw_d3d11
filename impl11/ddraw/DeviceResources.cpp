@@ -176,7 +176,7 @@ extern std::vector<ColorLightPair> g_TextureVector;
 extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
-extern bool g_b3DSunPresent, g_b3DSydomePresent;
+extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 
 /* SteamVR HMD */
 extern vr::IVRSystem *g_pHMD;
@@ -928,8 +928,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Reset scene variables
 	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
 	g_b3DSunPresent = false;
-	g_b3DSydomePresent = false;
-	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSydomePresent");
+	g_b3DSkydomePresent = false;
+	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
+	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSkydomePresent");
 
 	g_TextureVector.clear();
 	g_AuxTextureVector.clear();

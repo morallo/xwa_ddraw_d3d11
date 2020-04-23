@@ -499,7 +499,7 @@ void LoadFocalLength();
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
-bool g_b3DSydomePresent = false;
+bool g_b3DSkydomePresent = false;
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
@@ -6695,7 +6695,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Replace the sun textures with procedurally-generated suns
-				if (g_bProceduralSuns && !g_b3DSunPresent && bIsSun) {
+				if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent && bIsSun) {
 					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;

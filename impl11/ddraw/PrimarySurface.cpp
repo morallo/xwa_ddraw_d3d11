@@ -589,7 +589,7 @@ SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
-extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible, g_b3DSunPresent, g_b3DSydomePresent;
+extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible, g_b3DSunPresent, g_b3DSkydomePresent;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
@@ -2506,6 +2506,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.fn_enable   = g_bFNEnable;
 	g_SSAO_PSCBuffer.debug		 = g_bShowSSAODebug;
+	g_SSAO_PSCBuffer.enable_dist_fade = (float)g_b3DSkydomePresent;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -2792,6 +2793,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
+	g_SSAO_PSCBuffer.enable_dist_fade = (float)g_b3DSkydomePresent;
 	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
@@ -3494,6 +3496,7 @@ void PrimarySurface::DeferredPass() {
 	g_SSAO_PSCBuffer.y0 = y0;
 	g_SSAO_PSCBuffer.x1 = x1;
 	g_SSAO_PSCBuffer.y1 = y1;
+	g_SSAO_PSCBuffer.enable_dist_fade = (float)g_b3DSkydomePresent;
 	g_ShadingSys_PSBuffer.spec_intensity = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
 
@@ -6178,7 +6181,8 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the sun flare (if applicable)
-			if (g_bProceduralSuns && !g_b3DSunPresent && g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
+			if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent &&
+				g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
