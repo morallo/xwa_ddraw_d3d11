@@ -187,6 +187,8 @@ extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);
 void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
+extern bool g_b3DSunPresent, g_b3DSydomePresent;
+
 // MATERIALS
 // Contains all the materials for all the OPTs currently loaded
 std::vector<CraftMaterials> g_Materials;
@@ -880,16 +882,35 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
 		//}
 
+		/*
+			Naming conventions from DTM:
+
+			Surface_XXX_xxKm.opt = Planetary Surface
+			Building_XXX.opt = Planetary Building
+			Skydome_XXX_xxKm.opt = Planetary Sky
+			Planet3D_XXX_xxKm.opt = Planet OPT object
+			Star3D_XXX_ccKm.opt = Sun OPT object
+			DeathStar3D_XXX.opt = Part of the real size Death Star (in progress)
+		*/
+
 		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
 		if (strstr(surface->_name, "Cielo") != NULL ||
 			strstr(surface->_name, "Skydome") != NULL)
 		{
 			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
+			g_b3DSydomePresent = true;
 			this->is_GenericSSAOMasked = true;
 			if (this->is_LightTexture) {
 				this->is_SkydomeLight = true;
 				this->is_LightTexture = false; // The is_SkydomeLight attribute overrides this attribute
 			}
+		}
+
+		// 3D Sun is present in this scene: [opt, FlightModels\Planet3D_Sole_26Km.opt, TEX00001, color, 0]
+		if (strstr(surface->_name, "Sole") != NULL ||
+			strstr(surface->_name, "Star3D") != NULL) {
+			g_b3DSunPresent = true;
+			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
 		}
 		
 		if (g_bDynCockpitEnabled) {

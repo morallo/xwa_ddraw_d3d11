@@ -589,7 +589,7 @@ SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
-extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible;
+extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible, g_b3DSunPresent, g_b3DSydomePresent;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
@@ -6178,7 +6178,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the sun flare (if applicable)
-			if (g_bProceduralSuns && g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
+			if (g_bProceduralSuns && !g_b3DSunPresent && g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 

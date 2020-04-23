@@ -395,8 +395,9 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
-extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
+extern PSShadingSystemCB	  g_ShadingSys_PSBuffer;
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
@@ -488,7 +489,6 @@ bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
-/* Reloads all the CRCs. */
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
@@ -498,6 +498,8 @@ void LoadFocalLength();
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
+bool g_b3DSunPresent = false;
+bool g_b3DSydomePresent = false;
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
@@ -2725,10 +2727,6 @@ bool LoadSSAOParams() {
 	g_LightVector[1].w = 0;
 	g_LightVector[0].normalize();
 
-	// Default color of the shadow
-	g_SSAO_PSCBuffer.invLightR = 0.2666f;
-	g_SSAO_PSCBuffer.invLightG = 0.2941f;
-	g_SSAO_PSCBuffer.invLightB = 0.3254f;
 	// Default view-yaw/pitch signs for SSAO.cfg-based lights
 	//g_fViewYawSign = 1.0f;
 	//g_fViewPitchSign = -1.0f;
@@ -3000,6 +2998,7 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [AO] Light Color2: [%0.3f, %0.3f, %0.3f]",
 					g_LightColor[1].x, g_LightColor[1].y, g_LightColor[1].z);
 			}
+			/*
 			else if (_stricmp(param, "shadow_color") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
@@ -3007,6 +3006,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.invLightG = y;
 				g_SSAO_PSCBuffer.invLightB = z;
 			}
+			*/
 
 			/* Shading System Settings */
 			else if (_stricmp(param, "specular_intensity") == 0) {
@@ -6695,7 +6695,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Replace the sun textures with procedurally-generated suns
-				if (g_bProceduralSuns && bIsSun) {
+				if (g_bProceduralSuns && !g_b3DSunPresent && bIsSun) {
 					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
@@ -7067,7 +7067,8 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else if (bIsSun) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+						// If there's a 3D sun in the scene, then we shouldn't apply bloom to Sun textures  they should be invisible 
+						g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_Spark) {

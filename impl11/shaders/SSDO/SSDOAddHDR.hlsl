@@ -205,7 +205,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	float3 temp = ambient;
 	temp += LightColor[0].rgb  * saturate(dot(bentN,  LightVector[0].xyz));
-	temp += invLightColor   * saturate(dot(bentN, -LightVector[0].xyz));
+	//temp += invLightColor   * saturate(dot(bentN, -LightVector[0].xyz));
 	temp += LightColor[1].rgb * saturate(dot(bentN,  LightVector[1].xyz));
 	float3 color = albedo * temp;
 	// Apply tone-mapping:

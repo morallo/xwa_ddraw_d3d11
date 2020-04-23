@@ -19,8 +19,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 96 bytes
 	float2 p0, p1; // Viewport limits in uv space
 	// 112 bytes
-	float3 invLightColor;
-	float shadow_epsilon;
+	float enable_dist_fade, ssaops_unused1, ssaops_unused2, shadow_epsilon;
 	// 128 bytes
 	float unused_white_point, shadow_step_size, shadow_steps, aspect_ratio;
 	// 144 bytes

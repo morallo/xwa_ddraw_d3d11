@@ -105,7 +105,6 @@
 #include <WICTextureLoader.h>
 #include <headers/openvr.h>
 #include <vector>
-//#include <assert.h>
 
 void InitOPTnames();
 void ClearOPTnames();
@@ -175,6 +174,9 @@ FILE *g_DebugFile = NULL;
 
 extern std::vector<ColorLightPair> g_TextureVector;
 extern std::vector<Direct3DTexture *> g_AuxTextureVector;
+
+extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+extern bool g_b3DSunPresent, g_b3DSydomePresent;
 
 /* SteamVR HMD */
 extern vr::IVRSystem *g_pHMD;
@@ -923,6 +925,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_iPresentCounter = 0;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
+	// Reset scene variables
+	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
+	g_b3DSunPresent = false;
+	g_b3DSydomePresent = false;
+	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSydomePresent");
 
 	g_TextureVector.clear();
 	g_AuxTextureVector.clear();
@@ -1177,7 +1184,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
 				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
 				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
-				log_debug("[DBG] g_fCurScreenW/H: %f, %f", g_fCurScreenWidth, g_fCurScreenHeight);
+				log_debug("[DBG] g_fCurScreen W/H: %f, %f", g_fCurScreenWidth, g_fCurScreenHeight);
 			}
 		}
 

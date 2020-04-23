@@ -224,7 +224,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
-	float invLightR, invLightG, invLightB, shadow_epsilon;
+	float enable_dist_fade, ssaops_unused1, ssaops_unused2, shadow_epsilon;
 	// 128 bytes
 	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
 	// 144 bytes
