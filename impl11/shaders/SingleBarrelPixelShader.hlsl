@@ -49,8 +49,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	distortData = genericDistortion(texPos, LC);
 	texPos = distortData.xy;
 	// Cut to 0 as texPos approaches the limits of the viewport
-	if (texPos.x < 0.0 || texPos.x > 1.0 ||
-		texPos.y < 0.0 || texPos.y > 1.0)
+	//if (texPos.x < 0.0 || texPos.x > 1.0 ||
+	//	texPos.y < 0.0 || texPos.y > 1.0)
+	if (any(texPos.xy < 0.0) || any(texPos.xy > 1.0))
 		return float4(0, 0, 0, 1);
 
 	// We don't need a vignette for the SteamVR version.

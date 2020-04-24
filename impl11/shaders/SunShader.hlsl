@@ -105,14 +105,15 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Sun Shader
 	// Disable depth-buffer write, etc. for sun textures
-	output.pos3D = 0;
-	output.normal = 0;
+	output.pos3D    = 0;
+	output.normal   = 0;
 	output.ssaoMask = 0;
-	output.ssMask = 0;
+	output.ssMask   = 0;
 
 	// SunColor.a selects either white (0) or a light color (1) specified by SunColor.rgb:
 	float3 corona_color = lerp(1.0, SunColor[0].rgb, SunColor[0].a);
-	float2 v = float2(input.tex.xy - 0.5);
+	const float2 vdiff = float2(input.tex.xy - 0.5);
+	float2 v = vdiff;
 	const float V_2 = dot(v, v);
 	float intensity = saturate(pow(0.01 / V_2, 1.8));
 	//const float3 light_color = float3(0.3, 0.3, 1.0);
@@ -143,6 +144,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	intensity = exp(-r * 0.001) * 0.9 * f;
 	output.color.rgb += exp(-r * 0.001) * clamp(color, 0.0, 1.0);
 	output.color.a += intensity;
+
+	// Apply the vignette to prevent hard cut-offs near the edges
+	float vignette = 1.0;
+	//float radius = sqrt(V_2);
+	//if (radius > 0.38)
+	//	vignette = (0.5 - radius) / 0.12;
+	//vdiff = float2(input.tex.xy - 0.5);
+	float diff = max(abs(vdiff.x), abs(vdiff.y));
+	if (diff > 0.38)
+		vignette = (0.5 - diff) / 0.12;
+	//output.color.rgb = lerp(float3(1,0,0), output.color.rgb, vignette);
+	output.color.a *= vignette;
 
 	//output.color.xyz *= output.color.xyz; // Gamma compensation?
 	return output;

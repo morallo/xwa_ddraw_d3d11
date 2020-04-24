@@ -1185,7 +1185,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				g_fCurScreenHeight = (float)sd.BufferDesc.Height;
 				g_fCurScreenWidthRcp  = 1.0f / g_fCurScreenWidth;
 				g_fCurScreenHeightRcp = 1.0f / g_fCurScreenHeight;
-				log_debug("[DBG] g_fCurScreen W/H: %f, %f", g_fCurScreenWidth, g_fCurScreenHeight);
+				log_debug("[DBG] g_fCurScreen W/H: %0.1f, %0.1f", g_fCurScreenWidth, g_fCurScreenHeight);
 			}
 		}
 

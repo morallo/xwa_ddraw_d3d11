@@ -595,7 +595,6 @@ extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_
 bool g_bGlobalSpecToggle = true;
 //extern float g_fFlareAspectMult;
 
-
 extern float g_fConcourseScale, g_fConcourseAspectRatio;
 extern int   g_iDraw2DCounter;
 extern bool  g_bStartedGUI, g_bPrevStartedGUI, g_bIsScaleableGUIElem, g_bPrevIsScaleableGUIElem, g_bScaleableHUDStarted, g_bDynCockpitEnabled;
@@ -4789,10 +4788,11 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	*u = 2.0f * *u - 1.0f;
 	*v = 2.0f * *v - 1.0f;
 	// Apply the aspect ratio
-	if (g_bUseSteamVR)
-		*u *= g_fCurScreenWidth / g_fCurScreenHeight;
-	else
-		*u *= g_fAspectRatio;
+	//if (g_bUseSteamVR)
+	*u *= g_fCurScreenWidth / g_fCurScreenHeight;
+	//else
+		//*u *= g_fAspectRatio;
+		//*u *= g_fFlareAspectMult;
 }
 
 void PrimarySurface::RenderSunFlare()
@@ -6697,6 +6697,8 @@ HRESULT PrimarySurface::Flip(
 					}
 				}
 				
+				// This section is AC-related -- compensate the cursor's position with the current view
+				// matrix
 				if (g_bCompensateHMDRotation) {
 					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
 					Matrix4 cockpitView, cockpitViewDir;
@@ -6784,11 +6786,19 @@ HRESULT PrimarySurface::Flip(
 				*/
 
 				if (g_bEnableVR) {
+					if (PlayerDataTable[*g_playerIndex].externalCamera) {
+						yaw = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+						pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+					}
+					else {
+						yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+						pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+					}
 					Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 					rotMatrixFull.identity();
 					//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
 					rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
 					rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
 
 					// For the fixed GUI, yaw has to be like this:
