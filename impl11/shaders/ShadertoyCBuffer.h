@@ -1,3 +1,5 @@
+#include "shader_common.h"
+
 // ShadertoyCBuffer
 cbuffer ConstantBuffer : register(b7)
 {
@@ -14,10 +16,12 @@ cbuffer ConstantBuffer : register(b7)
 	uint bDisneyStyle, hyperspace_phase;
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float3 SunCoords; // Coordinates of the sun (interpretation varies depending on VRmode above)
-	float flare_intensity;
-	//float2 LightPos; // Coordinates of the associated light
+	int SunFlareCount;
+	float flare_intensity, st_unused0, st_unused1;
 	// 144 bytes
-	float4 SunColor;
-	// 160 bytes
+	//float SunX, SunY, SunZ, flare_intensity;
+	float4 SunCoords[MAX_SUN_FLARES];
+	// 208 bytes
+	float4 SunColor[MAX_SUN_FLARES];
+	// 272 bytes
 };

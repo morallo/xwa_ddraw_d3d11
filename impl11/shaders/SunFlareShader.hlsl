@@ -198,7 +198,7 @@ float multiRays(vec2 uv, vec2 pos, float freq1, float freq2, float speed)
 }
 
 // Full lens flare (the star spikes have been commented out)
-vec3 lensflare(vec2 coord, vec2 flare_pos)
+vec3 lensflare(vec2 coord, vec2 flare_pos, int sun_index)
 {
 	//vec2 main = coord - flare_pos;
 	vec2 uvd  = coord * length(coord);
@@ -255,7 +255,7 @@ vec3 lensflare(vec2 coord, vec2 flare_pos)
 	}
 
 	// Add a horizontal flare
-	vec3 flareColor = lerp(1.0, SunColor.rgb, SunColor.w);
+	vec3 flareColor = lerp(1.0, SunColor[sun_index].rgb, SunColor[sun_index].w);
 	c += flareColor * anamorphicFlare(coord - flare_pos);
 
 	/*
@@ -319,12 +319,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// Non-VR path: coords are already 2D
 	if (VRmode == 0) {
 		// sunPos is (0,0) at the screen center and is in the range -1..1 for each axis
-		sunPos = (2.0 * SunCoords.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+		sunPos = (2.0 * SunCoords[0].xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 		// Sample the depth at the location of the sun:
-		sunPos3D = depthTex.Sample(depthSampler, SunCoords.xy / iResolution.xy).xyz;
+		sunPos3D = depthTex.Sample(depthSampler, SunCoords[0].xy / iResolution.xy).xyz;
 	}
 	else {
-		sunPos = SunCoords.xy;
+		sunPos = SunCoords[0].xy;
 		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later
 	}
 
@@ -332,7 +332,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	vec3 flare = flare_intensity * lensflare(v.xy, sunPos);
+	vec3 flare = flare_intensity * lensflare(v.xy, sunPos, 0);
 	output.color.rgb += flare;
 	return output;
 

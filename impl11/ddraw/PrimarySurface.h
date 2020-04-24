@@ -95,6 +95,8 @@ public:
 
 	void RenderExternalHUD();
 
+	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
+
 	void RenderSunFlare();
 
 	void ACRunAction(WORD * action);

@@ -98,6 +98,8 @@ public:
 	bool is_LensFlare;
 	// True for suns in the backdrop dat files
 	bool is_Sun;
+	// True for 3D suns, as in DTM's space missions
+	bool is_3DSun;
 	// True when this texture has been tested against an XWA light
 	int AssociatedXWALight;
 	// True for space debris (used to inhibit them for SSAO)
@@ -114,7 +116,9 @@ public:
 	bool is_Missile;
 	// True for all textures that should not render SSAO (sets SSAO mask to 1)
 	bool is_GenericSSAOMasked;
-	// True for all skydomes ("*Cielo*") in DTM's planetary maps
+	// True for all skydome textures in DTM's plantery maps
+	bool is_Skydome;
+	// True for all skydome lights in DTM's planetary maps
 	bool is_SkydomeLight;
 	// True for all *.dat files
 	bool is_DAT;

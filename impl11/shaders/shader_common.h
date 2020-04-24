@@ -11,3 +11,5 @@
 
 // Dynamic Cockpit: Maximum Number of DC elements per texture
 #define MAX_DC_COORDS_PER_TEXTURE 12
+
+#define MAX_SUN_FLARES 4

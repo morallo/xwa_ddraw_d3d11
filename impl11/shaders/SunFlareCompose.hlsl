@@ -42,9 +42,9 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	output.color = color;
 	if (VRmode == 1)
-		sunPos = input.uv.x <= 0.5 ? SunCoords.xy * float2(0.5, 1.0) : SunCoords.xy * float2(0.5, 1.0) + float2(0.5, 0.0);
+		sunPos = input.uv.x <= 0.5 ? SunCoords[0].xy * float2(0.5, 1.0) : SunCoords[0].xy * float2(0.5, 1.0) + float2(0.5, 0.0);
 	else
-		sunPos = SunCoords.xy;
+		sunPos = SunCoords[0].xy;
 
 	sunPos3D = depthTex.Sample(depthSampler, sunPos).xyz;
 	if (sunPos3D.z < INFINITY_Z)

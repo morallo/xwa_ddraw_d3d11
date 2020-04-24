@@ -111,7 +111,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	// SunColor.a selects either white (0) or a light color (1) specified by SunColor.rgb:
-	float3 corona_color = lerp(1.0, SunColor.rgb, SunColor.a);
+	float3 corona_color = lerp(1.0, SunColor[0].rgb, SunColor[0].a);
 	float2 v = float2(input.tex.xy - 0.5);
 	const float V_2 = dot(v, v);
 	float intensity = saturate(pow(0.01 / V_2, 1.8));

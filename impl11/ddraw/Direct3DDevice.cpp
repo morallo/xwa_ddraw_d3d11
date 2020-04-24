@@ -406,7 +406,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
-bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bSunFlareVisible = false;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -6525,6 +6525,11 @@ HRESULT Direct3DDevice::Execute(
 				}
 				*/
 
+				// DEBUG
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_3DSun)
+				//	goto out;
+				// DEBUG
+
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
@@ -6695,7 +6700,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Replace the sun textures with procedurally-generated suns
-				if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent && bIsSun) {
+				if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent && bIsSun && g_ShadertoyBuffer.SunFlareCount < MAX_SUN_FLARES) {
 					static float iTime = 0.0f;
 					int s_XwaGlobalLightsCount = *(int*)0x00782848;
 					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
@@ -6712,14 +6717,15 @@ HRESULT Direct3DDevice::Execute(
 
 					// Get the centroid of the sun
 					Vector3 Centroid;
+					int SunFlareIdx = g_ShadertoyBuffer.SunFlareCount;
 					// By default suns don't have any color. We specify that by setting the alpha component to 0:
-					g_ShadertoyBuffer.SunColor.w = 0.0f;
+					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
 					// Use the material properties of this Sun -- if it has any associated with it
 					if (lastTextureSelected->bHasMaterial) {
-						g_ShadertoyBuffer.SunColor.x = lastTextureSelected->material.Light.x;
-						g_ShadertoyBuffer.SunColor.y = lastTextureSelected->material.Light.y;
-						g_ShadertoyBuffer.SunColor.z = lastTextureSelected->material.Light.z;
-						g_ShadertoyBuffer.SunColor.w = 1.0f;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].x = lastTextureSelected->material.Light.x;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].y = lastTextureSelected->material.Light.y;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].z = lastTextureSelected->material.Light.z;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 1.0f;
 					}
 
 					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid))
@@ -6735,12 +6741,12 @@ HRESULT Direct3DDevice::Execute(
 						*/
 
 						// If the centroid is visible, then let's display the sun flare:
-						g_bSunFlareVisible = true;
+						g_ShadertoyBuffer.SunFlareCount++;
 						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						if (g_bEnableVR) {
-							g_ShadertoyBuffer.SunX = Centroid.x;
-							g_ShadertoyBuffer.SunY = Centroid.y;
-							g_ShadertoyBuffer.SunZ = Centroid.z;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = Centroid.x;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Centroid.y;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = Centroid.z;
 							g_ShadertoyBuffer.VRmode = 1;
 							// DEBUG
 							// Project the centroid to the left image and log the coords
@@ -6755,9 +6761,9 @@ HRESULT Direct3DDevice::Execute(
 
 							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
-							g_ShadertoyBuffer.SunX = X;
-							g_ShadertoyBuffer.SunY = Y;
-							g_ShadertoyBuffer.SunZ = 0.0f;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
 							g_ShadertoyBuffer.VRmode = 0;
 						}
 

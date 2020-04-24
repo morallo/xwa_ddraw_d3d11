@@ -589,7 +589,7 @@ SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
-extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_bSunFlareVisible, g_b3DSunPresent, g_b3DSkydomePresent;
+extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_b3DSunPresent, g_b3DSkydomePresent;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 bool g_bGlobalSpecToggle = true;
@@ -4726,6 +4726,75 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
+/*
+ * In VR mode, the centroid of the sun texture is a new vertex in metric
+ * 3D space. We need to project it to the vertex buffer that is used to
+ * render the flare (the hyperspace vertex buffer, so it's placed at
+ * ~22km away. This projection yields a uv-coordinate in this distant
+ * vertex buffer. Then we need to project this distant point to post-proc
+ * screen coordinates. The screen-space coords (u,v) have (0,0) at the
+ * center of the screen. The output u is further multiplied by the aspect
+ * ratio to put the flare exactly on top of the sun.
+ * This function projects the 3D centroid to post-proc coords.
+ */
+void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v) {
+	/*
+	 * The following circus happens because the vertex buffer we're using to render the flare
+	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
+	 * from the camera through the Centroid and then extend that until it intersects the vertex
+	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
+	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
+	 * canvas (the vertex buffer at ~21km) that gets transformed with the regular projection matrices.
+	 */
+	float U0, U1, U2;
+	float V0, V1, V2;
+	Vector3 v0, v1, v2, P, orig = Vector3(0.0f, 0.0f, 0.0f), dir;
+	float t, tu, tv;
+	// The depth of the hyperspace buffer is: 
+	float hb_rhw_depth = 0.000863f;
+	//g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
+
+	/*
+	// Back-project to the depth of the vertex buffer we're using here:
+	backProject(QL.x, QL.y, hb_rhw_depth, &QL);
+	backProject(QR.x, QR.y, hb_rhw_depth, &QR);
+	log_debug("[DBG] Centroid: %0.3f, %0.3f, %0.3f --> Q: %0.3f, %0.3f, %0.3f",
+		Centroid.x, Centroid.y, Centroid.z, QL.x, QL.y, QL.z);
+	*/
+
+	// Convert the centroid into a direction coming from the origin:
+	dir = Centroid;
+	dir.normalize();
+
+	backProject(0.0f, 0.0f, hb_rhw_depth, &v0);
+	backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
+	backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+	if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv)) {
+		U0 = 0.0f; U1 = 1.0f; U2 = 0.0f;
+		V0 = 0.0f; V1 = 0.0f; V2 = 1.0f;
+	}
+	else 
+	{
+		backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
+		backProject(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
+		backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+		rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv);
+		U0 = 1.0f; U1 = 1.0f; U2 = 0.0f;
+		V0 = 0.0f; V1 = 1.0f; V2 = 1.0f;
+	}
+	// Interpolate the texture UV using the barycentric (tu, tv) coords:
+	*u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
+	*v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
+	// Change the range to -1..1:
+	*u = 2.0f * *u - 1.0f;
+	*v = 2.0f * *v - 1.0f;
+	// Apply the aspect ratio
+	if (g_bUseSteamVR)
+		*u *= g_fCurScreenWidth / g_fCurScreenHeight;
+	else
+		*u *= g_fAspectRatio;
+}
+
 void PrimarySurface::RenderSunFlare()
 {
 	auto& resources = this->_deviceResources;
@@ -4736,9 +4805,11 @@ void PrimarySurface::RenderSunFlare()
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	static float iTime = 0.0f;
-	Vector3 Q, QL, QR, Centroid;
+	Vector3 Centroid, QL[MAX_SUN_FLARES], QR[MAX_SUN_FLARES];
+	Vector2 Q[MAX_SUN_FLARES];
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
+	iTime += 0.01f;
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
@@ -4746,99 +4817,35 @@ void PrimarySurface::RenderSunFlare()
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
-	//g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.VRmode = g_bEnableVR;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	Centroid.x = g_ShadertoyBuffer.SunX;
-	Centroid.y = g_ShadertoyBuffer.SunY;
-	Centroid.z = g_ShadertoyBuffer.SunZ;
-	/*
-	 * The following circus happens because the vertex buffer we're using to render the flare
-	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
-	 * from the camera through the Centroid and then extend that until it intersects the vertex
-	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
-	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
-	 * canvas (the vertex buffer at ~21km) that gets transformed with the regular projection matrices.
-	 */
-	if (g_bEnableVR) {
-		float U0, U1, U2;
-		float V0, V1, V2;
-		Vector3 v0, v1, v2, P, orig = Vector3(0.0f, 0.0f, 0.0f), dir;
-		float t, tu, tv, u, v;
-		// The depth of the hyperspace buffer is: 
-		float hb_rhw_depth = 0.000863f;
-		//g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-
-		/*
-		// Back-project to the depth of the vertex buffer we're using here:
-		backProject(QL.x, QL.y, hb_rhw_depth, &QL);
-		backProject(QR.x, QR.y, hb_rhw_depth, &QR);
-		log_debug("[DBG] Centroid: %0.3f, %0.3f, %0.3f --> Q: %0.3f, %0.3f, %0.3f",
-			Centroid.x, Centroid.y, Centroid.z, QL.x, QL.y, QL.z);
-		*/
-
-		// Convert the centroid into a direction coming from the origin:
-		dir = Centroid;
-		dir.normalize();
-
-		backProject(0.0f, 0.0f, hb_rhw_depth, &v0);
-		backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
-		backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
-		
-		if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv)) {
-			U0 = 0.0f; U1 = 1.0f; U2 = 0.0f;
-			V0 = 0.0f; V1 = 0.0f; V2 = 1.0f;
-			// Interpolate the texture UV using the barycentric (tu, tv) coords:
-			u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
-			v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-			//log_debug("[DBG] P: %0.3f, %0.3f, %0.3f, uv: %0.3f, %0.3f",
-			//	P.x, P.y, P.z, u, v);
-			// Change the range to -1..1:
-			u = 2.0f * u - 1.0f;
-			v = 2.0f * v - 1.0f;
-			// Apply the aspect ratio
-			if (g_bUseSteamVR)
-				u *= g_fCurScreenWidth / g_fCurScreenHeight;
-			else
-				u *= g_fAspectRatio;
-			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
-			QL.y = QR.y = v;
-		}
-		else {
-			backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
-			backProject(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
-			backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
-			U0 = 1.0f; U1 = 1.0f; U2 = 0.0f;
-			V0 = 0.0f; V1 = 1.0f; V2 = 1.0f;
-			rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv);
-			// Interpolate the texture UV using the barycentric (tu, tv) coords:
-			u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
-			v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-			//log_debug("[DBG] P: %0.3f, %0.3f, %0.3f, uv: %0.3f, %0.3f",
-			//	P.x, P.y, P.z, u, v);
-			// Change the range to -1..1:
-			u = 2.0f * u - 1.0f;
-			v = 2.0f * v - 1.0f;
-			// Apply the aspect ratio
-			// Apply the aspect ratio
-			if (g_bUseSteamVR)
-				u *= g_fCurScreenWidth / g_fCurScreenHeight;
-			else
-				u *= g_fAspectRatio;
-			QL.x = QR.x = u; // ((u - 0.5f) * g_fAspectRatio) + (0.5f * g_fAspectRatio);
-			QL.y = QR.y = v;
-		}
-
-		// Overwrite the centroid with the new 2D coordinates for the left image
-		g_ShadertoyBuffer.SunX = QL.x;
-		g_ShadertoyBuffer.SunY = QL.y;
-	}
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
-	iTime += 0.01f;
-
-	resources->InitPixelShader(resources->_sunFlareShaderPS);
+	if (g_bEnableVR) {
+		float u, v;
+		// This is a first step towards having multiple flares; but more work is needed
+		// because flares are blocked depending on stuff that lies in front of them, so
+		// we can't render all flares on the same go. It has to be done one by one, eye
+		// by eye. So, at this point, even though we have an array of flares, it's all
+		// hard-coded to only render flare 0 in the shaders.
+		// Project all flares to post-proc coords in the hyperspace vertex buffer:
+		for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
+			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
+			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
+			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
+			ProjectCentroidToPostProc(Centroid, &u, &v);
+			// Overwrite the centroid with the new 2D coordinates for the left/right images
+			g_ShadertoyBuffer.SunCoords[i].x = u;
+			g_ShadertoyBuffer.SunCoords[i].y = v;
+			// Also project the centroid to 2D directly -- we'll need that during the compose pass
+			// to mask the flare
+			QL[i] = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+			QR[i] = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+		}
+	}
+	// Set the shadertoy constant buffer:
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPixelShader(resources->_sunFlareShaderPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -4850,7 +4857,7 @@ void PrimarySurface::RenderSunFlare()
 	// The VR case produces only the flare on these buffers. The flare must be composed on top of the image in a further step
 	{
 		// Set the new viewport (a full quad covering the full screen)
-		viewport.Width = g_fCurScreenWidth;
+		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
@@ -4941,11 +4948,6 @@ void PrimarySurface::RenderSunFlare()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			// Overwrite the centroid with the new 2D coordinates for the right image
-			g_ShadertoyBuffer.SunX = QR.x;
-			g_ShadertoyBuffer.SunY = QR.y;
-			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-
 			if (g_bUseSteamVR) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
@@ -4980,12 +4982,12 @@ void PrimarySurface::RenderSunFlare()
 	if (g_bEnableVR)
 	{
 		// Reset the viewport for non-VR mode:
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width = g_fCurScreenWidth;
-		viewport.Height = g_fCurScreenHeight;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.TopLeftX	= 0.0f;
+		viewport.TopLeftY	= 0.0f;
+		viewport.Width		= g_fCurScreenWidth;
+		viewport.Height		= g_fCurScreenHeight;
+		viewport.MaxDepth	= D3D11_MAX_DEPTH;
+		viewport.MinDepth	= D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
 
 		// Reset the vertex shader to regular 2D post-process
@@ -5009,9 +5011,11 @@ void PrimarySurface::RenderSunFlare()
 		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 		// Project the centroid to the left/right eyes
-		QL = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
-		g_ShadertoyBuffer.SunX = QL.x;
-		g_ShadertoyBuffer.SunY = QL.y;
+		for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
+			//QL = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+			g_ShadertoyBuffer.SunCoords[i].x = QL[i].x;
+			g_ShadertoyBuffer.SunCoords[i].y = QL[i].y;
+		}
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 		resources->InitPixelShader(resources->_sunFlareComposeShaderPS);
 
@@ -5039,9 +5043,11 @@ void PrimarySurface::RenderSunFlare()
 
 		// Post-process the right image
 		if (g_bUseSteamVR) {
-			QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
-			g_ShadertoyBuffer.SunX = QR.x;
-			g_ShadertoyBuffer.SunY = QR.y;
+			//QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
+				g_ShadertoyBuffer.SunCoords[i].x = QR[i].x;
+				g_ShadertoyBuffer.SunCoords[i].y = QR[i].y;
+			}
 			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewPostR.Get(),
@@ -6182,7 +6188,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Render the sun flare (if applicable)
 			if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent &&
-				g_bSunFlareVisible && g_ShadertoyBuffer.flare_intensity > 0.01f)
+				g_ShadertoyBuffer.SunFlareCount > 0 && g_ShadertoyBuffer.flare_intensity > 0.01f)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -6470,7 +6476,7 @@ HRESULT PrimarySurface::Flip(
 				g_bDepthBufferResolved = false;
 				g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 				g_bSwitchedToGUI = false;
-				g_bSunFlareVisible = false;
+				g_ShadertoyBuffer.SunFlareCount = 0;
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;

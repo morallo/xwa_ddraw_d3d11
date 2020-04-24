@@ -5,6 +5,7 @@
 #pragma once
 #include "Matrices.h"
 #include "../shaders/material_defs.h"
+#include "../shaders/shader_common.h"
 #include <vector>
 
 // Also found in the Floating_GUI_RESNAME list:
@@ -254,10 +255,14 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
-	float SunX, SunY, SunZ, flare_intensity;
+	int SunFlareCount;
+	float flare_intensity, st_unused0, st_unused1;
 	// 144 bytes
-	float4 SunColor;
-	// 160 bytes
+	//float SunX, SunY, SunZ, flare_intensity;
+	float4 SunCoords[MAX_SUN_FLARES];
+	// 208 bytes
+	float4 SunColor[MAX_SUN_FLARES];
+	// 272 bytes
 } ShadertoyCBuffer;
 
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
@@ -359,7 +364,6 @@ typedef struct PixelShaderCBStruct {
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
-const int MAX_DC_COORDS_PER_TEXTURE = 12;
 typedef struct DCPixelShaderCBStruct {
 	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
 	// 4 * MAX_DC_COORDS * 4 = 192

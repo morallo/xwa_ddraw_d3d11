@@ -3086,8 +3086,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the Hyperspace (ShaderToy) constant buffer
-	constantBufferDesc.ByteWidth = 160;
-	static_assert(sizeof(ShadertoyCBuffer) == 160, "sizeof(ShadertoyCBuffer) must be 160");
+	constantBufferDesc.ByteWidth = 272;
+	static_assert(sizeof(ShadertoyCBuffer) == 272, "sizeof(ShadertoyCBuffer) must be 272");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_hyperspaceConstantBuffer)))
 		return hr;
 

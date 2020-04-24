@@ -393,6 +393,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
 	this->is_Sun = false;
+	this->is_3DSun = false;
 	this->AssociatedXWALight = -1;
 	this->is_Debris = false;
 	this->is_Trail = false;
@@ -401,6 +402,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Chaff = false;
 	this->is_Missile = false;
 	this->is_GenericSSAOMasked = false;
+	this->is_Skydome = false;
 	this->is_SkydomeLight = false;
 	this->ActiveCockpitIdx = -1;
 	// Dynamic cockpit data
@@ -897,8 +899,8 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, "Cielo") != NULL ||
 			strstr(surface->_name, "Skydome") != NULL)
 		{
-			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
 			g_b3DSkydomePresent = true;
+			this->is_Skydome = true;
 			this->is_GenericSSAOMasked = true;
 			if (this->is_LightTexture) {
 				this->is_SkydomeLight = true;
@@ -910,6 +912,7 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, "Sole") != NULL ||
 			strstr(surface->_name, "Star3D") != NULL) {
 			g_b3DSunPresent = true;
+			this->is_3DSun = true;
 			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
 		}
 		
@@ -1053,6 +1056,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
+	this->is_3DSun = d3dTexture->is_3DSun;
 	this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
@@ -1061,6 +1065,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
+	this->is_Skydome = d3dTexture->is_Skydome;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
 	this->is_DAT = d3dTexture->is_DAT;
 	this->is_BlastMark = d3dTexture->is_BlastMark;
