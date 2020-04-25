@@ -82,6 +82,7 @@ public:
 			boxes[i].bLimitsComputed = false;
 	}
 };
+const int MAX_DC_REGIONS = 9;
 
 const int LEFT_RADAR_DC_ELEM_SRC_IDX = 0;
 const int RIGHT_RADAR_DC_ELEM_SRC_IDX = 1;

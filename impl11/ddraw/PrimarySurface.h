@@ -61,7 +61,7 @@ public:
 
 	void ClearBox(uvfloat4 box, D3D11_VIEWPORT * viewport, D3DCOLOR clearColor);
 
-	void ClearHUDRegions();
+	int ClearHUDRegions();
 
 	void DrawHUDVertices();
 

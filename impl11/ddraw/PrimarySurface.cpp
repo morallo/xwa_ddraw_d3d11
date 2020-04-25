@@ -1843,11 +1843,12 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 	context->Draw(6, 0);
 }
 
-void PrimarySurface::ClearHUDRegions() {
+int PrimarySurface::ClearHUDRegions() {
 	D3D11_VIEWPORT viewport = { 0 };
+	int num_regions_erased = 0;
 	// Ignore the "erase_region" commands if the global toggle is set:
 	if (g_bDCIgnoreEraseCommands)
-		return;
+		return num_regions_erased;
 
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
@@ -1878,10 +1879,13 @@ void PrimarySurface::ClearHUDRegions() {
 		for (int j = 0; j < dc_elem->num_erase_slots; j++) {
 			int erase_slot = dc_elem->erase_slots[j];
 			DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[erase_slot];
-			if (dcSrcBox->bLimitsComputed)
+			if (dcSrcBox->bLimitsComputed) {
 				ClearBox(dcSrcBox->erase_coords, &viewport, 0x0);
+				num_regions_erased++;
+			}
 		}
 	}
+	return num_regions_erased;
 }
 
 /*
@@ -6403,12 +6407,20 @@ HRESULT PrimarySurface::Flip(
 			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 			if ((g_bDCManualActivate || bExteriorCamera)&& (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
+				int num_regions_erased = 0;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled && !bExteriorCamera)
-					ClearHUDRegions();
+					num_regions_erased = ClearHUDRegions();
 				
 				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
-				DrawHUDVertices();
+				// If we have erased all the HUD regions, then there's conceptually nothing left to render
+				// (this is how we avoid rendering the text associated with the triangle pointer: in VR this
+				// is really annoying).
+				// The beam weapon may not be present, so I'm comparing against 8 regions, not 9. This means
+				// that if the beam weapon is not in the cockpit, it will disappear... oh well. Too bad. Let's
+				// just make sure we *always* put the beam weapon somewhere.
+				if (num_regions_erased < MAX_DC_REGIONS - 1)
+					DrawHUDVertices();
 			}
 
 			// I should probably render the laser pointer before the HUD; but if I do that, then the

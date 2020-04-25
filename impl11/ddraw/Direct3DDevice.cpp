@@ -19,38 +19,39 @@ float s_XwaHudScale = 1.0f;
 		s_XwaPlayers[playerIndex].IsHudVisible
 		0x0064  byte IsHudVisible;
 
-	The variable that define if the left MFD is visible is a byte situated at offset 0x0067 in the player table.
+	The variable that defines if the left MFD is visible is a byte situated at offset 0x0067 in the player table.
 
 		!KEY_DELETE!169 Delete Toggle left MFD
 		Key_DELETE
 		s_XwaPlayers[playerIndex].IsHudMfd1Visible
 		0x0067 byte IsHudMfd1Visible;
 
-	The variable that define if the right MFD is visible is a byte situated at offset 0x0068 in the player table.
+	The variable that defines if the right MFD is visible is a byte situated at offset 0x0068 in the player table.
 
 		!KEY_PAGEDOWN!173 PageDown Toggle right MFD
 		Key_NEXT
 		s_XwaPlayers[playerIndex].IsHudMfd2Visible
 		0x0068 byte IsHudMfd2Visible;
 
-	The variable that define if the left sensor / indicator is visible is a byte situated at offset 0x005B5338.
+	The variable that defines if the left sensor / indicator is visible is a byte situated at offset 0x005B5338.
 
 		!KEY_INSERT!168 Insert Toggle Left Sensor / Shield Indicator
 		Key_INSERT
 		byte s_V0x05B5338 = (byte)0x01;
 
-	The variable that define if the right sensor / indicator is visible is a byte situated at offset 0x005B533C.
+	The variable that defines if the right sensor / indicator is visible is a byte situated at offset 0x005B533C.
 
 		!KEY_PAGEUP!172 PageUp Toggle Right Sensor / Beam Indicator
 		Key_PRIOR
 		byte s_V0x05B533C = (byte)0x01;
-	The variable that define if the center indicators are visible is a byte situated at offset 0x005B5340.
+
+	The variable that defines if the center indicators are visible is a byte situated at offset 0x005B5340.
 
 		!KEY_HOME!170 Home Center indicators
 		Key_HOME
 		byte s_V0x05B5340 = (byte)0x01;
 
-	The variable that define if the toggle CMD is visible is a byte situated at offset 0x005B5334.
+	The variable that defines if the toggle CMD is visible is a byte situated at offset 0x005B5334.
 
 		!KEY_END!171 End Toggle CMD
 		Key_END
