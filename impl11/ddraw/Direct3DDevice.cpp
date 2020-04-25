@@ -5792,7 +5792,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsLaser = lastTextureSelected->is_Laser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
-					bIsAimingHUD = lastTextureSelected->is_HUD;
+					bIsAimingHUD = lastTextureSelected->is_Reticle;
 					bIsGUI = lastTextureSelected->is_GUI;
 					bIsLensFlare = lastTextureSelected->is_LensFlare;
 					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
@@ -5818,7 +5818,7 @@ HRESULT Direct3DDevice::Execute(
 				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
 					!lastTextureSelected->is_Text && !lastTextureSelected->is_TrianglePointer &&
-					!lastTextureSelected->is_HUD && !lastTextureSelected->is_Floating_GUI &&
+					!lastTextureSelected->is_Reticle && !lastTextureSelected->is_Floating_GUI &&
 					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
 
 				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {

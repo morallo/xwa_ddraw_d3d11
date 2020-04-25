@@ -27,21 +27,38 @@ std::vector<ColorLightPair> g_TextureVector;
  */
 std::vector<Direct3DTexture *> g_AuxTextureVector;
 
-std::vector<char *> HUD_ResNames = {
-	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
-	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available.
-	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser HUD.
-	"dat,12000,1500,", // 0x1c5e0b86, // HUD warning indicator, left.
-	"dat,12000,1600,", // 0xc54d8171, // HUD warning indicator, mid-left.
-	"dat,12000,1700,", // 0xf4388255, // HUD warning indicator, mid-right.
-	"dat,12000,1800,", // 0xee802582, // HUD warning indicator, right.
-	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead HUD.
-	"dat,12000,1900,", // 0x671e8041, // Warhead HUD, left.
-	"dat,12000,2000,", // 0x6cd5d81f, // Warhead HUD, mid-left,right
-	"dat,12000,2100,", // 0x6cd5d81f, // Warhead HUD, mid-left,right
-	"dat,12000,2200,", // 0xc33a94b3, // Warhead HUD, right.
+/*
+hook_reticle mapping:
+Reticle_5 = 5
+Reticle_6 = 6
+Reticle_7 = 7
+Reticle_8 = 8
+Reticle_9 = 9
+Reticle_10 = 10
+Reticle_15 = 15
+Reticle_16 = 16
+Reticle_17 = 17
+Reticle_18 = 18
+Reticle_19 = 19
+Reticle_20 = 20
+Reticle_21 = 21
+Reticle_22 = 22
+*/
+std::vector<char *> Reticle_ResNames = {
+	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
 	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon.
+	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
 	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired.
+	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available.
+	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
+	"dat,12000,1500,", // 0x1c5e0b86, // Laser warning indicator, left.
+	"dat,12000,1600,", // 0xc54d8171, // Laser warning indicator, mid-left.
+	"dat,12000,1700,", // 0xf4388255, // Laser warning indicator, mid-right.
+	"dat,12000,1800,", // 0xee802582, // Laser warning indicator, right.
+	"dat,12000,1900,", // 0x671e8041, // Warhead top indicator, left.
+	"dat,12000,2000,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
+	"dat,12000,2100,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
+	"dat,12000,2200,", // 0xc33a94b3, // Warhead top indicator, right.
 };
 
 std::vector<char *> Text_ResNames = {
@@ -169,6 +186,8 @@ std::vector<char *> Trails_ResNames = {
 	"dat,21020,",
 	"dat,21025,",
 };
+
+bool GetGroupIdImageIdFromDATName(char *DATName, int *GroupId, int *ImageId);
 
 // DYNAMIC COCKPIT
 // g_DCElements is used when loading textures to load the cover texture.
@@ -375,7 +394,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
 	this->is_Tagged = false;
-	this->is_HUD = false;
+	this->is_Reticle = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
 	this->is_Floating_GUI = false;
@@ -610,8 +629,8 @@ void Direct3DTexture::TagTexture() {
 			this->is_TrianglePointer = true;
 		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		else if (isInVector(surface->_name, HUD_ResNames))
-			this->is_HUD = true;
+		else if (isInVector(surface->_name, Reticle_ResNames))
+			this->is_Reticle = true;
 		else if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
 
@@ -644,8 +663,17 @@ void Direct3DTexture::TagTexture() {
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
 			this->is_Debris = true;
 		// Catch DAT files
-		if (strstr(surface->_name, "dat,") != NULL)
+		if (strstr(surface->_name, "dat,") != NULL) {
+			int GroupId, ImageId;
 			this->is_DAT = true;
+			// Check if this DAT image is a custom reticle
+			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
+				if (GroupId == 12000 && ImageId > 5000) {
+					this->is_Reticle = true;
+					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
+				}
+			}
+		}
 		// Catch blast marks
 		if (strstr(surface->_name, "dat,3050,") != NULL)
 			this->is_BlastMark = true;
@@ -1038,7 +1066,7 @@ HRESULT Direct3DTexture::Load(
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
-	this->is_HUD = d3dTexture->is_HUD;
+	this->is_Reticle = d3dTexture->is_Reticle;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
 	this->is_Floating_GUI = d3dTexture->is_Floating_GUI;
