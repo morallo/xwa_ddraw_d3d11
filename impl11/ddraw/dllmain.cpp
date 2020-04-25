@@ -930,13 +930,42 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		
 		if (IsXwaExe())
 		{
-			// RenderCharHook
-			*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
-			*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
+			{
+				// RenderCharHook
+				*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
+				*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
 
-			// ComputeMetricsHook
-			*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
-			*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
+				// ComputeMetricsHook
+				*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
+				*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
+			}
+
+
+			// Remove the text next to the triangle pointer
+			// At offset 072B4A, replace BF48BD6800 with 9090909090.
+			// At offset 072B4A, replace BF48BD6800 with 90 90 90 90 90.
+			// Offset 072B4A corresponds to address 0047374A 
+			{
+				DWORD old, dummy;
+				BOOL res;
+				res = VirtualProtect((void *)0x047374A, 5, PAGE_READWRITE, &old);
+				if (res) {
+					log_debug("[DBG] Patching address 0x047374A");
+					//memset((unsigned char *)0x047374A, 0x90, 5);
+					unsigned char *ptr = (unsigned char *)0x047374A;
+					for (int i = 0; i < 5; i++) {
+						//log_debug("[DBG] 0x%x", *(ptr + i));
+						*(ptr + i) = 0x90;
+					}
+					if (VirtualProtect((void *)0x047374A, 5, old, &dummy)) {
+						log_debug("[DBG] Address 0x047374A patched!");
+						if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+							log_debug("[DBG] Instructions flushed");
+					}
+				}
+				else
+					log_debug("[DBG] Could not get address 0x047374A");
+			}
 		}
 		break;
 	case DLL_THREAD_ATTACH:

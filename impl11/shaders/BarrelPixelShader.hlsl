@@ -47,7 +47,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	if (texPos.x <= 0.5) {
 		float2 LC = { 0.25, 0.5 };
 		// vignette radius:
-		radius = length(2.0 * (texPos - LC));
+		float2 temp = texPos - LC;
+		temp.x *= 2.0f;
+		radius = length(temp);
 
 		texPos = (texPos - LC) * barrel_scale + LC;
 		distortData = genericDistortion(texPos, LC);
@@ -60,7 +62,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	} else {
 		float2 LC = { 0.75, 0.5 };
 		// vignette radius:
-		radius = length(2.0 * (texPos - LC));
+		float2 temp = texPos - LC;
+		temp.x *= 2.0f;
+		radius = length(temp);
 
 		texPos = (texPos - LC) * barrel_scale + LC;
 		distortData = genericDistortion(texPos, LC);
