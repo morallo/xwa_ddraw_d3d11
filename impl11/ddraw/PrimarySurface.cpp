@@ -1892,7 +1892,7 @@ int PrimarySurface::ClearHUDRegions() {
  * Renders the HUD foreground and background and applies the move_region 
  * commands if DC is enabled
  */
-void PrimarySurface::DrawHUDVertices() {
+void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -2026,7 +2026,8 @@ void PrimarySurface::DrawHUDVertices() {
 	context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitBG_SRV.GetAddressOf());
 	context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
 	// Draw the Left Image
-	context->Draw(6, 0);
+	if (RenderHUD)
+		context->Draw(6, 0);
 
 	if (!g_bEnableVR) // Shortcut for the non-VR path
 		return;
@@ -2055,7 +2056,8 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
-	context->Draw(6, 0);
+	if (RenderHUD)
+		context->Draw(6, 0);
 }
 
 void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
@@ -6405,7 +6407,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Draw the HUD
 			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
-			if ((g_bDCManualActivate || bExteriorCamera)&& (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
 				int num_regions_erased = 0;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
@@ -6419,8 +6421,19 @@ HRESULT PrimarySurface::Flip(
 				// The beam weapon may not be present, so I'm comparing against 8 regions, not 9. This means
 				// that if the beam weapon is not in the cockpit, it will disappear... oh well. Too bad. Let's
 				// just make sure we *always* put the beam weapon somewhere.
-				if (num_regions_erased < MAX_DC_REGIONS - 1)
-					DrawHUDVertices();
+
+				// DTM's Yavin map exposed a weird bug when the next if is enabled: if the XwingCockpit.dc file
+				// doesn't match the XwingCockpit.opt, then we'll erase all HUD regions; but we will not render
+				// any DC elements. Pressing ESC to see the menu while flying only shows a black screen. The black
+				// screen goes away if we remove the next if:
+				//if (num_regions_erased < MAX_DC_REGIONS - 1)
+				// I don't know why; but if we call DrawHUDVertices, or if we enable AC, the problem goes away.
+				// Looks like we need the state set by DrawHUDVertices() after all...
+				// ... also: we need to call DrawHUDVertices to move the HUD regions anyway (but only if there
+				// are any HUD regions that weren't erased!)
+				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
+				// HUD regions were erasedo
+				DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
 			}
 
 			// I should probably render the laser pointer before the HUD; but if I do that, then the

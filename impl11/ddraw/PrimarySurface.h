@@ -63,7 +63,7 @@ public:
 
 	int ClearHUDRegions();
 
-	void DrawHUDVertices();
+	void DrawHUDVertices(bool RenderHUD);
 
 	void ComputeNormalsPass(float fZoomFactor);
 

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE.txt
 // This shader should only be called to render the HUD FG/BG
 #include "shader_common.h"
+#include "PixelShaderTextureCommon.h"
 
 // texture0 == HUD foreground
 Texture2D    texture0 : register(t0);
@@ -25,20 +26,6 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
-};
-
-cbuffer ConstantBuffer : register(b0)
-{
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used.
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint unused;				// (Used to be bRenderHUD) When set, first texture is HUD foreground and second texture is HUD background
-	// 16 bytes
-
-	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	// unused
 };
 
 // DCPixelShaderCBuffer, _PSConstantBufferDC, g_DCPSCBuffer
