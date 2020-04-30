@@ -944,7 +944,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			// Remove the text next to the triangle pointer
 			// At offset 072B4A, replace BF48BD6800 with 9090909090.
 			// At offset 072B4A, replace BF48BD6800 with 90 90 90 90 90.
-			// Offset 072B4A corresponds to address 0047374A 
+			// Offset 072B4A corresponds to address 0047374A
+			if (!g_config.TriangleTextEnabled)
 			{
 				DWORD old, dummy;
 				BOOL res;
@@ -955,7 +956,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 					unsigned char *ptr = (unsigned char *)0x047374A;
 					for (int i = 0; i < 5; i++) {
 						//log_debug("[DBG] 0x%x", *(ptr + i));
-						*(ptr + i) = 0x90;
+						*(ptr + i) = 0x90; // NOP
 					}
 					if (VirtualProtect((void *)0x047374A, 5, old, &dummy)) {
 						log_debug("[DBG] Address 0x047374A patched!");
@@ -965,6 +966,29 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				}
 				else
 					log_debug("[DBG] Could not get address 0x047374A");
+			}
+
+			// Remove the triangle pointer completely:
+			// At offset 06B970 (address 0046C570), replace 83 with C3.
+			if (!g_config.TrianglePointerEnabled) {
+				DWORD old, dummy;
+				BOOL res;
+				res = VirtualProtect((void *)0x046C570, 1, PAGE_READWRITE, &old);
+				if (res) {
+					log_debug("[DBG] Patching address 0x046C570");
+					//memset((unsigned char *)0x046C570, 0xC3, 1);
+					unsigned char *ptr = (unsigned char *)0x046C570;
+					for (int i = 0; i < 1; i++) {
+						*(ptr + i) = 0xC3; // RET (?)
+					}
+					if (VirtualProtect((void *)0x046C570, 1, old, &dummy)) {
+						log_debug("[DBG] Address 0x046C570 patched!");
+						if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+							log_debug("[DBG] Instructions flushed");
+					}
+				}
+				else
+					log_debug("[DBG] Could not get address 0x046C570");
 			}
 		}
 		break;

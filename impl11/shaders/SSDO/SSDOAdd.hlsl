@@ -456,10 +456,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
+		
 		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
 		// intact
-		spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
+		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
+		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * saturate(

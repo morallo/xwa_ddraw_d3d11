@@ -330,8 +330,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
 		// intact
-		spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
+		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
+		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);

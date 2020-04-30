@@ -47,6 +47,8 @@ Config::Config()
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
 	this->ExternalHUDEnabled = false;
+	this->TriangleTextEnabled = true;
+	this->TrianglePointerEnabled = true;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -117,6 +119,14 @@ Config::Config()
 			{
 				this->ProcessAffinityCore = stoi(value);
 			}
+			else if (name == "TextFontFamily")
+			{
+				this->TextFontFamily = string_towstring(value);
+			}
+			else if (name == "TextWidthDelta")
+			{
+				this->TextWidthDelta = stoi(value);
+			}
 			else if (name == "JoystickEmul")
 			{
 				this->JoystickEmul = stoi(value);
@@ -161,13 +171,13 @@ Config::Config()
 			{
 				this->ExternalHUDEnabled = (bool)stoi(value);
 			}
-			else if (name == "TextFontFamily")
+			else if (name == "TriangleTextEnabled")
 			{
-				this->TextFontFamily = string_towstring(value);
+				this->TriangleTextEnabled = (bool)stoi(value);
 			}
-			else if (name == "TextWidthDelta")
+			else if (name == "TrianglePointerEnabled")
 			{
-				this->TextWidthDelta = stoi(value);
+				this->TrianglePointerEnabled = (bool)stoi(value);
 			}
 		}
 	}

@@ -39,6 +39,8 @@ public:
 	bool FXAAEnabled;
 	bool StayInHyperspace;
 	bool ExternalHUDEnabled;
+	bool TriangleTextEnabled;
+	bool TrianglePointerEnabled;
 };
 
 extern Config g_config;
