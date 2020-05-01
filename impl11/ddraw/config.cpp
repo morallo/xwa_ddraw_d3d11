@@ -49,6 +49,7 @@ Config::Config()
 	this->ExternalHUDEnabled = false;
 	this->TriangleTextEnabled = true;
 	this->TrianglePointerEnabled = true;
+	this->SimplifiedTrianglePointer = false;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -178,6 +179,10 @@ Config::Config()
 			else if (name == "TrianglePointerEnabled")
 			{
 				this->TrianglePointerEnabled = (bool)stoi(value);
+			}
+			else if (name == "SimplifiedTrianglePointer")
+			{
+				this->SimplifiedTrianglePointer = (bool)stoi(value);
 			}
 		}
 	}

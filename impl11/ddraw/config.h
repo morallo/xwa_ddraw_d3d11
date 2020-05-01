@@ -41,6 +41,7 @@ public:
 	bool ExternalHUDEnabled;
 	bool TriangleTextEnabled;
 	bool TrianglePointerEnabled;
+	bool SimplifiedTrianglePointer;
 };
 
 extern Config g_config;

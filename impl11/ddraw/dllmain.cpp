@@ -902,6 +902,21 @@ bool IsXwaExe()
 	return _stricmp(filename + length - 17, "xwingalliance.exe") == 0;
 }
 
+void PatchWithValue(uint32_t address, unsigned char value, int size) {
+	DWORD old, dummy;
+	BOOL res;
+	res = VirtualProtect((void *)address, 1, PAGE_READWRITE, &old);
+	if (res) {
+		log_debug("[DBG] Patching address 0x%x", address);
+		memset((unsigned char *)address, value, size);
+		if (VirtualProtect((void *)address, 1, old, &dummy)) {
+			log_debug("[DBG] Address 0x%x patched", address);
+		}
+	}
+	else
+		log_debug("[DBG] Could not patch address 0x%x", address);
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -989,6 +1004,38 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				}
 				else
 					log_debug("[DBG] Could not get address 0x046C570");
+			}
+
+			/*
+			Remove the text next to the triangle pointer; but leave the triangle:
+
+				At offset 072B4A (address 0047374A), replace BF48BD6800 with 90 90 90 90 90. (5 bytes)
+				At offset 06C0D4 (address 0046CCD4), replace E84785FCFF with 90 90 90 90 90.
+				At offset 06C10C (address 0046CD0C), replace E80F85FCFF with 90 90 90 90 90.
+				At offset 06C563 (address 0046D163), replace E8B880FCFF with 90 90 90 90 90.
+				At offset 06C59B (address 0046D19B), replace E88080FCFF with 90 90 90 90 90.
+				At offset 06C0EB (address 0046CCEB), replace FF15B09D7C00 with 90 90 90 90 90 90. (6 bytes)
+				At offset 06C57A (address 0046D17A), replace FF15B09D7C00 with 90 90 90 90 90 90.
+			*/
+			if (g_config.SimplifiedTrianglePointer) {
+				log_debug("[DBG] Applying SimplifiedTrianglePointer patch");
+				// At offset 072B4A(address 0047374A), replace BF48BD6800 with 90 90 90 90 90. (5 bytes)
+				PatchWithValue(0x047374A, 0x90, 5);
+				// At offset 06C0D4(address 0046CCD4), replace E84785FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046CCD4, 0x90, 5);
+				// At offset 06C10C(address 0046CD0C), replace E80F85FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046CD0C, 0x90, 5);
+				// At offset 06C563(address 0046D163), replace E8B880FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046D163, 0x90, 5);
+				// At offset 06C59B(address 0046D19B), replace E88080FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046D19B, 0x90, 5);
+				// At offset 06C0EB(address 0046CCEB), replace FF15B09D7C00 with 90 90 90 90 90 90. (6 bytes)
+				PatchWithValue(0x046CCEB, 0x90, 6);
+				// At offset 06C57A(address 0046D17A), replace FF15B09D7C00 with 90 90 90 90 90 90.
+				PatchWithValue(0x046D17A, 0x90, 6);
+				// Flush the instruction cache
+				if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+					log_debug("[DBG] Instructions flushed");
 			}
 		}
 		break;
