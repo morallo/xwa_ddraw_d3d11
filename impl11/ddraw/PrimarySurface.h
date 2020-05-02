@@ -159,6 +159,8 @@ public:
 
 	void RenderRadar();
 
+	void RenderBracket();
+
 	ULONG _refCount;
 
 	DeviceResources* _deviceResources;
