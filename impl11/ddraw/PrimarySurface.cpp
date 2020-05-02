@@ -6000,7 +6000,8 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
-			this->RenderBracket();
+			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
+			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
 			this->RenderRadar();
 			this->RenderText();
 
@@ -6266,6 +6267,10 @@ HRESULT PrimarySurface::Flip(
 				//UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderFXAA();
 			}
+
+			// Render the enhanced bracket after all the shading has been applied.
+			if (!g_bEnableVR)
+				this->RenderBracket();
 
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
