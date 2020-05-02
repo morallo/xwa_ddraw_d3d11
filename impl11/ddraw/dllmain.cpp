@@ -882,6 +882,7 @@ bool ReplaceWindowProc(HWND hwnd)
 }
 
 #include "XwaDrawTextHook.h"
+#include "XwaDrawRadarHook.h"
 
 bool IsXwaExe()
 {
@@ -943,16 +944,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		
 		if (IsXwaExe())
 		{
-			{
-				// RenderCharHook
-				*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
-				*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
+			// RenderCharHook
+			*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
+			*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
 
-				// ComputeMetricsHook
-				*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
-				*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
-			}
-
+			// ComputeMetricsHook
+			*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
+			*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
+		
+			// DrawRadarHook
+			*(int*)(0x00434977 + 0x06) = (int)DrawRadarHook;
+			*(int*)(0x00434995 + 0x06) = (int)DrawRadarSelectedHook;
 
 			// Remove the text next to the triangle pointer
 			// At offset 072B4A, replace BF48BD6800 with 9090909090.
