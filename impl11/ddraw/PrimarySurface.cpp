@@ -14,6 +14,8 @@
 #include "Matrices.h"
 #include "Direct3DTexture.h"
 #include "XwaDrawTextHook.h"
+#include "XwaDrawRadarHook.h"
+#include "XwaDrawBracketHook.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
@@ -5998,7 +6000,9 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
-			// Render the text buffer and flush it
+			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
+			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
+			this->RenderRadar();
 			this->RenderText();
 
 			// Render the hyperspace effect if necessary
@@ -6263,6 +6267,10 @@ HRESULT PrimarySurface::Flip(
 				//UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderFXAA();
 			}
+
+			// Render the enhanced bracket after all the shading has been applied.
+			if (!g_bEnableVR)
+				this->RenderBracket();
 
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
@@ -7587,4 +7595,204 @@ void PrimarySurface::RenderText()
 
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
+}
+
+void PrimarySurface::RenderRadar()
+{
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+
+	UINT w;
+	UINT h;
+
+	if (g_config.AspectRatioPreserved)
+	{
+		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		{
+			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+		}
+	}
+	else
+	{
+		w = this->_deviceResources->_backbufferWidth;
+		h = this->_deviceResources->_backbufferHeight;
+	}
+
+	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
+	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+	ComPtr<ID2D1SolidColorBrush> brush;
+	unsigned int brushColor = 0;
+	this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+
+	for (const auto& xwaRadar : g_xwa_radar)
+	{
+		unsigned short si = ((unsigned short*)0x08D9420)[xwaRadar.colorIndex];
+		unsigned int esi;
+
+		if (((bool(*)())0x0050DC50)() != 0)
+		{
+			unsigned short eax = si & 0x001F;
+			unsigned short ecx = si & 0x7C00;
+			unsigned short edx = si & 0x03E0;
+
+			esi = (eax << 3) | (edx << 6) | (ecx << 9);
+		}
+		else
+		{
+			unsigned short eax = si & 0x001F;
+			unsigned short edx = si & 0xF800;
+			unsigned short ecx = si & 0x07E0;
+
+			esi = (eax << 3) | (ecx << 5) | (edx << 8);
+		}
+
+		if (esi != brushColor)
+		{
+			brushColor = esi;
+			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+		}
+
+		float x = left + (float)xwaRadar.positionX * scaleX;
+		float y = top + (float)xwaRadar.positionY * scaleY;
+
+		float deltaX = 2.0f * scaleX;
+		float deltaY = 2.0f * scaleY;
+
+		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), brush);
+	}
+
+	if (g_xwa_radar_selected_positionX != -1 && g_xwa_radar_selected_positionY != -1)
+	{
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Yellow), &brush);
+
+		float x = left + (float)g_xwa_radar_selected_positionX * scaleX;
+		float y = top + (float)g_xwa_radar_selected_positionY * scaleY;
+
+		float deltaX = 4.0f * scaleX;
+		float deltaY = 4.0f * scaleY;
+
+		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), brush);
+	}
+
+	this->_deviceResources->_d2d1RenderTarget->EndDraw();
+	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	g_xwa_radar.clear();
+	g_xwa_radar_selected_positionX = -1;
+	g_xwa_radar_selected_positionY = -1;
+}
+
+void PrimarySurface::RenderBracket()
+{
+	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1OffscreenRenderTarget->BeginDraw();
+
+	UINT w;
+	UINT h;
+
+	if (g_config.AspectRatioPreserved)
+	{
+		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		{
+			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+		}
+	}
+	else
+	{
+		w = this->_deviceResources->_backbufferWidth;
+		h = this->_deviceResources->_backbufferHeight;
+	}
+
+	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
+	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+	ComPtr<ID2D1SolidColorBrush> brush;
+	unsigned int brushColor = 0;
+	this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+
+	for (const auto& xwaBracket : g_xwa_bracket)
+	{
+		unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
+		unsigned int esi;
+
+		if (((bool(*)())0x0050DC50)() != 0)
+		{
+			unsigned short eax = si & 0x001F;
+			unsigned short ecx = si & 0x7C00;
+			unsigned short edx = si & 0x03E0;
+
+			esi = (eax << 3) | (edx << 6) | (ecx << 9);
+		}
+		else
+		{
+			unsigned short eax = si & 0x001F;
+			unsigned short edx = si & 0xF800;
+			unsigned short ecx = si & 0x07E0;
+
+			esi = (eax << 3) | (ecx << 5) | (edx << 8);
+		}
+
+		if (esi != brushColor)
+		{
+			brushColor = esi;
+			this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+		}
+
+		float posX = left + (float)xwaBracket.positionX * scaleX;
+		float posY = top + (float)xwaBracket.positionY * scaleY;
+		float posW = (float)xwaBracket.width * scaleX;
+		float posH = (float)xwaBracket.height * scaleY;
+		float posSide = 0.125;
+
+		float strokeWidth = 2.0f * min(scaleX, scaleY);
+
+		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
+
+		if (fill)
+		{
+			this->_deviceResources->_d2d1OffscreenRenderTarget->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), brush);
+		}
+		else
+		{
+			// top left
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), brush, strokeWidth);
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), brush, strokeWidth);
+
+			// top right
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), brush, strokeWidth);
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), brush, strokeWidth);
+
+			// bottom left
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), brush, strokeWidth);
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), brush, strokeWidth);
+
+			// bottom right
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+		}
+	}
+
+	this->_deviceResources->_d2d1OffscreenRenderTarget->EndDraw();
+	this->_deviceResources->_d2d1OffscreenRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	g_xwa_bracket.clear();
 }
