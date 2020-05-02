@@ -940,6 +940,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilL.Release();
 	this->_depthStencilR.Release();
 	this->_d2d1RenderTarget.Release();
+	this->_d2d1OffscreenRenderTarget.Release();
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
@@ -2602,23 +2603,32 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	{
 		step = "CreateDxgiSurfaceRenderTarget";
 		ComPtr<IDXGISurface> surface;
+		ComPtr<IDXGISurface> offscreenSurface;
 		// The logic for the Dynamic Cockpit expects the text to be in its own
 		// buffer so that the alpha can be fixed and the text can be blended
 		// properly. So, instead of using _offscreenBuffer, we always write to
 		// _DCTextMSAA instead and then blend that to the _offscreenBuffer as if
 		// DC was always enabled.
 		hr = this->_DCTextMSAA.As(&surface);
+		// This surface is used with _d2d1OffscreenRenderTarget to render directly to the
+		// _offscreenBuffer. This is used to render things like the brackets that shouldn't
+		// be captured in the DC buffers. Currently only used in PrimarySurface::RenderBracket()
+		hr = this->_offscreenBuffer.As(&offscreenSurface);
 
 		if (SUCCEEDED(hr))
 		{
 			auto properties = D2D1::RenderTargetProperties();
 			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
+			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
 
 			if (SUCCEEDED(hr))
 			{
 				this->_d2d1RenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 				this->_d2d1RenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+
+				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 			}
 		}
 	}
