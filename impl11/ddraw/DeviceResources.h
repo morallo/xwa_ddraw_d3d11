@@ -457,6 +457,10 @@ typedef enum {
 	TRACKER_TRACKIR
 } TrackerType;
 
+struct MaterialStruct;
+
+extern struct MaterialStruct g_DefaultGlobalMaterial;
+
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
@@ -468,13 +472,13 @@ typedef struct MaterialStruct {
 	Vector3 Light;
 
 	MaterialStruct() {
-		Metallic    = DEFAULT_METALLIC;
-		Intensity   = DEFAULT_SPEC_INT;
-		Glossiness  = DEFAULT_GLOSSINESS;
-		NMIntensity = DEFAULT_NM_INT;
-		SpecValue   = DEFAULT_SPEC_VALUE;
-		IsShadeless = false;
-		Light.set(0.0f, 0.0f, 0.0f);
+		Metallic    = g_DefaultGlobalMaterial.Metallic;
+		Intensity   = g_DefaultGlobalMaterial.Intensity;
+		Glossiness  = g_DefaultGlobalMaterial.Glossiness;
+		NMIntensity = g_DefaultGlobalMaterial.NMIntensity;
+		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
+		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
+		Light		= g_DefaultGlobalMaterial.Light;
 	}
 } Material;
 
