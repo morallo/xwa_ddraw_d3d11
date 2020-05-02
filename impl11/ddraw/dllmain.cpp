@@ -907,11 +907,9 @@ void PatchWithValue(uint32_t address, unsigned char value, int size) {
 	BOOL res;
 	res = VirtualProtect((void *)address, 1, PAGE_READWRITE, &old);
 	if (res) {
-		log_debug("[DBG] Patching address 0x%x", address);
+		//log_debug("[DBG] Patching address 0x%x", address);
 		memset((unsigned char *)address, value, size);
-		if (VirtualProtect((void *)address, 1, old, &dummy)) {
-			log_debug("[DBG] Address 0x%x patched", address);
-		}
+		VirtualProtect((void *)address, 1, old, &dummy);
 	}
 	else
 		log_debug("[DBG] Could not patch address 0x%x", address);
