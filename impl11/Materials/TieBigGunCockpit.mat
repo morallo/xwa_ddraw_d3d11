@@ -10,10 +10,3 @@ Metallic    = 0.8
 Intensity   = 0.8
 Glossiness  = 0.1
 NMIntensity = 0
-
-; Glass areas
-[Tex00027]
-Shadeless   = 1
-Intensity   = 0.0
-Glossiness  = 0.1
-NMIntensity = 0
