@@ -413,7 +413,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_LensFlare = false;
 	this->is_Sun = false;
 	this->is_3DSun = false;
-	this->AssociatedXWALight = -1;
+	//this->AssociatedXWALight = -1;
 	this->is_Debris = false;
 	this->is_Trail = false;
 	this->is_Spark = false;
@@ -424,6 +424,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Skydome = false;
 	this->is_SkydomeLight = false;
 	this->ActiveCockpitIdx = -1;
+	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -657,7 +658,7 @@ void Direct3DTexture::TagTexture() {
 		// Catch the backdrup suns and mark them
 		if (isInVector(surface->_name, Sun_ResNames)) {
 			this->is_Sun = true;
-			g_AuxTextureVector.push_back(this);
+			//g_AuxTextureVector.push_back(this); // We're no longer tracking which textures are Sun-textures
 		}
 		// Catch the space debris
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
@@ -866,7 +867,7 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, ",light,") != NULL)
 			this->is_LightTexture = true;
 
-		// Link light and color textues:
+		// Link light and color textures:
 		/*
 		{
 			if (!this->is_LightTexture) {
@@ -1024,11 +1025,14 @@ void Direct3DTexture::TagTexture() {
 				//log_debug("[DBG] [MAT] Looking for material for %s", texname);
 				this->material = FindMaterial(craftIdx, texname);
 				this->bHasMaterial = true;
+				// This texture has a material associated with it, let's save it in the aux list:
+				g_AuxTextureVector.push_back(this);
+				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// DEBUG
-				if (bIsDat) {
+				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
 						surface->_name, material.Light.x, material.Light.y, material.Light.z);
-				}
+				}*/
 				// DEBUG
 			}
 			//else {
@@ -1085,7 +1089,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
 	this->is_3DSun = d3dTexture->is_3DSun;
-	this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
+	//this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
 	this->is_Spark = d3dTexture->is_Spark;
@@ -1098,6 +1102,13 @@ HRESULT Direct3DTexture::Load(
 	this->is_DAT = d3dTexture->is_DAT;
 	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
+	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
+	// g_AuxTextureVector will keep a list of references to textures that have associated materials.
+	// We use this list to reload materials by pressing Ctrl+Alt+L.
+	// If d3dTexture has already been inserted in g_AuxTextureVector, then we need to update the 
+	// reference in g_AuxTextureVector so that it points to *this* object now:
+	if (this->AuxVectorIndex != -1 && this->AuxVectorIndex < (int)g_AuxTextureVector.size())
+		g_AuxTextureVector[this->AuxVectorIndex] = this;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from

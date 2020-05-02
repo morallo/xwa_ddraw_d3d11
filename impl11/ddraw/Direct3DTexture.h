@@ -38,14 +38,16 @@ typedef struct CraftMaterialsStruct {
 	char OPTname[MAX_OPT_NAME];
 } CraftMaterials;
 
+typedef struct OPTNameStruct {
+	char name[MAX_OPT_NAME];
+} OPTNameType;
+
 /*
  Contains all the materials for all the OPTs currently loaded
 */
 extern std::vector<CraftMaterials> g_Materials;
-
-typedef struct OPTNameStruct {
-	char name[MAX_OPT_NAME];
-} OPTNameType;
+// List of all the OPTs seen so far
+extern std::vector<OPTNameType> g_OPTnames;
 
 void InitOPTnames();
 void ClearOPTnames();
@@ -101,7 +103,8 @@ public:
 	// True for 3D suns, as in DTM's space missions
 	bool is_3DSun;
 	// True when this texture has been tested against an XWA light
-	int AssociatedXWALight;
+	//int AssociatedXWALight;
+	int AuxVectorIndex;
 	// True for space debris (used to inhibit them for SSAO)
 	bool is_Debris;
 	// True for warhead trails (used to inhibit SSAO)

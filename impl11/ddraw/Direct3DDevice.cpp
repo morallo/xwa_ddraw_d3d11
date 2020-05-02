@@ -494,6 +494,7 @@ void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
+bool isInVector(char *OPTname, std::vector<OPTNameType> &vector);
 bool InitDirectSBS();
 void LoadFocalLength();
 
@@ -501,6 +502,7 @@ SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
+bool g_bReloadMaterialsEnabled = false;
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
@@ -3046,6 +3048,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "laser_light_intensity") == 0) {
 				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
 			}
+			else if (_stricmp(param, "reload_materials_enabled") == 0) {
+				g_bReloadMaterialsEnabled = (bool)fValue;
+				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);
+			}
 
 			/*else if (_stricmp(param, "emission_intensity") == 0) {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
@@ -3142,6 +3148,80 @@ bool LoadHyperParams() {
 	fclose(file);
 
 	return true;
+}
+
+void ReloadMaterials() 
+{
+	char *surface_name;
+	char texname[MAX_TEXNAME];
+	bool bIsDat;
+	OPTNameType OPTname;
+
+	if (!g_bReloadMaterialsEnabled) {
+		log_debug("[DBG] [MAT] Material Reloading is not enabled");
+		return;
+	}
+	
+	log_debug("[DBG] [MAT] Reloading materials.");
+	ClearCraftMaterials();
+	ClearOPTnames();
+
+	for (Direct3DTexture *texture : g_AuxTextureVector) {
+		OPTname.name[0] = 0;
+		surface_name = texture->_surface->_name;
+		bIsDat = false;
+		//bIsDat = strstr(surface_name, "dat,") != NULL;
+
+		// Capture the OPT/DAT name and load the material file
+		char *start = strstr(surface_name, "\\");
+		char *end = strstr(surface_name, ".opt");
+		char sFileName[180];
+		if (start != NULL && end != NULL) {
+			start += 1; // Skip the backslash
+			int size = end - start;
+			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
+			if (!isInVector(OPTname.name, g_OPTnames)) {
+				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				// Add the name to the list of OPTnames so that we don't try to process it again
+				g_OPTnames.push_back(OPTname);
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
+				log_debug("[DBG] [MAT] [OPT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
+			}
+		}
+		else if (strstr(surface_name, "dat,") != NULL) {
+			bIsDat = true;
+			// For DAT images, OPTname.name is the full DAT name:
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface_name, strlen(surface_name));
+			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			if (sFileName[0] != 0) {
+				log_debug("[DBG] [MAT] [DAT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
+			}
+		}
+
+		int craftIdx = FindCraftMaterial(OPTname.name);
+		//log_debug("[DBG] [MAT] craftIdx: %d", craftIdx);
+		if (bIsDat)
+			texname[0] = 0; // Retrieve the default material
+		else
+		{
+			//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+			char *start = strstr(surface_name, ".opt");
+			// Skip the ".opt," part
+			start += 5;
+			// Find the next comma
+			char *end = strstr(start, ",");
+			int size = end - start;
+			strncpy_s(texname, MAX_TEXNAME, start, size);
+		}
+		//log_debug("[DBG] [MAT] Looking for material for %s", texname);
+		//bool Debug = strstr(surface_name, "CalamariLulsa") != NULL || bIsDat;
+		texture->material = FindMaterial(craftIdx, texname, false);
+		//if (Debug)
+		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
+		texture->bHasMaterial = true;
+	}
 }
 
 /* Loads the VR parameters from vrparams.cfg */
@@ -3338,6 +3418,8 @@ next:
 	LoadHyperParams();
 	// Load FOV params
 	LoadFocalLength();
+	// Reload the materials
+	ReloadMaterials();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -5991,9 +6073,9 @@ HRESULT Direct3DDevice::Execute(
 								g_LightColor[i].y = /* fade * */ 0.15f;
 								g_LightColor[i].z = /* fade * */ 1.50f;
 							}
-							// Reset the Sun --> XWA light association
-							for (uint32_t i = 0; i < g_AuxTextureVector.size(); i++)
-								g_AuxTextureVector[i]->AssociatedXWALight = -1;
+							// Reset the Sun --> XWA light association every time we enter hyperspace
+							//for (uint32_t i = 0; i < g_AuxTextureVector.size(); i++)
+							//	g_AuxTextureVector[i]->AssociatedXWALight = -1;
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
@@ -6890,7 +6972,10 @@ HRESULT Direct3DDevice::Execute(
 					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
 					// DEBUG
 					/*
-					if (strstr(lastTextureSelected->_surface->_name, "TieInterceptor") != NULL) {
+					bool Debug = strstr(lastTextureSelected->_surface->_name, "CalamariLulsa") != NULL;
+					//if (strstr(lastTextureSelected->_surface->_name, "TieInterceptor") != NULL) {
+					if (Debug)
+					{
 						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f, %d",
 							lastTextureSelected->_surface->_name,
 							lastTextureSelected->material.Metallic,
