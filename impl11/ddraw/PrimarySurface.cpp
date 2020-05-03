@@ -2322,6 +2322,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", s_XwaGlobalLightsCount, maxLights);
 	}
+
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
 	{
 		for (int i = 0; i < maxLights; i++)
@@ -2417,7 +2418,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[0].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[0].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[0].z;
-		g_ShadingSys_PSBuffer.MainColor = g_ShadingSys_PSBuffer.LightColor[0];
+		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[0];
 	}
 
 	if (g_bEnableLaserLights) {

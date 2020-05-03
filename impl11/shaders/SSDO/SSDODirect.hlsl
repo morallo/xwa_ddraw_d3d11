@@ -223,7 +223,11 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 
 	//output.col = LightColor.rgb * saturate(dot(B, MainLight.xyz));
 	//B.z = -B.z; // Flip the z component?
-	output.col = weight * saturate(dot(B, MainLight.xyz)); // ORIGINAL
+	//output.col = weight * saturate(dot(B, MainLight.xyz)); // ORIGINAL
+	[loop]
+	for (uint i = 0; i < LightCount; i++)
+		output.col += saturate(dot(B, LightVector[i].xyz));
+	output.col = output.col * weight; // / LightCount;
 	//output.col = weight; // This doesn't produce a contact shadow because it does not depend on the light direction
 	//output.col  = LightColor.rgb  * saturate(dot(B, MainColor.xyz)) + invLightColor * saturate(dot(B, -MainLight.xyz));
 	

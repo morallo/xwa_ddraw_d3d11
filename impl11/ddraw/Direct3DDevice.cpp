@@ -2817,9 +2817,11 @@ bool LoadSSAOParams() {
 				g_bShadowEnable = (bool)fValue;
 				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
 			}
+			/*
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
 			}
+			*/
 			else if (_stricmp(param, "Bz_mult") == 0) {
 				g_SSAO_PSCBuffer.Bz_mult = fValue;
 			}

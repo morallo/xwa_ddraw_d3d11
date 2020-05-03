@@ -976,7 +976,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 			// Remove the text next to the triangle pointer
 			// At offset 072B4A, replace BF48BD6800 with 9090909090.
-			// At offset 072B4A, replace BF48BD6800 with 90 90 90 90 90.
 			// Offset 072B4A corresponds to address 0047374A
 			if (!g_config.TriangleTextEnabled)
 			{
