@@ -1024,20 +1024,37 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			}
 
 			/*
-			Remove the text next to the triangle pointer; but leave the triangle:
+				Remove the text next to the triangle pointer; but leave the triangle:
 
-				At offset 072B4A (address 0047374A), replace BF48BD6800 with 90 90 90 90 90. (5 bytes)
-				At offset 06C0D4 (address 0046CCD4), replace E84785FCFF with 90 90 90 90 90.
-				At offset 06C10C (address 0046CD0C), replace E80F85FCFF with 90 90 90 90 90.
-				At offset 06C563 (address 0046D163), replace E8B880FCFF with 90 90 90 90 90.
-				At offset 06C59B (address 0046D19B), replace E88080FCFF with 90 90 90 90 90.
-				At offset 06C0EB (address 0046CCEB), replace FF15B09D7C00 with 90 90 90 90 90 90. (6 bytes)
-				At offset 06C57A (address 0046D17A), replace FF15B09D7C00 with 90 90 90 90 90 90.
+				// disable text
+				At offset 06BE26 (address 0046CA26), replace E88585FCFF with 9090909090.
+				At offset 06C092 (address 0046CC92), replace E81983FCFF with 9090909090.
+				At offset 06C515 (address 0046D115), replace E8967EFCFF with 9090909090.
+
+				// disable text digits
+				At offset 06C0D4 (address 0046CCD4), replace E84785FCFF with 9090909090.
+				At offset 06C10C (address 0046CD0C), replace E80F85FCFF with 9090909090.
+				At offset 06C563 (address 0046D163), replace E8B880FCFF with 9090909090.
+				At offset 06C59B (address 0046D19B), replace E88080FCFF with 9090909090.
+
+				// disable dot
+				At offset 06C0EB (address 0046CCEB), replace FF15B09D7C00 with 909090909090.
+				At offset 06C57A (address 0046D17A), replace FF15B09D7C00 with 909090909090.
 			*/
 			if (g_config.SimplifiedTrianglePointer) {
 				log_debug("[DBG] Applying SimplifiedTrianglePointer patch");
 				// At offset 072B4A(address 0047374A), replace BF48BD6800 with 90 90 90 90 90. (5 bytes)
-				PatchWithValue(0x047374A, 0x90, 5);
+				//PatchWithValue(0x047374A, 0x90, 5); <-- This will remove the triangle; but also the FG name in the target box!
+
+				// Disable Text
+				// At offset 06BE26(address 0046CA26), replace E88585FCFF with 90 90 90 90 90. (5 bytes)
+				PatchWithValue(0x046CA26, 0x90, 5);
+				// At offset 06C092(address 0046CC92), replace E81983FCFF with 9090909090.
+				PatchWithValue(0x046CC92, 0x90, 5);
+				// At offset 06C515(address 0046D115), replace E8967EFCFF with 9090909090.
+				PatchWithValue(0x046D115, 0x90, 5);
+
+				// Disable text digits
 				// At offset 06C0D4(address 0046CCD4), replace E84785FCFF with 90 90 90 90 90.
 				PatchWithValue(0x046CCD4, 0x90, 5);
 				// At offset 06C10C(address 0046CD0C), replace E80F85FCFF with 90 90 90 90 90.
@@ -1046,6 +1063,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				PatchWithValue(0x046D163, 0x90, 5);
 				// At offset 06C59B(address 0046D19B), replace E88080FCFF with 90 90 90 90 90.
 				PatchWithValue(0x046D19B, 0x90, 5);
+
+				// disable dot
 				// At offset 06C0EB(address 0046CCEB), replace FF15B09D7C00 with 90 90 90 90 90 90. (6 bytes)
 				PatchWithValue(0x046CCEB, 0x90, 6);
 				// At offset 06C57A(address 0046D17A), replace FF15B09D7C00 with 90 90 90 90 90 90.
