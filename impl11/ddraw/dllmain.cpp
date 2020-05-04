@@ -945,34 +945,40 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		
 		if (IsXwaExe())
 		{
-			// RenderCharHook
-			*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
-			*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
+			if (g_config.Text2DRendererEnabled) 
+			{
+				// RenderCharHook
+				*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
+				*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
 
-			// ComputeMetricsHook
-			*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
-			*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
-		
-			// DrawRadarHook
-			*(int*)(0x00434977 + 0x06) = (int)DrawRadarHook;
-			*(int*)(0x00434995 + 0x06) = (int)DrawRadarSelectedHook;
-
-			// This hook will need more work in VR mode (back-project coords into 3D and then project again
-			// into 2D twice -- once for each eye -- then select the left/right offscreen buffers...); for now,
-			// let's only enable this hook if we didn't start in VR mode:
-			if (!g_bEnableVR) {
-				// DrawBracketInFlightHook
-				*(unsigned char*)(0x00503D46 + 0x00) = 0xE8;
-				*(int*)(0x00503D46 + 0x01) = (int)DrawBracketInFlightHook - (0x00503D46 + 0x05);
+				// ComputeMetricsHook
+				*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
+				*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
 			}
+		
+			if (g_config.Radar2DRendererEnabled) 
+			{
+				// DrawRadarHook
+				*(int*)(0x00434977 + 0x06) = (int)DrawRadarHook;
+				*(int*)(0x00434995 + 0x06) = (int)DrawRadarSelectedHook;
 
-			// DrawBracketInFlightHook CMD
-			*(unsigned char*)(0x00478E44 + 0x00) = 0xE8;
-			*(int*)(0x00478E44 + 0x01) = (int)DrawBracketInFlightHook - (0x00478E44 + 0x05);
+				// This hook will need more work in VR mode (back-project coords into 3D and then project again
+				// into 2D twice -- once for each eye -- then select the left/right offscreen buffers...); for now,
+				// let's only enable this hook if we didn't start in VR mode:
+				if (!g_bEnableVR) {
+					// DrawBracketInFlightHook
+					*(unsigned char*)(0x00503D46 + 0x00) = 0xE8;
+					*(int*)(0x00503D46 + 0x01) = (int)DrawBracketInFlightHook - (0x00503D46 + 0x05);
+				}
 
-			// DrawBracketMapHook
-			*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
-			*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);
+				// DrawBracketInFlightHook CMD
+				*(unsigned char*)(0x00478E44 + 0x00) = 0xE8;
+				*(int*)(0x00478E44 + 0x01) = (int)DrawBracketInFlightHook - (0x00478E44 + 0x05);
+
+				// DrawBracketMapHook
+				*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
+				*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);
+			}
 
 			// Remove the text next to the triangle pointer
 			// At offset 072B4A, replace BF48BD6800 with 9090909090.

@@ -6003,8 +6003,11 @@ HRESULT PrimarySurface::Flip(
 
 			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
 			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
-			this->RenderRadar();
-			this->RenderText();
+			if (g_config.Radar2DRendererEnabled) 
+				this->RenderRadar();
+
+			if (g_config.Text2DRendererEnabled)
+				this->RenderText();
 
 			// Render the hyperspace effect if necessary
 			{
@@ -6270,7 +6273,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the enhanced bracket after all the shading has been applied.
-			if (!g_bEnableVR)
+			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
 			// Draw the external HUD on top of everything else

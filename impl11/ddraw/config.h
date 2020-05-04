@@ -42,6 +42,11 @@ public:
 	bool TriangleTextEnabled;
 	bool TrianglePointerEnabled;
 	bool SimplifiedTrianglePointer;
+	// Direct2D settings
+	bool Text2DRendererEnabled;
+	bool Radar2DRendererEnabled;
+	bool Text2DAntiAlias;
+	bool Geometry2DAntiAlias;
 };
 
 extern Config g_config;

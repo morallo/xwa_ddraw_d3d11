@@ -50,6 +50,10 @@ Config::Config()
 	this->TriangleTextEnabled = true;
 	this->TrianglePointerEnabled = true;
 	this->SimplifiedTrianglePointer = false;
+	this->Text2DRendererEnabled = true;
+	this->Radar2DRendererEnabled = true;
+	this->Text2DAntiAlias = true;
+	this->Geometry2DAntiAlias = true;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -183,6 +187,22 @@ Config::Config()
 			else if (name == "SimplifiedTrianglePointer")
 			{
 				this->SimplifiedTrianglePointer = (bool)stoi(value);
+			}
+			else if (name == "Text2DRendererEnabled")
+			{
+				this->Text2DRendererEnabled = (bool)stoi(value);
+			}
+			else if (name == "Radar2DRendererEnabled") 
+			{
+				this->Radar2DRendererEnabled = (bool)stoi(value);
+			}
+			else if (name == "Text2DAntiAlias")
+			{
+				this->Text2DAntiAlias = (bool)stoi(value);
+			}
+			else if (name == "Geometry2DAntiAlias")
+			{
+				this->Geometry2DAntiAlias = (bool)stoi(value);
 			}
 		}
 	}
