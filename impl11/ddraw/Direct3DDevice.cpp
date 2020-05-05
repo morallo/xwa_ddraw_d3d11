@@ -1129,7 +1129,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 {
 	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor, hColor, uBitField, text_layer;
+	uint32_t uColor, hColor, wColor, uBitField, text_layer;
 	int res = 0, idx = coords->numCoords;
 	char *substr = NULL;
 	char slot_name[50];
@@ -1154,6 +1154,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 		int len;
 		uColor = 0x121233;
 		hColor = 0x0;
+		wColor = 0x0;
 		text_layer = 1;
 		intensity = 1.0f;
 		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */;
@@ -1177,7 +1178,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &hColor);
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &hColor, &wColor);
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -1211,9 +1212,15 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			{
 				hColor = uColor;
 			}
+			// Process the highlight color
+			if (res < 9)
+			{
+				wColor = uColor;
+			}
 			// Store the regular and highlight colors
 			coords->uBGColor[idx] = uColor | (uBitField << 24);
 			coords->uHGColor[idx] = hColor | (uBitField << 24);
+			coords->uWHColor[idx] = wColor | (uBitField << 24);
 			coords->numCoords++;
 			//log_debug("[DBG] uColor: 0x%x, hColor: 0x%x, [%s]",
 			//	coords->uBGColor[idx], coords->uHGColor[idx], buf);
@@ -5800,12 +5807,14 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
+				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				if (bLastTextureSelectedNotNULL) {
 					bIsLaser = lastTextureSelected->is_Laser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
 					bIsReticle = lastTextureSelected->is_Reticle;
 					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
+					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
 					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
 					bIsGUI = lastTextureSelected->is_GUI;
 					bIsLensFlare = lastTextureSelected->is_LensFlare;
@@ -7177,7 +7186,10 @@ HRESULT Direct3DDevice::Execute(
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
 								g_DCPSCBuffer.src[numCoords] = uv_src;
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-								g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
+								if (bWarheadLocked)
+									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
+								else
+									g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;

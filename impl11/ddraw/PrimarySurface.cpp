@@ -6504,6 +6504,11 @@ HRESULT PrimarySurface::Flip(
 			else // Non-VR mode
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
+			/*
+			log_debug("[DBG] %d, %d", 
+				PlayerDataTable[*g_playerIndex].warheadArmed, 
+				PlayerDataTable[*g_playerIndex].warheadLockState);
+			*/
 			// Reset some frame counters and other control variables; clear vectors, etc.
 			{
 				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
