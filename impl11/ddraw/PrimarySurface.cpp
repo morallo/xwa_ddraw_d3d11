@@ -3996,10 +3996,25 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
 		break;
 	case HS_HYPER_TUNNEL_ST:
-		// Max internal time: ~1290
+	{
+		/*
+		From Jeremy:
+		To increase the time in hyperspace:
+		At offset 0029D6, replace 1205 with XXXX.
+		Base is 0x0400C00 (?)
+
+		XXXX is a hex value.
+		The default value is 0x0512 which correspond to 1298 (5.5s).
+
+		To set 10s, the value will be 2360 (10 * 236). XXXX will be 3809
+		*/
+		// Max internal time: ~1290 (about 5.5s, it's *tunnelTime / 236.0)
 		// Max shader time: 4.0 (arbitrary)
+		uint16_t *tunnelTime = (uint16_t *)(0x0400C00 + 0x0029D6); // 0x0400C00 is XWA's base process address.
+		//*tunnelTime = 2360;
 		resources->InitPixelShader(resources->_hyperTunnelPS);
-		timeInHyperspace = timeInHyperspace / 1290.0f;
+		//timeInHyperspace = timeInHyperspace / 1290.0f;
+		timeInHyperspace = timeInHyperspace / (float )(*tunnelTime); // It's better to read the hyperspace time from this offset
 		iTime = lerp(0.0f, 4.0f, timeInHyperspace);
 
 		// Rotate the lights while travelling through the hyper-tunnel:
@@ -4011,7 +4026,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
-		
+
 		if (g_config.StayInHyperspace) {
 			if (!g_bKeybExitHyperspace) {
 				if (PlayerDataTable[*g_playerIndex].timeInHyperspace > 900 && PlayerDataTable[*g_playerIndex].timeInHyperspace < 1000)
@@ -4022,8 +4037,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				g_bKeybExitHyperspace = false;
 			}
 		}
-		
 		break;
+	}
 	case HS_HYPER_EXIT_ST:
 		g_bKeybExitHyperspace = false;
 		// Time is reversed here and in post-hyper-exit because this effect was originally
