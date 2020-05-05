@@ -395,6 +395,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_surface = surface;
 	this->is_Tagged = false;
 	this->is_Reticle = false;
+	this->is_HighlightedReticle = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
 	this->is_Floating_GUI = false;
@@ -634,6 +635,16 @@ void Direct3DTexture::TagTexture() {
 			this->is_Reticle = true;
 		else if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
+
+		/*
+		 * TODO: For custom reticles, I would need to load the list of reticles from either the
+		 * ship reticle cfg or ship ini file, look for index 6 and test against the name in there.
+		 * Of course, this will only work if we already know the ship's name, or we won't be able
+		 * to find the file we need to load... Maybe I need to ask Jeremy if this information is
+		 * stored somewhere in-memory... For now, only the standard HUD is supported!
+		 */
+		if (strstr(surface->_name, "dat,12000,600,") != NULL) // TODO: how to do this for custom reticles?
+			this->is_HighlightedReticle = true;
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
@@ -1071,6 +1082,7 @@ HRESULT Direct3DTexture::Load(
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
 	this->is_Reticle = d3dTexture->is_Reticle;
+	this->is_HighlightedReticle = d3dTexture->is_HighlightedReticle;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
 	this->is_Floating_GUI = d3dTexture->is_Floating_GUI;

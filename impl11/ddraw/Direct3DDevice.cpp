@@ -302,6 +302,9 @@ bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloa
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
 bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
+bool g_bIsTargetHighlighted = false; // True if the target can  be fired upon, gets reset every frame
+bool g_bPrevIsTargetHighlighted = false; // The value of g_bIsTargetHighlighted for the previous frame
+
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
@@ -1126,7 +1129,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 {
 	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor, uIntensity;
+	uint32_t uColor, hColor, uBitField, text_layer;
 	int res = 0, idx = coords->numCoords;
 	char *substr = NULL;
 	char slot_name[50];
@@ -1150,8 +1153,10 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 	try {
 		int len;
 		uColor = 0x121233;
+		hColor = 0x0;
+		text_layer = 1;
 		intensity = 1.0f;
-		uIntensity = 64;
+		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */;
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -1172,7 +1177,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f", &x0, &y0, &x1, &y1, &uColor, &intensity);
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &hColor);
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -1182,17 +1187,36 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			coords->dst[idx].y0 = y0 / height;
 			coords->dst[idx].x1 = x1 / width;
 			coords->dst[idx].y1 = y1 / height;
-			//if (res == 5) // A color was read, add the alpha
-			//	uColor = (uColor << 8) | 0xFF;
-			if (res == 6)
+			// Process the custom intensity
+			if (res >= 6)
 			{
-				uIntensity = (uint32_t )(intensity * 64.0f);
-				// Clamp: The maximum value is 255, which is divided by 64 in the shader
-				// so the maximum intensity is ~4.0 in the DC file
-				uIntensity = (uIntensity > 255) ? 255 : uIntensity;
+				uint32_t temp;
+				// bits 0-1: An integer in the range 0..3 that specifies the intensity.
+				if (intensity < 0.0f) intensity = 0.0f;
+				temp = (uint32_t )(intensity) - 1;
+				temp = (temp > 3) ? 3 : temp;
+				uBitField |= temp;
 			}
-			coords->uBGColor[idx] = uColor | (uIntensity << 24);
+			// Process the text layer enable/disable
+			if (res >= 7)
+			{
+				// bit 2 enables the text layer
+				if (text_layer)
+					uBitField |= 0x04;
+				else
+					uBitField &= 0xFB;
+			}
+			// Process the highlight color
+			if (res < 8) 
+			{
+				hColor = uColor;
+			}
+			// Store the regular and highlight colors
+			coords->uBGColor[idx] = uColor | (uBitField << 24);
+			coords->uHGColor[idx] = hColor | (uBitField << 24);
 			coords->numCoords++;
+			//log_debug("[DBG] uColor: 0x%x, hColor: 0x%x, [%s]",
+			//	coords->uBGColor[idx], coords->uHGColor[idx], buf);
 			//log_debug("[DBG] [DC] src_slot: %d, (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 			//	src_slot, x0 / width, y0 / height, x1 / width, y1 / height);
 		}
@@ -5772,15 +5796,17 @@ HRESULT Direct3DDevice::Execute(
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
-				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsAimingHUD = false;
+				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
-				bool bIsActiveCockpit = false, bIsBlastMark = false; // , bIsSkyDome = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				if (bLastTextureSelectedNotNULL) {
 					bIsLaser = lastTextureSelected->is_Laser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
-					bIsAimingHUD = lastTextureSelected->is_Reticle;
+					bIsReticle = lastTextureSelected->is_Reticle;
+					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
+					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
 					bIsGUI = lastTextureSelected->is_GUI;
 					bIsLensFlare = lastTextureSelected->is_LensFlare;
 					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
@@ -5833,10 +5859,10 @@ HRESULT Direct3DDevice::Execute(
 				// hidden. To prevent this, I added bIsAimingHUD to g_bStartedGUI; but I don't know
 				// if this breaks VR. If it does, then I need to add !bIsAimingHUD around line 6425,
 				// where I'm setting fDisableDiffuse = 1.0f
-				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsAimingHUD;
+				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsReticle;
 				// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 				g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
-				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsAimingHUD && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
+				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsReticle && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
 
 				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
@@ -6903,7 +6929,7 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (g_bIsScaleableGUIElem || bIsAimingHUD || bIsText || g_bIsTrianglePointer || 
+					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked)
 					{
 						bModifiedShaders = true;
@@ -6982,9 +7008,26 @@ HRESULT Direct3DDevice::Execute(
 					if (bRenderToDynCockpitBGBuffer)
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
-					else
-						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
+					else {
+						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+						//	resources->_depthStencilViewL.Get());
+
+						if (g_config.Text2DRendererEnabled)
+							context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+								resources->_depthStencilViewL.Get());
+						else 
+						{
+							// The new Text Rendered is not enabled; but we can still render the text to its own
+							// layer so that we can do a more specialized processing, like splitting the text
+							// from the targeted object
+							if (bIsText)
+								context->OMSetRenderTargets(1, resources->_DCTextRTV.GetAddressOf(),
+									resources->_depthStencilViewL.Get());
+							else
+								context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+									resources->_depthStencilViewL.Get());
+						}
+					}
 					// Enable Z-Buffer if we're drawing the targeted craft
 					if (g_bIsFloating3DObject)
 						QuickSetZWriteEnabled(TRUE);
@@ -7134,7 +7177,7 @@ HRESULT Direct3DDevice::Execute(
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
 								g_DCPSCBuffer.src[numCoords] = uv_src;
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-								g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
+								g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
@@ -7205,7 +7248,7 @@ HRESULT Direct3DDevice::Execute(
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
 						ID3D11RenderTargetView *rtvs[1] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 						};
 						context->OMSetRenderTargets(1, 
 							//resources->_renderTargetView.GetAddressOf(),
@@ -7214,7 +7257,7 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
 							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
@@ -7284,7 +7327,7 @@ HRESULT Direct3DDevice::Execute(
 				*/
 
 				// Add an extra depth to HUD elements
-				if (bIsAimingHUD) {
+				if (bIsReticle) {
 					bModifiedShaders = true;
 					g_VSCBuffer.z_override = g_fHUDDepth;
 					// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
@@ -7360,13 +7403,13 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// SteamVR, left image. Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ?
@@ -7384,13 +7427,13 @@ HRESULT Direct3DDevice::Execute(
 						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// DirectSBS, Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD), //resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -7437,14 +7480,14 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
 						} else {
 							// SteamVR, Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetViewR.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -7462,14 +7505,14 @@ HRESULT Direct3DDevice::Execute(
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 

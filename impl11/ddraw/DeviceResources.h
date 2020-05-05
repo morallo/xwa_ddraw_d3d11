@@ -384,6 +384,7 @@ typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
 	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
 	uint32_t uBGColor[MAX_DC_COORDS_PER_TEXTURE];
+	uint32_t uHGColor[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_src_dst_coords;
 

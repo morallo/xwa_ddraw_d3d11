@@ -90,6 +90,7 @@ extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
+extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -6529,6 +6530,8 @@ HRESULT PrimarySurface::Flip(
 				g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 				g_bSwitchedToGUI = false;
 				g_ShadertoyBuffer.SunFlareCount = 0;
+				g_bPrevIsTargetHighlighted = g_bIsTargetHighlighted;
+				g_bIsTargetHighlighted = false; 
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;

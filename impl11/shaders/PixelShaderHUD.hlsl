@@ -76,10 +76,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Execute the move_region commands: erase source regions
 	[unroll]
 	for (i = 0; i < DynCockpitSlots; i++)
-		//if (input.tex.x >= src[i].x && input.tex.x <= src[i].z &&
-		//	input.tex.y >= src[i].y && input.tex.y <= src[i].w) 
-		if (all(input.tex.xy >= src[i].xy) &&
-			all(input.tex.xy <= src[i].zw))
+		if (all(input.tex.xy >= src[i].xy) && all(input.tex.xy <= src[i].zw))
 		{
 			texelColor.w = 0;
 			alpha = 0;
@@ -101,10 +98,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
-		//if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
-		//	dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
-		if (all(dyn_uv >= src[i].xy) &&
-			all(dyn_uv <= src[i].zw))
+		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the HUD FG and BG from a different location:
 			texelColor = texture0.Sample(sampler0, dyn_uv);
