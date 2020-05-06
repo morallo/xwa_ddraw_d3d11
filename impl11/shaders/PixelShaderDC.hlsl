@@ -57,7 +57,7 @@ cbuffer ConstantBuffer : register(b1)
 	float unused2, unused3;
 };
 
-float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override) {
+float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override) {
 	float4 result = float4(
 		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
 		((color >>  8) & 0xFF) / 255.0,  // G 0x00FF00
@@ -70,6 +70,7 @@ float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_o
 	uint temp = (color >> 24) & 0xFF;
 	intensity = (temp & 0x03) + 1.0;
 	text_alpha_override = (float )((temp & 0x04) >> 2);
+	obj_alpha_override = (float)((temp & 0x08) >> 3);
 	return result;
 }
 
@@ -141,24 +142,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	input.tex = frac(input.tex);
 	if (input.tex.x < 0.0) input.tex.x += 1.0;
 	if (input.tex.y < 0.0) input.tex.y += 1.0;
-	float intensity, text_alpha_override = 1.0;
-	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override);
+	float intensity, text_alpha_override = 1.0, obj_alpha_override = 1.0;
+	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
 	//[unroll] unroll or loop?
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
-		float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override);
+		float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override, obj_alpha_override);
 
 		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the dynamic cockpit texture:
-			hud_texelColor = texture1.Sample(sampler1, dyn_uv);
+			hud_texelColor = obj_alpha_override * texture1.Sample(sampler1, dyn_uv);
 			// Sample the text texture and fix the alpha:
 			float4 texelText = texture2.Sample(sampler2, dyn_uv);
 			//float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
 			float textAlpha = text_alpha_override * saturate(3.25 * dot(0.333, texelText.rgb));
+			// Blend the text with the DC buffer
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
 			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
 			hud_texelColor = saturate(intensity * hud_texelColor);

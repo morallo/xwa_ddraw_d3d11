@@ -1129,7 +1129,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 {
 	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor, hColor, wColor, uBitField, text_layer;
+	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer;
 	int res = 0, idx = coords->numCoords;
 	char *substr = NULL;
 	char slot_name[50];
@@ -1155,9 +1155,10 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 		uColor = 0x121233;
 		hColor = 0x0;
 		wColor = 0x0;
+		obj_layer = 1;
 		text_layer = 1;
 		intensity = 1.0f;
-		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */;
+		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */;
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -1178,7 +1179,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &hColor, &wColor);
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &obj_layer, &hColor, &wColor);
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -1207,13 +1208,22 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 				else
 					uBitField &= 0xFB;
 			}
+			// Process the object layer enable/disable
+			if (res >= 8)
+			{
+				// bit 3 enables the object layer
+				if (obj_layer)
+					uBitField |= 0x08;
+				else
+					uBitField &= 0xF7;
+			}
 			// Process the highlight color
-			if (res < 8) 
+			if (res < 9) 
 			{
 				hColor = uColor;
 			}
 			// Process the highlight color
-			if (res < 9)
+			if (res < 10)
 			{
 				wColor = uColor;
 			}
