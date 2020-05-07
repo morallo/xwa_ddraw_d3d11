@@ -95,6 +95,8 @@ public:
 
 	void RenderExternalHUD();
 
+	void RenderSpeedEffect();
+
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
 
 	void RenderSunFlare();

@@ -257,7 +257,7 @@ typedef struct ShadertoyCBStruct {
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;
-	float flare_intensity, st_unused0, st_unused1;
+	float flare_intensity, craft_speed, st_unused1;
 	// 144 bytes
 	//float SunX, SunY, SunZ, flare_intensity;
 	float4 SunCoords[MAX_SUN_FLARES];
@@ -816,17 +816,12 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
-	ComPtr<ID3D11PixelShader> _computeNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
-	ComPtr<ID3D11PixelShader> _ssdoDirectBentNormalsPS;
-	ComPtr<ID3D11PixelShader> _ssdoDirectHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
-	ComPtr<ID3D11PixelShader> _ssdoAddHDRPS;
-	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
@@ -840,6 +835,8 @@ public:
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	ComPtr<ID3D11PixelShader> _speedEffectPS;
+	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;

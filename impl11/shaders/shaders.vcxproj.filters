@@ -35,7 +35,6 @@
     <FxCompile Include="PixelShaderHUD.hlsl" />
     <FxCompile Include="BloomBufferAddPS.hlsl" />
     <FxCompile Include="BasicPixelShader.hlsl" />
-    <FxCompile Include="SSAO\ComputeNormalsShader.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
@@ -44,10 +43,6 @@
     <FxCompile Include="SSDO\SSDODirect.hlsl" />
     <FxCompile Include="SSDO\SSDOAdd.hlsl" />
     <FxCompile Include="SSDO\SSDOBlur.hlsl" />
-    <FxCompile Include="SSDO\SSDODirectHDR.hlsl" />
-    <FxCompile Include="SSDO\SSDOAddHDR.hlsl" />
-    <FxCompile Include="SSDO\SSDOAddBentNormals.hlsl" />
-    <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
     <FxCompile Include="DeathStarShader.hlsl" />
     <FxCompile Include="HyperEntry.hlsl" />
     <FxCompile Include="HyperTunnel.hlsl" />
@@ -60,6 +55,8 @@
     <FxCompile Include="SunFlareShader.hlsl" />
     <FxCompile Include="SunShader.hlsl" />
     <FxCompile Include="SunFlareCompose.hlsl" />
+    <FxCompile Include="SpeedEffect.hlsl" />
+    <FxCompile Include="SpeedEffectCompose.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

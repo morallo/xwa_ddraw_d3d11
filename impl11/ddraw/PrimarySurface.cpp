@@ -90,7 +90,8 @@ extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
-extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
+extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bEnableSpeedShader;
+extern float g_fSpeedShaderConstFactor;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -4750,6 +4751,280 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
+void PrimarySurface::RenderSpeedEffect()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	static float Time = 0.0f;
+	Time += 0.016f; // ~1 / 60
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	g_ShadertoyBuffer.iTime = Time;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
+	g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
+	//g_ShadertoyBuffer.craft_speed = 2.0f;
+	// The A-Wing's max speed seems to be 270
+	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
+	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+
+	resources->InitPixelShader(resources->_speedEffectPS);
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
+	// First render: Render the speed effect
+	// input: None
+	// output: renderTargetViewPost
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio		=  g_fAspectRatio;
+		g_VSCBuffer.z_override			= -1.0f;
+		g_VSCBuffer.sz_override			= -1.0f;
+		g_VSCBuffer.mult_z_override		= -1.0f;
+		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.bPreventTransform	=  0.0f;
+		g_VSCBuffer.bFullTransform		=  0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.metric_mult = g_fMetricMult;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			resources->InitVertexShader(resources->_vertexShader);
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		/*
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[1] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		*/
+		context->Draw(6, 0);
+
+		// TODO: Render the right image
+		if (g_bEnableVR) {
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			if (g_bUseSteamVR) {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[1] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
+				};
+				context->PSSetShaderResources(0, 1, srvs);
+			}
+			else {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[1] = {
+					resources->_offscreenAsInputShaderResourceView.Get(),
+				};
+				context->PSSetShaderResources(0, 1, srvs);
+			}
+			context->Draw(6, 0);
+		}
+	}
+
+	// Second render: compose the cockpit over the previous effect
+	{
+		// Reset the viewport for non-VR mode:
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// Reset the vertex shader to regular 2D post-process
+		// Set the Vertex Shader Constant buffers
+		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+		// Set/Create the VertexBuffer and set the topology, etc
+		UINT stride = sizeof(MainVertex), offset = 0;
+		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_mainInputLayout);
+		resources->InitVertexShader(resources->_mainVertexShader);
+
+		// Reset the UV limits for this shader
+		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+		g_ShadertoyBuffer.x0 = x0;
+		g_ShadertoyBuffer.y0 = y0;
+		g_ShadertoyBuffer.x1 = x1;
+		g_ShadertoyBuffer.y1 = y1;
+		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+		resources->InitPixelShader(resources->_speedEffectComposePS);
+		// Clear all the render target views
+		ID3D11RenderTargetView *rtvs_null[5] = {
+			NULL, // Main RTV
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+		};
+		context->OMSetRenderTargets(5, rtvs_null, NULL);
+
+		// DEBUG
+		/*
+		if (g_iPresentCounter == CAPTURE_FRAME)
+		{
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_shadertoyBuf.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBuf-1.jpg");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBufferPost-1.jpg");
+		}
+		*/
+		// DEBUG
+
+		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+		// to _shadertoyBuf to use it now:
+		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[3] = {
+			resources->_offscreenAsInputShaderResourceView.Get(), // The current render
+			resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
+			resources->_depthBufSRV.Get(),   // The depth buffer
+			
+		};
+		context->PSSetShaderResources(0, 3, srvs);
+		// TODO: Handle SteamVR cases
+		context->Draw(6, 0);
+
+		// TODO: Post-process the right image
+		if (g_bUseSteamVR) {
+			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+			if (!g_bReshadeEnabled) {
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewPostR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+			}
+			else {
+				ID3D11RenderTargetView *rtvs[5] = {
+					resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+					resources->_renderTargetViewBloomMaskR.Get(),
+					NULL, // Depth
+					NULL, // Norm Buf
+					NULL, // SSAO Mask
+				};
+				context->OMSetRenderTargets(5, rtvs, NULL);
+			}
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[3] = {
+				resources->_shadertoySRV_R.Get(),		// Foreground (cockpit)
+				resources->_shadertoyAuxSRV_R.Get(),  // Background
+				resources->_offscreenAsInputShaderResourceViewR.Get(), // Previous effect (trails or tunnel)
+			};
+			context->PSSetShaderResources(0, 3, srvs);
+			// TODO: Handle SteamVR cases
+			context->Draw(6, 0);
+		}
+	}
+
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+}
+
 /*
  * In VR mode, the centroid of the sun texture is a new vertex in metric
  * 3D space. We need to project it to the vertex buffer that is used to
@@ -6327,6 +6602,39 @@ HRESULT PrimarySurface::Flip(
 				if (g_bUseSteamVR)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
+			}
+
+			if (g_bEnableSpeedShader)
+			{
+				// We need to set the blend state properly for Bloom, or else we might get
+				// different results when brackets are rendered because they alter the 
+				// blend state
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display Bloom
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+				if (g_bUseSteamVR)
+					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+				RenderSpeedEffect();
 			}
 
 			// Apply the Bloom effect

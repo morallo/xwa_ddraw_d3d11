@@ -414,7 +414,8 @@ bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
+bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false;
+float g_fSpeedShaderConstFactor = 135.0f;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
@@ -2821,6 +2822,14 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "flare_intensity") == 0) {
 				g_ShadertoyBuffer.flare_intensity = fValue;
 			}
+			else if (_stricmp(param, "enable_speed_shader") == 0) {
+				g_bEnableSpeedShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "speed_shader_const_factor") == 0) {
+				g_fSpeedShaderConstFactor = fValue;
+			}
+			
+
 			/*
 			else if (_stricmp(param, "flare_aspect_mult") == 0) {
 				g_fFlareAspectMult = fValue;
@@ -3092,6 +3101,7 @@ bool LoadDefaultGlobalMaterial() {
 		ReadMaterialLine(buf, &g_DefaultGlobalMaterial);
 	}
 	fclose(file);
+	return true;
 }
 
 void ReloadMaterials() 

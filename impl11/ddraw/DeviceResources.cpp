@@ -30,17 +30,12 @@
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomCombinePS.h"
 #include "../Debug/BloomBufferAddPS.h"
-#include "../Debug/ComputeNormalsShader.h"
 #include "../Debug/SSAOPixelShader.h"
 #include "../Debug/SSAOBlurPixelShader.h"
 #include "../Debug/SSAOAddPixelShader.h"
 #include "../Debug/SSDODirect.h"
-#include "../Debug/SSDODirectBentNormals.h"
-#include "../Debug/SSDODirectHDR.h"
 #include "../Debug/SSDOIndirect.h"
 #include "../Debug/SSDOAdd.h"
-#include "../Debug/SSDOAddHDR.h"
-#include "../Debug/SSDOAddBentNormals.h"
 #include "../Debug/SSDOBlur.h"
 #include "../Debug/DeathStarShader.h"
 #include "../Debug/HyperEntry.h"
@@ -54,6 +49,8 @@
 #include "../Debug/SunFlareShader.h"
 #include "../Debug/SunShader.h"
 #include "../Debug/SunFlareCompose.h"
+#include "../Debug/SpeedEffect.h"
+#include "../Debug/SpeedEffectCompose.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -76,17 +73,12 @@
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomCombinePS.h"
 #include "../Release/BloomBufferAddPS.h"
-#include "../Release/ComputeNormalsShader.h"
 #include "../Release/SSAOPixelShader.h"
 #include "../Release/SSAOBlurPixelShader.h"
 #include "../Release/SSAOAddPixelShader.h"
 #include "../Release/SSDODirect.h"
-#include "../Release/SSDODirectBentNormals.h"
-#include "../Release/SSDODirectHDR.h"
 #include "../Release/SSDOIndirect.h"
 #include "../Release/SSDOAdd.h"
-#include "../Release/SSDOAddHDR.h"
-#include "../Release/SSDOAddBentNormals.h"
 #include "../Release/SSDOBlur.h"
 #include "../Release/DeathStarShader.h"
 #include "../Release/HyperEntry.h"
@@ -100,6 +92,8 @@
 #include "../Release/SunFlareShader.h"
 #include "../Release/SunShader.h"
 #include "../Release/SunFlareCompose.h"
+#include "../Release/SpeedEffect.h"
+#include "../Release/SpeedEffectCompose.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2727,6 +2721,12 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffect, sizeof(g_SpeedEffect), nullptr, &_speedEffectPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2745,9 +2745,6 @@ HRESULT DeviceResources::LoadMainResources()
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-			return hr;
-
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;
 
@@ -2760,11 +2757,11 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
+		//	return hr;
 		
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
@@ -2772,11 +2769,11 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
+		//	return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
@@ -2990,6 +2987,12 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffect, sizeof(g_SpeedEffect), nullptr, &_speedEffectPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -3005,9 +3008,6 @@ HRESULT DeviceResources::LoadResources()
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ComputeNormalsShader, sizeof(g_ComputeNormalsShader), nullptr, &_computeNormalsPS)))
-			return hr;
-
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
 			return hr;
 
@@ -3020,11 +3020,11 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
+		//	return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectHDR, sizeof(g_SSDODirectHDR), nullptr, &_ssdoDirectHDRPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
@@ -3032,11 +3032,11 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
+		//	return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
-			return hr;
+		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
+		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;

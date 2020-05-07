@@ -158,7 +158,6 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor = obj_alpha_override * texture1.Sample(sampler1, dyn_uv);
 			// Sample the text texture and fix the alpha:
 			float4 texelText = texture2.Sample(sampler2, dyn_uv);
-			//float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
 			float textAlpha = text_alpha_override * saturate(3.25 * dot(0.333, texelText.rgb));
 			// Blend the text with the DC buffer
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
