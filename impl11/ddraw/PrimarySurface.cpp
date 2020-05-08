@@ -6769,7 +6769,8 @@ HRESULT PrimarySurface::Flip(
 				// are any HUD regions that weren't erased!)
 				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
 				// HUD regions were erasedo
-				DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
+				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
+				DrawHUDVertices(true);
 			}
 
 			// I should probably render the laser pointer before the HUD; but if I do that, then the
