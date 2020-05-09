@@ -142,8 +142,9 @@ PixelShaderOutput main_old(PixelShaderInput input) {
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
+	output.color = 0.0;
 	float L = length(input.uv) - 0.75;
-	output.color = L <= 0.0 ? 1.0 : 0.0;
-
+	output.color.rg = L <= 0.0 ? 1.0 : 0.0;
+	output.color.a = 1.0;
 	return output;
 }

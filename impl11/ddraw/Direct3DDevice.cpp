@@ -322,6 +322,7 @@ short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
 bool g_bHyperExternalToCockpitTransition = false;
+bool g_bHyperspaceTunnelLastFrame = false, g_bHyperspaceLastFrame = false;
 // DEBUG
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
@@ -415,7 +416,7 @@ bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolv
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false;
-float g_fSpeedShaderConstFactor = 135.0f;
+float g_fSpeedShaderConstFactor = 135.0f, g_fSpeedShaderRotationFactor = 5.0f;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
@@ -2827,6 +2828,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "speed_shader_const_factor") == 0) {
 				g_fSpeedShaderConstFactor = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_rotation_factor") == 0) {
+				g_fSpeedShaderRotationFactor = fValue;
 			}
 			
 
@@ -5951,6 +5955,8 @@ HRESULT Direct3DDevice::Execute(
 					case HS_INIT_ST:
 						g_PSCBuffer.bInHyperspace = 0;
 						g_bHyperExternalToCockpitTransition = false;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
@@ -5980,6 +5986,8 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						// UPDATE 3/30/2020:
 						// This whole block was removed to support cockpit inertia. The aux buffer can't be cleared
 						// on the first hyperspace frame because it will otherwise "blink". We have to clear this
@@ -6040,8 +6048,11 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_TUNNEL_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
+							g_bHyperspaceTunnelLastFrame = true;
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							// Restore the previous color of the lights
@@ -6065,14 +6076,19 @@ HRESULT Direct3DDevice::Execute(
 						break;
 					case HS_HYPER_EXIT_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+							g_bHyperspaceLastFrame = true;
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
 							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;

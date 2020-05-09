@@ -571,7 +571,7 @@ public:
 	void insert(Vector3 P, Vector3 col);
 };
 
-#define MAX_SPEED_PARTICLES 64
+#define MAX_SPEED_PARTICLES 256
 extern D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES * 6];
 
 class DeviceResources

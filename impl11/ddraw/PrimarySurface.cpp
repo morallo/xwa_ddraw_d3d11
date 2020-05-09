@@ -90,8 +90,14 @@ extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
 extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
-extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bEnableSpeedShader;
-extern float g_fSpeedShaderConstFactor;
+extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
+
+// SPEED SHADER EFFECT
+extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
+extern bool g_bEnableSpeedShader;
+extern float g_fSpeedShaderConstFactor, g_fSpeedShaderRotationFactor;
+Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
+D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 6];
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -101,7 +107,7 @@ extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCur
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
-D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 6];
+
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
@@ -3862,6 +3868,9 @@ void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
 		*result = rotMatrixFull;
 }
 
+/*
+ * Returns the current view matrix including the gunner turret view.
+ */
 void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 	const float DEG2RAD = 0.01745f;
 	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
@@ -3932,6 +3941,81 @@ void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 		GetCockpitViewMatrix(result);
 	}
 }
+
+/*
+ * Computes Heading Difference (this is similar to cockpit inertia; but we don't care about smoothing the effect)
+ * Input: The current Heading matrix H, the current forward vector Fs
+ * Output: The X,Y,Z displacement
+ */
+void ComputeHeadingDifference(const Matrix4 &H, Vector4 Fs, Vector4 Us, float fCurSpeed, int playerIndex, float *XDisp, float *YDisp, float *ZDisp) {
+	const float g_fCockpitInertia = 0.35f, g_fCockpitMaxInertia = 0.2f;
+	static bool bFirstFrame = true;
+	static float fLastSpeed = 0.0f;
+	static time_t prevT = 0;
+	time_t curT = time(NULL);
+
+	// Reset the first frame if the time between successive queries is too big: this
+	// implies the game was either paused or a new mission was loaded
+	bFirstFrame |= curT - prevT > 2; // Reset if +2s have elapsed
+	// Skip the very first frame: there's no inertia to compute yet
+	if (bFirstFrame || g_bHyperspaceTunnelLastFrame || g_bHyperspaceLastFrame)
+	{
+		bFirstFrame = false;
+		*XDisp = *YDisp = *ZDisp = 0.0f;
+		//log_debug("Resetting X/Y/ZDisp");
+		// Update the previous heading vectors
+		g_prevFs = Fs;
+		g_prevUs = Us;
+		prevT = curT;
+		fLastSpeed = fCurSpeed;
+		return;
+	}
+
+	Matrix4 HT = H;
+	HT.transpose();
+	// Multiplying the current Rs, Us, Fs with H will yield the major axes:
+	//Vector4 X = HT * Rs; // --> always returns [1, 0, 0]
+	//Vector4 Y = HT * Us; // --> always returns [0, 1, 0]
+	//Vector4 Z = HT * Fs; // --> always returns [0, 0, 1]
+	//log_debug("[DBG] X: [%0.3f, %0.3f, %0.3f], Y: [%0.3f, %0.3f, %0.3f], Z: [%0.3f, %0.3f, %0.3f]",
+	//	X.x, X.y, X.z, Y.x, Y.y, Y.z, Z.x, Z.y, Z.z);
+
+	//Vector4 X = HT * g_prevRs; // --> returns something close to [1, 0, 0]
+	Vector4 Y = HT * g_prevUs; // --> returns something close to [0, 1, 0]
+	Vector4 Z = HT * g_prevFs; // --> returns something close to [0, 0, 1]
+	//log_debug("[DBG] X: [%0.3f, %0.3f, %0.3f], Y: [%0.3f, %0.3f, %0.3f], Z: [%0.3f, %0.3f, %0.3f]",
+	//	X.x, X.y, X.z, Y.x, Y.y, Y.z, Z.x, Z.y, Z.z);
+	Vector4 curFs(0, 0, 1, 0);
+	Vector4 curUs(0, 1, 0, 0);
+	Vector4 diffZ = curFs - Z;
+	Vector4 diffY = curUs - Y;
+
+	*XDisp = g_fCockpitInertia * diffZ.x;
+	*YDisp = g_fCockpitInertia * diffZ.y;
+	*ZDisp = g_fCockpitInertia * diffY.x;
+	if (*XDisp < -g_fCockpitMaxInertia) *XDisp = -g_fCockpitMaxInertia; else if (*XDisp > g_fCockpitMaxInertia) *XDisp = g_fCockpitMaxInertia;
+	if (*YDisp < -g_fCockpitMaxInertia) *YDisp = -g_fCockpitMaxInertia; else if (*YDisp > g_fCockpitMaxInertia) *YDisp = g_fCockpitMaxInertia;
+	if (*ZDisp < -g_fCockpitMaxInertia) *ZDisp = -g_fCockpitMaxInertia; else if (*ZDisp > g_fCockpitMaxInertia) *ZDisp = g_fCockpitMaxInertia;
+
+	// Update the previous heading smoothly, otherwise the cockpit may shake a bit
+	g_prevFs = 0.1f * Fs + 0.9f * g_prevFs;
+	g_prevUs = 0.1f * Us + 0.9f * g_prevUs;
+	fLastSpeed = 0.1f * fCurSpeed + 0.9f * fLastSpeed;
+	prevT = curT;
+
+	/*
+	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_bHyperspaceLastFrame)
+	{
+		*ZDisp = 0.0f;
+		fLastSpeed = fCurSpeed;
+	}
+	*/
+
+	//if (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST || g_HyperspacePhaseFSM == HS_INIT_ST)
+	//if (g_bHyperspaceLastFrame || g_bHyperspaceTunnelLastFrame)
+	//	log_debug("[%d] X/YDisp: %0.3f, %0.3f",  g_iHyperspaceFrame, *XDisp, *YDisp);
+}
+
 
 /*
 Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
@@ -4766,6 +4850,29 @@ void PrimarySurface::RenderSpeedEffect()
 	static float Time = 0.0f;
 	Time += 0.016f; // ~1 / 60
 
+	float yaw, pitch, roll;
+	yaw   = PlayerDataTable[*g_playerIndex].yaw   / 65536.0f * 360.0f;
+	pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
+	roll  = PlayerDataTable[*g_playerIndex].roll  / 65536.0f * 360.0f;
+
+	Vector4 Rs, Us, Fs;
+	float XDisp = 0.0f, YDisp = 0.0f, ZDisp = 0.0f;
+	Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
+	//if (g_PSCBuffer.bInHyperspace)
+	//	ComputeInertia(g_prevHeadingMatrix, g_LastFsBeforeHyperspace, g_fLastSpeedBeforeHyperspace, playerIndex, &XDisp, &YDisp, &ZDisp);
+	//else 
+	{
+		//log_debug("Fs: %0.3f, %0.3f, %0.3f", Fs.x, Fs.y, Fs.z);
+		ComputeHeadingDifference(HeadingMatrix, Fs, Us, (float)PlayerDataTable[*g_playerIndex].currentSpeed, *g_playerIndex, &XDisp, &YDisp, &ZDisp);
+	}
+	HeadingMatrix.transpose();
+	//log_debug("[DBG] Disp: %0.3f, %0.3f, %0.3f", XDisp, YDisp, ZDisp);
+	Matrix4 rot, rotX, rotY, rotZ;
+	rotX.rotateX(-(pitch + 90.0f));
+	rotY.rotateY(yaw);
+	rotZ.rotateZ(roll);
+	rot = rotX * rotY * rotZ;
+
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
@@ -4784,12 +4891,8 @@ void PrimarySurface::RenderSpeedEffect()
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
 	static bool bFirstTime = true;
-	static float ZOfs = 0.0f, iTime = 0.0f;
-	static float Z = 50.0f;
-	ZOfs += 10.0f;
-	if (ZOfs > 100.0f) ZOfs -= 100.0f;
-	Z -= 1.0f;
-	if (Z < 1.0f) Z = 50.0f;
+	static float iTime = 0.0f;
+	static float ZTimeDisp[MAX_SPEED_PARTICLES * 6] = { 0 };
 	iTime += 0.016f;
 
 	resources->InitPixelShader(resources->_speedEffectPS);
@@ -4852,7 +4955,7 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		if (!g_bEnableVR) {
-			Vector3 P, Q;
+			Vector4 P, Q;
 			g_LaserPointerBuffer.x0 = x0;
 			g_LaserPointerBuffer.y0 = y0;
 			g_LaserPointerBuffer.x1 = x1;
@@ -4862,14 +4965,29 @@ void PrimarySurface::RenderSpeedEffect()
 			float s = sin(ang), c = cos(ang);
 			for (int i = 0; i < MAX_SPEED_PARTICLES * 6; i++) {
 				g_SpeedParticles2D[i] = g_SpeedParticles[i];
-				// Project the current point
+				
 				P.x = g_SpeedParticles[i].sx;
 				P.y = g_SpeedParticles[i].sy;
-				P.z = g_SpeedParticles[i].sz; // - ZOfs;
-				P.z -= 2.0f;
-				if (P.z < -50.0f) P.z += 100.0f;
-				g_SpeedParticles[i].sz = P.z;
-				//P.z -= ZOfs;
+				P.z = g_SpeedParticles[i].sz;
+				// Update the position of the particle
+				//float x = P.x / P.z, y = P.y / P.z;
+				//float Dist = 1.0f / (P.z + 1.0f);
+				//float Dist = sqrt(x*x + y*y);
+				//float Dist = 1.0f;
+				//rotX.rotateX( YDisp * Dist * g_fSpeedShaderRotationFactor);
+				//rotY.rotateY(-XDisp * Dist * g_fSpeedShaderRotationFactor);
+				//rotZ.rotateZ( ZDisp * Dist * g_fSpeedShaderRotationFactor);
+				//rotX.rotateX(pitch - 90.0f);
+				//Q = rot * P;
+				Q = HeadingMatrix * P;
+				ZTimeDisp[i] += 0.0166f;
+				Q.z -= (2.0f * ZTimeDisp[i]);
+				if (Q.z < 1.0f)
+					ZTimeDisp[i] = 0.0f;
+				//Q = P;
+				//P.z -= 0.5f;
+				//if (P.z < -50.0f) P.z += 100.0f;
+				//g_SpeedParticles[i].sz = P.z;
 
 				//Q.x =  c * P.x + s * P.y;
 				//Q.y = -s * P.x + c * P.y;
@@ -4881,16 +4999,20 @@ void PrimarySurface::RenderSpeedEffect()
 						Q.x, Q.y, Q.z, g_SpeedParticles[i].tu, g_SpeedParticles[i].tv);
 				}
 				*/
-				Q.x = P.x / P.z;
-				Q.y = P.y / P.z;
-				Q.z = P.z;
+				// Project the current point
+				if (Q.z > 1.0f) {
+					Q.x = Q.x / Q.z;
+					Q.y = Q.y / Q.z;
+					Q.z = Q.z;
 
-				g_SpeedParticles2D[i].sx = Q.x;
-				g_SpeedParticles2D[i].sy = Q.y + g_ShadertoyBuffer.y_center;
-				//g_SpeedParticles2D[i].sz = 0.001839f;
-				// A value of 0 will display the dot; but a value of 2 will remove it
-				// This is how we remove dots that are behind us:
-				g_SpeedParticles2D[i].sz = P.z > 1.0f ? 0.0f : 2.0f;
+					g_SpeedParticles2D[i].sx = Q.x;
+					g_SpeedParticles2D[i].sy = Q.y + g_ShadertoyBuffer.y_center;
+					//g_SpeedParticles2D[i].sz = 0.001839f;
+					// A value of 0 will display the dot; but a value of 2 will remove it
+					// This is how we remove dots that are behind us:
+					g_SpeedParticles2D[i].sz = 0.0f;
+				} else
+					g_SpeedParticles2D[i].sz = 2.0f;
 			}
 		}
 		bFirstTime = false;
@@ -7330,6 +7452,7 @@ HRESULT PrimarySurface::Flip(
 							memcpy(&g_LightColor[i], &g_TempLightColor[i], sizeof(Vector4));
 						}
 					}
+					g_bHyperspaceLastFrame = (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST);
 					g_HyperspacePhaseFSM = HS_INIT_ST;
 				}
 			}

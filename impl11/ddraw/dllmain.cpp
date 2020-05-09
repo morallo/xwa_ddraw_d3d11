@@ -1092,6 +1092,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		// Generic FreePIE shutdown, just in case...
 		if (bFreePIEAlreadyInitialized)
 			ShutdownFreePIE();
+		exit(0);
 		break;
 	}
 

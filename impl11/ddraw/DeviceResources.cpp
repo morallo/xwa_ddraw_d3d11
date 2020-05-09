@@ -710,8 +710,8 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 	//float w = 250.0f;
 	//sz_depth = w / (float)METRIC_SCALE_FACTOR;
 	//rhw_depth = 1.0f / (w / (float)METRIC_SCALE_FACTOR);
-	float sz_depth = 100.0f;
-	float part_size = 0.01f;
+	float z = 100.0f;
+	float part_size = 0.025f;
 	//float range_x = 25.0f, range_y = 25.0f;
 	//float range_x = 0.1f, range_y = 0.1f;
 	//Vector3 P, Q;
@@ -719,16 +719,28 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
 		float x = ((float)rand() / RAND_MAX) - 0.5f;
 		float y = ((float)rand() / RAND_MAX) - 0.5f;
-		//x *= width;
-		//y *= height;
+		float z = ((float)rand() / RAND_MAX) - 0.5f;
+		/*
 		x *= 2.0f;
 		y *= 2.0f;
-		sz_depth = (float)rand() / RAND_MAX * 100.0f - 50.0f;
+		z = (float)rand() / RAND_MAX * 100.0f - 50.0f;
+		*/
+
+		/*
+		x *= 2.0f;
+		y *= 2.0f;
+		z *= 100.0f;
+		*/
+
+		x *= 10.0f;
+		y *= 10.0f;
+		z *= 10.0f;
+
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
 		g_SpeedParticles[j].sx = x - part_size;
 		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu = -1.0;
 		g_SpeedParticles[j].tv = -1.0;
@@ -737,7 +749,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		g_SpeedParticles[j].sx = x + part_size;
 		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu =  1.0;
 		g_SpeedParticles[j].tv = -1.0;
@@ -746,7 +758,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		g_SpeedParticles[j].sx = x - part_size;
 		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu = -1.0;
 		g_SpeedParticles[j].tv =  1.0;
@@ -756,7 +768,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		g_SpeedParticles[j].sx = x + part_size;
 		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu =  1.0;
 		g_SpeedParticles[j].tv = -1.0;
@@ -765,7 +777,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		g_SpeedParticles[j].sx = x + part_size;
 		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu = 1.0;
 		g_SpeedParticles[j].tv = 1.0;
@@ -774,7 +786,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		g_SpeedParticles[j].sx = x - part_size;
 		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].sz = z;
 		g_SpeedParticles[j].rhw = rhw_depth;
 		g_SpeedParticles[j].tu = -1.0;
 		g_SpeedParticles[j].tv =  1.0;
