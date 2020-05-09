@@ -4784,7 +4784,13 @@ void PrimarySurface::RenderSpeedEffect()
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
 	static bool bFirstTime = true;
-	
+	static float ZOfs = 0.0f, iTime = 0.0f;
+	static float Z = 10.0f;
+	ZOfs += 10.0f;
+	if (ZOfs > 100.0f) ZOfs -= 100.0f;
+	Z -= 1.0f;
+	if (Z < 1.0f) Z = 10.0f;
+	iTime += 0.016f;
 
 	resources->InitPixelShader(resources->_speedEffectPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -4852,20 +4858,34 @@ void PrimarySurface::RenderSpeedEffect()
 			g_LaserPointerBuffer.x1 = x1;
 			g_LaserPointerBuffer.y1 = y1;
 			// Project all the particles into 2D:
+			float ang = 10.0f * iTime * 0.01745f;
+			float s = sin(ang), c = cos(ang);
 			for (int i = 0; i < MAX_SPEED_PARTICLES * 6; i++) {
 				g_SpeedParticles2D[i] = g_SpeedParticles[i];
 				// Project the current point
 				P.x = g_SpeedParticles[i].sx;
 				P.y = g_SpeedParticles[i].sy;
-				P.z = g_SpeedParticles[i].sz;
+				P.z = g_SpeedParticles[i].sz; // - ZOfs;
+				//P.z -= ZOfs;
+
+				//Q.x =  c * P.x + s * P.y;
+				//Q.y = -s * P.x + c * P.y;
+				//Q.z = P.z;
+				/*
 				Q = projectToInGameCoords(P, g_viewMatrix, g_FullProjMatrixLeft);
 				if (bFirstTime) {
 					log_debug("[DBG] 2D: %0.3f, %0.3f, %0.3f, t:(%0.3f, %0.3f)",
 						Q.x, Q.y, Q.z, g_SpeedParticles[i].tu, g_SpeedParticles[i].tv);
 				}
+				*/
+				Q.x = P.x / Z; // / P.z;
+				Q.y = P.y / Z; // / P.z;
+				Q.z = P.z;
+
 				g_SpeedParticles2D[i].sx = Q.x;
 				g_SpeedParticles2D[i].sy = Q.y;
-				g_SpeedParticles2D[i].sz = -Q.z;
+				//g_SpeedParticles2D[i].sz = 0.001839f;
+				g_SpeedParticles2D[i].sz = 0.0f;
 			}
 		}
 		bFirstTime = false;
@@ -4877,6 +4897,9 @@ void PrimarySurface::RenderSpeedEffect()
 			size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
 			memcpy(map.pData, g_SpeedParticles2D, length);
 			context->Unmap(resources->_speedParticlesVertexBuffer, 0);
+		}
+		else {
+			log_debug("[DBG] MAP FAILED");
 		}
 
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;

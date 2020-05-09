@@ -47,7 +47,8 @@ PixelShaderInput main(VertexShaderInput input)
 	//output.pos.w = 1.0f;
 
 	// Regular Vertex Shader
-	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	//output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	output.pos.xy = input.pos.xy * float2(1.0 / aspect_ratio, 1.0);
 	output.pos.z  = input.pos.z;
 	output.pos.w  = 1.0f;
 

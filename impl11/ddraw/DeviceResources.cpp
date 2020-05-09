@@ -705,21 +705,24 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	// The values for rhw_depth and sz_depth were taken from the skybox
 	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
-	float sz_depth = 0.001839f;  // this is the Z-buffer value (?)
+	//float sz_depth = 0.001839f;  // this is the Z-buffer value (?)
 	//float sz_depth = 25.0f;
 	//float w = 250.0f;
 	//sz_depth = w / (float)METRIC_SCALE_FACTOR;
 	//rhw_depth = 1.0f / (w / (float)METRIC_SCALE_FACTOR);
-	float part_size = 5.0f;
+	float sz_depth = 250.0f;
+	float part_size = 0.01f;
 	//float range_x = 25.0f, range_y = 25.0f;
 	//float range_x = 0.1f, range_y = 0.1f;
 	//Vector3 P, Q;
 	int j = 0;
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-		float x = ((float)rand() / RAND_MAX);
-		float y = ((float)rand() / RAND_MAX);
-		x *= width;
-		y *= height;
+		float x = ((float)rand() / RAND_MAX) - 0.5f;
+		float y = ((float)rand() / RAND_MAX) - 0.5f;
+		//x *= width;
+		//y *= height;
+		x *= 2.0f;
+		y *= 2.0f;
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
 		g_SpeedParticles[j].sx = x - part_size;
@@ -793,10 +796,10 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC; //  D3D11_USAGE_DEFAULT;
 	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * MAX_SPEED_PARTICLES * 6;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
 	vertexBufferDesc.MiscFlags = 0;
 
 	InitSpeedParticlesVB(width, height);
@@ -806,7 +809,7 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	vertexBufferData.pSysMem = &(g_SpeedParticles[0]);
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_speedParticlesVertexBuffer);
 	if (FAILED(hr)) {
-		log_debug("[DBG] [DC] Could not create _speedParticlesVertexBuffer");
+		log_debug("[DBG] Could not create _speedParticlesVertexBuffer");
 	}
 }
 
