@@ -571,6 +571,9 @@ public:
 	void insert(Vector3 P, Vector3 col);
 };
 
+#define MAX_SPEED_PARTICLES 32
+extern D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES * 6];
+
 class DeviceResources
 {
 public:
@@ -613,6 +616,8 @@ public:
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
 	void BuildPostProcVertexBuffer();
+	void InitSpeedParticlesVB(UINT width, UINT height);
+	void BuildSpeedVertexBuffer(UINT width, UINT height);
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
@@ -835,6 +840,7 @@ public:
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
@@ -853,6 +859,7 @@ public:
 	ComPtr<ID3D11VertexShader> _vertexShader;
 	ComPtr<ID3D11VertexShader> _sbsVertexShader;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
+	ComPtr<ID3D11VertexShader> _speedEffectVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
@@ -877,6 +884,7 @@ public:
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
+	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:

@@ -50,7 +50,7 @@ float rand(vec2 co) {
 	return fract(sin(dot(co.xy + srand, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-PixelShaderOutput main(PixelShaderInput input) {
+PixelShaderOutput main_old(PixelShaderInput input) {
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
@@ -137,5 +137,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 
 	output.color = vec4(fade * color, 1.0);
+	return output;
+}
+
+PixelShaderOutput main(PixelShaderInput input) {
+	PixelShaderOutput output;
+	float L = length(input.uv) - 0.75;
+	output.color = L <= 0.0 ? 1.0 : 0.0;
+
 	return output;
 }

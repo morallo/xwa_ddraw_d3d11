@@ -51,6 +51,7 @@
 #include "../Debug/SunFlareCompose.h"
 #include "../Debug/SpeedEffect.h"
 #include "../Debug/SpeedEffectCompose.h"
+#include "../Debug/SpeedEffectVertexShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -94,6 +95,7 @@
 #include "../Release/SunFlareCompose.h"
 #include "../Release/SpeedEffect.h"
 #include "../Release/SpeedEffectCompose.h"
+#include "../Release/SpeedEffectVertexShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -104,6 +106,7 @@ void InitOPTnames();
 void ClearOPTnames();
 void InitCraftMaterials();
 void ClearCraftMaterials();
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -138,8 +141,10 @@ extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScr
 extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
-bool InitSteamVR();
 
+D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES * 6];
+
+bool InitSteamVR();
 void LoadFocalLength();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */
@@ -360,6 +365,7 @@ DeviceResources::DeviceResources()
 	this->_clearHUDVertexBuffer = nullptr;
 	this->_hyperspaceVertexBuffer = nullptr;
 	this->_bHUDVerticesReady = false;
+	this->_speedParticlesVertexBuffer = nullptr;
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
@@ -691,6 +697,116 @@ void DeviceResources::BuildPostProcVertexBuffer()
 	HRESULT hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, this->_postProcessVertBuffer.GetAddressOf());
 	if (FAILED(hr)) {
 		log_debug("[DBG] Could not create _barrelEffectVertBuffer");
+	}
+}
+
+void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
+{
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;  // this is the Z-buffer value (?)
+	//float sz_depth = 25.0f;
+	//float w = 250.0f;
+	//sz_depth = w / (float)METRIC_SCALE_FACTOR;
+	//rhw_depth = 1.0f / (w / (float)METRIC_SCALE_FACTOR);
+	float part_size = 5.0f;
+	//float range_x = 25.0f, range_y = 25.0f;
+	//float range_x = 0.1f, range_y = 0.1f;
+	//Vector3 P, Q;
+	int j = 0;
+	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
+		float x = ((float)rand() / RAND_MAX);
+		float y = ((float)rand() / RAND_MAX);
+		x *= width;
+		y *= height;
+		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
+		
+		g_SpeedParticles[j].sx = x - part_size;
+		g_SpeedParticles[j].sy = y - part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu = -1.0;
+		g_SpeedParticles[j].tv = -1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+
+		g_SpeedParticles[j].sx = x + part_size;
+		g_SpeedParticles[j].sy = y - part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu =  1.0;
+		g_SpeedParticles[j].tv = -1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+
+		g_SpeedParticles[j].sx = x - part_size;
+		g_SpeedParticles[j].sy = y + part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu = -1.0;
+		g_SpeedParticles[j].tv =  1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+
+
+		g_SpeedParticles[j].sx = x + part_size;
+		g_SpeedParticles[j].sy = y - part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu =  1.0;
+		g_SpeedParticles[j].tv = -1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+
+		g_SpeedParticles[j].sx = x + part_size;
+		g_SpeedParticles[j].sy = y + part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu = 1.0;
+		g_SpeedParticles[j].tv = 1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+
+		g_SpeedParticles[j].sx = x - part_size;
+		g_SpeedParticles[j].sy = y + part_size;
+		g_SpeedParticles[j].sz = sz_depth;
+		g_SpeedParticles[j].rhw = rhw_depth;
+		g_SpeedParticles[j].tu = -1.0;
+		g_SpeedParticles[j].tv =  1.0;
+		g_SpeedParticles[j].color = color;
+		j++;
+	}
+}
+
+void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height) 
+{
+	HRESULT hr;
+	auto &device = this->_d3dDevice;
+	
+	/* Create the VertexBuffer if necessary */
+	if (this->_speedParticlesVertexBuffer != NULL) 
+	{
+		this->_speedParticlesVertexBuffer->Release();
+		this->_speedParticlesVertexBuffer = NULL;
+	}
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * MAX_SPEED_PARTICLES * 6;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	InitSpeedParticlesVB(width, height);
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = &(g_SpeedParticles[0]);
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_speedParticlesVertexBuffer);
+	if (FAILED(hr)) {
+		log_debug("[DBG] [DC] Could not create _speedParticlesVertexBuffer");
 	}
 }
 
@@ -2243,6 +2359,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		BuildPostProcVertexBuffer();
+		BuildSpeedVertexBuffer(_displayWidth, _displayHeight);
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
@@ -2727,6 +2844,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -2991,6 +3111,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

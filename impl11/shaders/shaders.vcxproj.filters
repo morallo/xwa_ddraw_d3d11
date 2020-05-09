@@ -57,6 +57,7 @@
     <FxCompile Include="SunFlareCompose.hlsl" />
     <FxCompile Include="SpeedEffect.hlsl" />
     <FxCompile Include="SpeedEffectCompose.hlsl" />
+    <FxCompile Include="SpeedEffectVertexShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

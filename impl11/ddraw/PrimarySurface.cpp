@@ -101,6 +101,8 @@ extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCur
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
+D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 6];
+
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
@@ -4781,6 +4783,9 @@ void PrimarySurface::RenderSpeedEffect()
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
+	static bool bFirstTime = true;
+	
+
 	resources->InitPixelShader(resources->_speedEffectPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
@@ -4831,7 +4836,8 @@ void PrimarySurface::RenderSpeedEffect()
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
+		// TODO: Does the above apply for this effect? I don't think so...
+		g_VSCBuffer.z_override  = 65535.0f;
 		g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
@@ -4839,13 +4845,48 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
+		if (!g_bEnableVR) {
+			Vector3 P, Q;
+			g_LaserPointerBuffer.x0 = x0;
+			g_LaserPointerBuffer.y0 = y0;
+			g_LaserPointerBuffer.x1 = x1;
+			g_LaserPointerBuffer.y1 = y1;
+			// Project all the particles into 2D:
+			for (int i = 0; i < MAX_SPEED_PARTICLES * 6; i++) {
+				g_SpeedParticles2D[i] = g_SpeedParticles[i];
+				// Project the current point
+				P.x = g_SpeedParticles[i].sx;
+				P.y = g_SpeedParticles[i].sy;
+				P.z = g_SpeedParticles[i].sz;
+				Q = projectToInGameCoords(P, g_viewMatrix, g_FullProjMatrixLeft);
+				if (bFirstTime) {
+					log_debug("[DBG] 2D: %0.3f, %0.3f, %0.3f, t:(%0.3f, %0.3f)",
+						Q.x, Q.y, Q.z, g_SpeedParticles[i].tu, g_SpeedParticles[i].tv);
+				}
+				g_SpeedParticles2D[i].sx = Q.x;
+				g_SpeedParticles2D[i].sy = Q.y;
+				g_SpeedParticles2D[i].sz = -Q.z;
+			}
+		}
+		bFirstTime = false;
+
+		D3D11_MAPPED_SUBRESOURCE map;
+		HRESULT hr = context->Map(resources->_speedParticlesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr))
+		{
+			size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
+			memcpy(map.pData, g_SpeedParticles2D, length);
+			context->Unmap(resources->_speedParticlesVertexBuffer, 0);
+		}
+
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_speedParticlesVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
-		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
-		else
-			resources->InitVertexShader(resources->_vertexShader);
+		//if (g_bEnableVR)
+		//	resources->InitVertexShader(resources->_sbsVertexShader);
+		//else
+		//	resources->InitVertexShader(resources->_vertexShader);
+		resources->InitVertexShader(resources->_speedEffectVS);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4854,14 +4895,7 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		/*
-		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[1] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),
-		};
-		context->PSSetShaderResources(0, 1, srvs);
-		*/
-		context->Draw(6, 0);
+		context->Draw(MAX_SPEED_PARTICLES * 6, 0);
 
 		// TODO: Render the right image
 		if (g_bEnableVR) {
