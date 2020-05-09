@@ -4785,11 +4785,11 @@ void PrimarySurface::RenderSpeedEffect()
 
 	static bool bFirstTime = true;
 	static float ZOfs = 0.0f, iTime = 0.0f;
-	static float Z = 10.0f;
+	static float Z = 50.0f;
 	ZOfs += 10.0f;
 	if (ZOfs > 100.0f) ZOfs -= 100.0f;
 	Z -= 1.0f;
-	if (Z < 1.0f) Z = 10.0f;
+	if (Z < 1.0f) Z = 50.0f;
 	iTime += 0.016f;
 
 	resources->InitPixelShader(resources->_speedEffectPS);
@@ -4866,6 +4866,9 @@ void PrimarySurface::RenderSpeedEffect()
 				P.x = g_SpeedParticles[i].sx;
 				P.y = g_SpeedParticles[i].sy;
 				P.z = g_SpeedParticles[i].sz; // - ZOfs;
+				P.z -= 2.0f;
+				if (P.z < -50.0f) P.z += 100.0f;
+				g_SpeedParticles[i].sz = P.z;
 				//P.z -= ZOfs;
 
 				//Q.x =  c * P.x + s * P.y;
@@ -4878,14 +4881,16 @@ void PrimarySurface::RenderSpeedEffect()
 						Q.x, Q.y, Q.z, g_SpeedParticles[i].tu, g_SpeedParticles[i].tv);
 				}
 				*/
-				Q.x = P.x / Z; // / P.z;
-				Q.y = P.y / Z; // / P.z;
+				Q.x = P.x / P.z;
+				Q.y = P.y / P.z;
 				Q.z = P.z;
 
 				g_SpeedParticles2D[i].sx = Q.x;
-				g_SpeedParticles2D[i].sy = Q.y;
+				g_SpeedParticles2D[i].sy = Q.y + g_ShadertoyBuffer.y_center;
 				//g_SpeedParticles2D[i].sz = 0.001839f;
-				g_SpeedParticles2D[i].sz = 0.0f;
+				// A value of 0 will display the dot; but a value of 2 will remove it
+				// This is how we remove dots that are behind us:
+				g_SpeedParticles2D[i].sz = P.z > 1.0f ? 0.0f : 2.0f;
 			}
 		}
 		bFirstTime = false;
