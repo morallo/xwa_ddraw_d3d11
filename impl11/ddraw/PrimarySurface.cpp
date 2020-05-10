@@ -4842,6 +4842,70 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
+inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs)
+{
+	float rhw_depth = 0.0f;
+	float part_size = 0.025f;
+	D3DCOLOR color = 0xFFFFFFFF;
+	int j = ofs;
+
+	particles[j].sx = (Q.x - part_size) / Q.z;
+	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu = -1.0;
+	particles[j].tv = -1.0;
+	particles[j].color = color;
+	j++;
+
+	particles[j].sx = (Q.x + part_size) / Q.z;
+	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu =  1.0;
+	particles[j].tv = -1.0;
+	particles[j].color = color;
+	j++;
+
+	particles[j].sx = (Q.x - part_size) / Q.z;
+	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu = -1.0;
+	particles[j].tv =  1.0;
+	particles[j].color = color;
+	j++;
+
+
+	particles[j].sx = (Q.x + part_size) / Q.z;
+	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu =  1.0;
+	particles[j].tv = -1.0;
+	particles[j].color = color;
+	j++;
+
+	particles[j].sx = (Q.x + part_size) / Q.z;
+	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
+	particles[j].color = color;
+	j++;
+
+	particles[j].sx = (Q.x - part_size) / Q.z;
+	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sz = 0.0f;
+	particles[j].rhw = rhw_depth;
+	particles[j].tu = -1.0;
+	particles[j].tv =  1.0;
+	particles[j].color = color;
+	j++;
+	
+}
+
 void PrimarySurface::RenderSpeedEffect()
 {
 	auto& resources = this->_deviceResources;
@@ -4851,6 +4915,7 @@ void PrimarySurface::RenderSpeedEffect()
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	int NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 	static float Time = 0.0f;
 	Time += 0.016f; // ~1 / 60
@@ -4961,16 +5026,14 @@ void PrimarySurface::RenderSpeedEffect()
 
 		if (!g_bEnableVR) {
 			Vector4 P, Q;
+			// TODO: Consider removing these x0,y0, x1,y1 lines later
 			g_LaserPointerBuffer.x0 = x0;
 			g_LaserPointerBuffer.y0 = y0;
 			g_LaserPointerBuffer.x1 = x1;
 			g_LaserPointerBuffer.y1 = y1;
-			// Project all the particles into 2D:
-			float ang = 10.0f * iTime * 0.01745f;
-			float s = sin(ang), c = cos(ang);
-			for (int i = 0; i < MAX_SPEED_PARTICLES * 6; i++) {
-				g_SpeedParticles2D[i] = g_SpeedParticles[i];
-				
+			//float ang = 10.0f * iTime * 0.01745f;
+			//float s = sin(ang), c = cos(ang);
+			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
 				P.x = g_SpeedParticles[i].sx;
 				P.y = g_SpeedParticles[i].sy;
 				P.z = g_SpeedParticles[i].sz;
@@ -5005,7 +5068,12 @@ void PrimarySurface::RenderSpeedEffect()
 				}
 				*/
 				// Project the current point
-				if (Q.z > 1.0f) {
+				if (Q.z > 1.0f) 
+				{
+					AddSpeedPoint(g_SpeedParticles2D, Q, NumParticles);
+					NumParticles += 6;
+
+					/*
 					Q.x = Q.x / Q.z;
 					Q.y = Q.y / Q.z;
 					Q.z = Q.z;
@@ -5016,8 +5084,10 @@ void PrimarySurface::RenderSpeedEffect()
 					// A value of 0 will display the dot; but a value of 2 will remove it
 					// This is how we remove dots that are behind us:
 					g_SpeedParticles2D[i].sz = 0.0f;
-				} else
-					g_SpeedParticles2D[i].sz = 2.0f;
+					*/
+				} 
+				//else
+					//g_SpeedParticles2D[i].sz = 2.0f;
 			}
 		}
 		bFirstTime = false;
@@ -5050,7 +5120,8 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->Draw(MAX_SPEED_PARTICLES * 6, 0);
+		//context->Draw(MAX_SPEED_PARTICLES * 6, 0);
+		context->Draw(NumParticles, 0);
 
 		// TODO: Render the right image
 		if (g_bEnableVR) {

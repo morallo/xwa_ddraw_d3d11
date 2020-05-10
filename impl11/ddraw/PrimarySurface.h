@@ -95,6 +95,8 @@ public:
 
 	void RenderExternalHUD();
 
+	inline void AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs);
+
 	void RenderSpeedEffect();
 
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);

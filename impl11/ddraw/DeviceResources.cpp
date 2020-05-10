@@ -143,7 +143,7 @@ extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
-D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES * 6];
+D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 bool InitSteamVR();
 void LoadFocalLength();
@@ -703,35 +703,12 @@ void DeviceResources::BuildPostProcVertexBuffer()
 
 void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 {
-	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	// The values for rhw_depth and sz_depth were taken from the skybox
-	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
-	//float sz_depth = 0.001839f;  // this is the Z-buffer value (?)
-	//float sz_depth = 25.0f;
-	//float w = 250.0f;
-	//sz_depth = w / (float)METRIC_SCALE_FACTOR;
-	//rhw_depth = 1.0f / (w / (float)METRIC_SCALE_FACTOR);
-	float z = 100.0f;
-	float part_size = 0.025f;
-	//float range_x = 25.0f, range_y = 25.0f;
-	//float range_x = 0.1f, range_y = 0.1f;
-	//Vector3 P, Q;
-	int j = 0;
+	//float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
 		float x = ((float)rand() / RAND_MAX) - 0.5f;
 		float y = ((float)rand() / RAND_MAX) - 0.5f;
 		float z = ((float)rand() / RAND_MAX) - 0.5f;
-		/*
-		x *= 2.0f;
-		y *= 2.0f;
-		z = (float)rand() / RAND_MAX * 100.0f - 50.0f;
-		*/
-
-		/*
-		x *= 2.0f;
-		y *= 2.0f;
-		z *= 100.0f;
-		*/
 
 		x *= 10.0f;
 		y *= 10.0f;
@@ -739,60 +716,13 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
-		g_SpeedParticles[j].sx = x - part_size;
-		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu = -1.0;
-		g_SpeedParticles[j].tv = -1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
-
-		g_SpeedParticles[j].sx = x + part_size;
-		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu =  1.0;
-		g_SpeedParticles[j].tv = -1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
-
-		g_SpeedParticles[j].sx = x - part_size;
-		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu = -1.0;
-		g_SpeedParticles[j].tv =  1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
-
-
-		g_SpeedParticles[j].sx = x + part_size;
-		g_SpeedParticles[j].sy = y - part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu =  1.0;
-		g_SpeedParticles[j].tv = -1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
-
-		g_SpeedParticles[j].sx = x + part_size;
-		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu = 1.0;
-		g_SpeedParticles[j].tv = 1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
-
-		g_SpeedParticles[j].sx = x - part_size;
-		g_SpeedParticles[j].sy = y + part_size;
-		g_SpeedParticles[j].sz = z;
-		g_SpeedParticles[j].rhw = rhw_depth;
-		g_SpeedParticles[j].tu = -1.0;
-		g_SpeedParticles[j].tv =  1.0;
-		g_SpeedParticles[j].color = color;
-		j++;
+		g_SpeedParticles[i].sx = x;
+		g_SpeedParticles[i].sy = y;
+		g_SpeedParticles[i].sz = z;
+		g_SpeedParticles[i].rhw = 0.0f;
+		g_SpeedParticles[i].tu = -1.0;
+		g_SpeedParticles[i].tv = -1.0;
+		g_SpeedParticles[i].color = 0xFFFFFFFF;
 	}
 }
 
@@ -818,10 +748,11 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 
 	InitSpeedParticlesVB(width, height);
 
-	D3D11_SUBRESOURCE_DATA vertexBufferData;
-	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = &(g_SpeedParticles[0]);
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_speedParticlesVertexBuffer);
+	//D3D11_SUBRESOURCE_DATA vertexBufferData;
+	//ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	//vertexBufferData.pSysMem = &(g_SpeedParticles[0]);
+	//hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_speedParticlesVertexBuffer);
+	hr = device->CreateBuffer(&vertexBufferDesc, NULL, &this->_speedParticlesVertexBuffer);
 	if (FAILED(hr)) {
 		log_debug("[DBG] Could not create _speedParticlesVertexBuffer");
 	}
