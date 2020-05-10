@@ -102,7 +102,7 @@ extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader;
 extern float g_fSpeedShaderConstFactor, g_fSpeedShaderRotationFactor;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
-D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 6];
+D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -4835,82 +4835,132 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
-inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs)
+inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs)
 {
-	float rhw_depth = 0.0f;
-	float part_size = 0.01f; // 0.025f;
+	D3DTLVERTEX sample;
+	const float rhw_depth = 0.0f;
+	const float part_size = 0.01f; // 0.025f;
+	const float half_part_size = part_size * 0.5f;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
-	float FOVFactor = g_ShadertoyBuffer.FOVscale;
+	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 	//float FOVFactor = g_fDebugFOV;
 
+	sample.sz = 0.0f;
+	sample.rhw = rhw_depth;
+	sample.color = color;
+
+	// top
+	particles[j] = sample;
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	particles[j].color = color;
 	j++;
 
+	particles[j] = sample;
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
-	particles[j].color = color;
 	j++;
 
+	particles[j] = sample;
+	particles[j].sx = Q.x / (Q.z + zdisp);
+	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = 0.0;
+	particles[j].tv = 0.0;
+	j++;
+
+	// left
+	particles[j] = sample;
+	particles[j].sx = (Q.x - part_size) / Q.z;
+	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = -1.0;
+	particles[j].tv = -1.0;
+	j++;
+
+	particles[j] = sample;
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
-	particles[j].color = color;
 	j++;
 
+	particles[j] = sample;
+	particles[j].sx = Q.x / (Q.z + zdisp);
+	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = 0.0;
+	particles[j].tv = 0.0;
+	j++;
 
+	// right
+	particles[j] = sample;
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
-	particles[j].color = color;
 	j++;
 
+	particles[j] = sample;
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
-	particles[j].color = color;
 	j++;
 
+	particles[j] = sample;
+	particles[j].sx = Q.x / (Q.z + zdisp);
+	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = 0.0;
+	particles[j].tv = 0.0;
+	j++;
+
+	// bottom
+	particles[j] = sample;
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
 	particles[j].sx *= FOVFactor;
 	particles[j].sy *= FOVFactor;
-	particles[j].sz = 0.0f;
-	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
-	particles[j].color = color;
 	j++;
-	
+
+	particles[j] = sample;
+	particles[j].sx = (Q.x + part_size) / Q.z;
+	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
+	j++;
+
+	particles[j] = sample;
+	particles[j].sx = Q.x / (Q.z + zdisp);
+	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
+	particles[j].tu = 0.0;
+	particles[j].tv = 0.0;
+	j++;
 }
 
 void PrimarySurface::RenderSpeedEffect()
@@ -5049,8 +5099,8 @@ void PrimarySurface::RenderSpeedEffect()
 				// Project the current point and add it to the vertex buffer
 				if (Q.z > 1.0f) 
 				{
-					AddSpeedPoint(g_SpeedParticles2D, Q, NumParticleVertices);
-					NumParticleVertices += 6;
+					AddSpeedPoint(g_SpeedParticles2D, Q, craft_speed * 0.1f, NumParticleVertices);
+					NumParticleVertices += 12;
 					/*
 					Q.x = Q.x / Q.z;
 					Q.y = Q.y / Q.z;

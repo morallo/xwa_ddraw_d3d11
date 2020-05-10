@@ -95,7 +95,7 @@ public:
 
 	void RenderExternalHUD();
 
-	inline void AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs);
+	inline void AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs);
 
 	void RenderSpeedEffect();
 

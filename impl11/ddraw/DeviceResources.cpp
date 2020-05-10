@@ -737,7 +737,7 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC; //  D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * MAX_SPEED_PARTICLES * 6;
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * MAX_SPEED_PARTICLES * 12;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
 	vertexBufferDesc.MiscFlags = 0;
