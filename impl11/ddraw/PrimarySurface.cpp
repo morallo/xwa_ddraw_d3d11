@@ -34,7 +34,7 @@ extern uint32_t *g_playerInHangar;
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
-extern float *g_fRawFOVDist, g_fCurrentShipFocalLength;
+extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fDebugFOV;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 void ApplyFocalLength(float focal_length);
@@ -4838,12 +4838,16 @@ void PrimarySurface::RenderExternalHUD()
 inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs)
 {
 	float rhw_depth = 0.0f;
-	float part_size = 0.01f;
+	float part_size = 0.01f; // 0.025f;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
+	float FOVFactor = g_ShadertoyBuffer.FOVscale;
+	//float FOVFactor = g_fDebugFOV;
 
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
@@ -4853,6 +4857,8 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int
 
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu =  1.0;
@@ -4862,6 +4868,8 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int
 
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
@@ -4872,6 +4880,8 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int
 
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu =  1.0;
@@ -4881,6 +4891,8 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int
 
 	particles[j].sx = (Q.x + part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu = 1.0;
@@ -4890,6 +4902,8 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int
 
 	particles[j].sx = (Q.x - part_size) / Q.z;
 	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
+	particles[j].sx *= FOVFactor;
+	particles[j].sy *= FOVFactor;
 	particles[j].sz = 0.0f;
 	particles[j].rhw = rhw_depth;
 	particles[j].tu = -1.0;
@@ -4915,16 +4929,7 @@ void PrimarySurface::RenderSpeedEffect()
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
 
 	Vector4 Rs, Us, Fs;
-	float XDisp = 0.0f, YDisp = 0.0f, ZDisp = 0.0f;
 	Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
-	//if (g_PSCBuffer.bInHyperspace)
-	//	ComputeInertia(g_prevHeadingMatrix, g_LastFsBeforeHyperspace, g_fLastSpeedBeforeHyperspace, playerIndex, &XDisp, &YDisp, &ZDisp);
-	//else 
-	//{
-		//log_debug("Fs: %0.3f, %0.3f, %0.3f", Fs.x, Fs.y, Fs.z);
-	//	ComputeHeadingDifference(HeadingMatrix, Fs, Us, (float)PlayerDataTable[*g_playerIndex].currentSpeed, *g_playerIndex, &XDisp, &YDisp, &ZDisp);
-	//}
-	//HeadingMatrix.transpose();
 
 	Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);

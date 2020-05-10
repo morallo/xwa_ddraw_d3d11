@@ -446,7 +446,7 @@ extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOV = -2.0f;
+float g_fDebugFOV = 1.0f;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
