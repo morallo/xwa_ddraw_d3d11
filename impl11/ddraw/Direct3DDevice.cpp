@@ -1961,6 +1961,77 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	return true;
 }
 
+/*
+ * Saves the current FOV to the current dc file -- if it exists
+ */
+bool UpdateXWAHackerFOV()
+{
+	char sFileName[256], *sTempFileName = "./TempDCFile.dc";
+	FILE *in_file, *out_file;
+	int error = 0, line = 0;
+	char buf[256];
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [DC] No DC-enabled cockpit has been loaded, will not write current FOV");
+		return false;
+	}
+
+	snprintf(sFileName, 256, ".\\DynamicCockpit\\%s.dc", g_sCurrentCockpit);
+	log_debug("[DBG] Saving current FOV to Dynamic Cockpit params file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	// Create sTempFileName
+	try {
+		error = fopen_s(&out_file, sTempFileName, "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not create temporary file: [%s]", sTempFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when creating [%s]", error, sTempFileName);
+		return false;
+	}
+
+	bool bFOVWritten = false;
+	float focal_length = *g_fRawFOVDist;
+	float FOV = atan2(g_fCurInGameHeight, focal_length) * 2.0f;
+	FOV *= 180.0f / 3.141592f;
+	log_debug("[DBG] [FOV] FOV that will be saved: %0.3f", FOV);
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+
+		if (strstr(buf, "xwahacker_fov") != NULL) {
+			fprintf(out_file, "xwahacker_fov = %0.3f\n", FOV);
+			bFOVWritten = true;
+		}
+		else
+			fprintf(out_file, buf);
+	}
+
+	// This DC file may not have the "xwahacker_fov" line, so let's add it:
+	if (!bFOVWritten)
+		fprintf(out_file, "\nxwahacker_fov = %0.3f\n", FOV);
+	
+	fclose(out_file);
+	fclose(in_file);
+
+	// Swap the files
+	remove(sFileName);
+	rename(sTempFileName, sFileName);
+	return true;
+}
 
 /*
  * Load the DC params for an individual cockpit. 

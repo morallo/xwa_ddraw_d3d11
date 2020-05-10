@@ -136,6 +136,7 @@ extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
 void ShutDownSteamVR();
 void ApplyFocalLength(float focal_length);
+bool UpdateXWAHackerFOV();
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -324,8 +325,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(50.0f);
-					// Don't overwrite the focal length if we're using DC-provided FOV
-					if (g_fCurrentShipFocalLength <= 5.0f) 
+					// First try to update the DC file. If that fails, then save the regular focal length
+					if (!UpdateXWAHackerFOV())
 						SaveFocalLength();
 					break;
 				case 3:
@@ -361,8 +362,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(-50.0f);
-					// Don't overwrite the focal length if we're using DC-provided FOV
-					if (g_fCurrentShipFocalLength <= 5.0f)
+					// First try to update the DC file. If that fails, then save the regular focal length
+					if (!UpdateXWAHackerFOV())
 						SaveFocalLength();
 					break;
 				case 3:
