@@ -22,6 +22,7 @@ Config::Config()
 	this->MSAACount = -1;
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
+	this->VSyncEnabledInHangar = true;
 	this->WireframeFillMode = false;
 	this->JoystickEmul = 0;
 
@@ -111,6 +112,10 @@ Config::Config()
 			else if (name == "EnableVSync")
 			{
 				this->VSyncEnabled = stoi(value) != 0;
+			}
+			else if (name == "EnableVSyncInHangar")
+			{
+				this->VSyncEnabledInHangar = stoi(value) != 0;
 			}
 			else if (name == "FillWireframe")
 			{

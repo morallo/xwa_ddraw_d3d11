@@ -125,6 +125,7 @@ extern int g_iNumDCElements;
 extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
+extern float g_fCurrentShipFocalLength;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
@@ -968,6 +969,8 @@ void DeviceResources::ResetDynamicCockpit() {
 		log_debug("[DBG] [DC] Resetting Dynamic Cockpit");
 		// Reset the cockpit name
 		g_sCurrentCockpit[0] = 0;
+		// Reset the current ship's custom focal length
+		g_fCurrentShipFocalLength = 0.0f;
 		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
 		g_DCHUDRegions.ResetLimits();
 		// Reset the Source DC elements so that we know when they get re-computed.

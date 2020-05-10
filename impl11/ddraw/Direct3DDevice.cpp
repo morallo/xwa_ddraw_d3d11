@@ -10,6 +10,64 @@
 
 /*
 
+
+************************************************************************************************************
+From: https://xwaupgrade.com/phpBB3/viewtopic.php?f=9&t=12359&start=75
+
+FOV
+
+For 1920x1080:
+
+HUD scale:
+value: 1080 / 600.0f = 1.8
+
+FOV:
+value: 1080 * 1.0666f + 0.5f = 1152
+angle: atan(1080 / 1152) * 2 / pi * 180 = 86.3°
+
+focal_length = in-game-height * 1.0666f + 0.5f
+angle = atan(in-game-height / focal_length) * 2
+The above becomes:
+in-game-height / focal_length = tan(angle / 2.0)
+focal_length = in-game-height / tan(angle / 2.0)
+
+************************************************************************************************************
+
+HANGAR
+
+You can get the hangar object index via this variable:
+
+// V0x009C6E38
+dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
+When the value is different of 0xFFFF, the player craft is in a hangar.
+
+With that index, you can get the object, mobile object and craft structs. From that, you can get the orientation of the mothership.
+You can get the hyperspace phase with the craft state offset (00B).
+
+					Ptr<XwaCraft> ebp = s_XwaObjects[s_V0x09C6E38].pMobileObject->pCraft;
+
+					XwaGetCraftIndex( s_XwaObjects[s_V0x09C6E38].ModelIndex );
+
+					strcpy_s( esp18, "" );
+
+					if( ebp->XwaCraft_m00B == 0x05 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_ENTERING_HYPERSPACE] );
+					}
+					else if( ebp->XwaCraft_m00B == 0x06 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_LEAVING_HYPERSPACE] );
+					}
+					else if( ebp->XwaCraft_m00B == 0x07 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_IN_HYPERSPACE] );
+					}
+
+************************************************************************************************************
+
 The HUD scale is stored here:
 // V0x006002B8
 float s_XwaHudScale = 1.0f;
@@ -92,12 +150,14 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
+// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable; but I can't prove that
+// the focal length is actually that because it actually behaves differently.
 // Data provided by keiranhalcyon7:
 uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
-//float g_fOverrideFOVScale = 1.0f;
+float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC file (if one is provided)
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
 bool g_bLastFrameWasExterior = false; // Keeps track of the state of the exterior camera on the last frame
 
@@ -1927,7 +1987,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
@@ -1945,7 +2005,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
 				// This is a new DC element.
@@ -2044,6 +2104,18 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, COVER_TEX_SIZE_DCPARAM) == 0) {
 				LoadDCCoverTextureSize(buf, &cover_tex_width, &cover_tex_height);
+			}
+			else if (_stricmp(param, "xwahacker_fov") == 0) {
+				log_debug("[DBG] [FOV] [DC] XWA HACKER FOV: %0.3f", fValue);
+				// Prevent nonsensical values:
+				if (fValue < 15.0f) fValue = 15.0f;
+				if (fValue > 170.0f) fValue = 170.0f;
+				// Convert to radians
+				fValue = fValue * 3.141592f / 180.0f;
+				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
+				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
+				// Force the new FOV to be applied
+				g_bCustomFOVApplied = false;
 			}
 		}
 	}

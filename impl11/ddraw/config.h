@@ -15,6 +15,7 @@ public:
 	int MSAACount;
 	bool AnisotropicFilteringEnabled;
 	bool VSyncEnabled;
+	bool VSyncEnabledInHangar;
 	bool WireframeFillMode;
 	int JoystickEmul;
 	bool SwapJoystickXZAxes;

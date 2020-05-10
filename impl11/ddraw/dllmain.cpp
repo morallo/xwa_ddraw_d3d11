@@ -25,6 +25,7 @@ extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be u
 auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOV;
+extern float g_fCurrentShipFocalLength;
 
 extern int g_KeySet;
 extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio;
@@ -134,7 +135,7 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
 void ShutDownSteamVR();
-void ApplyFOV(float FOV);
+void ApplyFocalLength(float focal_length);
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -192,7 +193,7 @@ void LoadFocalLength() {
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, "focal_length") == 0) {
-				ApplyFOV(fValue);
+				ApplyFocalLength(fValue);
 				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
 			}
 		}
@@ -200,10 +201,10 @@ void LoadFocalLength() {
 	fclose(file);
 }
 
-void ApplyFOV(float FOV) 
+void ApplyFocalLength(float focal_length) 
 {
-	log_debug("[DBG] Old FOV: %0.3f", *g_fRawFOVDist);
-	*g_fRawFOVDist = FOV;
+	log_debug("[DBG] [FOV] Old FOV: %0.3f, Applying: %0.3f", *g_fRawFOVDist, focal_length);
+	*g_fRawFOVDist = focal_length;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
 	ComputeHyperFOVParams();
@@ -323,7 +324,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(50.0f);
-					SaveFocalLength();
+					// Don't overwrite the focal length if we're using DC-provided FOV
+					if (g_fCurrentShipFocalLength <= 5.0f) 
+						SaveFocalLength();
 					break;
 				case 3:
 					g_LaserPointDebug.x += 0.1f;
@@ -358,7 +361,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(-50.0f);
-					SaveFocalLength();
+					// Don't overwrite the focal length if we're using DC-provided FOV
+					if (g_fCurrentShipFocalLength <= 5.0f)
+						SaveFocalLength();
 					break;
 				case 3:
 					g_LaserPointDebug.x -= 0.1f;

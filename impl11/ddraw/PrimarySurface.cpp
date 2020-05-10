@@ -30,9 +30,14 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
-extern float *g_fRawFOVDist;
+/*
+dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
+When the value is different of 0xFFFF, the player craft is in a hangar.
+*/
+extern float *g_fRawFOVDist, g_fCurrentShipFocalLength;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
+void ApplyFocalLength(float focal_length);
 Matrix4 g_ReflRotX;
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
@@ -6788,7 +6793,10 @@ HRESULT PrimarySurface::Flip(
 				RenderExternalHUD();
 			}
 
-			if (g_bEnableSpeedShader)
+			// Apply the speed shader
+			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
+			// on the first frame (sometimes it can happen and it's quite visible/ugly
+			if (g_bCustomFOVApplied && g_bEnableSpeedShader)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -7066,9 +7074,20 @@ HRESULT PrimarySurface::Flip(
 			// I tried applying these settings on DLL load, and on the first draw call in Execute(); but they didn't work.
 			// Apparently I have to wait until the first frame is fully executed in order to apply the custom FOV
 			if (!g_bCustomFOVApplied) {
-				log_debug("[DBG] [FOV] Applying Custom FOV from Flip(). Old FOVDist: %0.3f", *g_fRawFOVDist);
-				LoadFocalLength();
-				g_bCustomFOVApplied = true;
+				log_debug("[DBG] [FOV] [Flip] Applying Custom FOV.");
+				
+				// If the current ship's DC file has a focal length, apply it:
+				if (g_fCurrentShipFocalLength > 0.0f) {
+					log_debug("[DBG] [FOV] [Flip] Applying DC Focal Length: %0.3f", g_fCurrentShipFocalLength);
+					ApplyFocalLength(g_fCurrentShipFocalLength);
+				}
+				else {
+					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
+					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+					LoadFocalLength();
+				}
+
+				g_bCustomFOVApplied = true; // Becomes false in OnSizeChanged()
 				ComputeHyperFOVParams();
 			}
 
@@ -7473,7 +7492,10 @@ HRESULT PrimarySurface::Flip(
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))
 			// For VR, we probably want to disable VSync to get as much frames a possible:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(0, 0)))
-			if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))
+			bool bEnableVSync = g_config.VSyncEnabled;
+			if (*g_playerInHangar)
+				bEnableVSync = g_config.VSyncEnabledInHangar;
+			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;
 				if (!messageShown)
