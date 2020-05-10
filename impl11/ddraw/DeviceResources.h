@@ -572,7 +572,7 @@ public:
 };
 
 #define MAX_SPEED_PARTICLES 256
-extern D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES];
+extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 class DeviceResources
 {

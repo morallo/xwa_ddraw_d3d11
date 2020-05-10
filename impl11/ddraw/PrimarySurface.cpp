@@ -3952,6 +3952,7 @@ void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
  * Input: The current Heading matrix H, the current forward vector Fs
  * Output: The X,Y,Z displacement
  */
+/*
 void ComputeHeadingDifference(const Matrix4 &H, Vector4 Fs, Vector4 Us, float fCurSpeed, int playerIndex, float *XDisp, float *YDisp, float *ZDisp) {
 	const float g_fCockpitInertia = 0.35f, g_fCockpitMaxInertia = 0.2f;
 	static bool bFirstFrame = true;
@@ -4008,19 +4009,11 @@ void ComputeHeadingDifference(const Matrix4 &H, Vector4 Fs, Vector4 Us, float fC
 	fLastSpeed = 0.1f * fCurSpeed + 0.9f * fLastSpeed;
 	prevT = curT;
 
-	/*
-	if (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST || g_bHyperspaceLastFrame)
-	{
-		*ZDisp = 0.0f;
-		fLastSpeed = fCurSpeed;
-	}
-	*/
-
 	//if (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST || g_HyperspacePhaseFSM == HS_INIT_ST)
 	//if (g_bHyperspaceLastFrame || g_bHyperspaceTunnelLastFrame)
 	//	log_debug("[%d] X/YDisp: %0.3f, %0.3f",  g_iHyperspaceFrame, *XDisp, *YDisp);
 }
-
+*/
 
 /*
 Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
@@ -4845,7 +4838,7 @@ void PrimarySurface::RenderExternalHUD()
 inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, int ofs)
 {
 	float rhw_depth = 0.0f;
-	float part_size = 0.025f;
+	float part_size = 0.01f;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
 
@@ -4915,34 +4908,25 @@ void PrimarySurface::RenderSpeedEffect()
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	int NumParticles = 0;
+	int NumParticleVertices = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 	static float Time = 0.0f;
-	Time += 0.016f; // ~1 / 60
-
-	float yaw, pitch, roll;
-	yaw   = PlayerDataTable[*g_playerIndex].yaw   / 65536.0f * 360.0f;
-	pitch = PlayerDataTable[*g_playerIndex].pitch / 65536.0f * 360.0f;
-	roll  = PlayerDataTable[*g_playerIndex].roll  / 65536.0f * 360.0f;
+	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
+	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
 
 	Vector4 Rs, Us, Fs;
 	float XDisp = 0.0f, YDisp = 0.0f, ZDisp = 0.0f;
-	Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
+	Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	//if (g_PSCBuffer.bInHyperspace)
 	//	ComputeInertia(g_prevHeadingMatrix, g_LastFsBeforeHyperspace, g_fLastSpeedBeforeHyperspace, playerIndex, &XDisp, &YDisp, &ZDisp);
 	//else 
-	{
+	//{
 		//log_debug("Fs: %0.3f, %0.3f, %0.3f", Fs.x, Fs.y, Fs.z);
-		ComputeHeadingDifference(HeadingMatrix, Fs, Us, (float)PlayerDataTable[*g_playerIndex].currentSpeed, *g_playerIndex, &XDisp, &YDisp, &ZDisp);
-	}
-	HeadingMatrix.transpose();
-	//log_debug("[DBG] Disp: %0.3f, %0.3f, %0.3f", XDisp, YDisp, ZDisp);
-	Matrix4 rot, rotX, rotY, rotZ;
-	rotX.rotateX(-(pitch + 90.0f));
-	rotY.rotateY(yaw);
-	rotZ.rotateZ(roll);
-	rot = rotX * rotY * rotZ;
+	//	ComputeHeadingDifference(HeadingMatrix, Fs, Us, (float)PlayerDataTable[*g_playerIndex].currentSpeed, *g_playerIndex, &XDisp, &YDisp, &ZDisp);
+	//}
+	//HeadingMatrix.transpose();
 
+	Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
@@ -4954,16 +4938,11 @@ void PrimarySurface::RenderSpeedEffect()
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	g_ShadertoyBuffer.craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
+	g_ShadertoyBuffer.craft_speed = craft_speed;
 	//g_ShadertoyBuffer.craft_speed = 2.0f;
 	// The A-Wing's max speed seems to be 270
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
-
-	static bool bFirstTime = true;
-	static float iTime = 0.0f;
-	static float ZTimeDisp[MAX_SPEED_PARTICLES * 6] = { 0 };
-	iTime += 0.016f;
 
 	resources->InitPixelShader(resources->_speedEffectPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -5025,41 +5004,35 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		if (!g_bEnableVR) {
-			Vector4 P, Q;
+			Vector4 Q;
 			// TODO: Consider removing these x0,y0, x1,y1 lines later
+			/*
 			g_LaserPointerBuffer.x0 = x0;
 			g_LaserPointerBuffer.y0 = y0;
 			g_LaserPointerBuffer.x1 = x1;
 			g_LaserPointerBuffer.y1 = y1;
-			//float ang = 10.0f * iTime * 0.01745f;
-			//float s = sin(ang), c = cos(ang);
+			*/
 			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-				P.x = g_SpeedParticles[i].sx;
-				P.y = g_SpeedParticles[i].sy;
-				P.z = g_SpeedParticles[i].sz;
 				// Update the position of the particle
-				//float x = P.x / P.z, y = P.y / P.z;
-				//float Dist = 1.0f / (P.z + 1.0f);
-				//float Dist = sqrt(x*x + y*y);
-				//float Dist = 1.0f;
-				//rotX.rotateX( YDisp * Dist * g_fSpeedShaderRotationFactor);
-				//rotY.rotateY(-XDisp * Dist * g_fSpeedShaderRotationFactor);
-				//rotZ.rotateZ( ZDisp * Dist * g_fSpeedShaderRotationFactor);
-				//rotX.rotateX(pitch - 90.0f);
-				//Q = rot * P;
-				Q = HeadingMatrix * P;
+				Q = HeadingMatrix * g_SpeedParticles[i];
 				ZTimeDisp[i] += 0.0166f;
-				Q.z -= (2.0f * ZTimeDisp[i]);
-				if (Q.z < 1.0f)
+				//Q.z -= (2.0f * ZTimeDisp[i]);
+				Q.z -= (craft_speed * ZTimeDisp[i]);
+				if (Q.z < 1.0f) {
+					// Compute a new random position for this particle
+					float x = ((float)rand() / RAND_MAX) - 0.5f;
+					float y = ((float)rand() / RAND_MAX) - 0.5f;
+					float z = ((float)rand() / RAND_MAX) - 0.5f;
+					g_SpeedParticles[i].x = x * 10.0f;
+					g_SpeedParticles[i].y = y * 10.0f;
+					g_SpeedParticles[i].z = z * 10.0f;
 					ZTimeDisp[i] = 0.0f;
+				}
 				//Q = P;
 				//P.z -= 0.5f;
 				//if (P.z < -50.0f) P.z += 100.0f;
 				//g_SpeedParticles[i].sz = P.z;
 
-				//Q.x =  c * P.x + s * P.y;
-				//Q.y = -s * P.x + c * P.y;
-				//Q.z = P.z;
 				/*
 				Q = projectToInGameCoords(P, g_viewMatrix, g_FullProjMatrixLeft);
 				if (bFirstTime) {
@@ -5067,12 +5040,12 @@ void PrimarySurface::RenderSpeedEffect()
 						Q.x, Q.y, Q.z, g_SpeedParticles[i].tu, g_SpeedParticles[i].tv);
 				}
 				*/
-				// Project the current point
+
+				// Project the current point and add it to the vertex buffer
 				if (Q.z > 1.0f) 
 				{
-					AddSpeedPoint(g_SpeedParticles2D, Q, NumParticles);
-					NumParticles += 6;
-
+					AddSpeedPoint(g_SpeedParticles2D, Q, NumParticleVertices);
+					NumParticleVertices += 6;
 					/*
 					Q.x = Q.x / Q.z;
 					Q.y = Q.y / Q.z;
@@ -5090,18 +5063,15 @@ void PrimarySurface::RenderSpeedEffect()
 					//g_SpeedParticles2D[i].sz = 2.0f;
 			}
 		}
-		bFirstTime = false;
 
 		D3D11_MAPPED_SUBRESOURCE map;
 		HRESULT hr = context->Map(resources->_speedParticlesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 		if (SUCCEEDED(hr))
 		{
-			size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
+			//size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
+			size_t length = sizeof(D3DTLVERTEX) * NumParticleVertices;
 			memcpy(map.pData, g_SpeedParticles2D, length);
 			context->Unmap(resources->_speedParticlesVertexBuffer, 0);
-		}
-		else {
-			log_debug("[DBG] MAP FAILED");
 		}
 
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
@@ -5121,7 +5091,7 @@ void PrimarySurface::RenderSpeedEffect()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		//context->Draw(MAX_SPEED_PARTICLES * 6, 0);
-		context->Draw(NumParticles, 0);
+		context->Draw(NumParticleVertices, 0);
 
 		// TODO: Render the right image
 		if (g_bEnableVR) {

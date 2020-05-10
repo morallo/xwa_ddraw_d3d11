@@ -143,7 +143,7 @@ extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
-D3DTLVERTEX g_SpeedParticles[MAX_SPEED_PARTICLES];
+Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 bool InitSteamVR();
 void LoadFocalLength();
@@ -704,7 +704,6 @@ void DeviceResources::BuildPostProcVertexBuffer()
 void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 {
 	// The values for rhw_depth and sz_depth were taken from the skybox
-	//float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
 		float x = ((float)rand() / RAND_MAX) - 0.5f;
 		float y = ((float)rand() / RAND_MAX) - 0.5f;
@@ -716,13 +715,10 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
-		g_SpeedParticles[i].sx = x;
-		g_SpeedParticles[i].sy = y;
-		g_SpeedParticles[i].sz = z;
-		g_SpeedParticles[i].rhw = 0.0f;
-		g_SpeedParticles[i].tu = -1.0;
-		g_SpeedParticles[i].tv = -1.0;
-		g_SpeedParticles[i].color = 0xFFFFFFFF;
+		g_SpeedParticles[i].x = x;
+		g_SpeedParticles[i].y = y;
+		g_SpeedParticles[i].z = z;
+		g_SpeedParticles[i].w = 1.0f;
 	}
 }
 
