@@ -572,6 +572,7 @@ public:
 };
 
 #define MAX_SPEED_PARTICLES 256
+#define SPEED_PART_BOX_SIZE 10.0f
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 class DeviceResources

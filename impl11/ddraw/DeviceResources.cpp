@@ -705,13 +705,13 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 {
 	// The values for rhw_depth and sz_depth were taken from the skybox
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-		float x = ((float)rand() / RAND_MAX) - 0.5f;
-		float y = ((float)rand() / RAND_MAX) - 0.5f;
-		float z = ((float)rand() / RAND_MAX) - 0.5f;
+		float x = (((float)rand() / RAND_MAX) - 0.5f);
+		float y = (((float)rand() / RAND_MAX) - 0.5f);
+		float z = (((float)rand() / RAND_MAX) - 0.5f);
 
-		x *= 10.0f;
-		y *= 10.0f;
-		z *= 10.0f;
+		x *= SPEED_PART_BOX_SIZE;
+		y *= SPEED_PART_BOX_SIZE;
+		z *= SPEED_PART_BOX_SIZE;
 
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
