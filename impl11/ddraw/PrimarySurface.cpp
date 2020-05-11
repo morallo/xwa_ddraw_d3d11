@@ -4835,6 +4835,18 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
+inline void ProjectSpeedPoint(D3DTLVERTEX *particles, int idx)
+{
+	float x = particles[idx].sx;
+	float y = particles[idx].sy;
+	float z = particles[idx].sz;
+	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
+	const float y_center = g_ShadertoyBuffer.y_center;
+	particles[idx].sx = FOVFactor * (x / z);
+	particles[idx].sy = FOVFactor * (y / z + y_center);
+	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX
+}
+
 inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs)
 {
 	D3DTLVERTEX sample;
@@ -4852,114 +4864,114 @@ inline void PrimarySurface::AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, flo
 
 	// top
 	particles[j] = sample;
-	particles[j].sx = (Q.x - part_size) / Q.z;
-	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x - part_size;
+	particles[j].sy = Q.y - part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = (Q.x + part_size) / Q.z;
-	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x + part_size;
+	particles[j].sy = Q.y - part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x / (Q.z + zdisp);
-	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 0.0;
 	particles[j].tv = 0.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	// left
 	particles[j] = sample;
-	particles[j].sx = (Q.x - part_size) / Q.z;
-	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x - part_size;
+	particles[j].sy = Q.y - part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = (Q.x - part_size) / Q.z;
-	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x - part_size;
+	particles[j].sy = Q.y + part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x / (Q.z + zdisp);
-	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 0.0;
 	particles[j].tv = 0.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	// right
 	particles[j] = sample;
-	particles[j].sx = (Q.x + part_size) / Q.z;
-	particles[j].sy = (Q.y - part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x + part_size;
+	particles[j].sy = Q.y - part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = (Q.x + part_size) / Q.z;
-	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x + part_size;
+	particles[j].sy = Q.y + part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x / (Q.z + zdisp);
-	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 0.0;
 	particles[j].tv = 0.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	// bottom
 	particles[j] = sample;
-	particles[j].sx = (Q.x - part_size) / Q.z;
-	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x - part_size;
+	particles[j].sy = Q.y + part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = (Q.x + part_size) / Q.z;
-	particles[j].sy = (Q.y + part_size) / Q.z + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x + part_size;
+	particles[j].sy = Q.y + part_size;
+	particles[j].sz = Q.z;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x / (Q.z + zdisp);
-	particles[j].sy = Q.y / (Q.z + zdisp) + g_ShadertoyBuffer.y_center;
-	particles[j].sx *= FOVFactor;
-	particles[j].sy *= FOVFactor;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 0.0;
 	particles[j].tv = 0.0;
+	ProjectSpeedPoint(particles, j);
 	j++;
 }
 
@@ -5068,11 +5080,17 @@ void PrimarySurface::RenderSpeedEffect()
 			g_LaserPointerBuffer.y1 = y1;
 			*/
 			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-				// Update the position of the particle
+				// Transform the particles from worldspace to viewspace:
 				Q = HeadingMatrix * g_SpeedParticles[i];
+				// Update the position in viewspace. In this coord system,
+				// Forward is always Z+, so we just have to translate points
+				// along the Z axis.
 				ZTimeDisp[i] += 0.0166f;
 				//Q.z -= (2.0f * ZTimeDisp[i]);
 				Q.z -= (craft_speed * ZTimeDisp[i]);
+				// If the particle is behind the camera, compute a new position for it
+				// TODO: Maybe this should be done after transforming with the camera
+				// matrix?
 				if (Q.z < 1.0f) {
 					// Compute a new random position for this particle
 					float x = ((float)rand() / RAND_MAX) - 0.5f;
