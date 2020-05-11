@@ -101,6 +101,7 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader;
 extern float g_fSpeedShaderConstFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize;
+extern int g_iSpeedShaderMaxParticles;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
@@ -4881,16 +4882,15 @@ inline void ProjectSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, int idx)
 inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed)
 {
 	D3DTLVERTEX sample;
-	const float rhw_depth = 0.0f;
 	const float part_size = g_fSpeedShaderParticleSize; // 0.0075f; // 0.025f;
-	const float half_part_size = part_size * 0.5f;
+	//const float half_part_size = part_size * 0.5f;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 	//float FOVFactor = g_fDebugFOV;
 
 	sample.sz = 0.0f;
-	sample.rhw = rhw_depth;
+	sample.rhw = 0.0f;
 	float gray = g_fSpeedShaderMaxIntensity * min(craft_speed, 1.0f);
 	// Move the cutoff point a little above speed 0: we want the particles to disappear
 	// a little before the craft stops.
@@ -4901,45 +4901,8 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 
 	// top
 	particles[j] = sample;
-	particles[j].sx = Q.x - part_size;
-	particles[j].sy = Q.y - part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu = -1.0;
-	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	particles[j] = sample;
-	particles[j].sx = Q.x + part_size;
-	particles[j].sy = Q.y - part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu =  1.0;
-	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	particles[j] = sample;
 	particles[j].sx = Q.x;
-	particles[j].sy = Q.y;
-	particles[j].sz = Q.z + zdisp;
-	particles[j].tu = 0.0;
-	particles[j].tv = 0.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	// left
-	particles[j] = sample;
-	particles[j].sx = Q.x - part_size;
 	particles[j].sy = Q.y - part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu = -1.0;
-	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	particles[j] = sample;
-	particles[j].sx = Q.x - part_size;
-	particles[j].sy = Q.y + part_size;
 	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
@@ -4949,28 +4912,9 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j] = sample;
 	particles[j].sx = Q.x;
 	particles[j].sy = Q.y;
-	particles[j].sz = Q.z + zdisp;
-	particles[j].tu = 0.0;
-	particles[j].tv = 0.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	// right
-	particles[j] = sample;
-	particles[j].sx = Q.x + part_size;
-	particles[j].sy = Q.y - part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu =  1.0;
+	particles[j].sz = Q.z - part_size;
+	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
-	j++;
-
-	particles[j] = sample;
-	particles[j].sx = Q.x + part_size;
-	particles[j].sy = Q.y + part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu = 1.0;
-	particles[j].tv = 1.0;
 	ProjectSpeedPoint(H, particles, j);
 	j++;
 
@@ -4978,27 +4922,27 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sx = Q.x;
 	particles[j].sy = Q.y;
 	particles[j].sz = Q.z + zdisp;
-	particles[j].tu = 0.0;
-	particles[j].tv = 0.0;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
 	ProjectSpeedPoint(H, particles, j);
 	j++;
 
 	// bottom
 	particles[j] = sample;
-	particles[j].sx = Q.x - part_size;
-	particles[j].sy = Q.y + part_size;
-	particles[j].sz = Q.z;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z - part_size;
 	particles[j].tu = -1.0;
-	particles[j].tv =  1.0;
+	particles[j].tv = -1.0;
 	ProjectSpeedPoint(H, particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x + part_size;
-	particles[j].sy = Q.y + part_size;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y - part_size;
 	particles[j].sz = Q.z;
-	particles[j].tu = 1.0;
-	particles[j].tv = 1.0;
+	particles[j].tu =  1.0;
+	particles[j].tv = -1.0;
 	ProjectSpeedPoint(H, particles, j);
 	j++;
 
@@ -5006,10 +4950,68 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sx = Q.x;
 	particles[j].sy = Q.y;
 	particles[j].sz = Q.z + zdisp;
-	particles[j].tu = 0.0;
-	particles[j].tv = 0.0;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
 	ProjectSpeedPoint(H, particles, j);
 	j++;
+
+
+	// left
+	particles[j] = sample;
+	particles[j].sx = Q.x - part_size;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z;
+	particles[j].tu = -1.0;
+	particles[j].tv =  1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
+	particles[j] = sample;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z - part_size;
+	particles[j].tu = -1.0;
+	particles[j].tv = -1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
+	particles[j] = sample;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
+	// right
+	particles[j] = sample;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z - part_size;
+	particles[j].tu = -1.0;
+	particles[j].tv = -1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
+	particles[j] = sample;
+	particles[j].sx = Q.x + part_size;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z;
+	particles[j].tu =  1.0;
+	particles[j].tv = -1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
+	particles[j] = sample;
+	particles[j].sx = Q.x;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z + zdisp;
+	particles[j].tu = 1.0;
+	particles[j].tv = 1.0;
+	ProjectSpeedPoint(H, particles, j);
+	j++;
+
 }
 
 void PrimarySurface::RenderSpeedEffect()
@@ -5021,7 +5023,7 @@ void PrimarySurface::RenderSpeedEffect()
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	int NumParticleVertices = 0;
+	int NumParticleVertices = 0, NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 	static float Time = 0.0f;
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
@@ -5151,8 +5153,12 @@ void PrimarySurface::RenderSpeedEffect()
 				{
 					// Transform the current point with the camera matrix, project it and
 					// add it to the vertex buffer
-					AddSpeedPoint(CameraMatrix, g_SpeedParticles2D, Q, craft_speed * g_fSpeedShaderTrailSize, NumParticleVertices, craft_speed);
-					NumParticleVertices += 12;
+					if (NumParticles < g_iSpeedShaderMaxParticles) 
+					{
+						AddSpeedPoint(CameraMatrix, g_SpeedParticles2D, Q, craft_speed * g_fSpeedShaderTrailSize, NumParticleVertices, craft_speed);
+						NumParticleVertices += 12;
+						NumParticles++;
+					}
 				}
 			}
 		}
