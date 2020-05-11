@@ -18,13 +18,13 @@
  // The way this shader works is by looking at the screen as if it were a disk and then
  // this disk is split into a number of slices centered at the origin. Each slice renders
  // a single trail. So this setting controls the overall density of the effect:
-#define NUM_SLICES 125.0
+//#define NUM_SLICES 125.0
 
 // Each trail is rendered within its slice; but to avoid generating regular patterns, we
 // randomly offset the trail from the center of the slice by this amount:
-#define MAX_SLICE_OFFSET 0.4
+//#define MAX_SLICE_OFFSET 0.4
 
-static const vec3 white_col = vec3(0.9, 0.9, 0.9);
+//static const vec3 white_col = vec3(0.9, 0.9, 0.9);
 
 struct PixelShaderInput
 {
@@ -39,6 +39,7 @@ struct PixelShaderOutput
 	float4 color    : SV_TARGET0;
 };
 
+/*
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
 {
 	vec2 pa = p - a, ba = b - a;
@@ -139,12 +140,18 @@ PixelShaderOutput main_old(PixelShaderInput input) {
 	output.color = vec4(fade * color, 1.0);
 	return output;
 }
+*/
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	output.color = 0.0;
-	float L = length(input.uv) - 0.75;
-	L = (L <= 0.0) ? 1.0 : 0.0;
-	output.color.rga = L;
+	// Alpha can be 1 and that's OK: in the speed compose shader we'll use the intensity
+	// of the particle for blending.
+	output.color = float4(0.0, 0.0, 0.0, 1.0);
+	//float L = length(input.uv) - 0.75;
+	//L = (L <= 0.0) ? 1.0 : 0.0;
+	// The speed is encoded in the blue component of the color, so that's why
+	// we multiply by input.color.b
+	float L = input.color.b * smoothstep(0.95, 0.90, length(input.uv));
+	output.color.rgb = L;
 	return output;
 }

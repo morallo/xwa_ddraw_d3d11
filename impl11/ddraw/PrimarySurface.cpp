@@ -100,7 +100,7 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 // SPEED SHADER EFFECT
 extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader;
-extern float g_fSpeedShaderConstFactor, g_fSpeedShaderRotationFactor;
+extern float g_fSpeedShaderConstFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
@@ -4878,11 +4878,11 @@ inline void ProjectSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, int idx)
 	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
 }
 
-inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs)
+inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed)
 {
 	D3DTLVERTEX sample;
 	const float rhw_depth = 0.0f;
-	const float part_size = 0.01f; // 0.025f;
+	const float part_size = g_fSpeedShaderParticleSize; // 0.0075f; // 0.025f;
 	const float half_part_size = part_size * 0.5f;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
@@ -4891,7 +4891,13 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 
 	sample.sz = 0.0f;
 	sample.rhw = rhw_depth;
-	sample.color = color;
+	float gray = g_fSpeedShaderMaxIntensity * min(craft_speed, 1.0f);
+	// Move the cutoff point a little above speed 0: we want the particles to disappear
+	// a little before the craft stops.
+	gray -= 0.1f;
+	if (gray < 0.0f) gray = 0.0f;
+	// The color is RRGGBB, so this value gets encoded in the blue component:
+	sample.color = (uint32_t)(gray * 255.0f);
 
 	// top
 	particles[j] = sample;
@@ -5117,9 +5123,12 @@ void PrimarySurface::RenderSpeedEffect()
 				// Update the position in craftspace. In this coord system,
 				// Forward is always Z+, so we just have to translate points
 				// along the Z axis.
-				ZTimeDisp[i] += 0.0166f;
-				//Q.z -= (2.0f * ZTimeDisp[i]);
-				Q.z -= (craft_speed * ZTimeDisp[i]);
+				//ZTimeDisp[i] += 0.0166f;
+				//Q.z -= (craft_speed * ZTimeDisp[i]);
+				Q.z -= ZTimeDisp[i];
+				// ZTimeDisp has to be updated like this to avoid the particles from moving
+				// backwards when we brake
+				ZTimeDisp[i] += 0.0166f * craft_speed;
 				
 				// Transform the current particle with the camera matrix into viewspace
 				R = CameraMatrix * Q;
@@ -5127,7 +5136,8 @@ void PrimarySurface::RenderSpeedEffect()
 				// compute a new position for it
 				if (R.z < 1.0f || R.z > SPEED_PART_BOX_SIZE || 
 					R.x < -SPEED_PART_BOX_SIZE || R.x > SPEED_PART_BOX_SIZE ||
-					R.y < -SPEED_PART_BOX_SIZE || R.y > SPEED_PART_BOX_SIZE) {
+					R.y < -SPEED_PART_BOX_SIZE || R.y > SPEED_PART_BOX_SIZE) 
+				{
 					// Compute a new random position for this particle
 					float x = (((float)rand() / RAND_MAX) - 0.5f);
 					float y = (((float)rand() / RAND_MAX) - 0.5f);
@@ -5141,7 +5151,7 @@ void PrimarySurface::RenderSpeedEffect()
 				{
 					// Transform the current point with the camera matrix, project it and
 					// add it to the vertex buffer
-					AddSpeedPoint(CameraMatrix, g_SpeedParticles2D, Q, craft_speed * 0.1f, NumParticleVertices);
+					AddSpeedPoint(CameraMatrix, g_SpeedParticles2D, Q, craft_speed * g_fSpeedShaderTrailSize, NumParticleVertices, craft_speed);
 					NumParticleVertices += 12;
 				}
 			}

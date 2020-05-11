@@ -42,12 +42,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Initialize the result:
 	output.color = texColor;
 
-	// Early exit: avoid adding speed trails on the cockpit
+	// Early exit: avoid adding speed trails inside the cockpit
 	if (pos3D.z < 60.0)
 		return output;
 
-	//float lightness = dot(0.333, effectColor.rgb);
-	float lightness = dot(0.333, effectColor.rg);
+	float lightness = dot(0.333, effectColor.rgb);
 	// Blend the trails with the background
 	float3 color = lerp(texColor.rgb, effectColor.rgb, lightness);
 	output.color = float4(color, 1.0);

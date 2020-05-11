@@ -476,7 +476,7 @@ bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolv
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false;
-float g_fSpeedShaderConstFactor = 135.0f, g_fSpeedShaderRotationFactor = 5.0f;
+float g_fSpeedShaderConstFactor = 30.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.125f;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
@@ -2973,7 +2973,13 @@ bool LoadSSAOParams() {
 				g_fSpeedShaderConstFactor = fValue;
 			}
 			else if (_stricmp(param, "speed_shader_rotation_factor") == 0) {
-				g_fSpeedShaderRotationFactor = fValue;
+				g_fSpeedShaderParticleSize = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_max_intensity") == 0) {
+				g_fSpeedShaderMaxIntensity = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_trail_size") == 0) {
+				g_fSpeedShaderTrailSize = fValue;
 			}
 			
 
