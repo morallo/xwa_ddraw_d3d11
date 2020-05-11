@@ -3873,6 +3873,11 @@ void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
 		*result = rotMatrixFull;
 }
 
+/*
+ * Returns the current camera or external matrix for the speed effect. The coord sys is slightly
+ * different from the one used in the shadertoy pixel shaders, so we need a new version of
+ * GetCockpitViewMatrix.
+ */
 void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert = true) {
 	float yaw, pitch;
 
@@ -5033,7 +5038,6 @@ void PrimarySurface::RenderSpeedEffect()
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.craft_speed = craft_speed;
-	//g_ShadertoyBuffer.craft_speed = 2.0f;
 	// The A-Wing's max speed seems to be 270
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
@@ -5107,19 +5111,21 @@ void PrimarySurface::RenderSpeedEffect()
 			g_LaserPointerBuffer.y1 = y1;
 			*/
 			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-				// Transform the particles from worldspace to viewspace:
+				// Transform the particles from worldspace to craftspace (using the craft's heading):
 				Q = HeadingMatrix * g_SpeedParticles[i];
-				// Update the position in viewspace. In this coord system,
+				// Update the position in craftspace. In this coord system,
 				// Forward is always Z+, so we just have to translate points
 				// along the Z axis.
 				ZTimeDisp[i] += 0.0166f;
 				//Q.z -= (2.0f * ZTimeDisp[i]);
 				Q.z -= (craft_speed * ZTimeDisp[i]);
 				
-				// Transform the current particle with the camera matrix
+				// Transform the current particle with the camera matrix into viewspace
 				R = CameraMatrix * Q;
 				// If the particle is behind the camera, compute a new position for it
-				if (R.z < 1.0f) {
+				if (R.z <   1.0f || R.z > 10.0f || 
+					R.x < -10.0f || R.x > 10.0f ||
+					R.y < -10.0f || R.y > 10.0f) {
 					// Compute a new random position for this particle
 					float x = ((float)rand() / RAND_MAX) - 0.5f;
 					float y = ((float)rand() / RAND_MAX) - 0.5f;
