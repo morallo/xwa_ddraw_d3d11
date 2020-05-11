@@ -85,6 +85,8 @@ public:
 
 	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
+	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
+
 	void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
@@ -95,7 +97,7 @@ public:
 
 	void RenderExternalHUD();
 
-	inline void AddSpeedPoint(D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs);
+	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs);
 
 	void RenderSpeedEffect();
 
