@@ -10,6 +10,7 @@ struct XwaBracket
 	int height;
 	unsigned char colorIndex;
 	int depth;
+	bool DC;
 };
 
 extern std::vector<XwaBracket> g_xwa_bracket;

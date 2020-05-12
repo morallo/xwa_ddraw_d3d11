@@ -425,7 +425,7 @@ dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
-bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false;
+bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -5682,11 +5682,11 @@ HRESULT Direct3DDevice::Execute(
 			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
 			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
 		}
-		g_VSCBuffer.viewportScale[2] = scale;
+		g_VSCBuffer.viewportScale[2]  = scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
-		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
+		g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
-		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
 		g_VSCBuffer.z_override        = -1.0f;
@@ -6315,6 +6315,13 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					Special state management ends here
 				 *************************************************************************/
+
+				//if (bIsBracket)
+				//{
+					//log_debug("[DBG] TargetCompDrawn:!PixelShaderTexture");
+					//if (g_bGlobalDebugFlag)
+						//g_bInhibitCMDBracket = true;
+				//}
 
 				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
 				// switching to the cockpit while entering hyperspace was not a problem. Now, the HUD

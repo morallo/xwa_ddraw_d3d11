@@ -73,9 +73,7 @@ void PrintVector(const Vector4 &Vector) {
 }
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
-//extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
-// extern bool g_bDumpBloomBuffers, 
+extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate, g_bGlobalDebugFlag;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
 extern Vector4 g_LightVector[2];
@@ -551,6 +549,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'H':
 				//ToggleCockpitPZHack();
 				g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
+				//g_bGlobalDebugFlag = !g_bGlobalDebugFlag;
 				return 0;
 			case 'W':
 				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;

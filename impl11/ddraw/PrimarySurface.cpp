@@ -70,6 +70,7 @@ extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands;
+//extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
 // ACTIVE COCKPIT
@@ -5032,7 +5033,6 @@ void PrimarySurface::RenderSpeedEffect()
 	Vector4 Rs, Us, Fs;
 	Matrix4 CameraMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&CameraMatrix, false);
-	//CameraMatrix.identity();
 
 	Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -5110,7 +5110,8 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		if (!g_bEnableVR) {
+		if (!g_bEnableVR) 
+		{
 			Vector4 Q, R;
 			// TODO: Consider removing these x0,y0, x1,y1 lines later
 			/*
@@ -5125,8 +5126,6 @@ void PrimarySurface::RenderSpeedEffect()
 				// Update the position in craftspace. In this coord system,
 				// Forward is always Z+, so we just have to translate points
 				// along the Z axis.
-				//ZTimeDisp[i] += 0.0166f;
-				//Q.z -= (craft_speed * ZTimeDisp[i]);
 				Q.z -= ZTimeDisp[i];
 				// ZTimeDisp has to be updated like this to avoid the particles from moving
 				// backwards when we brake
@@ -6936,7 +6935,8 @@ HRESULT PrimarySurface::Flip(
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
 			// on the first frame (sometimes it can happen and it's quite visible/ugly
-			if (g_bCustomFOVApplied && g_bEnableSpeedShader)
+			if (g_bCustomFOVApplied && g_bEnableSpeedShader && 
+				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -7145,12 +7145,7 @@ HRESULT PrimarySurface::Flip(
 			else // Non-VR mode
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
-			/*
-			log_debug("[DBG] %d, %d", 
-				PlayerDataTable[*g_playerIndex].warheadArmed, 
-				PlayerDataTable[*g_playerIndex].warheadLockState);
-			*/
-			// Reset some frame counters and other control variables; clear vectors, etc.
+			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC
 			{
 				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 				g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
@@ -7177,7 +7172,8 @@ HRESULT PrimarySurface::Flip(
 				g_bSwitchedToGUI = false;
 				g_ShadertoyBuffer.SunFlareCount = 0;
 				g_bPrevIsTargetHighlighted = g_bIsTargetHighlighted;
-				g_bIsTargetHighlighted = false; 
+				g_bIsTargetHighlighted = false;
+				//g_bInhibitCMDBracket = false; // Used in XwaDrawBracketHoo.cpp
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;
@@ -7635,6 +7631,7 @@ HRESULT PrimarySurface::Flip(
 			bool bEnableVSync = g_config.VSyncEnabled;
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
+			//log_debug("[DBG] PRESENT *******************");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;
@@ -8384,6 +8381,9 @@ void PrimarySurface::RenderBracket()
 	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1OffscreenRenderTarget->BeginDraw();
 
+	this->_deviceResources->_d2d1DCRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1DCRenderTarget->BeginDraw();
+
 	UINT w;
 	UINT h;
 
@@ -8415,6 +8415,7 @@ void PrimarySurface::RenderBracket()
 	ComPtr<ID2D1SolidColorBrush> brush;
 	unsigned int brushColor = 0;
 	this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+	this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
 
 	for (const auto& xwaBracket : g_xwa_bracket)
 	{
@@ -8442,6 +8443,7 @@ void PrimarySurface::RenderBracket()
 		{
 			brushColor = esi;
 			this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
 		}
 
 		float posX = left + (float)xwaBracket.positionX * scaleX;
@@ -8453,30 +8455,36 @@ void PrimarySurface::RenderBracket()
 		float strokeWidth = 2.0f * min(scaleX, scaleY);
 
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
+		// Select the DC RTV if this bracket was classified as belonging to
+		// the Dynamic Cockpit display
+		ID2D1RenderTarget *rtv = xwaBracket.DC ? this->_deviceResources->_d2d1DCRenderTarget : this->_deviceResources->_d2d1OffscreenRenderTarget;
 
 		if (fill)
 		{
-			this->_deviceResources->_d2d1OffscreenRenderTarget->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), brush);
+			rtv->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), brush);
 		}
 		else
 		{
 			// top left
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), brush, strokeWidth);
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), brush, strokeWidth);
 
 			// top right
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), brush, strokeWidth);
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), brush, strokeWidth);
 
 			// bottom left
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), brush, strokeWidth);
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), brush, strokeWidth);
 
 			// bottom right
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
-			this->_deviceResources->_d2d1OffscreenRenderTarget->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
 		}
 	}
+
+	this->_deviceResources->_d2d1DCRenderTarget->EndDraw();
+	this->_deviceResources->_d2d1DCRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
 	this->_deviceResources->_d2d1OffscreenRenderTarget->EndDraw();
 	this->_deviceResources->_d2d1OffscreenRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);

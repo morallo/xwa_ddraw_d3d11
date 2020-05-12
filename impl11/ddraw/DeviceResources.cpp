@@ -997,6 +997,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilR.Release();
 	this->_d2d1RenderTarget.Release();
 	this->_d2d1OffscreenRenderTarget.Release();
+	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
@@ -2666,6 +2667,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "CreateDxgiSurfaceRenderTarget";
 		ComPtr<IDXGISurface> surface;
 		ComPtr<IDXGISurface> offscreenSurface;
+		ComPtr<IDXGISurface> DCSurface;
 		// The logic for the Dynamic Cockpit expects the text to be in its own
 		// buffer so that the alpha can be fixed and the text can be blended
 		// properly. So, instead of using _offscreenBuffer, we always write to
@@ -2676,6 +2678,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// _offscreenBuffer. This is used to render things like the brackets that shouldn't
 		// be captured in the DC buffers. Currently only used in PrimarySurface::RenderBracket()
 		hr = this->_offscreenBuffer.As(&offscreenSurface);
+		// This surface can be used to render directly to the DC foreground buffer
+		hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
 
 		if (SUCCEEDED(hr))
 		{
@@ -2683,6 +2687,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
+			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
 
 			if (SUCCEEDED(hr))
 			{
@@ -2691,6 +2696,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+
+				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
+				this->_d2d1DCRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 			}
 		}
 	}

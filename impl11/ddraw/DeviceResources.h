@@ -808,6 +808,7 @@ public:
 	ComPtr<IDWriteFactory> _dwriteFactory;
 	ComPtr<ID2D1RenderTarget> _d2d1RenderTarget;
 	ComPtr<ID2D1RenderTarget> _d2d1OffscreenRenderTarget;
+	ComPtr<ID2D1RenderTarget> _d2d1DCRenderTarget;
 	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
