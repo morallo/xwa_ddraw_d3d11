@@ -974,12 +974,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 					// DrawBracketInFlightHook
 					*(unsigned char*)(0x00503D46 + 0x00) = 0xE8;
 					*(int*)(0x00503D46 + 0x01) = (int)DrawBracketInFlightHook - (0x00503D46 + 0x05);
+
+					// DrawBracketInFlightHook CMD
+					*(unsigned char*)(0x00478E44 + 0x00) = 0xE8;
+					*(int*)(0x00478E44 + 0x01) = (int)DrawBracketInFlightHook - (0x00478E44 + 0x05);
 				}
-
-				// DrawBracketInFlightHook CMD
-				*(unsigned char*)(0x00478E44 + 0x00) = 0xE8;
-				*(int*)(0x00478E44 + 0x01) = (int)DrawBracketInFlightHook - (0x00478E44 + 0x05);
-
 				// DrawBracketMapHook
 				*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
 				*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);

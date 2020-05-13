@@ -48,7 +48,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float lightness = dot(0.333, effectColor.rgb);
 	// Blend the trails with the background
-	float3 color = lerp(texColor.rgb, effectColor.rgb, lightness);
+	//float3 color = lerp(texColor.rgb, effectColor.rgb, lightness);
+	float3 color = saturate(texColor.rgb + effectColor.rgb);
 	output.color = float4(color, 1.0);
 	return output;
 }

@@ -4018,7 +4018,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		// RenderMain() will render the sub-component CMD *iff* the hook_d3d is disabled.
 		if (bRenderToDC) {
-			log_debug("[DBG] Rendering to DC");
+			//log_debug("[DBG] Rendering to DC");
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewDynCockpit.GetAddressOf(), NULL);
 		}
 

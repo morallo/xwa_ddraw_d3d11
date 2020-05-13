@@ -147,11 +147,13 @@ HRESULT Direct3DExecuteBuffer::Lock(
 				}
 			}
 
+			// This variable is set here so that we can tell when the CMD sub-component bracket is being rendered
 			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_NO_COLORKEY);
 		}
 		else
 		{
+			// This variable is set here so that we can tell when the CMD sub-component bracket is being rendered
 			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_COLORKEY_00);
 		}
