@@ -137,8 +137,10 @@ extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
-extern bool g_bEnableLaserLights;
+extern bool g_bEnableLaserLights, g_bEnableHeadLights;
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
+Vector3 g_HeadLightsDirection(0.0f, 0.0f, 1.0f), g_HeadLightsColor(0.65f, 0.65f, 0.70f);
+float g_fHeadLightsAmbient = 0.15f;
 
 // Dynamic Cockpit
 // The following is used when the Dynamic Cockpit is enabled to render the HUD separately
@@ -2331,6 +2333,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	// We need to find the light with the highest intensity and use that for SSDO
 	float maxIntensity = -1.0;
 	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, s_XwaGlobalLightsCount);
+	float cur_ambient = g_ShadingSys_PSBuffer.ambient;
 	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", s_XwaGlobalLightsCount, maxLights);
@@ -2414,6 +2417,26 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
 		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
+
+		// Add one more light if the headlights are on. Overwrite the last light on overflow
+		if (g_bEnableHeadLights) {
+			int maxLights = min(g_ShadingSys_PSBuffer.LightCount + 1, MAX_XWA_LIGHTS);
+			int idx = maxLights - 1;
+			
+			// DEBUG: Remove all lights!
+			//maxLights = 1;
+			//idx = 0;
+			// DEBUG
+			g_ShadingSys_PSBuffer.ambient = g_fHeadLightsAmbient;
+			g_ShadingSys_PSBuffer.LightCount = maxLights;
+			g_ShadingSys_PSBuffer.LightVector[idx].x = g_HeadLightsDirection.x;
+			g_ShadingSys_PSBuffer.LightVector[idx].y = g_HeadLightsDirection.y;
+			g_ShadingSys_PSBuffer.LightVector[idx].z = g_HeadLightsDirection.z;
+
+			g_ShadingSys_PSBuffer.LightColor[idx].x = g_HeadLightsColor.x;
+			g_ShadingSys_PSBuffer.LightColor[idx].y = g_HeadLightsColor.y;
+			g_ShadingSys_PSBuffer.LightColor[idx].z = g_HeadLightsColor.z;
+		}
 	}
 	else 
 	{
@@ -2479,6 +2502,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	if (g_bEnableHeadLights)
+		g_ShadingSys_PSBuffer.ambient = cur_ambient;
 }
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {
@@ -7202,8 +7227,12 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				// Clear the laser list for the next frame
-				if (g_bEnableLaserLights)
+				if (g_bEnableLaserLights) {
 					g_LaserList.clear();
+					// If the headlights are ON, let's add one light right away near the cockpit's center:
+					//if (g_bEnableHeadLights)
+					//	g_LaserList.insert(g_HeadLightsPosition, g_HeadLightsColor);
+				}
 			}
 
 			// Apply the custom FOV

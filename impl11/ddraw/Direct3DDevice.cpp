@@ -471,7 +471,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
-bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -568,6 +568,8 @@ SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
+extern Vector3 g_HeadLightsDirection, g_HeadLightsColor;
+extern float g_fHeadLightsAmbient;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -3122,6 +3124,23 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "laser_light_intensity") == 0) {
 				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
+			}
+			else if (_stricmp(param, "headlights_dir") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_HeadLightsDirection.x = x;
+				g_HeadLightsDirection.y = y;
+				g_HeadLightsDirection.z = z;
+			}
+			else if (_stricmp(param, "headlights_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_HeadLightsColor.x = x;
+				g_HeadLightsColor.y = y;
+				g_HeadLightsColor.z = z;
+			}
+			else if (_stricmp(param, "headlights_ambient") == 0) {
+				g_fHeadLightsAmbient = fValue;
 			}
 			else if (_stricmp(param, "reload_materials_enabled") == 0) {
 				g_bReloadMaterialsEnabled = (bool)fValue;
