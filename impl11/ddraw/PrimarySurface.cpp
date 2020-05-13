@@ -57,7 +57,7 @@ extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
 extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
 extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
-extern bool g_bClearedAuxBuffer;
+extern bool g_bClearedAuxBuffer, g_bExecuteBufferLock;
 extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 bool g_bKeybExitHyperspace = false;
@@ -1949,26 +1949,22 @@ void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
 		g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 		g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 	}
-	//g_VSCBuffer.viewportScale[2] = 1.0f; // scale;
-	//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-	//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
-
 	// Reduce the scale for GUI elements, except for the HUD
-	g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
+	g_VSCBuffer.viewportScale[3]  = g_fGUIElemsScale;
 	// Enable/Disable the fixed GUI
-	g_VSCBuffer.bFullTransform = g_bFixedGUI ? 1.0f : 0.0f;
+	g_VSCBuffer.bFullTransform	  = g_bFixedGUI ? 1.0f : 0.0f;
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
-	g_VSCBuffer.z_override = g_fFloatingGUIDepth;
-	g_VSCBuffer.metric_mult = g_fMetricMult;
+	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
+	g_VSCBuffer.metric_mult		  = g_fMetricMult;
 
-	//g_PSCBuffer.brightness        = g_fBrightness;
-	g_PSCBuffer.brightness		  = 1.0f; // TODO: Check if g_fBrightness is already applied when the textures are rendered
+	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
-	//g_PSCBuffer.bRenderHUD		  = 1;
+	
 	// Add the move_regions commands.
 	int numCoords = 0;
-	if (g_bDynCockpitEnabled) {
+	if (g_bDynCockpitEnabled) 
+	{
 		for (int i = 0; i < g_DCMoveRegions.numCoords; i++) {
 			int region_slot = g_DCMoveRegions.region_slot[i];
 			// Skip invalid src slots
@@ -6820,7 +6816,7 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the sun flare (if applicable)
-			if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent &&
+			if (g_bReshadeEnabled && g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent &&
 				g_ShadertoyBuffer.SunFlareCount > 0 && g_ShadertoyBuffer.flare_intensity > 0.01f)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -7075,8 +7071,12 @@ HRESULT PrimarySurface::Flip(
 
 			// Draw the HUD
 			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+			/*
 			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
-				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) {
+				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) 
+			*/
+			if (true) // For some reason we have to call this or the ESC menu will disappear...
+			{
 				int num_regions_erased = 0;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled && !bExteriorCamera)
@@ -7173,7 +7173,7 @@ HRESULT PrimarySurface::Flip(
 				g_ShadertoyBuffer.SunFlareCount = 0;
 				g_bPrevIsTargetHighlighted = g_bIsTargetHighlighted;
 				g_bIsTargetHighlighted = false;
-				//g_bInhibitCMDBracket = false; // Used in XwaDrawBracketHoo.cpp
+				g_bExecuteBufferLock = false;
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;

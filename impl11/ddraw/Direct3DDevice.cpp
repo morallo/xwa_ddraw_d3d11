@@ -5533,6 +5533,8 @@ HRESULT Direct3DDevice::Execute(
 
 	g_ExecuteCount++;
 
+	//log_debug("[DBG] Execute (1)");
+
 	if (lpDirect3DExecuteBuffer == nullptr)
 	{
 #if LOGGER
@@ -6075,6 +6077,26 @@ HRESULT Direct3DDevice::Execute(
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+						
+						/*
+
+						[14656] [DBG] PRESENT *******************
+						[14656] [DBG] Render CMD sub-bracket
+						[14656] [DBG] Execute (1)
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] Replacing cockpit textures with DC
+						...
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] DC RTV CLEARED
+						[14656] [DBG] Render to DC RTV
+						[14656] [DBG] Render to DC RTV
+						...
+						[14656] [DBG] Render to DC RTV
+						[14656] [DBG] Execute (2)
+						[14656] [DBG] PRESENT *******************
+
+						*/
 					}
 				}
 
@@ -6317,7 +6339,9 @@ HRESULT Direct3DDevice::Execute(
 				 *************************************************************************/
 
 				//if (bIsBracket)
+				//if (lastPixelShader != resources->_pixelShaderTexture)
 				//{
+					//log_debug("[DBG] Non pixelShaderTexture");
 					//log_debug("[DBG] TargetCompDrawn:!PixelShaderTexture");
 					//if (g_bGlobalDebugFlag)
 						//g_bInhibitCMDBracket = true;
@@ -7191,7 +7215,7 @@ HRESULT Direct3DDevice::Execute(
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
 				if (
 					 (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					  (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
+					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
 				   )
 				{					
 					// Looks like we don't need to restore the blend/depth state???
@@ -7201,6 +7225,8 @@ HRESULT Direct3DDevice::Execute(
 					//	// The targeted craft is about to be drawn! Clear both depth stencils?
 					//	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					//}
+					
+					//log_debug("[DBG] Render to DC RTV");
 
 					// Restore the non-VR dimensions:
 					g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
@@ -7354,6 +7380,8 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
+					//log_debug("[DBG] Replacing cockpit textures with DC");
+
 					// Check if this idx is valid before rendering
 					if (idx >= 0 && idx < g_iNumDCElements) {
 						dc_element *dc_element = &g_DCElements[idx];
@@ -7841,6 +7869,7 @@ HRESULT Direct3DDevice::Execute(
 	//g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
 	// This variable is useless with the hook_d3d: it stays at 1, meaning that this function is called exactly *once* per frame.
 
+	//log_debug("[DBG] Execute (2)");
 	if (FAILED(hr))
 	{
 		static bool messageShown = false;
@@ -8227,6 +8256,7 @@ HRESULT Direct3DDevice::BeginScene()
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
+	//log_debug("[DBG] BeginScene RenderMain");
 	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
 		resources->_displayHeight, resources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;

@@ -8,6 +8,9 @@
 #include "common.h"
 #include "DeviceResources.h"
 
+#include <ScreenGrab.h>
+#include <wincodec.h>
+
 #ifdef _DEBUG
 #include "../Debug/MainVertexShader.h"
 #include "../Debug/MainPixelShader.h"
@@ -113,7 +116,7 @@ bool ReplaceWindowProc(HWND ThisWindow);
 extern MainShadersCBuffer g_MSCBuffer;
 extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
-extern bool /* g_bRendering3D, */ g_bDumpDebug, g_bOverrideAspectRatio, g_bCustomFOVApplied;
+extern bool g_bRendering3D, g_bDumpDebug, g_bOverrideAspectRatio, g_bCustomFOVApplied, g_bTargetCompDrawn;
 extern int g_iPresentCounter;
 int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
@@ -126,6 +129,7 @@ extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern float g_fCurrentShipFocalLength;
+extern bool g_bExecuteBufferLock;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
@@ -1029,6 +1033,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoyAuxSRV_R.Release();
 	}
 
+	this->_DCTextMSAA.Release();
 	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 		ResetDynamicCockpit();
 		this->_renderTargetViewDynCockpit.Release();
@@ -1041,7 +1046,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenAsInputDynCockpitBG.Release();
 		this->_offscreenAsInputDynCockpitSRV.Release();
 		this->_offscreenAsInputDynCockpitBG_SRV.Release();
-		this->_DCTextMSAA.Release();
 		this->_DCTextAsInput.Release();
 		this->_DCTextSRV.Release();
 		this->_DCTextRTV.Release();
@@ -1338,6 +1342,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "_DCTextMSAA";
+			// _DCTextMSAA should be just like offscreenBuffer because it will be used as a renderTarget
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_DCTextMSAA);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				step = "_offscreenBufferDynCockpit";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
@@ -1351,15 +1364,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				step = "_offscreenBufferDynCockpitBG";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferDynCockpitBG);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
-
-				step = "_DCTextMSAA";
-				// _DCTextMSAA should be just like offscreenBuffer because it will be used as a renderTarget
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_DCTextMSAA);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -2679,7 +2683,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// be captured in the DC buffers. Currently only used in PrimarySurface::RenderBracket()
 		hr = this->_offscreenBuffer.As(&offscreenSurface);
 		// This surface can be used to render directly to the DC foreground buffer
-		hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
+		if (g_bDynCockpitEnabled)
+			hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
+		else
+			hr = this->_offscreenBuffer.As(&DCSurface);
 
 		if (SUCCEEDED(hr))
 		{
@@ -3966,8 +3973,9 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
+	bool bRenderToDC = g_bRendering3D && g_bDynCockpitEnabled && g_bExecuteBufferLock;
 
-	if (g_bEnableVR) { // SteamVR and DirectSBS modes
+	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
 	} 
@@ -4008,15 +4016,28 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		UINT stride = sizeof(MainVertex);
 		UINT offset = 0;
 
+		// RenderMain() will render the sub-component CMD *iff* the hook_d3d is disabled.
+		if (bRenderToDC) {
+			log_debug("[DBG] Rendering to DC");
+			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewDynCockpit.GetAddressOf(), NULL);
+		}
+
 		this->InitVertexBuffer(this->_mainVertexBuffer.GetAddressOf(), &stride, &offset);
 		this->InitIndexBuffer(this->_mainIndexBuffer, false);
 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;
 
-		if (!g_bEnableVR) {
+		if (!g_bEnableVR || bRenderToDC) {
 			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+			// We also render the CMD sub-component bracket here.
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
+			if (bRenderToDC) 
+			{
+				// We have just drawn something to the DC buffer, we need to resolve it before the next frame
+				this->_d3dDeviceContext->ResolveSubresource(this->_offscreenAsInputDynCockpit,
+					0, this->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
+			}
 			goto out;
 		}
 

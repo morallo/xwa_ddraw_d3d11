@@ -9,6 +9,7 @@
 
 extern D3DTLVERTEX *g_OrigVerts;
 extern uint32_t *g_OrigIndex;
+bool g_bExecuteBufferLock;
 
 Direct3DExecuteBuffer::Direct3DExecuteBuffer(DeviceResources* deviceResources, DWORD bufferSize, Direct3DDevice* d3dDevice)
 {
@@ -146,10 +147,12 @@ HRESULT Direct3DExecuteBuffer::Lock(
 				}
 			}
 
+			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_NO_COLORKEY);
 		}
 		else
 		{
+			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_COLORKEY_00);
 		}
 
