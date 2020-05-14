@@ -48,6 +48,8 @@ PixelShaderInput main(VertexShaderInput input)
 
 	// Regular Vertex Shader
 	//output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	// This is similar to the regular vertex shader; but here we expect normalized (-1..1)
+	// 2D screen coordinates, so we don't need to multiply by vpScale:
 	output.pos.xy = input.pos.xy * float2(1.0 / aspect_ratio, 1.0);
 	output.pos.z  = input.pos.z;
 	output.pos.w  = 1.0f;

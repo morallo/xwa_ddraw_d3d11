@@ -4886,7 +4886,7 @@ void PrimarySurface::RenderExternalHUD()
 	}
 }
 
-inline void ProjectSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, int idx)
+inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
 {
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 	const float y_center = g_ShadertoyBuffer.y_center;
@@ -4894,18 +4894,27 @@ inline void ProjectSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, int idx)
 	P.x = particles[idx].sx;
 	P.y = particles[idx].sy;
 	P.z = particles[idx].sz;
-	// Transform the point with the camera matrix
-	P = H * P;
-	particles[idx].sx = FOVFactor * (P.x / P.z);
-	particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
-	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
+	// Transform the point with the view matrix
+	P = ViewMatrix * P;
+	// Project to 2D in non-VR mode
+	if (!g_bEnableVR) {
+		particles[idx].sx = FOVFactor * (P.x / P.z);
+		particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
+		particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
+	}
+	else {
+		// In VR, we leave the point in 3D:
+		particles[idx].sx = P.x;
+		particles[idx].sy = P.y;
+		particles[idx].sz = 0.0f;
+	}
 }
 
-inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed)
+inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
+	Vector4 Q, float zdisp, int ofs, float craft_speed)
 {
 	D3DTLVERTEX sample;
-	const float part_size = g_fSpeedShaderParticleSize; // 0.0075f; // 0.025f;
-	//const float half_part_size = part_size * 0.5f;
+	const float part_size = g_fSpeedShaderParticleSize;
 	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
@@ -4928,7 +4937,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -4937,7 +4946,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z - part_size;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -4946,7 +4955,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	// bottom
@@ -4956,7 +4965,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z - part_size;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -4965,7 +4974,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -4974,7 +4983,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 
@@ -4985,7 +4994,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z;
 	particles[j].tu = -1.0;
 	particles[j].tv =  1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -4994,7 +5003,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z - part_size;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -5003,7 +5012,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	// right
@@ -5013,7 +5022,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z - part_size;
 	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -5022,7 +5031,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z;
 	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
@@ -5031,7 +5040,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particl
 	particles[j].sz = Q.z + zdisp;
 	particles[j].tu = 1.0;
 	particles[j].tv = 1.0;
-	ProjectSpeedPoint(H, particles, j);
+	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 }
@@ -5052,12 +5061,12 @@ void PrimarySurface::RenderSpeedEffect()
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
 
 	Vector4 Rs, Us, Fs;
-	Matrix4 CameraMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
-	GetCockpitViewMatrixSpeedEffect(&CameraMatrix, false);
+	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
 
 	Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -5108,14 +5117,15 @@ void PrimarySurface::RenderSpeedEffect()
 		g_VSCBuffer.mult_z_override		= -1.0f;
 		g_VSCBuffer.cockpit_threshold	= -1.0f;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
-		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR)
 		{
+			g_VSCBuffer.bFullTransform = 1.0f; // Setting bFullTransform tells the VS to use VR projection matrices
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
 		}
 		else
 		{
+			g_VSCBuffer.bFullTransform = 0.0f; // Setting bFullTransform tells the VS to use VR projection matrices
 			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
@@ -5123,17 +5133,17 @@ void PrimarySurface::RenderSpeedEffect()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		// TODO: Does the above apply for this effect? I don't think so...
-		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		//g_VSCBuffer.z_override  = 65535.0f;
+		//g_VSCBuffer.metric_mult = g_fMetricMult;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		if (!g_bEnableVR) 
+		//if (!g_bEnableVR) 
 		{
-			Vector4 Q, R;
+			Vector4 QH, QT, RH, RT;
 			// TODO: Consider removing these x0,y0, x1,y1 lines later
 			/*
 			g_LaserPointerBuffer.x0 = x0;
@@ -5142,23 +5152,36 @@ void PrimarySurface::RenderSpeedEffect()
 			g_LaserPointerBuffer.y1 = y1;
 			*/
 			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
+				float zdisp = 0.0f;
 				// Transform the particles from worldspace to craftspace (using the craft's heading):
-				Q = HeadingMatrix * g_SpeedParticles[i];
+				QH = HeadingMatrix * g_SpeedParticles[i];
 				// Update the position in craftspace. In this coord system,
 				// Forward is always Z+, so we just have to translate points
 				// along the Z axis.
-				Q.z -= ZTimeDisp[i];
+				QH.z -= ZTimeDisp[i];
 				// ZTimeDisp has to be updated like this to avoid the particles from moving
 				// backwards when we brake
 				ZTimeDisp[i] += 0.0166f * craft_speed;
+				// This is the Head-to-tail displacement along the z-axis:
+				zdisp = craft_speed * g_fSpeedShaderTrailSize;
 				
-				// Transform the current particle with the camera matrix into viewspace
-				R = CameraMatrix * Q;
+				// Transform the current particle into viewspace
+				// Q is the head of the particle, P is the tail:
+				QT = QH; QT.z += zdisp;
+				RH = ViewMatrix * QH; // Head
+				RT = ViewMatrix * QT; // Tail
 				// If the particle is behind the camera, or outside the clipping space, then
-				// compute a new position for it
-				if (R.z < 1.0f || R.z > SPEED_PART_BOX_SIZE || 
-					R.x < -SPEED_PART_BOX_SIZE || R.x > SPEED_PART_BOX_SIZE ||
-					R.y < -SPEED_PART_BOX_SIZE || R.y > SPEED_PART_BOX_SIZE) 
+				// compute a new position for it:
+				if (
+					// Clip the head
+					RH.z < 1.0f || RH.z > SPEED_PART_BOX_SIZE || 
+					RH.x < -SPEED_PART_BOX_SIZE || RH.x > SPEED_PART_BOX_SIZE ||
+					RH.y < -SPEED_PART_BOX_SIZE || RH.y > SPEED_PART_BOX_SIZE ||
+					// Clip the tail
+					RT.z < 1.0f || RT.z > SPEED_PART_BOX_SIZE ||
+					RT.x < -SPEED_PART_BOX_SIZE || RT.x > SPEED_PART_BOX_SIZE ||
+					RT.y < -SPEED_PART_BOX_SIZE || RT.y > SPEED_PART_BOX_SIZE
+				  ) 
 				{
 					// Compute a new random position for this particle
 					float x = (((float)rand() / RAND_MAX) - 0.5f);
@@ -5175,7 +5198,7 @@ void PrimarySurface::RenderSpeedEffect()
 					// add it to the vertex buffer
 					if (NumParticles < g_iSpeedShaderMaxParticles) 
 					{
-						AddSpeedPoint(CameraMatrix, g_SpeedParticles2D, Q, craft_speed * g_fSpeedShaderTrailSize, NumParticleVertices, craft_speed);
+						AddSpeedPoint(ViewMatrix, g_SpeedParticles2D, QH, zdisp, NumParticleVertices, craft_speed);
 						NumParticleVertices += 12;
 						NumParticles++;
 					}
