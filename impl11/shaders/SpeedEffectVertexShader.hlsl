@@ -46,13 +46,21 @@ PixelShaderInput main(VertexShaderInput input)
 	//output.pos.z = input.pos.z;
 	//output.pos.w = 1.0f;
 
-	// Regular Vertex Shader
-	//output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
-	// This is similar to the regular vertex shader; but here we expect normalized (-1..1)
-	// 2D screen coordinates, so we don't need to multiply by vpScale:
-	output.pos.xy = input.pos.xy * float2(1.0 / aspect_ratio, 1.0);
-	output.pos.z  = input.pos.z;
-	output.pos.w  = 1.0f;
+	if (bFullTransform < 0.5) {
+		// Regular Vertex Shader
+		//output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+		// This is similar to the regular vertex shader; but here we expect normalized (-1..1)
+		// 2D screen coordinates, so we don't need to multiply by vpScale:
+		output.pos.xy = input.pos.xy * float2(1.0 / aspect_ratio, 1.0);
+		output.pos.z = input.pos.z;
+		output.pos.w = 1.0f;
+	}
+	else {
+		output.pos = mul(projEyeMatrix, float4(input.pos.xyz, 1.0));
+		output.pos.xyz /= output.pos.w;
+		output.pos.z = 0.0f;
+		output.pos.w = 1.0f;
+	}
 
 	output.color = input.color.zyxw;
 	output.tex   = input.tex;

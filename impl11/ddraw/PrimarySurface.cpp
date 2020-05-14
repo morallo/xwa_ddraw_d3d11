@@ -4903,10 +4903,10 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 		particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
 	}
 	else {
-		// In VR, we leave the point in 3D:
-		particles[idx].sx = P.x;
-		particles[idx].sy = P.y;
-		particles[idx].sz = 0.0f;
+		// In VR, we leave the point in 3D, and we change the coordinates to match SteamVR's coord sys
+		particles[idx].sx =  P.x;
+		particles[idx].sy =  P.y;
+		particles[idx].sz = -P.z;
 	}
 }
 
@@ -5141,6 +5141,7 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
+		//static bool bFirstTime = true;
 		//if (!g_bEnableVR) 
 		{
 			Vector4 QH, QT, RH, RT;
@@ -5171,7 +5172,8 @@ void PrimarySurface::RenderSpeedEffect()
 				RH = ViewMatrix * QH; // Head
 				RT = ViewMatrix * QT; // Tail
 				// If the particle is behind the camera, or outside the clipping space, then
-				// compute a new position for it:
+				// compute a new position for it. We need to test both the head and the tail
+				// of the particle, or we'll get ugly artifacts when looking back.
 				if (
 					// Clip the head
 					RH.z < 1.0f || RH.z > SPEED_PART_BOX_SIZE || 
@@ -5198,6 +5200,18 @@ void PrimarySurface::RenderSpeedEffect()
 					// add it to the vertex buffer
 					if (NumParticles < g_iSpeedShaderMaxParticles) 
 					{
+						/*
+						if (bFirstTime) {
+							QH.w = 1.0f;
+							Vector4 R = g_FullProjMatrixLeft * QH;
+							R.x /= R.w;
+							R.y /= R.w;
+							R.z /= R.w;
+							log_debug("[DBG] QH: %0.3f, %0.3f, %0.3f --> %0.3f, %0.3f, %0.3f",
+								QH.x, QH.y, QH.z, R.x, R.y, R.z);
+						}
+						*/
+
 						AddSpeedPoint(ViewMatrix, g_SpeedParticles2D, QH, zdisp, NumParticleVertices, craft_speed);
 						NumParticleVertices += 12;
 						NumParticles++;
@@ -5205,6 +5219,7 @@ void PrimarySurface::RenderSpeedEffect()
 				}
 			}
 		}
+		//bFirstTime = false;
 
 		D3D11_MAPPED_SUBRESOURCE map;
 		HRESULT hr = context->Map(resources->_speedParticlesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
@@ -5219,10 +5234,6 @@ void PrimarySurface::RenderSpeedEffect()
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		resources->InitVertexBuffer(resources->_speedParticlesVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
-		//if (g_bEnableVR)
-		//	resources->InitVertexShader(resources->_sbsVertexShader);
-		//else
-		//	resources->InitVertexShader(resources->_vertexShader);
 		resources->InitVertexShader(resources->_speedEffectVS);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -5232,7 +5243,6 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		//context->Draw(MAX_SPEED_PARTICLES * 6, 0);
 		context->Draw(NumParticleVertices, 0);
 
 		// TODO: Render the right image
@@ -5256,23 +5266,11 @@ void PrimarySurface::RenderSpeedEffect()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSteamVR)
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-				};
-				context->PSSetShaderResources(0, 1, srvs);
-			}
-			else {
+			else
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-				};
-				context->PSSetShaderResources(0, 1, srvs);
-			}
-			context->Draw(6, 0);
+			context->Draw(NumParticleVertices, 0);
 		}
 	}
 
@@ -5351,7 +5349,6 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_offscreenAsInputShaderResourceView.Get(), // The current render
 			resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			resources->_depthBufSRV.Get(),   // The depth buffer
-			
 		};
 		context->PSSetShaderResources(0, 3, srvs);
 		// TODO: Handle SteamVR cases
@@ -5360,27 +5357,15 @@ void PrimarySurface::RenderSpeedEffect()
 		// TODO: Post-process the right image
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			if (!g_bReshadeEnabled) {
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewPostR.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-			}
-			else {
-				ID3D11RenderTargetView *rtvs[5] = {
-					resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-					resources->_renderTargetViewBloomMaskR.Get(),
-					NULL, // Depth
-					NULL, // Norm Buf
-					NULL, // SSAO Mask
-				};
-				context->OMSetRenderTargets(5, rtvs, NULL);
-			}
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPostR.Get(),
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			// Set the SRVs:
 			ID3D11ShaderResourceView *srvs[3] = {
-				resources->_shadertoySRV_R.Get(),		// Foreground (cockpit)
-				resources->_shadertoyAuxSRV_R.Get(),  // Background
-				resources->_offscreenAsInputShaderResourceViewR.Get(), // Previous effect (trails or tunnel)
+				resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
+				resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
+				resources->_depthBufSRV_R.Get(),   // The depth buffer
 			};
 			context->PSSetShaderResources(0, 3, srvs);
 			// TODO: Handle SteamVR cases
