@@ -46,7 +46,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (pos3D.z < 60.0)
 		return output;
 
-	float lightness = dot(0.333, effectColor.rgb);
+	//float lightness = dot(0.333, effectColor.rgb);
+	float lightness = effectColor.r;
 	// Blend the trails with the background
 	//float3 color = lerp(texColor.rgb, effectColor.rgb, lightness);
 	float3 color = saturate(texColor.rgb + effectColor.rgb);

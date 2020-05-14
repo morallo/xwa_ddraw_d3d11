@@ -2979,7 +2979,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "speed_shader_scale_factor") == 0) {
 				g_fSpeedShaderConstFactor = fValue;
 			}
-			else if (_stricmp(param, "speed_shader_rotation_factor") == 0) {
+			else if (_stricmp(param, "speed_shader_particle_size") == 0) {
 				g_fSpeedShaderParticleSize = fValue;
 			}
 			else if (_stricmp(param, "speed_shader_max_intensity") == 0) {
@@ -5597,7 +5597,7 @@ HRESULT Direct3DDevice::Execute(
 	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;

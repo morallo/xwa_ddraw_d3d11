@@ -4897,17 +4897,28 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	// Transform the point with the view matrix
 	P = ViewMatrix * P;
 	// Project to 2D in non-VR mode
-	if (!g_bEnableVR) {
+	//if (!g_bEnableVR) {
+		P.x /= g_fAspectRatio;
 		particles[idx].sx = FOVFactor * (P.x / P.z);
 		particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
+
+		//particles[idx].sx = FOVFactor * (P.x / P.z);
+		//particles[idx].sy = FOVFactor * (P.y / P.z + y_center);
+		
+		//particles[idx].sx = P.x / P.z;
+		//particles[idx].sy = P.y / P.z;
 		particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
-	}
+		particles[idx].rhw = 0.0f;
+		if (g_bEnableVR)
+			particles[idx].rhw = P.z;
+	/*}
 	else {
 		// In VR, we leave the point in 3D, and we change the coordinates to match SteamVR's coord sys
 		particles[idx].sx =  P.x;
 		particles[idx].sy =  P.y;
 		particles[idx].sz = -P.z;
 	}
+	*/
 }
 
 inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
@@ -4928,7 +4939,9 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	gray -= 0.1f;
 	if (gray < 0.0f) gray = 0.0f;
 	// The color is RRGGBB, so this value gets encoded in the blue component:
-	sample.color = (uint32_t)(gray * 255.0f);
+	// Disable the following line so that particles are still displayed when parked.
+	//sample.color = (uint32_t)(gray * 255.0f);
+	sample.color = color;
 
 	// top
 	particles[j] = sample;
@@ -5056,7 +5069,7 @@ void PrimarySurface::RenderSpeedEffect()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	int NumParticleVertices = 0, NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
-	static float Time = 0.0f;
+	//static float Time = 0.0f;
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
 
@@ -5064,14 +5077,14 @@ void PrimarySurface::RenderSpeedEffect()
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
 
-	Time += 0.016f; // ~1 / 60
+	//Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.iTime = Time;
+	//g_ShadertoyBuffer.iTime = Time;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
@@ -5092,21 +5105,24 @@ void PrimarySurface::RenderSpeedEffect()
 	// input: None
 	// output: renderTargetViewPost
 	{
-		// Set the new viewport (a full quad covering the full screen)
-		viewport.Width  = g_fCurScreenWidth;
-		viewport.Height = g_fCurScreenHeight;
-		// VIEWPORT-LEFT
-		if (g_bEnableVR) {
+		if (g_bEnableVR) 
+		{
+			// This should be the same viewport used in the Execute() function
+			// Set the new viewport (a full quad covering the full screen)
+			// VIEWPORT-LEFT
 			if (g_bUseSteamVR)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+			viewport.Height   = g_fCurScreenHeight;
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
 		}
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		resources->InitViewport(&viewport);
+		else
+			resources->InitViewport(&g_nonVRViewport);
 
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
@@ -5276,11 +5292,11 @@ void PrimarySurface::RenderSpeedEffect()
 
 	// Second render: compose the cockpit over the previous effect
 	{
-		// Reset the viewport for non-VR mode:
+		// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
-		viewport.Width = g_fCurScreenWidth;
-		viewport.Height = g_fCurScreenHeight;
+		viewport.Width    = g_fCurScreenWidth;
+		viewport.Height   = g_fCurScreenHeight;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
@@ -5354,7 +5370,7 @@ void PrimarySurface::RenderSpeedEffect()
 		// TODO: Handle SteamVR cases
 		context->Draw(6, 0);
 
-		// TODO: Post-process the right image
+		// TODO: Post-process the right image in SteamVR
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
