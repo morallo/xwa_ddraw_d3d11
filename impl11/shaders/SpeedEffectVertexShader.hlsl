@@ -68,7 +68,6 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos.x *= aspect_ratio;
 		// Apply FOVscale and y_center
 		//output.pos.xy = FOVscale * output.pos.xy + float2(0.0, y_center);
-		
 		*/
 
 		/*
@@ -76,19 +75,23 @@ PixelShaderInput main(VertexShaderInput input)
 		how to apply FOVscale and y_center properly in 3D; but the answer should be
 		below now: it's just a matter of massaging the formulae.
 		*/
-		// Back-project into 3D
-		float3 temp = (input.pos.xyw);
+		// Back-project into 3D. In this case, the w component has the original Z value.
+		float3 temp = input.pos.xyw;
 		temp.x *= aspect_ratio;
 		float3 P = float3(temp.z * temp.xy, temp.z);
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));
-		output.pos.xyz /= output.pos.w;
+		// DirectX will divide output.pos by output.pos.w, so we don't need to do it here,
+		// plus we probably can't do it here in the case of SteamVR anyway...
+		// Old code follows, just for reference (this code actually worked):
+		// We're already providing 2D coords here, so we can set w = 1
+		//output.pos.xyz /= output.pos.w;
+		//output.pos.w = 1.0f;
+
 		// The following value is like the depth-buffer value. Setting it to 2 will remove
 		// this point
-		output.pos.z = 0.0f;
-		// We're already providing 2D coords here, so we can set w = 1
-		output.pos.w = 1.0f;
+		output.pos.z = 0.0f; // It's OK to ovewrite z after the projection, I'm doing this in SBSVertexShader already
 	}
 
 	output.color = input.color.zyxw;

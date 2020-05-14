@@ -4908,9 +4908,9 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 		//particles[idx].sx = P.x / P.z;
 		//particles[idx].sy = P.y / P.z;
 		particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
-		particles[idx].rhw = 0.0f;
-		if (g_bEnableVR)
-			particles[idx].rhw = P.z;
+		//particles[idx].rhw = 0.0f;
+		//if (g_bEnableVR)
+		particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
 	/*}
 	else {
 		// In VR, we leave the point in 3D, and we change the coordinates to match SteamVR's coord sys
