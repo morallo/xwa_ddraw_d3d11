@@ -425,7 +425,7 @@ dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
-bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
+bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -2377,6 +2377,10 @@ bool LoadDCParams() {
 			else if (_stricmp(param, "ignore_erase_commands") == 0) {
 				g_bDCIgnoreEraseCommands = (bool)value;
 			}
+			else if (_stricmp(param, "toggle_erase_commands_on_cockpit_displayed") == 0) {
+				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)value;
+			}
+
 			else if (_stricmp(param, "dc_brightness") == 0) {
 				g_fDCBrightness = value;
 			}

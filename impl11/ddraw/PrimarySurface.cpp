@@ -69,7 +69,7 @@ extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern bool g_bDCIgnoreEraseCommands;
+extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
@@ -7096,6 +7096,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Draw the HUD
 			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+			const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 			/*
 			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) 
@@ -7103,6 +7104,9 @@ HRESULT PrimarySurface::Flip(
 			if (true) // For some reason we have to call this or the ESC menu will disappear...
 			{
 				int num_regions_erased = 0;
+				// Ignore DC erase commands if the cockpit is hidden
+				
+				if (g_bToggleEraseCommandsOnCockpitDisplayed) g_bDCIgnoreEraseCommands = !bCockpitDisplayed;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled && !bExteriorCamera)
 					num_regions_erased = ClearHUDRegions();
