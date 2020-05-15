@@ -477,6 +477,7 @@ bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false;
 float g_fSpeedShaderConstFactor = 30.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.125f;
+float g_fSpeedShaderParticleRange = 10.0f;
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
@@ -2992,6 +2993,9 @@ bool LoadSSAOParams() {
 				g_iSpeedShaderMaxParticles = (int )fValue;
 				if (g_iSpeedShaderMaxParticles < 0) g_iSpeedShaderMaxParticles = 0;
 				g_iSpeedShaderMaxParticles = min(g_iSpeedShaderMaxParticles, MAX_SPEED_PARTICLES);
+			}
+			else if (_stricmp(param, "speed_shader_particle_range") == 0) {
+				g_fSpeedShaderParticleRange = fValue;
 			}
 			
 

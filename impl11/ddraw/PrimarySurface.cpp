@@ -101,7 +101,7 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 // SPEED SHADER EFFECT
 extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader;
-extern float g_fSpeedShaderConstFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize;
+extern float g_fSpeedShaderConstFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
 extern int g_iSpeedShaderMaxParticles;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
@@ -4896,24 +4896,20 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	P.z = particles[idx].sz;
 	// Transform the point with the view matrix
 	P = ViewMatrix * P;
-	// Project to 2D in non-VR mode
-	//if (!g_bEnableVR) {
-		P.x /= g_fAspectRatio;
-		particles[idx].sx = FOVFactor * (P.x / P.z);
-		particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
+	// Project to 2D
+	P.x /= g_fAspectRatio;
+	particles[idx].sx = FOVFactor * (P.x / P.z);
+	particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
 
-		//particles[idx].sx = FOVFactor * (P.x / P.z);
-		//particles[idx].sy = FOVFactor * (P.y / P.z + y_center);
+	//particles[idx].sx = FOVFactor * (P.x / P.z);
+	//particles[idx].sy = FOVFactor * (P.y / P.z + y_center);
 		
-		//particles[idx].sx = P.x / P.z;
-		//particles[idx].sy = P.y / P.z;
-		particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
-		//particles[idx].rhw = 0.0f;
-		//if (g_bEnableVR)
-		particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
+	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
+	particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
 	/*}
 	else {
 		// In VR, we leave the point in 3D, and we change the coordinates to match SteamVR's coord sys
+		// This code won't work well until I figure out how to apply FOVscale and y_center in VR mode.
 		particles[idx].sx =  P.x;
 		particles[idx].sy =  P.y;
 		particles[idx].sz = -P.z;
@@ -5076,20 +5072,20 @@ void PrimarySurface::RenderSpeedEffect()
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
+	// Apply the roll in VR mode:
+	if (g_bEnableVR)
+		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
 
-	//Time += 0.016f; // ~1 / 60
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	//g_ShadertoyBuffer.iTime = Time;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	g_ShadertoyBuffer.craft_speed = craft_speed;
+	//g_ShadertoyBuffer.craft_speed = craft_speed;
 	// The A-Wing's max speed seems to be 270
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
@@ -5100,6 +5096,85 @@ void PrimarySurface::RenderSpeedEffect()
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
+	// Update the position of the particles, project them to 2D and add them to the vertex buffer
+	{
+		// If the range is big, we also need to increase the speed of the particles. The default
+		// range size is 10.0f, the following factor will accelerate the particles if the range
+		// is bigger than that.
+		const float SPEED_CONST = g_fSpeedShaderParticleRange / 10.0f;
+		Vector4 QH, QT, RH, RT;
+		for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
+			float zdisp = 0.0f;
+			// Transform the particles from worldspace to craftspace (using the craft's heading):
+			QH = HeadingMatrix * g_SpeedParticles[i];
+			// Update the position in craftspace. In this coord system,
+			// Forward is always Z+, so we just have to translate points
+			// along the Z axis.
+			QH.z -= ZTimeDisp[i];
+			// ZTimeDisp has to be updated like this to avoid the particles from moving
+			// backwards when we brake
+			ZTimeDisp[i] += 0.0166f * SPEED_CONST * craft_speed;
+			// This is the Head-to-tail displacement along the z-axis:
+			zdisp = craft_speed * g_fSpeedShaderTrailSize;
+
+			// Transform the current particle into viewspace
+			// Q is the head of the particle, P is the tail:
+			QT = QH; QT.z += zdisp;
+			RH = ViewMatrix * QH; // Head
+			RT = ViewMatrix * QT; // Tail
+			// If the particle is behind the camera, or outside the clipping space, then
+			// compute a new position for it. We need to test both the head and the tail
+			// of the particle, or we'll get ugly artifacts when looking back.
+			if (
+				// Clip the head
+				RH.z < 1.0f || RH.z > g_fSpeedShaderParticleRange ||
+				RH.x < -g_fSpeedShaderParticleRange || RH.x > g_fSpeedShaderParticleRange ||
+				RH.y < -g_fSpeedShaderParticleRange || RH.y > g_fSpeedShaderParticleRange ||
+				// Clip the tail
+				RT.z < 1.0f || RT.z > g_fSpeedShaderParticleRange ||
+				RT.x < -g_fSpeedShaderParticleRange || RT.x > g_fSpeedShaderParticleRange ||
+				RT.y < -g_fSpeedShaderParticleRange || RT.y > g_fSpeedShaderParticleRange
+				)
+			{
+				// Compute a new random position for this particle
+				float x = (((float)rand() / RAND_MAX) - 0.5f);
+				float y = (((float)rand() / RAND_MAX) - 0.5f);
+				float z = (((float)rand() / RAND_MAX) - 0.5f);
+				g_SpeedParticles[i].x = x * g_fSpeedShaderParticleRange;
+				g_SpeedParticles[i].y = y * g_fSpeedShaderParticleRange;
+				g_SpeedParticles[i].z = z * g_fSpeedShaderParticleRange;
+				ZTimeDisp[i] = 0.0f;
+			}
+			else
+			{
+				// Transform the current point with the camera matrix, project it and
+				// add it to the vertex buffer
+				if (NumParticles < g_iSpeedShaderMaxParticles)
+				{
+					AddSpeedPoint(ViewMatrix, g_SpeedParticles2D, QH, zdisp, NumParticleVertices, craft_speed);
+					NumParticleVertices += 12;
+					NumParticles++;
+				}
+			}
+		}
+
+		D3D11_MAPPED_SUBRESOURCE map;
+		HRESULT hr = context->Map(resources->_speedParticlesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr))
+		{
+			//size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
+			size_t length = sizeof(D3DTLVERTEX) * NumParticleVertices;
+			memcpy(map.pData, g_SpeedParticles2D, length);
+			context->Unmap(resources->_speedParticlesVertexBuffer, 0);
+		}
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_speedParticlesVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		resources->InitVertexShader(resources->_speedEffectVS);
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	}
 
 	// First render: Render the speed effect
 	// input: None
@@ -5146,112 +5221,10 @@ void PrimarySurface::RenderSpeedEffect()
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
 
-		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
-		// and text float
-		// TODO: Does the above apply for this effect? I don't think so...
-		//g_VSCBuffer.z_override  = 65535.0f;
-		//g_VSCBuffer.metric_mult = g_fMetricMult;
-
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-		//static bool bFirstTime = true;
-		//if (!g_bEnableVR) 
-		{
-			Vector4 QH, QT, RH, RT;
-			// TODO: Consider removing these x0,y0, x1,y1 lines later
-			/*
-			g_LaserPointerBuffer.x0 = x0;
-			g_LaserPointerBuffer.y0 = y0;
-			g_LaserPointerBuffer.x1 = x1;
-			g_LaserPointerBuffer.y1 = y1;
-			*/
-			for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
-				float zdisp = 0.0f;
-				// Transform the particles from worldspace to craftspace (using the craft's heading):
-				QH = HeadingMatrix * g_SpeedParticles[i];
-				// Update the position in craftspace. In this coord system,
-				// Forward is always Z+, so we just have to translate points
-				// along the Z axis.
-				QH.z -= ZTimeDisp[i];
-				// ZTimeDisp has to be updated like this to avoid the particles from moving
-				// backwards when we brake
-				ZTimeDisp[i] += 0.0166f * craft_speed;
-				// This is the Head-to-tail displacement along the z-axis:
-				zdisp = craft_speed * g_fSpeedShaderTrailSize;
-				
-				// Transform the current particle into viewspace
-				// Q is the head of the particle, P is the tail:
-				QT = QH; QT.z += zdisp;
-				RH = ViewMatrix * QH; // Head
-				RT = ViewMatrix * QT; // Tail
-				// If the particle is behind the camera, or outside the clipping space, then
-				// compute a new position for it. We need to test both the head and the tail
-				// of the particle, or we'll get ugly artifacts when looking back.
-				if (
-					// Clip the head
-					RH.z < 1.0f || RH.z > SPEED_PART_BOX_SIZE || 
-					RH.x < -SPEED_PART_BOX_SIZE || RH.x > SPEED_PART_BOX_SIZE ||
-					RH.y < -SPEED_PART_BOX_SIZE || RH.y > SPEED_PART_BOX_SIZE ||
-					// Clip the tail
-					RT.z < 1.0f || RT.z > SPEED_PART_BOX_SIZE ||
-					RT.x < -SPEED_PART_BOX_SIZE || RT.x > SPEED_PART_BOX_SIZE ||
-					RT.y < -SPEED_PART_BOX_SIZE || RT.y > SPEED_PART_BOX_SIZE
-				  ) 
-				{
-					// Compute a new random position for this particle
-					float x = (((float)rand() / RAND_MAX) - 0.5f);
-					float y = (((float)rand() / RAND_MAX) - 0.5f);
-					float z = (((float)rand() / RAND_MAX) - 0.5f);
-					g_SpeedParticles[i].x = x * SPEED_PART_BOX_SIZE;
-					g_SpeedParticles[i].y = y * SPEED_PART_BOX_SIZE;
-					g_SpeedParticles[i].z = z * SPEED_PART_BOX_SIZE;
-					ZTimeDisp[i] = 0.0f;
-				}
-				else 
-				{
-					// Transform the current point with the camera matrix, project it and
-					// add it to the vertex buffer
-					if (NumParticles < g_iSpeedShaderMaxParticles) 
-					{
-						/*
-						if (bFirstTime) {
-							QH.w = 1.0f;
-							Vector4 R = g_FullProjMatrixLeft * QH;
-							R.x /= R.w;
-							R.y /= R.w;
-							R.z /= R.w;
-							log_debug("[DBG] QH: %0.3f, %0.3f, %0.3f --> %0.3f, %0.3f, %0.3f",
-								QH.x, QH.y, QH.z, R.x, R.y, R.z);
-						}
-						*/
-
-						AddSpeedPoint(ViewMatrix, g_SpeedParticles2D, QH, zdisp, NumParticleVertices, craft_speed);
-						NumParticleVertices += 12;
-						NumParticles++;
-					}
-				}
-			}
-		}
-		//bFirstTime = false;
-
-		D3D11_MAPPED_SUBRESOURCE map;
-		HRESULT hr = context->Map(resources->_speedParticlesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-		if (SUCCEEDED(hr))
-		{
-			//size_t length = sizeof(D3DTLVERTEX) * 6 * MAX_SPEED_PARTICLES;
-			size_t length = sizeof(D3DTLVERTEX) * NumParticleVertices;
-			memcpy(map.pData, g_SpeedParticles2D, length);
-			context->Unmap(resources->_speedParticlesVertexBuffer, 0);
-		}
-
-		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		resources->InitVertexBuffer(resources->_speedParticlesVertexBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitInputLayout(resources->_inputLayout);
-		resources->InitVertexShader(resources->_speedEffectVS);
-		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the RTV:
@@ -5261,7 +5234,6 @@ void PrimarySurface::RenderSpeedEffect()
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		context->Draw(NumParticleVertices, 0);
 
-		// TODO: Render the right image
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -7409,7 +7381,7 @@ HRESULT PrimarySurface::Flip(
 				rotMatrixFull[13] = headPos[1];
 				rotMatrixFull[14] = headPos[2];
 				*/
-				// viewMat is not a full transform matrix: it's only RotZ + Translation
+				// viewMat is not a full transform matrix: it's only RotZ
 				// because the cockpit hook already applies the yaw/pitch rotation
 				g_VSMatrixCB.viewMat = g_viewMatrix;
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;

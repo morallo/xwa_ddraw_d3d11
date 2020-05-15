@@ -148,6 +148,7 @@ extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
 Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
+extern float g_fSpeedShaderParticleRange;
 
 bool InitSteamVR();
 void LoadFocalLength();
@@ -713,9 +714,9 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 		float y = (((float)rand() / RAND_MAX) - 0.5f);
 		float z = (((float)rand() / RAND_MAX) - 0.5f);
 
-		x *= SPEED_PART_BOX_SIZE;
-		y *= SPEED_PART_BOX_SIZE;
-		z *= SPEED_PART_BOX_SIZE;
+		x *= g_fSpeedShaderParticleRange;
+		y *= g_fSpeedShaderParticleRange;
+		z *= g_fSpeedShaderParticleRange;
 
 		//log_debug("[DBG] Init: %0.3f, %0.3f", x, y);
 		
