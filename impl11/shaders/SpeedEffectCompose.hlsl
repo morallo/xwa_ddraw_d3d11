@@ -29,8 +29,6 @@ struct PixelShaderOutput
 	float4 color    : SV_TARGET0;
 };
 
-static const float3 bloom_col = float3(0.5, 0.5, 1);
-
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -47,6 +45,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 
 	//float lightness = dot(0.333, effectColor.rgb);
+	// We expect particles to be gray, so it doesn't matter which channel we sample
 	float lightness = effectColor.r;
 	// Blend the trails with the background
 	//float3 color = lerp(texColor.rgb, effectColor.rgb, lightness);

@@ -37,6 +37,7 @@ struct PixelShaderInput
 PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
+	float fadeout = 1.0; // Used in VR mode to fade out the particles near the edges of the screen
 
 	// SBS/SteamVR:
 	//output.pos = mul(projEyeMatrix, input.pos);
@@ -70,6 +71,11 @@ PixelShaderInput main(VertexShaderInput input)
 		//output.pos.xy = FOVscale * output.pos.xy + float2(0.0, y_center);
 		*/
 
+		
+		// In VR mode, it's better to fade the particles out towards the edges of the screen.
+		// Since the particles are in 2D, it's easy to compute the fade-out factor
+		fadeout = max(0.0, 1.0 - length(input.pos.xy));
+
 		/*
 		The reason we're back-projecting to 3D here is because I haven't figured out
 		how to apply FOVscale and y_center properly in 3D; but the answer should be
@@ -94,7 +100,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos.z = 0.0f; // It's OK to ovewrite z after the projection, I'm doing this in SBSVertexShader already
 	}
 
-	output.color = input.color.zyxw;
+	output.color = fadeout * input.color.zyxw;
 	output.tex   = input.tex;
 	return output;
 }

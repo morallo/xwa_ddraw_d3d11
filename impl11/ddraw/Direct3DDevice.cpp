@@ -476,8 +476,8 @@ bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolv
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false;
-float g_fSpeedShaderConstFactor = 30.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.125f;
-float g_fSpeedShaderParticleRange = 10.0f;
+float g_fSpeedShaderConstFactor = 10.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.5f, g_fSpeedShaderTrailSize = 0.025f;
+float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];

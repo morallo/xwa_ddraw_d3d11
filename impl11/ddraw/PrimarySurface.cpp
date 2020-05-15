@@ -4936,8 +4936,8 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	if (gray < 0.0f) gray = 0.0f;
 	// The color is RRGGBB, so this value gets encoded in the blue component:
 	// Disable the following line so that particles are still displayed when parked.
-	//sample.color = (uint32_t)(gray * 255.0f);
-	sample.color = color;
+	sample.color = (uint32_t)(gray * 255.0f);
+	//sample.color = color;
 
 	// top
 	particles[j] = sample;
@@ -5141,8 +5141,10 @@ void PrimarySurface::RenderSpeedEffect()
 				float x = (((float)rand() / RAND_MAX) - 0.5f);
 				float y = (((float)rand() / RAND_MAX) - 0.5f);
 				float z = (((float)rand() / RAND_MAX) - 0.5f);
-				g_SpeedParticles[i].x = x * g_fSpeedShaderParticleRange;
-				g_SpeedParticles[i].y = y * g_fSpeedShaderParticleRange;
+				// We multiply x and y by 0.5 so that most of the particles appear in the direction
+				// of travel... or that's the idea anyway
+				g_SpeedParticles[i].x = x * g_fSpeedShaderParticleRange * 0.5f;
+				g_SpeedParticles[i].y = y * g_fSpeedShaderParticleRange * 0.5f;
 				g_SpeedParticles[i].z = z * g_fSpeedShaderParticleRange;
 				ZTimeDisp[i] = 0.0f;
 			}
