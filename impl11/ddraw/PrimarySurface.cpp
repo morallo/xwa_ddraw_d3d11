@@ -101,7 +101,7 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 // SPEED SHADER EFFECT
 extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader;
-extern float g_fSpeedShaderConstFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
+extern float g_fSpeedShaderScaleFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
 extern int g_iSpeedShaderMaxParticles;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
@@ -4922,7 +4922,6 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 {
 	D3DTLVERTEX sample;
 	const float part_size = g_fSpeedShaderParticleSize;
-	D3DCOLOR color = 0xFFFFFFFF;
 	int j = ofs;
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 	//float FOVFactor = g_fDebugFOV;
@@ -4937,7 +4936,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	// The color is RRGGBB, so this value gets encoded in the blue component:
 	// Disable the following line so that particles are still displayed when parked.
 	sample.color = (uint32_t)(gray * 255.0f);
-	//sample.color = color;
+	//sample.color = 0xFFFFFFFF;
 
 	// top
 	particles[j] = sample;
@@ -4970,18 +4969,18 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	// bottom
 	particles[j] = sample;
 	particles[j].sx = Q.x;
-	particles[j].sy = Q.y;
-	particles[j].sz = Q.z - part_size;
-	particles[j].tu = -1.0;
+	particles[j].sy = Q.y + part_size;
+	particles[j].sz = Q.z;
+	particles[j].tu =  1.0;
 	particles[j].tv = -1.0;
 	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
 	particles[j].sx = Q.x;
-	particles[j].sy = Q.y - part_size;
-	particles[j].sz = Q.z;
-	particles[j].tu =  1.0;
+	particles[j].sy = Q.y;
+	particles[j].sz = Q.z - part_size;
+	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
 	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
@@ -5026,19 +5025,19 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 
 	// right
 	particles[j] = sample;
-	particles[j].sx = Q.x;
+	particles[j].sx = Q.x + part_size;
 	particles[j].sy = Q.y;
-	particles[j].sz = Q.z - part_size;
-	particles[j].tu = -1.0;
+	particles[j].sz = Q.z;
+	particles[j].tu = 1.0;
 	particles[j].tv = -1.0;
 	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
 
 	particles[j] = sample;
-	particles[j].sx = Q.x + part_size;
+	particles[j].sx = Q.x;
 	particles[j].sy = Q.y;
-	particles[j].sz = Q.z;
-	particles[j].tu =  1.0;
+	particles[j].sz = Q.z - part_size;
+	particles[j].tu = -1.0;
 	particles[j].tv = -1.0;
 	ProjectSpeedPoint(ViewMatrix, particles, j);
 	j++;
@@ -5067,7 +5066,7 @@ void PrimarySurface::RenderSpeedEffect()
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 	//static float Time = 0.0f;
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
-	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderConstFactor;
+	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderScaleFactor;
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);

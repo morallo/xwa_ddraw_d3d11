@@ -151,8 +151,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//L = (L <= 0.0) ? 1.0 : 0.0;
 	// The speed is encoded in the blue component of the color, so that's why
 	// we multiply by input.color.b
-	float L = input.color.b * smoothstep(0.95, 0.90, length(input.uv));
-	output.color.rgb = L;
+	output.color.rgb = input.color.b * smoothstep(0.9, 0.6, length(input.uv));
 	//output.color.rg = L;
 	return output;
 }
