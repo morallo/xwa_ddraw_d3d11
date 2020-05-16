@@ -28,7 +28,7 @@ extern float g_fDebugFOV;
 extern float g_fCurrentShipFocalLength;
 
 extern int g_KeySet;
-extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio;
+extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -336,6 +336,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fDebugFOV += 0.05f;
 					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
 					break;
+				case 5:
+					g_fCockpitTranslationScale += 0.0005;
+					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -372,6 +376,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 4:
 					g_fDebugFOV -= 0.05f;
 					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					break;
+				case 5:
+					g_fCockpitTranslationScale -= 0.0005;
+					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				}
 

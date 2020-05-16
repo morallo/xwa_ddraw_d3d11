@@ -102,7 +102,7 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
 extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
 extern bool g_bEnableSpeedShader, g_bEnableAdditionalGeometry;
 extern float g_fSpeedShaderScaleFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
-//extern float g_fCockpitTranslationScale;
+extern float g_fCockpitTranslationScale;
 extern int g_iSpeedShaderMaxParticles;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
@@ -4895,6 +4895,7 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	P.x = particles[idx].sx;
 	P.y = particles[idx].sy;
 	P.z = particles[idx].sz;
+	P.w = 1.0f;
 	// Transform the point with the view matrix
 	P = ViewMatrix * P;
 	// Project to 2D
@@ -5446,14 +5447,20 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+	Matrix4 Translation;
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
 	// Apply the roll in VR mode:
 	if (g_bEnableVR)
 		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
 	// Add the translation
-	//float x = PlayerDataTable[*g_playerIndex].cockpitXReference * g_fCockpitTranslationScale;
-	//float y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
-	//float z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
+	Vector4 T;
+	T.x = PlayerDataTable[*g_playerIndex].cockpitXReference * g_fCockpitTranslationScale;
+	T.y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
+	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
+	T.w = 0.0f;
+	T = HeadingMatrix * T;
+	Translation.translate(-T.x, -T.y, -T.z);
+	ViewMatrix = Translation * ViewMatrix;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -5479,7 +5486,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 			//QH = HeadingMatrix * g_SpeedParticles[i];
 			QH.x = 0.0f;
 			QH.y = 0.0f;
-			QH.z = 0.5f;
+			QH.z = 1.0f;
 
 			// Transform the current particle into viewspace
 			RH = ViewMatrix * QH;

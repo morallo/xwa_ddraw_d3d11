@@ -478,6 +478,7 @@ bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNorm
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 20.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
+float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
@@ -2997,10 +2998,14 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "speed_shader_particle_range") == 0) {
 				g_fSpeedShaderParticleRange = fValue;
 			}
-
+			// Additional Geometry Shader
 			else if (_stricmp(param, "enable_additional_geometry") == 0) {
 				g_bEnableAdditionalGeometry = (bool)fValue;
 			}
+			else if (_stricmp(param, "add_geom_trans_scale") == 0) {
+				g_fCockpitTranslationScale = fValue;
+			}
+
 			
 
 			/*
