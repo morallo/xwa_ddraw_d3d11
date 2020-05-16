@@ -99,7 +99,13 @@ public:
 
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
 
+	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);
+
+	void RenderAdditionalGeometry();
+
 	void RenderSpeedEffect();
+
+	D3DCOLOR EncodeNormal(Vector3 N);
 
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
 
