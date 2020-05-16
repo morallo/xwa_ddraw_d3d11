@@ -58,6 +58,9 @@
     <FxCompile Include="SpeedEffect.hlsl" />
     <FxCompile Include="SpeedEffectCompose.hlsl" />
     <FxCompile Include="SpeedEffectVertexShader.hlsl" />
+    <FxCompile Include="AddGeometryVertexShader.hlsl" />
+    <FxCompile Include="AddGeometryPixelShader.hlsl" />
+    <FxCompile Include="AddGeometryComposePixelShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

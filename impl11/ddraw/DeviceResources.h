@@ -844,6 +844,8 @@ public:
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
+	ComPtr<ID3D11PixelShader> _addGeomPS;
+	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -861,6 +863,7 @@ public:
 	ComPtr<ID3D11VertexShader> _sbsVertexShader;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
+	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
