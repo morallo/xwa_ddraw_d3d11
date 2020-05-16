@@ -4213,12 +4213,17 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		iTime = g_fHyperTimeOverride;
 	//#endif
 
-	fXRotationAngle = 25.0f * iLinearTime * g_fHyperShakeRotationSpeed;
-	fYRotationAngle = 30.0f * iLinearTime * g_fHyperShakeRotationSpeed;
-	fZRotationAngle = 35.0f * iLinearTime * g_fHyperShakeRotationSpeed;
 	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
 	// TODO: Where am I setting the lights for the new shading model?
 	//		 Am I setting the ssMask in the RTVs like I do during Execute()? Do I even need to do that?
+	
+	/*
+	// TODO: The extra geometry shader shakes by itself when this block is enabled. Cockpit Inertia kills this
+	//       effect, so we need to read that flag from CockpitLook.cfg... or we can just remove this whole block.
+
+	fXRotationAngle = 25.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fYRotationAngle = 30.0f * iLinearTime * g_fHyperShakeRotationSpeed;
+	fZRotationAngle = 35.0f * iLinearTime * g_fHyperShakeRotationSpeed;
 
 	// Shake the cockpit a little bit:
 	float fShakeX = cos(fXRotationAngle * 0.01745f);
@@ -4227,11 +4232,14 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	int iShakeX = (int)(fShakeAmplitude * fShakeX);
 	int iShakeY = (int)(fShakeAmplitude * fShakeY);
 	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
-	if (*numberOfPlayersInGame == 1) {
+
+	if (*numberOfPlayersInGame == 1 && !g_bCockpitInertiaEnabled) 
+	{
 		PlayerDataTable[*g_playerIndex].cockpitXReference = iShakeX;
 		PlayerDataTable[*g_playerIndex].cockpitYReference = iShakeY;
 		PlayerDataTable[*g_playerIndex].cockpitZReference = iShakeZ;
 	}
+	*/
 
 	// DEBUG Test the hyperzoom
 	/*
@@ -5445,7 +5453,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	int NumParticleVertices = 0, NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
-	Vector4 Rs, Us, Fs;
+	Vector4 Rs, Us, Fs, T;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	Matrix4 Translation;
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
@@ -5453,7 +5461,6 @@ void PrimarySurface::RenderAdditionalGeometry()
 	if (g_bEnableVR)
 		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
 	// Add the translation
-	Vector4 T;
 	T.x = PlayerDataTable[*g_playerIndex].cockpitXReference * g_fCockpitTranslationScale;
 	T.y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
 	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
@@ -5461,11 +5468,6 @@ void PrimarySurface::RenderAdditionalGeometry()
 	T = HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
 	Translation.translate(-T.x, -T.y, -T.z);
 	ViewMatrix = ViewMatrix * Translation;
-
-	//ViewMatrix = Translation * ViewMatrix;
-	//ViewMatrix[12] = -T.x;
-	//ViewMatrix[13] = -T.y;
-	//ViewMatrix[14] = -T.z;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -7300,8 +7302,8 @@ HRESULT PrimarySurface::Flip(
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
-			// on the first frame (sometimes it can happen and it's quite visible/ugly
-			if (g_bCustomFOVApplied && g_bEnableSpeedShader && 
+			// on the first frame (sometimes it can happen and it's quite visible/ugly)
+			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar &&
 				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
