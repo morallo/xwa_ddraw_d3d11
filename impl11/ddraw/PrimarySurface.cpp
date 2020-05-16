@@ -5458,9 +5458,14 @@ void PrimarySurface::RenderAdditionalGeometry()
 	T.y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
 	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
 	T.w = 0.0f;
-	T = HeadingMatrix * T;
+	T = HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
 	Translation.translate(-T.x, -T.y, -T.z);
-	ViewMatrix = Translation * ViewMatrix;
+	ViewMatrix = ViewMatrix * Translation;
+
+	//ViewMatrix = Translation * ViewMatrix;
+	//ViewMatrix[12] = -T.x;
+	//ViewMatrix[13] = -T.y;
+	//ViewMatrix[14] = -T.z;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
