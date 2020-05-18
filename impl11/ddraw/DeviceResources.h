@@ -331,7 +331,7 @@ typedef struct PSShadingSystemCBStruct {
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
 	// 592 bytes
-	float ambient, ss_unused0, ss_unused1, ss_unused2;
+	float ambient, headlights_angle_cos, ss_unused1, ss_unused2;
 	// 608 bytes
 } PSShadingSystemCB;
 
@@ -828,6 +828,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
+	ComPtr<ID3D11PixelShader> _headLightsPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;

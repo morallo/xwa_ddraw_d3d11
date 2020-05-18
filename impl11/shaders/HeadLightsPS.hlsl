@@ -1,18 +1,18 @@
 /*
- * Simple shader to add SSAO + Bloom-Mask + Color Buffer
- * Copyright 2019, Leo Reyes.
+ * Simple shader to add Headlights + Bloom-Mask + Color Buffer
+ * Copyright 2020, Leo Reyes.
  * Licensed under the MIT license. See LICENSE.txt
  *
  * The bloom-mask is *not* the final bloom buffer -- this mask is output by the pixel
  * shader and it will be used later to compute proper bloom. Here we use this mask to
  * disable areas of the SSAO buffer that should be bright.
  */
-#include "..\shader_common.h"
-#include "..\HSV.h"
-#include "..\shading_system.h"
-#include "..\SSAOPSConstantBuffer.h"
+#include "shader_common.h"
+#include "HSV.h"
+#include "shading_system.h"
+#include "SSAOPSConstantBuffer.h"
 
- // The color buffer
+// The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
 
@@ -147,6 +147,8 @@ float3 blend_normals(float3 n1, float3 n2)
 // to make iteractions with controllers in VR or just when adding extra geometry to
 // the game later on.
 inline float2 projectToUV(in float3 pos3D) {
+	//const float g_fFocalDist = DEFAULT_FOCAL_DIST;
+	//const float g_fFocalDist = 1.0;
 	float3 P = pos3D;
 	//float w = P.z / (METRIC_SCALE_FACTOR * metric_mult);
 	//float w = P.z / METRIC_SCALE_FACTOR;
@@ -174,94 +176,37 @@ inline float2 projectToUV(in float3 pos3D) {
 }
 #endif
 
-/*
-float3 shadow_factor(in float3 P, float max_dist_sqr) {
-	float3 cur_pos = P, occluder, diff;
-	float2 cur_uv;
-	float3 ray_step = shadow_step_size * float3(LightVector[0].xy, -LightVector[0].z);
-	//float3 ray_step = shadow_step_size * LightVector[0].xyz;
-	int steps = (int)shadow_steps;
-	float max_shadow_length = shadow_step_size * shadow_steps;
-	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
-	max_shadow_length_sqr *= max_shadow_length_sqr;
-	float cur_length = 0, length_at_res = INFINITY_Z1;
-	float res = 1.0;
-	float weight = 1.0;
-	//float occ_dot;
-
-	// Handle samples that land outside the bounds of the image
-	// "negative" cur_diff should be ignored
-	[loop]
-	for (int i = 1; i <= steps; i++) {
-		cur_pos += ray_step;
-		cur_length += shadow_step_size;
-		cur_uv = projectToUV(cur_pos);
-
-		// If the ray has exited the current viewport, we're done:
-		//if (cur_uv.x < x0 || cur_uv.x > x1 ||
-		//	cur_uv.y < y0 || cur_uv.y > y1) 
-		if (any(cur_uv < p0) ||
-			any(cur_uv > p1))
-		{
-			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
-			res = lerp(1, res, weight);
-			return float3(res, cur_length / max_shadow_length, 1);
-		}
-
-		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		diff = cur_pos - occluder; // ATTENTION: The substraction is inverted wrt to SSDO!
-		//v        = normalize(diff);
-		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
-
-		if (diff.z > shadow_epsilon) { // Ignore negative z-diffs: the occluder is behind the ray
-			// If diff.z is too large, ignore it. Or rather, fade with distance
-			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
-			//float dist = saturate(lerp(1, diff.z), weight);
-			float cur_res = saturate(shadow_k * diff.z / (cur_length + 0.00001));
-			//cur_res = saturate(lerp(1, cur_res, weight)); // Fadeout if diff.z is too big
-			if (cur_res < res) {
-				res = cur_res;
-				length_at_res = cur_length;
-			}
-		}
-	}
-	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
-	res = lerp(1, res, weight);
-	return float3(res, cur_length / max_shadow_length, 0);
-}
-*/
-
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
-	output.bent  = 0;
+	output.bent = 0;
 
-	float2 input_uv_sub  = input.uv * amplifyFactor;
+	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 color = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
-	float  mask          = ssaoMask.x;
-	float  gloss_mask    = ssaoMask.y;
+	float  mask = ssaoMask.x;
+	float  gloss_mask = ssaoMask.y;
 	float  spec_int_mask = ssaoMask.z;
-	float  diff_int      = 1.0;
-	float  metallic      = mask / METAL_MAT;
-	float  nm_int_mask   = ssMask.x;
+	float  diff_int = 1.0;
+	float  metallic = mask / METAL_MAT;
+	float  nm_int_mask = ssMask.x;
 	float  spec_val_mask = ssMask.y;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	float  shadeless = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
@@ -276,7 +221,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
 
 	// Recompute the contact shadow here...
-	
+
 	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
 	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
@@ -285,7 +230,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	pos3D.z = -pos3D.z;
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
-	
+
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
@@ -357,17 +302,29 @@ PixelShaderOutput main(PixelShaderInput input)
 	float diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
 	float debug_spec = 0.0;
 	uint i;
+	float3 headLightDir = LightVector[0].xyz; // The direction of the headlights is encoded in the first light vector
+	//headLightDir.z = -headLightDir.z;
 
-	// Compute the shading contribution from the main lights
-	[loop]
-	for (i = 0; i < LightCount; i++)
+	// Compute the shading contribution from the headlights
 	{
-		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
-		float LightIntensity = dot(LightColor[i].rgb, 0.333);
+		//float3 L = MainLight.xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
+		// MainLight already comes with z inverted (-z) from ddraw, so we can subtract MainLight - pos3D
+		// because both points have -z:
+		float3 L = MainLight.xyz - pos3D;
+		const float Z = -MainLight.z; // Z is positive depth
+		const float distance = length(L);
+		L /= distance;
+		const float depth_attenuation = smoothstep(MainColor.w, Z, distance); // Fade the intensity of the light so that it's 0 at the maximum distance (MainColor.w)
+		//const float angle = dot(float3(0.0, 0.0, -1.0), normalize(pos3D));
+		//const float angle = dot(float3(0.0, 0.0, -1.0), -L);
+		const float angle = max(dot(headLightDir, L), 0.0);
+		float angle_attenuation = smoothstep(headlights_angle_cos, 1.0, angle);
+		//float angle_attenuation = 1.0;
+		float LightIntensity = depth_attenuation * angle_attenuation * dot(MainColor.rgb, 0.333);
 
 		// diffuse component
 		//bentDiff   = max(dot(smoothB, L), 0.0);
-		smoothDiff = max(dot(smoothN, L), 0.0);
+		smoothDiff = max(dot(smoothN, headLightDir), 0.0);
 		// I know that bentN is already multiplied by ssdo.x above; but I'm
 		// multiplying it again here to make the contact shadows more obvious
 		//contactShadow  = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0); // This works almost perfect
@@ -377,47 +334,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		//contactShadow = lerp(ssdo.y, contactShadow * contactShadow, smoothDiff);
 		contactShadow *= contactShadow;
 
-		/*
-		if (ssao_debug == 14) {
-			float temp = dot(smoothB, L);
-			contactShadow = 1.0 - clamp(smoothDiff - temp * temp, 0.0, 1.0);
-			//contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
-			//contactShadow = clamp(dot(smoothB, L), 0.0, 1.0); // This wipes out spec component when diffuse goes to 0 -- when the light is right ahead, no spec
-			contactShadow *= contactShadow;
-		}
-		if (ssao_debug == 15) {
-			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
-			contactShadow *= contactShadow;
-		}
-		if (ssao_debug == 16)
-			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
-		if (ssao_debug == 17) {
-			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
-			contactShadow *= contactShadow;
-		}
-		*/
+		diffuse = max(dot(N, headLightDir), 0.0);
+		//diffuse = LightIntensity * ssdo.x * diff_int * diffuse + ambient;
+		diffuse = LightIntensity * diff_int * diffuse + ambient;
 
-		/*
-		if (ssao_debug == 11)
-			diffuse = max(dot(bentN, L), 0.0);
-		else 
-			diffuse = max(dot(N, L), 0.0);
-		*/
-		diffuse = max(dot(N, L), 0.0);
-		diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
-
-		// Default case
-		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
-		//diffuse = diff_int * diffuse + ambient;
-
-		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
-		/*
-		if (shadeless) {
-			diffuse = 1.0;
-			contactShadow = 1.0;
-			ssdoInd = 0.0;
-		}
-		*/
 		// Avoid harsh transitions
 		diffuse = lerp(diffuse, 1.0, shadeless);
 		contactShadow = lerp(contactShadow, 1.0, shadeless);
@@ -427,7 +347,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
 		// reflect expects an incident vector: a vector that goes from the light source to the current point.
 		// L goes from the current point to the light vector, so we have to use -L:
-		float3 refl_vec = normalize(reflect(-L, N));
+		//float3 refl_vec = normalize(reflect(-L, N));
+		float3 refl_vec = normalize(reflect(headLightDir, N));
 		spec = max(dot(eye_vec, refl_vec), 0.0);
 
 		//const float3 H = normalize(L + eye_vec);
@@ -450,16 +371,16 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
-		
+
 		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
 		// intact
 		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
 		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-		tmp_color += LightColor[i].rgb * saturate(
+		tmp_color += MainColor.rgb * saturate(
 			color * diffuse +
-			global_spec_intensity * spec_col * spec +
+			LightIntensity * global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 			//emissionMask);
 		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
@@ -482,7 +403,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// because both points have -z:
 		float3 L = LightPoint[i].xyz - pos3D;
 		const float Z = -LightPoint[i].z; // Z is positive depth
-		
+
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
 		// calculate the attenuation
@@ -505,60 +426,5 @@ PixelShaderOutput main(PixelShaderInput input)
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-	
-
-#ifdef DISABLED
-	if (ssao_debug == 8)
-		output.color.xyz = bentN.xyz * 0.5 + 0.5;
-	if (ssao_debug == 9 || ssao_debug >= 14)
-		output.color.xyz = contactShadow;
-	if (ssao_debug == 10)
-		output.color.xyz = bentDiff;
-	if (ssao_debug == 12)
-		output.color.xyz = color * (diff_int * bentDiff + ambient);
-	if (ssao_debug == 13)
-		output.color.xyz = N.xyz * 0.5 + 0.5;
-	if (ssao_debug == 18)
-		output.color.xyz = smoothDiff;
-	if (ssao_debug == 19)
-		output.color.xyz = spec;
-	if (ssao_debug == 20)
-		output.color.xyz = debug_spec;
-	if (ssao_debug == 21)
-		output.color.xyz = diffuse_difference;
-	//if (ssao_debug == 22)
-	//	output.color.xyz = shadow;
-	if (ssao_debug == 23)
-		output.color.xyz = ssdoInd; // Should display the mask instead of the ssdoInd color
-	if (ssao_debug == 24)
-		output.color.xyz = ssdoInd;
-	if (ssao_debug == 25)
-		output.color.xyz = ssdoInd; // Should display a debug value coming from SSDOInd
-	if (ssao_debug == 26)
-		output.color.xyz = 0.5 * ssdoInd;
-#endif
-
 	return output;
-	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
-
-
-	//color = saturate((ambient + diffuse) * color);
-	//ssao = enableSSAO ? ssao : 1.0f;
-
-	//return float4(ssdo, 1);
-
-	//return float4(color * ssao, 1);
-	//return float4(saturate(color * ssao + bentN * light_factor), 1);
-	//return float4(ssao, 1);
-
-	// Let's use SSAO to also lighten some areas:
-	//float3 screen_layer = 1 - (1 - color) * (1 - ssao * white_point);
-	//float3 mix = lerp(mult_layer, screen_layer, ssao.r);
-	//return float4(mix, 1);
-
-	//float3 HSV = RGBtoHSV(color);
-	//HSV.z *= ssao.r;
-	//HSV.z = ssao.r;
-	//color = HSVtoRGB(HSV);
-	//return float4(color, 1);
 }

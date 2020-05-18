@@ -571,8 +571,8 @@ SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
-extern Vector3 g_HeadLightsDirection, g_HeadLightsColor;
-extern float g_fHeadLightsAmbient;
+extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
+extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -3143,12 +3143,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "laser_light_intensity") == 0) {
 				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
 			}
-			else if (_stricmp(param, "headlights_dir") == 0) {
+			else if (_stricmp(param, "headlights_pos") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
-				g_HeadLightsDirection.x = x;
-				g_HeadLightsDirection.y = y;
-				g_HeadLightsDirection.z = z;
+				g_HeadLightsPosition.x = x;
+				g_HeadLightsPosition.y = y;
+				g_HeadLightsPosition.z = z;
 			}
 			else if (_stricmp(param, "headlights_col") == 0) {
 				float x, y, z;
@@ -3159,6 +3159,12 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "headlights_ambient") == 0) {
 				g_fHeadLightsAmbient = fValue;
+			}
+			else if (_stricmp(param, "headlights_distance") == 0) {
+				g_fHeadLightsDistance = fValue;
+			}
+			else if (_stricmp(param, "headlights_angle") == 0) {
+				g_fHeadLightsAngleCos = cos(0.01745 * fValue);
 			}
 			else if (_stricmp(param, "reload_materials_enabled") == 0) {
 				g_bReloadMaterialsEnabled = (bool)fValue;

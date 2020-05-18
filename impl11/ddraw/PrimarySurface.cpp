@@ -140,8 +140,8 @@ extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableHeadLights;
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
-Vector3 g_HeadLightsDirection(0.0f, 0.0f, 1.0f), g_HeadLightsColor(0.65f, 0.65f, 0.70f);
-float g_fHeadLightsAmbient = 0.15f;
+Vector3 g_HeadLightsPosition(0.0f, 0.0f, 50.0f), g_HeadLightsColor(0.65f, 0.65f, 0.70f);
+float g_fHeadLightsAmbient = 0.15f, g_fHeadLightsDistance = 1500.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 
 // Bloom
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
@@ -2335,14 +2335,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 
-	//int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
-	//int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
-
-	//XwaTransform* ViewTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0008);
-	//XwaTransform* WorldTransform = (XwaTransform*)(s_XwaSceneCompDatasOffset + s_XwaCurrentSceneCompData * 284 + 0x0038);*/
-	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
-	//XwaVector3Transform(&xwaLight, &ViewTransform->Rotation);
-
 	// Use the heading matrix to move the lights
 	Matrix4 H = GetCurrentHeadingViewMatrix();
 	// In skirmish mode, the light with the highest intensity seems to be in index 1 and it matches the 
@@ -2436,24 +2428,47 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
 		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
 
-		// Add one more light if the headlights are on. Overwrite the last light on overflow
+		// If the headlights are on, then replace the main light with the headlight
 		if (g_bEnableHeadLights) {
-			int maxLights = min(g_ShadingSys_PSBuffer.LightCount + 1, MAX_XWA_LIGHTS);
-			int idx = maxLights - 1;
-			
+			Vector4 headLightDir(0.0, 0.0, 1.0, 0.0);
+			Vector4 headLightPos(g_HeadLightsPosition.x, g_HeadLightsPosition.y, g_HeadLightsPosition.z, 1.0);
+			Matrix4 ViewMatrix;
+			// TODO: I think we also need to transform the position of the light...
+			GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+			// We're going to need another vector for the headlights direction... let's shift all
+			// the light vectors one spot to the right and place the direction on the first slot
+			for (int i = 0; i < maxLights; i++)
+				if (i + 1 < MAX_XWA_LIGHTS)
+				{
+					g_ShadingSys_PSBuffer.LightVector[i + 1] = g_ShadingSys_PSBuffer.LightVector[i];
+					g_ShadingSys_PSBuffer.LightColor[i + 1] = g_ShadingSys_PSBuffer.LightColor[i];
+				}
+			maxLights = min(MAX_XWA_LIGHTS, maxLights + 1);
+			// Transform the headlights' direction and position:
+			headLightDir = ViewMatrix * headLightDir;
+			ViewMatrix.transpose();
+			headLightPos = ViewMatrix * headLightPos;
+			headLightPos.z = -headLightPos.z;
+			//log_debug("[DBG] headLightDir: %0.3f, %0.3f, %0.3f", headLightDir.x, headLightDir.y, headLightDir.z);
+			//log_debug("[DBG] headLightPos: %0.3f, %0.3f, %0.3f", headLightPos.x, headLightPos.y, headLightPos.z);
+			g_ShadingSys_PSBuffer.LightVector[0].x = headLightDir.x;
+			g_ShadingSys_PSBuffer.LightVector[0].y = headLightDir.y;
+			g_ShadingSys_PSBuffer.LightVector[0].z = headLightDir.z;
+
 			// DEBUG: Remove all lights!
-			//maxLights = 1;
-			//idx = 0;
+			//g_ShadingSys_PSBuffer.LightCount = 0;
 			// DEBUG
 			g_ShadingSys_PSBuffer.ambient = g_fHeadLightsAmbient;
-			g_ShadingSys_PSBuffer.LightCount = maxLights;
-			g_ShadingSys_PSBuffer.LightVector[idx].x = g_HeadLightsDirection.x;
-			g_ShadingSys_PSBuffer.LightVector[idx].y = g_HeadLightsDirection.y;
-			g_ShadingSys_PSBuffer.LightVector[idx].z = g_HeadLightsDirection.z;
+			g_ShadingSys_PSBuffer.MainLight.x = headLightPos.x;
+			g_ShadingSys_PSBuffer.MainLight.y = headLightPos.y;
+			g_ShadingSys_PSBuffer.MainLight.z = headLightPos.z;
 
-			g_ShadingSys_PSBuffer.LightColor[idx].x = g_HeadLightsColor.x;
-			g_ShadingSys_PSBuffer.LightColor[idx].y = g_HeadLightsColor.y;
-			g_ShadingSys_PSBuffer.LightColor[idx].z = g_HeadLightsColor.z;
+			g_ShadingSys_PSBuffer.MainColor.x = g_HeadLightsColor.x;
+			g_ShadingSys_PSBuffer.MainColor.y = g_HeadLightsColor.y;
+			g_ShadingSys_PSBuffer.MainColor.z = g_HeadLightsColor.z;
+			g_ShadingSys_PSBuffer.MainColor.w = g_fHeadLightsDistance;
+
+			g_ShadingSys_PSBuffer.headlights_angle_cos = g_fHeadLightsAngleCos;
 		}
 	}
 	else 
@@ -2684,7 +2699,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			NULL, NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
-		resources->InitPixelShader(resources->_ssaoAddPS);
+		if (!g_bEnableHeadLights)
+			resources->InitPixelShader(resources->_ssaoAddPS);
+		else
+			resources->InitPixelShader(resources->_headLightsPS);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
@@ -2816,7 +2834,10 @@ out1:
 				NULL, NULL, NULL,
 			};
 			context->OMSetRenderTargets(5, rtvs, NULL);
-			resources->InitPixelShader(resources->_ssaoAddPS);
+			if (!g_bEnableHeadLights)
+				resources->InitPixelShader(resources->_ssaoAddPS);
+			else
+				resources->InitPixelShader(resources->_headLightsPS);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
@@ -3208,7 +3229,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 #endif
 		//else
 			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+		if (!g_bEnableHeadLights)
 			resources->InitPixelShader(resources->_ssdoAddPS);
+		else
+			resources->InitPixelShader(resources->_headLightsPS);
+			
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX	= 0.0f;
 		viewport.TopLeftY	= 0.0f;
@@ -3499,7 +3524,10 @@ out1:
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
 			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
-			resources->InitPixelShader(resources->_ssdoAddPS);
+			if (!g_bEnableHeadLights)
+				resources->InitPixelShader(resources->_ssdoAddPS);
+			else
+				resources->InitPixelShader(resources->_headLightsPS);
 			// Reset the viewport for the final SSAO combine
 			viewport.TopLeftX	= 0.0f;
 			viewport.TopLeftY	= 0.0f;
@@ -3621,7 +3649,10 @@ void PrimarySurface::DeferredPass() {
 	{
 		// input: offscreenAsInput (resolved here), normBuf
 		// output: offscreenBuf, bloomMask
-		resources->InitPixelShader(resources->_ssdoAddPS);
+		if (!g_bEnableHeadLights)
+			resources->InitPixelShader(resources->_ssdoAddPS);
+		else
+			resources->InitPixelShader(resources->_headLightsPS);
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
@@ -3672,7 +3703,10 @@ void PrimarySurface::DeferredPass() {
 		{
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
-			resources->InitPixelShader(resources->_ssdoAddPS);
+			if (!g_bEnableHeadLights)
+				resources->InitPixelShader(resources->_ssdoAddPS);
+			else
+				resources->InitPixelShader(resources->_headLightsPS);
 			// Reset the viewport for the final SSAO combine
 			viewport.TopLeftX = 0.0f;
 			viewport.TopLeftY = 0.0f;

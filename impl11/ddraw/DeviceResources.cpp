@@ -58,6 +58,7 @@
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
+#Include "../Debug/HeadLightsPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -105,6 +106,7 @@
 #include "../Release/AddGeometryVertexShader.h"
 #include "../Release/AddGeometryPixelShader.h"
 #include "../Release/AddGeometryComposePixelShader.h"
+#include "../Release/HeadLightsPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -2823,6 +2825,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3099,6 +3104,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -4059,6 +4067,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			if (bRenderToDC)
 			{
 				// We have just drawn something to the DC buffer, we need to resolve it before the next frame
+				// NOTE: This is executed *before* we run Execute(), so we can't clear the RTVs before this point 
+				// or this resolve operation will also clear the SRVs!
 				this->_d3dDeviceContext->ResolveSubresource(this->_offscreenAsInputDynCockpit,
 					0, this->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
 			}

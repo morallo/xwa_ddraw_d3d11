@@ -3,10 +3,10 @@
 // PSShadingSystemCB
 cbuffer ConstantBuffer : register(b4)
 {
-	float3 MainLight;
+	float3 MainLight; // This is now the headlights' position in viewspace
 	uint LightCount;
 	// 16 bytes
-	float4 MainColor;
+	float4 MainColor; // The headlights color. The w component is the distance
 	// 32 bytes
 	float4 LightVector[MAX_XWA_LIGHTS];
 	// 32+128 = 160 bytes
@@ -26,6 +26,6 @@ cbuffer ConstantBuffer : register(b4)
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
 	// 592 bytes
-	float ambient, ss_unused0, ss_unused1, ss_unused2;
+	float ambient, headlights_angle_cos, ss_unused1, ss_unused2;
 	// 608 bytes
 };
