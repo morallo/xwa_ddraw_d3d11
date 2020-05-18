@@ -143,10 +143,6 @@ Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsDirection(0.0f, 0.0f, 1.0f), g_HeadLightsColor(0.65f, 0.65f, 0.70f);
 float g_fHeadLightsAmbient = 0.15f;
 
-// Dynamic Cockpit
-// The following is used when the Dynamic Cockpit is enabled to render the HUD separately
-//bool g_bHUDVerticesReady = false; // Set to true when the g_HUDVertices array has valid data
-
 // Bloom
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
 extern BloomConfig g_BloomConfig;
@@ -620,6 +616,7 @@ bool g_bGlobalSpecToggle = true;
 extern float g_fConcourseScale, g_fConcourseAspectRatio;
 extern int   g_iDraw2DCounter;
 extern bool  g_bStartedGUI, g_bPrevStartedGUI, g_bIsScaleableGUIElem, g_bPrevIsScaleableGUIElem, g_bScaleableHUDStarted, g_bDynCockpitEnabled;
+extern bool g_bDCWasClearedOnThisFrame;
 extern bool  g_bEnableVR, g_bDisableBarrelEffect;
 extern bool  g_bDumpGUI;
 extern int   g_iDrawCounter, g_iExecBufCounter, g_iPresentCounter, g_iNonZBufferCounter, g_iDrawCounterAfterHUD;
@@ -1914,7 +1911,7 @@ int PrimarySurface::ClearHUDRegions() {
  * Renders the HUD foreground and background and applies the move_region 
  * commands if DC is enabled
  */
-void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
+void PrimarySurface::DrawHUDVertices() {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -2001,7 +1998,6 @@ void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
 		// The original code used _vertexShader:
 		resources->InitVertexShader(resources->_vertexShader);
 	resources->InitPixelShader(resources->_pixelShaderHUD);
-	//resources->InitPixelShader(resources->_pixelShaderTexture);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitRasterizerState(resources->_rasterizerState);
 
@@ -2039,15 +2035,19 @@ void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
 	g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-	// Set the HUD foreground and background textures:
-	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
-	context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitBG_SRV.GetAddressOf());
-	context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
+	// Set the HUD foreground, background and Text textures:
+	ID3D11ShaderResourceView *srvs[3] = {
+		resources->_offscreenAsInputDynCockpitSRV.Get(),
+		resources->_offscreenAsInputDynCockpitBG_SRV.Get(),
+		resources->_DCTextSRV.Get()
+	};
+	context->PSSetShaderResources(0, 3, srvs);
 	// Draw the Left Image
-	if (RenderHUD)
+	//if (RenderHUD)
 		context->Draw(6, 0);
 
 	if (!g_bEnableVR) // Shortcut for the non-VR path
+		//goto out;
 		return;
 
 	// Render the right image
@@ -2074,8 +2074,25 @@ void PrimarySurface::DrawHUDVertices(bool RenderHUD) {
 	g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
-	if (RenderHUD)
+	//if (RenderHUD)
 		context->Draw(6, 0);
+
+	/*
+out:
+	// Restore the state
+	ID3D11ShaderResourceView *null_srvs[3] = { NULL, NULL, NULL };
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
+	context->PSSetShaderResources(0, 3, null_srvs);
+	resources->InitViewport(&g_nonVRViewport);
+	resources->InitVertexShader(resources->_vertexShader);
+	resources->InitPixelShader(resources->_pixelShaderTexture);
+	resources->InitRasterizerState(resources->_rasterizerState);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_inputLayout);
+	//UINT stride = sizeof(D3DTLVERTEX);
+	//UINT offset = 0;
+	//resources->InitVertexBuffer(_vertexBuffer.GetAddressOf(), &stride, &offset);
+	*/
 }
 
 void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
@@ -6988,34 +7005,49 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			if (!g_bDCWasClearedOnThisFrame) {
+				// Clear the DC RTVs -- we should've done this during Execute(); but if the GUI was disabled
+				// then we didn't do it!
+				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+				context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+				g_bDCWasClearedOnThisFrame = true;
+				//log_debug("[DBG] DC Clearing RTVs because GUI was off");
+			}
+
 			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
 			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
-			if (g_config.Radar2DRendererEnabled) 
+			if (g_config.Radar2DRendererEnabled)
 				this->RenderRadar();
 
 			if (g_config.Text2DRendererEnabled)
 				this->RenderText();
 
+			// If we didn't render any GUI/HUD elements so far, then here's the place where we do some management
+			// of the state that is normally done in Execute():
+			// We capture the frame-so-far into shadertoyAuxBuf -- this is needed for the hyperspace effect.
+			if (!g_bSwitchedToGUI) 
+			{
+				g_bSwitchedToGUI = true;
+				// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+				// not travelling through hyperspace:
+				if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
+				{
+					g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+					g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
+					g_lastCockpitXReference	  = PlayerDataTable[*g_playerIndex].cockpitXReference;
+					g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].cockpitYReference;
+					g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
+
+					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+					if (g_bUseSteamVR)
+						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+				}
+			}
+
 			// Render the hyperspace effect if necessary
 			{
-				if (!g_bSwitchedToGUI) {
-					g_bSwitchedToGUI = true;
-					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-					// not travelling through hyperspace:
-					if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-					{
-						g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
-						g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
-						g_lastCockpitXReference   = PlayerDataTable[*g_playerIndex].cockpitXReference;
-						g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].cockpitYReference;
-						g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
-
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-					}
-				}
-
 				// Render the new hyperspace effect
 				if (g_HyperspacePhaseFSM != HS_INIT_ST)
 				{
@@ -7267,6 +7299,7 @@ HRESULT PrimarySurface::Flip(
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
 			//if (g_config.ExternalHUDEnabled)
+			/*
 			if (false)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -7299,6 +7332,7 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
 			}
+			*/
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
@@ -7484,25 +7518,25 @@ HRESULT PrimarySurface::Flip(
 			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) 
 			*/
-			if (true) // For some reason we have to call this or the ESC menu will disappear...
+			// For some reason we have to call this or the ESC menu will disappear...
+			/*
+			 * If the new Text renderer and Bloom are both enabled, then the following block will cause the landing
+			 * sequence to freeze _and I don't know why!_, I suspect the ResolveSubResource from the _offscreenBuffer
+			 * to the _backBuffer isn't working properly; but I don't see why that should be the case. So, instead of
+			 * fixing that, I'm disabling this block when the player is in the hangar, the exterior camera is enabled,
+			 * and the new 2D renderer is enabled.
+			 */
+			//if (!(*g_playerInHangar && bExteriorCamera))
+			//if (true)
+			if (!(*g_playerInHangar && bExteriorCamera && g_config.Text2DRendererEnabled)) 
 			{
-				int num_regions_erased = 0;
 				// Ignore DC erase commands if the cockpit is hidden
-				
 				if (g_bToggleEraseCommandsOnCockpitDisplayed) g_bDCIgnoreEraseCommands = !bCockpitDisplayed;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
 				if (g_bDynCockpitEnabled && !bExteriorCamera)
-					num_regions_erased = ClearHUDRegions();
-				
-				// Display the HUD. This renders to offscreenBuffer/offscreenBufferR
-				// If we have erased all the HUD regions, then there's conceptually nothing left to render
-				// (this is how we avoid rendering the text associated with the triangle pointer: in VR this
-				// is really annoying).
-				// The beam weapon may not be present, so I'm comparing against 8 regions, not 9. This means
-				// that if the beam weapon is not in the cockpit, it will disappear... oh well. Too bad. Let's
-				// just make sure we *always* put the beam weapon somewhere.
+					ClearHUDRegions();
 
-				// DTM's Yavin map exposed a weird bug when the next if is enabled: if the XwingCockpit.dc file
+				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file
 				// doesn't match the XwingCockpit.opt, then we'll erase all HUD regions; but we will not render
 				// any DC elements. Pressing ESC to see the menu while flying only shows a black screen. The black
 				// screen goes away if we remove the next if:
@@ -7512,9 +7546,9 @@ HRESULT PrimarySurface::Flip(
 				// ... also: we need to call DrawHUDVertices to move the HUD regions anyway (but only if there
 				// are any HUD regions that weren't erased!)
 				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
-				// HUD regions were erasedo
+				// HUD regions were erased
 				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
-				DrawHUDVertices(true);
+				DrawHUDVertices();
 			}
 
 			// I should probably render the laser pointer before the HUD; but if I do that, then the
@@ -7553,9 +7587,23 @@ HRESULT PrimarySurface::Flip(
 					} else
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				}
-			} 
-			else // Non-VR mode
+			}
+			else { // Non-VR mode
+				// D3D11CalcSubresource(0, 0, 1),
 				context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+				//context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBuffer);
+				//context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+				//log_debug("[DBG] (%d) offscreenBuffer --> backBuffer", g_iPresentCounter);
+				if (g_bDumpSSAOBuffers)
+					DirectX::SaveDDSTextureToFile(context, resources->_backBuffer, L"C:\\Temp\\_backBuffer.dds");
+			}
+
+			if (g_bDumpSSAOBuffers) 
+			{
+				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-2.jpg");
+				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-2.jpg");
+				DirectX::SaveWICTextureToFile(context, resources->_DCTextMSAA, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-2.jpg");
+			}
 
 			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC
 			{
@@ -7586,6 +7634,7 @@ HRESULT PrimarySurface::Flip(
 				g_bPrevIsTargetHighlighted = g_bIsTargetHighlighted;
 				g_bIsTargetHighlighted = false;
 				g_bExecuteBufferLock = false;
+				g_bDCWasClearedOnThisFrame = false;
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;
@@ -7648,7 +7697,7 @@ HRESULT PrimarySurface::Flip(
 			//g_fHyperTimeOverride += 0.025f;
 			if (g_bHyperDebugMode) {
 				g_fHyperTimeOverride = 1.0f;
-				if (g_fHyperTimeOverride > 2.0f) // 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
+				if (g_fHyperTimeOverride > 2.0f) // Use 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
 					g_fHyperTimeOverride = 0.0f;
 			}
 			/*
@@ -7663,16 +7712,24 @@ HRESULT PrimarySurface::Flip(
 			// Resolve the Dynamic Cockpit FG, BG and Text buffers.
 			// This step has to be done here, after we clear the HUD regions, or we'll erase
 			// the contents of these buffers for the next frame
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) 
+			if (g_bDynCockpitEnabled || g_bReshadeEnabled || g_config.Text2DRendererEnabled) 
 			{
-				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				auto &context = resources->_d3dDeviceContext;
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
 					0, _deviceResources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
 				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
 					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
 				context->ResolveSubresource(_deviceResources->_DCTextAsInput,
 					0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
+
+				/*
+				// Should this block be here? This fixes the HUD not getting cleared when the new 2D Renderer
+				// Is enabled; but it breaks when it isn't
+				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+				context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+				*/
+				//log_debug("[DBG] Resolve DC RTVs.");
 
 				/*static bool bDump = true;
 				if (g_iPresentCounter == 100 && bDump) {
@@ -7683,6 +7740,7 @@ HRESULT PrimarySurface::Flip(
 					bDump = false;
 				}*/
 			}
+			
 			
 			// Enable roll (formerly this was 6dof)
 			if (g_bUseSteamVR) {
@@ -8047,7 +8105,7 @@ HRESULT PrimarySurface::Flip(
 			bool bEnableVSync = g_config.VSyncEnabled;
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
-			//log_debug("[DBG] PRESENT *******************");
+			//log_debug("[DBG] ******************* PRESENT");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;

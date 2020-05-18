@@ -94,22 +94,23 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Execute the move_region commands: copy regions
 	[unroll]
-	for (i = 0; i < DynCockpitSlots; i++) {
+	for (i = 0; i < DynCockpitSlots; i++) 
+	{
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
 		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the HUD FG and BG from a different location:
-			texelColor = texture0.Sample(sampler0, dyn_uv);
+			texelColor   = texture0.Sample(sampler0, dyn_uv);
 			texelColorBG = texture1.Sample(sampler1, dyn_uv);
-			texelText = texture2.Sample(sampler2, dyn_uv);
+			texelText    = texture2.Sample(sampler2, dyn_uv);
 			// Fix the text alpha and blend it with the HUD foreground
 			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
-			texelColor.rgb = lerp(texelColor.rgb, texelText.rgb, textAlpha);
-			texelColor.w = max(texelColor.w, textAlpha);
+			texelColor.rgb  = lerp(texelColor.rgb, texelText.rgb, textAlpha);
+			texelColor.w    = max(texelColor.w, textAlpha);
 
-			alpha = texelColor.w;
+			alpha   = texelColor.w;
 			alphaBG = texelColorBG.w;
 		}
 	}

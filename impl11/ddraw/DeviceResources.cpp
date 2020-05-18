@@ -2313,7 +2313,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Build the vertex buffers
 	if (SUCCEEDED(hr))
 	{
-		// TODO: Put the barrel effect vertex buffer here
 		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		BuildPostProcVertexBuffer();
@@ -4057,7 +4056,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 			// We also render the CMD sub-component bracket here.
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
-			if (bRenderToDC) 
+			if (bRenderToDC)
 			{
 				// We have just drawn something to the DC buffer, we need to resolve it before the next frame
 				this->_d3dDeviceContext->ResolveSubresource(this->_offscreenAsInputDynCockpit,

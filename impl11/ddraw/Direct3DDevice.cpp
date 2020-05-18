@@ -426,6 +426,7 @@ int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
+bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -5602,6 +5603,13 @@ HRESULT Direct3DDevice::Execute(
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-Input.jpg");
+		DirectX::SaveWICTextureToFile(context, resources->_DCTextAsInput, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-Input.jpg");
+	}
+
 	HRESULT hr = S_OK;
 	UINT width, height, left, top;
 	float scale;
@@ -6098,24 +6106,27 @@ HRESULT Direct3DDevice::Execute(
 				//}
 
 				// Clear the Dynamic Cockpit foreground and background RTVs
-				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
+				// We are now clearing the DC RTVs in two places. The other place is in
+				// PrimarySurface, if we reach the Present() path and 
+				// g_bDCWasClearedOnThisFrame is false
+				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) 
+				{
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
-					// HACK
-					//*g_playerInHangar = 1;
-					// We're about to render the scaleable HUD, time to clear the dynamic cockpit texture
-					if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+					// We're about to render the scaleable HUD, time to clear the dynamic cockpit textures
+					if (g_bDynCockpitEnabled || g_bReshadeEnabled) 
+					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
 						context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						g_bDCWasClearedOnThisFrame = true;
+						//log_debug("[DBG] DC Clear RTVs");
 
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-						
 						/*
-
 						[14656] [DBG] PRESENT *******************
 						[14656] [DBG] Render CMD sub-bracket
 						[14656] [DBG] Execute (1)
@@ -6131,7 +6142,6 @@ HRESULT Direct3DDevice::Execute(
 						[14656] [DBG] Render to DC RTV
 						[14656] [DBG] Execute (2)
 						[14656] [DBG] PRESENT *******************
-
 						*/
 					}
 				}
@@ -6322,7 +6332,8 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					State management ends here, special state management starts
 				 *************************************************************************/
-
+				
+				// Resolve the depth buffers. Capture the current screen to shadertoyAuxBuf
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
 					g_bSwitchedToGUI = true;
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
@@ -7248,7 +7259,7 @@ HRESULT Direct3DDevice::Execute(
 				//	goto out;
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
-				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
+				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
 				if (
 					 (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
@@ -7262,7 +7273,7 @@ HRESULT Direct3DDevice::Execute(
 					//	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					//}
 					
-					//log_debug("[DBG] Render to DC RTV");
+					//log_debug("[DBG] RENDER to DC RTV");
 
 					// Restore the non-VR dimensions:
 					g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
@@ -7286,7 +7297,7 @@ HRESULT Direct3DDevice::Execute(
 								resources->_depthStencilViewL.Get());
 						else 
 						{
-							// The new Text Rendered is not enabled; but we can still render the text to its own
+							// The new Text Renderer is not enabled; but we can still render the text to its own
 							// layer so that we can do a more specialized processing, like splitting the text
 							// from the targeted object
 							if (bIsText)
@@ -7298,8 +7309,10 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 					// Enable Z-Buffer if we're drawing the targeted craft
-					if (g_bIsFloating3DObject)
+					if (g_bIsFloating3DObject) {
+						//log_debug("[DBG] Render 3D Floating OBJ to DC RTV");
 						QuickSetZWriteEnabled(TRUE);
+					}
 
 					// Render
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);

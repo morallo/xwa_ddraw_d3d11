@@ -337,7 +337,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
 					break;
 				case 5:
-					g_fCockpitTranslationScale += 0.0005;
+					g_fCockpitTranslationScale += 0.0005f;
 					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				}
@@ -378,7 +378,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
 					break;
 				case 5:
-					g_fCockpitTranslationScale -= 0.0005;
+					g_fCockpitTranslationScale -= 0.0005f;
 					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				}
