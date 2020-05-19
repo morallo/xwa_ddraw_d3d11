@@ -572,7 +572,7 @@ bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
-extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
+extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos, g_fHeadLightsAutoTurnOnThreshold;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -3166,6 +3166,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "headlights_angle") == 0) {
 				g_fHeadLightsAngleCos = cos(0.01745 * fValue);
 			}
+			else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
+				g_fHeadLightsAutoTurnOnThreshold = fValue;
+			}
+
 			else if (_stricmp(param, "reload_materials_enabled") == 0) {
 				g_bReloadMaterialsEnabled = (bool)fValue;
 				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);

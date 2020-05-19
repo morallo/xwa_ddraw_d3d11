@@ -12,37 +12,33 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 
- // The color buffer
+// The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
 
-// The bloom mask buffer
-Texture2D texBloom : register(t1);
-SamplerState samplerBloom : register(s1);
-
 // The SSAO buffer
-Texture2D texSSAO : register(t2);
-SamplerState samplerSSAO : register(s2);
+Texture2D texSSAO : register(t1);
+SamplerState samplerSSAO : register(s1);
 
 // The SSAO mask
-Texture2D texSSAOMask : register(t3);
-SamplerState samplerSSAOMask : register(s3);
+Texture2D texSSAOMask : register(t2);
+SamplerState samplerSSAOMask : register(s2);
 
 // The Normals buffer
-Texture2D texNormal : register(t4);
-SamplerState samplerNormal : register(s4);
+Texture2D texNormal : register(t3);
+SamplerState samplerNormal : register(s3);
 
 // The Foreground 3D position buffer (linear X,Y,Z)
-Texture2D    texPos   : register(t5);
-SamplerState sampPos  : register(s5);
+Texture2D    texPos   : register(t4);
+SamplerState sampPos  : register(s4);
 
 // The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t6);
-SamplerState sampPos2 : register(s6);
+Texture2D    texPos2  : register(t5);
+SamplerState sampPos2 : register(s5);
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
+Texture2D texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -176,7 +172,6 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
-	float4 bloom         = texBloom.Sample(samplerBloom, input.uv);
 	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
 	float3 ssao          = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
 	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;

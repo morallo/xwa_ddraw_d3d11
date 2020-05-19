@@ -140,8 +140,9 @@ extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableHeadLights;
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
-Vector3 g_HeadLightsPosition(0.0f, 0.0f, 50.0f), g_HeadLightsColor(0.65f, 0.65f, 0.70f);
-float g_fHeadLightsAmbient = 0.15f, g_fHeadLightsDistance = 1500.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
+float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 1500.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+float g_fHeadLightsAutoTurnOnThreshold = 0.1f;
 
 // Bloom
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
@@ -2421,12 +2422,21 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			}
 		}
 		if (g_bDumpSSAOBuffers)
-			log_file("[DBG] maxIdx: %d\n\n", maxIdx);
+			log_file("[DBG] maxIdx: %d, maxIntensity: %0.3f\n\n", maxIdx, maxIntensity);
 		g_ShadingSys_PSBuffer.LightCount  = maxLights;
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
 		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
+
+		/*
+		if (0.0f < maxIntensity && maxIntensity < g_fHeadLightsAutoTurnOnThreshold) {
+			if (!g_bEnableHeadLights)
+				log_debug("[DBG] Turning headlights ON. Max: %0.3f, Threshold: %0.3f, num lights: %d",
+					maxIntensity, g_fHeadLightsAutoTurnOnThreshold, maxLights);
+			g_bEnableHeadLights = true;
+		}
+		*/
 
 		// If the headlights are on, then replace the main light with the headlight
 		if (g_bEnableHeadLights) {
@@ -2448,7 +2458,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			headLightDir = ViewMatrix * headLightDir;
 			ViewMatrix.transpose();
 			headLightPos = ViewMatrix * headLightPos;
-			headLightPos.z = -headLightPos.z;
+			headLightPos.z = -headLightPos.z; // Shaders expect Z to be negative so that Z+ points towards the camera
 			//log_debug("[DBG] headLightDir: %0.3f, %0.3f, %0.3f", headLightDir.x, headLightDir.y, headLightDir.z);
 			//log_debug("[DBG] headLightPos: %0.3f, %0.3f, %0.3f", headLightPos.x, headLightPos.y, headLightPos.z);
 			g_ShadingSys_PSBuffer.LightVector[0].x = headLightDir.x;
@@ -2702,13 +2712,12 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		if (!g_bEnableHeadLights)
 			resources->InitPixelShader(resources->_ssaoAddPS);
 		else
-			resources->InitPixelShader(resources->_headLightsPS);
+			resources->InitPixelShader(resources->_headLightsSSAOPS);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[8] = {
+		ID3D11ShaderResourceView *srvs_pass2[7] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			resources->_offscreenAsInputBloomMaskSRV.Get(),			// Bloom mask
 			resources->_ssaoBufSRV.Get(),							// SSAO component
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 			resources->_normBufSRV.Get(),							// Normals
@@ -2716,7 +2725,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			resources->_depthBuf2SRV.Get(),							// Depth buffer 2
 			resources->_ssMaskSRV.Get(),								// Shading System Mask
 		};
-		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->PSSetShaderResources(0, 7, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -2837,21 +2846,20 @@ out1:
 			if (!g_bEnableHeadLights)
 				resources->InitPixelShader(resources->_ssaoAddPS);
 			else
-				resources->InitPixelShader(resources->_headLightsPS);
+				resources->InitPixelShader(resources->_headLightsSSAOPS);
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[8] = {
+			ID3D11ShaderResourceView *srvs_pass2[7] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
 				resources->_ssaoBufSRV_R.Get(),							// SSAO component
-				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
 				resources->_normBufSRV_R.Get(),							// Normals
-				resources->_depthBufSRV_R.Get(),							// Depth buffer 1
+				resources->_depthBufSRV_R.Get(),						// Depth buffer 1
 				resources->_depthBuf2SRV_R.Get(),						// Depth buffer 2
 				resources->_ssMaskSRV_R.Get(),							// Shading System Mask
 			};
-			context->PSSetShaderResources(0, 8, srvs_pass2);
+			context->PSSetShaderResources(0, 7, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}

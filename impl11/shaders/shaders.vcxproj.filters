@@ -62,6 +62,7 @@
     <FxCompile Include="AddGeometryPixelShader.hlsl" />
     <FxCompile Include="AddGeometryComposePixelShader.hlsl" />
     <FxCompile Include="HeadLightsPS.hlsl" />
+    <FxCompile Include="HeadLightsSSAOPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
