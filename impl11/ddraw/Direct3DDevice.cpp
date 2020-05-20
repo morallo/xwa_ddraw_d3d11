@@ -429,6 +429,10 @@ bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebu
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
+/*********************************************************/
+// SHADOW MAPPING
+ShadowMappingData g_ShadowMapping;
+
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
@@ -2806,6 +2810,8 @@ bool LoadSSAOParams() {
 
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
+	g_ShadowMapping.Enabled = false;
+
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -3006,9 +3012,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "add_geom_trans_scale") == 0) {
 				g_fCockpitTranslationScale = fValue;
 			}
-
+			// Shadow Mapping
+			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
+				g_ShadowMapping.Enabled = (bool)fValue;
+			}
 			
-
 			/*
 			else if (_stricmp(param, "flare_aspect_mult") == 0) {
 				g_fFlareAspectMult = fValue;
@@ -3164,7 +3172,7 @@ bool LoadSSAOParams() {
 				g_fHeadLightsDistance = fValue;
 			}
 			else if (_stricmp(param, "headlights_angle") == 0) {
-				g_fHeadLightsAngleCos = cos(0.01745 * fValue);
+				g_fHeadLightsAngleCos = cos(0.01745f * fValue);
 			}
 			else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
 				g_fHeadLightsAutoTurnOnThreshold = fValue;

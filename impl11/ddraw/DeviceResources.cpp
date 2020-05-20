@@ -60,6 +60,8 @@
 #include "../Debug/AddGeometryComposePixelShader.h"
 #Include "../Debug/HeadLightsPS.h"
 #include "../Debug/HeadLightsSSAOPS.h"
+#include "../Debug/ShadowMapPS.h"
+#include "../Debug/ShadowMapVS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -109,6 +111,8 @@
 #include "../Release/AddGeometryComposePixelShader.h"
 #include "../Release/HeadLightsPS.h"
 #include "../Release/HeadLightsSSAOPS.h"
+#include "../Release/ShadowMapPS.h"
+#include "../Release/ShadowMapVS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -157,8 +161,12 @@ extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
+// Speed Effect
 Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 extern float g_fSpeedShaderParticleRange;
+
+// Shadow Mapping
+extern bool g_bShadowMappingEnabled;
 
 bool InitSteamVR();
 void LoadFocalLength();
@@ -1184,6 +1192,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_depthBufSRV_R.Release();
 			this->_depthBuf2SRV_R.Release();
 			this->_renderTargetViewBentBufR.Release();
+		}
+	}
+
+	if (g_ShadowMapping.Enabled) 
+	{
+		this->_shadowMap.Release();
+		this->_shadowMapSRV.Release();
+		this->_shadowMapDSV.Release();
+		if (g_bUseSteamVR) {
+			this->_shadowMapR.Release();
+			this->_shadowMapSRV_R.Release();
+			this->_shadowMapDSV_R.Release();
 		}
 	}
 
@@ -2615,6 +2635,57 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilR, &depthStencilViewDesc, &this->_depthStencilViewR);
 			if (FAILED(hr)) goto out;
 		}
+
+		// Shadow Mapping Textures
+		{
+			depthStencilDesc.Width = g_ShadowMapping.Width;
+			depthStencilDesc.Height = g_ShadowMapping.Height;
+			depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+			depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+			depthStencilDesc.BindFlags = D3D10_BIND_DEPTH_STENCIL | D3D10_BIND_SHADER_RESOURCE;
+
+			step = "_shadowMap";
+			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMap);
+			if (FAILED(hr)) goto out;
+
+			step = "_shadowMapDSV";
+			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(
+				this->_useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D, 
+				DXGI_FORMAT_D32_FLOAT);
+			hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_shadowMapDSV);
+			if (FAILED(hr)) goto out;
+
+			step = "_shadowMapSRV";
+			D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
+			depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+			depthStencilSRVDesc.ViewDimension = this->_useMultisampling ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
+			depthStencilSRVDesc.Texture2D.MipLevels = depthStencilDesc.MipLevels;
+			depthStencilSRVDesc.Texture2D.MostDetailedMip = 0;
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMap, &depthStencilSRVDesc, &this->_shadowMapSRV);
+			if (FAILED(hr)) goto out;
+			
+			if (g_bUseSteamVR) {
+				step = "_shadowMapR";
+				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapR);
+				if (FAILED(hr)) goto out;
+				
+				step = "_shadowMapDSV_R";
+				CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(
+					this->_useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D,
+					DXGI_FORMAT_D32_FLOAT);
+				hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMapR, &depthStencilViewDesc, &this->_shadowMapDSV_R);
+				if (FAILED(hr)) goto out;
+
+				step = "_shadowMapSRV_R";
+				D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
+				depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+				depthStencilSRVDesc.ViewDimension = this->_useMultisampling ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
+				depthStencilSRVDesc.Texture2D.MipLevels = depthStencilDesc.MipLevels;
+				depthStencilSRVDesc.Texture2D.MostDetailedMip = 0;
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapR, &depthStencilSRVDesc, &this->_shadowMapSRV_R);
+				if (FAILED(hr)) goto out;
+			}
+		}
 	}
 
 	/* viewport */
@@ -2831,6 +2902,12 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ShadowMapPS, sizeof(g_ShadowMapPS), nullptr, &_shadowMapPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -3115,6 +3192,12 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ShadowMapPS, sizeof(g_ShadowMapPS), nullptr, &_shadowMapPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -3670,12 +3753,22 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 
 void DeviceResources::InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer* psConstants)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static DCPixelShaderCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(DCPixelShaderCBuffer);
+	//static ID3D11Buffer** currentBuffer = nullptr;
+	//static DCPixelShaderCBuffer currentPSConstants = { 0 };
+	//static int sizeof_constants = sizeof(DCPixelShaderCBuffer);
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(1, 1, buffer);
+}
+
+void DeviceResources::InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer)
+{
+	//static ID3D11Buffer** currentBuffer = nullptr;
+	//static LaserPointerCBuffer currentPSConstants = { 0 };
+	//static int sizeof_constants = sizeof(ShadertoyCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
+	this->_d3dDeviceContext->VSSetConstantBuffers(5, 1, buffer);
 }
 
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)

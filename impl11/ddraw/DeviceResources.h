@@ -380,6 +380,12 @@ typedef struct DCPixelShaderCBStruct {
 	// 448 bytes
 } DCPixelShaderCBuffer;
 
+// Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
+typedef struct ShadowMapVertexShaderMatrixCBStruct {
+	Matrix4 lightViewProj;
+	Matrix4 lightWorldMatrix;
+} ShadowMapVertexShaderMatrixCB;
+
 typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
 	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
@@ -574,6 +580,20 @@ public:
 #define MAX_SPEED_PARTICLES 256
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
+class ShadowMappingData {
+public:
+	bool Enabled;
+	int Width, Height;
+
+	ShadowMappingData() {
+		this->Enabled = false;
+		this->Width = 800;
+		this->Height = 800;
+	}
+};
+
+extern ShadowMappingData g_ShadowMapping;
+
 class DeviceResources
 {
 public:
@@ -610,8 +630,8 @@ public:
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
-
 	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
+	void InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -708,10 +728,11 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // No MSAA
 	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	
 	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
-	ComPtr<ID3D11Texture2D> _ssMask;			 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMask;		 // No MSAA
 	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
-	//ComPtr<ID3D11Texture2D> _ssEmissionMask;	  // No MSAA, Screen-Space emission mask
-	//ComPtr<ID3D11Texture2D> _ssEmissionMaskR; // No MSAA, Screen-Space emission mask
+	// Shadow Mapping
+	ComPtr<ID3D11Texture2D> _shadowMap;
+	ComPtr<ID3D11Texture2D> _shadowMapR;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -755,8 +776,6 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMask;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -795,13 +814,16 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R;  // SRV for ssaoMaskR
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
-	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV;    // SRV for ssEmissionMask
-	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV_R;  // SRV for ssEmissionMaskR
+	// Shadow Mapping
+	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV;
+	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
+	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
+	ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R;
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
 	ComPtr<IDWriteFactory> _dwriteFactory;
@@ -848,6 +870,9 @@ public:
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
 	ComPtr<ID3D11PixelShader> _addGeomPS;
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
+
+	ComPtr<ID3D11PixelShader> _shadowMapPS;
+
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -866,6 +891,7 @@ public:
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
+	ComPtr<ID3D11VertexShader> _shadowMapVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
