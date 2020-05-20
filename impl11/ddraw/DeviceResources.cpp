@@ -390,6 +390,7 @@ DeviceResources::DeviceResources()
 	this->_hyperspaceVertexBuffer = nullptr;
 	this->_bHUDVerticesReady = false;
 	this->_speedParticlesVertexBuffer = nullptr;
+	this->_shadowMappingVSConstantBuffer = nullptr;
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
@@ -1198,6 +1199,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_ShadowMapping.Enabled) 
 	{
 		this->_shadowMap.Release();
+		this->_shadowMapDebug.Release();
 		this->_shadowMapSRV.Release();
 		this->_shadowMapDSV.Release();
 		if (g_bUseSteamVR) {
@@ -2642,10 +2644,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilDesc.Height = g_ShadowMapping.Height;
 			depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-			depthStencilDesc.BindFlags = D3D10_BIND_DEPTH_STENCIL | D3D10_BIND_SHADER_RESOURCE;
+			depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
 			step = "_shadowMap";
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMap);
+			if (FAILED(hr)) goto out;
+
+			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
+			depthStencilDesc.BindFlags = 0;
+			step = "_shadowMapDebug";
+			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapDebug);
 			if (FAILED(hr)) goto out;
 
 			step = "_shadowMapDSV";
@@ -3281,6 +3289,12 @@ HRESULT DeviceResources::LoadResources()
 	// 192 bytes is 3 matrices
 	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(VertexShaderMatrixCB) must be 192");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
+		return hr;
+
+	constantBufferDesc.ByteWidth = 128; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	// 128 bytes is 2 matrices
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 128, "sizeof(ShadowMapVertexShaderMatrixCB) must be 128");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader

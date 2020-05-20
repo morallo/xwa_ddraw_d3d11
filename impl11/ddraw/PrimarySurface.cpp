@@ -107,6 +107,9 @@ extern int g_iSpeedShaderMaxParticles;
 Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
+// SHADOW MAPPING
+extern ShadowMappingData g_ShadowMapping;
+
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
@@ -6627,8 +6630,7 @@ HRESULT PrimarySurface::Flip(
 	auto &device = resources->_d3dDevice;
 	this->_deviceResources->sceneRenderedEmpty = this->_deviceResources->sceneRendered == false;
 	this->_deviceResources->sceneRendered = false;
-
-	//log_debug("[DBG] %d", PlayerDataTable[*g_playerIndex].currentSpeed);
+	bool bHyperspaceFirstFrame = g_bHyperspaceFirstFrame; // Used to clear the shadowMap DSVs *after* they're used
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
@@ -7206,7 +7208,6 @@ HRESULT PrimarySurface::Flip(
 					//	L"C:\\Temp\\_ssaoMask.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
-					//DirectX::SaveDDSTextureToFile(context, resources->_ssEmissionMask, L"C:\\Temp\\_ssEmissionMask.dds");
 					log_debug("[DBG] [AO] Captured debug buffers");
 				}
 
@@ -7256,6 +7257,10 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+					if (g_ShadowMapping.Enabled) {
+						context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
+						DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"C:\\Temp\\_shadowMap.dds");
+					}
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 				}
@@ -7782,7 +7787,13 @@ HRESULT PrimarySurface::Flip(
 					bDump = false;
 				}*/
 			}
-			
+
+			// Clear the Shadow Map buffers
+			if (bHyperspaceFirstFrame && g_ShadowMapping.Enabled) {
+				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+				if (g_bUseSteamVR)
+					context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+			}
 			
 			// Enable roll (formerly this was 6dof)
 			if (g_bUseSteamVR) {

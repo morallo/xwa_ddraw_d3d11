@@ -584,11 +584,26 @@ class ShadowMappingData {
 public:
 	bool Enabled;
 	int Width, Height;
+	D3D11_VIEWPORT ViewPort;
 
 	ShadowMappingData() {
 		this->Enabled = false;
 		this->Width = 800;
 		this->Height = 800;
+		// Initialize the Viewport
+		this->ViewPort.TopLeftX = 0.0f;
+		this->ViewPort.TopLeftY = 0.0f;
+		this->ViewPort.Height   = (float)this->Height;
+		this->ViewPort.Width    = (float)this->Width;
+		this->ViewPort.MinDepth = D3D11_MIN_DEPTH;
+		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
+	}
+
+	void SetSize(int Width, int Height) {
+		this->Width = Width;
+		this->Height = Height;
+		this->ViewPort.Width = (float)Width;
+		this->ViewPort.Height = (float)Height;
 	}
 };
 
@@ -733,6 +748,7 @@ public:
 	// Shadow Mapping
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapR;
+	ComPtr<ID3D11Texture2D> _shadowMapDebug;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -823,7 +839,7 @@ public:
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
 	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
-	ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R;
+	ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
 	ComPtr<IDWriteFactory> _dwriteFactory;
@@ -911,6 +927,7 @@ public:
 	ComPtr<ID3D11Buffer> _hyperspaceConstantBuffer;
 	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
+	ComPtr<ID3D11Buffer> _shadowMappingVSConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;

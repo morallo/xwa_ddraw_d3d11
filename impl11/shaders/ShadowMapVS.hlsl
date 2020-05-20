@@ -21,10 +21,10 @@ cbuffer ConstantBuffer : register(b5)
 
 struct VertexShaderInput
 {
-	float4 pos		: POSITION;
-	float4 color	: COLOR0;
-	float4 normal   : COLOR1;
-	float2 tex		: TEXCOORD;
+	float4 pos      : POSITION;
+	float4 color    : COLOR0;
+	float4 specular : COLOR1;
+	float2 tex      : TEXCOORD;
 };
 
 struct SHADOW_PS_INPUT
@@ -38,7 +38,13 @@ struct SHADOW_PS_INPUT
 SHADOW_PS_INPUT main(VertexShaderInput input)
 {
 	SHADOW_PS_INPUT output;
-	output.pos = mul(lightWorldMatrix, input.pos);
-	output.pos = mul(lightViewProj, output.pos);
+	//output.pos = mul(lightWorldMatrix, input.pos);
+	//output.pos = mul(lightViewProj, output.pos);
+
+	// Regular vertex shader
+	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	output.pos.z = input.pos.z;
+	output.pos.w = 1.0f;
+
 	return output;
 }

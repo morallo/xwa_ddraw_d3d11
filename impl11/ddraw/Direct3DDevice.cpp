@@ -535,6 +535,7 @@ PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
 ShadertoyCBuffer	 g_ShadertoyBuffer;
 LaserPointerCBuffer	 g_LaserPointerBuffer;
+ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -3015,6 +3016,7 @@ bool LoadSSAOParams() {
 			// Shadow Mapping
 			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
 				g_ShadowMapping.Enabled = (bool)fValue;
+				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.Enabled);
 			}
 			
 			/*
@@ -7575,6 +7577,30 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+
+					if (g_ShadowMapping.Enabled && bIsCockpit) {
+						resources->InitViewport(&g_ShadowMapping.ViewPort);
+						
+						// Initialize the Constant Buffer
+						g_ShadowMapVSCBuffer.lightViewProj.identity();
+						g_ShadowMapVSCBuffer.lightWorldMatrix.identity();
+						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+						// Set the Vertex and Pixel Shaders
+						resources->InitVertexShader(resources->_shadowMapVS);
+						resources->InitPixelShader(resources->_shadowMapPS);
+
+						// Set the Shadow Map DSV
+						context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+						// Render the Shadow Map
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+
+						// Restore the previous viewport, etc
+						resources->InitViewport(&g_nonVRViewport);
+						resources->InitVertexShader(resources->_vertexShader);
+						resources->InitPixelShader(lastPixelShader);
+						context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
+					}
 					goto out;
 				}
 
@@ -7618,8 +7644,8 @@ HRESULT Direct3DDevice::Execute(
 				/* // Looks like we no longer need to clear the depth buffers for the targeted object
 				if (!g_bPrevIsFloatingGUI3DObject && g_bIsFloating3DObject) {
 					// The targeted craft is about to be drawn! Clear both depth stencils?
-					context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-					context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+					//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+					//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 				}
 				*/
 
@@ -8319,8 +8345,11 @@ HRESULT Direct3DDevice::BeginScene()
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		if (g_bUseSteamVR)
+		if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		if (g_bUseSteamVR) {
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+			if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		}
 	}
 
 	//log_debug("[DBG] BeginScene RenderMain");
