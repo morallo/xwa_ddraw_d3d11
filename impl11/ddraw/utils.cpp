@@ -5,6 +5,7 @@
 #include "common.h"
 #include "utils.h"
 
+#include <sstream>
 #include <memory>
 #include <gdiplus.h>
 
@@ -15,10 +16,31 @@
 
 using namespace Gdiplus;
 
+void toupper(char *string)
+{
+	int i = 0;
+	while (string[i])
+		string[i] = toupper(string[i]);
+}
+
 std::string wchar_tostring(LPCWSTR text)
 {
 	std::wstring wstr(text);
 	return std::string(wstr.begin(), wstr.end());
+}
+
+std::wstring string_towstring(const std::string& text)
+{
+	std::wstringstream path;
+	path << text.c_str();
+	return path.str();
+}
+
+std::wstring string_towstring(const char* text)
+{
+	std::wstringstream path;
+	path << text;
+	return path.str();
 }
 
 #if LOGGER
@@ -703,6 +725,33 @@ void log_debug(const char *format, ...)
 
 	vsprintf_s(buf, 256, format, args);
 	OutputDebugString(buf);
+
+	va_end(args);
+}
+
+void log_file(const char *format, ...)
+{
+	char buf[256];
+	static FILE *file = NULL;
+	int error = 0;
+	
+	if (file == NULL) {
+		error = fopen_s(&file, "C:\\Temp\\_debug_data.txt", "wt");
+		if (error != 0) {
+			log_debug("[DBG] Error: %d when creating _debug_data.txt", error);
+			return;
+		}
+	}
+
+	if (file == NULL)
+		return;
+
+	va_list args;
+	va_start(args, format);
+
+	vsprintf_s(buf, 256, format, args);
+	fprintf(file, buf);
+	fflush(file);
 
 	va_end(args);
 }

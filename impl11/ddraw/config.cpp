@@ -19,8 +19,10 @@ Config::Config()
 {
 	this->AspectRatioPreserved = true;
 	this->MultisamplingAntialiasingEnabled = false;
+	this->MSAACount = -1;
 	this->AnisotropicFilteringEnabled = true;
 	this->VSyncEnabled = true;
+	this->VSyncEnabledInHangar = true;
 	this->WireframeFillMode = false;
 	this->JoystickEmul = 0;
 
@@ -33,11 +35,31 @@ Config::Config()
 
 	this->ProcessAffinityCore = 2;
 
+	this->D3dHookExists = false;
+
+	this->TextFontFamily = L"Verdana";
+	this->TextWidthDelta = 0;
+
 	this->EnhanceLasers = false;
 	this->EnhanceIllumination = false;
 	this->EnhanceEngineGlow = false;
 
+	this->SwapJoystickXZAxes = false;
+	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
+	this->ExternalHUDEnabled = false;
+	this->TriangleTextEnabled = true;
+	this->TrianglePointerEnabled = true;
+	this->SimplifiedTrianglePointer = false;
+	this->Text2DRendererEnabled = true;
+	this->Radar2DRendererEnabled = true;
+	this->Text2DAntiAlias = true;
+	this->Geometry2DAntiAlias = true;
+
+	if (ifstream("Hook_D3d.dll"))
+	{
+		this->D3dHookExists = true;
+	}
 
 	ifstream file("ddraw.cfg");
 
@@ -63,7 +85,8 @@ Config::Config()
 			name.erase(remove_if(name.begin(), name.end(), std::isspace), name.end());
 
 			string value = line.substr(pos + 1);
-			value.erase(remove_if(value.begin(), value.end(), std::isspace), value.end());
+			value.erase(0, value.find_first_not_of(" \t\n\r\f\v"));
+			value.erase(value.find_last_not_of(" \t\n\r\f\v") + 1);
 
 			if (!name.length() || !value.length())
 			{
@@ -78,6 +101,10 @@ Config::Config()
 			{
 				this->MultisamplingAntialiasingEnabled = stoi(value) != 0;
 			}
+			else if (name == "MSAACount")
+			{
+				this->MSAACount = stoi(value);
+			}
 			else if (name == "EnableAnisotropicFiltering")
 			{
 				this->AnisotropicFilteringEnabled = stoi(value) != 0;
@@ -85,6 +112,10 @@ Config::Config()
 			else if (name == "EnableVSync")
 			{
 				this->VSyncEnabled = stoi(value) != 0;
+			}
+			else if (name == "EnableVSyncInHangar")
+			{
+				this->VSyncEnabledInHangar = stoi(value) != 0;
 			}
 			else if (name == "FillWireframe")
 			{
@@ -97,6 +128,14 @@ Config::Config()
 			else if (name == "ProcessAffinityCore")
 			{
 				this->ProcessAffinityCore = stoi(value);
+			}
+			else if (name == "TextFontFamily")
+			{
+				this->TextFontFamily = string_towstring(value);
+			}
+			else if (name == "TextWidthDelta")
+			{
+				this->TextWidthDelta = stoi(value);
 			}
 			else if (name == "JoystickEmul")
 			{
@@ -130,9 +169,45 @@ Config::Config()
 			{
 				this->EnhanceExplosions = (bool)stoi(value);
 			}
+			else if (name == "EnableFXAA")
+			{
+				this->FXAAEnabled = (bool)stoi(value);
+			}
 			else if (name == "StayInHyperspace")
 			{
 				this->StayInHyperspace = (bool)stoi(value);
+			}
+			else if (name == "ExternalHUDEnabled")
+			{
+				this->ExternalHUDEnabled = (bool)stoi(value);
+			}
+			else if (name == "TriangleTextEnabled")
+			{
+				this->TriangleTextEnabled = (bool)stoi(value);
+			}
+			else if (name == "TrianglePointerEnabled")
+			{
+				this->TrianglePointerEnabled = (bool)stoi(value);
+			}
+			else if (name == "SimplifiedTrianglePointer")
+			{
+				this->SimplifiedTrianglePointer = (bool)stoi(value);
+			}
+			else if (name == "Text2DRendererEnabled")
+			{
+				this->Text2DRendererEnabled = (bool)stoi(value);
+			}
+			else if (name == "Radar2DRendererEnabled") 
+			{
+				this->Radar2DRendererEnabled = (bool)stoi(value);
+			}
+			else if (name == "Text2DAntiAlias")
+			{
+				this->Text2DAntiAlias = (bool)stoi(value);
+			}
+			else if (name == "Geometry2DAntiAlias")
+			{
+				this->Geometry2DAntiAlias = (bool)stoi(value);
 			}
 		}
 	}
@@ -169,7 +244,7 @@ Config::Config()
 					{
 						processAffinityMask &= ~mask;
 					}
-	
+
 					currentCore++;
 				}
 

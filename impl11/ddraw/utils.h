@@ -3,7 +3,11 @@
 
 #pragma once
 
+void toupper(char *string);
+
 std::string wchar_tostring(LPCWSTR text);
+std::wstring string_towstring(const std::string& text);
+std::wstring string_towstring(const char* text);
 
 #if LOGGER
 
@@ -76,3 +80,4 @@ void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWO
 //#endif
 
 void log_debug(const char *format, ...);
+void log_file(const char *format, ...);

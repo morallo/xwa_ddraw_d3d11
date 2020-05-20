@@ -38,14 +38,16 @@ typedef struct CraftMaterialsStruct {
 	char OPTname[MAX_OPT_NAME];
 } CraftMaterials;
 
+typedef struct OPTNameStruct {
+	char name[MAX_OPT_NAME];
+} OPTNameType;
+
 /*
  Contains all the materials for all the OPTs currently loaded
 */
 extern std::vector<CraftMaterials> g_Materials;
-
-typedef struct OPTNameStruct {
-	char name[MAX_OPT_NAME];
-} OPTNameType;
+// List of all the OPTs seen so far
+extern std::vector<OPTNameType> g_OPTnames;
 
 void InitOPTnames();
 void ClearOPTnames();
@@ -63,7 +65,9 @@ public:
 	//uint32_t crc;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
 	// This flag is set during resource Load, by comparing its CRC with the set of known CRCs.
-	bool is_HUD;
+	bool is_Reticle;
+	// This flag is set whenever the target can be fired upon (12000,600 or ... how do I detect this when a custom reticle is used?)
+	bool is_HighlightedReticle;
 	// This flag is set to true if this texture is the triangle pointer
 	bool is_TrianglePointer;
 	// This flag is set to true if this texture is a font/text
@@ -98,6 +102,11 @@ public:
 	bool is_LensFlare;
 	// True for suns in the backdrop dat files
 	bool is_Sun;
+	// True for 3D suns, as in DTM's space missions
+	bool is_3DSun;
+	// True when this texture has been tested against an XWA light
+	//int AssociatedXWALight;
+	int AuxVectorIndex;
 	// True for space debris (used to inhibit them for SSAO)
 	bool is_Debris;
 	// True for warhead trails (used to inhibit SSAO)
@@ -112,8 +121,14 @@ public:
 	bool is_Missile;
 	// True for all textures that should not render SSAO (sets SSAO mask to 1)
 	bool is_GenericSSAOMasked;
-	// True for all skydomes ("*Cielo*") in DTM's planetary maps
+	// True for all skydome textures in DTM's plantery maps
+	bool is_Skydome;
+	// True for all skydome lights in DTM's planetary maps
 	bool is_SkydomeLight;
+	// True for all *.dat files
+	bool is_DAT;
+	// True if this is a blast mark
+	bool is_BlastMark;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 
@@ -143,6 +158,9 @@ public:
 	// **** Materials ****
 	bool bHasMaterial;
 	Material material;
+
+	// **** Back-pointer to the light texture
+	Direct3DTexture *lightTexture;
 
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 

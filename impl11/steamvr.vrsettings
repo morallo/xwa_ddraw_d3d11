@@ -1,0 +1,95 @@
+{
+   "DesktopUI" : {
+      "controllerbinding_desktop" : "0,29,3240,2061,0",
+      "pairing" : "1234,706,800,600,0",
+      "settings_desktop" : "464,290,800,600,0"
+   },
+   "DismissedWarnings" : {
+      "DismissableWarning_DisplayInExtendedMode" : true,
+      "DismissableWarning_RunTutorialAgain" : true
+   },
+   "GpuSpeed" : {
+      "gpuSpeed0" : 61,
+      "gpuSpeed1" : 148,
+      "gpuSpeed2" : 55,
+      "gpuSpeed3" : 305,
+      "gpuSpeed4" : 50,
+      "gpuSpeed5" : 68,
+      "gpuSpeed6" : 125,
+      "gpuSpeed7" : 305,
+      "gpuSpeed8" : 48,
+      "gpuSpeed9" : 127,
+      "gpuSpeedCount" : 10,
+      "gpuSpeedDriver" : "Unknown",
+      "gpuSpeedHorsepower" : 97,
+      "gpuSpeedRenderTargetScale" : 1,
+      "gpuSpeedVendor" : "NVIDIA GeForce GTX 1060",
+      "gpuSpeedVersion" : 2
+   },
+   "LastKnown" : {
+      "HMDManufacturer" : "HTC",
+      "HMDModel" : "Null Model Number"
+   },
+   "collisionBounds" : {
+      "CollisionBoundsStyle" : 1
+   },
+   "dashboard" : {
+      "desktopScale" : 1,
+      "enableDashboard" : false
+   },
+   "direct_mode" : {
+      "count" : 4,
+      "edidPid3" : 948,
+      "edidVid3" : 55629
+   },
+   "driver_huaweinolo" : {
+      "enable" : false
+   },
+   "driver_ivry" : {
+      "psvrCalibration" : "0.751964,0.022975,-0.655087,-0.038882,0.986387,0.018215,0.163427,0.035224,0.000650,0.005836,-0.001368,-0.003581,0.001748"
+   },
+   "driver_nolo" : {
+      "enable" : false
+   },
+   "driver_null" : {
+      "displayFrequency" : 60,
+      "enable" : true,
+      "id" : "Null Driver",
+      "modelNumber" : "Null Model Number",
+      "renderHeight" : 1080,
+      "renderWidth" : 1920,
+      "secondsFromVsyncToPhotons" : 0.01111111,
+      "serialNumber" : "Null 4711",
+      "windowHeight" : 1080,
+      "windowWidth" : 1920,
+      "windowX" : 100,
+      "windowY" : 100
+   },
+   "driver_psvrnolo" : {
+      "enable" : false
+   },
+   "power" : {
+      "pauseCompositorOnStandby" : false
+   },
+   "steamvr" : {
+      "activateMultipleDrivers" : true,
+      "allowSupersampleFiltering" : false,
+      "doNotFadeToGrid" : true,
+      "enableHomeApp" : false,
+      "forcedDriver" : "null",
+      "installID" : "6139007653217840517",
+      "lastVersionNotice" : "1.10.26",
+      "lastVersionNoticeDate" : "1583880399",
+      "mirrorView" : 1,
+      "mirrorViewEye" : 2,
+      "mirrorViewGeometry" : "151 81 1654 906",
+      "preferredRefreshRate" : 60,
+      "showAdvancedSettings" : true,
+      "showMirrorView" : true,
+      "steamvr.forcedDriver" : "null",
+      "supersampleManualOverride" : true
+   },
+   "userinterface" : {
+      "StatusAlwaysOnTop" : false
+   }
+}

@@ -31,6 +31,6 @@ erase_region = SHIELDS_REGION
 [AssaultGunboatCockpit.opt,TEX00035]
 cover_texture = DynamicCockpit\assault-gunboat-front-right.png
 cover_texture_size = 256,256
-uv_coords = LEFT_SENSOR_SRC, 224,204, 174,150; 0x0
+uv_coords = RIGHT_SENSOR_SRC, 224,204, 174,150; 0x0
 erase_region = RIGHT_SENSOR_REGION
 erase_region = BEAM_REGION

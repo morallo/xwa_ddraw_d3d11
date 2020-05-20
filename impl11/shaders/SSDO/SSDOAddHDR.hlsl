@@ -11,6 +11,7 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 #include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -54,6 +55,7 @@ cbuffer ConstantBuffer : register(b2)
 	uint debug;
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -81,6 +83,7 @@ cbuffer ConstantBuffer : register(b3)
 	float white_point, shadow_step, shadow_length, ssao_unused1;
 	// 144 bytes
 };
+*/
 
 struct PixelShaderInput
 {
@@ -202,7 +205,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	float3 temp = ambient;
 	temp += LightColor[0].rgb  * saturate(dot(bentN,  LightVector[0].xyz));
-	temp += invLightColor   * saturate(dot(bentN, -LightVector[0].xyz));
+	//temp += invLightColor   * saturate(dot(bentN, -LightVector[0].xyz));
 	temp += LightColor[1].rgb * saturate(dot(bentN,  LightVector[1].xyz));
 	float3 color = albedo * temp;
 	// Apply tone-mapping:
@@ -211,7 +214,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//color = ReinhardFull(color, gamma*gamma);
 	//color = ToneMapFilmic_Hejl2015(color, gamma);
 	color = ACESFilm(color);
-	color = pow(abs(color), 1.0 / gamma);
+	color = pow(abs(color), 1.0 / 2.2);
 	color = lerp(color, albedo, mask * 0.75);
 	
 	return float4(color, 1);

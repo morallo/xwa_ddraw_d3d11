@@ -11,6 +11,7 @@
 #include "..\shader_common.h"
 #include "..\HSV.h"
 #include "..\shading_system.h"
+#include "..\SSAOPSConstantBuffer.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -55,6 +56,7 @@ cbuffer ConstantBuffer : register(b2)
 	uint debug;
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -87,6 +89,7 @@ cbuffer ConstantBuffer : register(b3)
 	float shadow_k, ssao_unused1, ssao_unused2;
 	// 176 bytes
 };
+*/
 
 struct PixelShaderInput
 {
@@ -201,7 +204,8 @@ inline float2 projectToUV(in float3 pos3D) {
 	// The viewport used to render the original offscreenBuffer may not cover the full
 	// screen, so the uv coords have to be adjusted to the limits of the viewport within
 	// the full-screen quad:
-	P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	//P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1) / 2);
+	P.xy = lerp(float2(p0.x, p1.y), float2(p1.x, p0.y), (P.xy + 1) / 2);
 	return P.xy;
 }
 
@@ -227,8 +231,9 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 		cur_uv		= projectToUV(cur_pos);
 
 		// If the ray has exited the current viewport, we're done:
-		if (cur_uv.x < x0 || cur_uv.x > x1 ||
-			cur_uv.y < y0 || cur_uv.y > y1) {
+		if (any(cur_uv < p0) ||
+			any(cur_uv > p1))
+		{
 			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
 			res = lerp(1, res, weight);
 			return float3(res, cur_length / max_shadow_length, 1);
@@ -264,7 +269,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float2 input_uv_sub = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 albedo = pow(abs(texColor.Sample(sampColor, input.uv).xyz), gamma);
+	float3 albedo = pow(abs(texColor.Sample(sampColor, input.uv).xyz), 2.2);
 	float3 bentN = texBent.Sample(samplerBent, input_uv_sub).xyz; // Looks like bentN is already normalized
 	float3 pos3D = texPos.Sample(sampPos, input.uv).xyz;
 	float3 Normal = texNormal.Sample(samplerNormal, input.uv).xyz;
@@ -276,7 +281,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	float mask = dot(0.333, ssaoMask);
 
 	// Early exit: don't touch the background
-	if (pos3D.z > INFINITY_Z1) return float4(pow(abs(albedo), 1 / gamma), 1);
+	if (pos3D.z > INFINITY_Z1) return float4(pow(abs(albedo), 1.0 / 2.2), 1);
 
 	// Apply Normal Mapping
 	if (fn_enable) {
@@ -327,7 +332,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	//if (shadow > 0) temp = float3(1, 0, 0);
 	float3 color = saturate(albedo * temp);
 	color = lerp(color, albedo, mask * 0.75);
-	return float4(pow(abs(color), 1 / gamma), 1);
+	return float4(pow(abs(color), 1.0 / 2.2), 1);
 	//return float4(projectToUV(pos3D), 0, 1);
 
 	//ssdo = ambient + ssdo; // Add the ambient component

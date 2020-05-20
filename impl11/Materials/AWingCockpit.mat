@@ -3,27 +3,12 @@ Metallic   = 0.25
 Intensity  = 0.5
 Glossiness = 0.1
 
-[TEX00102]
+[TEX00000,TEX00001,TEX00002,TEX00003,TEX00004,TEX00005,TEX00006,TEX00007]
 Metallic   = 0.5
-Intensity  = 0.7
-Glossiness = 0.08
+Intensity  = 0.8
+Glossiness = 0.1
 
-[TEX00001]
+[TEX00027,TEX00028,TEX00029,TEX00030]
 Metallic   = 0.5
-Intensity  = 0.7
-Glossiness = 0.08
-
-[TEX00002]
-Metallic   = 0.5
-Intensity  = 0.7
-Glossiness = 0.08
-
-[TEX00003]
-Metallic   = 0.5
-Intensity  = 0.7
-Glossiness = 0.08
-
-[TEX00004]
-Metallic   = 0.5
-Intensity  = 0.7
-Glossiness = 0.08
+Intensity  = 0.8
+Glossiness = 0.1

@@ -22,8 +22,7 @@ PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 
-	output.pos.x =  (input.pos.x - 0.5) * 2.0;
-	output.pos.y = -(input.pos.y - 0.5) * 2.0;
+	output.pos.xy = (input.pos.xy - 0.5) * float2(2.0, -2.0);
 	output.pos.z = input.pos.z;
 	output.pos.w = 1.0f;
 	output.color = input.color.zyxw;

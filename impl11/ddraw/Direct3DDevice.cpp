@@ -8,6 +8,114 @@
 // _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- SCREEN Resolution
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
+/*
+
+
+************************************************************************************************************
+From: https://xwaupgrade.com/phpBB3/viewtopic.php?f=9&t=12359&start=75
+
+FOV
+
+For 1920x1080:
+
+HUD scale:
+value: 1080 / 600.0f = 1.8
+
+FOV:
+value: 1080 * 1.0666f + 0.5f = 1152
+angle: atan(1080 / 1152) * 2 / pi * 180 = 86.3°
+
+focal_length = in-game-height * 1.0666f + 0.5f
+angle = atan(in-game-height / focal_length) * 2
+The above becomes:
+in-game-height / focal_length = tan(angle / 2.0)
+focal_length = in-game-height / tan(angle / 2.0)
+
+************************************************************************************************************
+
+HANGAR
+
+You can get the hangar object index via this variable:
+
+// V0x009C6E38
+dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
+When the value is different of 0xFFFF, the player craft is in a hangar.
+
+With that index, you can get the object, mobile object and craft structs. From that, you can get the orientation of the mothership.
+You can get the hyperspace phase with the craft state offset (00B).
+
+					Ptr<XwaCraft> ebp = s_XwaObjects[s_V0x09C6E38].pMobileObject->pCraft;
+
+					XwaGetCraftIndex( s_XwaObjects[s_V0x09C6E38].ModelIndex );
+
+					strcpy_s( esp18, "" );
+
+					if( ebp->XwaCraft_m00B == 0x05 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_ENTERING_HYPERSPACE] );
+					}
+					else if( ebp->XwaCraft_m00B == 0x06 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_LEAVING_HYPERSPACE] );
+					}
+					else if( ebp->XwaCraft_m00B == 0x07 )
+					{
+						// "%s %s"
+						sprintf( esp18, "%s %s", s_XwaTieFlightGroups[s_XwaObjects[s_V0x09C6E38].TieFlightGroupIndex].FlightGroup.Name, s_StringsHangarAdditional[StringsHangarAdditional_IN_HYPERSPACE] );
+					}
+
+************************************************************************************************************
+
+The HUD scale is stored here:
+// V0x006002B8
+float s_XwaHudScale = 1.0f;
+
+	The variable that defines if the HUDs are visible is a byte situated at offset 0x0064 in the player table.
+
+		s_XwaPlayers[playerIndex].IsHudVisible
+		0x0064  byte IsHudVisible;
+
+	The variable that defines if the left MFD is visible is a byte situated at offset 0x0067 in the player table.
+
+		!KEY_DELETE!169 Delete Toggle left MFD
+		Key_DELETE
+		s_XwaPlayers[playerIndex].IsHudMfd1Visible
+		0x0067 byte IsHudMfd1Visible;
+
+	The variable that defines if the right MFD is visible is a byte situated at offset 0x0068 in the player table.
+
+		!KEY_PAGEDOWN!173 PageDown Toggle right MFD
+		Key_NEXT
+		s_XwaPlayers[playerIndex].IsHudMfd2Visible
+		0x0068 byte IsHudMfd2Visible;
+
+	The variable that defines if the left sensor / indicator is visible is a byte situated at offset 0x005B5338.
+
+		!KEY_INSERT!168 Insert Toggle Left Sensor / Shield Indicator
+		Key_INSERT
+		byte s_V0x05B5338 = (byte)0x01;
+
+	The variable that defines if the right sensor / indicator is visible is a byte situated at offset 0x005B533C.
+
+		!KEY_PAGEUP!172 PageUp Toggle Right Sensor / Beam Indicator
+		Key_PRIOR
+		byte s_V0x05B533C = (byte)0x01;
+
+	The variable that defines if the center indicators are visible is a byte situated at offset 0x005B5340.
+
+		!KEY_HOME!170 Home Center indicators
+		Key_HOME
+		byte s_V0x05B5340 = (byte)0x01;
+
+	The variable that defines if the toggle CMD is visible is a byte situated at offset 0x005B5334.
+
+		!KEY_END!171 End Toggle CMD
+		Key_END
+		byte s_V0x05B5334 = (byte)0x01;
+*/
+
 #include "common.h"
 #include "..\shaders\material_defs.h"
 #include "DeviceResources.h"
@@ -42,19 +150,23 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
+// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable; but I can't prove that
+// the focal length is actually that because it actually behaves differently.
 // Data provided by keiranhalcyon7:
-uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard - coded with the resolution slots, which are what xwahacker edits
+uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC file (if one is provided)
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
-int g_KeySet = 2;
-/* 
-   1 = Arrow keys move the lights
-   2 = Arrow keys change the FOV
-*/
+bool g_bLastFrameWasExterior = false; // Keeps track of the state of the exterior camera on the last frame
 
-const float DEFAULT_FOCAL_DIST = 2.0f; // This value was determined experimentally.
+#define MOVE_LIGHTS_KEY_SET 1
+#define CHANGE_FOV_KEY_SET 2
+#define MOVE_POINT_LIGHT_KEY_SET 3
+int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV, I can always override this with the "key_set" SSAO.cfg param
+
+const float DEFAULT_FOCAL_DIST = 2.0f; // This value (2.0f) was determined experimentally.
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
 
@@ -180,7 +292,8 @@ typedef enum {
 VRModeEnum g_VRMode = VR_MODE_DIRECT_SBS;
 */
 
-/* SteamVR HMD */
+// ***************************************************************
+// SteamVR HMD
 vr::IVRSystem *g_pHMD = NULL;
 vr::IVRCompositor *g_pVRCompositor = NULL;
 vr::IVRScreenshots *g_pVRScreenshots = NULL;
@@ -195,8 +308,8 @@ bool g_bSteamVRDistortionEnabled = true;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
-Matrix4 g_fullMatrixLeft, g_fullMatrixRight, g_viewMatrix;
-float g_fMetricMult = DEFAULT_METRIC_MULT;
+Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
+float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -217,14 +330,18 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 
 /* Vertices that will be used for the VertexBuffer. */
 D3DTLVERTEX *g_OrigVerts = NULL;
+/* Indices used when D3D hook is present */
+uint32_t *g_OrigIndex = NULL;
 
 // Counter for calls to DrawIndexed() (This helps us know where were are in the rendering process)
 // Gets reset everytime the backbuffer is presented and is increased only after BOTH the left and
 // right images have been rendered.
 int g_iDrawCounter = 0, g_iNoDrawBeforeIndex = 0, g_iNoDrawAfterIndex = -1, g_iDrawCounterAfterHUD = -1;
 // Similar to the above, but only get incremented after each Execute() is finished.
-int g_iExecBufCounter = 0, g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
-int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold for the Skybox
+int /* g_iExecBufCounter = 0, */ g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
+// The Skybox cannot be detected using g_iExecBufCounter anymore when using the hook_d3d because the whole frame is
+// rendered with a single Execute call
+//int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold for the Skybox
 // g_iSkyBoxExecIndex is compared against g_iExecBufCounter to determine when the SkyBox is rendered
 // This is important because in XWAU the SkyBox is *not* rendered at infinity and causes a lot of
 // visual contention if not handled properly.
@@ -245,20 +362,27 @@ bool g_bPrevIsFloatingGUI3DObject = false; // Stores the last value of g_bIsFloa
 bool g_bIsFloating3DObject = false; // true when rendering the targeted 3D object.
 bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
 bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
+bool g_bIsTargetHighlighted = false; // True if the target can  be fired upon, gets reset every frame
+bool g_bPrevIsTargetHighlighted = false; // The value of g_bIsTargetHighlighted for the previous frame
+
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
 int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = -1;
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
+bool g_bResetDC = false;
 
 /*********************************************************/
 // HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
-float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;
+float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
+int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 bool g_bHyperspaceFirstFrame = false, g_bHyperHeadSnapped = false, g_bClearedAuxBuffer = false, g_bSwitchedToGUI = false;
+bool g_bHyperExternalToCockpitTransition = false;
+bool g_bHyperspaceTunnelLastFrame = false, g_bHyperspaceLastFrame = false;
 // DEBUG
 //#define HYPER_OVERRIDE
 bool g_bHyperDebugMode = false;
@@ -280,7 +404,7 @@ float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
 float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = false;
+bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = true;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iLaserDirSelector = 3;
@@ -301,7 +425,8 @@ dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
-bool g_bDCManualActivate = true;
+bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
+bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -316,6 +441,14 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 bool g_bEnableVR = true;
 TrackerType g_TrackerType = TRACKER_NONE;
 
+extern std::vector<Direct3DTexture *> g_AuxTextureVector;
+//XWALightInfoStruct g_bXWALightAuxInfo[MAX_XWA_LIGHTS];
+//void InitHeadingMatrix();
+//Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+Matrix4 GetCurrentHeadingViewMatrix();
+Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+float g_fDebugFOV = 1.0f;
+
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
 const int DEFAULT_BLOOM_PASSES = 5;
@@ -328,19 +461,29 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 // SSAO
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
-extern PSShadingSystemCB		  g_ShadingSys_PSBuffer;
+extern PSShadingSystemCB	  g_ShadingSys_PSBuffer;
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+
+extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
-float g_fSSAOAlphaOfs = 0.5f, g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f;
-float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f;
+float g_fSSAOAlphaOfs = 0.5f;
+//float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lights
+float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
+float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true;
+bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
+float g_fSpeedShaderScaleFactor = 20.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
+float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
+float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
+int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+//float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -372,6 +515,7 @@ bool g_bZoomOut = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
+float g_fDCBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
@@ -385,20 +529,8 @@ VertexShaderMatrixCB g_VSMatrixCB;
 VertexShaderCBuffer  g_VSCBuffer;
 PixelShaderCBuffer   g_PSCBuffer;
 DCPixelShaderCBuffer g_DCPSCBuffer;
-ShadertoyCBuffer		 g_ShadertoyBuffer;
+ShadertoyCBuffer	 g_ShadertoyBuffer;
 LaserPointerCBuffer	 g_LaserPointerBuffer;
-
-struct MainVertex
-{
-	float pos[2];
-	float tex[2];
-	MainVertex() {}
-	MainVertex(float x, float y, float tx, float ty) {
-		pos[0] = x; pos[1] = y;
-		tex[0] = tx; tex[1] = ty;
-	}
-};
-extern MainVertex g_BarrelEffectVertices[6];
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -427,13 +559,41 @@ bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
-/* Reloads all the CRCs. */
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
+bool isInVector(char *OPTname, std::vector<OPTNameType> &vector);
 bool InitDirectSBS();
 void LoadFocalLength();
+
+SmallestK g_LaserList;
+bool g_bEnableLaserLights = false;
+bool g_b3DSunPresent = false;
+bool g_b3DSkydomePresent = false;
+extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
+extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos, g_fHeadLightsAutoTurnOnThreshold;
+
+bool g_bReloadMaterialsEnabled = false;
+Material g_DefaultGlobalMaterial;
+
+void SmallestK::insert(Vector3 P, Vector3 col) {
+	int i = _size - 1;
+	while (i >= 0 && P.z < _elems[i].P.z) {
+		// Copy the i-th element to the (i+1)-th index to make space at i
+		if (i + 1 < MAX_CB_POINT_LIGHTS)
+			_elems[i + 1] = _elems[i];
+		i--;
+	}
+
+	// Insert at i + 1 (if possible) and we're done
+	if (i + 1 < MAX_CB_POINT_LIGHTS) {
+		_elems[i + 1].P = P;
+		_elems[i + 1].col = col;
+		if (_size < MAX_CB_POINT_LIGHTS)
+			_size++;
+	}
+}
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
@@ -562,10 +722,10 @@ void IncreaseSkipNonZBufferDrawIdx(int Delta) {
 	log_debug("[DBG] New g_iSkipNonZBufferDrawIdx: %d", g_iSkipNonZBufferDrawIdx);
 }
 
-void IncreaseSkyBoxIndex(int Delta) {
-	g_iSkyBoxExecIndex += Delta;
-	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
-}
+//void IncreaseSkyBoxIndex(int Delta) {
+//	g_iSkyBoxExecIndex += Delta;
+//	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
+//}
 
 void IncreaseLensK1(float Delta) {
 	g_fLensK1 += Delta;
@@ -603,7 +763,7 @@ void ResetVRParams() {
 	g_fLensK3 = DEFAULT_LENS_K3;
 
 	g_bFixSkyBox = true;
-	g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX;
+	//g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX;
 	g_bSkipText = false;
 	g_bSkipGUI = false;
 	g_bSkipSkyBox = false;
@@ -729,9 +889,9 @@ void SaveVRParams() {
 	fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
 	fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
 	fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
-	fprintf(file, "%s = %0.3f\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
+	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
-	fprintf(file, "\n; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
+	fprintf(file, "; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
 	fprintf(file, "; Positive values = convex warping; negative = concave warping. SteamVR already provides\n");
 	fprintf(file, "; it's own automatic warping effect, so you probably shouldn't enable this in SteamVR mode.\n");
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
@@ -745,7 +905,7 @@ void SaveVRParams() {
 	fprintf(file, "; distortion correction instead\n");
 	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
 
-	fprintf(file, "\n; Depth for various GUI elements in meters from the head's origin.\n");
+	fprintf(file, "; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
 	fprintf(file, "; As a reference, the background starfield is 65km meters away.\n");
 	fprintf(file, "%s = %0.3f\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
@@ -765,9 +925,9 @@ void SaveVRParams() {
 	fprintf(file, "; This is the depth added to the controls in the tech library. Make it negative to bring the\n");
 	fprintf(file, "; controls towards you. Objects in the tech library are obviously scaled by XWA, because there's\n");
 	fprintf(file, "; otherwise no way to visualize both a Star Destroyer and an A-Wing in the same volume.\n");
-	fprintf(file, "%s = %0.3f\n", TECH_LIB_PARALLAX_VRPARAM, g_fTechLibraryParallax);
+	fprintf(file, "%s = %0.3f\n\n", TECH_LIB_PARALLAX_VRPARAM, g_fTechLibraryParallax);
 
-	fprintf(file, "\n; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
+	fprintf(file, "; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
 	fprintf(file, "; able to see all the HUD simply by looking around. You may also lean forward to\n");
 	fprintf(file, "; zoom-in on the text messages to make them more readable.\n");
 	fprintf(file, "%s = %d\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
@@ -857,7 +1017,12 @@ void LoadCockpitLookParams() {
 					log_debug("Tracking disabled");
 					g_TrackerType = TRACKER_NONE;
 				}
+				
 			}
+			/*else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
+				g_bCockpitInertiaEnabled = (bool)fValue;
+				log_debug("[DBG] Cockpit Inertia: %d", g_bCockpitInertiaEnabled);
+			}*/
 			// 6dof parameters
 			else if (_stricmp(param, FREEPIE_SLOT_VRPARAM) == 0) {
 				g_iFreePIESlot = (int)fValue;
@@ -1030,9 +1195,9 @@ int ReadNameFromLine(char *buf, char *name)
  */
 bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coords)
 {
-	float x0, y0, x1, y1;
+	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor;
+	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer;
 	int res = 0, idx = coords->numCoords;
 	char *substr = NULL;
 	char slot_name[50];
@@ -1056,6 +1221,12 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 	try {
 		int len;
 		uColor = 0x121233;
+		hColor = 0x0;
+		wColor = 0x0;
+		obj_layer = 1;
+		text_layer = 1;
+		intensity = 1.0f;
+		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */;
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -1076,7 +1247,7 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x", &x0, &y0, &x1, &y1, &uColor);
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &obj_layer, &hColor, &wColor);
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -1086,10 +1257,53 @@ bool LoadDCUVCoords(char *buf, float width, float height, uv_src_dst_coords *coo
 			coords->dst[idx].y0 = y0 / height;
 			coords->dst[idx].x1 = x1 / width;
 			coords->dst[idx].y1 = y1 / height;
-			//if (res == 5) // A color was read, add the alpha
-			//	uColor = (uColor << 8) | 0xFF;
-			coords->uBGColor[idx] = uColor;
+			// Process the custom intensity
+			if (res >= 6)
+			{
+				uint32_t temp;
+				// bits 0-1: An integer in the range 0..3 that specifies the intensity.
+				if (intensity < 0.0f) intensity = 0.0f;
+				temp = (uint32_t )(intensity) - 1;
+				temp = (temp > 3) ? 3 : temp;
+				uBitField |= temp;
+			}
+			// Process the text layer enable/disable
+			if (res >= 7)
+			{
+				// bit 2 enables the text layer
+				if (text_layer)
+					uBitField |= 0x04;
+				else
+					uBitField &= 0xFB;
+			}
+			// Process the object layer enable/disable
+			if (res >= 8)
+			{
+				// bit 3 enables the object layer
+				if (obj_layer)
+					uBitField |= 0x08;
+				else
+					uBitField &= 0xF7;
+			}
+			// Process the highlight color
+			if (res < 9) 
+			{
+				hColor = uColor;
+			}
+			// Process the highlight color
+			if (res < 10)
+			{
+				wColor = uColor;
+			}
+			// Store the regular and highlight colors
+			coords->uBGColor[idx] = uColor | (uBitField << 24);
+			coords->uHGColor[idx] = hColor | (uBitField << 24);
+			coords->uWHColor[idx] = wColor | (uBitField << 24);
 			coords->numCoords++;
+			//log_debug("[DBG] uColor: 0x%x, hColor: 0x%x, [%s]",
+			//	coords->uBGColor[idx], coords->uHGColor[idx], buf);
+			//log_debug("[DBG] [DC] src_slot: %d, (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+			//	src_slot, x0 / width, y0 / height, x1 / width, y1 / height);
 		}
 	}
 	catch (...) {
@@ -1115,7 +1329,7 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
 		action[i] = toupper(action[i]);
-	log_debug("[DBG] [AC] Translating [%s]", action);
+	//log_debug("[DBG] [AC] Translating [%s]", action);
 
 	// Stop further parsing if this is a void action
 	if (strstr(action, "VOID") != NULL)
@@ -1290,7 +1504,7 @@ bool LoadACAction(char *buf, float width, float height, ac_uv_coords *coords)
 		else {
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
 			TranslateACAction(&(coords->action[idx][0]), action);
-			DisplayACAction(&(coords->action[idx][0]));
+			//DisplayACAction(&(coords->action[idx][0]));
 
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
@@ -1461,167 +1675,120 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize) {
 	snprintf(sFileName, iFileNameSize, "Materials\\%s.mat", OPTName);
 }
 
-/*
- * Load the material parameters for an individual OPT.
- */
-bool LoadIndividualMATParams_old(char *OPTname, char *sFileName) {
-
-	FILE *file;
-	int error = 0, line = 0;
-
-	try {
-		error = fopen_s(&file, sFileName, "rt");
-	}
-	catch (...) {
-		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
-	}
-
-	if (error != 0) {
-		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+bool GetGroupIdImageIdFromDATName(char *DATName, int *GroupId, int *ImageId) {
+	// Extract the Group Id and Image Id from the dat name:
+	// Sample dat name:
+	// [dat,9002,1200,0,0]
+	char *idx = strstr(DATName, "dat,");
+	if (idx == NULL) {
+		log_debug("[DBG] [MAT] Could not find 'dat,' substring in [%s]", DATName);
 		return false;
 	}
+	idx += 4; // Skip the "dat," token, we're now pointing to the first char of the Group Id
+	*GroupId = atoi(idx); // Convert the current string to the Group Id
 
-	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
-	char buf[256], param[128], svalue[128], texname[MAX_TEXNAME];
-	int param_read_count = 0;
-	float fValue = 0.0f;
-	MaterialTexDef curMaterialTexDef;
-
-	// Find this OPT in the global materials and clear it if necessary...
-	int craftIdx = FindCraftMaterial(OPTname);
-	if (craftIdx < 0) {
-		// New Craft Material
-		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
-		//craftIdx = g_Materials.size();
+	// Advance to the next comma
+	idx = strstr(idx, ",");
+	if (idx == NULL) {
+		log_debug("[DBG] [MAT] Error while parsing [%s], could not find ImageId", DATName);
+		return false;
 	}
-	else {
-		// Existing Craft Material, clear it
-		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
-		g_Materials[craftIdx].MaterialList.clear();
-	}
-	CraftMaterials craftMat;
-	// Clear the materials for this craft and add a default material
-	craftMat.MaterialList.clear();
-	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
-
-	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
-	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
-	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
-	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
-	// The default material will always be in slot 0:
-	craftMat.MaterialList.push_back(curMaterialTexDef);
-	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
-
-	// We always start the craft material with one material: the default material in slot 0
-	bool MaterialSaved = true;
-	while (fgets(buf, 256, file) != NULL) {
-		line++;
-		// Skip comments and blank lines
-		if (buf[0] == ';' || buf[0] == '#')
-			continue;
-		if (strlen(buf) == 0)
-			continue;
-
-		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			fValue = (float)atof(svalue);
-
-			if (buf[0] == '[') {
-				// Extract the name of the texture
-				strcpy_s(texname, MAX_TEXNAME, buf + 1);
-				// Get rid of the trailing ']'
-				char *end = strstr(texname, "]");
-				if (end != NULL)
-					*end = 0;
-				//log_debug("[DBG] [MAT] texname: %s", texname);
-
-				if (!MaterialSaved) {
-					// There's an existing material that needs to be saved before proceeding
-
-					// Special case: overwrite the default material
-					if (_stricmp("default", curMaterialTexDef.texname) == 0) {
-						//log_debug("[DBG] [MAT] Overwriting the default material for this craft");
-						craftMat.MaterialList[0] = curMaterialTexDef;
-					}
-					else {
-						//log_debug("[DBG] [MAT] Adding new material: %s", curMaterialTexDef.texname);
-						craftMat.MaterialList.push_back(curMaterialTexDef);
-					}
-				}
-				// Start a new material
-				strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
-				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
-				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
-				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
-				MaterialSaved = false;
-			}
-			else if (_stricmp(param, "Metallic") == 0) {
-				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
-				curMaterialTexDef.material.Metallic = fValue;
-			}
-			else if (_stricmp(param, "Intensity") == 0) {
-				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
-				curMaterialTexDef.material.Intensity = fValue;
-			}
-			else if (_stricmp(param, "Glossiness") == 0) {
-				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
-				curMaterialTexDef.material.Glossiness = fValue;
-			}
-			else if (_stricmp(param, "NMIntensity") == 0) {
-				curMaterialTexDef.material.NMIntensity = fValue;
-			}
-			else if (_stricmp(param, "SpecularVal") == 0) {
-				curMaterialTexDef.material.SpecValue = fValue;
-			}
-		}
-	}
-	fclose(file);
-
-	// Save the last material if necessary...
-	if (!MaterialSaved) {
-		// There's an existing material that needs to be saved before proceeding
-		// Special case: overwrite the default material
-		if (_stricmp("default", curMaterialTexDef.texname) == 0) {
-			//log_debug("[DBG] [MAT] (last) Overwriting the default material for this craft");
-			craftMat.MaterialList[0] = curMaterialTexDef;
-		}
-		else {
-			//log_debug("[DBG] [MAT] (last) Adding new material: %s", curMaterialTexDef.texname);
-			craftMat.MaterialList.push_back(curMaterialTexDef);
-		}
-	}
-
-	// Replace the craft material in g_Materials
-	if (craftIdx < 0) {
-		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
-		g_Materials.push_back(craftMat);
-		craftIdx = g_Materials.size() - 1;
-	}
-	else {
-		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
-		g_Materials[craftIdx] = craftMat;
-	}
-
-	// DEBUG
-	// Print out the materials for this craft
-	log_debug("[DBG] [MAT] *********************");
-	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
-	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
-		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
-		log_debug("[DBG] [MAT] %s, M:%0.3f, I:%0.3f, G:%0.3f",
-			g_Materials[craftIdx].MaterialList[i].texname,
-			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
-	}
-	log_debug("[DBG] [MAT] *********************");
-	// DEBUG
+	idx += 1; // Skip the comma
+	*ImageId = atoi(idx); // Convert the current string to the Image Id
 	return true;
 }
 
 /*
- * Load the material parameters for an individual OPT.
+ * Convert a DAT name into a MAT params file of the form:
+ * Materials\dat-<GroupId>-<ImageId>.mat
+ */
+void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize) {
+	int GroupId, ImageId;
+	// Get the GroupId and ImageId from the DATName, nullify sFileName if we can't extract
+	// the data from the name
+	if (!GetGroupIdImageIdFromDATName(DATName, &GroupId, &ImageId)) {
+		sFileName[0] = 0;
+		return;
+	}
+	// Build the material filename for the DAT texture:
+	snprintf(sFileName, iFileNameSize, "Materials\\dat-%d-%d.mat", GroupId, ImageId);
+}
+
+/*
+ * Loads a Light color row
+ */
+bool LoadLightColor(char *buf, Vector3 *Light)
+{
+	int res = 0;
+	char *c = NULL;
+	float r, g, b;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f", &r, &g, &b);
+			if (res < 3) {
+				log_debug("[DBG] [DC] Error (skipping), expected at least 3 elements in '%s'", c);
+			}
+			Light->x = r;
+			Light->y = g;
+			Light->z = b;
+		}
+		catch (...) {
+			log_debug("[DBG] [DC] Could not read 'r, g, b' from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+void ReadMaterialLine(char *buf, Material *curMaterial) {
+	char param[256], svalue[256]; // texname[MAX_TEXNAME];
+	float fValue = 0.0f;
+
+	// Skip comments and blank lines
+	if (buf[0] == ';' || buf[0] == '#')
+		return;
+	if (strlen(buf) == 0)
+		return;
+
+	// Read the parameter
+	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+		fValue = (float)atof(svalue);
+	}
+
+	if (_stricmp(param, "Metallic") == 0) {
+		//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
+		curMaterial->Metallic = fValue;
+	}
+	else if (_stricmp(param, "Intensity") == 0) {
+		//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
+		curMaterial->Intensity = fValue;
+	}
+	else if (_stricmp(param, "Glossiness") == 0) {
+		//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
+		curMaterial->Glossiness = fValue;
+	}
+	else if (_stricmp(param, "NMIntensity") == 0) {
+		curMaterial->NMIntensity = fValue;
+	}
+	else if (_stricmp(param, "SpecularVal") == 0) {
+		curMaterial->SpecValue = fValue;
+	}
+	else if (_stricmp(param, "Shadeless") == 0) {
+		curMaterial->IsShadeless = (bool)fValue;
+		log_debug("[DBG] Shadeless texture loaded");
+	}
+	else if (_stricmp(param, "Light") == 0) {
+		LoadLightColor(buf, &(curMaterial->Light));
+		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
+		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
+	}
+}
+
+/*
+ * Load the material parameters for an individual OPT or DAT
  */
 bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
@@ -1666,11 +1833,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	craftMat.MaterialList.clear();
 	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
-	curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-	curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
-	curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
-	curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-	curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+	curMaterialTexDef.material = g_DefaultGlobalMaterial;
 	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
 	// The default material will always be in slot 0:
 	craftMat.MaterialList.push_back(curMaterialTexDef);
@@ -1691,14 +1854,14 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
-				
+
 				//strcpy_s(texname, MAX_TEXNAME, buf + 1);
 				// Get rid of the trailing ']'
 				//char *end = strstr(texname, "]");
 				//if (end != NULL)
 				//	*end = 0;
 				//log_debug("[DBG] [MAT] texname: %s", texname);
-				
+
 				if (!MaterialSaved) {
 					// There's an existing material that needs to be saved before proceeding
 					for (TexnameType texname : texnameList) {
@@ -1750,31 +1913,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 				// Start a new material
 				//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
 				curMaterialTexDef.texname[0] = 0;
-				curMaterialTexDef.material.Metallic    = DEFAULT_METALLIC;
-				curMaterialTexDef.material.Intensity   = DEFAULT_SPEC_INT;
-				curMaterialTexDef.material.Glossiness  = DEFAULT_GLOSSINESS;
-				curMaterialTexDef.material.NMIntensity = DEFAULT_NM_INT;
-				curMaterialTexDef.material.SpecValue   = DEFAULT_SPEC_VALUE;
+				curMaterialTexDef.material = g_DefaultGlobalMaterial;
 				MaterialSaved = false;
 			}
-			else if (_stricmp(param, "Metallic") == 0) {
-				//log_debug("[DBG] [MAT] Metallic: %0.3f", fValue);
-				curMaterialTexDef.material.Metallic = fValue;
-			}
-			else if (_stricmp(param, "Intensity") == 0) {
-				//log_debug("[DBG] [MAT] Intensity: %0.3f", fValue);
-				curMaterialTexDef.material.Intensity = fValue;
-			}
-			else if (_stricmp(param, "Glossiness") == 0) {
-				//log_debug("[DBG] [MAT] Glossiness: %0.3f", fValue);
-				curMaterialTexDef.material.Glossiness = fValue;
-			}
-			else if (_stricmp(param, "NMIntensity") == 0) {
-				curMaterialTexDef.material.NMIntensity = fValue;
-			}
-			else if (_stricmp(param, "SpecularVal") == 0) {
-				curMaterialTexDef.material.SpecValue = fValue;
-			}
+			else
+				ReadMaterialLine(buf, &(curMaterialTexDef.material));
 		}
 	}
 	fclose(file);
@@ -1811,7 +1954,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 
 	// DEBUG
 	// Print out the materials for this craft
-	log_debug("[DBG] [MAT] *********************");
+	/*log_debug("[DBG] [MAT] *********************");
 	log_debug("[DBG] [MAT] Craft Materials for OPT: %s", g_Materials[craftIdx].OPTname);
 	for (uint32_t i = 0; i < g_Materials[craftIdx].MaterialList.size(); i++) {
 		Material defMat = g_Materials[craftIdx].MaterialList[i].material;
@@ -1819,11 +1962,82 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 			g_Materials[craftIdx].MaterialList[i].texname,
 			defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	}
-	log_debug("[DBG] [MAT] *********************");
+	log_debug("[DBG] [MAT] *********************");*/
 	// DEBUG
 	return true;
 }
 
+/*
+ * Saves the current FOV to the current dc file -- if it exists
+ */
+bool UpdateXWAHackerFOV()
+{
+	char sFileName[256], *sTempFileName = "./TempDCFile.dc";
+	FILE *in_file, *out_file;
+	int error = 0, line = 0;
+	char buf[256];
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [DC] No DC-enabled cockpit has been loaded, will not write current FOV");
+		return false;
+	}
+
+	snprintf(sFileName, 256, ".\\DynamicCockpit\\%s.dc", g_sCurrentCockpit);
+	log_debug("[DBG] Saving current FOV to Dynamic Cockpit params file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	// Create sTempFileName
+	try {
+		error = fopen_s(&out_file, sTempFileName, "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not create temporary file: [%s]", sTempFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when creating [%s]", error, sTempFileName);
+		return false;
+	}
+
+	bool bFOVWritten = false;
+	float focal_length = *g_fRawFOVDist;
+	float FOV = atan2(g_fCurInGameHeight, focal_length) * 2.0f;
+	FOV *= 180.0f / 3.141592f;
+	log_debug("[DBG] [FOV] FOV that will be saved: %0.3f", FOV);
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+
+		if (strstr(buf, "xwahacker_fov") != NULL) {
+			fprintf(out_file, "xwahacker_fov = %0.3f\n", FOV);
+			bFOVWritten = true;
+		}
+		else
+			fprintf(out_file, buf);
+	}
+
+	// This DC file may not have the "xwahacker_fov" line, so let's add it:
+	if (!bFOVWritten)
+		fprintf(out_file, "\nxwahacker_fov = %0.3f\n", FOV);
+	
+	fclose(out_file);
+	fclose(in_file);
+
+	// Swap the files
+	remove(sFileName);
+	rename(sTempFileName, sFileName);
+	return true;
+}
 
 /*
  * Load the DC params for an individual cockpit. 
@@ -1850,7 +2064,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
@@ -1868,7 +2082,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
 				// This is a new DC element.
@@ -1968,6 +2182,18 @@ bool LoadIndividualDCParams(char *sFileName) {
 			else if (_stricmp(param, COVER_TEX_SIZE_DCPARAM) == 0) {
 				LoadDCCoverTextureSize(buf, &cover_tex_width, &cover_tex_height);
 			}
+			else if (_stricmp(param, "xwahacker_fov") == 0) {
+				log_debug("[DBG] [FOV] [DC] XWA HACKER FOV: %0.3f", fValue);
+				// Prevent nonsensical values:
+				if (fValue < 15.0f) fValue = 15.0f;
+				if (fValue > 170.0f) fValue = 170.0f;
+				// Convert to radians
+				fValue = fValue * 3.141592f / 180.0f;
+				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
+				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
+				// Force the new FOV to be applied
+				g_bCustomFOVApplied = false;
+			}
 		}
 	}
 	fclose(file);
@@ -2031,8 +2257,8 @@ bool LoadIndividualACParams(char *sFileName) {
 					log_debug("[DBG] [AC] Resetting coords of existing AC elem @ idx: %d", lastACElemSelected);
 				}
 				else if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT) {
-					log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
-						ac_elem.name, g_iNumACElements);
+					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+					//	ac_elem.name, g_iNumACElements);
 					//ac_elem.idx = g_iNumACElements; // Generate a unique ID
 					ac_elem.coords = { 0 };
 					ac_elem.bActive = false;
@@ -2040,7 +2266,7 @@ bool LoadIndividualACParams(char *sFileName) {
 					g_ACElements[g_iNumACElements] = ac_elem;
 					lastACElemSelected = g_iNumACElements;
 					g_iNumACElements++;
-					log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
+					//log_debug("[DBG] [AC] Added new ac_elem, count: %d", g_iNumACElements);
 				}
 				else {
 					if (g_iNumACElements >= MAX_AC_TEXTURES_PER_COCKPIT)
@@ -2050,7 +2276,7 @@ bool LoadIndividualACParams(char *sFileName) {
 			else if (_stricmp(param, "texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
 				LoadDCCoverTextureSize(buf, &tex_width, &tex_height);
-				log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
+				//log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
 			}
 			else if (_stricmp(param, "action") == 0) {
 				if (g_iNumACElements == 0) {
@@ -2063,13 +2289,13 @@ bool LoadIndividualACParams(char *sFileName) {
 				}
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
 				// DEBUG
-				g_ACElements[lastACElemSelected].width = (short)tex_width;
+				/*g_ACElements[lastACElemSelected].width = (short)tex_width;
 				g_ACElements[lastACElemSelected].height = (short)tex_height;
 				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
 				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					coords->area[idx].x0, coords->area[idx].y0,
-					coords->area[idx].x1, coords->area[idx].y1);
+					coords->area[idx].x1, coords->area[idx].y1);*/
 				// DEBUG
 			}
 			
@@ -2151,6 +2377,16 @@ bool LoadDCParams() {
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = value;
 			}
+			else if (_stricmp(param, "ignore_erase_commands") == 0) {
+				g_bDCIgnoreEraseCommands = (bool)value;
+			}
+			else if (_stricmp(param, "toggle_erase_commands_on_cockpit_displayed") == 0) {
+				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)value;
+			}
+
+			else if (_stricmp(param, "dc_brightness") == 0) {
+				g_fDCBrightness = value;
+			}
 		}
 	}
 	fclose(file);
@@ -2187,6 +2423,9 @@ bool LoadACParams() {
 		CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
 		bActiveCockpitParamsLoaded = LoadIndividualACParams(sFileName);
 	}
+
+	g_LaserPointerBuffer.bDebugMode = 0;
+	g_LaserPointerBuffer.cursor_radius = 0.01f;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2227,13 +2466,13 @@ bool LoadACParams() {
 			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
 				g_bOriginFromHMD = (bool)fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_x") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_x") == 0) {
 				g_contOriginWorldSpace.x = fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_y") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_y") == 0) {
 				g_contOriginWorldSpace.y = fValue;
 			}
-			else if (_stricmp(param, "controller_origin_init_z") == 0) {
+			else if (_stricmp(param, "cursor_origin_init_z") == 0) {
 				g_contOriginWorldSpace.z = fValue;
 			}
 			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
@@ -2257,6 +2496,9 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "cursor_radius") == 0) {
+				g_LaserPointerBuffer.cursor_radius = fValue;
 			}
 		}
 	}
@@ -2292,6 +2534,8 @@ bool LoadBloomParams() {
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength	  = 0.5f;
 	g_BloomConfig.fSkydomeLightStrength = 0.1f;
+	g_BloomConfig.fBracketStrength    = 0.0f;
+	g_BloomPSCBuffer.general_bloom_strength = 1.0f;
 	// TODO: Complete the list of default values...
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2312,6 +2556,13 @@ bool LoadBloomParams() {
 			}
 
 			// Bloom
+			/*
+			else if (_stricmp(param, "general_bloom_strength") == 0) {
+				g_BloomPSCBuffer.general_bloom_strength = fValue;
+				log_debug("[DBG] [Bloom] general bloom strength: %0.3f",
+					g_BloomPSCBuffer.general_bloom_strength);
+			}
+			*/
 			else if (_stricmp(param, "saturation_strength") == 0) {
 				g_BloomConfig.fSaturationStrength = fValue;
 			}
@@ -2368,6 +2619,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "skydome_light_strength") == 0) {
 				g_BloomConfig.fSkydomeLightStrength = fValue;
+			}
+			else if (_stricmp(param, "bracket_strength") == 0) {
+				g_BloomConfig.fBracketStrength = fValue;
 			}
 			
 			// Bloom strength per pyramid level
@@ -2499,22 +2753,28 @@ bool LoadSSAOParams() {
 
 	// Provide some default values in case they are missing in the config file
 	g_SSAO_PSCBuffer.bias = 0.05f;
-	g_SSAO_PSCBuffer.intensity = 3.0f;
+	g_SSAO_PSCBuffer.intensity = 4.0f;
+	g_SSAO_PSCBuffer.indirect_intensity = 1.5f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
-	g_SSAO_PSCBuffer.bentNormalInit = 1.0f; // 0.2f
-	g_SSAO_PSCBuffer.near_sample_radius = 0.007f;
-	g_SSAO_PSCBuffer.far_sample_radius = 0.0025f;
+	g_SSAO_PSCBuffer.bentNormalInit = 0.1f; // 0.2f
+	g_SSAO_PSCBuffer.near_sample_radius = 0.005f;
+	g_SSAO_PSCBuffer.far_sample_radius = 0.005f;
 	g_SSAO_PSCBuffer.z_division = 0;
 	g_SSAO_PSCBuffer.samples = 8;
-	g_SSAO_PSCBuffer.moire_offset = 0.02f;
+	g_fMoireOffsetDir = 0.02f;
+	g_fMoireOffsetInd = 0.1f;
+	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
 	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
 	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
 	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.ambient = 0.15f;
-	g_SSAO_PSCBuffer.gamma = 1.25f;
+	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
+	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
+	g_SSAO_PSCBuffer.debug = 0;
+	g_SSAO_PSCBuffer.moire_scale = 0.5f; // Previous: 0.1f
 	g_fSSAOAlphaOfs = 0.5;
 	g_SSAO_Type = SSO_AMBIENT;
 	// Default position of the global light (the sun)
@@ -2530,13 +2790,9 @@ bool LoadSSAOParams() {
 	g_LightVector[1].w = 0;
 	g_LightVector[0].normalize();
 
-	// Default color of the shadow
-	g_SSAO_PSCBuffer.invLightR = 0.2666f;
-	g_SSAO_PSCBuffer.invLightG = 0.2941f;
-	g_SSAO_PSCBuffer.invLightB = 0.3254f;
-	// Default view-yaw/pitch signs
-	g_fViewYawSign = 1.0f;
-	g_fViewPitchSign = -1.0f;
+	// Default view-yaw/pitch signs for SSAO.cfg-based lights
+	//g_fViewYawSign = 1.0f;
+	//g_fViewPitchSign = -1.0f;
 
 	// Default values for the shading system CB
 	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
@@ -2545,6 +2801,10 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
+	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f; // Smaller numbers fade less
+	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
+
+	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -2623,7 +2883,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.z_division = (bool)fValue;
 			}
 			else if (_stricmp(param, "bent_normal_init") == 0) {
-				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Defaul: 0.2f
+				g_SSAO_PSCBuffer.bentNormalInit = fValue; // Default: 0.2f
 			}
 			else if (_stricmp(param, "max_dist") == 0) {
 				g_SSAO_PSCBuffer.max_dist = fValue;
@@ -2660,7 +2920,13 @@ bool LoadSSAOParams() {
 				g_bEnableIndirectSSDO = (bool)fValue;
 			}
 			else if (_stricmp(param, "moire_offset") == 0) {
-				g_SSAO_PSCBuffer.moire_offset = fValue;
+				g_fMoireOffsetDir = fValue;
+			}
+			else if (_stricmp(param, "moire_offset_ind") == 0) {
+				g_fMoireOffsetInd = fValue;
+			}
+			else if (_stricmp(param, "moire_scale") == 0) {
+				g_SSAO_PSCBuffer.moire_scale = fValue;
 			}
 			/* else if (_stricmp(param, "add_ssdo_to_indirect_pass") == 0) {
 				g_SSAO_PSCBuffer.addSSDO = (int)fValue;
@@ -2690,9 +2956,66 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "alpha_to_solid_offset") == 0) {
 				g_fSSAOAlphaOfs = fValue;
 			}
-			else if (_stricmp(param, "ssdo_ambient") == 0) {
+			else if (_stricmp(param, "ssdo_ambient") == 0 ||
+					 _stricmp(param, "ambient") == 0) {
 				g_SSAO_PSCBuffer.ambient = fValue;
+				g_ShadingSys_PSBuffer.ambient = fValue;
 			}
+			else if (_stricmp(param, "xwa_lights_saturation") == 0) {
+				g_fXWALightsSaturation = fValue;
+			}
+			else if (_stricmp(param, "xwa_lights_apply_original_intensity") == 0) {
+				g_bApplyXWALightsIntensity = (bool)fValue;
+			}
+			else if (_stricmp(param, "xwa_lights_global_intensity") == 0) {
+				g_fXWALightsIntensity = fValue;
+			}
+			else if (_stricmp(param, "procedural_suns") == 0) {
+				g_bProceduralSuns = (bool)fValue;
+			}
+			else if (_stricmp(param, "flare_intensity") == 0) {
+				g_ShadertoyBuffer.flare_intensity = fValue;
+			}
+			else if (_stricmp(param, "enable_speed_shader") == 0) {
+				g_bEnableSpeedShader = (bool)fValue;
+			}
+			else if (_stricmp(param, "speed_shader_scale_factor") == 0) {
+				g_fSpeedShaderScaleFactor = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_particle_size") == 0) {
+				g_fSpeedShaderParticleSize = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_max_intensity") == 0) {
+				g_fSpeedShaderMaxIntensity = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_trail_length") == 0) {
+				g_fSpeedShaderTrailSize = fValue;
+			}
+			else if (_stricmp(param, "speed_shader_max_particles") == 0) {
+				g_iSpeedShaderMaxParticles = (int )fValue;
+				if (g_iSpeedShaderMaxParticles < 0) g_iSpeedShaderMaxParticles = 0;
+				g_iSpeedShaderMaxParticles = min(g_iSpeedShaderMaxParticles, MAX_SPEED_PARTICLES);
+			}
+			else if (_stricmp(param, "speed_shader_particle_range") == 0) {
+				g_fSpeedShaderParticleRange = fValue;
+			}
+			// Additional Geometry Shader
+			else if (_stricmp(param, "enable_additional_geometry") == 0) {
+				g_bEnableAdditionalGeometry = (bool)fValue;
+			}
+			else if (_stricmp(param, "add_geom_trans_scale") == 0) {
+				g_fCockpitTranslationScale = fValue;
+			}
+
+			
+
+			/*
+			else if (_stricmp(param, "flare_aspect_mult") == 0) {
+				g_fFlareAspectMult = fValue;
+				log_debug("[DBG] g_fFlareAspectMult: %0.3f", g_fFlareAspectMult);
+			}
+			*/
+
 			else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
 			}
@@ -2702,9 +3025,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "HDR_enabled") == 0) {
 				g_bHDREnabled = (bool)fValue;
 			}
+			/*
 			else if (_stricmp(param, "gamma") == 0) {
 				g_SSAO_PSCBuffer.gamma = fValue;
 			}
+			*/
 			else if (_stricmp(param, "shadow_step_size") == 0) {
 				g_SSAO_PSCBuffer.shadow_step_size = fValue;
 			}
@@ -2714,12 +3039,20 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_k") == 0) {
 				g_SSAO_PSCBuffer.shadow_k = fValue;
 			}
+			else if (_stricmp(param, "shadow_epsilon") == 0) {
+				g_SSAO_PSCBuffer.shadow_epsilon = fValue;
+			}
 			else if (_stricmp(param, "shadow_enable") == 0) {
 				g_bShadowEnable = (bool)fValue;
 				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
 			}
+			/*
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
+			}
+			*/
+			else if (_stricmp(param, "Bz_mult") == 0) {
+				g_SSAO_PSCBuffer.Bz_mult = fValue;
 			}
 			else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
@@ -2763,6 +3096,7 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [AO] Light Color2: [%0.3f, %0.3f, %0.3f]",
 					g_LightColor[1].x, g_LightColor[1].y, g_LightColor[1].z);
 			}
+			/*
 			else if (_stricmp(param, "shadow_color") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
@@ -2770,6 +3104,7 @@ bool LoadSSAOParams() {
 				g_SSAO_PSCBuffer.invLightG = y;
 				g_SSAO_PSCBuffer.invLightB = z;
 			}
+			*/
 
 			/* Shading System Settings */
 			else if (_stricmp(param, "specular_intensity") == 0) {
@@ -2797,8 +3132,52 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "key_set") == 0) {
 				g_KeySet = (int)fValue;
-				log_debug("[DBG] [FOV] key_set: %d", g_KeySet);
+				log_debug("[DBG] key_set: %d", g_KeySet);
 			}
+			else if (_stricmp(param, "enable_laser_lights") == 0) {
+				g_bEnableLaserLights = (bool)fValue;
+			}
+			else if (_stricmp(param, "sqr_attenuation") == 0) {
+				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
+			}
+			else if (_stricmp(param, "laser_light_intensity") == 0) {
+				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
+			}
+			else if (_stricmp(param, "headlights_pos") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_HeadLightsPosition.x = x;
+				g_HeadLightsPosition.y = y;
+				g_HeadLightsPosition.z = z;
+			}
+			else if (_stricmp(param, "headlights_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_HeadLightsColor.x = x;
+				g_HeadLightsColor.y = y;
+				g_HeadLightsColor.z = z;
+			}
+			else if (_stricmp(param, "headlights_ambient") == 0) {
+				g_fHeadLightsAmbient = fValue;
+			}
+			else if (_stricmp(param, "headlights_distance") == 0) {
+				g_fHeadLightsDistance = fValue;
+			}
+			else if (_stricmp(param, "headlights_angle") == 0) {
+				g_fHeadLightsAngleCos = cos(0.01745 * fValue);
+			}
+			else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
+				g_fHeadLightsAutoTurnOnThreshold = fValue;
+			}
+
+			else if (_stricmp(param, "reload_materials_enabled") == 0) {
+				g_bReloadMaterialsEnabled = (bool)fValue;
+				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);
+			}
+
+			/*else if (_stricmp(param, "emission_intensity") == 0) {
+				g_ShadingSys_PSBuffer.emission_intensity = fValue;
+			}*/
 			
 		}
 	}
@@ -2832,6 +3211,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
+	g_bHyperDebugMode = false;
 
 	try {
 		error = fopen_s(&file, "./hyperspace.cfg", "rt");
@@ -2861,7 +3241,7 @@ bool LoadHyperParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "y_center") == 0) {
-				g_ShadertoyBuffer.y_center = fValue;
+				//g_ShadertoyBuffer.y_center = fValue;
 			}
 			else if (_stricmp(param, "disney_style") == 0) {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
@@ -2873,7 +3253,8 @@ bool LoadHyperParams() {
 				g_ShadertoyBuffer.twirl = fValue;
 			}
 			else if (_stricmp(param, "FOV_scale") == 0) {
-				g_ShadertoyBuffer.FOVscale = fValue;
+				//g_fOverrideFOVScale = fValue;
+				//g_ShadertoyBuffer.FOVscale = fValue;
 			}
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bHyperDebugMode = (bool)fValue;
@@ -2889,6 +3270,118 @@ bool LoadHyperParams() {
 	fclose(file);
 
 	return true;
+}
+
+bool LoadDefaultGlobalMaterial() {
+	FILE *file;
+	int error = 0, line = 0;
+	char buf[256];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	// Failsafe: populate with constant defaults:
+	g_DefaultGlobalMaterial.Metallic    = DEFAULT_METALLIC;
+	g_DefaultGlobalMaterial.Intensity   = DEFAULT_SPEC_INT;
+	g_DefaultGlobalMaterial.Glossiness  = DEFAULT_GLOSSINESS;
+	g_DefaultGlobalMaterial.NMIntensity = DEFAULT_NM_INT;
+	g_DefaultGlobalMaterial.SpecValue   = DEFAULT_SPEC_VALUE;
+	g_DefaultGlobalMaterial.IsShadeless = false;
+	g_DefaultGlobalMaterial.Light.set(0.0f, 0.0f, 0.0f);
+
+	try {
+		error = fopen_s(&file, "./Materials/DefaultGlobalMaterial.mat", "rt");
+	}
+	catch (...) {
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+	log_debug("[DBG] [MAT] Loading DefaultGlobalMaterial.mat");
+	
+	// Now, try to load the global materials file
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		ReadMaterialLine(buf, &g_DefaultGlobalMaterial);
+	}
+	fclose(file);
+	return true;
+}
+
+void ReloadMaterials() 
+{
+	char *surface_name;
+	char texname[MAX_TEXNAME];
+	bool bIsDat;
+	OPTNameType OPTname;
+
+	if (!g_bReloadMaterialsEnabled) {
+		log_debug("[DBG] [MAT] Material Reloading is not enabled");
+		return;
+	}
+	
+	log_debug("[DBG] [MAT] Reloading materials.");
+	ClearCraftMaterials();
+	ClearOPTnames();
+
+	for (Direct3DTexture *texture : g_AuxTextureVector) {
+		OPTname.name[0] = 0;
+		surface_name = texture->_surface->_name;
+		bIsDat = false;
+		//bIsDat = strstr(surface_name, "dat,") != NULL;
+
+		// Capture the OPT/DAT name and load the material file
+		char *start = strstr(surface_name, "\\");
+		char *end = strstr(surface_name, ".opt");
+		char sFileName[180];
+		if (start != NULL && end != NULL) {
+			start += 1; // Skip the backslash
+			int size = end - start;
+			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
+			if (!isInVector(OPTname.name, g_OPTnames)) {
+				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				// Add the name to the list of OPTnames so that we don't try to process it again
+				g_OPTnames.push_back(OPTname);
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
+				log_debug("[DBG] [MAT] [OPT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
+			}
+		}
+		else if (strstr(surface_name, "dat,") != NULL) {
+			bIsDat = true;
+			// For DAT images, OPTname.name is the full DAT name:
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface_name, strlen(surface_name));
+			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			if (sFileName[0] != 0) {
+				log_debug("[DBG] [MAT] [DAT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName);
+			}
+		}
+
+		int craftIdx = FindCraftMaterial(OPTname.name);
+		//log_debug("[DBG] [MAT] craftIdx: %d", craftIdx);
+		if (bIsDat)
+			texname[0] = 0; // Retrieve the default material
+		else
+		{
+			//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+			char *start = strstr(surface_name, ".opt");
+			// Skip the ".opt," part
+			start += 5;
+			// Find the next comma
+			char *end = strstr(start, ",");
+			int size = end - start;
+			strncpy_s(texname, MAX_TEXNAME, start, size);
+		}
+		//log_debug("[DBG] [MAT] Looking for material for %s", texname);
+		//bool Debug = strstr(surface_name, "CalamariLulsa") != NULL || bIsDat;
+		texture->material = FindMaterial(craftIdx, texname, false);
+		//if (Debug)
+		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
+		texture->bHasMaterial = true;
+	}
 }
 
 /* Loads the VR parameters from vrparams.cfg */
@@ -3053,6 +3546,10 @@ void LoadVRParams() {
 				g_bDCManualActivate = (bool)fValue;
 			}
 
+			else if (_stricmp(param, "frame_time_remaining") == 0) {
+				g_fFrameTimeRemaining = fValue;
+			}
+
 			param_read_count++;
 		}
 	} // while ... read file
@@ -3081,6 +3578,10 @@ next:
 	LoadHyperParams();
 	// Load FOV params
 	LoadFocalLength();
+	// Load the default global material
+	LoadDefaultGlobalMaterial();
+	// Reload the materials
+	ReloadMaterials();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3282,7 +3783,7 @@ void Test2DMesh() {
 		MainVertex(-1,  1, 0, 0),
 	};
 	*/
-	Matrix4 fullMatrixLeft = g_fullMatrixLeft;
+	Matrix4 fullMatrixLeft = g_FullProjMatrixLeft;
 	//fullMatrixLeft.invertGeneral();
 	Vector4 P, Q;
 
@@ -3309,6 +3810,16 @@ void Test2DMesh() {
 
 bool InitSteamVR()
 {
+	/*
+	How to enable the null driver:
+	https://www.reddit.com/r/Vive/comments/6uo053/how_to_use_steamvr_tracked_devices_without_a_hmd/
+
+	steamvr.vrsettings file:
+	C:\Program Files (x86)\Steam\config
+
+	null driver config file:
+	C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers\null\resources\settings
+	*/
 	char *strDriver = NULL;
 	char *strDisplay = NULL;
 	FILE *file = NULL;
@@ -3374,8 +3885,8 @@ bool InitSteamVR()
 	// Override all of the above with the Pimax matrices
 	//TestPimax();
 
-	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
-	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
+	g_FullProjMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
+	g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
 
 	//Test2DMesh();
 
@@ -3532,8 +4043,8 @@ bool InitDirectSBS()
 	g_projLeft.transpose();
 	g_projRight = g_projLeft;
 
-	g_fullMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
-	g_fullMatrixRight = g_projRight * g_EyeMatrixRightInv;
+	g_FullProjMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
+	g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
 
 	//ShowMatrix4(g_EyeMatrixLeftInv, "g_EyeMatrixLeftInv");
 	//ShowMatrix4(g_projLeft, "g_projLeft");
@@ -3587,6 +4098,12 @@ bool HandleVRInput()
 ////////////////////////////////////////////////////////////////
 // End of SteamVR functions
 ////////////////////////////////////////////////////////////////
+
+int g_ExecuteCount;
+int g_ExecuteVertexCount;
+int g_ExecuteIndexCount;
+int g_ExecuteStateCount;
+int g_ExecuteTriangleCount;
 
 class RenderStates
 {
@@ -3981,7 +4498,7 @@ HRESULT Direct3DDevice::CreateExecuteBuffer(
 		return DDERR_INVALIDPARAMS;
 	}
 
-	if (lpDesc->dwBufferSize > this->_maxExecuteBufferSize)
+	if (lpDesc->dwBufferSize > this->_maxExecuteBufferSize || lpDesc->dwBufferSize < this->_maxExecuteBufferSize / 4)
 	{
 		auto& device = this->_deviceResources->_d3dDevice;
 
@@ -4010,7 +4527,7 @@ HRESULT Direct3DDevice::CreateExecuteBuffer(
 		this->_maxExecuteBufferSize = lpDesc->dwBufferSize;
 	}
 
-	*lplpDirect3DExecuteBuffer = new Direct3DExecuteBuffer(this->_deviceResources, lpDesc->dwBufferSize);
+	*lplpDirect3DExecuteBuffer = new Direct3DExecuteBuffer(this->_deviceResources, lpDesc->dwBufferSize * 2, this);
 
 #if LOGGER
 	str.str("");
@@ -4077,9 +4594,9 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float &x, float &
 
 	PX.set(X, -Y, -Z, 1.0f);
 	if (eye == vr::EVREye::Eye_Left) {
-		PX = g_fullMatrixLeft * PX;
+		PX = g_FullProjMatrixLeft * PX;
 	} else {
-		PX = g_fullMatrixRight * PX;
+		PX = g_FullProjMatrixRight * PX;
 	}
 	// Project
 	PX /= PX[3];
@@ -4110,6 +4627,7 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+/*
 // Should this function be inlined?
 // See:
 // xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
@@ -4155,24 +4673,26 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 		triangle++;
 	}
 }
+*/
 
 void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	
 	log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		vert = g_OrigVerts[index];
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
 
-		index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 
-		index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		triangle++;
 	}
@@ -4184,9 +4704,15 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 	float *minU, float *minV, float *maxU, float *maxV,
 	bool debug) 
 {
+	/* 
+	 * If the D3D hook is active, we need to use the index buffer directly and 
+	 * switch to 32-bit indices. If not, we can continue to use the triangle and
+	 * 16-bit indices.
+	 */
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
+	uint32_t index;
+	UINT idx = curIndex;
 	float px, py, u, v;
 	*maxX = -1000000; *maxY = -1000000;
 	*minX =  1000000; *minY =  1000000;
@@ -4196,7 +4722,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -4208,7 +4734,8 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
 		}
 
-		index = triangle->v2;
+		//index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -4220,7 +4747,8 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
 		}
 
-		index = triangle->v3;
+		//index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -4235,6 +4763,12 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 	}
 	if (debug)
 		log_debug("[DBG] END Geom");
+}
+
+inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
+{
+	*x_out = left + x / g_fCurInGameWidth * width;
+	*y_out = top + y / g_fCurInGameHeight * height;
 }
 
 /*
@@ -4406,15 +4940,15 @@ bool rayTriangleIntersect(
 #endif 
 }
 
-// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// Back-project a 2D vertex (specified in in-game coords)
 // into 3D, just like we do in the VertexShader or SBS VertexShader:
-inline void backProject(WORD index, Vector3 *P) {
+inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 	// The code to back-project is slightly different in DirectSBS/SteamVR
 	// This code comes from VertexShader.hlsl/SBSVertexShader.hlsl
 	float3 temp;
 	// float3 temp = input.pos.xyz;
-	temp.x = g_OrigVerts[index].sx;
-	temp.y = g_OrigVerts[index].sy;
+	temp.x = sx;
+	temp.y = sy;
 
 	// Normalize into the 0..2 or 0.0..1.0 range
 	//temp.xy *= vpScale.xy;
@@ -4425,42 +4959,40 @@ inline void backProject(WORD index, Vector3 *P) {
 	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
 	// Direct-SBS:
 	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
-	
-	if (g_bEnableVR) 
-	{ 
+
+	if (g_bEnableVR)
+	{
 		// SBSVertexShader
 		// temp.xy -= 0.5;
-		temp.x += -0.5f; 
+		temp.x += -0.5f;
 		temp.y += -0.5f;
 		// temp.xy is now in the range -0.5 ..  0.5
-	}
-	else
-	{ 
-		// VertexShader
-		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y +=  1.0f;
-		// temp.x is now in the range -1.0 ..  1.0 and
-		// temp.y is now in the range  1.0 .. -1.0
-	}
-	
-	if (g_bEnableVR) 
-	{
+
 		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+
+		// TODO: The code below hasn't been tested in VR:
+		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / rhw);
 	}
-	else 
+	else
 	{
+		// Code from VertexShader
+		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		temp.y += 1.0f;
+		// temp.x is now in the range -1.0 ..  1.0 and
+		// temp.y is now in the range  1.0 .. -1.0
+
 		// The center of the screen may not be the center of projection. The y-axis seems to be a bit off.
 		// temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 		temp.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
 		temp.y *= g_VSCBuffer.viewportScale[2];
 		// temp.x is now in the range -0.5 ..  0.5 and (?)
 		// temp.y is now in the range  0.5 .. -0.5 (?)
-	}
 
-	// temp.z = METRIC_SCALE_FACTOR * w;
-	temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / g_OrigVerts[index].rhw);
+		// temp.z = METRIC_SCALE_FACTOR * w;
+		temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw);
+	}
 
 	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
@@ -4468,7 +5000,7 @@ inline void backProject(WORD index, Vector3 *P) {
 	P->x = temp.z * temp.x / g_fFocalDist;
 	P->y = temp.z * temp.y / g_fFocalDist;
 	P->z = temp.z;
-	if (g_bEnableVR) 
+	if (g_bEnableVR)
 	{
 		// Further adjustment of the coordinates for the DirectSBS case:
 		//output.pos3D = float4(P.x, -P.y, P.z, 1);
@@ -4478,7 +5010,14 @@ inline void backProject(WORD index, Vector3 *P) {
 	}
 }
 
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into 3D, just like we do in the VertexShader or SBS VertexShader:
+inline void backProject(WORD index, Vector3 *P) {
+	backProject(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
+}
+
+// The return values sx,sy are the screen coords (in in-game coords). Use them for debug purposes only
+inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */)
 {
 	Vector3 P = pos3D;
 	//float w;
@@ -4509,7 +5048,9 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		// So let's transform to the range 0..1 for post-proc coords:
 		P.x = P.x * 0.5f + 0.5f;
 		P.y = P.y * 0.5f + 0.5f;
-	} else {
+	} 
+	else {
+		// Non-VR processing from this point on:
 		// (x0,y0)-(x1,y1) are the viewport limits
 		float x0 = g_LaserPointerBuffer.x0;
 		float y0 = g_LaserPointerBuffer.y0;
@@ -4517,7 +5058,6 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		float y1 = g_LaserPointerBuffer.y1;
 		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
 		
-		// Non-VR processing from this point on:
 		// P.xy = P.xy / P.z;
 		P.x *= g_fFocalDist / P.z;
 		P.y *= g_fFocalDist / P.z;
@@ -4533,11 +5073,14 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 		P.y /= g_VSCBuffer.viewportScale[1];
 		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
 
+		// *******************************************************
 		// P is now in in-game coordinates (CONFIRMED!), where:
 		// (0,0) is the upper-left *original* viewport corner, and:
-		// (	g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// (g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
 		// Note that the *original* viewport does not necessarily cover the whole screen
 		//return P; // Return in-game coords
+		//if (sx != NULL) *sx = P.x;
+		//if (sy != NULL) *sy = P.y;
 
 		// At this point, P.x * viewPortScale[0] converts P.x to the range 0..2, in the original viewport (?)
 		// P.y * viewPortScale[1] converts P.y to the range 0..-2 in the original viewport (?)
@@ -4558,71 +5101,288 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 	return P;
 }
 
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx,
-	Vector3 orig, Vector3 dir, 
-	//Vector3 *v0, Vector3 *v1, Vector3 *v2, Vector3 *P, 
-	bool debug) 
+inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+{
+	Vector3 P = pos3D;
+	//float w;
+	// Whatever is placed in P is returned at the end of this function
+
+	if (g_bEnableVR) {
+		float w;
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Q = projEyeMatrix * viewMatrix * Q;
+
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		w = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
+		P.x /= w;
+		P.y /= w;
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	}
+	else {
+		// (x0,y0)-(x1,y1) are the viewport limits
+		float x0 = g_LaserPointerBuffer.x0;
+		float y0 = g_LaserPointerBuffer.y0;
+		float x1 = g_LaserPointerBuffer.x1;
+		float y1 = g_LaserPointerBuffer.y1;
+		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
+
+		// Non-VR processing from this point on:
+		// P.xy = P.xy / P.z;
+		P.x *= g_fFocalDist / P.z;
+		P.y *= g_fFocalDist / P.z;
+
+		// Convert to vertex pos:
+		// P.xy /= (vpScale.z * float2(aspect_ratio, 1));
+		P.x /= (g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio);
+		P.y /= (g_VSCBuffer.viewportScale[2]);
+		P.x -= -1.0f;
+		P.y -= 1.0f;
+		// P.xy /= vpScale.xy;
+		P.x /= g_VSCBuffer.viewportScale[0];
+		P.y /= g_VSCBuffer.viewportScale[1];
+		//P.z = 1.0f / w; // Not necessary, this computes the original rhw
+
+		// *******************************************************
+		// P is now in in-game coordinates (CONFIRMED!), where:
+		// (0,0) is the upper-left *original* viewport corner, and:
+		// (g_fCurInGameWidth, g_fCurInGameHeight) is the lower-right *original* viewport corner
+		// Note that the *original* viewport does not necessarily cover the whole screen
+		//return P; // Return in-game coords
+	}
+	return P;
+}
+
+// From: https://blackpawn.com/texts/pointinpoly/default.html
+bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v) {
+	// Compute vectors        
+	Vector2 v0 = C - A;
+	Vector2 v1 = B - A;
+	Vector2 v2 = P - A;
+
+	// Compute dot products
+	float dot00 = v0.dot(v0);
+	float dot01 = v0.dot(v1);
+	float dot02 = v0.dot(v2);
+	float dot11 = v1.dot(v1);
+	float dot12 = v1.dot(v2);
+
+	// Compute barycentric coordinates
+	float invDenom = 1.0f / (dot00 * dot11 - dot01 * dot01);
+	*u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+	*v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+	// Points in this scheme are described as:
+	// P = A + u * (C - A) + v * (B - A)
+
+	// Check if point is in triangle
+	//return (u >= 0.0f) && (v >= 0.0f) && (u + v < 1.0f);
+	return (*u >= -0.000001f) && (*v >= -0.000001f) && (*u + *v < 1.000001f);
+}
+
+/*
+ Computes the centroid of the given texture, returns a metric 3D point in space.
+ We're using this to find the center of the Suns to add lens flare, etc.
+
+ Returns true if the centroid could be computed (i.e. if the centroid is visible)
+ 
+ ------------------------------------------------------------------------------------
+ Perspective-correct interpolation, from: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/perspective-correct-interpolation-vertex-attributes
+
+ A = Z * (A0/Z0 * (1 - q) + A1/Z1 * q)
+
+ Where:
+
+	 A0 is the attribute at vertex 0
+	 A1 is the attribute at vertex 1
+	 Z0 is the Z value at vertex 0
+	 Z1 is the Z value at vertex 1
+	 Z  is the Z value at the point we're interpolating
+	 q  is the cursor that goes from 0 to 1
+	 A  is the attribute at the current point we're interpolating
+ */
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
+
+	Vector3 tempv0, tempv1, tempv2, tempP;
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		backProject(index, &tempv0);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		backProject(index, &tempv1);
+		
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		backProject(index, &tempv2);
+
+		float u, v;
+		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
+			// Confirm:
+			//Vector2 Q = UV0 + u * (UV2 - UV0) + v * (UV1 - UV0);
+			//log_debug("[DBG] Q: %0.3f, %0.3f", Q.x, Q.y); // This should *always* display 0.5, 0.5
+			
+			// Compute the 3D vertex where the UV coords are 0.5, 0.5. By using the back-projected
+			// 3D vertices, we automatically get perspective-correct results when projecting back to 2D:
+			*Centroid = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			
+			/*
+			q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
+			
+			float X, Y;
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+			Centroid->x = X;
+			Centroid->y = Y;
+			*/
+			return true;
+		}
+		
+		triangle++;
+	}
+
+	// For DirectSBS and especially for SteamVR, we need to backproject this
+	// 2D coordinate into 3D and then project it into each eye using the
+	// camera matrices.
+	/*
+	Vector3 P, Q;
+	backProject(cx, cy, 1.0f / cz, &P);
+	Q = project(P, g_viewMatrix, g_fullMatrixLeft);
+	g_ShadertoyBuffer.SunXL = Q.x;
+	g_ShadertoyBuffer.SunYL = Q.y;
+	log_debug("[DBG] Qx,Qy: %0.3f, %0.3f, %0.3f", Q.x, Q.y);
+	if (g_bUseSteamVR) {
+		Q = project(P, g_viewMatrix, g_fullMatrixLeft);
+		g_ShadertoyBuffer.SunXR = Q.x;
+		g_ShadertoyBuffer.SunYR = Q.y;
+	}
+	*/
+
+	return false;
+}
+
+// DEBUG
+//FILE *colorFile = NULL, *lightFile = NULL;
+// DEBUG
+
+bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex,
+	Vector3 orig, Vector3 dir, bool debug)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	D3DTLVERTEX vert;
-	WORD index;
-	float u, v, U0, V0, U1, V1, U2, V2;
+	uint32_t index;
+	UINT idx = curIndex;
+	float u, v, U0, V0, U1, V1, U2, V2; // , dx, dy;
 	float best_t = 10000.0f;
 	bool bIntersection = false;
 
 	Vector3 tempv0, tempv1, tempv2, tempP;
 	float tempt, tu, tv;
 
+	/*
+	FILE *outFile = NULL;
+	if (g_bDumpSSAOBuffers) {
+		if (colorFile == NULL)
+			fopen_s(&colorFile, "./colorVertices.obj", "wt");
+		if (lightFile == NULL)
+			fopen_s(&lightFile, "./lightVertices.obj", "wt");
+		outFile = texture->is_LightTexture ? lightFile : colorFile;
+	}
+	*/
+
 	if (debug)
 		log_debug("[DBG] START Geom");
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = triangle->v1;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		backProject(index, &tempv0);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = triangle->v2;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		backProject(index, &tempv1);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = triangle->v3;
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		backProject(index, &tempv2);
+		/* if (g_bDumpSSAOBuffers) {
+			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
+			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
+		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",
+			Vector3 q = project(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,
-				q.x, q.y, 1.0f/q.z);
+				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
 		// Check the intersection with this triangle
 		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
-		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv)) 
+		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv))
 		{
+			//if (isACTex) tempt -= 0.01f; // Make AC elements a little more likely to be considered before other textures
+			//if (g_bDumpLaserPointerDebugInfo)
+			//	log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
 			if (tempt < g_fBestIntersectionDistance)
 			{
+				//if (g_bDumpLaserPointerDebugInfo)
+				//	log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
 				// Update the best intersection so far
 				g_fBestIntersectionDistance = tempt;
 				g_LaserPointer3DIntersection = tempP;
@@ -4630,14 +5390,14 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				g_debug_v0 = tempv0;
 				g_debug_v1 = tempv1;
 				g_debug_v2 = tempv2;
-				
+
 				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
 				//*P = tempP;
 
 				// Interpolate the texture UV using the barycentric (tu, tv) coords:
 				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
 				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-				
+
 				g_LaserPointerBuffer.uv[0] = u;
 				g_LaserPointerBuffer.uv[1] = v;
 
@@ -4645,6 +5405,10 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				g_LaserPointerBuffer.bIntersection = 1;
 			}
 		}
+		/*else {
+			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
+				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
+		}*/
 		triangle++;
 	}
 
@@ -4653,10 +5417,52 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 	return bIntersection;
 }
 
-inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
+void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
 {
-	*x_out = left + x / g_fCurInGameWidth  * width;
-	*y_out = top  + y / g_fCurInGameHeight * height;
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	float u,v;
+	Vector3 pos3D;
+
+	// XWA batch renders all lasers that share the same texture, so we may see several
+	// lasers when parsing this instruction. So, to detect each individual laser, we need
+	// to look at the uv's: if the current uv is close to (1,1), then we know that's the
+	// tip of one individual laser and we add it to the current list.
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		u = g_OrigVerts[index].tu;
+		v = g_OrigVerts[index].tv;
+		if (u > 0.9f && v > 0.9f)
+		//if (u < 0.1f && v < 0.1f)
+		{
+			backProject(index, &pos3D);
+			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		triangle++;
+	}
 }
 
 /*
@@ -4772,6 +5578,10 @@ HRESULT Direct3DDevice::Execute(
 	LogText(str.str());
 #endif
 
+	g_ExecuteCount++;
+
+	//log_debug("[DBG] Execute (1)");
+
 	if (lpDirect3DExecuteBuffer == nullptr)
 	{
 #if LOGGER
@@ -4797,52 +5607,51 @@ HRESULT Direct3DDevice::Execute(
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
 
-	/*if (!g_bCustomFOVApplied) {
-		log_debug("[DBG] [FOV] Applying Custom FOV from Execute()");
-		LoadFocalLength(); // Doesn't work here, need to do it after the first frame is rendered
-		g_bCustomFOVApplied = true;
-	}*/
+	// Applying the custom FOV doesn't work here, it has to be done after the first frame is rendered
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-Input.jpg");
+		DirectX::SaveWICTextureToFile(context, resources->_DCTextAsInput, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-Input.jpg");
+	}
 
 	HRESULT hr = S_OK;
 	UINT width, height, left, top;
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	D3D11_MAPPED_SUBRESOURCE map;
-	bool bModifiedShaders = false, bZWriteEnabled = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
-	g_VSCBuffer.cockpit_threshold = g_fGUIElemPZThreshold;
-	g_VSCBuffer.bPreventTransform = 0.0f;
-	g_VSCBuffer.bFullTransform	  = 0.0f;
-	g_VSCBuffer.metric_mult		  = g_fMetricMult;
+	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
+	g_VSCBuffer.bPreventTransform =  0.0f;
+	g_VSCBuffer.bFullTransform	  =  0.0f;
+	g_VSCBuffer.metric_mult		  =  g_fMetricMult;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
 	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
 	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
-	g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
-	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
-	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
-	g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
+	g_PSCBuffer.fSSAOMaskVal    = g_DefaultGlobalMaterial.Metallic * 0.5f;
+	g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
+	g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
 	
 	g_DCPSCBuffer = { 0 };
-	g_DCPSCBuffer.ct_brightness	 = g_fCoverTextureBrightness;
+	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
+	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
 
-	// Save the current viewMatrix: if the Dynamic Cockpit is enabled, we'll need it later to restore the transform
-	//Matrix4 currentViewMat = g_VSMatrixCB.viewMat;
-	//bool bModifiedViewMatrix = false;
-	
 	char* step = "";
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
@@ -4856,21 +5665,8 @@ HRESULT Direct3DDevice::Execute(
 	this->_deviceResources->InitRasterizerState(resources->_rasterizerState);
 	ID3D11PixelShader *lastPixelShader = resources->_pixelShaderTexture;
 
-	int numVerts = executeBuffer->_executeData.dwVertexCount;
-	size_t vertsLength = sizeof(D3DTLVERTEX) * numVerts;
-	g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
 	float displayWidth  = (float)resources->_displayWidth;
 	float displayHeight = (float)resources->_displayHeight;
-
-	// Copy the vertex data to the vertexbuffers
-	step = "VertexBuffer";
-	hr = context->Map(this->_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-	if (SUCCEEDED(hr))
-	{
-		memcpy(map.pData, g_OrigVerts, vertsLength);
-		context->Unmap(this->_vertexBuffer, 0);
-	}
-	resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
 
 	// Constant Buffer step (and aspect ratio)
 	if (SUCCEEDED(hr))
@@ -4932,6 +5728,7 @@ HRESULT Direct3DDevice::Execute(
 			scale *= g_config.Concourse3DScale;
 		}
 
+		//const float viewportScale[4] = { 2.0f / (float)this->_deviceResources->_displayWidth, -2.0f / (float)this->_deviceResources->_displayHeight, scale, 0 };
 		if (g_bEnableVR) {
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
@@ -4941,12 +5738,11 @@ HRESULT Direct3DDevice::Execute(
 			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
 			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
 		}
-		g_VSCBuffer.viewportScale[2] = scale;
+		g_VSCBuffer.viewportScale[2]  = scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
-		g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		//g_VSCBuffer.post_proj_scale  = g_fPostProjScale;
+		g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
-		g_VSCBuffer.aspect_ratio = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
 		g_VSCBuffer.z_override        = -1.0f;
@@ -4960,6 +5756,7 @@ HRESULT Direct3DDevice::Execute(
 		g_SSAO_PSCBuffer.vpScale[3] = g_VSCBuffer.viewportScale[3];
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+		//this->_deviceResources->InitConstantBuffer(this->_deviceResources->_constantBuffer.GetAddressOf(), viewportScale);
 		//g_fXWAScale = scale; // Store the current scale, the Dynamic Cockpit will use this value
 
 		/*
@@ -4974,56 +5771,91 @@ HRESULT Direct3DDevice::Execute(
 		*/
 	}
 
+	// VertexBuffer Step
+	if (SUCCEEDED(hr))
+	{
+		step = "VertexBuffer";
+		
+		//g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
+		g_ExecuteVertexCount += executeBuffer->_executeData.dwVertexCount;
+
+		if (!g_config.D3dHookExists)
+		{
+			D3D11_MAPPED_SUBRESOURCE map;
+			hr = context->Map(this->_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
+			{
+				size_t length = sizeof(D3DTLVERTEX) * executeBuffer->_executeData.dwVertexCount;
+				g_OrigVerts = (D3DTLVERTEX *)executeBuffer->_buffer;
+				memcpy(map.pData, executeBuffer->_buffer, length);
+				//memset((char*)map.pData + length, 0, this->_maxExecuteBufferSize - length);
+
+				context->Unmap(this->_vertexBuffer, 0);
+			}
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			UINT stride = sizeof(D3DTLVERTEX);
+			UINT offset = 0;
+
+			this->_deviceResources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &stride, &offset);
+		}
+	}
+
 	// IndexBuffer Step
 	if (SUCCEEDED(hr))
 	{
 		step = "IndexBuffer";
 
-		D3D11_MAPPED_SUBRESOURCE map;
-		hr = context->Map(this->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
+		if (!g_config.D3dHookExists)
 		{
-			char* pData = executeBuffer->_buffer + executeBuffer->_executeData.dwInstructionOffset;
-			char* pDataEnd = pData + executeBuffer->_executeData.dwInstructionLength;
+			D3D11_MAPPED_SUBRESOURCE map;
+			hr = context->Map(this->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 
-			WORD* index = (WORD*)map.pData;
-
-			while (pData < pDataEnd)
+			if (SUCCEEDED(hr))
 			{
-				LPD3DINSTRUCTION instruction = (LPD3DINSTRUCTION)pData;
-				pData += sizeof(D3DINSTRUCTION) + instruction->bSize * instruction->wCount;
-				int aux_idx = 0;
+				char* pData = executeBuffer->_buffer + executeBuffer->_executeData.dwInstructionOffset;
+				char* pDataEnd = pData + executeBuffer->_executeData.dwInstructionLength;
 
-				switch (instruction->bOpcode)
-				{
-				case D3DOP_TRIANGLE:
-				{
-					LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+				WORD* indice = (WORD*)map.pData;
 
-					for (WORD i = 0; i < instruction->wCount; i++)
+				while (pData < pDataEnd)
+				{
+					LPD3DINSTRUCTION instruction = (LPD3DINSTRUCTION)pData;
+					pData += sizeof(D3DINSTRUCTION) + instruction->bSize * instruction->wCount;
+
+					switch (instruction->bOpcode)
 					{
-						*index = triangle->v1;
-						index++;
+					case D3DOP_TRIANGLE:
+					{
+						LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 
-						*index = triangle->v2;
-						index++;
+						for (WORD i = 0; i < instruction->wCount; i++)
+						{
+							*indice = triangle->v1;
+							indice++;
 
-						*index = triangle->v3;
-						index++;
+							*indice = triangle->v2;
+							indice++;
 
-						triangle++;
+							*indice = triangle->v3;
+							indice++;
+
+							triangle++;
+						}
+					}
 					}
 				}
-				}
+
+				context->Unmap(this->_indexBuffer, 0);
 			}
-
-			context->Unmap(this->_indexBuffer, 0);
 		}
-
+		
 		if (SUCCEEDED(hr))
 		{
-			this->_deviceResources->InitIndexBuffer(this->_indexBuffer);
+			this->_deviceResources->InitIndexBuffer(this->_indexBuffer, g_config.D3dHookExists);
 		}
 	}
 
@@ -5044,9 +5876,11 @@ HRESULT Direct3DDevice::Execute(
 
 			switch (instruction->bOpcode)
 			{
-				// lastTextureSelected is updated here, in the TEXTUREHANDLE subcase
+			// lastTextureSelected is updated here, in the TEXTUREHANDLE subcase
 			case D3DOP_STATERENDER:
 			{
+				g_ExecuteStateCount += instruction->wCount;
+
 				LPD3DSTATE state = (LPD3DSTATE)(instruction + 1);
 
 				for (WORD i = 0; i < instruction->wCount; i++)
@@ -5060,9 +5894,7 @@ HRESULT Direct3DDevice::Execute(
 
 						if (texture == nullptr)
 						{
-							ID3D11ShaderResourceView* view = nullptr;
-							context->PSSetShaderResources(0, 1, &view);
-
+							resources->InitPSShaderResourceView(nullptr);
 							pixelShader = resources->_pixelShaderSolid;
 							// Nullify the last texture selected
 							lastTextureSelected = NULL;
@@ -5070,7 +5902,7 @@ HRESULT Direct3DDevice::Execute(
 						else
 						{
 							texture->_refCount++;
-							context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
+							this->_deviceResources->InitPSShaderResourceView(texture->_textureView.Get());
 							texture->_refCount--;
 
 							pixelShader = resources->_pixelShaderTexture;
@@ -5081,7 +5913,10 @@ HRESULT Direct3DDevice::Execute(
 						}
 
 						resources->InitPixelShader(pixelShader);
+						// Save the last pixel shader set (in this case, that's either the
+						// pixelshadertexture or the pixelshadersolid
 						lastPixelShader = pixelShader;
+						bModifiedPixelShader = false;
 						break;
 					}
 
@@ -5121,6 +5956,9 @@ HRESULT Direct3DDevice::Execute(
 
 			case D3DOP_TRIANGLE:
 			{
+				g_ExecuteTriangleCount++;
+				g_ExecuteIndexCount += instruction->wCount * 3;
+
 				step = "SamplerState";
 				D3D11_SAMPLER_DESC samplerDesc = this->_renderStates->GetSamplerDesc();
 				if (FAILED(hr = this->_deviceResources->InitSamplerState(nullptr, &samplerDesc)))
@@ -5181,7 +6019,9 @@ HRESULT Direct3DDevice::Execute(
 					We're using a non-exhaustive list of GUI CRCs to tell when the 3D content has finished drawing.
 				*/
 
-				/* ZWriteEnabled is false when rendering the background starfield or when
+				const bool bExternalCamera = (bool)PlayerDataTable[*g_playerIndex].externalCamera;
+				/* 
+				 * ZWriteEnabled is false when rendering the background starfield or when
 				 * rendering the GUI elements -- except that the targetting computer GUI
 				 * is rendered with ZWriteEnabled == true. This is probably done to clear
 				 * the depth stencil in the area covered by the targeting computer, so that
@@ -5189,58 +6029,84 @@ HRESULT Direct3DDevice::Execute(
 				 * interfering with the z-values of the cockpit.
 				 */
 				bZWriteEnabled = this->_renderStates->GetZWriteEnabled();
-
 				/* If we have drawn at least one Floating GUI element and now the ZWrite has been enabled
 				   again, then we're about to draw the floating 3D element. Although, g_bTargetCompDrawn
 				   isn't fully semantically correct because it should be set to true *after* it has actually
 				   been drawn. Here it's being set *before* it's drawn. */
 				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
 					g_bTargetCompDrawn = true;
-				bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
-				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
-				bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				// lastTextureSelected can be NULL. This happens when drawing the square
+				// brackets around the currently-selected object (and maybe other situations)
+				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
+				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false;
+				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
+				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
+				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
+				if (bLastTextureSelectedNotNULL) {
+					bIsLaser = lastTextureSelected->is_Laser;
+					bIsLightTexture = lastTextureSelected->is_LightTexture;
+					bIsText = lastTextureSelected->is_Text;
+					bIsReticle = lastTextureSelected->is_Reticle;
+					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
+					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
+					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
+					bIsGUI = lastTextureSelected->is_GUI;
+					bIsLensFlare = lastTextureSelected->is_LensFlare;
+					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
+					bIsSun = lastTextureSelected->is_Sun;
+					bIsCockpit = lastTextureSelected->is_CockpitTex;
+					bIsGunner = lastTextureSelected->is_GunnerTex;
+					bIsExterior = lastTextureSelected->is_Exterior;
+					bIsDAT = lastTextureSelected->is_DAT;
+					bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
+					bIsBlastMark = lastTextureSelected->is_BlastMark;
+					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
+				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
-				g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				//g_bIsSkyBox = !bZWriteEnabled && g_iExecBufCounter <= g_iSkyBoxExecIndex;
+				g_bIsSkyBox = !bZWriteEnabled && !g_bSkyBoxJustFinished && bLastTextureSelectedNotNULL && lastTextureSelected->is_DAT;
 				g_bIsTrianglePointer = bLastTextureSelectedNotNULL && lastTextureSelected->is_TrianglePointer;
-				bool bIsLightTexture = bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture;
-				bool bIsText = bLastTextureSelectedNotNULL && lastTextureSelected->is_Text;
-				bool bIsAimingHUD = bLastTextureSelectedNotNULL && lastTextureSelected->is_HUD;
-				bool bIsGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_GUI;
-				bool bIsLensFlare = bLastTextureSelectedNotNULL && lastTextureSelected->is_LensFlare;
-				bool bIsHyperspaceTunnel = bLastTextureSelectedNotNULL && lastTextureSelected->is_HyperspaceAnim;
-				bool bIsSun = bLastTextureSelectedNotNULL && lastTextureSelected->is_Sun;
-				bool bIsCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->is_CockpitTex;
-				bool bIsGunner = bLastTextureSelectedNotNULL && lastTextureSelected->is_GunnerTex;
-				bool bIsExterior = bLastTextureSelectedNotNULL && lastTextureSelected->is_Exterior;
 				g_bPrevIsPlayerObject = g_bIsPlayerObject;
 				g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
+				const bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
+				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
+				// Hysteresis detection (state is about to switch to render something different, like the HUD)
+				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
+				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
+					!lastTextureSelected->is_Text && !lastTextureSelected->is_TrianglePointer &&
+					!lastTextureSelected->is_Reticle && !lastTextureSelected->is_Floating_GUI &&
+					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
+
+				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
+					// The skybox just finished, capture it, replace it, etc
+					g_bSkyBoxJustFinished = true;
+					// Capture the background; but only if we're not in hyperspace -- we don't want to
+					// capture the black background used by the game!
+				}
+				// bIsNoZWrite is true if ZWrite is disabled and the SkyBox has been rendered.
+				// bIsBracket depends on bIsNoZWrite 
+				//const bool bIsNoZWrite = !bZWriteEnabled && g_iExecBufCounter > g_iSkyBoxExecIndex;
+				const bool bIsNoZWrite = !bZWriteEnabled && g_bSkyBoxJustFinished;
 				// In the hangar, shadows are enabled. Shadows don't have a texture and are rendered with
 				// ZWrite disabled. So, how can we tell if a bracket is being rendered or a shadow?
 				// Brackets are rendered with ZFunc D3DCMP_ALWAYS (8),
 				// Shadows  are rendered with ZFunc D3DCMP_GREATEREQUAL (7)
 				// Cockpit Glass & Engine Glow are rendered with ZFunc D3DCMP_GREATER (5)
-				bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
+				const bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
-				bool bIsFloatingGUI = bLastTextureSelectedNotNULL && lastTextureSelected->is_Floating_GUI;
-				//bool bIsTranspOrGlow = bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER;
-				bool bIsActiveCockpit = bLastTextureSelectedNotNULL && lastTextureSelected->ActiveCockpitIdx > -1;
-				// Hysteresis detection (state is about to switch to render something different, like the HUD)
-				g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
-				g_bIsFloating3DObject = g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					!lastTextureSelected->is_Text && !lastTextureSelected->is_TrianglePointer &&
-					!lastTextureSelected->is_HUD && !lastTextureSelected->is_Floating_GUI &&
-					!lastTextureSelected->is_TargetingComp && !bIsLensFlare;
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
-				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI;
+				// Apr 10, 2020: g_bDisableDiffuse will make the reticle look white when the HUD is
+				// hidden. To prevent this, I added bIsAimingHUD to g_bStartedGUI; but I don't know
+				// if this breaks VR. If it does, then I need to add !bIsAimingHUD around line 6425,
+				// where I'm setting fDisableDiffuse = 1.0f
+				g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsReticle;
 				// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 				g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
-				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsAimingHUD && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
-
-				// lastTextureSelected can be NULL. This happens when drawing the square
-				// brackets around the currently-selected object (and maybe other situations)
+				g_bIsScaleableGUIElem = g_bStartedGUI && !bIsReticle && !bIsBracket && !g_bIsTrianglePointer && !bIsLensFlare;
 
 				//if (g_bReshadeEnabled && !g_bPrevStartedGUI && g_bStartedGUI) {
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
@@ -5249,36 +6115,55 @@ HRESULT Direct3DDevice::Execute(
 					//		resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				//}
 
-				if (g_bPrevIsSkyBox && !g_bIsSkyBox && !g_bSkyBoxJustFinished) {
-					// The skybox just finished, capture it, replace it, etc
-					g_bSkyBoxJustFinished = true;
-					// Capture the background; but only if we're not in hyperspace -- we don't want to
-					// capture the black background used by the game!
-				}
-
 				// Clear the Dynamic Cockpit foreground and background RTVs
-				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) {
+				// We are now clearing the DC RTVs in two places. The other place is in
+				// PrimarySurface, if we reach the Present() path and 
+				// g_bDCWasClearedOnThisFrame is false
+				if (!g_bPrevIsScaleableGUIElem && g_bIsScaleableGUIElem && !g_bScaleableHUDStarted) 
+				{
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
-					// HACK
-					//*g_playerInHangar = 1;
-					// We're about to render the scaleable HUD, time to clear the dynamic cockpit texture
-					if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+					// We're about to render the scaleable HUD, time to clear the dynamic cockpit textures
+					if (g_bDynCockpitEnabled || g_bReshadeEnabled) 
+					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+						context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						g_bDCWasClearedOnThisFrame = true;
+						//log_debug("[DBG] DC Clear RTVs");
+
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+						/*
+						[14656] [DBG] PRESENT *******************
+						[14656] [DBG] Render CMD sub-bracket
+						[14656] [DBG] Execute (1)
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] Replacing cockpit textures with DC
+						...
+						[14656] [DBG] Replacing cockpit textures with DC
+						[14656] [DBG] DC RTV CLEARED
+						[14656] [DBG] Render to DC RTV
+						[14656] [DBG] Render to DC RTV
+						...
+						[14656] [DBG] Render to DC RTV
+						[14656] [DBG] Execute (2)
+						[14656] [DBG] PRESENT *******************
+						*/
 					}
 				}
-				bool bRenderToDynCockpitBuffer = g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
+
+				const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+				const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					(bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem);
 				bool bRenderToDynCockpitBGBuffer = false;
 
 				// Render HUD backgrounds to their own layer (HUD BG)
-				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc)
+				if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					(bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc))
 					bRenderToDynCockpitBGBuffer = true;
 
 				/*
@@ -5302,6 +6187,9 @@ HRESULT Direct3DDevice::Execute(
 					switch (g_HyperspacePhaseFSM) {
 					case HS_INIT_ST:
 						g_PSCBuffer.bInHyperspace = 0;
+						g_bHyperExternalToCockpitTransition = false;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 2) {
 							// Hyperspace has *just* been engaged. Save the current cockpit camera heading so we can restore it
 							g_bHyperspaceFirstFrame = true;
@@ -5314,19 +6202,45 @@ HRESULT Direct3DDevice::Execute(
 							if (*numberOfPlayersInGame == 1) {
 								PlayerDataTable[*g_playerIndex].cockpitCameraYaw = g_fLastCockpitCameraYaw;
 								PlayerDataTable[*g_playerIndex].cockpitCameraPitch = g_fLastCockpitCameraPitch;
+								// Restoring the cockpitX/Y/Z/Reference didn't seem to have any effect when cockpit inertia was on:
+								//PlayerDataTable[*g_playerIndex].cockpitXReference = g_lastCockpitXReference;
+								//PlayerDataTable[*g_playerIndex].cockpitYReference = g_lastCockpitYReference;
+								//PlayerDataTable[*g_playerIndex].cockpitZReference = g_lastCockpitZReference;
 							}
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+							// Compute a new random seed for this hyperspace jump
+							g_fHyperspaceRand = (float)rand() / (float)RAND_MAX;
+							if (g_bLastFrameWasExterior)
+								// External view --> Cockpit transition for the hyperspace jump
+								g_bHyperExternalToCockpitTransition = true;
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
+						// UPDATE 3/30/2020:
+						// This whole block was removed to support cockpit inertia. The aux buffer can't be cleared
+						// on the first hyperspace frame because it will otherwise "blink". We have to clear this
+						// buffer *after* the first hyperspace frame has been rendered. This is now done in
+						// PrimarySurface::Flip() after the first hyperspace frame has been presented. I also removed
+						// all the conditions, so this buffer is now cleared all the time. Later I'll have to fix
+						// that to allow blending the background with the trails; but... later
+
 						// Clear the captured offscreen buffer if the cockpit camera has changed from the pose
 						// it had when entering hyperspace, or clear it if we're using any VR mode, because chances
 						// are the user's head position moved anyway if 6dof is enabled.
+						// If we clear this buffer *at this point* when cockpit inertia is enabled, then we'll see
+						// the screen blink. We need to preserve this buffer for the first hyperspace frame: it can
+						// be cleared later. When rendering non-VR, we inhibit the first hyperspace frame, so we need
+						// this.
+						// This whole block may have to be removed for TrackIR/VR; but we also need to make sure we're
+						// inhibiting the first frame in those cases.
+						/*
 						if (!g_bClearedAuxBuffer &&
-							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR ||
+							  (g_bEnableVR || g_TrackerType == TRACKER_TRACKIR || // g_bCockpitInertiaEnabled ||
 							     (
 							        PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fCockpitCameraYawOnFirstHyperFrame ||
 							        PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fCockpitCameraPitchOnFirstHyperFrame
@@ -5336,13 +6250,17 @@ HRESULT Direct3DDevice::Execute(
 						{
 							float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 							g_bClearedAuxBuffer = true;
+							// DEBUG save the aux buffer for analysis
+							//DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
+							//	L"C:\\Temp\\_shadertoyBuf.jpg");
+							// DEBUG
+
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-							if (g_bUseSteamVR) {
-								//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-							}
+							if (g_bUseSteamVR)
+								context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 						}
+						*/
 
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
@@ -5352,16 +6270,22 @@ HRESULT Direct3DDevice::Execute(
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
 								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
 								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
-								g_LightColor[i].x = fade * 0.3f;
-								g_LightColor[i].y = fade * 0.4f;
-								g_LightColor[i].z = fade * 0.9f;
+								g_LightColor[i].x = /* fade * */ 0.10f;
+								g_LightColor[i].y = /* fade * */ 0.15f;
+								g_LightColor[i].z = /* fade * */ 1.50f;
 							}
+							// Reset the Sun --> XWA light association every time we enter hyperspace
+							//for (uint32_t i = 0; i < g_AuxTextureVector.size(); i++)
+							//	g_AuxTextureVector[i]->AssociatedXWALight = -1;
 						}
 						break;
 					case HS_HYPER_TUNNEL_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
+							g_bHyperspaceTunnelLastFrame = true;
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							// Restore the previous color of the lights
@@ -5378,23 +6302,26 @@ HRESULT Direct3DDevice::Execute(
 								g_bClearedAuxBuffer = true;
 								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								if (g_bUseSteamVR) {
-									//context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-									context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								}
+								if (g_bUseSteamVR)
+									context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 							}
 						}
 						break;
 					case HS_HYPER_EXIT_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+							g_bHyperspaceLastFrame = true;
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
 						g_PSCBuffer.bInHyperspace = 1;
+						g_bHyperspaceLastFrame = false;
+						g_bHyperspaceTunnelLastFrame = false;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
 							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;
@@ -5409,11 +6336,14 @@ HRESULT Direct3DDevice::Execute(
 					// DEBUG
 //#endif
 				}
+				//if (g_bHyperspaceFirstFrame)
+				//	goto out;
 
 				/*************************************************************************
 					State management ends here, special state management starts
 				 *************************************************************************/
-
+				
+				// Resolve the depth buffers. Capture the current screen to shadertoyAuxBuf
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
 					g_bSwitchedToGUI = true;
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
@@ -5442,19 +6372,20 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 
-					// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
+					// Capture the current-frame-so-far (cockpit+background) for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
 					{
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
-							g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
+							g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
 							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
+							g_lastCockpitXReference   = PlayerDataTable[*g_playerIndex].cockpitXReference;
+							g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].cockpitYReference;
+							g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
 
-							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-								resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 							if (g_bUseSteamVR) {
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-									resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 							}
 						}
 					}
@@ -5463,6 +6394,23 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					Special state management ends here
 				 *************************************************************************/
+
+				//if (bIsBracket)
+				//if (lastPixelShader != resources->_pixelShaderTexture)
+				//{
+					//log_debug("[DBG] Non pixelShaderTexture");
+					//log_debug("[DBG] TargetCompDrawn:!PixelShaderTexture");
+					//if (g_bGlobalDebugFlag)
+						//g_bInhibitCMDBracket = true;
+				//}
+
+				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
+				// switching to the cockpit while entering hyperspace was not a problem. Now, the HUD
+				// can be rendered in the exterior view and when we switch to the cockpit for the
+				// hyperspace effect we apparently keep rendering it partially, causing artifacts in
+				// the cockpit while in hyperspace. It's better to skip those calls instead.
+				if (g_bHyperExternalToCockpitTransition && g_bIsScaleableGUIElem && g_PSCBuffer.bInHyperspace)
+					goto out;
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_LightTexture)
 				//	goto out;
@@ -5479,7 +6427,16 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				// Capture the bounds for all the Dynamic Cockpit Elements
+				// Reset the DC HUD Regions
+				if (g_bResetDC) {
+					for (unsigned int i = 0; i < g_DCHUDRegions.boxes.size(); i++) {
+						g_DCHUDRegions.boxes[i].bLimitsComputed = false;
+					}
+					g_bResetDC = false;
+					log_debug("[DBG] [DC] DC HUD Regions reset");
+				}
+
+				// Capture the bounds for all the HUDs elements to use later in the Dynamic Cockpit
 				{
 					// Capture the bounds for the left sensor:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
@@ -5493,6 +6450,9 @@ HRESULT Direct3DDevice::Execute(
 							Box box;
 							GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
 								&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+							//log_debug("[DBG] [DC] Left Radar. in-game coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							//	minX, minY, maxX, maxY);
+
 							InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
 							InGameToScreenCoords(left, top, width, height, maxX, maxY, &box.x1, &box.y1);
 							// Store the pixel coordinates
@@ -5500,8 +6460,9 @@ HRESULT Direct3DDevice::Execute(
 							// Compute and store the erase coordinates for this HUD Box
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+
 							dcSrcBox->bLimitsComputed = true;
-							//log_debug("[DBG] [DC] Left Radar Region captured");
+							//log_debug("[DBG] [DC] Left Sensor Region captured");
 
 							// Get the limits for the left radar:
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX];
@@ -5522,6 +6483,7 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							//Box elem_coords = g_DCElemSrcBoxes.src_boxes[LEFT_RADAR_DC_ELEM_SRC_IDX].coords;
+							//log_debug("[DBG] [DC] g_iPresentCounter: %d, currentIndexLocation: %d", g_iPresentCounter, currentIndexLocation);
 							//log_debug("[DBG] [DC] Left Radar HUD CAPTURED. screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 							//	box.x0, box.y0, box.x1, box.y1);
 							//log_debug("[DBG] [DC] Left Radar ELEMENT screen coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
@@ -5852,12 +6814,44 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				// Hide the text boxes for the X-Wing (this was a little experiment to see if this is possible)
+				/*
+				if (g_bToggleSkipDC && bLastTextureSelectedNotNULL &&
+					((strstr(lastTextureSelected->_surface->_name, "TEX00150") != NULL) ||
+					 (strstr(lastTextureSelected->_surface->_name, "TEX00151") != NULL) ||
+					 (strstr(lastTextureSelected->_surface->_name, "TEX00129") != NULL)
+				    )
+				   )
+				{
+					goto out;
+				}
+				*/
+
+				// DEBUG
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_3DSun)
+				//	goto out;
+				// DEBUG
+
 				// Active Cockpit: Intersect the current texture with the controller
-				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL && 
-					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest)) {
+				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
+					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
+				{
 					Vector3 orig, dir, v0, v1, v2, P;
+					//bool debug = false;
 					//bool bIntersection;
 					//log_debug("[DBG] [AC] Testing for intersection...");
+					//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
+					
+					// DEBUG
+					/*
+					if (strstr(lastTextureSelected->_surface->_name, "TEX00061") != NULL &&
+						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL) {
+						debug = g_bDumpSSAOBuffers;
+						if (debug)
+							log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);
+					}
+					*/
+					// DEBUG
 
 					orig.x = g_contOriginViewSpace.x;
 					orig.y = g_contOriginViewSpace.y;
@@ -5867,41 +6861,47 @@ HRESULT Direct3DDevice::Execute(
 					dir.y = g_contDirViewSpace.y;
 					dir.z = g_contDirViewSpace.z;
 
-					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, orig, dir);
-					//if (bIntersection) {
-						//Vector3 pos2D;
+					//bool debug = g_bDumpLaserPointerDebugInfo && (strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL);
+					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
+						bIsActiveCockpit, orig, dir /*, debug */);
 
-						//if (t < g_fBestIntersectionDistance)
-						//{
-							
-							//g_fBestIntersectionDistance = t;
-							//g_LaserPointer3DIntersection = P;
-							// Project to 2D
-							//pos2D = project(g_LaserPointer3DIntersection);
-							//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-							//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-							//g_LaserPointerBuffer.uv[0] = u;
-							//g_LaserPointerBuffer.uv[1] = v;
-							//g_LaserPointerBuffer.bIntersection = 1;
-							//g_debug_v0 = v0;
-							//g_debug_v1 = v1;
-							//g_debug_v2 = v2;
+					// Commented block follows (debug block for LaserPointer):
+					{
+						//if (bIntersection) {
+							//Vector3 pos2D;
 
-							// DEBUG
+							//if (t < g_fBestIntersectionDistance)
 							//{
-								/*Vector3 q;
-								q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-								q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-								q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
-								/*
-								log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-									g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
-									pos2D.x, pos2D.y);
-								*/
+
+								//g_fBestIntersectionDistance = t;
+								//g_LaserPointer3DIntersection = P;
+								// Project to 2D
+								//pos2D = project(g_LaserPointer3DIntersection);
+								//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+								//g_LaserPointerBuffer.intersection[1] = pos2D.y;
+								//g_LaserPointerBuffer.uv[0] = u;
+								//g_LaserPointerBuffer.uv[1] = v;
+								//g_LaserPointerBuffer.bIntersection = 1;
+								//g_debug_v0 = v0;
+								//g_debug_v1 = v1;
+								//g_debug_v2 = v2;
+
+								// DEBUG
+								//{
+									/*Vector3 q;
+									q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+									q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+									q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
+									/*
+									log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+										g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
+										pos2D.x, pos2D.y);
+									*/
+									//}
+									// DEBUG
+								//}
 							//}
-							// DEBUG
-						//}
-					//}
+					}
 				}
 
 				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
@@ -5949,6 +6949,34 @@ HRESULT Direct3DDevice::Execute(
 				// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders = false;
+				bModifiedPixelShader = false;
+
+				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
+#ifdef DISABLED
+				if (false && g_bEnableVR && bLastTextureSelectedNotNULL) {
+					if (bIsLightTexture)
+						goto out;
+					else {
+						// Bind the light texture too
+						if (lastTextureSelected->lightTexture != nullptr) {
+							bModifiedShaders = true;
+							lastTextureSelected->lightTexture->_refCount++;
+							context->PSSetShaderResources(1, 1, lastTextureSelected->lightTexture->_textureView.GetAddressOf());
+							lastTextureSelected->lightTexture->_refCount--;
+							g_PSCBuffer.bLightTextureAvailable = 1;
+						}
+					}
+				}
+#endif DISABLED
+
+				// DEBUG
+				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
+				/*if (bIsActiveCockpit && lastTextureSelected->ActiveCockpitIdx == 9)
+				{
+					bModifiedShaders = true;
+					g_PSCBuffer.AC_debug = 1;
+				}*/
+				// DEBUG
 
 				//if (g_bDynCockpitEnabled && !g_bPrevIsFloatingGUI3DObject && g_bIsFloating3DObject) {
 					// The targeted craft is about to be drawn!
@@ -5968,17 +6996,169 @@ HRESULT Direct3DDevice::Execute(
 				// Only disable the diffuse component during regular flight. 
 				// The tech room is unchanged (the tech room makes g_bRendering = false)
 				// We should also avoid touching the GUI elements
-				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI) { 
+				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
 
+				// Replace the sun textures with procedurally-generated suns
+				if (g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent && bIsSun && g_ShadertoyBuffer.SunFlareCount < MAX_SUN_FLARES) {
+					static float iTime = 0.0f;
+					int s_XwaGlobalLightsCount = *(int*)0x00782848;
+					XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+					Matrix4 H = GetCurrentHeadingViewMatrix();
+
+					bModifiedShaders = true;
+					// Change the pixel shader to the SunShader:
+					bModifiedPixelShader = true;
+					resources->InitPixelShader(resources->_sunShaderPS);
+					// The Sun's texture will be displayed, so let's update some values
+					g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+					g_ShadertoyBuffer.iTime = iTime;
+					iTime += 0.01f;
+
+					// Get the centroid of the sun
+					Vector3 Centroid;
+					int SunFlareIdx = g_ShadertoyBuffer.SunFlareCount;
+					// By default suns don't have any color. We specify that by setting the alpha component to 0:
+					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
+					// Use the material properties of this Sun -- if it has any associated with it
+					if (lastTextureSelected->bHasMaterial) {
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].x = lastTextureSelected->material.Light.x;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].y = lastTextureSelected->material.Light.y;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].z = lastTextureSelected->material.Light.z;
+						g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 1.0f;
+					}
+
+					if (ComputeCentroid(instruction, currentIndexLocation, &Centroid))
+					{
+						/*
+						float radius, intensity;
+						Vector2 P = Centroid;
+						P.x = P.x * g_fCurScreenWidthRcp - 0.5f;
+						P.y = P.y * g_fCurScreenHeightRcp - 0.5f;
+						radius = sqrt(P.x*P.x + P.y*P.y);
+						intensity = 0.8f - radius;
+						if (intensity < 0.0f) intensity = 0.0f;
+						*/
+
+						// If the centroid is visible, then let's display the sun flare:
+						g_ShadertoyBuffer.SunFlareCount++;
+						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+						if (g_bEnableVR) {
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = Centroid.x;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Centroid.y;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = Centroid.z;
+							g_ShadertoyBuffer.VRmode = 1;
+							// DEBUG
+							// Project the centroid to the left image and log the coords
+							//Vector3 q = project(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+							//log_debug("[DBG] Centroid: %0.3f, %0.3f, %0.3f --> %0.3f, %0.3f",
+							//	Centroid.x, Centroid.y, Centroid.z, q.x, q.y);
+							// DEBUG
+						}
+						else {
+							float X, Y;
+							Vector3 q = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+
+							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
+							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
+							g_ShadertoyBuffer.VRmode = 0;
+						}
+
+						// If this texture hasn't been tagged, then let's find its corresponding light source:
+						// Finding the associated XWA light wasn't useful: most lights are white, so it's better
+						// to read the properties from the MAT file.
+						/*
+						if (!lastTextureSelected->bHasMaterial) {
+							
+							// Associate an XWA light to this texture
+							if (lastTextureSelected->AssociatedXWALight == -1)
+							{
+								for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+								{
+									Vector4 xwaLight = Vector4(
+										s_XwaGlobalLights[i].PositionX / 32768.0f,
+										s_XwaGlobalLights[i].PositionY / 32768.0f,
+										s_XwaGlobalLights[i].PositionZ / 32768.0f,
+										0.0f);
+									// Convert the XWA light into viewspace coordinates:
+									Vector4 light = H * xwaLight;
+									// Compute the matrix that transforms [0,0,1] into the light's direction:
+									//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
+									//Vector2 Lcenter = Vector2(light.x, light.y);
+									//float intensity = 0.9f - Lcenter.length();
+									//if (intensity < 0.0f) intensity = 0.0f;
+									// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
+									//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
+									//light.z = -light.z;
+
+									// Only test lights in front of the camera:
+									if (light.z > 0.0f) {
+										// Convert the light direction into a position and project it into the screen
+										light *= 65536.0f;
+										Vector3 L = Vector3(light.x, light.y, light.z);
+										//L = project(L, g_viewMatrix, g_fullMatrixLeft);
+										L = projectToInGameCoords(L, g_viewMatrix, g_fullMatrixLeft);
+										// Convert in-game coords to desktop coords:
+										float X, Y;
+										InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+											(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
+										// Get the distance between the projected light source and the Sun's centroid, in desktop pixels:
+										Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
+										float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
+
+										// Empirically, I noticed that the maximum distance D between a sun's centroid and its matching
+										// light is near the edges of the screen, and this was ~0.099, so that's our threshold.
+										if (D < 0.125f) {
+											// Associate an XWA light to this texture and stop checking
+											lastTextureSelected->AssociatedXWALight = i;
+											log_debug("[DBG] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
+											log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
+												s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
+											break;
+										}
+										
+										// In Skirmish mode, light index 1 is always the sun. So let's use that to
+										// debug things:
+										//if (i == 1) {
+										//	//log_debug("[DBG] L: %0.3f, %0.3f, %0.3f", L.x, L.y, L.z);
+										//	//log_debug("[DBG] D: %0.6f", D);
+										//	g_ShadertoyBuffer.LightX = X;
+										//	g_ShadertoyBuffer.LightY = Y;
+										//}
+									}
+								}
+							}
+
+							// This sun has an associated XWA light, let's send the color down to the pixel shader
+							if (lastTextureSelected->AssociatedXWALight != -1) {
+								int idx = lastTextureSelected->AssociatedXWALight;
+								float intensity = s_XwaGlobalLights[idx].Intensity;
+								intensity = min(intensity, 1.0f);
+								g_PSCBuffer.SunColor[0] = intensity * s_XwaGlobalLights[idx].ColorR;
+								g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
+								g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
+								g_PSCBuffer.SunColor[3] = 1.0f;
+								memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
+							}
+						}
+						*/
+					}
+					// Set the constant buffer
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+				}
+
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
-				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket) {
+				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket /* || bIsSkyDome */) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					g_PSCBuffer.bIsShadeless = 1;
+					//g_PSCBuffer.bIsBackground = g_bIsSkyBox;
 				}
 
 				// Dim all the GUI elements
@@ -5999,34 +7179,49 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
+					// Suns are pushed to infinity too:
+					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
 				}
 
-				// Apply the material properties
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) { 
+				// Apply specific material properties for the current texture
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) {
 					bModifiedShaders = true;
-					//g_PSCBuffer.fSSAOMaskVal = DEFAULT_MAT;
-					//g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-					//g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-					/*log_debug("[DBG] [MAT] Applying: %s, %0.3f, %0.3f, %0.3f",
-						lastTextureSelected->_surface->_name,
-						lastTextureSelected->material.Metallic,
-						lastTextureSelected->material.Glossiness,
-						lastTextureSelected->material.Reflection);*/
-					g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+					// DEBUG
+					/*
+					bool Debug = strstr(lastTextureSelected->_surface->_name, "CalamariLulsa") != NULL;
+					//if (strstr(lastTextureSelected->_surface->_name, "TieInterceptor") != NULL) {
+					if (Debug)
+					{
+						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f, %d",
+							lastTextureSelected->_surface->_name,
+							lastTextureSelected->material.Metallic,
+							lastTextureSelected->material.Glossiness,
+							lastTextureSelected->material.Intensity,
+							lastTextureSelected->material.IsShadeless
+						);
+					}
+					*/
+					// DEBUG
+
+					if (lastTextureSelected->material.IsShadeless)
+						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+					else
+						g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
 					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
-					g_PSCBuffer.fSpecVal	     = lastTextureSelected->material.SpecValue;
+					g_PSCBuffer.fSpecVal	 = lastTextureSelected->material.SpecValue;
 				}
 
-				// Apply the SSAO mask
+				// Apply the SSAO mask/Special materials, like lasers and HUD
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (bIsAimingHUD || bIsText || g_bIsTrianglePointer || lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked) 
+					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
+						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = min(1.0f, SHADELESS_MAT + bIsAimingHUD ? 0.15f : 0.0f);
+						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
@@ -6034,6 +7229,10 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsShadeless = 1;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+						// DEBUG
+						//g_PSCBuffer.bIsBackground = bIsAimingHUD;
+						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
@@ -6048,7 +7247,6 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSpecVal     = 0.0f;
 
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-
 					}
 					else if (lastTextureSelected->is_Laser) {
 						bModifiedShaders = true;
@@ -6071,9 +7269,11 @@ HRESULT Direct3DDevice::Execute(
 				//	goto out;
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
-				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit (BG) RTV and continue
-				if (g_bDCManualActivate && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
-					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)) 
+				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
+				if (
+					 (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
+				   )
 				{					
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
@@ -6082,6 +7282,8 @@ HRESULT Direct3DDevice::Execute(
 					//	// The targeted craft is about to be drawn! Clear both depth stencils?
 					//	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					//}
+					
+					//log_debug("[DBG] RENDER to DC RTV");
 
 					// Restore the non-VR dimensions:
 					g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
@@ -6096,12 +7298,31 @@ HRESULT Direct3DDevice::Execute(
 					if (bRenderToDynCockpitBGBuffer)
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
-					else
-						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
+					else {
+						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+						//	resources->_depthStencilViewL.Get());
+
+						if (g_config.Text2DRendererEnabled)
+							context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+								resources->_depthStencilViewL.Get());
+						else 
+						{
+							// The new Text Renderer is not enabled; but we can still render the text to its own
+							// layer so that we can do a more specialized processing, like splitting the text
+							// from the targeted object
+							if (bIsText)
+								context->OMSetRenderTargets(1, resources->_DCTextRTV.GetAddressOf(),
+									resources->_depthStencilViewL.Get());
+							else
+								context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
+									resources->_depthStencilViewL.Get());
+						}
+					}
 					// Enable Z-Buffer if we're drawing the targeted craft
-					if (g_bIsFloating3DObject)
+					if (g_bIsFloating3DObject) {
+						//log_debug("[DBG] Render 3D Floating OBJ to DC RTV");
 						QuickSetZWriteEnabled(TRUE);
+					}
 
 					// Render
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
@@ -6125,6 +7346,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Restore the previous pixel shader
+					//bModifiedPixelShader = true;
 					//resources->InitPixelShader(lastPixelShader);
 
 					// Restore the original blend state
@@ -6134,6 +7356,10 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Modify the state for both VR and regular game modes...
+
+				// Maintain the k-closest lasers to the camera
+				if (g_bEnableLaserLights && bIsLaser)
+					AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
 
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
@@ -6170,7 +7396,8 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else if (bIsSun) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSunsStrength;
+						// If there's a 3D sun in the scene, then we shouldn't apply bloom to Sun textures  they should be invisible 
+						g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_Spark) {
@@ -6202,10 +7429,18 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
+				// Apply BLOOM flags for textureless objects
+				if (bIsBracket) {
+					bModifiedShaders = true;
+					g_PSCBuffer.fBloomStrength = g_BloomConfig.fBracketStrength;
+				}
+
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
+					//log_debug("[DBG] Replacing cockpit textures with DC");
+
 					// Check if this idx is valid before rendering
 					if (idx >= 0 && idx < g_iNumDCElements) {
 						dc_element *dc_element = &g_DCElements[idx];
@@ -6230,12 +7465,16 @@ HRESULT Direct3DDevice::Execute(
 								// Skip src boxes that haven't been computed yet
 								if (!src_box->bComputed)
 									continue;
+
 								uvfloat4 uv_src;
 								uv_src.x0 = src_box->coords.x0; uv_src.y0 = src_box->coords.y0;
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
 								g_DCPSCBuffer.src[numCoords] = uv_src;
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-								g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uBGColor[i];
+								if (bWarheadLocked)
+									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
+								else
+									g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
@@ -6244,21 +7483,30 @@ HRESULT Direct3DDevice::Execute(
 
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
-							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputSRVDynCockpit.GetAddressOf());
+							// slot 2 is the text buffer
+							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
+							context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
+							// Set the cover texture:
 							if (g_PSCBuffer.bUseCoverTexture) {
 								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", resources->dc_coverTexture[idx].GetAddressOf());
 								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
 								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
 								context->PSSetShaderResources(0, 1, resources->dc_coverTexture[idx].GetAddressOf());
+								//resources->InitPSShaderResourceView(resources->dc_coverTexture[idx].Get());
 							} else
 								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
+								//resources->InitPSShaderResourceView(lastTextureSelected->_textureView.Get());
 							// No need for an else statement, slot 0 is already set to:
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							if (g_PSCBuffer.DynCockpitSlots > 0)
+							if (g_PSCBuffer.DynCockpitSlots > 0) {
+								bModifiedPixelShader = true;
 								resources->InitPixelShader(resources->_pixelShaderDC);
-							else if (g_PSCBuffer.bUseCoverTexture)
+							}
+							else if (g_PSCBuffer.bUseCoverTexture) {
+								bModifiedPixelShader = true;
 								resources->InitPixelShader(resources->_pixelShaderEmptyDC);
+							}
 						} // if dc_element->bActive
 					}
 					// TODO: I should probably put an assert here since this shouldn't happen
@@ -6271,6 +7519,12 @@ HRESULT Direct3DDevice::Execute(
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
 
+				// Don't render the first hyperspace frame: use all the buffers from the previous frame instead. Otherwise
+				// the craft will jerk or blink because XWA resets the cockpit camera and the craft's orientation on this
+				// frame.
+				if (g_bHyperspaceFirstFrame)
+					goto out;
+
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
 				if (!g_bEnableVR) {
@@ -6278,8 +7532,8 @@ HRESULT Direct3DDevice::Execute(
 
 					// Don't render the very first frame when entering hyperspace if we were not looking forward:
 					// the game resets the yaw/pitch on the first frame and we don't want that
-					if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
-						goto out;
+					//if (g_bHyperspaceFirstFrame && g_bHyperHeadSnapped)
+					//	goto out;
 
 					if (bModifiedShaders) {
 						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -6291,24 +7545,23 @@ HRESULT Direct3DDevice::Execute(
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
 						ID3D11RenderTargetView *rtvs[1] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 						};
 						context->OMSetRenderTargets(1, 
 							//resources->_renderTargetView.GetAddressOf(),
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
-							//resources->_renderTargetView.Get(),
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 							resources->_renderTargetViewBloomMask.Get(),
-							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : 
-								resources->_renderTargetViewDepthBuf2.Get(),
+							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-							//bIsAimingHUD ? NULL: resources->_renderTargetViewSSAOMask.Get(),
-							resources->_renderTargetViewSSAOMask.Get(),
-							resources->_renderTargetViewSSMask.Get(),
+							// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+							bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+							bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 						};
 						context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 					}
@@ -6321,15 +7574,15 @@ HRESULT Direct3DDevice::Execute(
 				   Modify the state of the render for VR
 				 ********************************************************************/
 
-				 // Elements that are drawn with ZBuffer disabled:
-				 // * All GUI HUD elements except for the targetting computer (why?)
-				 // * Lens flares.
-				 // * All the text and brackets around objects. The brackets have their own draw call.
-				 // * Glasses on other cockpits and engine glow <-- Good candidate for bloom!
-				 // * Maybe explosions and other animations? I think explosions are actually rendered at depth (?)
-				 // * Cockpit sparks?
+				// Elements that are drawn with ZBuffer disabled:
+				// * All GUI HUD elements except for the targetting computer (why?)
+				// * Lens flares.
+				// * All the text and brackets around objects. The brackets have their own draw call.
+				// * Glasses on other cockpits and engine glow <-- Good candidate for bloom!
+				// * Maybe explosions and other animations? I think explosions are actually rendered at depth (?)
+				// * Cockpit sparks?
 
-				 // Reduce the scale for GUI elements, except for the HUD and Lens Flare
+				// Reduce the scale for GUI elements, except for the HUD and Lens Flare
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
 					g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
@@ -6339,20 +7592,19 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Enable the full transform for the hyperspace tunnel
-				if (bIsHyperspaceTunnel) {
-					bModifiedShaders = true;
-					//g_VSCBuffer.bFullTransform = 1.0f;
-					//g_VSCBuffer.sz_override = 0.01f;
-					//g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
-				}
+				//if (bIsHyperspaceTunnel) {
+					//bModifiedShaders = true; // TODO: Check the hyperspace tunnel in VR mode
+					////g_VSCBuffer.bFullTransform = 1.0f; // This was already commented out! Do we need to set bModifiedShaders?
+				//}
 
 				// The game renders brackets with ZWrite disabled; but we need to enable it temporarily so that we
 				// can place the brackets at infinity and avoid visual contention
-				if (bIsBracket) {
+				if (bIsBracket) 	{
 					bModifiedShaders = true;
 					QuickSetZWriteEnabled(TRUE);
 					g_VSCBuffer.sz_override = 0.05f;
 					g_VSCBuffer.z_override = g_fZBracketOverride;
+					//g_PSCBuffer.bIsBackground = 1;
 				}
 
 				/* // Looks like we no longer need to clear the depth buffers for the targeted object
@@ -6372,9 +7624,13 @@ HRESULT Direct3DDevice::Execute(
 				*/
 
 				// Add an extra depth to HUD elements
-				if (bIsAimingHUD) {
+				if (bIsReticle) {
 					bModifiedShaders = true;
 					g_VSCBuffer.z_override = g_fHUDDepth;
+					// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
+					// infinity
+					if (bExternalCamera)
+						g_VSCBuffer.z_override = 65536.0f;
 					if (g_bFloatingAimingHUD)
 						g_VSCBuffer.bPreventTransform = 1.0f;
 				}
@@ -6444,24 +7700,23 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
-							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							// SteamVR, left image. Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ? 
+								g_bIsPlayerObject || g_bDisableDualSSAO ?
 									resources->_renderTargetViewDepthBuf.Get() : 
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -6469,15 +7724,13 @@ HRESULT Direct3DDevice::Execute(
 						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
-							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
+							// DirectSBS, Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -6485,8 +7738,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -6505,19 +7759,10 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the left projection matrix
-					g_VSMatrixCB.projEye = g_fullMatrixLeft;
+					g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image
-					//if (bIsHyperspaceTunnel) {
-					//	UINT stride = sizeof(D3DTLVERTEX);
-					//	UINT offset = 0;
-					//	resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-					//	resources->InitInputLayout(resources->_inputLayout);
-					//	context->Draw(6, 0);
-					//	// TODO: Restore the original input layout here
-					//}
-					//else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
@@ -6532,15 +7777,14 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 							};
-							context->OMSetRenderTargets(1, rtvs, //resources->_renderTargetViewR.GetAddressOf(),
-								resources->_depthStencilViewR.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
 						} else {
-							// Reshade is enabled, render to multiple output targets
+							// SteamVR, Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetViewR.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD, true),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								//resources->_renderTargetViewDepthBufR.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -6548,8 +7792,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2R.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
-								resources->_renderTargetViewSSAOMaskR.Get(),
-								resources->_renderTargetViewSSMaskR.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 						}
@@ -6557,15 +7802,14 @@ HRESULT Direct3DDevice::Execute(
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 							};
-							context->OMSetRenderTargets(1, rtvs, // resources->_renderTargetView.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
 								//resources->_renderTargetView.Get(),
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsAimingHUD),
+								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 								resources->_renderTargetViewBloomMask.Get(),
 								//resources->_renderTargetViewDepthBuf.Get(),
 								g_bIsPlayerObject || g_bDisableDualSSAO ? 
@@ -6573,8 +7817,9 @@ HRESULT Direct3DDevice::Execute(
 									resources->_renderTargetViewDepthBuf2.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
-								resources->_renderTargetViewSSAOMask.Get(),
-								resources->_renderTargetViewSSMask.Get(),
+								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
+								bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
 							};
 							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 						}
@@ -6594,13 +7839,9 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the right projection matrix
-					g_VSMatrixCB.projEye = g_fullMatrixRight;
+					g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
-					//if (bIsHyperspaceTunnel) {
-					//	context->Draw(6, 0);
-					//	// TODO: Restore the original input layout here
-					//} else
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
@@ -6632,31 +7873,34 @@ HRESULT Direct3DDevice::Execute(
 
 				// Restore the normal state of the render; but only if we altered it previously.
 				if (bModifiedShaders) {
-					g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
-					//g_VSCBuffer.post_proj_scale   = g_fPostProjScale;
+					g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
 					g_VSCBuffer.z_override        = -1.0f;
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
-					g_VSCBuffer.bFullTransform    = 0.0f;
-					g_VSCBuffer.metric_mult       = g_fMetricMult;
+					g_VSCBuffer.bFullTransform    =  0.0f;
+					g_VSCBuffer.metric_mult       =  g_fMetricMult;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
 					g_PSCBuffer.fBloomStrength	= 1.0f;
 					g_PSCBuffer.fPosNormalAlpha = 1.0f;
 					g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
-					g_PSCBuffer.fSSAOMaskVal    = DEFAULT_MAT;
-					g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
-					g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
-					g_PSCBuffer.fNMIntensity    = DEFAULT_NM_INT;
+					g_PSCBuffer.fSSAOMaskVal    = g_DefaultGlobalMaterial.Metallic * 0.5f;
+					g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
+					g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity; // DEFAULT_SPEC_INT;
+					g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
 						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;
 						// Restore the regular pixel shader (disable the PixelShaderDC)
-						resources->InitPixelShader(lastPixelShader);
+						//resources->InitPixelShader(lastPixelShader);
 					}
+
+					if (bModifiedPixelShader)
+						resources->InitPixelShader(lastPixelShader);
+
 					// Remove the cover texture
 					//context->PSSetShaderResources(1, 1, NULL);
 					//g_PSCBuffer.bUseCoverTexture  = 0;
@@ -6681,8 +7925,10 @@ HRESULT Direct3DDevice::Execute(
 	}
 
 //noexec:
-	g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
+	//g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
+	// This variable is useless with the hook_d3d: it stays at 1, meaning that this function is called exactly *once* per frame.
 
+	//log_debug("[DBG] Execute (2)");
 	if (FAILED(hr))
 	{
 		static bool messageShown = false;
@@ -6993,8 +8239,14 @@ HRESULT Direct3DDevice::BeginScene()
 	// when this happens. The problem is that the game snaps the camera to the forward position as soon
 	// as we jump into hyperspace; but that causes glitches with the new hyperspace effect. To solve this
 	// I'm storing the heading of the camera right before the jump and then I restore it as soon as possible
-	// while I inhibit the draw calls for the very first frame. However, this means that I must also inhibit
-	// clearing these buffers on that same frame or the effect will "blink"
+	// while I inhibit the draw calls for the very first hyperspace frame. However, this means that I must 
+	// also inhibit clearing these buffers on that same frame or the effect will "blink"
+
+	g_ExecuteCount = 0;
+	g_ExecuteVertexCount = 0;
+	g_ExecuteIndexCount = 0;
+	g_ExecuteStateCount = 0;
+	g_ExecuteTriangleCount = 0;
 
 	if (!this->_deviceResources->_renderTargetView)
 	{
@@ -7063,6 +8315,7 @@ HRESULT Direct3DDevice::BeginScene()
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
+	//log_debug("[DBG] BeginScene RenderMain");
 	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
 		resources->_displayHeight, resources->_displayBpp)))
 		return D3DERR_SCENE_BEGIN_FAILED;
@@ -7102,46 +8355,24 @@ HRESULT Direct3DDevice::EndScene()
 	auto& context = resources->_d3dDeviceContext;
 
 	/*
-	I can't do this here because it will break the display of the main menu after exiting a mission
+	I can't render hyperspace here because it will break the display of the main menu after exiting a mission
 	Looks like even the menu uses EndScene and I'm messing it up even when using the "g_bRendering3D" flag!
-
-	// Render the hyperspace effect when no GUI is present
-	if (g_bRendering3D && !g_bSwitchedToGUI)
-	{
-		g_bSwitchedToGUI = true;
-		// Capture the background/current-frame-so-far for the new hyperspace effect; but only if we're
-		// not travelling through hyperspace:
-		if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
-		{
-			g_fLastCockpitCameraYaw = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
-			g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
-
-			context->ResolveSubresource(resources->_shadertoyAuxBuf, 0,
-				resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-			if (g_bUseSteamVR) {
-				context->ResolveSubresource(resources->_shadertoyAuxBufR, 0,
-					resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
-			}
-		}
-
-		// Render the hyperspace effect *after* the original hyperspace effect has already finished.
-		if (g_HyperspacePhaseFSM != HS_INIT_ST)
-		{
-			UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-			// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-			//				  shadertoyBuf has a copy of the cockpit
-
-			// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-			// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-			// TODO: Fix the effect for VR
-			RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, &vertexBufferStride, &vertexBufferOffset);
-		}
-	}
 	*/
 
 	this->_deviceResources->sceneRendered = true;
 
 	this->_deviceResources->inScene = false;
+
+	/*if (g_config.D3dHookExists)
+	{
+		OutputDebugString((
+			std::string("EndScene")
+			+ " E=" + std::to_string(g_ExecuteCount)
+			+ " S=" + std::to_string(g_ExecuteStateCount)
+			+ " T=" + std::to_string(g_ExecuteTriangleCount)
+			+ " V=" + std::to_string(g_ExecuteVertexCount)
+			+ " I=" + std::to_string(g_ExecuteIndexCount)).c_str());
+	}*/
 
 	return D3D_OK;
 }

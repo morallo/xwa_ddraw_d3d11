@@ -11,24 +11,7 @@
  */
 
 #include "ShaderToyDefs.h"
-
- // ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, unused;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-};
+#include "ShadertoyCBuffer.h"
 
 //// The Foreground Color Buffer (_shadertoyBuf)
 //Texture2D fgColorTex : register(t0);
@@ -222,7 +205,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
 }
 
 float rand(vec2 co) {
-	return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	return fract(sin(dot(co.xy + srand, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 PixelShaderOutput main(PixelShaderInput input) {
@@ -234,8 +217,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//output.bloom = 0.0;
 
 	// Early exit: avoid rendering outside the original viewport edges
-	if (input.uv.x < x0 || input.uv.x > x1 ||
-		input.uv.y < y0 || input.uv.y > y1)
+	//if (input.uv.x < x0 || input.uv.x > x1 ||
+	//	input.uv.y < y0 || input.uv.y > y1)
+	if (any(input.uv < p0) ||
+		any(input.uv > p1))
 	{
 		output.color = 0.0;
 		return output;

@@ -13,17 +13,22 @@
 #include <vector>
 #include "Vectors.h"
 #include "Matrices.h"
+#include "config.h"
 
 #include "XWAObject.h"
+
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
+extern float g_fDebugFOV;
+extern float g_fCurrentShipFocalLength;
 
 extern int g_KeySet;
-extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio;
+extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -39,12 +44,12 @@ void IncreaseNoDrawAfterIndex(int Delta);
 //void IncreaseNoExecIndices(int DeltaBefore, int DeltaAfter);
 //void IncreaseZOverride(float Delta);
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
-void IncreaseSkyBoxIndex(int Delta);
 void IncreaseNoDrawAfterHUD(int Delta);
 #endif
 
 // Debug functions
 void log_debug(const char *format, ...);
+void DumpGlobalLights();
 
 typedef struct float4_struct {
 	float x, y, z, w;
@@ -68,15 +73,13 @@ void PrintVector(const Vector4 &Vector) {
 }
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
-//extern bool g_bLeftKeyDown, g_bRightKeyDown, g_bUpKeyDown, g_bDownKeyDown, g_bUpKeyDownShift, g_bDownKeyDownShift;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate;
-// extern bool g_bDumpBloomBuffers, 
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO; // g_bEnableBentNormalsInShader;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle;
+extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate, g_bGlobalDebugFlag;
+extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
+extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
-extern bool bFreePIEAlreadyInitialized;
+extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
 void ShutdownFreePIE();
 
 // DEBUG
@@ -85,12 +88,15 @@ extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 // DEBUG
 extern bool g_bKeybExitHyperspace;
+extern bool g_bFXAAEnabled;
 
 // ACTIVE COCKPIT
 extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
+
+extern Vector3 g_LaserPointDebug;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -99,6 +105,7 @@ WNDPROC OldWindowProc = 0;
 void ResetVRParams(); // Restores default values for the view params
 void SaveVRParams();
 void LoadVRParams();
+void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
@@ -111,7 +118,6 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
-
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
@@ -127,7 +133,8 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
 void ShutDownSteamVR();
-void ApplyFOV(float FOV);
+void ApplyFocalLength(float focal_length);
+bool UpdateXWAHackerFOV();
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -185,7 +192,7 @@ void LoadFocalLength() {
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, "focal_length") == 0) {
-				ApplyFOV(fValue);
+				ApplyFocalLength(fValue);
 				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
 			}
 		}
@@ -193,11 +200,13 @@ void LoadFocalLength() {
 	fclose(file);
 }
 
-void ApplyFOV(float FOV) 
+void ApplyFocalLength(float focal_length) 
 {
-	*g_fRawFOVDist = FOV;
+	log_debug("[DBG] [FOV] Old FOV: %0.3f, Applying: %0.3f", *g_fRawFOVDist, focal_length);
+	*g_fRawFOVDist = focal_length;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+	ComputeHyperFOVParams();
 }
 
 void IncreaseFOV(float delta) 
@@ -207,6 +216,7 @@ void IncreaseFOV(float delta)
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
 	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
 		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+	ComputeHyperFOVParams();
 }
 
 void IncreaseMetricMult(float delta) 
@@ -221,6 +231,52 @@ void IncreaseAspectRatio(float delta) {
 	g_fAspectRatio += delta;
 	g_fConcourseAspectRatio += delta;
 	log_debug("[DBG] [FOV] Aspect Ratio: %0.6f, Concourse Aspect Ratio: %0.6f", g_fAspectRatio, g_fConcourseAspectRatio);
+}
+
+#define MAX_ACTION_LEN 10
+void RunAction(WORD *action) {
+	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
+	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+	// How to send extended scan codes
+	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
+	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
+	INPUT input[MAX_ACTION_LEN];
+	bool bEscapedAction = (action[0] == 0xe0);
+
+	if (action[0] == 0) // void action, skip
+		return;
+
+	// Copy & initialize the scan codes
+	int i = 0, j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction)
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++; j++;
+	}
+
+	j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction)
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++; j++;
+	}
+
+	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
+	SendInput(i, input, sizeof(INPUT));
 }
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -267,7 +323,22 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(50.0f);
-					SaveFocalLength();
+					// First try to update the DC file. If that fails, then save the regular focal length
+					if (!UpdateXWAHackerFOV())
+						SaveFocalLength();
+					break;
+				case 3:
+					g_LaserPointDebug.x += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
+				case 4:
+					g_fDebugFOV += 0.05f;
+					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					break;
+				case 5:
+					g_fCockpitTranslationScale += 0.0005f;
+					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				}
 
@@ -293,7 +364,22 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseFOV(-50.0f);
-					SaveFocalLength();
+					// First try to update the DC file. If that fails, then save the regular focal length
+					if (!UpdateXWAHackerFOV())
+						SaveFocalLength();
+					break;
+				case 3:
+					g_LaserPointDebug.x -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
+				case 4:
+					g_fDebugFOV -= 0.05f;
+					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					break;
+				case 5:
+					g_fCockpitTranslationScale -= 0.0005f;
+					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				}
 
@@ -322,6 +408,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseMetricMult(0.1f);
 					SaveVRParams();
 					break;
+				case 3:
+					g_LaserPointDebug.y += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				}
 
 				//g_contOriginWorldSpace.y += 0.02f;
@@ -336,6 +427,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					IncreaseMetricMult(-0.1f);
 					SaveVRParams();
+					break;
+				case 3:
+					g_LaserPointDebug.y -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				}
 
@@ -396,10 +492,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
+			case 'F':
+				g_config.FXAAEnabled = !g_config.FXAAEnabled;
+				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
 				return 0;
-			case 'F':
+			//case 'G':
+			//	DumpGlobalLights();
+			//	return 0;
+			case 'G':
 				g_bDumpLaserPointerDebugInfo = true;
 				return 0;
 				// DEBUG
@@ -408,10 +510,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'I':
 				g_bShadowEnable = !g_bShadowEnable;
+				log_debug("[DBG] Shadows Enabled: %d", g_bShadowEnable);
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
 				return 0;
+			// Ctrl+Alt+O
 			case 'O':
 				g_bAOEnabled = !g_bAOEnabled;
 				return 0;
@@ -442,13 +546,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'S':
 				SaveVRParams();
 				return 0;
+			//case 'T':
+			//	g_bToggleSkipDC = !g_bToggleSkipDC;
+			//	return 0;
 			case 'L':
 				// Force the re-application of the focal_length
 				g_bCustomFOVApplied = false;
 				LoadVRParams();
 				return 0;
 			case 'H':
-				ToggleCockpitPZHack();
+				//ToggleCockpitPZHack();
+				g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
+				//g_bGlobalDebugFlag = !g_bGlobalDebugFlag;
 				return 0;
 			case 'W':
 				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
@@ -518,7 +627,46 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
+			case 'H':
+				g_bEnableHeadLights = !g_bEnableHeadLights;
+				return 0;
+			// Ctrl+O
+			//case 'O':
+			//	g_bAOEnabled = !g_bAOEnabled;
+			//	return 0;
 
+			/*
+			case 'K': {
+				WORD action[MAX_ACTION_LEN];
+				action[0] = 0x46; // Scroll Lock
+				action[1] = 0x0;
+				log_debug("[DBG] Sending Scroll Lock");
+				RunAction(action);
+				return 0;
+			}
+			*/
+
+			// Ctrl+D --> Toggle dynamic lights
+			case 'D': {
+				g_bEnableLaserLights = !g_bEnableLaserLights;
+				return 0;
+			}
+
+			// Ctrl+K --> Toggle Mouse Look
+			case 'K': {
+				*mouseLook = !*mouseLook;
+				return 0;
+			}
+
+			case 'R': {
+				//g_bResetDC = true;
+				g_bProceduralSuns = !g_bProceduralSuns;
+				return 0;
+			}
+
+			// Ctrl+L is the landing gear
+
+			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
 			case 'P':
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
@@ -531,7 +679,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					if (error)
 						log_debug("[DBG] error %d when taking SteamVR screenshot", error);
 					else
-						log_debug("[DBG] Screeshot %d taken", scrCounter);
+						log_debug("[DBG] Screenshot %d taken", scrCounter);
 					scrCounter++;
 				}
 				else {
@@ -561,6 +709,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//IncreasePostProjScale(0.1f);
 					SaveVRParams();
 					break;
+				case 3:
+					g_LaserPointDebug.z += 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -575,6 +728,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseScreenScale(-0.1f);
 					//IncreasePostProjScale(-0.1f);
 					SaveVRParams();
+					break;
+				case 3:
+					g_LaserPointDebug.z -= 0.1f;
+					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
+						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				}
 				return 0;
@@ -670,9 +828,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pHMD->ResetSeatedZeroPose();
 				g_bResetHeadCenter = true;
 
-				g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
+				//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
 				g_fFakeRoll = 0.0f;
 				//g_contOriginViewSpace = g_contOriginWorldSpace;
+				g_LaserPointDebug.x = 0.0f;
+				g_LaserPointDebug.y = 0.0f;
+				g_LaserPointDebug.z = 0.0f;
 				break;
 			}
 		}
@@ -736,6 +897,42 @@ bool ReplaceWindowProc(HWND hwnd)
 	return false;
 }
 
+#include "XwaDrawTextHook.h"
+#include "XwaDrawRadarHook.h"
+#include "XwaDrawBracketHook.h"
+
+bool IsXwaExe()
+{
+	char filename[4096];
+
+	if (GetModuleFileName(nullptr, filename, sizeof(filename)) == 0)
+	{
+		return false;
+	}
+
+	int length = strlen(filename);
+
+	if (length < 17)
+	{
+		return false;
+	}
+
+	return _stricmp(filename + length - 17, "xwingalliance.exe") == 0;
+}
+
+void PatchWithValue(uint32_t address, unsigned char value, int size) {
+	DWORD old, dummy;
+	BOOL res;
+	res = VirtualProtect((void *)address, 1, PAGE_READWRITE, &old);
+	if (res) {
+		//log_debug("[DBG] Patching address 0x%x", address);
+		memset((unsigned char *)address, value, size);
+		VirtualProtect((void *)address, 1, old, &dummy);
+	}
+	else
+		log_debug("[DBG] Could not patch address 0x%x", address);
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -761,6 +958,143 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		}
 		g_fDefaultFOVDist = *g_fRawFOVDist;
 		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
+		
+		if (IsXwaExe())
+		{
+			if (g_config.Text2DRendererEnabled) 
+			{
+				// RenderCharHook
+				*(unsigned char*)(0x00450A47 + 0x00) = 0xE8;
+				*(int*)(0x00450A47 + 0x01) = (int)RenderCharHook - (0x00450A47 + 0x05);
+
+				// ComputeMetricsHook
+				*(unsigned char*)(0x00510385 + 0x00) = 0xE8;
+				*(int*)(0x00510385 + 0x01) = (int)ComputeMetricsHook - (0x00510385 + 0x05);
+			}
+		
+			if (g_config.Radar2DRendererEnabled) 
+			{
+				// DrawRadarHook
+				*(int*)(0x00434977 + 0x06) = (int)DrawRadarHook;
+				*(int*)(0x00434995 + 0x06) = (int)DrawRadarSelectedHook;
+
+				// This hook will need more work in VR mode (back-project coords into 3D and then project again
+				// into 2D twice -- once for each eye -- then select the left/right offscreen buffers...); for now,
+				// let's only enable this hook if we didn't start in VR mode:
+				if (!g_bEnableVR) {
+					// DrawBracketInFlightHook
+					*(unsigned char*)(0x00503D46 + 0x00) = 0xE8;
+					*(int*)(0x00503D46 + 0x01) = (int)DrawBracketInFlightHook - (0x00503D46 + 0x05);
+
+					// DrawBracketInFlightHook CMD
+					*(unsigned char*)(0x00478E44 + 0x00) = 0xE8;
+					*(int*)(0x00478E44 + 0x01) = (int)DrawBracketInFlightHook - (0x00478E44 + 0x05);
+				}
+				// DrawBracketMapHook
+				*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
+				*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);
+			}
+
+			// Remove the text next to the triangle pointer
+			// At offset 072B4A, replace BF48BD6800 with 9090909090.
+			// Offset 072B4A corresponds to address 0047374A
+			if (!g_config.TriangleTextEnabled)
+			{
+				DWORD old, dummy;
+				BOOL res;
+				res = VirtualProtect((void *)0x047374A, 5, PAGE_READWRITE, &old);
+				if (res) {
+					log_debug("[DBG] Patching address 0x047374A");
+					//memset((unsigned char *)0x047374A, 0x90, 5);
+					unsigned char *ptr = (unsigned char *)0x047374A;
+					for (int i = 0; i < 5; i++) {
+						//log_debug("[DBG] 0x%x", *(ptr + i));
+						*(ptr + i) = 0x90; // NOP
+					}
+					if (VirtualProtect((void *)0x047374A, 5, old, &dummy)) {
+						log_debug("[DBG] Address 0x047374A patched!");
+						if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+							log_debug("[DBG] Instructions flushed");
+					}
+				}
+				else
+					log_debug("[DBG] Could not get address 0x047374A");
+			}
+
+			// Remove the triangle pointer completely:
+			// At offset 06B970 (address 0046C570), replace 83 with C3.
+			if (!g_config.TrianglePointerEnabled) {
+				DWORD old, dummy;
+				BOOL res;
+				res = VirtualProtect((void *)0x046C570, 1, PAGE_READWRITE, &old);
+				if (res) {
+					log_debug("[DBG] Patching address 0x046C570");
+					//memset((unsigned char *)0x046C570, 0xC3, 1);
+					unsigned char *ptr = (unsigned char *)0x046C570;
+					for (int i = 0; i < 1; i++) {
+						*(ptr + i) = 0xC3; // RET (?)
+					}
+					if (VirtualProtect((void *)0x046C570, 1, old, &dummy)) {
+						log_debug("[DBG] Address 0x046C570 patched!");
+						if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+							log_debug("[DBG] Instructions flushed");
+					}
+				}
+				else
+					log_debug("[DBG] Could not get address 0x046C570");
+			}
+
+			/*
+				Remove the text next to the triangle pointer; but leave the triangle:
+
+				// disable text
+				At offset 06BE26 (address 0046CA26), replace E88585FCFF with 9090909090.
+				At offset 06C092 (address 0046CC92), replace E81983FCFF with 9090909090.
+				At offset 06C515 (address 0046D115), replace E8967EFCFF with 9090909090.
+
+				// disable text digits
+				At offset 06C0D4 (address 0046CCD4), replace E84785FCFF with 9090909090.
+				At offset 06C10C (address 0046CD0C), replace E80F85FCFF with 9090909090.
+				At offset 06C563 (address 0046D163), replace E8B880FCFF with 9090909090.
+				At offset 06C59B (address 0046D19B), replace E88080FCFF with 9090909090.
+
+				// disable dot
+				At offset 06C0EB (address 0046CCEB), replace FF15B09D7C00 with 909090909090.
+				At offset 06C57A (address 0046D17A), replace FF15B09D7C00 with 909090909090.
+			*/
+			if (g_config.SimplifiedTrianglePointer) {
+				log_debug("[DBG] Applying SimplifiedTrianglePointer patch");
+				// At offset 072B4A(address 0047374A), replace BF48BD6800 with 90 90 90 90 90. (5 bytes)
+				//PatchWithValue(0x047374A, 0x90, 5); <-- This will remove the triangle; but also the FG name in the target box!
+
+				// Disable Text
+				// At offset 06BE26(address 0046CA26), replace E88585FCFF with 90 90 90 90 90. (5 bytes)
+				PatchWithValue(0x046CA26, 0x90, 5);
+				// At offset 06C092(address 0046CC92), replace E81983FCFF with 9090909090.
+				PatchWithValue(0x046CC92, 0x90, 5);
+				// At offset 06C515(address 0046D115), replace E8967EFCFF with 9090909090.
+				PatchWithValue(0x046D115, 0x90, 5);
+
+				// Disable text digits
+				// At offset 06C0D4(address 0046CCD4), replace E84785FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046CCD4, 0x90, 5);
+				// At offset 06C10C(address 0046CD0C), replace E80F85FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046CD0C, 0x90, 5);
+				// At offset 06C563(address 0046D163), replace E8B880FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046D163, 0x90, 5);
+				// At offset 06C59B(address 0046D19B), replace E88080FCFF with 90 90 90 90 90.
+				PatchWithValue(0x046D19B, 0x90, 5);
+
+				// disable dot
+				// At offset 06C0EB(address 0046CCEB), replace FF15B09D7C00 with 90 90 90 90 90 90. (6 bytes)
+				PatchWithValue(0x046CCEB, 0x90, 6);
+				// At offset 06C57A(address 0046D17A), replace FF15B09D7C00 with 90 90 90 90 90 90.
+				PatchWithValue(0x046D17A, 0x90, 6);
+				// Flush the instruction cache
+				if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
+					log_debug("[DBG] Instructions flushed");
+			}
+		}
 		break;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:
@@ -773,6 +1107,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		// Generic FreePIE shutdown, just in case...
 		if (bFreePIEAlreadyInitialized)
 			ShutdownFreePIE();
+		exit(0);
 		break;
 	}
 

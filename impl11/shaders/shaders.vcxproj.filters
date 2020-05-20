@@ -35,7 +35,6 @@
     <FxCompile Include="PixelShaderHUD.hlsl" />
     <FxCompile Include="BloomBufferAddPS.hlsl" />
     <FxCompile Include="BasicPixelShader.hlsl" />
-    <FxCompile Include="SSAO\ComputeNormalsShader.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
@@ -44,10 +43,6 @@
     <FxCompile Include="SSDO\SSDODirect.hlsl" />
     <FxCompile Include="SSDO\SSDOAdd.hlsl" />
     <FxCompile Include="SSDO\SSDOBlur.hlsl" />
-    <FxCompile Include="SSDO\SSDODirectHDR.hlsl" />
-    <FxCompile Include="SSDO\SSDOAddHDR.hlsl" />
-    <FxCompile Include="SSDO\SSDOAddBentNormals.hlsl" />
-    <FxCompile Include="SSDO\SSDODirectBentNormals.hlsl" />
     <FxCompile Include="DeathStarShader.hlsl" />
     <FxCompile Include="HyperEntry.hlsl" />
     <FxCompile Include="HyperTunnel.hlsl" />
@@ -55,6 +50,19 @@
     <FxCompile Include="HyperCompose.hlsl" />
     <FxCompile Include="HyperZoom.hlsl" />
     <FxCompile Include="LaserPointerVR.hlsl" />
+    <FxCompile Include="FXAA.hlsl" />
+    <FxCompile Include="ExternalHUDShader.hlsl" />
+    <FxCompile Include="SunFlareShader.hlsl" />
+    <FxCompile Include="SunShader.hlsl" />
+    <FxCompile Include="SunFlareCompose.hlsl" />
+    <FxCompile Include="SpeedEffect.hlsl" />
+    <FxCompile Include="SpeedEffectCompose.hlsl" />
+    <FxCompile Include="SpeedEffectVertexShader.hlsl" />
+    <FxCompile Include="AddGeometryVertexShader.hlsl" />
+    <FxCompile Include="AddGeometryPixelShader.hlsl" />
+    <FxCompile Include="AddGeometryComposePixelShader.hlsl" />
+    <FxCompile Include="HeadLightsPS.hlsl" />
+    <FxCompile Include="HeadLightsSSAOPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -75,6 +83,15 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="material_defs.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSAOPSConstantBuffer.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="PixelShaderTextureCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadertoyCBuffer.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

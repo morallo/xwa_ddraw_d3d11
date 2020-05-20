@@ -5,6 +5,7 @@
 #pragma once
 #include "Matrices.h"
 #include "../shaders/material_defs.h"
+#include "../shaders/shader_common.h"
 #include <vector>
 
 // Also found in the Floating_GUI_RESNAME list:
@@ -29,6 +30,14 @@ typedef struct Box_struct {
 typedef struct uvfloat4_struct {
 	float x0, y0, x1, y1;
 } uvfloat4;
+
+typedef struct float3_struct {
+	float x, y, z;
+} float3;
+
+typedef struct float4_struct {
+	float x, y, z, w;
+} float4;
 
 // Region names. Used in the erase_region and move_region commands
 const int LEFT_RADAR_HUD_BOX_IDX		= 0;
@@ -73,6 +82,7 @@ public:
 			boxes[i].bLimitsComputed = false;
 	}
 };
+const int MAX_DC_REGIONS = 9;
 
 const int LEFT_RADAR_DC_ELEM_SRC_IDX = 0;
 const int RIGHT_RADAR_DC_ELEM_SRC_IDX = 1;
@@ -180,13 +190,13 @@ typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength, fSparksStrength;
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
 	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
-	float fCockpitSparksStrength, fMissileStrength, fSkydomeLightStrength;
+	float fCockpitSparksStrength, fMissileStrength, fSkydomeLightStrength, fBracketStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;
 
 typedef struct BloomPixelShaderCBStruct {
-	float pixelSizeX, pixelSizeY, unused0, amplifyFactor;
+	float pixelSizeX, pixelSizeY, general_bloom_strength, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength;
 	int unused1;
@@ -216,22 +226,25 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
-	float invLightR, invLightG, invLightB, gamma;
+	float enable_dist_fade, ssaops_unused1, ssaops_unused2, shadow_epsilon;
 	// 128 bytes
-	float white_point, shadow_step_size, shadow_steps, aspect_ratio;
+	float ssaops_unused3, shadow_step_size, shadow_steps, aspect_ratio;
 	// 144 bytes
 	float vpScale[4];
 	// 160 bytes
 	int shadow_enable;
-	float shadow_k, ssao_unused0, ssao_unused1;
+	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
 typedef struct ShadertoyCBStruct {
-	float iTime, twirl, bloom_strength, unused;
+	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
-	int bDirectSBS; // Set to true when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	// 0: Non-VR, 1: DirectSBS, 2: SteamVR. 
+	// Set to 1 when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
+	// Used in the SunShader too.
+	int VRmode; 
 	float y_center;
 	// 32 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
@@ -243,6 +256,14 @@ typedef struct ShadertoyCBStruct {
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
 	float tunnel_speed, FOVscale;
 	// 128 bytes
+	int SunFlareCount;
+	float flare_intensity, st_unused0, st_unused1;
+	// 144 bytes
+	//float SunX, SunY, SunZ, flare_intensity;
+	float4 SunCoords[MAX_SUN_FLARES];
+	// 208 bytes
+	float4 SunColor[MAX_SUN_FLARES];
+	// 272 bytes
 } ShadertoyCBuffer;
 
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
@@ -264,7 +285,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	int unusedA[3];
+	float cursor_radius, unused[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 
@@ -286,39 +307,45 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 fullViewMat;
 } VertexShaderMatrixCB;
 
-typedef struct float3_struct {
-	float x, y, z;
-} float3;
-
-typedef struct float4_struct {
-	float x, y, z, w;
-} float4;
-
 typedef struct PSShadingSystemCBStruct {
-	float4  LightVector[2];
+	float3 MainLight;
+	uint32_t LightCount;
+	// 16 bytes
+	float4 MainColor;
 	// 32 bytes
-	float4  LightColor[2];
-	// 64 bytes
+	float4 LightVector[MAX_XWA_LIGHTS];
+	// 32+128 = 160 bytes
+	float4 LightColor[MAX_XWA_LIGHTS];
+	// 160+128 = 288 bytes
 	float spec_intensity, glossiness, spec_bloom_intensity, bloom_glossiness_mult;
-	// 80 bytes
+	// 304 bytes
 	float saturation_boost, lightness_boost, ssdo_enabled;
 	uint32_t ss_debug;
-	// 96 bytes
-	float sso_disable, ssunused0, ssunused1, ssunused2;
-	// 112 bytes
+	// 320 bytes
+	float sso_disable, sqr_attenuation, laser_light_intensity;
+	uint32_t num_lasers;
+	// 336 bytes
+	float4 LightPoint[MAX_CB_POINT_LIGHTS];
+	// 8 * 16 = 128
+	// 464 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 8 * 16 = 128
+	// 592 bytes
+	float ambient, headlights_angle_cos, ss_unused1, ss_unused2;
+	// 608 bytes
 } PSShadingSystemCB;
 
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
-	uint32_t bIsHyperspaceAnim;
+	uint32_t bInHyperspace;
 	// 16 bytes
 	
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t bInHyperspace;
+	uint32_t ps_unused1; // Formerly this was bIsSun
 	// 32 bytes
 
 	float fBloomStrength;
@@ -331,12 +358,13 @@ typedef struct PixelShaderCBStruct {
 	float fGlossiness, fSpecInt, fNMIntensity;
 	// 64 bytes
 
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
+	float fSpecVal, fDisableDiffuse;
+	uint32_t debug;
+	float ps_unused2;
 	// 80 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
-const int MAX_DC_COORDS_PER_TEXTURE = 12;
 typedef struct DCPixelShaderCBStruct {
 	uvfloat4 src[MAX_DC_COORDS_PER_TEXTURE];
 	// 4 * MAX_DC_COORDS * 4 = 192
@@ -347,7 +375,8 @@ typedef struct DCPixelShaderCBStruct {
 	// 4 * MAX_DC_COORDS = 48
 	// 432 bytes thus far
 
-	float ct_brightness, unused[3];
+	float ct_brightness, dc_brightness;
+	float unused[2];
 	// 448 bytes
 } DCPixelShaderCBuffer;
 
@@ -355,6 +384,8 @@ typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
 	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
 	uint32_t uBGColor[MAX_DC_COORDS_PER_TEXTURE];
+	uint32_t uHGColor[MAX_DC_COORDS_PER_TEXTURE];
+	uint32_t uWHColor[MAX_DC_COORDS_PER_TEXTURE];
 	int numCoords;
 } uv_src_dst_coords;
 
@@ -418,7 +449,7 @@ enum HyperspacePhaseEnum {
 	HS_HYPER_EXIT_ST = 3,		// HyperExit streaks are being rendered
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
-const int MAX_POST_HYPER_EXIT_FRAMES = 20;
+const int MAX_POST_HYPER_EXIT_FRAMES = 10; // I had 20 here up to version 1.1.1. Making this smaller makes the zoom faster
 
 // General types and globals
 typedef enum {
@@ -428,6 +459,10 @@ typedef enum {
 	TRACKER_TRACKIR
 } TrackerType;
 
+struct MaterialStruct;
+
+extern struct MaterialStruct g_DefaultGlobalMaterial;
+
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
@@ -435,15 +470,109 @@ typedef struct MaterialStruct {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
+	bool IsShadeless;
+	Vector3 Light;
 
 	MaterialStruct() {
-		Metallic    = DEFAULT_METALLIC;
-		Intensity   = DEFAULT_SPEC_INT;
-		Glossiness  = DEFAULT_GLOSSINESS;
-		NMIntensity = DEFAULT_NM_INT;
-		SpecValue   = DEFAULT_SPEC_VALUE;
+		Metallic    = g_DefaultGlobalMaterial.Metallic;
+		Intensity   = g_DefaultGlobalMaterial.Intensity;
+		Glossiness  = g_DefaultGlobalMaterial.Glossiness;
+		NMIntensity = g_DefaultGlobalMaterial.NMIntensity;
+		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
+		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
+		Light		= g_DefaultGlobalMaterial.Light;
 	}
 } Material;
+
+// Color-Light links
+class Direct3DTexture;
+typedef struct ColorLightPairStruct {
+	Direct3DTexture *color, *light;
+
+	ColorLightPairStruct(Direct3DTexture *color) {
+		this->color = color;
+		this->light = NULL;
+	}
+} ColorLightPair;
+
+/*
+ * Used to store a list of textures for fast lookup. For instance, all suns must
+ * have their associated lights reset after jumping through hyperspace; and all
+ * textures with materials can be placed here so that material properties can be
+ * re-applied while flying.
+ */
+/*
+typedef struct AuxTextureDataStruct {
+	Direct3DTexture *texture;
+} AuxTextureData;
+*/
+
+/*
+class XWALightInfoStruct {
+public:
+	bool Tested, IsSun;
+
+public:
+	XWALightInfoStruct() {
+		Tested = false;
+		IsSun = false;
+	}
+};
+*/
+
+// S0x07D4FA0
+struct XwaGlobalLight
+{
+	/* 0x0000 */ int PositionX;
+	/* 0x0004 */ int PositionY;
+	/* 0x0008 */ int PositionZ;
+	/* 0x000C */ float DirectionX;
+	/* 0x0010 */ float DirectionY;
+	/* 0x0014 */ float DirectionZ;
+	/* 0x0018 */ float Intensity;
+	/* 0x001C */ float XwaGlobalLight_m1C;
+	/* 0x0020 */ float ColorR;
+	/* 0x0024 */ float ColorB;
+	/* 0x0028 */ float ColorG;
+	/* 0x002C */ float BlendStartIntensity;
+	/* 0x0030 */ float BlendStartColor1C;
+	/* 0x0034 */ float BlendStartColorR;
+	/* 0x0038 */ float BlendStartColorB;
+	/* 0x003C */ float BlendStartColorG;
+	/* 0x0040 */ float BlendEndIntensity;
+	/* 0x0044 */ float BlendEndColor1C;
+	/* 0x0048 */ float BlendEndColorR;
+	/* 0x004C */ float BlendEndColorB;
+	/* 0x0050 */ float BlendEndColorG;
+};
+
+#define MAX_HEAP_ELEMS 32
+class VectorColor {
+public:
+	Vector3 P;
+	Vector3 col;
+};
+
+class SmallestK {
+public:
+	// Insert-sort-like algorithm to keep the k smallest elements from a constant flow
+	VectorColor _elems[MAX_CB_POINT_LIGHTS];
+	int _size;
+
+public:
+	SmallestK() {
+		clear();
+	}
+
+	inline void clear() {
+		_size = 0;
+	}
+
+	void insert(Vector3 P, Vector3 col);
+};
+
+#define MAX_SPEED_PARTICLES 256
+extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 class DeviceResources
 {
@@ -463,11 +592,12 @@ public:
 	void InitPixelShader(ID3D11PixelShader* pixelShader);
 	void InitTopology(D3D_PRIMITIVE_TOPOLOGY topology);
 	void InitRasterizerState(ID3D11RasterizerState* state);
+	void InitPSShaderResourceView(ID3D11ShaderResourceView* texView);
 	HRESULT InitSamplerState(ID3D11SamplerState** sampler, D3D11_SAMPLER_DESC* desc);
 	HRESULT InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DESC* desc);
 	HRESULT InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc);
 	void InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT* offset);
-	void InitIndexBuffer(ID3D11Buffer* buffer);
+	void InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32);
 	void InitViewport(D3D11_VIEWPORT* viewport);
 	void InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer);
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);
@@ -485,6 +615,11 @@ public:
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void BuildPostProcVertexBuffer();
+	void InitSpeedParticlesVB(UINT width, UINT height);
+	void BuildSpeedVertexBuffer(UINT width, UINT height);
+	void CreateRandomVectorTexture();
+	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -514,24 +649,29 @@ public:
 	ComPtr<ID3D11Device> _d3dDevice;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
 	ComPtr<IDXGISwapChain> _swapChain;
+	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
 	// Dynamic Cockpit
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;   // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG; // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
+	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text
+	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders
 	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
 	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
 	// ShaderToy effects
-	ComPtr<ID3D11Texture2D> _shadertoyBuf;  // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyBufR; // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;  // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;
+	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
 	// Bloom
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
@@ -558,12 +698,20 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
 	// Shading System
-	ComPtr<ID3D11Texture2D> _normBuf;		// No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMask;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMaskR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssMask;			// No MSAA
-	ComPtr<ID3D11Texture2D> _ssMaskR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _normBufMSAA;
+	ComPtr<ID3D11Texture2D> _normBufMSAA_R;
+	ComPtr<ID3D11Texture2D> _normBuf;		 // No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA;
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA_R;
+	ComPtr<ID3D11Texture2D> _ssaoMask;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
+	ComPtr<ID3D11Texture2D> _ssMask;			 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
+	//ComPtr<ID3D11Texture2D> _ssEmissionMask;	  // No MSAA, Screen-Space emission mask
+	//ComPtr<ID3D11Texture2D> _ssEmissionMaskR; // No MSAA, Screen-Space emission mask
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -573,6 +721,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInput; // RTV that writes to _offscreenBufferAsInputDynCockpit directly
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
+	ComPtr<ID3D11RenderTargetView> _DCTextRTV;
+	ComPtr<ID3D11RenderTargetView> _DCTextAsInputRTV;
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
@@ -583,11 +733,11 @@ public:
 	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask  = NULL; // Renders to _offscreenBufferBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR = NULL; // Renders to _offscreenBufferBloomMaskR
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1; // Renders to bloomOutput1
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2; // Renders to bloomOutput2
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum; // Renders to bloomOutputSum
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R; // Renders to bloomOutput1R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R; // Renders to bloomOutput2R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1;    // Renders to bloomOutput1
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2;    // Renders to bloomOutput2
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum;  // Renders to bloomOutputSum
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R;   // Renders to bloomOutput1R
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R;   // Renders to bloomOutput2R
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 	// Ambient Occlusion
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf;
@@ -605,13 +755,16 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMask;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	// Dynamic Cockpit
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpit;   // SRV for HUD elements without background
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputSRVDynCockpitBG; // SRV for HUD element backgrounds
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
+	ComPtr<ID3D11ShaderResourceView> _DCTextSRV;						// SRV for the HUD text
 	// Shadertoy
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
@@ -620,33 +773,42 @@ public:
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV; // SRV for bloomOutput1
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV; // SRV for bloomOutput2
-	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV; // SRV for bloomOutputSum
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R; // SRV for bloomOutput1R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R; // SRV for bloomOutput2R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV;     // SRV for bloomOutput1
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV;     // SRV for bloomOutput2
+	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV;   // SRV for bloomOutputSum
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R;   // SRV for bloomOutput1R
+	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R;   // SRV for bloomOutput2R
 	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	// Ambient Occlusion
-	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;   // SRV for depthBufAsInput
-	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R; // SRV for depthBufAsInputR
+	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
+	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;    // SRV for bentBuf
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;  // SRV for bentBufR
-	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV; // SRV for ssaoBuf
-	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R; // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
+	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf
+	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R;   // SRV for ssaoBuf
 	// Shading System
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV;    // SRV for normBuf
-	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;  // SRV for normBufR
-	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV; // SRV for ssaoMask
-	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R; // SRV for ssaoMaskR
-	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV; // SRV for ssMask
-	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R; // SRV for ssMaskR
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV;     // SRV for normBuf
+	ComPtr<ID3D11ShaderResourceView> _normBufSRV_R;   // SRV for normBufR
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV;    // SRV for ssaoMask
+	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R;  // SRV for ssaoMaskR
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
+	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
+	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV;    // SRV for ssEmissionMask
+	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV_R;  // SRV for ssEmissionMaskR
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
+
+	ComPtr<ID2D1Factory> _d2d1Factory;
+	ComPtr<IDWriteFactory> _dwriteFactory;
+	ComPtr<ID2D1RenderTarget> _d2d1RenderTarget;
+	ComPtr<ID2D1RenderTarget> _d2d1OffscreenRenderTarget;
+	ComPtr<ID2D1RenderTarget> _d2d1DCRenderTarget;
+	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
 	ComPtr<ID3D11InputLayout> _mainInputLayout;
@@ -660,17 +822,14 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
-	ComPtr<ID3D11PixelShader> _computeNormalsPS;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
-	ComPtr<ID3D11PixelShader> _ssdoDirectBentNormalsPS;
-	ComPtr<ID3D11PixelShader> _ssdoDirectHDRPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
-	ComPtr<ID3D11PixelShader> _ssdoAddHDRPS;
-	ComPtr<ID3D11PixelShader> _ssdoAddBentNormalsPS;
+	ComPtr<ID3D11PixelShader> _headLightsPS;
+	ComPtr<ID3D11PixelShader> _headLightsSSAOPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
@@ -679,6 +838,16 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperZoomPS;
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
+	ComPtr<ID3D11PixelShader> _fxaaPS;
+	ComPtr<ID3D11PixelShader> _externalHUDPS;
+	ComPtr<ID3D11PixelShader> _sunShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	
+	ComPtr<ID3D11PixelShader> _speedEffectPS;
+	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
+	ComPtr<ID3D11PixelShader> _addGeomPS;
+	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -695,6 +864,8 @@ public:
 	ComPtr<ID3D11VertexShader> _vertexShader;
 	ComPtr<ID3D11VertexShader> _sbsVertexShader;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
+	ComPtr<ID3D11VertexShader> _speedEffectVS;
+	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
@@ -715,10 +886,11 @@ public:
 	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	
-	ComPtr<ID3D11Buffer> _barrelEffectVertBuffer;
+	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
+	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:

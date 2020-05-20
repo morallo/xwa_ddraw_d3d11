@@ -6,6 +6,7 @@
 #include "HSV.h"
 #include "shader_common.h"
 #include "shading_system.h"
+#include "PixelShaderTextureCommon.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -36,32 +37,6 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
-cbuffer ConstantBuffer : register(b0)
-{
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used. This setting was "bShadeless" previously
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint bIsHyperspaceAnim;
-	// 16 bytes
-
-	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint bInHyperspace;
-
-	float fBloomStrength;		// General multiplier for the bloom effect
-	float fPosNormalAlpha;		// (Ignored) Override for pos3D and normal output alpha
-	float fSSAOMaskVal;			// (Ignored) SSAO mask value
-	float fSSAOAlphaOfs;			// (Ignored) Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
-
-	uint bIsShadeless;
-	float fGlossiness, fSpecInt, fNMIntensity;
-	// 64 bytes
-
-	float fSpecVal, fDisableDiffuse, unusedPS2, unusedPS3;
-	// 80 bytes
-};
-
 // DCPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b1)
 {
@@ -87,9 +62,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P = input.pos3D.xyz;
 	output.pos3D = float4(P, 1);
 
-	float3 N = normalize(cross(ddx(P), ddy(P)));
-	//if (N.z < 0.0) N.z = 0.0; // Avoid vectors pointing away from the view
-	// Do not flip N.z -- that causes flat unoccluded surfaces to be shaded in SSAO
+	// hook_normals code:
+	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	N.z = -N.z;
 	output.normal = float4(N, 1);
 
 	//output.ssaoMask = 0;
@@ -138,6 +114,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, alpha); // Normal Mapping intensity, Specular Value
 	output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 	output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+	if (bInHyperspace) output.color.a = 1.0; // Hyperspace transparency fix
 	return output;
 
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);

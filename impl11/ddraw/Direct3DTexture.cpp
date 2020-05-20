@@ -18,21 +18,47 @@
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 
-std::vector<char *> HUD_ResNames = {
-	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire. (master branch)
-	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available. (master branch)
-	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser HUD (master branch).
-	"dat,12000,1500,", // 0x1c5e0b86, // HUD warning indicator, left. (master branch)
-	"dat,12000,1600,", // 0xc54d8171, // HUD warning indicator, mid-left. (master branch)
-	"dat,12000,1700,", // 0xf4388255, // HUD warning indicator, mid-right. (master branch)
-	"dat,12000,1800,", // 0xee802582, // HUD warning indicator, right. (master branch)
-	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead HUD. (master branch)
-	"dat,12000,1900,", // 0x671e8041, // Warhead HUD, left. (master branch)
-	"dat,12000,2000,", // 0x6cd5d81f, // Warhead HUD, mid-left,right (master branch) CRC collision!
-	"dat,12000,2100,", // 0x6cd5d81f, // Warhead HUD, mid-left,right (master branch) CRC collision!
-	"dat,12000,2200,", // 0xc33a94b3, // Warhead HUD, right. (master branch)
-	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon. (master branch)
-	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired. (master branch)
+std::vector<ColorLightPair> g_TextureVector;
+/*
+ * Used to store a list of textures for fast lookup. For instance, all suns must
+ * have their associated lights reset after jumping through hyperspace; and all
+ * textures with materials can be placed here so that material properties can be
+ * applied while flying.
+ */
+std::vector<Direct3DTexture *> g_AuxTextureVector;
+
+/*
+hook_reticle mapping:
+Reticle_5 = 5
+Reticle_6 = 6
+Reticle_7 = 7
+Reticle_8 = 8
+Reticle_9 = 9
+Reticle_10 = 10
+Reticle_15 = 15
+Reticle_16 = 16
+Reticle_17 = 17
+Reticle_18 = 18
+Reticle_19 = 19
+Reticle_20 = 20
+Reticle_21 = 21
+Reticle_22 = 22
+*/
+std::vector<char *> Reticle_ResNames = {
+	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
+	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon.
+	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
+	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired.
+	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available.
+	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
+	"dat,12000,1500,", // 0x1c5e0b86, // Laser warning indicator, left.
+	"dat,12000,1600,", // 0xc54d8171, // Laser warning indicator, mid-left.
+	"dat,12000,1700,", // 0xf4388255, // Laser warning indicator, mid-right.
+	"dat,12000,1800,", // 0xee802582, // Laser warning indicator, right.
+	"dat,12000,1900,", // 0x671e8041, // Warhead top indicator, left.
+	"dat,12000,2000,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
+	"dat,12000,2100,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
+	"dat,12000,2200,", // 0xc33a94b3, // Warhead top indicator, right.
 };
 
 std::vector<char *> Text_ResNames = {
@@ -135,6 +161,16 @@ std::vector<char *> Sun_ResNames = {
 	"dat,9010,",
 };
 
+/*
+// With a few exceptions, all planets are in the dat,6XXX, series. It's 
+// probably more efficient to parse that algorithmically.
+std::vector<char *> Planet_ResNames = {
+	"dat,6010,",
+	"dat,6010,",
+	...
+};
+*/
+
 std::vector<char *> SpaceDebris_ResNames = {
 	"dat,4000,",
 	"dat,4001,",
@@ -150,6 +186,8 @@ std::vector<char *> Trails_ResNames = {
 	"dat,21020,",
 	"dat,21025,",
 };
+
+bool GetGroupIdImageIdFromDATName(char *DATName, int *GroupId, int *ImageId);
 
 // DYNAMIC COCKPIT
 // g_DCElements is used when loading textures to load the cover texture.
@@ -168,12 +206,15 @@ extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char *sFileName);
 void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
 
+extern bool g_b3DSunPresent, g_b3DSkydomePresent;
+
 // MATERIALS
 // Contains all the materials for all the OPTs currently loaded
 std::vector<CraftMaterials> g_Materials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
+void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
@@ -258,12 +299,14 @@ int FindCraftMaterial(char *OPTname) {
 
 /*
 Find the material in the specified CraftIndex of g_Materials that corresponds to
-TexName. Returns the default material if it wasn't found.
+TexName. Returns the default material if it wasn't found or if TexName is null/empty
 */
 Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
 	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
 	// Slot should always be present and it should be the default craft material
 	Material defMat = craftMats->MaterialList[0].material;
+	if (TexName == NULL || TexName[0] == 0)
+		return defMat;
 	for (uint32_t i = 1; i < craftMats->MaterialList.size(); i++) {
 		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
 			defMat = craftMats->MaterialList[i].material;
@@ -350,9 +393,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
-	//this->crc = 0;
 	this->is_Tagged = false;
-	this->is_HUD = false;
+	this->is_Reticle = false;
+	this->is_HighlightedReticle = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
 	this->is_Floating_GUI = false;
@@ -370,6 +413,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_FlatLightEffect = false;
 	this->is_LensFlare = false;
 	this->is_Sun = false;
+	this->is_3DSun = false;
+	//this->AssociatedXWALight = -1;
 	this->is_Debris = false;
 	this->is_Trail = false;
 	this->is_Spark = false;
@@ -377,8 +422,10 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Chaff = false;
 	this->is_Missile = false;
 	this->is_GenericSSAOMasked = false;
+	this->is_Skydome = false;
 	this->is_SkydomeLight = false;
 	this->ActiveCockpitIdx = -1;
+	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
 	this->DCElementIndex = -1;
 	this->is_DynCockpitDst = false;
@@ -399,7 +446,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->bHasMaterial = false;
 	// Create the default material for this texture
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
-	this->material.Intensity = DEFAULT_SPEC_INT;
+	this->material.Intensity  = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
 }
 
@@ -584,10 +631,20 @@ void Direct3DTexture::TagTexture() {
 			this->is_TrianglePointer = true;
 		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		else if (isInVector(surface->_name, HUD_ResNames))
-			this->is_HUD = true;
+		else if (isInVector(surface->_name, Reticle_ResNames))
+			this->is_Reticle = true;
 		else if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
+
+		/*
+		 * TODO: For custom reticles, I would need to load the list of reticles from either the
+		 * ship reticle cfg or ship ini file, look for index 6 and test against the name in there.
+		 * Of course, this will only work if we already know the ship's name, or we won't be able
+		 * to find the file we need to load... Maybe I need to ask Jeremy if this information is
+		 * stored somewhere in-memory... For now, only the standard HUD is supported!
+		 */
+		if (strstr(surface->_name, "dat,12000,600,") != NULL) // TODO: how to do this for custom reticles?
+			this->is_HighlightedReticle = true;
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
@@ -610,11 +667,28 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, "dat,3051,") != NULL)
 			this->is_HyperspaceAnim = true;
 		// Catch the backdrup suns and mark them
-		if (isInVector(surface->_name, Sun_ResNames))
+		if (isInVector(surface->_name, Sun_ResNames)) {
 			this->is_Sun = true;
+			//g_AuxTextureVector.push_back(this); // We're no longer tracking which textures are Sun-textures
+		}
 		// Catch the space debris
 		if (isInVector(surface->_name, SpaceDebris_ResNames))
 			this->is_Debris = true;
+		// Catch DAT files
+		if (strstr(surface->_name, "dat,") != NULL) {
+			int GroupId, ImageId;
+			this->is_DAT = true;
+			// Check if this DAT image is a custom reticle
+			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
+				if (GroupId == 12000 && ImageId > 5000) {
+					this->is_Reticle = true;
+					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
+				}
+			}
+		}
+		// Catch blast marks
+		if (strstr(surface->_name, "dat,3050,") != NULL)
+			this->is_BlastMark = true;
 		// Catch the trails
 		if (isInVector(surface->_name, Trails_ResNames))
 			this->is_Trail = true;
@@ -684,19 +758,26 @@ void Direct3DTexture::TagTexture() {
 		// Capture the OPT name
 		char *start = strstr(surface->_name, "\\");
 		char *end = strstr(surface->_name, ".opt");
+		char sFileName[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
 			int size = end - start;
 			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
 			if (!isInVector(OPTname.name, g_OPTnames)) {
-				log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
 				// Add the name to the list of OPTnames so that we don't try to process it again
 				g_OPTnames.push_back(OPTname);
-				char sFileName[80];
-				OPTNameToMATParamsFile(OPTname.name, sFileName, 80);
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
 				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
 				LoadIndividualMATParams(OPTname.name, sFileName);
 			}
+		}
+		else if (strstr(surface->_name, "dat,") != NULL) {
+			// For DAT images, OPTname.name is the full DAT name:
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
+			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			if (sFileName[0] != 0)
+				LoadIndividualMATParams(OPTname.name, sFileName);
 		}
 	}
 
@@ -728,6 +809,14 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
+
+			// DEBUG
+			// Looks like we always tag the color texture before the light texture.
+			// Then we Load() the color and light textures.
+			//if (strstr(surface->_name, "TEX00061") != NULL)
+			//log_debug("[DBG] [AC] Tagging: %s", surface->_name);
+			// DEBUG
+
 			/* 
 			   Here's a funny story: you can change the craft when in the hangar. So we need to pay attention
 			   to changes in the cockpit's name. One way to do this is by resetting DC when textures are freed;
@@ -789,21 +878,82 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_name, ",light,") != NULL)
 			this->is_LightTexture = true;
 
+		// Link light and color textures:
+		/*
+		{
+			if (!this->is_LightTexture) {
+				this->lightTexture = nullptr;
+				g_TextureVector.push_back(ColorLightPair(this));
+			}
+			else {
+				// Find the corresponding color texture and link it
+				// TODO: Do I need to worry about .DAT textures? Maybe not because they don't have "light"
+				//       textures? I didn't see a single DAT file using the following line:
+				//log_debug("[DBG] LIGHT: %s", this->_surface->_name);
+				for (int i = g_TextureVector.size() - 1; i >= 0; i--) {
+					char *light_name = this->_surface->_name;
+					char *color_name = g_TextureVector[i].color->_surface->_name;
+					char *light_start, *light_end, *color_start, *color_end;
+					int len = 0;
+
+					// Find the "TEX#####" token:
+					light_start = strstr(light_name, ".opt,");
+					if (light_start == NULL) break;
+					light_start += 5; // Skip the ".opt," part
+					light_end = strstr(light_start, ",");
+					if (light_end == NULL) break;
+					len = light_end - light_start;
+
+					color_start = color_name + (light_start - light_name);
+					color_end = color_name + (light_end - light_name);
+					if (_strnicmp(light_start, color_start, len) == 0)
+					{
+						//log_debug("[DBG] %d, %s maps to %s", i, light_start, color_start);
+						g_TextureVector[i].light = this;
+						g_TextureVector[i].color->lightTexture = this;
+						// After the color and light textures have been linked, g_TextureVector can be cleared
+						break;
+					}
+				}
+			}
+		}
+		*/
+
 		//if (strstr(surface->_name, "color-transparent") != NULL) {
 			//this->is_ColorTransparent = true;
 			//log_debug("[DBG] [DC] ColorTransp: [%s]", surface->_name);
 		//}
 
+		/*
+			Naming conventions from DTM:
+
+			Surface_XXX_xxKm.opt = Planetary Surface
+			Building_XXX.opt = Planetary Building
+			Skydome_XXX_xxKm.opt = Planetary Sky
+			Planet3D_XXX_xxKm.opt = Planet OPT object
+			Star3D_XXX_ccKm.opt = Sun OPT object
+			DeathStar3D_XXX.opt = Part of the real size Death Star (in progress)
+		*/
+
 		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
 		if (strstr(surface->_name, "Cielo") != NULL ||
 			strstr(surface->_name, "Skydome") != NULL)
 		{
-			//log_debug("[DBG] [DC] Skydome: [%s]", surface->_name);
+			g_b3DSkydomePresent = true;
+			this->is_Skydome = true;
 			this->is_GenericSSAOMasked = true;
 			if (this->is_LightTexture) {
 				this->is_SkydomeLight = true;
 				this->is_LightTexture = false; // The is_SkydomeLight attribute overrides this attribute
 			}
+		}
+
+		// 3D Sun is present in this scene: [opt, FlightModels\Planet3D_Sole_26Km.opt, TEX00001, color, 0]
+		if (strstr(surface->_name, "Sole") != NULL ||
+			strstr(surface->_name, "Star3D") != NULL) {
+			g_b3DSunPresent = true;
+			this->is_3DSun = true;
+			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
 		}
 		
 		if (g_bDynCockpitEnabled) {
@@ -851,10 +1001,10 @@ void Direct3DTexture::TagTexture() {
 				/* Process Active Cockpit destination textures: */
 				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
 				if (idx > -1) {
-					log_debug("[DBG] [AC] %s is an Active Cockpit Texture", surface->_name);
 					// "Point back" into the right ac_element index:
 					this->ActiveCockpitIdx = idx;
 					g_ACElements[idx].bActive = true;
+					//log_debug("[DBG] [AC] %s is an AC Texture, ActiveCockpitIdx: %d", surface->_name, this->ActiveCockpitIdx);
 				}
 			}
 		}
@@ -865,18 +1015,36 @@ void Direct3DTexture::TagTexture() {
 		{
 			int craftIdx = FindCraftMaterial(OPTname.name);
 			if (craftIdx > -1) {
-				//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
-				char *start = strstr(surface->_name, ".opt");
-				// Skip the ".opt," part
-				start += 5;
-				// Find the next comma
-				char *end = strstr(start, ",");
-				int size = end - start;
 				char texname[MAX_TEXNAME];
-				strncpy_s(texname, MAX_TEXNAME, start, size);
+				bool bIsDat = strstr(OPTname.name, "dat,") != NULL;
+				// We need to check if this is a DAT or an OPT first
+				if (bIsDat) 
+				{
+					texname[0] = 0; // Retrieve the default material
+				}
+				else 
+				{
+					//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+					char *start = strstr(surface->_name, ".opt");
+					// Skip the ".opt," part
+					start += 5;
+					// Find the next comma
+					char *end = strstr(start, ",");
+					int size = end - start;
+					strncpy_s(texname, MAX_TEXNAME, start, size);
+				}
 				//log_debug("[DBG] [MAT] Looking for material for %s", texname);
 				this->material = FindMaterial(craftIdx, texname);
 				this->bHasMaterial = true;
+				// This texture has a material associated with it, let's save it in the aux list:
+				g_AuxTextureVector.push_back(this);
+				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
+				// DEBUG
+				/*if (bIsDat) {
+					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
+						surface->_name, material.Light.x, material.Light.y, material.Light.z);
+				}*/
+				// DEBUG
 			}
 			//else {
 				// Material not found, use the default material (already created in the constructor)...
@@ -913,7 +1081,8 @@ HRESULT Direct3DTexture::Load(
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
-	this->is_HUD = d3dTexture->is_HUD;
+	this->is_Reticle = d3dTexture->is_Reticle;
+	this->is_HighlightedReticle = d3dTexture->is_HighlightedReticle;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
 	this->is_Floating_GUI = d3dTexture->is_Floating_GUI;
@@ -931,6 +1100,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_FlatLightEffect = d3dTexture->is_FlatLightEffect;
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
+	this->is_3DSun = d3dTexture->is_3DSun;
+	//this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
 	this->is_Spark = d3dTexture->is_Spark;
@@ -938,8 +1109,18 @@ HRESULT Direct3DTexture::Load(
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
 	this->is_GenericSSAOMasked = d3dTexture->is_GenericSSAOMasked;
+	this->is_Skydome = d3dTexture->is_Skydome;
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
+	this->is_DAT = d3dTexture->is_DAT;
+	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
+	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
+	// g_AuxTextureVector will keep a list of references to textures that have associated materials.
+	// We use this list to reload materials by pressing Ctrl+Alt+L.
+	// If d3dTexture has already been inserted in g_AuxTextureVector, then we need to update the 
+	// reference in g_AuxTextureVector so that it points to *this* object now:
+	if (this->AuxVectorIndex != -1 && this->AuxVectorIndex < (int)g_AuxTextureVector.size())
+		g_AuxTextureVector[this->AuxVectorIndex] = this;
 	// TODO: Instead of copying textures, let's have a single pointer shared by all instances
 	// Actually, it looks like we need to copy the texture names in order to have them available
 	// during 3D rendering. This makes them available both in the hangar and after launching from
@@ -965,7 +1146,16 @@ HRESULT Direct3DTexture::Load(
 
 	this->material = d3dTexture->material;
 	this->bHasMaterial = d3dTexture->bHasMaterial;
+	//this->lightTexture = d3dTexture->lightTexture;
 
+	// DEBUG
+	// Looks like we always tag the color texture before the light texture.
+	// Then we Load() the color and light textures.
+	//if (this->is_CockpitTex) {
+		//	log_debug("[DBG] [AC] Loading: %s", surface->_name);
+	//}
+
+	// DEBUG
 	if (d3dTexture->_textureView)
 	{
 #if LOGGER

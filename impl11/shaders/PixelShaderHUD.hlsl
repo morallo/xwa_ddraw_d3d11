@@ -2,44 +2,30 @@
 // Licensed under the MIT license. See LICENSE.txt
 // This shader should only be called to render the HUD FG/BG
 #include "shader_common.h"
+#include "PixelShaderTextureCommon.h"
 
+// texture0 == HUD foreground
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// texture1 == HUD background
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
 
-// If bRenderHUD is set:
-// texture0 == HUD foreground
-// texture1 == HUD background
+// texture2 == HUD Text
+Texture2D    texture2 : register(t2);
+SamplerState sampler2 : register(s2);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
+	float4 pos   : SV_POSITION;
 	float4 color : COLOR0;
-	float2 tex : TEXCOORD;
+	float2 tex   : TEXCOORD;
 };
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
-	float4 bloom  : SV_TARGET1;
-	float4 pos3D  : SV_TARGET2;
-	float4 normal : SV_TARGET3;
-};
-
-cbuffer ConstantBuffer : register(b0)
-{
-	float brightness;		// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;	// How many DC slots will be used.
-	uint bUseCoverTexture;	// When set, use the first texture as cover texture for the dynamic cockpit
-	uint unused;				// (Used to be bRenderHUD) When set, first texture is HUD foreground and second texture is HUD background
-	// 16 bytes
-
-	uint bIsLaser;					// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;			// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
-	uint bIsEngineGlow;				// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	// unused
+	float4 color : SV_TARGET0;
 };
 
 // DCPixelShaderCBuffer, _PSConstantBufferDC, g_DCPSCBuffer
@@ -57,21 +43,21 @@ cbuffer ConstantBuffer : register(b1)
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	float4 texelColor   = texture0.Sample(sampler0, input.tex);
 	float4 texelColorBG = texture1.Sample(sampler1, input.tex);
-	float alpha = texelColor.w;
-	float alphaBG = texelColorBG.w;
+	float4 texelText    = texture2.Sample(sampler2, input.tex);
+	float  alpha   = texelColor.w;
+	float  alphaBG = texelColorBG.w;
 	float3 diffuse = input.color.xyz;
 	uint i;
 
-	// Zero-out the bloom, pos3d and normal masks.
-	output.bloom  = float4(0, 0, 0, 0);
-	output.pos3D  = float4(0, 0, 0, 0);
-	output.normal = float4(0, 0, 0, 0);
-	output.color = texelColor;
-
-	// This code assumes bRenderHUD is set -- so this is flag is now
-	// redundant
+	// Fix the text alpha and blend it with the HUD foreground
+	float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
+	texelColor.rgb = lerp(texelColor.rgb, texelText.rgb, textAlpha);
+	texelColor.w = max(texelColor.w, textAlpha);
+	alpha = texelColor.w;
+	
+	output.color  = texelColor;
 
 	// Render the captured HUD, execute the move_region commands.
 	// texture0 == HUD foreground
@@ -90,8 +76,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Execute the move_region commands: erase source regions
 	[unroll]
 	for (i = 0; i < DynCockpitSlots; i++)
-		if (input.tex.x >= src[i].x && input.tex.x <= src[i].z &&
-			input.tex.y >= src[i].y && input.tex.y <= src[i].w) 
+		if (all(input.tex.xy >= src[i].xy) && all(input.tex.xy <= src[i].zw))
 		{
 			texelColor.w = 0;
 			alpha = 0;
@@ -109,17 +94,23 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Execute the move_region commands: copy regions
 	[unroll]
-	for (i = 0; i < DynCockpitSlots; i++) {
+	for (i = 0; i < DynCockpitSlots; i++) 
+	{
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
-		if (dyn_uv.x >= src[i].x && dyn_uv.x <= src[i].z &&
-			dyn_uv.y >= src[i].y && dyn_uv.y <= src[i].w)
+		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the HUD FG and BG from a different location:
-			texelColor = texture0.Sample(sampler0, dyn_uv);
-			alpha = texelColor.w;
+			texelColor   = texture0.Sample(sampler0, dyn_uv);
 			texelColorBG = texture1.Sample(sampler1, dyn_uv);
+			texelText    = texture2.Sample(sampler2, dyn_uv);
+			// Fix the text alpha and blend it with the HUD foreground
+			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
+			texelColor.rgb  = lerp(texelColor.rgb, texelText.rgb, textAlpha);
+			texelColor.w    = max(texelColor.w, textAlpha);
+
+			alpha   = texelColor.w;
 			alphaBG = texelColorBG.w;
 		}
 	}

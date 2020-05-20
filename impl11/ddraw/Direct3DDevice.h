@@ -37,15 +37,16 @@ public:
 
 	HRESULT QuickSetZWriteEnabled(BOOL);
 
-	void GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
-		float * minX, float * minY, float * maxX, float * maxY, bool debug=false);
-
 	void GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 		float *minX, float *minY, float *maxX, float *maxY,
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
 
-	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, Vector3 orig, Vector3 dir, bool debug=false);
+	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid);
+
+	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
+
+	void AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 

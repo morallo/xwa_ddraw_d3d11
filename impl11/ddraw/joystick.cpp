@@ -156,16 +156,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
 
-		//log_debug("[DBG] joyX,R: %d, %d", pji->dwXpos, pji->dwRpos);
-		// Only swap the X-Z joystick axes if we're not in the gunner turret and if it
-		// was requested
+		// Only swap the X-Z joystick axes if the flag is set and we're not in the gunner turret
 		if (!PlayerDataTable[*g_playerIndex].gunnerTurretActive && g_config.SwapJoystickXZAxes) {
-			// Swap the X-Z joystick axes
 			DWORD X = pji->dwXpos;
 			pji->dwXpos = pji->dwRpos;
 			pji->dwRpos = X;
 		}
-		//log_debug("[DBG] x,y,z,r: %d, %d, %d, %d", pji->dwXpos, pji->dwYpos, pji->dwZpos, pji->dwRpos);
 		return res;
 	}
 	if (joy != 0) return MMSYSERR_NODRIVER;
@@ -264,7 +260,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			++pji->dwButtonNumber;
 		}
 	}
-	
+
 	/*
 	bool AltKey = (GetAsyncKeyState(VK_MENU) & 0x8000) == 0x8000;
 	pji->dwRpos = 256; // This is the center position for this axis

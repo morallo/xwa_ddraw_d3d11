@@ -4,6 +4,7 @@
 // Adapted for XWA by Leo Reyes.
 // Licensed under the MIT license. See LICENSE.txt
 #include "..\shader_common.h"
+#include "..\SSAOPSConstantBuffer.h"
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
@@ -32,6 +33,7 @@ struct PixelShaderOutput
 	float4 ssao        : SV_TARGET0;
 };
 
+/*
 // SSAOPixelShaderCBuffer
 cbuffer ConstantBuffer : register(b3)
 {
@@ -52,6 +54,7 @@ cbuffer ConstantBuffer : register(b3)
 	float far_sample_radius, nm_intensity_far, unused2, unused3;
 	// 96 bytes
 };
+*/
 
 struct BlurData {
 	float3 pos;
@@ -129,7 +132,8 @@ inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, 
 	float ao_dot = max(0.0, dot(Normal, v) - bias);
 	float ao_factor = ao_dot * weight;
 	//return intensity * pow(ao_factor, power);
-	return intensity * ao_factor;
+	//return intensity * ao_factor;
+	return ao_factor; // Let's multiply by intensity only once outside the addition loop
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -174,21 +178,22 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
-	float cur_radius;
-	float max_radius = radius * (float)(samples - 1 + sample_jitter);
+	//float cur_radius;
+	//float max_radius = radius * (float)(samples - 1 + sample_jitter);
 	float miplevel = 0;
 
 	// SSAO Calculation
 	[loop]
 	for (uint j = 0; j < samples; j++)
 	{
-		cur_radius = radius * (j + sample_jitter);
-		miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
+		//cur_radius = radius * (j + sample_jitter);
+		//miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
 	}
-	ao = 1 - ao / (float)samples;
+	//ao = 1 - ao / (float)samples;
+	ao = 1 - intensity * ao / (float)samples;
 	
 	/*
 	// Normal mapping should be applied *after* blurring the AO buffer or the normal map will also

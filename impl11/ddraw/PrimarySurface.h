@@ -8,6 +8,10 @@ class BackbufferSurface;
 
 class Direct3DTexture;
 
+void InitHeadingMatrix();
+Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+Matrix4 GetCurrentHeadingViewMatrix();
+
 class PrimarySurface : public IDirectDrawSurface
 {
 public:
@@ -57,7 +61,7 @@ public:
 
 	void ClearBox(uvfloat4 box, D3D11_VIEWPORT * viewport, D3DCOLOR clearColor);
 
-	void ClearHUDRegions();
+	int ClearHUDRegions();
 
 	void DrawHUDVertices();
 
@@ -73,15 +77,39 @@ public:
 
 	void DeferredPass();
 
-	Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+	//void InitHeadingMatrix();
+
+	//Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
+
+	//Matrix4 GetCurrentHeadingViewMatrix();
 
 	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
+
+	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
 	void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
+
+	void RenderFXAA();
+
+	void RenderExternalHUD();
+
+	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
+
+	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);
+
+	void RenderAdditionalGeometry();
+
+	void RenderSpeedEffect();
+
+	D3DCOLOR EncodeNormal(Vector3 N);
+
+	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
+
+	void RenderSunFlare();
 
 	void ACRunAction(WORD * action);
 
@@ -138,6 +166,12 @@ public:
 	STDMETHOD(UpdateOverlayDisplay)(THIS_ DWORD);
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
+
+	void RenderText();
+
+	void RenderRadar();
+
+	void RenderBracket();
 
 	ULONG _refCount;
 

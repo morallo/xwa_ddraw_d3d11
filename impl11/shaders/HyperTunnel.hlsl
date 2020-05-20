@@ -3,26 +3,8 @@
  * Based on theGiallo's shader: https://www.shadertoy.com/view/MttSz2
  * blue_max and keiranhalcyon7, 2019, see https://www.shadertoy.com/view/Wtd3Wr
  */
-
 #include "ShaderToyDefs.h"
-
- // ShadertoyCBuffer
-cbuffer ConstantBuffer : register(b7)
-{
-	float iTime, twirl, bloom_strength, unused;
-	// 16 bytes
-	float2 iResolution;
-	uint bDirectSBS;
-	float y_center;
-	// 32 bytes
-	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
-	// 48 bytes
-	matrix viewMat;
-	// 112 bytes
-	uint bDisneyStyle, hyperspace_phase;
-	float tunnel_speed, FOVscale;
-	// 128 bytes
-};
+#include "ShadertoyCBuffer.h"
 
 //static const float3 blue_color = float3(0.15, 0.35, 0.8);
 static const float3 blue_color = float3(0.15, 0.4, 0.9);
@@ -123,8 +105,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	// Early exit: avoid rendering outside the original viewport edges
-	if (input.uv.x < x0 || input.uv.x > x1 ||
-		input.uv.y < y0 || input.uv.y > y1)
+	//if (input.uv.x < x0 || input.uv.x > x1 ||
+	//	input.uv.y < y0 || input.uv.y > y1)
+	if (any(input.uv < p0) ||
+		any(input.uv > p1))
 	{
 		output.color = 0.0;
 		return output;

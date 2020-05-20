@@ -3,17 +3,23 @@
 
 #include "common.h"
 #include "DeviceResources.h"
+#include "Direct3DDevice.h"
 #include "Direct3DExecuteBuffer.h"
 #include "BackbufferSurface.h"
 
-Direct3DExecuteBuffer::Direct3DExecuteBuffer(DeviceResources* deviceResources, DWORD bufferSize)
+extern D3DTLVERTEX *g_OrigVerts;
+extern uint32_t *g_OrigIndex;
+bool g_bExecuteBufferLock;
+
+Direct3DExecuteBuffer::Direct3DExecuteBuffer(DeviceResources* deviceResources, DWORD bufferSize, Direct3DDevice* d3dDevice)
 {
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
+	this->_d3dDevice = d3dDevice;
 
 	this->_bufferSize = bufferSize;
 	this->_buffer = new char[bufferSize];
-	this->_executeData = { };
+	this->_executeData = {};
 }
 
 Direct3DExecuteBuffer::~Direct3DExecuteBuffer()
@@ -141,10 +147,14 @@ HRESULT Direct3DExecuteBuffer::Lock(
 				}
 			}
 
+			// This variable is set here so that we can tell when the CMD sub-component bracket is being rendered
+			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_NO_COLORKEY);
 		}
 		else
 		{
+			// This variable is set here so that we can tell when the CMD sub-component bracket is being rendered
+			g_bExecuteBufferLock = true;
 			this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp, RENDERMAIN_COLORKEY_00);
 		}
 
@@ -159,6 +169,20 @@ HRESULT Direct3DExecuteBuffer::Lock(
 	lpDesc->dwBufferSize = this->_bufferSize;
 	lpDesc->lpData = this->_buffer;
 
+	if (g_config.D3dHookExists)
+	{
+		D3D11_MAPPED_SUBRESOURCE vertexMap;
+		this->_deviceResources->_d3dDeviceContext->Map(this->_d3dDevice->_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertexMap);
+
+		D3D11_MAPPED_SUBRESOURCE indexMap;
+		this->_deviceResources->_d3dDeviceContext->Map(this->_d3dDevice->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indexMap);
+
+		lpDesc->dwCaps = (DWORD)vertexMap.pData;
+		lpDesc->dwFlags = (DWORD)indexMap.pData;
+		g_OrigVerts = (D3DTLVERTEX *)vertexMap.pData;
+		g_OrigIndex = (uint32_t *)indexMap.pData;
+	}
+
 	return D3D_OK;
 }
 
@@ -169,6 +193,12 @@ HRESULT Direct3DExecuteBuffer::Unlock()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+
+	if (g_config.D3dHookExists)
+	{
+		this->_deviceResources->_d3dDeviceContext->Unmap(this->_d3dDevice->_vertexBuffer, 0);
+		this->_deviceResources->_d3dDeviceContext->Unmap(this->_d3dDevice->_indexBuffer, 0);
+	}
 
 	return D3D_OK;
 }

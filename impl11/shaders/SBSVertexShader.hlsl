@@ -12,6 +12,7 @@ cbuffer ConstantBuffer : register(b0)
 	//float post_proj_scale, vsunused0, vsunused1, vsunused2;
 };
 
+// VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)
 {
 	matrix projEyeMatrix;
@@ -22,7 +23,7 @@ cbuffer ConstantBuffer : register(b1)
 struct VertexShaderInput
 {
 	float4 pos		: POSITION;
-	float4 color		: COLOR0;
+	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
 };
@@ -40,7 +41,7 @@ PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 	float sz = input.pos.z;
-	float pz = 1.0 - sz;
+	//float pz = 1.0 - sz;
 	float w = 1.0 / input.pos.w;
 
 	float3 temp = input.pos.xyz;

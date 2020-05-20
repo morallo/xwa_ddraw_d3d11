@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <string>
+
 class Config
 {
 public:
@@ -10,8 +12,10 @@ public:
 
 	bool AspectRatioPreserved;
 	bool MultisamplingAntialiasingEnabled;
+	int MSAACount;
 	bool AnisotropicFilteringEnabled;
 	bool VSyncEnabled;
+	bool VSyncEnabledInHangar;
 	bool WireframeFillMode;
 	int JoystickEmul;
 	bool SwapJoystickXZAxes;
@@ -24,12 +28,26 @@ public:
 
 	int ProcessAffinityCore;
 
+	bool D3dHookExists;
+	std::wstring TextFontFamily;
+	int TextWidthDelta;
+
 	bool EnhanceLasers;
 	bool EnhanceIllumination;
 	bool EnhanceEngineGlow;
 	bool EnhanceExplosions;
 
+	bool FXAAEnabled;
 	bool StayInHyperspace;
+	bool ExternalHUDEnabled;
+	bool TriangleTextEnabled;
+	bool TrianglePointerEnabled;
+	bool SimplifiedTrianglePointer;
+	// Direct2D settings
+	bool Text2DRendererEnabled;
+	bool Radar2DRendererEnabled;
+	bool Text2DAntiAlias;
+	bool Geometry2DAntiAlias;
 };
 
 extern Config g_config;

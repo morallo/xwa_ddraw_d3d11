@@ -14,7 +14,7 @@ SamplerState bloomSampler : register(s1);
 
 cbuffer ConstantBuffer : register(b2)
 {
-	float pixelSizeX, pixelSizeY, unused1, amplifyFactor;
+	float pixelSizeX, pixelSizeY, general_bloom_strength, amplifyFactor;
 	// 16 bytes
 	float bloomStrength, uvStepSize, saturationStrength, unused2;
 	// 32 bytes
@@ -136,6 +136,7 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	bloom = bloom / (bloom + 1);
 	float3 HSV = RGBtoHSV(bloom);
 	HSV.y = saturate(lerp(HSV.y, HSV.y * saturationStrength, HSV.z));
+	//bloom = general_bloom_strength * saturate(HSVtoRGB(HSV));
 	bloom = saturate(HSVtoRGB(HSV));
 
 	/*color.xyz = 1 - (1 - color.xyz) * (1 - bloomStrength * bloom.xyz);
