@@ -3291,10 +3291,12 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 128; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	constantBufferDesc.ByteWidth = 144; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
 	// 128 bytes is 2 matrices
-	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 128, "sizeof(ShadowMapVertexShaderMatrixCB) must be 128");
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 144, "sizeof(ShadowMapVertexShaderMatrixCB) must be 144");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
+		return hr;
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
@@ -3783,6 +3785,16 @@ void DeviceResources::InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
 	this->_d3dDeviceContext->VSSetConstantBuffers(5, 1, buffer);
+}
+
+void DeviceResources::InitPSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *psCBuffer)
+{
+	//static ID3D11Buffer** currentBuffer = nullptr;
+	//static LaserPointerCBuffer currentPSConstants = { 0 };
+	//static int sizeof_constants = sizeof(ShadertoyCBuffer);
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(5, 1, buffer);
 }
 
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)

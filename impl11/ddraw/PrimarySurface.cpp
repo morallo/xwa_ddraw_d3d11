@@ -110,9 +110,11 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
 
+
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
+extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
@@ -3651,6 +3653,8 @@ void PrimarySurface::DeferredPass() {
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
+	// Set the Shadow Mapping Constant Buffer for the Pixel Shader
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -3667,8 +3671,8 @@ void PrimarySurface::DeferredPass() {
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
-		viewport.Width  = screen_res_x;
-		viewport.Height = screen_res_y;
+		viewport.Width	  = screen_res_x;
+		viewport.Height   = screen_res_y;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
@@ -3684,7 +3688,7 @@ void PrimarySurface::DeferredPass() {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[8] = {
+		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
@@ -3694,9 +3698,10 @@ void PrimarySurface::DeferredPass() {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			NULL,													// Bent Normals
-			resources->_ssMaskSRV.Get(),							    // Shading System buffer
+			resources->_ssMaskSRV.Get(),							// Shading System buffer
+			g_ShadowMapping.Enabled ? resources->_shadowMapSRV.Get() : NULL, // The shadow map
 		};
-		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
 	}
 

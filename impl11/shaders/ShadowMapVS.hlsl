@@ -5,8 +5,6 @@
  */
 #include "shader_common.h"
 
-#define Z_FAR 25.0
-
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
 {
@@ -20,6 +18,7 @@ cbuffer ConstantBuffer : register(b5)
 {
 	matrix lightViewProj;
 	matrix lightWorldMatrix;
+	float sm_aspect_ratio, sm_unused0, sm_unused1, sm_unused2;
 };
 
 struct VertexShaderInput
@@ -66,7 +65,7 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	//output.pos = mul(lightViewProj, float4(P, 1));
 	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
 	// In this case Z Far is set at 25 meters away:
-	output.pos.z = lerp(1.0, 0.0, P.z / Z_FAR);
+	output.pos.z = lerp(1.0, 0.0, P.z / SM_Z_FAR);
 	output.pos.w = 1.0;
 
 	return output;

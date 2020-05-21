@@ -13,3 +13,6 @@
 #define MAX_DC_COORDS_PER_TEXTURE 12
 
 #define MAX_SUN_FLARES 4
+
+// Z Far value (in meters) used for the shadow maps
+#define SM_Z_FAR 25.0

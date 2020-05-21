@@ -384,6 +384,7 @@ typedef struct DCPixelShaderCBStruct {
 typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	Matrix4 lightViewProj;
 	Matrix4 lightWorldMatrix;
+	float aspect_ratio, sm_unused[3];
 } ShadowMapVertexShaderMatrixCB;
 
 typedef struct uv_coords_src_dst_struct {
@@ -580,6 +581,8 @@ public:
 #define MAX_SPEED_PARTICLES 256
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
+#define SHADOW_MAP_SIZE_X 1024
+#define SHADOW_MAP_SIZE_Y 1024
 class ShadowMappingData {
 public:
 	bool Enabled;
@@ -588,8 +591,8 @@ public:
 
 	ShadowMappingData() {
 		this->Enabled = false;
-		this->Width = 800;
-		this->Height = 800;
+		this->Width   = SHADOW_MAP_SIZE_X;
+		this->Height  = SHADOW_MAP_SIZE_Y;
 		// Initialize the Viewport
 		this->ViewPort.TopLeftX = 0.0f;
 		this->ViewPort.TopLeftY = 0.0f;
@@ -647,6 +650,7 @@ public:
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
 	void InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer);
+	void InitPSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *psCBuffer);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -928,6 +932,7 @@ public:
 	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	ComPtr<ID3D11Buffer> _shadowMappingVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _shadowMappingPSConstantBuffer;
 	
 	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;

@@ -432,7 +432,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 /*********************************************************/
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
-extern float g_fLightMapAngle = 0.0f, g_fLightMapDistance = 3.0f;
+float g_fLightMapAngleY = 0.0f, g_fLightMapAngleX = 0.0f, g_fLightMapDistance = 3.0f;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -3018,6 +3018,14 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
 				g_ShadowMapping.Enabled = (bool)fValue;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.Enabled);
+			}
+			else if (_stricmp(param, "shadow_mapping_angle_x") == 0) {
+				g_fLightMapAngleX = fValue;
+				log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fLightMapAngleX);
+			}
+			else if (_stricmp(param, "shadow_mapping_angle_y") == 0) {
+				g_fLightMapAngleY = fValue;
+				log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fLightMapAngleY);
 			}
 			
 			/*
@@ -7580,8 +7588,9 @@ HRESULT Direct3DDevice::Execute(
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
 					if (g_ShadowMapping.Enabled && bIsCockpit) {
-						Matrix4 T, R;
-						R.rotateY(g_fLightMapAngle);
+						Matrix4 T, Ry, Rx;
+						Rx.rotateX(g_fLightMapAngleX);
+						Ry.rotateY(g_fLightMapAngleY);
 						T.translate(0, 0, g_fLightMapDistance);
 
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
@@ -7597,7 +7606,8 @@ HRESULT Direct3DDevice::Execute(
 						);*/
 						// T * R does rotation first, then translation: so the object rotates around the origin
 						// and then gets pushed away along the Z axis
-						g_ShadowMapVSCBuffer.lightWorldMatrix = T * R;
+						g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry;
+						g_ShadowMapVSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
 						// Set the constant buffer
 						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 

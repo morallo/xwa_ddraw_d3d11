@@ -48,9 +48,9 @@ SamplerState samplerBent : register(s6);
 Texture2D texSSMask : register(t7);
 SamplerState samplerSSMask : register(s7);
 
-// The Emission Mask buffer
-//Texture2D texEmissionMask : register(t8);
-//SamplerState samplerEmissionMask : register(s8);
+// The Shadow Map buffer
+Texture2D texShadowMap : register(t8);
+SamplerState samplerShadowMap : register(s8);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -66,6 +66,14 @@ cbuffer ConstantBuffer : register(b2)
 	uint unused2;
 	float unused3, depth_weight;
 	uint debug;
+};
+
+// ShadowMapVertexShaderMatrixCB (the same struct is used for both the vertex and pixel shader)
+cbuffer ConstantBuffer : register(b5)
+{
+	matrix lightViewProj;
+	matrix lightWorldMatrix;
+	float sm_aspect_ratio, sm_unused0, sm_unused1, sm_unused2;
 };
 
 struct PixelShaderInput
@@ -310,6 +318,28 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(Normal.xyz);
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
+
+	// Compute shadows through shadow mapping
+	// Apply the same transform we applied to the geometry when computing the shadow map:
+	float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+	// Project
+	float2 sm_pos = Q.xy / Q.z;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	//sm_pos = lerp(0, 1, sm_pos * 0.5 + 0.5);
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
+	// Now convert the depth-stencil coord (0..1) to metric Z:
+	// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
+	sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
+	// sm_Z is now in metric space, we can compare it with P.z
+	float shadow_factor = Q.z < sm_Z ? 0.0 : 1.0;
+
+	// DEBUG
+	if (shadow_factor > 0.5) {
+		output.color = float4(0.2, 0.2, 0.5, 1.0);
+		return output;
+	}
+	// DEBUG
 
 	// Compute shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);
