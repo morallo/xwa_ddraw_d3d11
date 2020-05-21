@@ -432,6 +432,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 /*********************************************************/
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
+extern float g_fLightMapAngle = 0.0f, g_fLightMapDistance = 3.0f;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -7579,11 +7580,25 @@ HRESULT Direct3DDevice::Execute(
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
 					if (g_ShadowMapping.Enabled && bIsCockpit) {
+						Matrix4 T, R;
+						R.rotateY(g_fLightMapAngle);
+						T.translate(0, 0, g_fLightMapDistance);
+
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
 						
 						// Initialize the Constant Buffer
-						g_ShadowMapVSCBuffer.lightViewProj.identity();
-						g_ShadowMapVSCBuffer.lightWorldMatrix.identity();
+						/*
+						g_ShadowMapVSCBuffer.lightViewProj.set
+						(
+							0.847458f, 0.0f, 0.0f, 0.0f,
+							0.0f,      0.746269f, 0.0f, 0.0f,
+							0.0f,      0.0f, -1.0f, -0.01f, // Use the focal_dist here?
+							0.0f,      0.0f, -1.0f, 0.0f
+						);*/
+						// T * R does rotation first, then translation: so the object rotates around the origin
+						// and then gets pushed away along the Z axis
+						g_ShadowMapVSCBuffer.lightWorldMatrix = T * R;
+						// Set the constant buffer
 						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
 						// Set the Vertex and Pixel Shaders
