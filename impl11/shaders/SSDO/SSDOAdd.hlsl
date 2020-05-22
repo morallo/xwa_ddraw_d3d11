@@ -11,6 +11,7 @@
 #include "..\HSV.h"
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
+#include "..\shadow_mapping_common.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -52,6 +53,17 @@ SamplerState samplerSSMask : register(s7);
 Texture2D texShadowMap : register(t8);
 SamplerState samplerShadowMap : register(s8);
 
+SamplerComparisonState cmpSampler
+{
+	// sampler state
+	Filter = COMPARISON_MIN_MAG_MIP_LINEAR;
+	AddressU = MIRROR;
+	AddressV = MIRROR;
+
+	// sampler comparison state
+	ComparisonFunc = LESS_EQUAL;
+};
+
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -66,14 +78,6 @@ cbuffer ConstantBuffer : register(b2)
 	uint unused2;
 	float unused3, depth_weight;
 	uint debug;
-};
-
-// ShadowMapVertexShaderMatrixCB (the same struct is used for both the vertex and pixel shader)
-cbuffer ConstantBuffer : register(b5)
-{
-	matrix lightViewProj;
-	matrix lightWorldMatrix;
-	float sm_aspect_ratio, sm_unused0, sm_unused1, sm_unused2;
 };
 
 struct PixelShaderInput
@@ -320,26 +324,44 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float3 smoothB = bentN;
 
 	// Compute shadows through shadow mapping
-	// Apply the same transform we applied to the geometry when computing the shadow map:
-	float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-	// Project
-	float2 sm_pos = Q.xy / Q.z;
-	// Convert to texture coords: this maps -1..1 to 0..1:
-	//sm_pos = lerp(0, 1, sm_pos * 0.5 + 0.5);
-	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
-	float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
-	// Now convert the depth-stencil coord (0..1) to metric Z:
-	// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
-	sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
-	// sm_Z is now in metric space, we can compare it with P.z
-	float shadow_factor = Q.z < sm_Z ? 0.0 : 1.0;
+	float shadow_factor = 1.0;
+	if (sm_enabled) {
+		// Apply the same transform we applied to the geometry when computing the shadow map:
+		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+		// Project
+		//float2 sm_pos = Q.xy / Q.z;
+		float2 sm_pos = Q.xy;
+		// Convert to texture coords: this maps -1..1 to 0..1:
+		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+		float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
+		//float sm_Z = texShadowMap.SampleCmpLevel(cmpSampler, sm_pos);
+		// Now convert the depth-stencil coord (0..1) to metric Z:
+		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
+		sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
+		// sm_Z is now in metric space, we can compare it with P.z
+		shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
+		// shadow_factor: 1 -- No shadow
+		// shadow_factor: 0 -- Full shadow
 
-	// DEBUG
-	if (shadow_factor > 0.5) {
-		output.color = float4(0.2, 0.2, 0.5, 1.0);
-		return output;
+		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;
+		// Fade the shadow to 1 with the distance to the occluder
+		// This causes some artifacts... Shadows coming from different occluders have
+		// different depths and they are faded differently, causing sections of "lighter"
+		// shadows in the middle of darker shadows
+		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_dist));
+
+		// Fade the shadows towards the edges of the screen:
+		float shadow_map_edge_fade = length(input.uv - 0.5) / sm_max_edge_distance;
+		shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
+
+		// DEBUG
+		if (sm_debug && shadow_factor < 0.5) 
+		{
+			output.color = float4(0.2, 0.2, 0.5, 1.0);
+			return output;
+		}
+		// DEBUG
 	}
-	// DEBUG
 
 	// Compute shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);
@@ -434,7 +456,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			diffuse = max(dot(N, L), 0.0);
 		*/
 		diffuse = max(dot(N, L), 0.0);
-		diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
+		//diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
+		diffuse = min(shadow_factor, ssdo.x) * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -475,7 +498,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
-		spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+		//spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+		spec = min(contactShadow, shadow_factor) * debug_spec;
 
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
@@ -492,7 +516,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 			//emissionMask);
-		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += min(shadow_factor, contactShadow) * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		
 	}
 	output.bloom = tmp_bloom;
 

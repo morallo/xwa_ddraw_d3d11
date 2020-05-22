@@ -109,6 +109,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
+extern bool g_bShadowMapDebug;
 
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -3654,6 +3655,7 @@ void PrimarySurface::DeferredPass() {
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the Shadow Mapping Constant Buffer for the Pixel Shader
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);

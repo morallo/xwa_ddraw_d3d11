@@ -432,7 +432,8 @@ int g_iHUDOffscreenCommandsRendered = 0;
 /*********************************************************/
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
-float g_fLightMapAngleY = 0.0f, g_fLightMapAngleX = 0.0f, g_fLightMapDistance = 3.0f;
+float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDistance = 3.0f, g_fShadowMapScale = 0.5f;
+bool g_bShadowMapDebug = false;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -2813,6 +2814,10 @@ bool LoadSSAOParams() {
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
 	g_ShadowMapping.Enabled = false;
+	g_bShadowMapDebug = false;
+	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
+	g_ShadowMapVSCBuffer.sm_max_edge_distance = 0.75f;
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -3017,15 +3022,30 @@ bool LoadSSAOParams() {
 			// Shadow Mapping
 			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
 				g_ShadowMapping.Enabled = (bool)fValue;
+				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.Enabled;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.Enabled);
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_x") == 0) {
-				g_fLightMapAngleX = fValue;
-				log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fLightMapAngleX);
+				g_fShadowMapAngleX = fValue;
+				log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_y") == 0) {
-				g_fLightMapAngleY = fValue;
-				log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fLightMapAngleY);
+				g_fShadowMapAngleY = fValue;
+				log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
+			}
+			else if (_stricmp(param, "shadow_mapping_scale") == 0) {
+				g_fShadowMapScale = fValue;
+				log_debug("[DBG] [SHW] g_fLightMapScale: %0.3f", g_fShadowMapScale);
+			}
+			else if (_stricmp(param, "shadow_mapping_bias") == 0) {
+				g_ShadowMapVSCBuffer.sm_bias = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_max_edge_distance") == 0) {
+				g_ShadowMapVSCBuffer.sm_max_edge_distance = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_debug") == 0) {
+				g_bShadowMapDebug = (bool)fValue;
+				g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 			}
 			
 			/*
@@ -7588,10 +7608,11 @@ HRESULT Direct3DDevice::Execute(
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
 					if (g_ShadowMapping.Enabled && bIsCockpit) {
-						Matrix4 T, Ry, Rx;
-						Rx.rotateX(g_fLightMapAngleX);
-						Ry.rotateY(g_fLightMapAngleY);
-						T.translate(0, 0, g_fLightMapDistance);
+						Matrix4 T, Ry, Rx, S;
+						S.scale(g_fShadowMapScale);
+						Rx.rotateX(g_fShadowMapAngleX);
+						Ry.rotateY(g_fShadowMapAngleY);
+						T.translate(0, 0, g_fShadowMapDistance);
 
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
 						
@@ -7606,8 +7627,8 @@ HRESULT Direct3DDevice::Execute(
 						);*/
 						// T * R does rotation first, then translation: so the object rotates around the origin
 						// and then gets pushed away along the Z axis
-						g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry;
-						g_ShadowMapVSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
+						g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
+						g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 						// Set the constant buffer
 						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 

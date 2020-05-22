@@ -393,6 +393,7 @@
     <ClInclude Include="ShaderToyDefs.h" />
     <ClInclude Include="shader_common.h" />
     <ClInclude Include="shading_system.h" />
+    <ClInclude Include="shadow_mapping_common.h" />
     <ClInclude Include="SSAOPSConstantBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

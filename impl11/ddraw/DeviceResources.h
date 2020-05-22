@@ -384,7 +384,8 @@ typedef struct DCPixelShaderCBStruct {
 typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	Matrix4 lightViewProj;
 	Matrix4 lightWorldMatrix;
-	float aspect_ratio, sm_unused[3];
+	uint32_t sm_enabled, sm_debug, sm_unused0, sm_unused1;
+	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_unused2;
 } ShadowMapVertexShaderMatrixCB;
 
 typedef struct uv_coords_src_dst_struct {

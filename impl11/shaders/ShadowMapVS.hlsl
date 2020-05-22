@@ -4,6 +4,7 @@
  * for shadow mapping.
  */
 #include "shader_common.h"
+#include "shadow_mapping_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -11,14 +12,6 @@ cbuffer ConstantBuffer : register(b0)
 	float4 vpScale;
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
 	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-};
-
-// ShadowMapVertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b5)
-{
-	matrix lightViewProj;
-	matrix lightWorldMatrix;
-	float sm_aspect_ratio, sm_unused0, sm_unused1, sm_unused2;
 };
 
 struct VertexShaderInput
@@ -61,7 +54,8 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	
 	// Transform this point and project it from the light's point of view:
 	P = mul(lightWorldMatrix, P);
-	output.pos.xy = P.xy / P.z;
+	//output.pos.xy = P.xy / P.z;
+	output.pos.xy = P.xy;
 	//output.pos = mul(lightViewProj, float4(P, 1));
 	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
 	// In this case Z Far is set at 25 meters away:
