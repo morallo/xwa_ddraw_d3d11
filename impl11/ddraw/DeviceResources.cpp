@@ -391,6 +391,8 @@ DeviceResources::DeviceResources()
 	this->_bHUDVerticesReady = false;
 	this->_speedParticlesVertexBuffer = nullptr;
 	this->_shadowMappingVSConstantBuffer = nullptr;
+	this->_shadowVertexBuffer = nullptr;
+	this->_shadowIndexBuffer = nullptr;
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
@@ -776,6 +778,55 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	if (FAILED(hr)) {
 		log_debug("[DBG] Could not create _speedParticlesVertexBuffer");
 	}
+}
+
+void DeviceResources::CreateShadowVertexIndexBuffers(UINT numVertices, UINT numIndices)
+{
+	HRESULT hr;
+	auto &device = this->_d3dDevice;
+
+	if (this->_shadowVertexBuffer != NULL)
+	{
+		this->_shadowVertexBuffer->Release();
+		this->_shadowVertexBuffer = NULL;
+	}
+
+	if (this->_shadowIndexBuffer != NULL)
+	{
+		this->_shadowIndexBuffer->Release();
+		this->_shadowIndexBuffer = NULL;
+	}
+
+	// Create the vertex buffer
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * numVertices;
+	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	if (FAILED(hr = device->CreateBuffer(&vertexBufferDesc, NULL, &this->_shadowVertexBuffer))) {
+		log_debug("[DBG] Could not create _shadowVertexBuffer");
+	}
+	else
+		log_debug("[DBG] _shadowVertexBuffer CREATED");
+
+	// Create the index buffer
+	D3D11_BUFFER_DESC indexBufferDesc;
+	indexBufferDesc.ByteWidth = sizeof(WORD) * numIndices;
+	indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	indexBufferDesc.MiscFlags = 0;
+	indexBufferDesc.StructureByteStride = 0;
+
+	if (FAILED(hr = device->CreateBuffer(&indexBufferDesc, NULL, &this->_shadowIndexBuffer))) {
+		log_debug("[DBG] Could not create _shadowIndexBuffer");
+	}
+	else
+		log_debug("[DBG] _shadowIndexBuffer CREATED");
+	
 }
 
 inline float lerp(float x, float y, float s) {

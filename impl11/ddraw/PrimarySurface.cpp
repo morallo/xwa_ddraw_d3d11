@@ -6990,8 +6990,10 @@ HRESULT PrimarySurface::Flip(
 							lightFile = NULL;
 						}
 						*/
+
 						g_bDumpSSAOBuffers = false;
 					}
+
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
@@ -7654,9 +7656,40 @@ HRESULT PrimarySurface::Flip(
 
 			if (g_bDumpSSAOBuffers) 
 			{
+				// These values match MXvTED exactly:
+				short *POV_Y0 = (short *)(0x5BB480 + 0x238);
+				short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
+				short *POV_X0 = (short *)(0x5BB480 + 0x23C);
+
+				//*POV_X0 = 5; // This had no obvious effect
+
+				// These are the same values as the above, as floats:
+				float *POV_X1 = (float *)(0x8B94E0 + 0x20D);
+				float *POV_Y1 = (float *)(0x8B94E0 + 0x211);
+				float *POV_Z1 = (float *)(0x8B94E0 + 0x215);
+
+				//*POV_X1 = 5.0f; // This had no obvious effect
+
+				// This is the same POV as the above; but Y is now -Y and it has been
+				// transformed by the camera heading. So, this value changes depending
+				// on the current orientation of the craft.
+				// That's what Jeremy meant by "transform matrix in the MobileObject struct
+				// (offset 0xC7)" <-- That's what I call the "Heading Matrix".
+				// This transform matrix is *not* affected by the cockpit camera. It's just
+				// the current heading.
+				float *POV_X2 = (float *)(0x8B94E0 + 0x201);
+				float *POV_Y2 = (float *)(0x8B94E0 + 0x205);
+				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);
+
+				log_debug("[DBG] [POV] X0,Z0,Y0: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
+				log_debug("[DBG] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X1, *POV_Z1, *POV_Y1);
+				log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
+
+				/*
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-2.jpg");
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-2.jpg");
 				DirectX::SaveWICTextureToFile(context, resources->_DCTextMSAA, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-2.jpg");
+				*/
 			}
 
 			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC

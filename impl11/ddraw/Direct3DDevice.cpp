@@ -10,6 +10,23 @@
 
 /*
 
+Justagai:
+
+The cockpit camera position is in the CraftDefinition struct/table. Table starts at 0x5BB480
+and offsets (2 bytes) 0x238, 0x23A and 0x23C for the cockpit Y, Z and X positions. This is per
+craft by the way and that's how MXVTED read/writes them.
+
+EDIT: Actually I suspect the player's current cockpit position might be stored on the 
+PlayerDataTable in offsets (4 bytes) 0x201, 0x205 and 0x209. But I'm not entirely sure.
+
+Jeremy:
+
+The cockpit position is stored in offsets 0x20D, 0x211, 0x215 (of the PlayerDataTable)
+After it has been transformed with the transform matrix in the MobileObject struct (offset 0xC7),
+the transformed position is stored in offsets 0x201, 0x205, 0x209.
+
+X-Wing POV (current): X: 0, Z: 37: Y: -31
+
 
 ************************************************************************************************************
 From: https://xwaupgrade.com/phpBB3/viewtopic.php?f=9&t=12359&start=75

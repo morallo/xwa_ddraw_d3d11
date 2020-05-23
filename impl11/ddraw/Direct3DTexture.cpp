@@ -217,6 +217,9 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
 void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 
+// SHADOW MAPPING;
+extern ShadowMappingData g_ShadowMapping;
+
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
 		if (x == crc)
@@ -334,6 +337,45 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 }
 */
 #endif
+
+bool LoadShadowOBJ(char *sFileName) {
+	FILE *file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [SHW] Could not load file %s", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [SHW] Error %d when loading %s", error, sFileName);
+		return false;
+	}
+
+	std::vector<Vector3> vertices;
+	std::vector<WORD> indices;
+
+	char line[256];
+	while (!feof(file)) {
+		fgets(line, 256, file);
+		if (line[0] == 'v') {
+			float x, y, z;
+			sscanf_s(line, "v %f %f %f", &x, &y, &z);
+			vertices.push_back(Vector3(x, y, z));
+		}
+		else if (line[0] == 'f') {
+			int i, j, k;
+			sscanf_s(line, "f %d %d %d", &i, &j, &k);
+			indices.push_back((WORD)i);
+			indices.push_back((WORD)j);
+			indices.push_back((WORD)k);
+		}
+	}
+	log_debug("[DBG] [SHW] Loaded %d vertices, %d faces", vertices.size(), indices.size() / 3);
+	return true;
+}
 
 char* convertFormat(char* src, DWORD width, DWORD height, DXGI_FORMAT format)
 {
@@ -859,6 +901,13 @@ void Direct3DTexture::TagTexture() {
 						CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
 						if (!LoadIndividualACParams(sFileName))
 							log_debug("[DBG] [AC] WARNING: Could not load AC params");
+					}
+					// Load the cockpit Shadow geometry
+					if (g_ShadowMapping.Enabled) {
+						char sFileName[80];
+						snprintf(sFileName, 80, "./ShadowMapping/%s.obj", g_sCurrentCockpit);
+						log_debug("[DBG] [SHW] Loading file: %s", sFileName);
+						LoadShadowOBJ(sFileName);
 					}
 				}
 					
