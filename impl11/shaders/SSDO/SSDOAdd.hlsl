@@ -57,8 +57,8 @@ SamplerComparisonState cmpSampler
 {
 	// sampler state
 	Filter = COMPARISON_MIN_MAG_MIP_LINEAR;
-	AddressU = MIRROR;
-	AddressV = MIRROR;
+	AddressU = CLAMP;
+	AddressV = CLAMP;
 
 	// sampler comparison state
 	ComparisonFunc = LESS_EQUAL;
@@ -271,10 +271,16 @@ inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radi
 	return shadow / (float)((2 * filterSize + 1) * (2 * filterSize + 1));
 }
 
-inline float pcss(float3 Q) 
+// From http://developer.download.nvidia.com/whitepapers/2008/PCSS_Integration.pdf
+inline float PenumbraSize(float zReceiver, float zBlocker)
 {
-	float d_blocker = 0.0, d_receiver = 0.0;
-	float samples = 0.0;
+	return (zReceiver - zBlocker) / zBlocker;
+}
+
+inline void FindBlocker(float3 Q, out float d_blocker, out float samples) 
+{
+	d_blocker = 0.0;
+	samples = 0.0;
 
 	// Project
 	//float2 sm_pos = Q.xy / Q.z;
@@ -285,9 +291,8 @@ inline float pcss(float3 Q)
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) 
 		{
-			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_pcss_radius, j * sm_pcss_radius), 0).x;
+			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), 0).x;
 			// Convert the depth-stencil coord (0..1) to metric Z:
-			// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
 			sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
 			if (sm_Z <= Q.z - sm_bias) // This sample is a blocker
 			{
@@ -296,12 +301,26 @@ inline float pcss(float3 Q)
 			}
 		}
 
-	if (samples < 1.0)
-		return sm_pcss_radius;
+	if (samples > 0.0)
+		d_blocker /= samples;
+}
 
-	d_blocker /= samples;
-	d_receiver = Q.z;
-	return sm_light_size * (d_receiver - d_blocker) / d_blocker;
+inline float PCSS(float3 Q)
+{
+	float samples, zBlocker, zReceiver = Q.z; // Metric Z
+	// Step 1: Blocker search
+	FindBlocker(Q, zBlocker, samples);
+	if (samples < 1.0)
+		return 1.0;
+
+	// Step 2: Penumbra size
+	float penumbraRatio = PenumbraSize(zReceiver, zBlocker);
+	float filterRadiusUV = penumbraRatio * sm_light_size / zReceiver;
+
+	// Step 3: Filtering
+	// Convert metric Z to depth value
+	Q.z = lerp(1.0, 0.0, Q.z / SM_Z_FAR);
+	return ShadowMapPCF(Q, 1024.0, 3, filterRadiusUV);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -389,8 +408,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (sm_enabled) {
 		// Apply the same transform we applied to the geometry when computing the shadow map:
 		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-
-		float filter_size = pcss(Q);
+		
 		/*
 		// Regular path
 		// Project
@@ -400,10 +418,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
 		*/
 
+		/*
+		//float filter_size = pcss(Q);
 		// For PCF we need to transform Q.z into a depth value too:
 		Q.z = lerp(1.0, 0.0, Q.z / SM_Z_FAR);
 		//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, Q.z);
-		shadow_factor = ShadowMapPCF(Q, 1024.0, 2, filter_size);
+		//shadow_factor = ShadowMapPCF(Q, 1024.0, 2, filter_size);
+		shadow_factor = ShadowMapPCF(Q, 1024.0, 1, sm_pcss_radius);
+		*/
+
+		// PCSS
+		shadow_factor = PCSS(Q);
 
 		/*
 		// Regular path

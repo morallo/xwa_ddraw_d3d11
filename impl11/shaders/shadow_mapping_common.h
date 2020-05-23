@@ -5,7 +5,7 @@ cbuffer ConstantBuffer : register(b5)
 	matrix lightWorldMatrix;
 	
 	uint sm_enabled, sm_debug;
-	float sm_light_size, sm_unused1;
+	float sm_light_size, sm_blocker_radius;
 
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
 };

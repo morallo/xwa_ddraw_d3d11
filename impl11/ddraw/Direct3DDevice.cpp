@@ -3055,6 +3055,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_light_size") == 0) {
 				g_ShadowMapVSCBuffer.sm_light_size = fValue;
 			}
+			else if (_stricmp(param, "shadow_mapping_blocker_radius") == 0) {
+				g_ShadowMapVSCBuffer.sm_blocker_radius = fValue;
+			}
 			
 			/*
 			else if (_stricmp(param, "flare_aspect_mult") == 0) {
