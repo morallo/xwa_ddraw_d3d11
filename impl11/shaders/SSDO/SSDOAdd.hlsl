@@ -62,6 +62,7 @@ SamplerComparisonState cmpSampler
 
 	// sampler comparison state
 	ComparisonFunc = LESS_EQUAL;
+	//ComparisonFunc = GREATER_THAN;
 };
 
 // We're reusing the same constant buffer used to blur bloom; but here
@@ -243,6 +244,66 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 }
 */
 
+// From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
+inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radius)
+{
+	float shadow = 0.0f;
+	float2 sm_pos = Q.xy;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	//float2 grad = frac(Q.xy * resolution + 0.5f);
+	float2 grad = frac(sm_pos * resolution + 0.5);
+	float Q_z = Q.z - (sm_bias / SM_Z_FAR);
+
+	for (int i = -filterSize; i <= filterSize; i++)
+	{
+		for (int j = -filterSize; j <= filterSize; j++)
+		{
+			float4 tmp = texShadowMap.Gather(samplerShadowMap, sm_pos + float2(i, j) * float2(radius, radius));
+			tmp.x = tmp.x < Q_z ? 1.0f : 0.0f;
+			tmp.y = tmp.y < Q_z ? 1.0f : 0.0f;
+			tmp.z = tmp.z < Q_z ? 1.0f : 0.0f;
+			tmp.w = tmp.w < Q_z ? 1.0f : 0.0f;
+			shadow += lerp(lerp(tmp.w, tmp.z, grad.x), lerp(tmp.x, tmp.y, grad.x), grad.y);
+		}
+	}
+
+	return shadow / (float)((2 * filterSize + 1) * (2 * filterSize + 1));
+}
+
+inline float pcss(float3 Q) 
+{
+	float d_blocker = 0.0, d_receiver = 0.0;
+	float samples = 0.0;
+
+	// Project
+	//float2 sm_pos = Q.xy / Q.z;
+	float2 sm_pos = Q.xy;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+
+	for (int i = -1; i <= 1; i++)
+		for (int j = -1; j <= 1; j++) 
+		{
+			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_pcss_radius, j * sm_pcss_radius), 0).x;
+			// Convert the depth-stencil coord (0..1) to metric Z:
+			// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
+			sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
+			if (sm_Z <= Q.z - sm_bias) // This sample is a blocker
+			{
+				d_blocker += sm_Z;
+				samples++;
+			}
+		}
+
+	if (samples < 1.0)
+		return sm_pcss_radius;
+
+	d_blocker /= samples;
+	d_receiver = Q.z;
+	return sm_light_size * (d_receiver - d_blocker) / d_blocker;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -328,13 +389,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (sm_enabled) {
 		// Apply the same transform we applied to the geometry when computing the shadow map:
 		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+
+		float filter_size = pcss(Q);
+		/*
+		// Regular path
 		// Project
 		//float2 sm_pos = Q.xy / Q.z;
 		float2 sm_pos = Q.xy;
 		// Convert to texture coords: this maps -1..1 to 0..1:
 		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+		*/
+
+		// For PCF we need to transform Q.z into a depth value too:
+		Q.z = lerp(1.0, 0.0, Q.z / SM_Z_FAR);
+		//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, Q.z);
+		shadow_factor = ShadowMapPCF(Q, 1024.0, 2, filter_size);
+
+		/*
+		// Regular path
 		float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
-		//float sm_Z = texShadowMap.SampleCmpLevel(cmpSampler, sm_pos);
 		// Now convert the depth-stencil coord (0..1) to metric Z:
 		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
 		sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
@@ -342,6 +415,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
 		// shadow_factor: 1 -- No shadow
 		// shadow_factor: 0 -- Full shadow
+		*/
 
 		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;
 		// Fade the shadow to 1 with the distance to the occluder
@@ -351,6 +425,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_dist));
 
 		// Fade the shadows towards the edges of the screen:
+		//float2 edge = abs(input.uv - 0.5) / sm_max_edge_distance;
+		//float shadow_map_edge_fade = min(edge.x, edge.y);
 		float shadow_map_edge_fade = length(input.uv - 0.5) / sm_max_edge_distance;
 		shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
 

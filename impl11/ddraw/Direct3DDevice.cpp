@@ -2818,6 +2818,8 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_max_edge_distance = 0.75f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE_X;
+	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
@@ -3046,6 +3048,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_debug") == 0) {
 				g_bShadowMapDebug = (bool)fValue;
 				g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+			}
+			else if (_stricmp(param, "shadow_mapping_pcss_radius") == 0) {
+				g_ShadowMapVSCBuffer.sm_pcss_radius = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_light_size") == 0) {
+				g_ShadowMapVSCBuffer.sm_light_size = fValue;
 			}
 			
 			/*
