@@ -293,7 +293,7 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 		{
 			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), 0).x;
 			// Convert the depth-stencil coord (0..1) to metric Z:
-			sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
+			sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
 			if (sm_Z <= Q.z - sm_bias) // This sample is a blocker
 			{
 				d_blocker += sm_Z;
@@ -319,7 +319,7 @@ inline float PCSS(float3 Q)
 
 	// Step 3: Filtering
 	// Convert metric Z to depth value
-	Q.z = lerp(1.0, 0.0, Q.z / SM_Z_FAR);
+	Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
 	return ShadowMapPCF(Q, 1024.0, 3, filterRadiusUV);
 }
 
@@ -421,7 +421,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		/*
 		//float filter_size = pcss(Q);
 		// For PCF we need to transform Q.z into a depth value too:
-		Q.z = lerp(1.0, 0.0, Q.z / SM_Z_FAR);
+		Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
 		//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, Q.z);
 		//shadow_factor = ShadowMapPCF(Q, 1024.0, 2, filter_size);
 		shadow_factor = ShadowMapPCF(Q, 1024.0, 1, sm_pcss_radius);
@@ -434,8 +434,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Regular path
 		float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
 		// Now convert the depth-stencil coord (0..1) to metric Z:
-		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (0.0)
-		sm_Z = lerp(SM_Z_FAR, 0.0, sm_Z);
+		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
+		sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
 		// sm_Z is now in metric space, we can compare it with P.z
 		shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
 		// shadow_factor: 1 -- No shadow

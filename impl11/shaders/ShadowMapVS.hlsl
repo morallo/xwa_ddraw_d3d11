@@ -50,7 +50,7 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	temp.xy = input.pos.xy * vpScale.xy + float2(-1.0, 1.0);
 	temp.xy *= vpScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * w;
-	float4 P = float4(temp.z * temp.xy, temp.z, 1.0);
+	float4 P = float4(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z, 1.0);
 	
 	// Transform this point and project it from the light's point of view:
 	P = mul(lightWorldMatrix, P);
@@ -58,8 +58,8 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	output.pos.xy = P.xy;
 	//output.pos = mul(lightViewProj, float4(P, 1));
 	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
-	// In this case Z Far is set at 25 meters away:
-	output.pos.z = lerp(1.0, 0.0, P.z / SM_Z_FAR);
+	// In this case Z Far is set at SM_Z_FAR meters away:
+	output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
 	output.pos.w = 1.0;
 
 	return output;

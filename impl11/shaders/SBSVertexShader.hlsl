@@ -63,11 +63,14 @@ PixelShaderInput main(VertexShaderInput input)
 		temp.z = z_override;
 
 	// The back-projection into 3D is now very simple:
-	float3 P = float3(temp.z * temp.xy, temp.z);
+	// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
+	float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z);
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	output.pos3D = float4(P.x, -P.y, P.z, 1);
 	// Adjust the coordinate system for SteamVR:
 	P.yz = -P.yz;
+	// Remove the effect of DEFAULT_FOCAL_DIST?
+	// P.xy /= DEFAULT_FOCAL_DIST
 
 	// Apply head position and project 3D --> 2D
 	if (bPreventTransform < 0.5f) {

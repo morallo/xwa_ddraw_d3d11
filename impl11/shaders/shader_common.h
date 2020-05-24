@@ -2,6 +2,8 @@
 #define METRIC_SCALE_FACTOR 25.0
 //#define METRIC_SCALE_FACTOR 50.0
 
+#define DEFAULT_FOCAL_DIST 2.0
+
 // This is the limit, in meters, when we start fading out effects like SSAO and SSDO:
 #define INFINITY_Z0 10000 // Used to be 15000 in release 1.1.2
 // This is the limit, in meters, when the SSAO/SSDO effects are completely faded out
@@ -15,4 +17,5 @@
 #define MAX_SUN_FLARES 4
 
 // Z Far value (in meters) used for the shadow maps
-#define SM_Z_FAR 25.0
+#define SM_Z_NEAR 0.0
+#define SM_Z_FAR 15.0

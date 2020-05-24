@@ -183,7 +183,8 @@ bool g_bLastFrameWasExterior = false; // Keeps track of the state of the exterio
 #define MOVE_POINT_LIGHT_KEY_SET 3
 int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV, I can always override this with the "key_set" SSAO.cfg param
 
-const float DEFAULT_FOCAL_DIST = 2.0f; // This value (2.0f) was determined experimentally.
+// This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
+//const float DEFAULT_FOCAL_DIST = 2.0f; 
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
 
@@ -2784,7 +2785,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.indirect_intensity = 1.5f;
 	g_SSAO_PSCBuffer.power = 1.0f;
 	g_SSAO_PSCBuffer.black_level = 0.2f;
-	g_SSAO_PSCBuffer.bentNormalInit = 0.1f; // 0.2f
+	g_SSAO_PSCBuffer.bentNormalInit = 0.1f; // 0.2f // TODO: Check if we need to update this now that the reconstruction uses DEFAULT_FOCAL_DIST
 	g_SSAO_PSCBuffer.near_sample_radius = 0.005f;
 	g_SSAO_PSCBuffer.far_sample_radius = 0.005f;
 	g_SSAO_PSCBuffer.z_division = 0;

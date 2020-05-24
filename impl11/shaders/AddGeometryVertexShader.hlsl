@@ -55,7 +55,8 @@ PixelShaderInput main(VertexShaderInput input)
 		// Back-project into 3D. In this case, the w component has the original Z value.
 		float3 temp = input.pos.xyw;
 		temp.x *= aspect_ratio;
-		float3 P = float3(temp.z * temp.xy, temp.z);
+		// TODO: Check that the addition of DEFAULT_FOCAL_DIST didn't change this shader
+		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z);
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));
