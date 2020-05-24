@@ -497,7 +497,8 @@ float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLigh
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bDumpOBJEnabled = false;
+FILE *g_DumpOBJFile = NULL;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 20.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
@@ -709,12 +710,14 @@ void IncreasePostProjScale(float Delta) {
 }
 */
 
+/*
 void IncreaseFocalDist(float Delta) {
 	g_fFocalDist += Delta;
 	if (g_fFocalDist < 0.01f)
 		g_fFocalDist = 0.01f;
 	log_debug("[DBG] g_fFocalDist: %f", g_fFocalDist);
 }
+*/
 
 void IncreaseNoDrawBeforeIndex(int Delta) {
 	g_iNoDrawBeforeIndex += Delta;
@@ -2838,6 +2841,8 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE_X;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 
+	g_bDumpOBJEnabled = false;
+
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -3075,6 +3080,11 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_blocker_radius") == 0) {
 				g_ShadowMapVSCBuffer.sm_blocker_radius = fValue;
 			}
+
+			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
+				g_bDumpOBJEnabled = (bool)fValue;
+			}
+			
 			
 			/*
 			else if (_stricmp(param, "flare_aspect_mult") == 0) {
@@ -4398,7 +4408,6 @@ Direct3DDevice::Direct3DDevice(DeviceResources* deviceResources)
 
 Direct3DDevice::~Direct3DDevice()
 {
-	//g_iNumVertices = 0;
 	delete this->_renderStates;
 }
 
@@ -5045,8 +5054,8 @@ inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 	else
 	{
 		// Code from VertexShader
-		temp.x += -1.0f; // For nonVR vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y += 1.0f;
+		temp.x += -1.0f; // For nonVR, vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		temp.y +=  1.0f;
 		// temp.x is now in the range -1.0 ..  1.0 and
 		// temp.y is now in the range  1.0 .. -1.0
 
@@ -5232,6 +5241,41 @@ inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 
 		//return P; // Return in-game coords
 	}
 	return P;
+}
+
+/*
+ * Dumps the vertices in the current instruction to the given file after back-projecting them
+ * into 3D space.
+ */
+void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	Vector3 tempv0, tempv1, tempv2;
+
+	if (file == NULL) {
+		log_debug("[DBG] Cannot dump vertices, NULL file ptr");
+		return;
+	}
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		backProject(index, &tempv0);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		backProject(index, &tempv1);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		backProject(index, &tempv2);
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+
+		triangle++;
+	}
 }
 
 // From: https://blackpawn.com/texts/pointinpoly/default.html
@@ -5685,6 +5729,11 @@ HRESULT Direct3DDevice::Execute(
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-Input.jpg");
 		DirectX::SaveWICTextureToFile(context, resources->_DCTextAsInput, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-Input.jpg");
+		if (g_bDumpOBJEnabled) {
+			if (g_DumpOBJFile != NULL)
+				fclose(g_DumpOBJFile);
+			fopen_s(&g_DumpOBJFile, "./DumpVertices.OBJ", "wt");
+		}
 	}
 
 	HRESULT hr = S_OK;
@@ -7642,6 +7691,9 @@ HRESULT Direct3DDevice::Execute(
 						Ry.rotateY(g_fShadowMapAngleY);
 						T.translate(0, 0, g_fShadowMapDistance);
 
+						if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled)
+							DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
+
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
 						
 						// Initialize the Constant Buffer
@@ -8036,6 +8088,14 @@ HRESULT Direct3DDevice::Execute(
 	//g_iExecBufCounter++; // This variable is used to find when the SkyBox has been rendered
 	// This variable is useless with the hook_d3d: it stays at 1, meaning that this function is called exactly *once* per frame.
 
+	if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled) {
+		if (g_DumpOBJFile != NULL) {
+			fflush(g_DumpOBJFile);
+			fclose(g_DumpOBJFile);
+		}
+		g_DumpOBJFile = NULL;
+		log_debug("[DBG] Vertices dumped to OBJ file");
+	}
 	//log_debug("[DBG] Execute (2)");
 	if (FAILED(hr))
 	{

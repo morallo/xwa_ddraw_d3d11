@@ -113,7 +113,7 @@ void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
-void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
+//void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
 //void IncreasePostProjScale(float Delta);
 void ToggleZoomOutMode();
 void IncreaseZoomOutScale(float Delta);
