@@ -7685,7 +7685,9 @@ HRESULT Direct3DDevice::Execute(
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
-					if (g_ShadowMapping.Enabled && bIsCockpit) {
+					if (g_ShadowMapping.Enabled && !g_ShadowMapping.UseShadowOBJ && bIsCockpit) 
+					//if (g_ShadowMapping.Enabled && bIsCockpit)
+					{
 						Matrix4 T, Ry, Rx, S;
 						S.scale(g_fShadowMapScale);
 						Rx.rotateX(g_fShadowMapAngleX);
@@ -7717,16 +7719,33 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitVertexShader(resources->_shadowMapVS);
 						resources->InitPixelShader(resources->_shadowMapPS);
 
+						if (g_ShadowMapping.UseShadowOBJ) {
+							// Set the vertex and index buffers
+							UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
+							resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
+							resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+						}
+
 						// Set the Shadow Map DSV
 						context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
 						// Render the Shadow Map
-						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+						if (g_ShadowMapping.UseShadowOBJ)
+							context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
+						else
+							context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
 						// Restore the previous viewport, etc
 						resources->InitViewport(&g_nonVRViewport);
 						resources->InitVertexShader(resources->_vertexShader);
 						resources->InitPixelShader(lastPixelShader);
 						context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
+
+						if (g_ShadowMapping.UseShadowOBJ) {
+							// Set the vertex and index buffers
+							UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
+							resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &stride, &ofs);
+							resources->InitIndexBuffer(this->_indexBuffer.Get(), g_config.D3dHookExists);
+						}
 					}
 					goto out;
 				}

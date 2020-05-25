@@ -338,7 +338,7 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 */
 #endif
 
-bool LoadShadowOBJ(char *sFileName) {
+bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 	FILE *file;
 	int error = 0;
 
@@ -354,26 +354,43 @@ bool LoadShadowOBJ(char *sFileName) {
 		return false;
 	}
 
-	std::vector<Vector3> vertices;
+	std::vector<D3DTLVERTEX> vertices;
 	std::vector<WORD> indices;
 
 	char line[256];
 	while (!feof(file)) {
 		fgets(line, 256, file);
 		if (line[0] == 'v') {
+			D3DTLVERTEX v;
 			float x, y, z;
 			sscanf_s(line, "v %f %f %f", &x, &y, &z);
-			vertices.push_back(Vector3(x, y, z));
+			v.sx = x;
+			v.sy = y;
+			v.sz = z;
+			vertices.push_back(v);
 		}
 		else if (line[0] == 'f') {
 			int i, j, k;
 			sscanf_s(line, "f %d %d %d", &i, &j, &k);
-			indices.push_back((WORD)i);
-			indices.push_back((WORD)j);
-			indices.push_back((WORD)k);
+			indices.push_back((WORD)(i - 1));
+			indices.push_back((WORD)(j - 1));
+			indices.push_back((WORD)(k - 1));
 		}
 	}
+	fclose(file);
 	log_debug("[DBG] [SHW] Loaded %d vertices, %d faces", vertices.size(), indices.size() / 3);
+
+	//D3DTLVERTEX *vert_array = new D3DTLVERTEX[vertices.size()];
+	//WORD *index_array = new WORD[indices.size()];
+	//std::copy(vertices.begin(), vertices.end(), vert_array);
+	//std::copy(indices.begin(), indices.end(), index_array);
+	//this->_deviceResources->CreateShadowVertexIndexBuffers(vert_array, index_array, vertices.size(), indices.size());
+	//delete[] vert_array;
+	//delete[] index_array;
+
+	this->_deviceResources->CreateShadowVertexIndexBuffers(vertices.data(), indices.data(), vertices.size(), indices.size());
+	vertices.clear();
+	indices.clear();
 	return true;
 }
 

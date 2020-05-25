@@ -18,4 +18,7 @@
 
 // Z Far value (in meters) used for the shadow maps
 #define SM_Z_NEAR 0.0
-#define SM_Z_FAR 15.0
+// Use this for screen-space shadow mapping
+//#define SM_Z_FAR 15.0
+// Use this for ShadowMap OBJ
+#define SM_Z_FAR 2.0

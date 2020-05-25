@@ -780,7 +780,7 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	}
 }
 
-void DeviceResources::CreateShadowVertexIndexBuffers(UINT numVertices, UINT numIndices)
+void DeviceResources::CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices)
 {
 	HRESULT hr;
 	auto &device = this->_d3dDevice;
@@ -801,32 +801,55 @@ void DeviceResources::CreateShadowVertexIndexBuffers(UINT numVertices, UINT numI
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * numVertices;
-	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
+	// Use these and set the vertexBufferData to NULL to change the vertices dynamically:
+	//vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC; // D3D11_USAGE_IMMUTABLE
+	//vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
+	vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.MiscFlags = 0;
+	vertexBufferDesc.StructureByteStride = 0;
 
-	if (FAILED(hr = device->CreateBuffer(&vertexBufferDesc, NULL, &this->_shadowVertexBuffer))) {
-		log_debug("[DBG] Could not create _shadowVertexBuffer");
+	// Remove this block when the vertex buffer is dynamic
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	vertexBufferData.pSysMem = vertices;
+	vertexBufferData.SysMemPitch = 0;
+	vertexBufferData.SysMemSlicePitch = 0;
+
+	if (FAILED(hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_shadowVertexBuffer))) {
+		log_debug("[DBG] [SHW] Could not create _shadowVertexBuffer: 0x%x", hr);
 	}
 	else
-		log_debug("[DBG] _shadowVertexBuffer CREATED");
+		log_debug("[DBG] [SHW] _shadowVertexBuffer CREATED");
 
 	// Create the index buffer
 	D3D11_BUFFER_DESC indexBufferDesc;
 	indexBufferDesc.ByteWidth = sizeof(WORD) * numIndices;
-	indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	// Use the following to change the index buffer dynamically:
+	//indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC; // D3D11_USAGE_IMMUTABLE
+	//indexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0
+	indexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferDesc.CPUAccessFlags = 0;
 	indexBufferDesc.MiscFlags = 0;
 	indexBufferDesc.StructureByteStride = 0;
 
-	if (FAILED(hr = device->CreateBuffer(&indexBufferDesc, NULL, &this->_shadowIndexBuffer))) {
-		log_debug("[DBG] Could not create _shadowIndexBuffer");
+	// Remove the block when the index buffer is dynamic
+	D3D11_SUBRESOURCE_DATA indexBufferData;
+	indexBufferData.pSysMem = indices;
+	indexBufferData.SysMemPitch = 0;
+	indexBufferData.SysMemSlicePitch = 0;
+
+	// Use InitIndexBuffer(false) to set the index buffer
+	if (FAILED(hr = device->CreateBuffer(&indexBufferDesc, &indexBufferData, &this->_shadowIndexBuffer))) {
+		log_debug("[DBG] [SHW] Could not create _shadowIndexBuffer: 0x%x", hr);
 	}
 	else
-		log_debug("[DBG] _shadowIndexBuffer CREATED");
-	
+		log_debug("[DBG] [SHW] _shadowIndexBuffer CREATED");
+
+	g_ShadowMapping.UseShadowOBJ = true;
+	g_ShadowMapping.NumVertices = numVertices;
+	g_ShadowMapping.NumIndices = numIndices;
 }
 
 inline float lerp(float x, float y, float s) {

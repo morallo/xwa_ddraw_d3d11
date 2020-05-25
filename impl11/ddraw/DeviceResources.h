@@ -590,11 +590,16 @@ extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 class ShadowMappingData {
 public:
 	bool Enabled;
+	bool UseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
 	int Width, Height;
 	D3D11_VIEWPORT ViewPort;
+	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
 
 	ShadowMappingData() {
 		this->Enabled = false;
+		this->UseShadowOBJ = false;
+		this->NumVertices = 0;
+		this->NumIndices = 0;
 		this->Width   = SHADOW_MAP_SIZE_X;
 		this->Height  = SHADOW_MAP_SIZE_Y;
 		// Initialize the Viewport
@@ -661,7 +666,7 @@ public:
 	void BuildPostProcVertexBuffer();
 	void InitSpeedParticlesVB(UINT width, UINT height);
 	void BuildSpeedVertexBuffer(UINT width, UINT height);
-	void CreateShadowVertexIndexBuffers(UINT numVertices, UINT numIndices);
+	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);

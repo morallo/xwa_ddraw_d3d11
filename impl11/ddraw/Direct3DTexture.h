@@ -162,10 +162,12 @@ public:
 	// **** Back-pointer to the light texture
 	Direct3DTexture *lightTexture;
 
+	
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
 	int GetWidth();
 	int GetHeight();
+	bool LoadShadowOBJ(char * sFileName);
 	void TagTexture();
 
 	virtual ~Direct3DTexture();

@@ -13,6 +13,7 @@
 #include "FreePIE.h"
 #include "Matrices.h"
 #include "Direct3DTexture.h"
+//#include "XWAFramework.h"
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
@@ -30,6 +31,10 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+const float *POV_X = (float *)(0x8B94E0 + 0x20D);
+const float *POV_Y = (float *)(0x8B94E0 + 0x211);
+const float *POV_Z = (float *)(0x8B94E0 + 0x215);
+
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
@@ -110,7 +115,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
 extern bool g_bShadowMapDebug;
-
+extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDistance;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -7058,9 +7063,9 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// Clear the DC RTVs -- we should've done this during Execute(); but if the GUI was disabled
+			// then we didn't do it!
 			if (!g_bDCWasClearedOnThisFrame) {
-				// Clear the DC RTVs -- we should've done this during Execute(); but if the GUI was disabled
-				// then we didn't do it!
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
 				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
@@ -7097,6 +7102,67 @@ HRESULT PrimarySurface::Flip(
 					if (g_bUseSteamVR)
 						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				}
+			}
+
+			// Render the Shadow Map
+			if (g_ShadowMapping.Enabled && g_ShadowMapping.UseShadowOBJ)
+			//if (false)
+			{
+				Matrix4 T, Ry, Rx, S;
+
+				// Enable ZWrite: we'll need it for the ShadowMap
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = TRUE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+				desc.DepthFunc = D3D11_COMPARISON_GREATER;
+				//desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				// Init the Viewport
+				resources->InitViewport(&g_ShadowMapping.ViewPort);
+
+				// Compute the transform chain
+				S.scale(g_fShadowMapScale);
+				Rx.rotateX(g_fShadowMapAngleX);
+				Ry.rotateY(g_fShadowMapAngleY);
+				T.translate(0, 0, g_fShadowMapDistance);
+
+				// Initialize the Constant Buffer
+				// T * R does rotation first, then translation: so the object rotates around the origin
+				// and then gets pushed away along the Z axis
+				g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
+				g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
+				// Set the constant buffer
+				resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+				// Set the Vertex and Pixel Shaders
+				resources->InitVertexShader(resources->_shadowMapVS);
+				resources->InitPixelShader(resources->_shadowMapPS);
+
+				// Set the vertex and index buffers
+				UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
+				resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
+				resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+
+				// Set the input layout
+				resources->InitInputLayout(resources->_inputLayout);
+				resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				//resources->InitRasterizerState(resources->_rasterizerState);
+
+				// Set the Shadow Map DSV
+				context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+				// Render the Shadow Map
+				context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
+				//log_debug("[DBG] [SHW] Shadow Map rendered");
+
+				// Restore the previous viewport, etc
+				resources->InitViewport(&g_nonVRViewport);
+				resources->InitVertexShader(resources->_vertexShader);
+				//resources->InitPixelShader(lastPixelShader);
+				// Restore the previous index and vertex buffers?
+				context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
 			}
 
 			// Render the hyperspace effect if necessary
@@ -7664,9 +7730,9 @@ HRESULT PrimarySurface::Flip(
 				//*POV_X0 = 5; // This had no obvious effect
 
 				// These are the same values as the above, as floats:
-				float *POV_X1 = (float *)(0x8B94E0 + 0x20D);
+				/*float *POV_X1 = (float *)(0x8B94E0 + 0x20D);
 				float *POV_Y1 = (float *)(0x8B94E0 + 0x211);
-				float *POV_Z1 = (float *)(0x8B94E0 + 0x215);
+				float *POV_Z1 = (float *)(0x8B94E0 + 0x215);*/
 
 				//*POV_X1 = 5.0f; // This had no obvious effect
 
@@ -7677,13 +7743,13 @@ HRESULT PrimarySurface::Flip(
 				// (offset 0xC7)" <-- That's what I call the "Heading Matrix".
 				// This transform matrix is *not* affected by the cockpit camera. It's just
 				// the current heading.
-				float *POV_X2 = (float *)(0x8B94E0 + 0x201);
+				/*float *POV_X2 = (float *)(0x8B94E0 + 0x201);
 				float *POV_Y2 = (float *)(0x8B94E0 + 0x205);
-				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);
+				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);*/
 
 				log_debug("[DBG] [POV] X0,Z0,Y0: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
-				log_debug("[DBG] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X1, *POV_Z1, *POV_Y1);
-				log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
+				log_debug("[DBG] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X, *POV_Z, *POV_Y);
+				//log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
 
 				/*
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-2.jpg");
