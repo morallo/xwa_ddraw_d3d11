@@ -100,14 +100,31 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	// The input should be true metric 3D
 	float4 P = float4(input.pos.xyz, 1.0);
 
-	// Transform this point and project it from the light's point of view:
+	// Move the 3D object so that the POV sits at the origin
+	P.xyz -= POV / 44.0;
+	// With the POV at the origin, we can now transform this point and 
+	// project it from the light's point of view:
 	P = mul(lightWorldMatrix, P);
+
 	//output.pos.xy = P.xy / P.z; // Perspective projection
 	output.pos.xy = P.xy; // Parallel projection
+
 	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
 	// In this case Z Far is set at SM_Z_FAR meters away:
-	output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
-	output.pos.w = 1.0;
+	//output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
+
+	// Now compress the range -OBJrange/2 to OBJrange/2 to 0..1:
+	//output.pos.z = lerp(0.0, 1.0, P.z / OBJrange);
+	//output.pos.z = (P.z + OBJrange / 2.0) / OBJrange;
+	output.pos.z = P.z / OBJrange + 0.5;
+
+	/*
+	// DEBUG
+	P.y -= POV.y;
+	P.z = (P.z + 1.641) / 2.6;
+	output.pos.xyz = P.xyz;
+	// DEBUG
+	*/
 
 	/*
 	// DEBUG
@@ -117,5 +134,6 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	// DEBUG
 	*/
 
+	output.pos.w = 1.0;
 	return output;
 }

@@ -15,6 +15,8 @@
 #include <wincodec.h>
 #include <vector>
 
+extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 
@@ -356,6 +358,9 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 
 	std::vector<D3DTLVERTEX> vertices;
 	std::vector<WORD> indices;
+	float minx = 100000.0f, miny = 100000.0f, minz = 100000.0f;
+	float maxx = -100000.0f, maxy = -100000.0f, maxz = -100000.0f;
+	float rangex, rangey, rangez;
 
 	char line[256];
 	while (!feof(file)) {
@@ -368,6 +373,9 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			v.sy = y;
 			v.sz = z;
 			vertices.push_back(v);
+			if (x < minx) minx = x; else if (x > maxx) maxx = x;
+			if (y < miny) miny = y; else if (y > maxy) maxy = y;
+			if (z < minz) minz = z; else if (z > maxz) maxz = z;
 		}
 		else if (line[0] == 'f') {
 			int i, j, k;
@@ -378,7 +386,18 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 		}
 	}
 	fclose(file);
-	log_debug("[DBG] [SHW] Loaded %d vertices, %d faces", vertices.size(), indices.size() / 3);
+	
+	rangex = maxx - minx;
+	rangey = maxy - miny;
+	rangez = maxz - minz;
+	//g_ShadowMapVSCBuffer.OBJrange = max(max(rangex, rangey), rangez);
+
+	log_debug("[DBG] [SHW] Loaded %d vertices, %d faces.",
+		vertices.size(), indices.size() / 3);
+	log_debug("[DBG] [SHW] min,max: [%0.3f, %0.3f], [%0.3f, %0.3f], [%0.3f, %0.3f]",
+		minx, maxx, miny, maxy, minz, maxz);
+	log_debug("[DBG] [SHW]  Range: %0.3f, range-x,y,z: %0.3f, %0.3f, %0.3f",
+		g_ShadowMapVSCBuffer.OBJrange, rangex, rangey, rangez);
 
 	//D3DTLVERTEX *vert_array = new D3DTLVERTEX[vertices.size()];
 	//WORD *index_array = new WORD[indices.size()];

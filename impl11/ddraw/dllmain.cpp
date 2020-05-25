@@ -99,7 +99,7 @@ extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LaserPointDebug;
 
 // SHADOW MAPPING
-extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDistance, g_fShadowMapScale;
+extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDepthTrans, g_fShadowMapScale;
 extern bool g_bShadowMapDebug;
 
 HWND ThisWindow = 0;
@@ -345,7 +345,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				case 6:
-					g_fShadowMapAngleY += 15.0f;
+					g_fShadowMapAngleY += 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
 					break;
 				}
@@ -390,7 +390,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fCockpitTranslationScale: %0.6f", g_fCockpitTranslationScale);
 					break;
 				case 6:
-					g_fShadowMapAngleY -= 15.0f;
+					g_fShadowMapAngleY -= 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
 					break;
 				}
@@ -426,7 +426,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 6:
-					g_fShadowMapAngleX += 15.0f;
+					g_fShadowMapAngleX += 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);
 					break;
 
@@ -453,7 +453,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 				case 6:
-					g_fShadowMapAngleX -= 15.0f;
+					g_fShadowMapAngleX -= 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);
 					break;
 

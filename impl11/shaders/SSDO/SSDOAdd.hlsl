@@ -13,6 +13,12 @@
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
 
+#define POV_FACTOR_XY 41.0
+#define POV_FACTOR_Z 41.0
+
+#define sm_shy -0.075
+#define sm_sz 0.94
+
  // The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
@@ -253,17 +259,20 @@ inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radi
 	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
 	//float2 grad = frac(Q.xy * resolution + 0.5f);
 	float2 grad = frac(sm_pos * resolution + 0.5);
-	float Q_z = Q.z - (sm_bias / SM_Z_FAR);
+	//float Q_z = Q.z - (sm_bias / SM_Z_FAR);
+	float Q_z = Q.z - (sm_bias / OBJrange);
 
 	for (int i = -filterSize; i <= filterSize; i++)
 	{
 		for (int j = -filterSize; j <= filterSize; j++)
 		{
 			float4 tmp = texShadowMap.Gather(samplerShadowMap, sm_pos + float2(i, j) * float2(radius, radius));
-			tmp.x = tmp.x < Q_z ? 1.0f : 0.0f;
-			tmp.y = tmp.y < Q_z ? 1.0f : 0.0f;
-			tmp.z = tmp.z < Q_z ? 1.0f : 0.0f;
-			tmp.w = tmp.w < Q_z ? 1.0f : 0.0f;
+			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
+			// so if a dpeth value is *lower* than Q.z it's an occluder
+			tmp.x = tmp.x < Q_z ? 0.0f : 1.0f;
+			tmp.y = tmp.y < Q_z ? 0.0f : 1.0f;
+			tmp.z = tmp.z < Q_z ? 0.0f : 1.0f;
+			tmp.w = tmp.w < Q_z ? 0.0f : 1.0f;
 			shadow += lerp(lerp(tmp.w, tmp.z, grad.x), lerp(tmp.x, tmp.y, grad.x), grad.y);
 		}
 	}
@@ -293,7 +302,9 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 		{
 			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), 0).x;
 			// Convert the depth-stencil coord (0..1) to metric Z:
-			sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
+			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
+			// output.pos.z = P.z / OBJrange + 0.5;
+			sm_Z = (sm_Z - 0.5) * OBJrange;
 			if (sm_Z <= Q.z - sm_bias) // This sample is a blocker
 			{
 				d_blocker += sm_Z;
@@ -319,7 +330,8 @@ inline float PCSS(float3 Q)
 
 	// Step 3: Filtering
 	// Convert metric Z to depth value
-	Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
+	//Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
+	Q.z = Q.z / OBJrange + 0.5;
 	return ShadowMapPCF(Q, 1024.0, 3, filterRadiusUV);
 }
 
@@ -407,16 +419,45 @@ PixelShaderOutput main(PixelShaderInput input)
 	float shadow_factor = 1.0;
 	if (sm_enabled) {
 		// Apply the same transform we applied to the geometry when computing the shadow map:
-		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-		
+		//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+
+		// Transform P into the Original Model's coord sys
+		float3 POV_OFS = float3(POV.xy / POV_FACTOR_XY, POV.z / POV_FACTOR_Z);
+		// Apply the shear to the points to make them truly metric
+		float3 Q = float3(
+			P.x,
+			P.y + P.z * sm_shy,
+			P.z * sm_sz
+		);
+		// Rotate the point according to the camera matrix
+		Q = mul(Camera, float4(Q, 1.0)).xyz;
+		// Move the points to the correct POV:
+		Q += POV_OFS;
+
 		/*
+		float3 Q = float3(
+			P.x + POV_OFS.x, 
+			P.y + P.z * sm_shy + POV_OFS.y, 
+			P.z * sm_sz + POV_OFS.z
+		);
+		*/
+
+		// Q is now in the Model's Coord sys. We can apply the same transform we
+		// applied when generating the shadow map.
+
+		// Move the 3D object so that the POV sits at the origin
+		Q -= POV / 44.0;
+		// With the POV at the origin, we can now transform this point and 
+		// project it from the light's point of view:
+		Q = mul(lightWorldMatrix, float4(Q, 1.0)).xyz;
+		
 		// Regular path
 		// Project
 		//float2 sm_pos = Q.xy / Q.z;
 		float2 sm_pos = Q.xy;
 		// Convert to texture coords: this maps -1..1 to 0..1:
 		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
-		*/
+
 
 		/*
 		//float filter_size = pcss(Q);
@@ -428,19 +469,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		*/
 
 		// PCSS
-		shadow_factor = PCSS(Q);
+		//shadow_factor = PCSS(Q);
 
-		/*
 		// Regular path
 		float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
 		// Now convert the depth-stencil coord (0..1) to metric Z:
 		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
-		sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
+		//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
+		sm_Z = (sm_Z - 0.5) * OBJrange;
 		// sm_Z is now in metric space, we can compare it with P.z
 		shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
 		// shadow_factor: 1 -- No shadow
 		// shadow_factor: 0 -- Full shadow
-		*/
 
 		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;
 		// Fade the shadow to 1 with the distance to the occluder
@@ -450,10 +490,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_dist));
 
 		// Fade the shadows towards the edges of the screen:
-		//float2 edge = abs(input.uv - 0.5) / sm_max_edge_distance;
-		//float shadow_map_edge_fade = min(edge.x, edge.y);
-		float shadow_map_edge_fade = length(input.uv - 0.5) / sm_max_edge_distance;
-		shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
+		//float shadow_map_edge_fade = length(input.uv - 0.5) / sm_max_edge_distance;
+		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
 
 		// DEBUG
 		if (sm_debug && shadow_factor < 0.5) 

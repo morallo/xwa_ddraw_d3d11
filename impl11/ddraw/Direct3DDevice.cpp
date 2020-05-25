@@ -450,8 +450,8 @@ int g_iHUDOffscreenCommandsRendered = 0;
 /*********************************************************/
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
-float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDistance = 3.0f, g_fShadowMapScale = 0.5f;
-bool g_bShadowMapDebug = false;
+float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
+bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -3052,16 +3052,23 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_x") == 0) {
 				g_fShadowMapAngleX = fValue;
-				log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);
+				log_debug("[DBG] [SHW] g_fShadowMapAngleX: %0.3f", g_fShadowMapAngleX);
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_y") == 0) {
 				g_fShadowMapAngleY = fValue;
-				log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
+				log_debug("[DBG] [SHW] g_fShadowMapAngleY: %0.3f", g_fShadowMapAngleY);
 			}
 			else if (_stricmp(param, "shadow_mapping_scale") == 0) {
 				g_fShadowMapScale = fValue;
-				log_debug("[DBG] [SHW] g_fLightMapScale: %0.3f", g_fShadowMapScale);
+				log_debug("[DBG] [SHW] g_fShadowMapScale: %0.3f", g_fShadowMapScale);
 			}
+			else if (_stricmp(param, "shadow_mapping_depth_trans") == 0) {
+				g_fShadowMapDepthTrans = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_invert_camera_matrix") == 0) {
+				g_bShadowMappingInvertCameraMatrix = (bool)fValue;
+			}
+
 			else if (_stricmp(param, "shadow_mapping_bias") == 0) {
 				g_ShadowMapVSCBuffer.sm_bias = fValue;
 			}
@@ -3081,6 +3088,19 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_blocker_radius") == 0) {
 				g_ShadowMapVSCBuffer.sm_blocker_radius = fValue;
 			}
+			else if (_stricmp(param, "shadow_mapping_POV_X") == 0) {
+				g_ShadowMapVSCBuffer.POV.x = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_POV_Y") == 0) {
+				g_ShadowMapVSCBuffer.POV.y = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_POV_Z") == 0) {
+				g_ShadowMapVSCBuffer.POV.z = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_OBJrange") == 0) {
+				g_ShadowMapVSCBuffer.OBJrange = fValue;
+			}
+			
 
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;
@@ -7689,10 +7709,14 @@ HRESULT Direct3DDevice::Execute(
 					//if (g_ShadowMapping.Enabled && bIsCockpit)
 					{
 						Matrix4 T, Ry, Rx, S;
-						S.scale(g_fShadowMapScale);
+						//S.scale(g_fShadowMapScale);
+						// Only scale the x and y axes, leave z alone
+						//S.identity();
+						//S[0][0] = g_fShadowMapScale;
+						//S[1][1] = g_fShadowMapScale; 
 						Rx.rotateX(g_fShadowMapAngleX);
 						Ry.rotateY(g_fShadowMapAngleY);
-						T.translate(0, 0, g_fShadowMapDistance);
+						T.translate(0, 0, g_fShadowMapDepthTrans);
 
 						if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled)
 							DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
@@ -7710,7 +7734,8 @@ HRESULT Direct3DDevice::Execute(
 						);*/
 						// T * R does rotation first, then translation: so the object rotates around the origin
 						// and then gets pushed away along the Z axis
-						g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
+						//g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
+						g_ShadowMapVSCBuffer.lightWorldMatrix = Rx * Ry;
 						g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 						// Set the constant buffer
 						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -8499,10 +8524,10 @@ HRESULT Direct3DDevice::BeginScene()
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 		if (g_bUseSteamVR) {
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-			if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+			if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, 1.0f, 0);
 		}
 	}
 

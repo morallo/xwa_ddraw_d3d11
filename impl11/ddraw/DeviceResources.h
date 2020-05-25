@@ -382,13 +382,17 @@ typedef struct DCPixelShaderCBStruct {
 
 // Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
 typedef struct ShadowMapVertexShaderMatrixCBStruct {
-	Matrix4 lightViewProj;
+	Matrix4 Camera;
 	Matrix4 lightWorldMatrix;
-	
+	// 128 bytes
+
 	uint32_t sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
+
+	Vector3 POV;
+	float OBJrange;
 } ShadowMapVertexShaderMatrixCB;
 
 typedef struct uv_coords_src_dst_struct {

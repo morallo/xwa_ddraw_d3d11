@@ -1,12 +1,18 @@
+#define GENERIC_POV_SCALE 44.0
+
 // ShadowMapVertexShaderMatrixCB (the same struct is used for both the vertex and pixel shader)
 cbuffer ConstantBuffer : register(b5)
 {
-	matrix lightViewProj;
+	matrix Camera;
 	matrix lightWorldMatrix;
+	// 128 bytes
 	
 	uint sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
+
+	float3 POV;
+	float OBJrange;
 };
 

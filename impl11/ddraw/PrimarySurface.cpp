@@ -31,6 +31,12 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+#define GENERIC_POV_SCALE 44.0f
+// These values match MXvTED exactly:
+const short *POV_Y0 = (short *)(0x5BB480 + 0x238);
+const short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
+const short *POV_X0 = (short *)(0x5BB480 + 0x23C);
+// Floating-point version of the POV (plus Y is inverted):
 const float *POV_X = (float *)(0x8B94E0 + 0x20D);
 const float *POV_Y = (float *)(0x8B94E0 + 0x211);
 const float *POV_Z = (float *)(0x8B94E0 + 0x215);
@@ -114,8 +120,8 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapDebug;
-extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDistance;
+extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix;
+extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -7115,7 +7121,7 @@ HRESULT PrimarySurface::Flip(
 				ComPtr<ID3D11DepthStencilState> depthState;
 				desc.DepthEnable = TRUE;
 				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-				desc.DepthFunc = D3D11_COMPARISON_GREATER;
+				desc.DepthFunc = D3D11_COMPARISON_LESS;
 				//desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
@@ -7124,15 +7130,27 @@ HRESULT PrimarySurface::Flip(
 				resources->InitViewport(&g_ShadowMapping.ViewPort);
 
 				// Compute the transform chain
-				S.scale(g_fShadowMapScale);
+				g_ShadowMapVSCBuffer.POV.x = (float)*POV_X0; // / GENERIC_POV_SCALE;
+				g_ShadowMapVSCBuffer.POV.y = (float)*POV_Z0; // / GENERIC_POV_SCALE;
+				g_ShadowMapVSCBuffer.POV.z = (float)*POV_Y0; // / GENERIC_POV_SCALE;
+
+				if (g_bDumpSSAOBuffers) 
+				{
+					//log_debug("[DBG] [SHW] POV: %0.3f, %0.3f, %0.3f", *POV_X, *POV_Y, *POV_Z);
+					log_debug("[DBG] [SHW] Using POV.xyz: %0.3f, %0.3f, %0.3f",
+						g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
+				}
+
+				S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
 				Rx.rotateX(g_fShadowMapAngleX);
 				Ry.rotateY(g_fShadowMapAngleY);
-				T.translate(0, 0, g_fShadowMapDistance);
+				T.translate(0, 0, g_fShadowMapDepthTrans);
 
 				// Initialize the Constant Buffer
 				// T * R does rotation first, then translation: so the object rotates around the origin
 				// and then gets pushed away along the Z axis
-				g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
+				GetCockpitViewMatrixSpeedEffect(&(g_ShadowMapVSCBuffer.Camera), g_bShadowMappingInvertCameraMatrix);
+				g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry;
 				g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 				// Set the constant buffer
 				resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -7723,13 +7741,14 @@ HRESULT PrimarySurface::Flip(
 			if (g_bDumpSSAOBuffers) 
 			{
 				// These values match MXvTED exactly:
-				short *POV_Y0 = (short *)(0x5BB480 + 0x238);
-				short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
-				short *POV_X0 = (short *)(0x5BB480 + 0x23C);
+				//short *POV_Y0 = (short *)(0x5BB480 + 0x238);
+				//short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
+				//short *POV_X0 = (short *)(0x5BB480 + 0x23C);
 
 				//*POV_X0 = 5; // This had no obvious effect
 
-				// These are the same values as the above, as floats:
+				// These are almost the same values as the above, as floats:
+				// The difference is that Y has the sign inverted
 				/*float *POV_X1 = (float *)(0x8B94E0 + 0x20D);
 				float *POV_Y1 = (float *)(0x8B94E0 + 0x211);
 				float *POV_Z1 = (float *)(0x8B94E0 + 0x215);*/
@@ -7747,8 +7766,8 @@ HRESULT PrimarySurface::Flip(
 				float *POV_Y2 = (float *)(0x8B94E0 + 0x205);
 				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);*/
 
-				log_debug("[DBG] [POV] X0,Z0,Y0: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
-				log_debug("[DBG] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X, *POV_Z, *POV_Y);
+				log_debug("[DBG] [SHW] [POV] X0,Z0,Y0: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
+				log_debug("[DBG] [SHW] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X, *POV_Z, *POV_Y);
 				//log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
 
 				/*
@@ -7896,9 +7915,9 @@ HRESULT PrimarySurface::Flip(
 
 			// Clear the Shadow Map buffers
 			if (bHyperspaceFirstFrame && g_ShadowMapping.Enabled) {
-				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 				if (g_bUseSteamVR)
-					context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+					context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
 			
 			// Enable roll (formerly this was 6dof)
