@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE.txt
 // This shader is used to render the speed effect particles
 #include "ShadertoyCBuffer.h"
+#include "shadow_mapping_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -43,7 +44,38 @@ PixelShaderInput main(VertexShaderInput input)
 		// Regular Vertex Shader
 		// This is similar to the regular vertex shader; but here we expect normalized (-1..1)
 		// 2D screen coordinates, so we don't need to multiply by vpScale:
-		output.pos = float4(input.pos.xyz, 1.0);
+		//output.pos = float4(input.pos.xyz, 1.0); // Speed Effect VS code
+		
+		// OBJ-3D to camera view
+		float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
+		
+		// Original transform chain, including 2D projection:
+		//P.x /= sm_aspect_ratio;
+		//P.x = FOVscale * (P.x / P.z);
+		//P.y = FOVscale * (P.y / P.z) + y_center;
+
+		// Adjust the point for differences in FOV and y_center:
+		P.xy = FOVscale * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
+		// Project the point. The P.z here is OBJ-3D plus Camera transform
+		P.xy /= P.z;
+		// The 2D point is now in DirectX coords (-1..1)
+
+		// Fix the depth
+		P.z = 0.0; // Depth value -- this makes the point visible
+		P.w = 1.0;
+		output.pos = P;
+		output.color = float4(1, 1, 0, 1);
+
+		/*
+		What does this shader tell me? I'm loading coordinates from an OBJ created in Blender.
+		If we multiply lightWorldMatrix by the OBJ 3D coord and then we project it into 2D,
+		the points match and transform properly with XWA's 2D coords.
+
+		So, 3D-OBJ -> 2D XWA -> backproject -> shadow map sys
+
+		To invert the above, we would need to take XWA's 2D coords and invert the formulas,
+		including FOVscale and y_center and then invert lightWorldMatrix too (?)
+		*/
 	}
 	else
 	{

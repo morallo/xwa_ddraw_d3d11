@@ -122,6 +122,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 extern ShadowMappingData g_ShadowMapping;
 extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
+extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -5522,6 +5523,43 @@ inline int PrimarySurface::AddGeometry(const Matrix4 &ViewMatrix, D3DTLVERTEX *p
 	return j - ofs;
 }
 
+Matrix4 PrimarySurface::ComputeAddGeomViewMatrix() 
+{
+	Vector4 Rs, Us, Fs, T;
+	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+	Matrix4 Translation;
+	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false); // ORIGINAL for Additional Geometry
+
+	// Apply the roll in VR mode:
+	if (g_bEnableVR)
+		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
+
+	// Translate the model so that the origin is at the POV and then scale it
+	Matrix4 POVTrans, POVScale;
+	POVTrans.translate(g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
+	//POVScale.scale(g_fShadowMapScaleX, g_fShadowMapScaleY, g_fShadowMapScaleZ);
+	ViewMatrix = ViewMatrix * POVTrans; // * POVScale;
+
+	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
+			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
+		log_debug("[DBG] [SHW] Using scale: %0.3f, %0.3f, %0.3f", g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ);
+		log_debug("[DBG] [SHW] sm_aspect_ratio: %0.3f", g_ShadowMapVSCBuffer.sm_aspect_ratio);
+	}
+
+	// Add the CockpitRef translation
+	T.x = PlayerDataTable[*g_playerIndex].cockpitXReference * g_fCockpitTranslationScale;
+	T.y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
+	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
+
+	T.w = 0.0f;
+	T = HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
+	Translation.translate(-T.x, -T.y, -T.z); // ORIGINAL for Add Geom Shader
+	//Translation.translate(-T.x, -T.y, T.z);
+	ViewMatrix = ViewMatrix * Translation; // ORIGINAL for Add Geom Shader
+	return ViewMatrix;
+}
+
 void PrimarySurface::RenderAdditionalGeometry()
 {
 	auto& resources = this->_deviceResources;
@@ -5533,22 +5571,8 @@ void PrimarySurface::RenderAdditionalGeometry()
 	int NumParticleVertices = 0, NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
-	Vector4 Rs, Us, Fs, T;
-	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
-	Matrix4 Translation;
-	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
-	// Apply the roll in VR mode:
-	if (g_bEnableVR)
-		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
-	// Add the translation
-	T.x = PlayerDataTable[*g_playerIndex].cockpitXReference * g_fCockpitTranslationScale;
-	T.y = PlayerDataTable[*g_playerIndex].cockpitYReference * g_fCockpitTranslationScale;
-	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
-	T.w = 0.0f;
-	T = HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
-	Translation.translate(-T.x, -T.y, -T.z);
-	ViewMatrix = ViewMatrix * Translation;
-
+	Matrix4 ViewMatrix = ComputeAddGeomViewMatrix();
+	
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
@@ -5566,6 +5590,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
+	/*
 	{
 		Vector4 QH, QT, RH, RT;
 		for (int i = 0; i < 1; i++) {
@@ -5605,6 +5630,23 @@ void PrimarySurface::RenderAdditionalGeometry()
 		resources->InitInputLayout(resources->_inputLayout);
 		resources->InitVertexShader(resources->_addGeomVS);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	}
+	*/
+
+	// Render the Shadow Map OBJ
+	{
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+		resources->InitInputLayout(resources->_inputLayout);
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		resources->InitVertexShader(resources->_addGeomVS);
+
+		// Set the VIewMatrix
+		g_ShadowMapVSCBuffer.Camera = ViewMatrix;
+		g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fAspectRatio;
+		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+		resources->InitVSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	}
 
 	// First render: Render the speed effect
@@ -5663,7 +5705,8 @@ void PrimarySurface::RenderAdditionalGeometry()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->Draw(NumParticleVertices, 0);
+		//context->Draw(NumParticleVertices, 0);
+		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0); // Draw OBJ
 
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
@@ -5693,13 +5736,18 @@ void PrimarySurface::RenderAdditionalGeometry()
 		}
 	}
 
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_addGeom.png");
+	}
+
 	// Second render: compose the cockpit over the previous effect
 	{
 		// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
-		viewport.Width = g_fCurScreenWidth;
-		viewport.Height = g_fCurScreenHeight;
+		viewport.Width    = g_fCurScreenWidth;
+		viewport.Height   = g_fCurScreenHeight;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
@@ -7130,28 +7178,25 @@ HRESULT PrimarySurface::Flip(
 				resources->InitViewport(&g_ShadowMapping.ViewPort);
 
 				// Compute the transform chain
-				g_ShadowMapVSCBuffer.POV.x = (float)*POV_X0; // / GENERIC_POV_SCALE;
-				g_ShadowMapVSCBuffer.POV.y = (float)*POV_Z0; // / GENERIC_POV_SCALE;
-				g_ShadowMapVSCBuffer.POV.z = (float)*POV_Y0; // / GENERIC_POV_SCALE;
+				//g_ShadowMapVSCBuffer.POV.x = (float)*POV_X0; // / GENERIC_POV_SCALE;
+				//g_ShadowMapVSCBuffer.POV.y = (float)*POV_Z0; // / GENERIC_POV_SCALE;
+				//g_ShadowMapVSCBuffer.POV.z = (float)*POV_Y0; // / GENERIC_POV_SCALE;
 
-				if (g_bDumpSSAOBuffers) 
-				{
-					//log_debug("[DBG] [SHW] POV: %0.3f, %0.3f, %0.3f", *POV_X, *POV_Y, *POV_Z);
-					log_debug("[DBG] [SHW] Using POV.xyz: %0.3f, %0.3f, %0.3f",
-						g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-				}
-
-				S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
-				Rx.rotateX(g_fShadowMapAngleX);
-				Ry.rotateY(g_fShadowMapAngleY);
-				T.translate(0, 0, g_fShadowMapDepthTrans);
+				// Compute the ViewMatrix
+				g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix();
 
 				// Initialize the Constant Buffer
 				// T * R does rotation first, then translation: so the object rotates around the origin
 				// and then gets pushed away along the Z axis
-				GetCockpitViewMatrixSpeedEffect(&(g_ShadowMapVSCBuffer.Camera), g_bShadowMappingInvertCameraMatrix);
+				S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
+				Rx.rotateX(g_fShadowMapAngleX);
+				Ry.rotateY(g_fShadowMapAngleY);
+				T.translate(0, 0, g_fShadowMapDepthTrans);
 				g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry;
 				g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
+				g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
+				g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
+				g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
 				// Set the constant buffer
 				resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
@@ -7167,7 +7212,6 @@ HRESULT PrimarySurface::Flip(
 				// Set the input layout
 				resources->InitInputLayout(resources->_inputLayout);
 				resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				//resources->InitRasterizerState(resources->_rasterizerState);
 
 				// Set the Shadow Map DSV
 				context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());

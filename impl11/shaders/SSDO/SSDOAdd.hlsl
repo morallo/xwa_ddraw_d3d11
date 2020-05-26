@@ -417,10 +417,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Compute shadows through shadow mapping
 	float shadow_factor = 1.0;
-	if (sm_enabled) {
+	if (sm_enabled) 
+	//if (false)
+	{
 		// Apply the same transform we applied to the geometry when computing the shadow map:
 		//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
 
+		/*
 		// Transform P into the Original Model's coord sys
 		float3 POV_OFS = float3(POV.xy / POV_FACTOR_XY, POV.z / POV_FACTOR_Z);
 		// Apply the shear to the points to make them truly metric
@@ -433,6 +436,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		Q = mul(Camera, float4(Q, 1.0)).xyz;
 		// Move the points to the correct POV:
 		Q += POV_OFS;
+		*/
 
 		/*
 		float3 Q = float3(
@@ -440,24 +444,44 @@ PixelShaderOutput main(PixelShaderInput input)
 			P.y + P.z * sm_shy + POV_OFS.y, 
 			P.z * sm_sz + POV_OFS.z
 		);
-		*/
+		
 
 		// Q is now in the Model's Coord sys. We can apply the same transform we
 		// applied when generating the shadow map.
 
 		// Move the 3D object so that the POV sits at the origin
 		Q -= POV / 44.0;
-		// With the POV at the origin, we can now transform this point and 
-		// project it from the light's point of view:
-		Q = mul(lightWorldMatrix, float4(Q, 1.0)).xyz;
+		*/
+
+		/*
+		// Project the 3D point to 2D --> we need to recover the original 2D coords used
+		// by XWA *sigh*
+		float3 p = float3(P.xy * DEFAULT_FOCAL_DIST / P.z, P.z / METRIC_SCALE_FACTOR);
+		p.xy /= (vpScale.z * float2(sm_aspect_ratio, 1));
+		p.xy -= float2(-1.0, 1.0);
+		// I think at this point the coords are centered on the origin
+		//p.xy /= vpScale.xy;
+		// back-project the point (we're now inverting the transforms in Add Geom VS:
+		float3 Q = float3(p.xy * p.z, p.z);
+		// Remove the effects of FOVscale and y_center:
+		Q.x = P.x * sm_aspect_ratio / sm_FOVscale;
+		Q.y = (P.y - P.z * sm_y_center) / sm_FOVscale;
+		Q.z = P.z;
+		// Remove XWA-to-model transform:
+		Q = mul(Camera, float4(Q, 1.0)).xyz;
+		*/
+
+		// The point should be in Model coords now.
+		// Apply the same transform we used to build the shadow map
+		//Q.xyz += POV;
+		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
 		
 		// Regular path
 		// Project
 		//float2 sm_pos = Q.xy / Q.z;
-		float2 sm_pos = Q.xy;
+		float2 sm_pos = Q.xy; // Parallel projection
 		// Convert to texture coords: this maps -1..1 to 0..1:
 		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
-
 
 		/*
 		//float filter_size = pcss(Q);

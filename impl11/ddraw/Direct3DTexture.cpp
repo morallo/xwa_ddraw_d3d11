@@ -16,6 +16,7 @@
 #include <vector>
 
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
@@ -369,9 +370,14 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			D3DTLVERTEX v;
 			float x, y, z;
 			sscanf_s(line, "v %f %f %f", &x, &y, &z);
+			x *= g_fShadowOBJScaleX;
+			y *= g_fShadowOBJScaleY;
+			z *= g_fShadowOBJScaleZ;
+
 			v.sx = x;
 			v.sy = y;
 			v.sz = z;
+
 			vertices.push_back(v);
 			if (x < minx) minx = x; else if (x > maxx) maxx = x;
 			if (y < miny) miny = y; else if (y > maxy) maxy = y;

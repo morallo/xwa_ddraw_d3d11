@@ -451,6 +451,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
+float g_fShadowOBJScaleX = 1.0f, g_fShadowOBJScaleY = 1.0f, g_fShadowOBJScaleZ = 1.0f;
 bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
@@ -3062,6 +3063,26 @@ bool LoadSSAOParams() {
 				g_fShadowMapScale = fValue;
 				log_debug("[DBG] [SHW] g_fShadowMapScale: %0.3f", g_fShadowMapScale);
 			}
+
+			else if (_stricmp(param, "shadow_mapping_OBJ_scale_X") == 0) {
+				g_fShadowOBJScaleX = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleX: %0.3f", g_fShadowOBJScaleX);
+			}
+			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Y") == 0) {
+				g_fShadowOBJScaleY = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleY: %0.3f", g_fShadowOBJScaleY);
+			}
+			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Z") == 0) {
+				g_fShadowOBJScaleZ = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleZ: %0.3f", g_fShadowOBJScaleZ);
+			}
+
+			else if (_stricmp(param, "shadow_mapping_z_factor") == 0) {
+				g_ShadowMapVSCBuffer.sm_z_factor = fValue;
+				log_debug("[DBG] [SHW] sm_z_factor: %0.3f", g_ShadowMapVSCBuffer.sm_z_factor);
+			}
+			
+
 			else if (_stricmp(param, "shadow_mapping_depth_trans") == 0) {
 				g_fShadowMapDepthTrans = fValue;
 			}
@@ -5155,6 +5176,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 		float y1 = g_LaserPointerBuffer.y1;
 		//w = P.z / ((float)METRIC_SCALE_FACTOR * g_fMetricMult);
 		
+		// According to the code in back_project, P.z = METRIC_SCALE_FACTOR * w;
 		// P.xy = P.xy / P.z;
 		P.x *= g_fFocalDist / P.z;
 		P.y *= g_fFocalDist / P.z;

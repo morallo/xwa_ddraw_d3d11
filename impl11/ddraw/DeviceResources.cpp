@@ -3365,8 +3365,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 176; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 176, "sizeof(ShadowMapVertexShaderMatrixCB) must be 176");
+	constantBufferDesc.ByteWidth = 192; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 192, "sizeof(ShadowMapVertexShaderMatrixCB) must be 192");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
@@ -3699,6 +3699,18 @@ void DeviceResources::InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float 
 		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_2D;
+}
+
+void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
+{
+	/*
+	static ID3D11Buffer** currentBuffer = nullptr;
+	static ShadertoyCBuffer currentPSConstants = { 0 };
+	static int sizeof_constants = sizeof(ShadertoyCBuffer);
+	*/
+
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	this->_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,

@@ -14,5 +14,7 @@ cbuffer ConstantBuffer : register(b5)
 
 	float3 POV;
 	float OBJrange;
+
+	float sm_FOVscale, sm_y_center, sm_metric_mult, sm_z_factor;
 };
 
