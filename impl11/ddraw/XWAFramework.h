@@ -135,9 +135,9 @@ const auto mouseLook_X = (int*)0x9E9620;
 const auto mouseLookInverted = (__int8*)0x771298;
 const auto mouseLookResetPosition = (int*)0x9E962C;
 
-const float *POV_X = (float *)(0x8B94E0 + 0x20D);
-const float *POV_Y = (float *)(0x8B94E0 + 0x211);
-const float *POV_Z = (float *)(0x8B94E0 + 0x215);
+const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
+const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
+const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 
 // Alt, Control and Shift key states:
 const auto s_XwaIsControlKeyPressed = (int *)0x006343DC;

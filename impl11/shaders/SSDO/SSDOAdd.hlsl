@@ -453,24 +453,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		Q -= POV / 44.0;
 		*/
 
-		/*
-		// Project the 3D point to 2D --> we need to recover the original 2D coords used
-		// by XWA *sigh*
-		float3 p = float3(P.xy * DEFAULT_FOCAL_DIST / P.z, P.z / METRIC_SCALE_FACTOR);
-		p.xy /= (vpScale.z * float2(sm_aspect_ratio, 1));
-		p.xy -= float2(-1.0, 1.0);
-		// I think at this point the coords are centered on the origin
-		//p.xy /= vpScale.xy;
-		// back-project the point (we're now inverting the transforms in Add Geom VS:
-		float3 Q = float3(p.xy * p.z, p.z);
-		// Remove the effects of FOVscale and y_center:
-		Q.x = P.x * sm_aspect_ratio / sm_FOVscale;
-		Q.y = (P.y - P.z * sm_y_center) / sm_FOVscale;
-		Q.z = P.z;
-		// Remove XWA-to-model transform:
-		Q = mul(Camera, float4(Q, 1.0)).xyz;
-		*/
-
 		// The point should be in Model coords now.
 		// Apply the same transform we used to build the shadow map
 		//Q.xyz += POV;

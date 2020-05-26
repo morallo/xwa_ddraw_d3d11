@@ -105,6 +105,8 @@ public:
 
 	void RenderAdditionalGeometry();
 
+	void RenderShadowMapOBJ();
+
 	void RenderSpeedEffect();
 
 	D3DCOLOR EncodeNormal(Vector3 N);

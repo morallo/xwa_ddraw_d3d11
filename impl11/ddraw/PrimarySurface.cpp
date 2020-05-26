@@ -33,13 +33,13 @@ const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
 #define GENERIC_POV_SCALE 44.0f
 // These values match MXvTED exactly:
-const short *POV_Y0 = (short *)(0x5BB480 + 0x238);
-const short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
-const short *POV_X0 = (short *)(0x5BB480 + 0x23C);
+const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
+const short *g_POV_Z0 = (short *)(0x5BB480 + 0x23A);
+const short *g_POV_X0 = (short *)(0x5BB480 + 0x23C);
 // Floating-point version of the POV (plus Y is inverted):
-const float *POV_X = (float *)(0x8B94E0 + 0x20D);
-const float *POV_Y = (float *)(0x8B94E0 + 0x211);
-const float *POV_Z = (float *)(0x8B94E0 + 0x215);
+const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
+const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
+const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -5535,16 +5535,22 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix()
 		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
 
 	// Translate the model so that the origin is at the POV and then scale it
-	Matrix4 POVTrans, POVScale;
+	Matrix4 POVTrans;
+	g_ShadowMapVSCBuffer.POV.x = -(*g_POV_X) / g_ShadowMapping.POV_XY_FACTOR;
+	g_ShadowMapVSCBuffer.POV.y = -(*g_POV_Z) / g_ShadowMapping.POV_XY_FACTOR;
+	g_ShadowMapVSCBuffer.POV.z =  (*g_POV_Y) / g_ShadowMapping.POV_Z_FACTOR; // For some reason, depth is inverted w.r.t POV_Y0
 	POVTrans.translate(g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-	//POVScale.scale(g_fShadowMapScaleX, g_fShadowMapScaleY, g_fShadowMapScaleZ);
-	ViewMatrix = ViewMatrix * POVTrans; // * POVScale;
+	ViewMatrix = ViewMatrix * POVTrans;
 
 	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
+		log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
+		log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-		log_debug("[DBG] [SHW] Using scale: %0.3f, %0.3f, %0.3f", g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ);
-		log_debug("[DBG] [SHW] sm_aspect_ratio: %0.3f", g_ShadowMapVSCBuffer.sm_aspect_ratio);
+		//log_debug("[DBG] [SHW] Using scale: %0.3f, %0.3f, %0.3f", g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ);
+		//log_debug("[DBG] [SHW] sm_aspect_ratio: %0.3f", g_ShadowMapVSCBuffer.sm_aspect_ratio);
+		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 	}
 
 	// Add the CockpitRef translation
@@ -5642,7 +5648,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		resources->InitVertexShader(resources->_addGeomVS);
 
-		// Set the VIewMatrix
+		// Set the ViewMatrix
 		g_ShadowMapVSCBuffer.Camera = ViewMatrix;
 		g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fAspectRatio;
 		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -5847,6 +5853,62 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+}
+
+void PrimarySurface::RenderShadowMapOBJ()
+{
+	auto &resources = this->_deviceResources;
+	auto &device = resources->_d3dDevice;
+	auto &context = resources->_d3dDeviceContext;
+	Matrix4 T, Ry, Rx, S;
+
+	// Enable ZWrite: we'll need it for the ShadowMap
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = TRUE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	desc.DepthFunc = D3D11_COMPARISON_LESS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Init the Viewport
+	resources->InitViewport(&g_ShadowMapping.ViewPort);
+
+	// Compute the ViewMatrix
+	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix();
+
+	// Initialize the Constant Buffer
+	// T * R does rotation first, then translation: so the object rotates around the origin
+	// and then gets pushed away along the Z axis
+	S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
+	Rx.rotateX(g_fShadowMapAngleX);
+	Ry.rotateY(g_fShadowMapAngleY);
+	T.translate(0, 0, g_fShadowMapDepthTrans);
+	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry;
+	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
+	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
+	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
+	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
+	// Set the constant buffer
+	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+	// Set the Vertex and Pixel Shaders
+	resources->InitVertexShader(resources->_shadowMapVS);
+	resources->InitPixelShader(resources->_shadowMapPS);
+
+	// Set the vertex and index buffers
+	UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
+	resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
+	resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+
+	// Set the input layout
+	resources->InitInputLayout(resources->_inputLayout);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// Set the Shadow Map DSV
+	context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+	// Render the Shadow Map
+	context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
 }
 
 /*
@@ -7162,62 +7224,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_ShadowMapping.Enabled && g_ShadowMapping.UseShadowOBJ)
 			//if (false)
 			{
-				Matrix4 T, Ry, Rx, S;
-
-				// Enable ZWrite: we'll need it for the ShadowMap
-				D3D11_DEPTH_STENCIL_DESC desc;
-				ComPtr<ID3D11DepthStencilState> depthState;
-				desc.DepthEnable = TRUE;
-				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-				desc.DepthFunc = D3D11_COMPARISON_LESS;
-				//desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-				desc.StencilEnable = FALSE;
-				resources->InitDepthStencilState(depthState, &desc);
-
-				// Init the Viewport
-				resources->InitViewport(&g_ShadowMapping.ViewPort);
-
-				// Compute the transform chain
-				//g_ShadowMapVSCBuffer.POV.x = (float)*POV_X0; // / GENERIC_POV_SCALE;
-				//g_ShadowMapVSCBuffer.POV.y = (float)*POV_Z0; // / GENERIC_POV_SCALE;
-				//g_ShadowMapVSCBuffer.POV.z = (float)*POV_Y0; // / GENERIC_POV_SCALE;
-
-				// Compute the ViewMatrix
-				g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix();
-
-				// Initialize the Constant Buffer
-				// T * R does rotation first, then translation: so the object rotates around the origin
-				// and then gets pushed away along the Z axis
-				S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
-				Rx.rotateX(g_fShadowMapAngleX);
-				Ry.rotateY(g_fShadowMapAngleY);
-				T.translate(0, 0, g_fShadowMapDepthTrans);
-				g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry;
-				g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
-				g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
-				g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
-				g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
-				// Set the constant buffer
-				resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-
-				// Set the Vertex and Pixel Shaders
-				resources->InitVertexShader(resources->_shadowMapVS);
-				resources->InitPixelShader(resources->_shadowMapPS);
-
-				// Set the vertex and index buffers
-				UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
-				resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
-				resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
-
-				// Set the input layout
-				resources->InitInputLayout(resources->_inputLayout);
-				resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-				// Set the Shadow Map DSV
-				context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-				// Render the Shadow Map
-				context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
-				//log_debug("[DBG] [SHW] Shadow Map rendered");
+				RenderShadowMapOBJ();
 
 				// Restore the previous viewport, etc
 				resources->InitViewport(&g_nonVRViewport);
@@ -7810,8 +7817,8 @@ HRESULT PrimarySurface::Flip(
 				float *POV_Y2 = (float *)(0x8B94E0 + 0x205);
 				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);*/
 
-				log_debug("[DBG] [SHW] [POV] X0,Z0,Y0: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
-				log_debug("[DBG] [SHW] [POV] X1,Z1,Y1: %f, %f, %f", *POV_X, *POV_Z, *POV_Y);
+				log_debug("[DBG] [SHW] [POV] X0,Z0,Y0: %d, %d, %d", *g_POV_X0, *g_POV_Z0, *g_POV_Y0);
+				log_debug("[DBG] [SHW] [POV] X1,Z1,Y1: %f, %f, %f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 				//log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
 
 				/*

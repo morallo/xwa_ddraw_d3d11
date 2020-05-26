@@ -925,7 +925,8 @@ void Direct3DTexture::TagTexture() {
 				}
 
 				bool bCockpitNameChanged = !(strcmp(g_sCurrentCockpit, CockpitName) == 0);
-				if (bCockpitNameChanged) {
+				if (bCockpitNameChanged) 
+				{
 					// The cockpit name has changed, update it and reset DC
 					resources->ResetDynamicCockpit(); // Resetting DC will erase the cockpit name
 					strncpy_s(g_sCurrentCockpit, 128, CockpitName, 128);

@@ -3081,6 +3081,13 @@ bool LoadSSAOParams() {
 				g_ShadowMapVSCBuffer.sm_z_factor = fValue;
 				log_debug("[DBG] [SHW] sm_z_factor: %0.3f", g_ShadowMapVSCBuffer.sm_z_factor);
 			}
+
+			else if (_stricmp(param, "shadow_mapping_POV_XY_FACTOR") == 0) {
+				g_ShadowMapping.POV_XY_FACTOR = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_POV_Z_FACTOR") == 0) {
+				g_ShadowMapping.POV_Z_FACTOR = fValue;
+			}
 			
 
 			else if (_stricmp(param, "shadow_mapping_depth_trans") == 0) {

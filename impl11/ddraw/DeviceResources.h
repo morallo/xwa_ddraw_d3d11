@@ -600,6 +600,8 @@ public:
 	int Width, Height;
 	D3D11_VIEWPORT ViewPort;
 	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
+	float POV_XY_FACTOR;
+	float POV_Z_FACTOR;
 
 	ShadowMappingData() {
 		this->Enabled = false;
@@ -615,6 +617,8 @@ public:
 		this->ViewPort.Width    = (float)this->Width;
 		this->ViewPort.MinDepth = D3D11_MIN_DEPTH;
 		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
+		this->POV_XY_FACTOR = 24.974f;
+		this->POV_Z_FACTOR = 25.0f;
 	}
 
 	void SetSize(int Width, int Height) {
