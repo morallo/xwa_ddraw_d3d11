@@ -105,6 +105,8 @@ public:
 
 	void RenderAdditionalGeometry();
 
+	Matrix4 ComputeLightViewMatrix(bool invert);
+
 	void RenderShadowMapOBJ();
 
 	void RenderSpeedEffect();

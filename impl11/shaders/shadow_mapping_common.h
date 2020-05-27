@@ -18,6 +18,6 @@ cbuffer ConstantBuffer : register(b5)
 	float sm_FOVscale, sm_y_center, sm_metric_mult, sm_z_factor;
 
 	uint sm_PCSS_enabled, sm_pcss_samples;
-	float sm_unused0, sm_unused1;
+	float sm_black_level, sm_unused1;
 };
 

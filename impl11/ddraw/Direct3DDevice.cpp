@@ -453,6 +453,7 @@ ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
 float g_fShadowOBJScaleX = 1.0f, g_fShadowOBJScaleY = 1.0f, g_fShadowOBJScaleZ = 1.0f;
 bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false;
+bool g_bShadowMapInvertL = false;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -2842,6 +2843,7 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE_X;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
+	g_ShadowMapVSCBuffer.sm_black_level = 0.2f;
 
 	g_bDumpOBJEnabled = false;
 
@@ -3086,6 +3088,9 @@ bool LoadSSAOParams() {
 				g_ShadowMapVSCBuffer.sm_pcss_samples = (int)fValue;
 			}
 			
+			else if (_stricmp(param, "shadow_mapping_black_level") == 0) {
+				g_ShadowMapVSCBuffer.sm_black_level = fValue;
+			}
 
 			else if (_stricmp(param, "shadow_mapping_POV_XY_FACTOR") == 0) {
 				g_ShadowMapping.POV_XY_FACTOR = fValue;
@@ -3101,6 +3106,10 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_invert_camera_matrix") == 0) {
 				g_bShadowMappingInvertCameraMatrix = (bool)fValue;
 			}
+			else if (_stricmp(param, "shadow_mapping_invert_L") == 0) {
+				g_bShadowMapInvertL = (bool)fValue;
+			}
+			
 
 			else if (_stricmp(param, "shadow_mapping_bias") == 0) {
 				g_ShadowMapVSCBuffer.sm_bias = fValue;

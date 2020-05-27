@@ -456,6 +456,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			else
 				shadow_factor = ShadowMapPCF(float3(Q.xy, Q.z / OBJrange + 0.5), 1024.0, sm_pcss_samples, sm_pcss_radius);
 		}
+		// Limit how black the shadows can be to a minimum of sm_black_level
+		shadow_factor = max(shadow_factor, sm_black_level);
 		
 
 		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;

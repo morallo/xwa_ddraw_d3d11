@@ -120,7 +120,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
+extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS, g_bShadowMapInvertL;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 
@@ -5890,6 +5890,71 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
+{
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
+	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+	Matrix4 L;
+	L.identity();
+
+	// Use the heading matrix to move the lights
+	Matrix4 H = GetCurrentHeadingViewMatrix();
+	for (int i = 1; i < 2 /* s_XwaGlobalLightsCount */; i++)
+	{
+		Vector4 xwaLight = Vector4(
+			s_XwaGlobalLights[i].PositionX / 32768.0f,
+			s_XwaGlobalLights[i].PositionY / 32768.0f,
+			s_XwaGlobalLights[i].PositionZ / 32768.0f,
+			0.0f);
+
+		xwaLight = H * xwaLight;
+		xwaLight.normalize();
+		//log_debug("[DBG] [SHW] xwaLight: %0.3f, %0.3f, %0.3f", xwaLight.x, xwaLight.y, xwaLight.z);
+
+		// Rotate the light vector so that it lies in the X-Z plane
+		//Vector4 temp;
+		Matrix4 rotX, rotY, rot;
+		float pitch = atan2(xwaLight.y, xwaLight.z);
+		rotX.rotateX(pitch / DEG2RAD);
+		//temp = rotX * xwaLight;
+		// temp lies now in the X-Z plane, so Y is always zero:
+		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+		// Rotate the vector around the Y axis so that x --> 0
+		rotY.rotateY(-asin(xwaLight.x) / DEG2RAD);
+		//temp = rotY * temp;
+		rot = rotY * rotX;
+		//temp = rot * xwaLight;
+		// x and y should now be 0, with z = 1 all the time:
+		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+		// It is now easy to build a TBN matrix:
+		Vector4 R(1.0f,  0.0f,  0.0f,  0.0f);
+		Vector4 U(0.0f,  1.0f,  0.0f,  0.0f);
+		Vector4 F(0.0f,  0.0f, -1.0f,  0.0f); // We use -1 here so that the light points towards the origin
+		// Invert the rotation chain:
+		rot.transpose();
+		// Invert the TBN system
+		R = rot * R;
+		U = rot * U;
+		F = rot * F;
+		// Build a TBN matrix in ViewSpace
+		if (!invert)
+			L.set(
+				R.x, U.x, F.x, 0,
+				R.y, U.y, F.y, 0,
+				R.z, U.z, F.z, 0,
+				0, 0, 0, 1
+			);
+		else
+			L.set(
+				R.x, R.y, R.z, 0,
+				U.x, U.y, U.z, 0,
+				F.x, F.y, F.z, 0,
+				0, 0, 0, 1
+			);
+	}
+	return L;
+}
+
 void PrimarySurface::RenderShadowMapOBJ()
 {
 	auto &resources = this->_deviceResources;
@@ -5910,8 +5975,10 @@ void PrimarySurface::RenderShadowMapOBJ()
 	// Init the Viewport
 	resources->InitViewport(&g_ShadowMapping.ViewPort);
 
-	// Compute the ViewMatrix
+	// Compute the OBJ ViewMatrix
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
+
+	Matrix4 L = ComputeLightViewMatrix(g_bShadowMapInvertL);
 
 	// Initialize the Constant Buffer
 	// T * R does rotation first, then translation: so the object rotates around the origin
@@ -5920,7 +5987,9 @@ void PrimarySurface::RenderShadowMapOBJ()
 	Rx.rotateX(g_fShadowMapAngleX);
 	Ry.rotateY(g_fShadowMapAngleY);
 	T.translate(0, 0, g_fShadowMapDepthTrans);
-	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
+	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
+	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
+	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
