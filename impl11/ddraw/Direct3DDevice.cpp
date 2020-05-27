@@ -452,7 +452,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
 float g_fShadowOBJScaleX = 1.0f, g_fShadowOBJScaleY = 1.0f, g_fShadowOBJScaleZ = 1.0f;
-bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false;
+bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 
@@ -3081,6 +3081,11 @@ bool LoadSSAOParams() {
 				g_ShadowMapVSCBuffer.sm_z_factor = fValue;
 				log_debug("[DBG] [SHW] sm_z_factor: %0.3f", g_ShadowMapVSCBuffer.sm_z_factor);
 			}
+
+			else if (_stricmp(param, "shadow_mapping_pcss_samples") == 0) {
+				g_ShadowMapVSCBuffer.sm_pcss_samples = (int)fValue;
+			}
+			
 
 			else if (_stricmp(param, "shadow_mapping_POV_XY_FACTOR") == 0) {
 				g_ShadowMapping.POV_XY_FACTOR = fValue;

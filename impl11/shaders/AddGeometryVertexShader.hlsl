@@ -46,7 +46,7 @@ PixelShaderInput main(VertexShaderInput input)
 		// 2D screen coordinates, so we don't need to multiply by vpScale:
 		//output.pos = float4(input.pos.xyz, 1.0); // Speed Effect VS code
 		
-		// OBJ-3D to camera view
+		// OBJ-3D to cockpit camera view:
 		float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
 		
 		// Original transform chain, including 2D projection:
@@ -54,10 +54,10 @@ PixelShaderInput main(VertexShaderInput input)
 		//P.x = FOVscale * (P.x / P.z);
 		//P.y = FOVscale * (P.y / P.z) + y_center;
 
-		// Adjust the point for differences in FOV and y_center:
-		P.xy = FOVscale * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
+		// Adjust the point for differences in FOV and y_center and project to 2D:
+		P.xy = FOVscale/P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
 		// Project the point. The P.z here is OBJ-3D plus Camera transform
-		P.xy /= P.z;
+		//P.xy /= P.z;
 		// The 2D point is now in DirectX coords (-1..1)
 
 		// Fix the depth
@@ -71,10 +71,8 @@ PixelShaderInput main(VertexShaderInput input)
 		If we multiply lightWorldMatrix by the OBJ 3D coord and then we project it into 2D,
 		the points match and transform properly with XWA's 2D coords.
 
-		So, 3D-OBJ -> 2D XWA -> backproject -> shadow map sys
+		So, 3D-OBJ -> 2D XWA -> backproject -> backprojected 3D compatible with backprojected 3D from the (SBS)VertexShader
 
-		To invert the above, we would need to take XWA's 2D coords and invert the formulas,
-		including FOVscale and y_center and then invert lightWorldMatrix too (?)
 		*/
 	}
 	else

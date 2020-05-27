@@ -101,7 +101,7 @@ public:
 
 	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);
 
-	Matrix4 ComputeAddGeomViewMatrix();
+	Matrix4 ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4 *CockpitMatrix);
 
 	void RenderAdditionalGeometry();
 

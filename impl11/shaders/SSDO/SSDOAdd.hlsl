@@ -260,7 +260,7 @@ inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radi
 	//float2 grad = frac(Q.xy * resolution + 0.5f);
 	float2 grad = frac(sm_pos * resolution + 0.5);
 	//float Q_z = Q.z - (sm_bias / SM_Z_FAR);
-	float Q_z = Q.z - (sm_bias / OBJrange);
+	float Q_z = Q.z + (sm_bias / OBJrange);
 
 	for (int i = -filterSize; i <= filterSize; i++)
 	{
@@ -292,7 +292,6 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 	samples = 0.0;
 
 	// Project
-	//float2 sm_pos = Q.xy / Q.z;
 	float2 sm_pos = Q.xy;
 	// Convert to texture coords: this maps -1..1 to 0..1:
 	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
@@ -305,7 +304,7 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
 			// output.pos.z = P.z / OBJrange + 0.5;
 			sm_Z = (sm_Z - 0.5) * OBJrange;
-			if (sm_Z <= Q.z - sm_bias) // This sample is a blocker
+			if (sm_Z <= Q.z + sm_bias) // This sample is a blocker
 			{
 				d_blocker += sm_Z;
 				samples++;
@@ -332,7 +331,7 @@ inline float PCSS(float3 Q)
 	// Convert metric Z to depth value
 	//Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
 	Q.z = Q.z / OBJrange + 0.5;
-	return ShadowMapPCF(Q, 1024.0, 3, filterRadiusUV);
+	return ShadowMapPCF(Q, 1024.0, sm_pcss_samples, filterRadiusUV);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -418,75 +417,46 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Compute shadows through shadow mapping
 	float shadow_factor = 1.0;
 	if (sm_enabled) 
-	//if (false)
 	{
 		// Apply the same transform we applied to the geometry when computing the shadow map:
 		//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-
-		/*
-		// Transform P into the Original Model's coord sys
-		float3 POV_OFS = float3(POV.xy / POV_FACTOR_XY, POV.z / POV_FACTOR_Z);
-		// Apply the shear to the points to make them truly metric
-		float3 Q = float3(
-			P.x,
-			P.y + P.z * sm_shy,
-			P.z * sm_sz
-		);
-		// Rotate the point according to the camera matrix
-		Q = mul(Camera, float4(Q, 1.0)).xyz;
-		// Move the points to the correct POV:
-		Q += POV_OFS;
-		*/
-
-		/*
-		float3 Q = float3(
-			P.x + POV_OFS.x, 
-			P.y + P.z * sm_shy + POV_OFS.y, 
-			P.z * sm_sz + POV_OFS.z
-		);
-		
-
-		// Q is now in the Model's Coord sys. We can apply the same transform we
-		// applied when generating the shadow map.
-
-		// Move the 3D object so that the POV sits at the origin
-		Q -= POV / 44.0;
-		*/
-
-		// The point should be in Model coords now.
-		// Apply the same transform we used to build the shadow map
 		//Q.xyz += POV;
 		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-		
-		// Regular path
-		// Project
-		//float2 sm_pos = Q.xy / Q.z;
-		float2 sm_pos = Q.xy; // Parallel projection
-		// Convert to texture coords: this maps -1..1 to 0..1:
-		sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
 
 		/*
 		//float filter_size = pcss(Q);
 		// For PCF we need to transform Q.z into a depth value too:
 		Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
 		//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, Q.z);
-		//shadow_factor = ShadowMapPCF(Q, 1024.0, 2, filter_size);
-		shadow_factor = ShadowMapPCF(Q, 1024.0, 1, sm_pcss_radius);
+		//shadow_factor = ShadowMapPCF(Q, 1024.0, sm_pcss_samples, filter_size);
+		shadow_factor = ShadowMapPCF(Q, 1024.0, sm_pcss_samples, sm_pcss_radius);
 		*/
 
-		// PCSS
-		//shadow_factor = PCSS(Q);
-
-		// Regular path
-		float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
-		// Now convert the depth-stencil coord (0..1) to metric Z:
-		// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
-		//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
-		sm_Z = (sm_Z - 0.5) * OBJrange;
-		// sm_Z is now in metric space, we can compare it with P.z
-		shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
 		// shadow_factor: 1 -- No shadow
 		// shadow_factor: 0 -- Full shadow
+		if (sm_PCSS_enabled == 1) {
+			// PCSS
+			shadow_factor = PCSS(Q);
+		}
+		else {
+			// Regular path
+			// Project
+			float2 sm_pos = Q.xy; // Parallel projection
+			// Convert to texture coords: this maps -1..1 to 0..1:
+			sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+			// Sample the shadow map and compare
+			float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
+			// Now convert the depth-stencil coord (0..1) to metric Z:
+			// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
+			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
+			sm_Z = (sm_Z - 0.5) * OBJrange;
+			if (sm_debug)
+				// sm_Z is now in metric space, we can compare it with P.z
+				shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
+			else
+				shadow_factor = ShadowMapPCF(float3(Q.xy, Q.z / OBJrange + 0.5), 1024.0, sm_pcss_samples, sm_pcss_radius);
+		}
+		
 
 		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;
 		// Fade the shadow to 1 with the distance to the occluder
@@ -500,7 +470,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
 
 		// DEBUG
-		if (sm_debug && shadow_factor < 0.5) 
+		if (sm_debug == 1 && shadow_factor < 0.5) 
 		{
 			output.color = float4(0.2, 0.2, 0.5, 1.0);
 			return output;
@@ -508,7 +478,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// DEBUG
 	}
 
-	// Compute shadows
+	// Compute ray-traced shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);
 	// SSAO version:
 	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
@@ -616,8 +586,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			ssdoInd = 0.0;
 		}
 		*/
-		// Avoid harsh transitions
-		diffuse = lerp(diffuse, 1.0, shadeless);
+
+		// Avoid harsh transitions:
+		// shadeless surfaces should still receive some amount of shadows
+		diffuse = lerp(diffuse, min(shadow_factor + 0.5, 1.0), shadeless);
 		contactShadow = lerp(contactShadow, 1.0, shadeless);
 		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 

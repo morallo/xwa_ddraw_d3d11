@@ -120,7 +120,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix;
+extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 
@@ -5523,12 +5523,49 @@ inline int PrimarySurface::AddGeometry(const Matrix4 &ViewMatrix, D3DTLVERTEX *p
 	return j - ofs;
 }
 
-Matrix4 PrimarySurface::ComputeAddGeomViewMatrix() 
+/*
+ * Computes a matrix that can be used to render OBJs modeled in Blender over the OPTs.
+ * OBJs have to be pre-scaled by (1.64,1.64,-1.64). It also returns the current
+ * HeadingMatrix and the current CockpitCamera matrix.
+ *
+ * Computes a matrix that transforms points in Modelspace -- as in the framework
+ * used to model the OPTs -- into Viewspace 3D.
+ *
+ * This Viewspace 3D coord sys is *not* directly compatible with backprojected 3D 
+ * -- as in the coord sys created during (SBS)VertexShader backprojection -- but
+ * a further Viewspace 3D --> 2D projection that compensates for FOVscale and y_center
+ * will project into XWA 2D (see AddGeometryVertexShader).
+ *
+ * In other words, things modeled in Blender over the OPT can be added to the current
+ * cockpit using this matrix.
+ *
+ * The transform chain is:
+ *
+ * -POV --> CockpitCamera --> -CockpitTranslation
+ *
+ * In Matrix form:
+ *
+ * Result = -CockpitTranslation * CockpitCamera * (-POV)
+ *
+ * In other words:
+ *
+ * "Translate POV to origin, apply current cockpit camera, apply current cockpit translation"
+ *
+ * After applying this matrix, do the following to project to XWA 2D:
+ *
+ * P.x /= sm_aspect_ratio;
+ * P.x = FOVscale * (P.x / P.z);
+ * P.y = FOVscale * (P.y / P.z) + y_center;
+ *
+ * This function is used in RenderAdditionalGeometry() and RenderShadowMapOBJ().
+ */
+Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4 *CockpitMatrix)
 {
 	Vector4 Rs, Us, Fs, T;
-	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
-	Matrix4 Translation;
-	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false); // ORIGINAL for Additional Geometry
+	Matrix4 ViewMatrix, Translation;
+	*HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+	GetCockpitViewMatrixSpeedEffect(CockpitMatrix, false);
+	ViewMatrix = *CockpitMatrix;
 
 	// Apply the roll in VR mode:
 	if (g_bEnableVR)
@@ -5548,8 +5585,6 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix()
 		log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-		//log_debug("[DBG] [SHW] Using scale: %0.3f, %0.3f, %0.3f", g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ);
-		//log_debug("[DBG] [SHW] sm_aspect_ratio: %0.3f", g_ShadowMapVSCBuffer.sm_aspect_ratio);
 		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 	}
 
@@ -5559,10 +5594,9 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix()
 	T.z = PlayerDataTable[*g_playerIndex].cockpitZReference * g_fCockpitTranslationScale;
 
 	T.w = 0.0f;
-	T = HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
-	Translation.translate(-T.x, -T.y, -T.z); // ORIGINAL for Add Geom Shader
-	//Translation.translate(-T.x, -T.y, T.z);
-	ViewMatrix = ViewMatrix * Translation; // ORIGINAL for Add Geom Shader
+	T = *HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
+	Translation.translate(-T.x, -T.y, -T.z);
+	ViewMatrix = ViewMatrix * Translation;
 	return ViewMatrix;
 }
 
@@ -5576,8 +5610,9 @@ void PrimarySurface::RenderAdditionalGeometry()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	int NumParticleVertices = 0, NumParticles = 0;
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	Matrix4 HeadingMatrix, CockpitMatrix;
 
-	Matrix4 ViewMatrix = ComputeAddGeomViewMatrix();
+	Matrix4 ViewMatrix = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 	
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -5860,6 +5895,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	auto &resources = this->_deviceResources;
 	auto &device = resources->_d3dDevice;
 	auto &context = resources->_d3dDeviceContext;
+	Matrix4 HeadingMatrix, CockpitMatrix;
 	Matrix4 T, Ry, Rx, S;
 
 	// Enable ZWrite: we'll need it for the ShadowMap
@@ -5875,7 +5911,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	resources->InitViewport(&g_ShadowMapping.ViewPort);
 
 	// Compute the ViewMatrix
-	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix();
+	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 
 	// Initialize the Constant Buffer
 	// T * R does rotation first, then translation: so the object rotates around the origin
@@ -5884,11 +5920,12 @@ void PrimarySurface::RenderShadowMapOBJ()
 	Rx.rotateX(g_fShadowMapAngleX);
 	Ry.rotateY(g_fShadowMapAngleY);
 	T.translate(0, 0, g_fShadowMapDepthTrans);
-	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry;
+	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
 	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
+	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	// Set the constant buffer
 	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 

@@ -395,6 +395,9 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float OBJrange;
 
 	float sm_FOVscale, sm_y_center, sm_metric_mult, sm_z_factor;
+
+	uint32_t sm_PCSS_enabled, sm_pcss_samples;
+	float sm_unused[2];
 } ShadowMapVertexShaderMatrixCB;
 
 typedef struct uv_coords_src_dst_struct {
