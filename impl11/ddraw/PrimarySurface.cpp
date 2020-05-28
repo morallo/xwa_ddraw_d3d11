@@ -45,7 +45,7 @@ const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
-extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fDebugFOV;
+extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fDebugFOV;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 void ApplyFocalLength(float focal_length);
@@ -8006,16 +8006,37 @@ HRESULT PrimarySurface::Flip(
 			if (!g_bCustomFOVApplied) {
 				log_debug("[DBG] [FOV] [Flip] Applying Custom FOV.");
 				
-				// If the current ship's DC file has a focal length, apply it:
-				if (g_fCurrentShipFocalLength > 0.0f) {
-					log_debug("[DBG] [FOV] [Flip] Applying DC Focal Length: %0.3f", g_fCurrentShipFocalLength);
-					ApplyFocalLength(g_fCurrentShipFocalLength);
-				}
-				else {
+				switch (g_CurrentFOV) {
+				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
 					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
 					LoadFocalLength();
-				}
+					break;
+				case XWAHACKER_FOV:
+					// If the current ship's DC file has a focal length, apply it:
+					if (g_fCurrentShipFocalLength > 0.0f) {
+						log_debug("[DBG] [FOV] [Flip] Applying DC REGULAR Focal Length: %0.3f", g_fCurrentShipFocalLength);
+						ApplyFocalLength(g_fCurrentShipFocalLength);
+					}
+					else {
+						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
+						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						LoadFocalLength();
+					}
+					break;
+				case XWAHACKER_LARGE_FOV:
+					// If the current ship's DC file has a focal length, apply it:
+					if (g_fCurrentShipLargeFocalLength > 0.0f) {
+						log_debug("[DBG] [FOV] [Flip] Applying DC LARGE Focal Length: %0.3f", g_fCurrentShipLargeFocalLength);
+						ApplyFocalLength(g_fCurrentShipLargeFocalLength);
+					}
+					else {
+						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
+						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						LoadFocalLength();
+					}
+					break;
+				} // switch
 
 				g_bCustomFOVApplied = true; // Becomes false in OnSizeChanged()
 				ComputeHyperFOVParams();

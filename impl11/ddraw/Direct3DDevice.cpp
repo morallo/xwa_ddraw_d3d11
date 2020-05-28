@@ -167,6 +167,9 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
+
+FOVtype g_CurrentFOV = GLOBAL_FOV;
+
 // xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable; but I can't prove that
 // the focal length is actually that because it actually behaves differently.
 // Data provided by keiranhalcyon7:
@@ -174,7 +177,8 @@ uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy 
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
-float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC file (if one is provided)
+float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
+float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
 bool g_bLastFrameWasExterior = false; // Keeps track of the state of the exterior camera on the last frame
 
@@ -504,7 +508,7 @@ bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO
 FILE *g_DumpOBJFile = NULL;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
-float g_fSpeedShaderScaleFactor = 20.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
+float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
@@ -1997,8 +2001,30 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 	return true;
 }
 
+void CycleFOVSetting()
+{
+	switch (g_CurrentFOV) {
+	case GLOBAL_FOV:
+		g_CurrentFOV = XWAHACKER_FOV;
+		log_debug("[DBG] [FOV] Current FOV: GLOBAL");
+		break;
+	case XWAHACKER_FOV:
+		g_CurrentFOV = XWAHACKER_LARGE_FOV;
+		log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
+		break;
+	case XWAHACKER_LARGE_FOV:
+		g_CurrentFOV = GLOBAL_FOV;
+		log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
+		break;
+	}
+	// Apply the current FOV and recompute FOV-related parameters
+	g_bCustomFOVApplied = false;
+}
+
 /*
- * Saves the current FOV to the current dc file -- if it exists
+ * Saves the current FOV to the current dc file -- if it exists.
+ * Depending on the current g_CurrentFOV, it will write "xwahacker_fov" or
+ * "xwahacker_large_fov".
  */
 bool UpdateXWAHackerFOV()
 {
@@ -2006,6 +2032,22 @@ bool UpdateXWAHackerFOV()
 	FILE *in_file, *out_file;
 	int error = 0, line = 0;
 	char buf[256];
+	char *FOVname = NULL;
+
+	switch (g_CurrentFOV) {
+	case GLOBAL_FOV:
+		return false;
+	case XWAHACKER_FOV:
+		FOVname = "xwahacker_fov";
+		break;
+	case XWAHACKER_LARGE_FOV:
+		FOVname = "xwahacker_large_fov";
+		break;
+	}
+	if (FOVname == NULL) {
+		log_debug("[DBG] [FOV] FOVname is NULL! Aborting UpdateXWAHackerFOV");
+		return false;
+	}
 
 	if (strlen(g_sCurrentCockpit) <= 0) {
 		log_debug("[DBG] [DC] No DC-enabled cockpit has been loaded, will not write current FOV");
@@ -2048,8 +2090,8 @@ bool UpdateXWAHackerFOV()
 	while (fgets(buf, 256, in_file) != NULL) {
 		line++;
 
-		if (strstr(buf, "xwahacker_fov") != NULL) {
-			fprintf(out_file, "xwahacker_fov = %0.3f\n", FOV);
+		if (strstr(buf, FOVname) != NULL) {
+			fprintf(out_file, "%s = %0.3f\n", FOVname, FOV);
 			bFOVWritten = true;
 		}
 		else
@@ -2058,7 +2100,7 @@ bool UpdateXWAHackerFOV()
 
 	// This DC file may not have the "xwahacker_fov" line, so let's add it:
 	if (!bFOVWritten)
-		fprintf(out_file, "\nxwahacker_fov = %0.3f\n", FOV);
+		fprintf(out_file, "\n%s = %0.3f\n", FOVname, FOV);
 	
 	fclose(out_file);
 	fclose(in_file);
@@ -2222,6 +2264,20 @@ bool LoadIndividualDCParams(char *sFileName) {
 				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				// Force the new FOV to be applied
+				g_CurrentFOV = XWAHACKER_FOV;
+				g_bCustomFOVApplied = false;
+			}
+			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
+				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOV: %0.3f", fValue);
+				// Prevent nonsensical values:
+				if (fValue < 15.0f) fValue = 15.0f;
+				if (fValue > 170.0f) fValue = 170.0f;
+				// Convert to radians
+				fValue = fValue * 3.141592f / 180.0f;
+				g_fCurrentShipLargeFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
+				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
+				// Force the new FOV to be applied
+				g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				g_bCustomFOVApplied = false;
 			}
 		}

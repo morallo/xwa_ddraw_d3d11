@@ -515,6 +515,13 @@ typedef struct ColorLightPairStruct {
 	}
 } ColorLightPair;
 
+typedef enum {
+	GLOBAL_FOV,
+	XWAHACKER_FOV,
+	XWAHACKER_LARGE_FOV
+} FOVtype;
+extern FOVtype g_CurrentFOV;
+
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
  * have their associated lights reset after jumping through hyperspace; and all
