@@ -135,6 +135,7 @@ bool InitSteamVR();
 void ShutDownSteamVR();
 void ApplyFocalLength(float focal_length);
 bool UpdateXWAHackerFOV();
+void CycleFOVSetting();
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -661,6 +662,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'R': {
 				//g_bResetDC = true;
 				g_bProceduralSuns = !g_bProceduralSuns;
+				return 0;
+			}
+
+			case 'F': {
+				CycleFOVSetting();
 				return 0;
 			}
 
