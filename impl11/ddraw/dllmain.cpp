@@ -1156,6 +1156,26 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				if (FlushInstructionCache(GetModuleHandle(NULL), NULL, 0))
 					log_debug("[DBG] Instructions flushed");
 			}
+
+			if (g_config.MusicSyncFix)
+			{
+				/*
+					// Patch to fix the music when ProcessAffinityCore = 0
+					At offset 191F44, replace 0F84 with 90E9.
+					At offset 192015, replace 75 with EB.
+				*/
+				uint32_t BASE_ADDR = 0x400C00;
+				// At offset 191F44, replace 0F84 with 90E9.
+				//log_debug("[DBG] [PATCH] Before: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
+				//log_debug("[DBG] [PATCH] Before: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
+				
+				PatchWithValue(BASE_ADDR + 0x191F44, 0x90, 1);
+				PatchWithValue(BASE_ADDR + 0x191F44 + 1, 0xE9, 1);
+				// At offset 192015, replace 75 with EB.
+				PatchWithValue(BASE_ADDR + 0x192015, 0xEB, 1);
+				//log_debug("[DBG] [PATCH] After: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
+				//log_debug("[DBG] [PATCH] After: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
+			}
 		}
 		break;
 	case DLL_THREAD_ATTACH:

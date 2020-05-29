@@ -55,6 +55,7 @@ Config::Config()
 	this->Radar2DRendererEnabled = true;
 	this->Text2DAntiAlias = true;
 	this->Geometry2DAntiAlias = true;
+	this->MusicSyncFix = true;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -208,6 +209,10 @@ Config::Config()
 			else if (name == "Geometry2DAntiAlias")
 			{
 				this->Geometry2DAntiAlias = (bool)stoi(value);
+			}
+			else if (name == "MusicSyncFix")
+			{
+				this->MusicSyncFix = (bool)stoi(value);
 			}
 		}
 	}
