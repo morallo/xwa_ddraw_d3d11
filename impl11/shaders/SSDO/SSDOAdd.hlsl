@@ -250,6 +250,19 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 }
 */
 
+inline float MetricZToDepth(float Z) {
+	// Metric (Z - OBJcenterZ)/OBJrange should be in the range -0.9..0.9, 
+	// this is how we map that range into 0..0.98:
+	//return 0.98 * ((Z - OBJcenterZ) / OBJrange + 0.9) / 1.8;
+	return 0.98 * ((Z - OBJminZ) / OBJrange);
+}
+
+inline float DepthToMetricZ(float z) {
+	// This is the inverse of the above: map 0..0.98 to the range -0.9..0.9
+	//return OBJcenterZ + OBJrange * ((z * 1.8 / 0.98) - 0.9);
+	return z / 0.98 * OBJrange + OBJminZ;
+}
+
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
 inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radius)
 {
@@ -303,7 +316,8 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 			// Convert the depth-stencil coord (0..1) to metric Z:
 			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
 			// output.pos.z = P.z / OBJrange + 0.5;
-			sm_Z = (sm_Z - 0.5) * OBJrange;
+			//sm_Z = (sm_Z - 0.5) * OBJrange;
+			sm_Z = DepthToMetricZ(sm_Z);
 			if (sm_Z <= Q.z + sm_bias) // This sample is a blocker
 			{
 				d_blocker += sm_Z;
@@ -330,8 +344,8 @@ inline float PCSS(float3 Q)
 	// Step 3: Filtering
 	// Convert metric Z to depth value
 	//Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
-	Q.z = Q.z / OBJrange + 0.5;
-	return ShadowMapPCF(Q, 1024.0, sm_pcss_samples, filterRadiusUV);
+	//Q.z = Q.z / OBJrange + 0.5;
+	return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z)), 1024.0, sm_pcss_samples, filterRadiusUV);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -449,12 +463,13 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Now convert the depth-stencil coord (0..1) to metric Z:
 			// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
 			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
-			sm_Z = (sm_Z - 0.5) * OBJrange;
+			//sm_Z = (sm_Z - 0.5) * OBJrange;
+			sm_Z = DepthToMetricZ(sm_Z);
 			if (sm_debug)
 				// sm_Z is now in metric space, we can compare it with P.z
-				shadow_factor = sm_Z > Q.z - sm_bias ? 1.0 : 0.0;
+				shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
 			else
-				shadow_factor = ShadowMapPCF(float3(Q.xy, Q.z / OBJrange + 0.5), 1024.0, sm_pcss_samples, sm_pcss_radius);
+				shadow_factor = ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z)), 1024.0, sm_pcss_samples, sm_pcss_radius);
 		}
 		// Limit how black the shadows can be to a minimum of sm_black_level
 		shadow_factor = max(shadow_factor, sm_black_level);

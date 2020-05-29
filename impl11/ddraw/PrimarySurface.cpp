@@ -123,6 +123,7 @@ extern ShadowMappingData g_ShadowMapping;
 extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS, g_bShadowMapInvertL;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
+extern std::vector<Vector4> g_OBJLimits;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -5890,6 +5891,12 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+/*
+ * Computes the Parallel Projection Matrix from the point of view of the current light.
+ * Since this is a parallel projection, the result is a Rotation Matrix that aligns the
+ * ViewSpace coordinates so that the origin is now the current light looking at the
+ * previous ViewSpace origin.
+ */
 Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 {
 	int s_XwaGlobalLightsCount = *(int*)0x00782848;
@@ -5919,6 +5926,7 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 		//temp = rotX * xwaLight;
 		// temp lies now in the X-Z plane, so Y is always zero:
 		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+
 		// Rotate the vector around the Y axis so that x --> 0
 		rotY.rotateY(-asin(xwaLight.x) / DEG2RAD);
 		//temp = rotY * temp;
@@ -5926,10 +5934,12 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 		//temp = rot * xwaLight;
 		// x and y should now be 0, with z = 1 all the time:
 		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+
 		// It is now easy to build a TBN matrix:
 		Vector4 R(1.0f,  0.0f,  0.0f,  0.0f);
 		Vector4 U(0.0f,  1.0f,  0.0f,  0.0f);
 		Vector4 F(0.0f,  0.0f, -1.0f,  0.0f); // We use -1 here so that the light points towards the origin
+
 		// Invert the rotation chain:
 		rot.transpose();
 		// Invert the TBN system
@@ -5955,6 +5965,105 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 	return L;
 }
 
+/*
+ * Using the current 3D box limits loaded in g_OBJLimits, compute the 2D/Z-Depth limits
+ * needed to center the Shadow Map depth buffer.
+ */
+Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
+	float minx = 100000.0, maxx = -100000.0f;
+	float miny = 100000.0, maxy = -100000.0f;
+	float minz = 100000.0, maxz = -100000.0f;
+	float cx, cy, sx, sy;
+	Matrix4 S, T;
+	Vector4 P, Q;
+	//FILE *file = NULL;
+
+	//if (g_bDumpSSAOBuffers)
+	//	fopen_s(&file, "./Limits.OBJ", "wt");
+
+	for (Vector4 X : g_OBJLimits) {
+		// This transform chain should be the same we apply in ShadowMapVS.hlsl
+
+		// OBJ-3D to camera view
+		P = g_ShadowMapVSCBuffer.Camera * X;
+
+		// Project the point. The P.z here is OBJ-3D plus Camera transform
+		P.x /= g_ShadowMapVSCBuffer.sm_aspect_ratio;
+		P.x = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
+		P.y = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
+
+		// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
+		// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
+		// they're in the same coord sys
+		P.x *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
+		P.y *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
+		P.z *= g_ShadowMapVSCBuffer.sm_z_factor;
+
+		Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST;
+		Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST;
+		Q.z = P.z;
+		Q.w = 1.0f;
+
+		// The point is now in XWA 3D, with the POV at the origin.
+		// let's apply the light transform, but keep points in metric 3D
+		P = L * Q;
+
+		// Update the limits
+		if (P.x < minx) minx = P.x; 
+		if (P.y < miny) miny = P.y; 
+		if (P.z < minz) minz = P.z; 
+		
+		if (P.x > maxx) maxx = P.x;
+		if (P.y > maxy) maxy = P.y;
+		if (P.z > maxz) maxz = P.z;
+
+		//if (g_bDumpSSAOBuffers)
+		//	fprintf(file, "v %0.6f %0.6f %0.6f\n", P.x, P.y, P.z);
+	}
+	/*
+	if (g_bDumpSSAOBuffers) {
+		fprintf(file, "\n");
+		fprintf(file, "f 1 2 3\n");
+		fprintf(file, "f 1 3 4\n");
+
+		fprintf(file, "f 5 6 7\n");
+		fprintf(file, "f 5 7 8\n");
+		
+		fprintf(file, "f 1 5 6\n");
+		fprintf(file, "f 1 6 2\n");
+
+		fprintf(file, "f 4 8 7\n");
+		fprintf(file, "f 4 7 3\n");
+		fflush(file);
+		fclose(file);
+	}
+	*/
+	
+	// Compute the centroid
+	cx = (minx + maxx) / 2.0f;
+	cy = (miny + maxy) / 2.0f;
+	//cz = (minz + maxz) / 2.0f;
+	//cz = minz;
+	
+	// Compute the scale
+	sx = 1.8f / (maxx - minx); // Map to -0.9..0.9
+	sy = 1.8f / (maxy - miny); // Map to -0.9..0.9
+	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
+	//sz = 1.0f / (maxz - minz);
+
+	// We want to map xy to the origin; but we want to map Z to 0..0.98, so that Z = 1.0 is at infinity
+	// Translate the points so that the centroid is at the origin
+	T.translate(-cx, -cy, 0.0f);
+	// Scale around the origin so that the xyz limits are [-0.9..0.9]
+	S.scale(sx, sy, 1.0f);
+
+	g_ShadowMapVSCBuffer.OBJrange = maxz - minz;
+	g_ShadowMapVSCBuffer.OBJminZ = minz;
+	//log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
+	//	maxz, g_ShadowMapVSCBuffer.OBJminZ, g_ShadowMapVSCBuffer.OBJrange);
+	return S * T;
+}
+
 void PrimarySurface::RenderShadowMapOBJ()
 {
 	auto &resources = this->_deviceResources;
@@ -5975,26 +6084,34 @@ void PrimarySurface::RenderShadowMapOBJ()
 	// Init the Viewport
 	resources->InitViewport(&g_ShadowMapping.ViewPort);
 
-	// Compute the OBJ ViewMatrix
+	// Compute the OBJ-to-ViewSpace ViewMatrix
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 
-	Matrix4 L = ComputeLightViewMatrix(g_bShadowMapInvertL);
+	// Compute the LightView (Parallel Projection) Matrix
+	//Matrix4 L = ComputeLightViewMatrix(g_bShadowMapInvertL);
+	Matrix4 L = ComputeLightViewMatrix(false);
 
-	// Initialize the Constant Buffer
-	// T * R does rotation first, then translation: so the object rotates around the origin
-	// and then gets pushed away along the Z axis
-	S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
-	Rx.rotateX(g_fShadowMapAngleX);
-	Ry.rotateY(g_fShadowMapAngleY);
-	T.translate(0, 0, g_fShadowMapDepthTrans);
-	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
-	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
-	g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
 	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	Matrix4 ST = GetShadowMapLimits(L);
+
+	// Initialize the Constant Buffer
+	// T * R does rotation first, then translation: so the object rotates around the origin
+	// and then gets pushed away along the Z axis
+	/*
+	S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
+	Rx.rotateX(g_fShadowMapAngleX);
+	Ry.rotateY(g_fShadowMapAngleY);
+	T.translate(0, 0, g_fShadowMapDepthTrans);
+	*/
+
+	////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
+	////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
+	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
+	g_ShadowMapVSCBuffer.lightWorldMatrix = ST * L;
 	// Set the constant buffer
 	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 

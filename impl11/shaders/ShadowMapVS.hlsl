@@ -121,12 +121,9 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	P.z *= sm_z_factor;
 	P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST, P.z, 1.0);
 
-	// The point is now in XWA 3D, let's apply the light transform
-	// Move the 3D object so that the POV sits at the origin
-	//P.xyz -= POV / 44.0;
-	//P.xyz += POV;
-	// With the POV at the origin, we can now transform this point and 
-	// project it from the light's point of view:
+	// The point is now in XWA 3D, with the POV at the origin.
+	// let's apply the light transform and project it from the
+	// light's point of view.
 	P = mul(lightWorldMatrix, P);
 
 	//output.pos.xy = P.xy / P.z; // Perspective projection
@@ -137,9 +134,12 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	//output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
 
 	// Now compress the range -OBJrange/2 to OBJrange/2 to 0..1:
-	//output.pos.z = lerp(0.0, 1.0, P.z / OBJrange);
-	//output.pos.z = (P.z + OBJrange / 2.0) / OBJrange;
-	output.pos.z = P.z / OBJrange + 0.5;
+	////output.pos.z = lerp(0.0, 1.0, P.z / OBJrange);
+	////output.pos.z = (P.z + OBJrange / 2.0) / OBJrange;
+	//output.pos.z = P.z / OBJrange + 0.5;
+
+	// Map the useful Z depth into the range 0..0.98:
+	output.pos.z = (P.z - OBJminZ) / OBJrange * 0.98;
 
 	/*
 	// DEBUG

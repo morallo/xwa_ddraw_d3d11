@@ -107,6 +107,8 @@ public:
 
 	Matrix4 ComputeLightViewMatrix(bool invert);
 
+	Matrix4 GetShadowMapLimits(Matrix4 L);
+
 	void RenderShadowMapOBJ();
 
 	void RenderSpeedEffect();

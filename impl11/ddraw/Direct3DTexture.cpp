@@ -17,6 +17,7 @@
 
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
+extern std::vector<Vector4> g_OBJLimits;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
@@ -379,9 +380,13 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			v.sz = z;
 
 			vertices.push_back(v);
-			if (x < minx) minx = x; else if (x > maxx) maxx = x;
-			if (y < miny) miny = y; else if (y > maxy) maxy = y;
-			if (z < minz) minz = z; else if (z > maxz) maxz = z;
+			if (x < minx) minx = x; 
+			if (y < miny) miny = y; 
+			if (z < minz) minz = z; 
+			
+			if (x > maxx) maxx = x;
+			if (y > maxy) maxy = y;
+			if (z > maxz) maxz = z;
 		}
 		else if (line[0] == 'f') {
 			int i, j, k;
@@ -402,20 +407,25 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 		vertices.size(), indices.size() / 3);
 	log_debug("[DBG] [SHW] min,max: [%0.3f, %0.3f], [%0.3f, %0.3f], [%0.3f, %0.3f]",
 		minx, maxx, miny, maxy, minz, maxz);
-	log_debug("[DBG] [SHW]  Range: %0.3f, range-x,y,z: %0.3f, %0.3f, %0.3f",
-		g_ShadowMapVSCBuffer.OBJrange, rangex, rangey, rangez);
-
-	//D3DTLVERTEX *vert_array = new D3DTLVERTEX[vertices.size()];
-	//WORD *index_array = new WORD[indices.size()];
-	//std::copy(vertices.begin(), vertices.end(), vert_array);
-	//std::copy(indices.begin(), indices.end(), index_array);
-	//this->_deviceResources->CreateShadowVertexIndexBuffers(vert_array, index_array, vertices.size(), indices.size());
-	//delete[] vert_array;
-	//delete[] index_array;
+	log_debug("[DBG] [SHW] range-x,y,z: %0.3f, %0.3f, %0.3f",
+		rangex, rangey, rangez);
 
 	this->_deviceResources->CreateShadowVertexIndexBuffers(vertices.data(), indices.data(), vertices.size(), indices.size());
 	vertices.clear();
 	indices.clear();
+
+	g_OBJLimits.clear();
+	// Build a box with the limits. This box can be transformed later to find the 2D limits
+	// of the shadow map
+	g_OBJLimits.push_back(Vector4(minx, miny, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, miny, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, maxy, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(minx, maxy, minz, 1.0f));
+
+	g_OBJLimits.push_back(Vector4(minx, miny, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, miny, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, maxy, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(minx, maxy, maxz, 1.0f));
 	return true;
 }
 
