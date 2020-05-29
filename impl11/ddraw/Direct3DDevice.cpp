@@ -10,6 +10,37 @@
 
 /*
 
+********************************************************************************************
+
+XWA's DEPTH BUFFER CODE:
+From: https://xwaupgrade.com/phpBB3/viewtopic.php?f=16&t=12462
+
+	float st0 = A8[A4].Position.z;
+
+	if( st0 < 0.0f )
+	{
+		st0 = s_V0x08B94CC;
+	}
+
+	float st1 = ( st0 * s_V0x05B46B4 ) / ( st0 * s_V0x05B46B4 + s_V0x08B94CC );
+
+	if( st1 < 1.52590219E-05f )
+	{
+		st1 = 1.52590219E-05f;
+	}
+
+	s_V0x064D1A8[s_V0x06628E0].z = st1;
+	s_V0x064D1A8[s_V0x06628E0].rhw = st0;
+
+  <Patch Name="[WIP] depth fix: s_V0x05B46B4 = 32.0f">
+	<Item Offset="0415C0" From="8B442404A3B4465B00C390" To="C705B4465B0000000042C3" />
+	<Item Offset="0415D0" From="C705B4465B0000000045C3" To="C705B4465B0000000042C3" />
+  </Patch>
+
+  The patch sets the value 32.0f to s_V0x05B46B4 and it's included in the opt limit hook.
+
+********************************************************************************************
+
 Justagai:
 
 The cockpit camera position is in the CraftDefinition struct/table. Table starts at 0x5BB480
@@ -455,8 +486,8 @@ int g_iHUDOffscreenCommandsRendered = 0;
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
-float g_fShadowOBJScaleX = 1.0f, g_fShadowOBJScaleY = 1.0f, g_fShadowOBJScaleZ = 1.0f;
-bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false;
+float g_fShadowOBJScaleX = 1.64f, g_fShadowOBJScaleY = 1.64f, g_fShadowOBJScaleZ = -1.64f; // TODO: These scale params should be in g_ShadowMapping
+bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false, g_bShadowMapEnable = false;
 bool g_bShadowMapInvertL = false;
 std::vector<Vector4> g_OBJLimits;
 
@@ -3106,9 +3137,14 @@ bool LoadSSAOParams() {
 			}
 			// Shadow Mapping
 			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
-				g_ShadowMapping.Enabled = (bool)fValue;
+				g_bShadowMapEnable = (bool)fValue;
+				g_ShadowMapping.Enabled = g_bShadowMapEnable;
 				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.Enabled;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.Enabled);
+			}
+			else if (_stricmp(param, "shadow_mapping_anisotropic_scale") == 0) {
+				g_ShadowMapping.AnisotropicMapScale = fValue;
+				log_debug("[DBG] [SHW] g_ShadowMapping.AnisotropicMapScale: %d", g_ShadowMapping.AnisotropicMapScale);
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_x") == 0) {
 				g_fShadowMapAngleX = fValue;
@@ -3196,10 +3232,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_POV_Z") == 0) {
 				g_ShadowMapVSCBuffer.POV.z = fValue;
 			}
-			else if (_stricmp(param, "shadow_mapping_OBJrange") == 0) {
-				g_ShadowMapVSCBuffer.OBJrange = fValue;
+			else if (_stricmp(param, "shadow_mapping_OBJrange_override") == 0) {
+				g_ShadowMapping.bOBJrange_override = (bool)fValue;
 			}
-			
+			else if (_stricmp(param, "shadow_mapping_OBJrange_value") == 0) {
+				g_ShadowMapping.fOBJrange_override_value = fValue;
+			}
 
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;

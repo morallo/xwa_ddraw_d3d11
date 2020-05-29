@@ -606,7 +606,10 @@ extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 class ShadowMappingData {
 public:
 	bool Enabled;
+	bool AnisotropicMapScale;
 	bool UseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
+	bool bOBJrange_override;
+	float fOBJrange_override_value;
 	int Width, Height;
 	D3D11_VIEWPORT ViewPort;
 	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
@@ -629,6 +632,9 @@ public:
 		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
 		this->POV_XY_FACTOR = 24.974f;
 		this->POV_Z_FACTOR = 25.0f;
+		this->AnisotropicMapScale = true;
+		this->bOBJrange_override = false;
+		this->fOBJrange_override_value = 5.0f;
 	}
 
 	void SetSize(int Width, int Height) {

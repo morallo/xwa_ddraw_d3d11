@@ -120,7 +120,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS, g_bShadowMapInvertL;
+extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS, g_bShadowMapInvertL;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 extern std::vector<Vector4> g_OBJLimits;
@@ -6046,8 +6046,14 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
 	//cz = minz;
 	
 	// Compute the scale
-	sx = 1.8f / (maxx - minx); // Map to -0.9..0.9
-	sy = 1.8f / (maxy - miny); // Map to -0.9..0.9
+	sx = 1.9f / (maxx - minx); // Map to -0.95..0.95
+	sy = 1.9f / (maxy - miny); // Map to -0.95..0.95
+	// TODO:
+	// Having an anisotropic scale provides a better usage of the shadow map. However
+	// it also distorts the shadow map, making it harder to debug. For now, I'll do
+	// uniform scalling, but this has to go back to anisotropic scalling before
+	// release
+	float s = min(sx, sy);
 	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
 	//sz = 1.0f / (maxz - minz);
 
@@ -6055,12 +6061,20 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
 	// Translate the points so that the centroid is at the origin
 	T.translate(-cx, -cy, 0.0f);
 	// Scale around the origin so that the xyz limits are [-0.9..0.9]
-	S.scale(sx, sy, 1.0f);
+	if (g_ShadowMapping.AnisotropicMapScale)
+		S.scale(sx, sy, 1.0f); // Anisotropic scale: better use of the shadow map
+	else
+		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
 
-	g_ShadowMapVSCBuffer.OBJrange = maxz - minz;
+	if (g_ShadowMapping.bOBJrange_override)
+		g_ShadowMapVSCBuffer.OBJrange = g_ShadowMapping.fOBJrange_override_value;
+	else
+		g_ShadowMapVSCBuffer.OBJrange = maxz - minz;
+
 	g_ShadowMapVSCBuffer.OBJminZ = minz;
-	//log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
-	//	maxz, g_ShadowMapVSCBuffer.OBJminZ, g_ShadowMapVSCBuffer.OBJrange);
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
+			maxz, g_ShadowMapVSCBuffer.OBJminZ, g_ShadowMapVSCBuffer.OBJrange);
 	return S * T;
 }
 
@@ -6088,8 +6102,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 
 	// Compute the LightView (Parallel Projection) Matrix
-	//Matrix4 L = ComputeLightViewMatrix(g_bShadowMapInvertL);
-	Matrix4 L = ComputeLightViewMatrix(false);
+	Matrix4 L = ComputeLightViewMatrix(false); // g_bShadowMapInvertL
 
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
@@ -7444,6 +7457,10 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the Shadow Map
+			// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
+			//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
+			g_ShadowMapping.Enabled = g_bShadowMapEnable;
+			g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
 			if (g_ShadowMapping.Enabled && g_ShadowMapping.UseShadowOBJ)
 			//if (false)
 			{

@@ -13,12 +13,6 @@
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
 
-#define POV_FACTOR_XY 41.0
-#define POV_FACTOR_Z 41.0
-
-#define sm_shy -0.075
-#define sm_sz 0.94
-
  // The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
@@ -251,15 +245,15 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 */
 
 inline float MetricZToDepth(float Z) {
-	// Metric (Z - OBJcenterZ)/OBJrange should be in the range -0.9..0.9, 
-	// this is how we map that range into 0..0.98:
-	//return 0.98 * ((Z - OBJcenterZ) / OBJrange + 0.9) / 1.8;
+	// Objects that are too far away correspond to a depth of 1.0
+	if (Z > OBJrange + OBJminZ) return 1.0;
 	return 0.98 * ((Z - OBJminZ) / OBJrange);
 }
 
 inline float DepthToMetricZ(float z) {
-	// This is the inverse of the above: map 0..0.98 to the range -0.9..0.9
-	//return OBJcenterZ + OBJrange * ((z * 1.8 / 0.98) - 0.9);
+	// This is the inverse of the above: map 0..0.98 to the range OBJminZ to OBJminZ + OBJrange
+	// Z values above 0.98 are "unpopulated" during the creation of the shadow map, so they are "at infinity"
+	if (z > 0.98) return INFINITY_Z0;
 	return z / 0.98 * OBJrange + OBJminZ;
 }
 
@@ -461,13 +455,18 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Sample the shadow map and compare
 			float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
 			// Now convert the depth-stencil coord (0..1) to metric Z:
-			// 0 is the Z Far plane (SM_Z_FAR), 1 is the Z Near plane (SM_Z_NEAR)
-			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
 			//sm_Z = (sm_Z - 0.5) * OBJrange;
+			if (sm_debug && sm_Z > 0.98) {
+				output.color = float4(1, 0, 0, 1);
+				return output;
+			}
+
 			sm_Z = DepthToMetricZ(sm_Z);
-			if (sm_debug)
+			if (sm_debug) 
+			{
 				// sm_Z is now in metric space, we can compare it with P.z
 				shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
+			}
 			else
 				shadow_factor = ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z)), 1024.0, sm_pcss_samples, sm_pcss_radius);
 		}
