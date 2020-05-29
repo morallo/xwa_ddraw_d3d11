@@ -615,6 +615,7 @@ public:
 	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
 	float POV_XY_FACTOR;
 	float POV_Z_FACTOR;
+	float FOVDistScale;
 
 	ShadowMappingData() {
 		this->Enabled = false;
@@ -635,6 +636,8 @@ public:
 		this->AnisotropicMapScale = true;
 		this->bOBJrange_override = false;
 		this->fOBJrange_override_value = 5.0f;
+		//this->FOVDistScale = 624.525f;
+		this->FOVDistScale = 620.0f; // This one seems a bit better
 	}
 
 	void SetSize(int Width, int Height) {

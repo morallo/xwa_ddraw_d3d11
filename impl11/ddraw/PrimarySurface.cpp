@@ -5582,8 +5582,8 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 
 	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
-		log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
-		log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
+		//log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
+		//log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
 		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
@@ -5965,6 +5965,12 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 	return L;
 }
 
+void IncreaseSMZFactor(float Delta) {
+	g_ShadowMapVSCBuffer.sm_z_factor += Delta;
+	log_debug("[DBG] [SHW] sm_z_factor: %0.3f, FOVscale: %0.3f, FOVDist: %0.3f",
+		g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapVSCBuffer.sm_FOVscale, *g_fRawFOVDist);
+}
+
 /*
  * Using the current 3D box limits loaded in g_OBJLimits, compute the 2D/Z-Depth limits
  * needed to center the Shadow Map depth buffer.
@@ -6072,9 +6078,12 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
 		g_ShadowMapVSCBuffer.OBJrange = maxz - minz;
 
 	g_ShadowMapVSCBuffer.OBJminZ = minz;
-	if (g_bDumpSSAOBuffers)
+	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
 			maxz, g_ShadowMapVSCBuffer.OBJminZ, g_ShadowMapVSCBuffer.OBJrange);
+		log_debug("[DBG] [SHW] sm_z_factor: %0.6f, FOVDistScale: %0.3f",
+			g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapping.FOVDistScale);
+	}
 	return S * T;
 }
 
@@ -6109,6 +6118,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
 	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 	Matrix4 ST = GetShadowMapLimits(L);
 
 	// Initialize the Constant Buffer
@@ -7400,6 +7410,8 @@ HRESULT PrimarySurface::Flip(
 		auto &resources = this->_deviceResources;
 		auto &context = resources->_d3dDeviceContext;
 		auto &device = resources->_d3dDevice;
+		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -7461,8 +7473,7 @@ HRESULT PrimarySurface::Flip(
 			//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
 			g_ShadowMapping.Enabled = g_bShadowMapEnable;
 			g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
-			if (g_ShadowMapping.Enabled && g_ShadowMapping.UseShadowOBJ)
-			//if (false)
+			if (g_ShadowMapping.Enabled && g_ShadowMapping.UseShadowOBJ && !bExternalCamera)
 			{
 				RenderShadowMapOBJ();
 
@@ -7943,8 +7954,6 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Draw the HUD
-			const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
-			const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 			/*
 			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) 
@@ -7959,12 +7968,12 @@ HRESULT PrimarySurface::Flip(
 			 */
 			//if (!(*g_playerInHangar && bExteriorCamera))
 			//if (true)
-			if (!(*g_playerInHangar && bExteriorCamera && g_config.Text2DRendererEnabled)) 
+			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
 				// Ignore DC erase commands if the cockpit is hidden
 				if (g_bToggleEraseCommandsOnCockpitDisplayed) g_bDCIgnoreEraseCommands = !bCockpitDisplayed;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled && !bExteriorCamera)
+				if (g_bDynCockpitEnabled && !bExternalCamera)
 					ClearHUDRegions();
 
 				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file
@@ -8057,8 +8066,8 @@ HRESULT PrimarySurface::Flip(
 				float *POV_Y2 = (float *)(0x8B94E0 + 0x205);
 				float *POV_Z2 = (float *)(0x8B94E0 + 0x209);*/
 
-				log_debug("[DBG] [SHW] [POV] X0,Z0,Y0: %d, %d, %d", *g_POV_X0, *g_POV_Z0, *g_POV_Y0);
-				log_debug("[DBG] [SHW] [POV] X1,Z1,Y1: %f, %f, %f", *g_POV_X, *g_POV_Z, *g_POV_Y);
+				//log_debug("[DBG] [SHW] [POV] X0,Z0,Y0: %d, %d, %d", *g_POV_X0, *g_POV_Z0, *g_POV_Y0);
+				//log_debug("[DBG] [SHW] [POV] X1,Z1,Y1: %f, %f, %f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 				//log_debug("[DBG] [POV] X2,Z2,Y2: %f, %f, %f", *POV_X2, *POV_Z2, *POV_Y2);
 
 				/*

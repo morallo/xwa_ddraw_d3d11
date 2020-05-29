@@ -3238,6 +3238,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_OBJrange_value") == 0) {
 				g_ShadowMapping.fOBJrange_override_value = fValue;
 			}
+			else if (_stricmp(param, "shadow_mapping_fovdist_scale") == 0) {
+				g_ShadowMapping.FOVDistScale = fValue;
+			}
 
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;

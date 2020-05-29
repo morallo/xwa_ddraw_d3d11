@@ -115,6 +115,7 @@ void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
 //void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
 //void IncreasePostProjScale(float Delta);
+void IncreaseSMZFactor(float Delta);
 void ToggleZoomOutMode();
 void IncreaseZoomOutScale(float Delta);
 void IncreaseHUDParallax(float Delta);
@@ -704,6 +705,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				CycleFOVSetting();
 				return 0;
 			}
+			case 'W': {
+				// DEBUG: Toggle keyboard joystick emulation
+				if (g_config.KbdSensitivity > 0.0f)
+					g_config.KbdSensitivity = 0.0f;
+				else
+					g_config.KbdSensitivity = 1.0f;
+				return 0;
+			}
 
 			// Ctrl+L is the landing gear
 
@@ -747,7 +756,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseScreenScale(0.1f);
-					//IncreasePostProjScale(0.1f);
+					//IncreaseSMZFactor(0.025f); // DEBUG, remove this later
 					SaveVRParams();
 					break;
 				case 3:
@@ -771,7 +780,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 2:
 					IncreaseScreenScale(-0.1f);
-					//IncreasePostProjScale(-0.1f);
+					//IncreaseSMZFactor(-0.025f); // DEBUG, remove this later
 					SaveVRParams();
 					break;
 				case 3:
