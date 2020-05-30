@@ -105,7 +105,7 @@ public:
 
 	void RenderAdditionalGeometry();
 
-	Matrix4 ComputeLightViewMatrix(bool invert);
+	Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 
 	Matrix4 GetShadowMapLimits(Matrix4 L);
 

@@ -88,7 +88,7 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	// The point is now in XWA 3D, with the POV at the origin.
 	// let's apply the light transform and project it from the
 	// light's point of view.
-	P = mul(lightWorldMatrix, P);
+	P = mul(lightWorldMatrix[light_index], P);
 
 	// xy: Parallel projection
 	// Map the useful Z depth into the range 0..0.98:

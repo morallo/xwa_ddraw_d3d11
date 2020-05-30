@@ -3370,8 +3370,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 208; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 208, "sizeof(ShadowMapVertexShaderMatrixCB) must be 208");
+	constantBufferDesc.ByteWidth = 656; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 656, "sizeof(ShadowMapVertexShaderMatrixCB) must be 656");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))

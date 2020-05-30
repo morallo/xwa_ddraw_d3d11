@@ -4,8 +4,7 @@
 cbuffer ConstantBuffer : register(b5)
 {
 	matrix Camera;
-	matrix lightWorldMatrix;
-	// 128 bytes
+	matrix lightWorldMatrix[8 /*MAX_XWA_LIGHTS*/];
 	
 	uint sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
@@ -15,7 +14,8 @@ cbuffer ConstantBuffer : register(b5)
 	float3 POV;
 	float OBJrange;
 
-	float sm_FOVscale, sm_y_center, sm_metric_mult, sm_z_factor;
+	int light_index;
+	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint sm_PCSS_enabled, sm_pcss_samples;
 	float sm_black_level, OBJminZ;

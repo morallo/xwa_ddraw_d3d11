@@ -5897,31 +5897,20 @@ void PrimarySurface::RenderAdditionalGeometry()
  * ViewSpace coordinates so that the origin is now the current light looking at the
  * previous ViewSpace origin.
  */
-Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
+Matrix4 PrimarySurface::ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert)
 {
-	int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 	Matrix4 L;
 	L.identity();
 
-	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
-	// Use the heading matrix to move the lights
-	Matrix4 H = GetCurrentHeadingViewMatrix();
-	//Matrix4 T1, T2;
-	//Matrix4 S;
-	//T1.translate(0.0f, -g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
-	//T2.translate(0.0f,  g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
-	//S.scale(1.0f/g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
-	//S.scale(g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
-	for (int i = 1; i < 2 /* s_XwaGlobalLightsCount */; i++)
 	{
 		Vector4 xwaLight = Vector4(
-			s_XwaGlobalLights[i].PositionX / 32768.0f,
-			s_XwaGlobalLights[i].PositionY / 32768.0f,
-			s_XwaGlobalLights[i].PositionZ / 32768.0f,
+			s_XwaGlobalLights[idx].PositionX / 32768.0f,
+			s_XwaGlobalLights[idx].PositionY / 32768.0f,
+			s_XwaGlobalLights[idx].PositionZ / 32768.0f,
 			0.0f);
 
-		xwaLight = H * xwaLight;
+		xwaLight = Heading * xwaLight;
 		xwaLight.normalize();
 		//log_debug("[DBG] [SHW] xwaLight: %0.3f, %0.3f, %0.3f", xwaLight.x, xwaLight.y, xwaLight.z);
 
@@ -6101,8 +6090,16 @@ void PrimarySurface::RenderShadowMapOBJ()
 	auto &resources = this->_deviceResources;
 	auto &device = resources->_d3dDevice;
 	auto &context = resources->_d3dDeviceContext;
+	int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	Matrix4 HeadingMatrix, CockpitMatrix;
 	Matrix4 T, Ry, Rx, S;
+
+	//Matrix4 T1, T2;
+	//Matrix4 S;
+	//T1.translate(0.0f, -g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
+	//T2.translate(0.0f,  g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
+	//S.scale(1.0f/g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
+	//S.scale(g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
 
 	// Enable ZWrite: we'll need it for the ShadowMap
 	D3D11_DEPTH_STENCIL_DESC desc;
@@ -6151,19 +6148,25 @@ void PrimarySurface::RenderShadowMapOBJ()
 	resources->InitInputLayout(resources->_inputLayout);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	// TODO: Is the HeadingMatrix and H the same thing?
 	// Compute the OBJ-to-ViewSpace ViewMatrix
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
+	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
+	// Use the heading matrix to move the lights
+	Matrix4 H = GetCurrentHeadingViewMatrix();
+
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
-	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 
-	int idx = 1;
+	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
 	{
+		g_ShadowMapVSCBuffer.light_index = idx;
+
 		// Compute the LightView (Parallel Projection) Matrix
-		Matrix4 L = ComputeLightViewMatrix(false); // g_bShadowMapInvertL
+		Matrix4 L = ComputeLightViewMatrix(idx, H, false); // g_bShadowMapInvertL
 		Matrix4 ST = GetShadowMapLimits(L);
 
 		// Initialize the Constant Buffer
@@ -6179,7 +6182,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
 		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
 		//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
-		g_ShadowMapVSCBuffer.lightWorldMatrix = ST * L;
+		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
 		// Set the constant buffer
 		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 

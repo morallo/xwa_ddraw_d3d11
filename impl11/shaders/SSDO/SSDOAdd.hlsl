@@ -481,19 +481,19 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		// Compute shadows through shadow mapping
 		float shadow_factor = 1.0;
-		float idx = 1.0;
+		//float idx = 1.0;
 		if (sm_enabled)
 		{
 			// Apply the same transform we applied to the geometry when computing the shadow map:
 			//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
 			//Q.xyz += POV;
-			float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
 
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
 			if (sm_PCSS_enabled == 1) {
 				// PCSS
-				shadow_factor = PCSS(idx, Q);
+				shadow_factor = PCSS(i, Q);
 			}
 			else {
 				// Regular path
@@ -504,7 +504,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 				if (sm_debug) {
 					// Sample the shadow map and compare
-					float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, float3(sm_pos, idx), 0).x;
+					float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, float3(sm_pos, i), 0).x;
 					// Early exit: red color for points "at infinity"
 					if (sm_Z > 0.98) {
 						output.color = float4(1, 0, 0, 1);
@@ -518,7 +518,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				}
 				else {
 					// PCF
-					shadow_factor = ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+					shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
 					//shadow_factor = saturate(texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias)));
 					//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
 				}
