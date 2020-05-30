@@ -425,83 +425,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
-	// Compute shadows through shadow mapping
-	float shadow_factor = 1.0;
-	float idx = 0.0;
-	if (sm_enabled) 
-	{
-		// Apply the same transform we applied to the geometry when computing the shadow map:
-		//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-		//Q.xyz += POV;
-		float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-
-		/*
-		//float filter_size = pcss(Q);
-		// For PCF we need to transform Q.z into a depth value too:
-		Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
-		//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, Q.z);
-		//shadow_factor = ShadowMapPCF(Q, 1024.0, sm_pcss_samples, filter_size);
-		shadow_factor = ShadowMapPCF(Q, 1024.0, sm_pcss_samples, sm_pcss_radius);
-		*/
-
-		// shadow_factor: 1 -- No shadow
-		// shadow_factor: 0 -- Full shadow
-		if (sm_PCSS_enabled == 1) {
-			// PCSS
-			shadow_factor = PCSS(idx, Q);
-		}
-		else {
-			// Regular path
-			// Project
-			//float2 sm_pos = Q.xy; // Parallel projection
-			// Convert to texture coords: this maps -1..1 to 0..1:
-			float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-			
-			if (sm_debug) {
-				// Sample the shadow map and compare
-				float sm_Z = texShadowMap.Sample(samplerShadowMap, float3(sm_pos, idx)).x;
-				// Early exit: red color for points "at infinity"
-				if (sm_Z > 0.98) {
-					output.color = float4(1, 0, 0, 1);
-					return output;
-				}
-				// Now convert the depth-stencil coord (0..1) to metric Z:
-				//sm_Z = (sm_Z - 0.5) * OBJrange;
-				sm_Z = DepthToMetricZ(sm_Z);
-				// sm_Z is now in metric space, we can compare it with P.z
-				shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
-			}
-			else {
-				// PCF
-				shadow_factor = ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
-				//shadow_factor = saturate(texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias)));
-				//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
-			}
-		}
-		// Limit how black the shadows can be to a minimum of sm_black_level
-		shadow_factor = max(shadow_factor, sm_black_level);
-		
-
-		//float shadow_dist = abs((Q.z - sm_bias) - sm_Z) / sm_max_distance;
-		// Fade the shadow to 1 with the distance to the occluder
-		// This causes some artifacts... Shadows coming from different occluders have
-		// different depths and they are faded differently, causing sections of "lighter"
-		// shadows in the middle of darker shadows
-		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_dist));
-
-		// Fade the shadows towards the edges of the screen:
-		//float shadow_map_edge_fade = length(input.uv - 0.5) / sm_max_edge_distance;
-		//shadow_factor = saturate(shadow_factor + smoothstep(0.0, 1.0, shadow_map_edge_fade));
-
-		// DEBUG
-		if (sm_debug == 1 && shadow_factor < 0.5) 
-		{
-			output.color = float4(0.2, 0.2, 0.5, 1.0);
-			return output;
-		}
-		// DEBUG
-	}
-
 	// Compute ray-traced shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);
 	// SSAO version:
@@ -555,6 +478,62 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
+
+		// Compute shadows through shadow mapping
+		float shadow_factor = 1.0;
+		float idx = 1.0;
+		if (sm_enabled)
+		{
+			// Apply the same transform we applied to the geometry when computing the shadow map:
+			//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+			//Q.xyz += POV;
+			float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
+
+			// shadow_factor: 1 -- No shadow
+			// shadow_factor: 0 -- Full shadow
+			if (sm_PCSS_enabled == 1) {
+				// PCSS
+				shadow_factor = PCSS(idx, Q);
+			}
+			else {
+				// Regular path
+				// Project
+				//float2 sm_pos = Q.xy; // Parallel projection
+				// Convert to texture coords: this maps -1..1 to 0..1:
+				float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+
+				if (sm_debug) {
+					// Sample the shadow map and compare
+					float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, float3(sm_pos, idx), 0).x;
+					// Early exit: red color for points "at infinity"
+					if (sm_Z > 0.98) {
+						output.color = float4(1, 0, 0, 1);
+						return output;
+					}
+					// Now convert the depth-stencil coord (0..1) to metric Z:
+					//sm_Z = (sm_Z - 0.5) * OBJrange;
+					sm_Z = DepthToMetricZ(sm_Z);
+					// sm_Z is now in metric space, we can compare it with P.z
+					shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
+				}
+				else {
+					// PCF
+					shadow_factor = ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+					//shadow_factor = saturate(texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias)));
+					//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
+				}
+			}
+			// Limit how black the shadows can be to a minimum of sm_black_level
+			shadow_factor = max(shadow_factor, sm_black_level);
+
+			// DEBUG
+			if (sm_debug == 1 && shadow_factor < 0.5)
+			{
+				output.color = float4(0.2, 0.2, 0.5, 1.0);
+				return output;
+			}
+			// DEBUG
+		}
 
 		// diffuse component
 		//bentDiff   = max(dot(smoothB, L), 0.0);

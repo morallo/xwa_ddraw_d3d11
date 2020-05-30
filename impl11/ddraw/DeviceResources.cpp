@@ -2723,7 +2723,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilDesc.Height = g_ShadowMapping.Height;
 			depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-			depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+			depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 			depthStencilDesc.ArraySize = 1;
 			depthStencilDesc.SampleDesc.Count = 1; // The ShadowMap DSV is always going to be Non-MSAA
 			depthStencilDesc.SampleDesc.Quality = 0;
@@ -2732,21 +2732,23 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMap);
 			if (FAILED(hr)) goto out;
 
-			step = "_shadowMapArray";
-			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
-			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
-			if (FAILED(hr)) goto out;
-			depthStencilDesc.ArraySize = 1;
-
-			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			depthStencilDesc.BindFlags = 0;
-			step = "_shadowMapDebug";
-			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapDebug);
-			if (FAILED(hr)) goto out;
-
 			step = "_shadowMapDSV";
 			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D, DXGI_FORMAT_D32_FLOAT);
 			hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_shadowMapDSV);
+			if (FAILED(hr)) goto out;
+
+			// TEXTURE ARRAY FROM THIS POINT ON
+			step = "_shadowMapArray";
+			depthStencilDesc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
+			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
+			if (FAILED(hr)) goto out;
+
+			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
+			depthStencilDesc.BindFlags = 0;
+			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
+			step = "_shadowMapDebug";
+			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapDebug);
 			if (FAILED(hr)) goto out;
 
 			step = "_shadowMapSRV";
@@ -2759,30 +2761,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_XWA_LIGHTS;
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapArray, &depthStencilSRVDesc, &this->_shadowMapSRV);
 			if (FAILED(hr)) goto out;
-			
-			/*
-			if (g_bUseSteamVR) {
-				step = "_shadowMapR";
-				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapR);
-				if (FAILED(hr)) goto out;
-				
-				step = "_shadowMapDSV_R";
-				CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(
-					this->_useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D,
-					DXGI_FORMAT_D32_FLOAT);
-				hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMapR, &depthStencilViewDesc, &this->_shadowMapDSV_R);
-				if (FAILED(hr)) goto out;
-
-				step = "_shadowMapSRV_R";
-				D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
-				depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
-				depthStencilSRVDesc.ViewDimension = this->_useMultisampling ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
-				depthStencilSRVDesc.Texture2D.MipLevels = depthStencilDesc.MipLevels;
-				depthStencilSRVDesc.Texture2D.MostDetailedMip = 0;
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapR, &depthStencilSRVDesc, &this->_shadowMapSRV_R);
-				if (FAILED(hr)) goto out;
-			}
-			*/
 		}
 	}
 

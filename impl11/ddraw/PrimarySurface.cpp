@@ -6160,6 +6160,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 
+	int idx = 1;
 	{
 		// Compute the LightView (Parallel Projection) Matrix
 		Matrix4 L = ComputeLightViewMatrix(false); // g_bShadowMapInvertL
@@ -6190,7 +6191,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
 
 		// Copy the shadow map to the right slot in the array
-		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
+		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, idx, 1), 0, 0, 0, 
+			resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
 	}
 }
 
@@ -7692,6 +7694,7 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					if (g_ShadowMapping.Enabled) {
 						context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
+						//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMapArray);
 						DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"C:\\Temp\\_shadowMap.dds");
 					}
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
