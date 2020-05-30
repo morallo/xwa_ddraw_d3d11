@@ -57,51 +57,15 @@ for i in range(num_verts):
 //--------------------------------------------------------------------------------------
 // Vertex Shader
 //--------------------------------------------------------------------------------------
-// Use this shader for screen-space shadow mapping
-SHADOW_PS_INPUT main_old(VertexShaderInput input)
-{
-	SHADOW_PS_INPUT output;
-	float w = 1.0 / input.pos.w;
-	float3 temp;
-	float Z;
-	//output.pos = mul(lightWorldMatrix, input.pos);
-	//output.pos = mul(lightViewProj, output.pos);
-
-	/*
-	// Regular vertex shader
-	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
-	output.pos.z = input.pos.z;
-	output.pos.w = 1.0f;
-	*/
-
-	// Back-project into 3D space (this code comes from the regular vertex shader
-	temp.xy = input.pos.xy * vpScale.xy + float2(-1.0, 1.0);
-	temp.xy *= vpScale.z * float2(aspect_ratio, 1);
-	temp.z = METRIC_SCALE_FACTOR * w;
-	float4 P = float4(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z, 1.0);
-	
-	// Transform this point and project it from the light's point of view:
-	P = mul(lightWorldMatrix, P);
-	//output.pos.xy = P.xy / P.z; // Perspective projection
-	output.pos.xy = P.xy; // Parallel projection
-	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
-	// In this case Z Far is set at SM_Z_FAR meters away:
-	output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
-	output.pos.w = 1.0;
-
-	return output;
-}
 
 // Use this shader for 3D Shadow OBJ
 SHADOW_PS_INPUT main(VertexShaderInput input)
 {
 	SHADOW_PS_INPUT output;
 
-	// The input should be true metric 3D.
-	// This input is going to be OBJ-3D
-	//float4 P = float4(input.pos.xyz, 1.0);
+	// The input is expected to be OBJ-3D
 
-	// OBJ-3D to camera view
+	// OBJ-3D to camera view:
 	float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
 
 	// Project the OBJ point to 2D:
@@ -126,37 +90,8 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	// light's point of view.
 	P = mul(lightWorldMatrix, P);
 
-	//output.pos.xy = P.xy / P.z; // Perspective projection
-	output.pos.xy = P.xy; // Parallel projection
-
-	// The way the depth buffer and testing is setup 1.0 is Z Near, 0.0 is Z Far.
-	// In this case Z Far is set at SM_Z_FAR meters away:
-	//output.pos.z = lerp(1.0, 0.0, (P.z - SM_Z_NEAR) / SM_Z_FAR);
-
-	// Now compress the range -OBJrange/2 to OBJrange/2 to 0..1:
-	////output.pos.z = lerp(0.0, 1.0, P.z / OBJrange);
-	////output.pos.z = (P.z + OBJrange / 2.0) / OBJrange;
-	//output.pos.z = P.z / OBJrange + 0.5;
-
+	// xy: Parallel projection
 	// Map the useful Z depth into the range 0..0.98:
-	output.pos.z = (P.z - OBJminZ) / OBJrange * 0.98;
-
-	/*
-	// DEBUG
-	P.y -= POV.y;
-	P.z = (P.z + 1.641) / 2.6;
-	output.pos.xyz = P.xyz;
-	// DEBUG
-	*/
-
-	/*
-	// DEBUG
-	output.pos.xy = input.pos.xy;
-	output.pos.z = lerp(1.0, 0.0, input.pos.z);
-	output.pos.w = 1.0;
-	// DEBUG
-	*/
-
-	output.pos.w = 1.0;
+	output.pos = float4(P.xy, (P.z - OBJminZ) / OBJrange * 0.98, 1.0);
 	return output;
 }

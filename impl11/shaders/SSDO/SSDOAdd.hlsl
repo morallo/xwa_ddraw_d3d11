@@ -50,7 +50,7 @@ Texture2D texSSMask : register(t7);
 SamplerState samplerSSMask : register(s7);
 
 // The Shadow Map buffer
-Texture2D texShadowMap : register(t8);
+Texture2DArray texShadowMap : register(t8);
 SamplerState samplerShadowMap : register(s8);
 
 SamplerComparisonState cmpSampler
@@ -262,7 +262,7 @@ inline float DepthToMetricZ(float z) {
 /*
  * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
  */
-inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radius)
+inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize, float radius)
 {
 	float shadow = 0.0f;
 	float2 sm_pos = Q.xy;
@@ -278,7 +278,7 @@ inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radi
 	{
 		for (int j = -filterSize; j <= filterSize; j++)
 		{
-			float4 tmp = texShadowMap.Gather(samplerShadowMap, sm_pos + float2(i, j) * float2(radius, radius));
+			float4 tmp = texShadowMap.Gather(samplerShadowMap, float3(sm_pos + float2(i, j) * float2(radius, radius), idx));
 			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
 			// so if a dpeth value is *lower* than Q.z it's an occluder
 			tmp.x = tmp.x < Q_z ? 0.0f : 1.0f;
@@ -298,7 +298,7 @@ inline float PenumbraSize(float zReceiver, float zBlocker)
 	return (zReceiver - zBlocker) / zBlocker;
 }
 
-inline void FindBlocker(float3 Q, out float d_blocker, out float samples) 
+inline void FindBlocker(float idx, float3 Q, out float d_blocker, out float samples) 
 {
 	d_blocker = 0.0;
 	samples = 0.0;
@@ -312,7 +312,7 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) 
 		{
-			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), 0).x;
+			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, float3(sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), idx), 0).x;
 			// Convert the depth-stencil coord (0..1) to metric Z and compare
 			sm_Z = DepthToMetricZ(sm_Z);
 			if (sm_Z < Q_z) // This sample is a blocker
@@ -326,11 +326,11 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 		d_blocker /= samples;
 }
 
-inline float PCSS(float3 Q)
+inline float PCSS(float idx, float3 Q)
 {
 	float samples, zBlocker; // Metric Z
 	// Step 1: Blocker search
-	FindBlocker(Q, zBlocker, samples);
+	FindBlocker(idx, Q, zBlocker, samples);
 	if (samples < 1.0)
 		return 1.0;
 
@@ -341,7 +341,7 @@ inline float PCSS(float3 Q)
 
 	// Step 3: Filtering
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, filterRadiusUV);
-	return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius + filterRadiusUV);
+	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius + filterRadiusUV);
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
 
@@ -427,6 +427,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Compute shadows through shadow mapping
 	float shadow_factor = 1.0;
+	float idx = 0.0;
 	if (sm_enabled) 
 	{
 		// Apply the same transform we applied to the geometry when computing the shadow map:
@@ -447,7 +448,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// shadow_factor: 0 -- Full shadow
 		if (sm_PCSS_enabled == 1) {
 			// PCSS
-			shadow_factor = PCSS(Q);
+			shadow_factor = PCSS(idx, Q);
 		}
 		else {
 			// Regular path
@@ -458,7 +459,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			
 			if (sm_debug) {
 				// Sample the shadow map and compare
-				float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
+				float sm_Z = texShadowMap.Sample(samplerShadowMap, float3(sm_pos, idx)).x;
 				// Early exit: red color for points "at infinity"
 				if (sm_Z > 0.98) {
 					output.color = float4(1, 0, 0, 1);
@@ -472,8 +473,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			}
 			else {
 				// PCF
-				shadow_factor = ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
-				//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
+				shadow_factor = ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+				//shadow_factor = saturate(texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias)));
 				//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
 			}
 		}

@@ -798,8 +798,9 @@ public:
 	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
 	// Shadow Mapping
 	ComPtr<ID3D11Texture2D> _shadowMap;
-	ComPtr<ID3D11Texture2D> _shadowMapR;
-	ComPtr<ID3D11Texture2D> _shadowMapDebug;
+	ComPtr<ID3D11Texture2D> _shadowMapArray;
+	//ComPtr<ID3D11Texture2D> _shadowMapR;
+	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -882,15 +883,15 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
 	// Shadow Mapping
-	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV;
-	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
+	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV; // This is an array SRV
+	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
 	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
-	ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
+	//ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
 	ComPtr<IDWriteFactory> _dwriteFactory;

@@ -6138,37 +6138,6 @@ void PrimarySurface::RenderShadowMapOBJ()
 	// Init the Viewport
 	resources->InitViewport(&g_ShadowMapping.ViewPort);
 
-	// Compute the OBJ-to-ViewSpace ViewMatrix
-	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
-
-	// Compute the LightView (Parallel Projection) Matrix
-	Matrix4 L = ComputeLightViewMatrix(false); // g_bShadowMapInvertL
-
-	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
-	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
-	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
-	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
-	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
-	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
-	Matrix4 ST = GetShadowMapLimits(L);
-
-	// Initialize the Constant Buffer
-	// T * R does rotation first, then translation: so the object rotates around the origin
-	// and then gets pushed away along the Z axis
-	/*
-	S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
-	Rx.rotateX(g_fShadowMapAngleX);
-	Ry.rotateY(g_fShadowMapAngleY);
-	T.translate(0, 0, g_fShadowMapDepthTrans);
-	*/
-
-	////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
-	////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
-	//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
-	g_ShadowMapVSCBuffer.lightWorldMatrix = ST * L;
-	// Set the constant buffer
-	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-
 	// Set the Vertex and Pixel Shaders
 	resources->InitVertexShader(resources->_shadowMapVS);
 	resources->InitPixelShader(resources->_shadowMapPS);
@@ -6182,10 +6151,47 @@ void PrimarySurface::RenderShadowMapOBJ()
 	resources->InitInputLayout(resources->_inputLayout);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	// Set the Shadow Map DSV
-	context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-	// Render the Shadow Map
-	context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
+	// Compute the OBJ-to-ViewSpace ViewMatrix
+	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
+	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
+	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
+	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
+	g_ShadowMapVSCBuffer.sm_metric_mult = g_fMetricMult;
+	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
+
+	{
+		// Compute the LightView (Parallel Projection) Matrix
+		Matrix4 L = ComputeLightViewMatrix(false); // g_bShadowMapInvertL
+		Matrix4 ST = GetShadowMapLimits(L);
+
+		// Initialize the Constant Buffer
+		// T * R does rotation first, then translation: so the object rotates around the origin
+		// and then gets pushed away along the Z axis
+		/*
+		S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
+		Rx.rotateX(g_fShadowMapAngleX);
+		Ry.rotateY(g_fShadowMapAngleY);
+		T.translate(0, 0, g_fShadowMapDepthTrans);
+		*/
+
+		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
+		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
+		//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
+		g_ShadowMapVSCBuffer.lightWorldMatrix = ST * L;
+		// Set the constant buffer
+		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+		// Clear the Shadow Map DSV (I may have to update this later for the hyperspace state)
+		context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		// Set the Shadow Map DSV
+		context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+		// Render the Shadow Map
+		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
+
+		// Copy the shadow map to the right slot in the array
+		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
+	}
 }
 
 /*
@@ -8266,12 +8272,12 @@ HRESULT PrimarySurface::Flip(
 				}*/
 			}
 
+			/*
 			// Clear the Shadow Map buffers
 			if (bHyperspaceFirstFrame && g_ShadowMapping.Enabled) {
 				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-				if (g_bUseSteamVR)
-					context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
+			*/
 			
 			// Enable roll (formerly this was 6dof)
 			if (g_bUseSteamVR) {

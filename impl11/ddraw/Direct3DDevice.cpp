@@ -8665,11 +8665,7 @@ HRESULT Direct3DDevice::BeginScene()
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-		if (g_bUseSteamVR) {
-			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-			if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV_R, D3D11_CLEAR_DEPTH, 1.0f, 0);
-		}
+		//if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
 	//log_debug("[DBG] BeginScene RenderMain");
