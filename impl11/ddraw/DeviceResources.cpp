@@ -166,6 +166,7 @@ Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 extern float g_fSpeedShaderParticleRange;
 
 // Shadow Mapping
+extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 extern bool g_bShadowMappingEnabled;
 
 bool InitSteamVR();
@@ -3345,6 +3346,17 @@ HRESULT DeviceResources::LoadResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreateRasterizerState(&rsDesc, &this->_rasterizerState)))
 		return hr;
+
+	/*
+	// Create the rasterizer state for shadow mapping
+	log_debug("[DBG] [SHW] Create SM RState. Bias: %0.3f", g_ShadowMapVSCBuffer.sm_bias);
+	rsDesc.DepthBias = g_ShadowMapping.DepthBias;
+	rsDesc.DepthBiasClamp = g_ShadowMapping.DepthBiasClamp;
+	rsDesc.SlopeScaledDepthBias = g_ShadowMapping.SlopeScaledDepthBias;
+	rsDesc.MultisampleEnable = FALSE;
+	if (FAILED(hr = this->_d3dDevice->CreateRasterizerState(&rsDesc, &this->_sm_rasterizerState)))
+		return hr;
+	*/
 
 	D3D11_BUFFER_DESC constantBufferDesc;
 	constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;

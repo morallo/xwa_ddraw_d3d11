@@ -5904,8 +5904,15 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 	Matrix4 L;
 	L.identity();
 
+	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
 	// Use the heading matrix to move the lights
 	Matrix4 H = GetCurrentHeadingViewMatrix();
+	//Matrix4 T1, T2;
+	//Matrix4 S;
+	//T1.translate(0.0f, -g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
+	//T2.translate(0.0f,  g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
+	//S.scale(1.0f/g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
+	//S.scale(g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
 	for (int i = 1; i < 2 /* s_XwaGlobalLightsCount */; i++)
 	{
 		Vector4 xwaLight = Vector4(
@@ -5962,6 +5969,8 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(bool invert)
 				0, 0, 0, 1
 			);
 	}
+	//return T1 * L * S * T2;
+	//return L * S;
 	return L;
 }
 
@@ -6052,8 +6061,8 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
 	//cz = minz;
 	
 	// Compute the scale
-	sx = 1.9f / (maxx - minx); // Map to -0.95..0.95
-	sy = 1.9f / (maxy - miny); // Map to -0.95..0.95
+	sx = 1.95f / (maxx - minx); // Map to -0.975..0.975
+	sy = 1.95f / (maxy - miny); // Map to -0.975..0.975
 	// TODO:
 	// Having an anisotropic scale provides a better usage of the shadow map. However
 	// it also distorts the shadow map, making it harder to debug. For now, I'll do
@@ -6103,6 +6112,28 @@ void PrimarySurface::RenderShadowMapOBJ()
 	desc.DepthFunc = D3D11_COMPARISON_LESS;
 	desc.StencilEnable = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
+
+	/*
+	// Set the rasterizer state to enable
+	D3D11_RASTERIZER_DESC rsDesc;
+	static ID3D11RasterizerState *rstate = NULL;
+	rsDesc.CullMode = D3D11_CULL_NONE;
+	rsDesc.FillMode = D3D11_FILL_SOLID;
+	rsDesc.FrontCounterClockwise = TRUE;
+	rsDesc.DepthBias = g_ShadowMapping.DepthBias;
+	rsDesc.DepthBiasClamp = g_ShadowMapping.DepthBiasClamp;
+	rsDesc.SlopeScaledDepthBias = g_ShadowMapping.SlopeScaledDepthBias;
+	rsDesc.DepthClipEnable = TRUE;
+	rsDesc.ScissorEnable = FALSE;
+	rsDesc.MultisampleEnable = FALSE;
+	rsDesc.AntialiasedLineEnable = FALSE;
+	if (rstate == NULL || g_bDumpSSAOBuffers) {
+		if (rstate != NULL)
+			rstate->Release();
+		device->CreateRasterizerState(&rsDesc, &rstate);
+	}
+	resources->InitRasterizerState(rstate);
+	*/
 
 	// Init the Viewport
 	resources->InitViewport(&g_ShadowMapping.ViewPort);
@@ -7483,6 +7514,7 @@ HRESULT PrimarySurface::Flip(
 				//resources->InitPixelShader(lastPixelShader);
 				// Restore the previous index and vertex buffers?
 				context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
+				resources->InitRasterizerState(resources->_rasterizerState);
 			}
 
 			// Render the hyperspace effect if necessary

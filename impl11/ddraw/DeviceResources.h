@@ -617,6 +617,10 @@ public:
 	float POV_Z_FACTOR;
 	float FOVDistScale;
 
+	int DepthBias;
+	float DepthBiasClamp;
+	float SlopeScaledDepthBias;
+
 	ShadowMappingData() {
 		this->Enabled = false;
 		this->UseShadowOBJ = false;
@@ -638,6 +642,9 @@ public:
 		this->fOBJrange_override_value = 5.0f;
 		//this->FOVDistScale = 624.525f;
 		this->FOVDistScale = 620.0f; // This one seems a bit better
+		this->DepthBias = 0;
+		this->DepthBiasClamp = 0.0f;
+		this->SlopeScaledDepthBias = 0.0f;
 	}
 
 	void SetSize(int Width, int Height) {
@@ -960,6 +967,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
+	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _shadingSysBuffer;

@@ -3185,6 +3185,16 @@ bool LoadSSAOParams() {
 				g_ShadowMapVSCBuffer.sm_black_level = fValue;
 			}
 
+			else if (_stricmp(param, "shadow_mapping_depth_bias") == 0) {
+				g_ShadowMapping.DepthBias = (int)fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_depth_bias_clamp") == 0) {
+				g_ShadowMapping.DepthBiasClamp = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_slope_scale_depth_bias") == 0) {
+				g_ShadowMapping.SlopeScaledDepthBias = fValue;
+			}
+
 			else if (_stricmp(param, "shadow_mapping_POV_XY_FACTOR") == 0) {
 				g_ShadowMapping.POV_XY_FACTOR = fValue;
 			}
@@ -7846,15 +7856,11 @@ HRESULT Direct3DDevice::Execute(
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
+					// Old screen-space shadow mapping code. Obsolete now that OBJs can be side-loaded
+					/*
 					if (g_ShadowMapping.Enabled && !g_ShadowMapping.UseShadowOBJ && bIsCockpit) 
-					//if (g_ShadowMapping.Enabled && bIsCockpit)
 					{
 						Matrix4 T, Ry, Rx, S;
-						//S.scale(g_fShadowMapScale);
-						// Only scale the x and y axes, leave z alone
-						//S.identity();
-						//S[0][0] = g_fShadowMapScale;
-						//S[1][1] = g_fShadowMapScale; 
 						Rx.rotateX(g_fShadowMapAngleX);
 						Ry.rotateY(g_fShadowMapAngleY);
 						T.translate(0, 0, g_fShadowMapDepthTrans);
@@ -7865,14 +7871,6 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
 						
 						// Initialize the Constant Buffer
-						/*
-						g_ShadowMapVSCBuffer.lightViewProj.set
-						(
-							0.847458f, 0.0f, 0.0f, 0.0f,
-							0.0f,      0.746269f, 0.0f, 0.0f,
-							0.0f,      0.0f, -1.0f, -0.01f, // Use the focal_dist here?
-							0.0f,      0.0f, -1.0f, 0.0f
-						);*/
 						// T * R does rotation first, then translation: so the object rotates around the origin
 						// and then gets pushed away along the Z axis
 						//g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
@@ -7913,6 +7911,8 @@ HRESULT Direct3DDevice::Execute(
 							resources->InitIndexBuffer(this->_indexBuffer.Get(), g_config.D3dHookExists);
 						}
 					}
+					*/
+
 					goto out;
 				}
 
