@@ -57,6 +57,7 @@ SamplerComparisonState cmpSampler
 {
 	// sampler state
 	Filter = COMPARISON_MIN_MAG_MIP_LINEAR;
+	//Filter = COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
 	AddressU = CLAMP;
 	AddressV = CLAMP;
 
@@ -258,6 +259,9 @@ inline float DepthToMetricZ(float z) {
 }
 
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
+/*
+ * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
+ */
 inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radius)
 {
 	float shadow = 0.0f;
@@ -267,7 +271,8 @@ inline float ShadowMapPCF(float3 Q, float resolution, int filterSize, float radi
 	//float2 grad = frac(Q.xy * resolution + 0.5f);
 	float2 grad = frac(sm_pos * resolution + 0.5);
 	//float Q_z = Q.z - (sm_bias / SM_Z_FAR);
-	float Q_z = Q.z + (sm_bias / OBJrange);
+	//float Q_z = Q.z + (sm_bias / OBJrange);
+	float Q_z = Q.z; // We assume that Q.z has already been bias-compensated
 
 	for (int i = -filterSize; i <= filterSize; i++)
 	{
@@ -299,20 +304,18 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 	samples = 0.0;
 
 	// Project
-	float2 sm_pos = Q.xy;
+	//float2 sm_pos = Q.xy;
 	// Convert to texture coords: this maps -1..1 to 0..1:
-	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+	const float Q_z = Q.z + sm_bias;
 
 	for (int i = -1; i <= 1; i++)
 		for (int j = -1; j <= 1; j++) 
 		{
 			float sm_Z = texShadowMap.SampleLevel(samplerShadowMap, sm_pos + float2(i * sm_blocker_radius, j * sm_blocker_radius), 0).x;
-			// Convert the depth-stencil coord (0..1) to metric Z:
-			//sm_Z = lerp(SM_Z_FAR, SM_Z_NEAR, sm_Z);
-			// output.pos.z = P.z / OBJrange + 0.5;
-			//sm_Z = (sm_Z - 0.5) * OBJrange;
+			// Convert the depth-stencil coord (0..1) to metric Z and compare
 			sm_Z = DepthToMetricZ(sm_Z);
-			if (sm_Z <= Q.z + sm_bias) // This sample is a blocker
+			if (sm_Z < Q_z) // This sample is a blocker
 			{
 				d_blocker += sm_Z;
 				samples++;
@@ -325,21 +328,21 @@ inline void FindBlocker(float3 Q, out float d_blocker, out float samples)
 
 inline float PCSS(float3 Q)
 {
-	float samples, zBlocker, zReceiver = Q.z; // Metric Z
+	float samples, zBlocker; // Metric Z
 	// Step 1: Blocker search
 	FindBlocker(Q, zBlocker, samples);
 	if (samples < 1.0)
 		return 1.0;
 
 	// Step 2: Penumbra size
-	float penumbraRatio = PenumbraSize(zReceiver, zBlocker);
-	float filterRadiusUV = penumbraRatio * sm_light_size / zReceiver;
+	float penumbraRatio = PenumbraSize(Q.z, zBlocker);
+	//float filterRadiusUV = sm_light_size * penumbraRatio / sm_pcss_samples; // / MetricZToDepth(Q.z);
+	float filterRadiusUV = sm_light_size * penumbraRatio;
 
 	// Step 3: Filtering
-	// Convert metric Z to depth value
-	//Q.z = lerp(1.0, 0.0, (Q.z - SM_Z_NEAR) / SM_Z_FAR);
-	//Q.z = Q.z / OBJrange + 0.5;
-	return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z)), 1024.0, sm_pcss_samples, filterRadiusUV);
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, filterRadiusUV);
+	return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius + filterRadiusUV);
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -449,26 +452,30 @@ PixelShaderOutput main(PixelShaderInput input)
 		else {
 			// Regular path
 			// Project
-			float2 sm_pos = Q.xy; // Parallel projection
+			//float2 sm_pos = Q.xy; // Parallel projection
 			// Convert to texture coords: this maps -1..1 to 0..1:
-			sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
-			// Sample the shadow map and compare
-			float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
-			// Now convert the depth-stencil coord (0..1) to metric Z:
-			//sm_Z = (sm_Z - 0.5) * OBJrange;
-			if (sm_debug && sm_Z > 0.98) {
-				output.color = float4(1, 0, 0, 1);
-				return output;
-			}
-
-			sm_Z = DepthToMetricZ(sm_Z);
-			if (sm_debug) 
-			{
+			float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+			
+			if (sm_debug) {
+				// Sample the shadow map and compare
+				float sm_Z = texShadowMap.Sample(samplerShadowMap, sm_pos).x;
+				// Early exit: red color for points "at infinity"
+				if (sm_Z > 0.98) {
+					output.color = float4(1, 0, 0, 1);
+					return output;
+				}
+				// Now convert the depth-stencil coord (0..1) to metric Z:
+				//sm_Z = (sm_Z - 0.5) * OBJrange;
+				sm_Z = DepthToMetricZ(sm_Z);
 				// sm_Z is now in metric space, we can compare it with P.z
 				shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
 			}
-			else
-				shadow_factor = ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+			else {
+				// PCF
+				shadow_factor = ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+				//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
+				//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
+			}
 		}
 		// Limit how black the shadows can be to a minimum of sm_black_level
 		shadow_factor = max(shadow_factor, sm_black_level);
