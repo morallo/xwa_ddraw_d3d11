@@ -335,13 +335,15 @@ inline float PCSS(float idx, float3 Q)
 
 inline float get_black_level(uint idx)
 {
+	return sm_black_levels[idx >> 2][idx & 0x03];
+	/*
 	float4 elem = sm_black_levels[idx >> 2];
 	uint i = idx % 4;
 	if (i == 0) return elem.x;
 	if (i == 1) return elem.y;
 	if (i == 2) return elem.z;
 	return elem.w;
-	//return elem[idx % 4];
+	*/
 }
 
 PixelShaderOutput main(PixelShaderInput input)

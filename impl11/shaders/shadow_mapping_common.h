@@ -24,19 +24,31 @@ cbuffer ConstantBuffer : register(b5)
 };
 
 inline float get_OBJrange(uint idx) {
+	return OBJrange[idx >> 2][idx & 0x03];
+	/*
 	float4 range = OBJrange[idx >> 2];
+	return range[idx % 4];
+	*/
+	/*
 	if (idx == 0) return range.x;
 	if (idx == 1) return range.y;
 	if (idx == 2) return range.z;
 	return range.w;
+	*/
 }
 
 inline float get_OBJminZ(uint idx) {
+	return OBJminZ[idx >> 2][idx & 0x03];
+	/*
 	float4 minZ = OBJminZ[idx >> 2];
+	return minZ[idx % 4];
+	*/
+	/*
 	if (idx == 0) return minZ.x;
 	if (idx == 1) return minZ.y;
 	if (idx == 2) return minZ.z;
 	return minZ.w;
+	*/
 }
 
 inline float MetricZToDepth(uint idx, float Z) {
