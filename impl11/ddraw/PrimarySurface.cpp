@@ -6146,12 +6146,15 @@ void PrimarySurface::RenderShadowMapOBJ()
 	resources->InitInputLayout(resources->_inputLayout);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	// TODO: Is the HeadingMatrix and H the same thing?
+	// TODO: Is the HeadingMatrix and H the same thing? Looks like the answer is "Not really!"
+	//       Even transposing HeadMatrix doesn't return the same matrix as GetCurrentHeadingViewMatrix
 	// Compute the OBJ-to-ViewSpace ViewMatrix
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
 	// Use the heading matrix to move the lights
 	Matrix4 H = GetCurrentHeadingViewMatrix();
+	//Matrix4 H = HeadingMatrix;
+	//H.transpose();
 
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;

@@ -430,11 +430,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (sm_enabled)
 	{
 		float shadow_factor = 1.0;
-		//uint i = 0;
 		for (uint i = 0; i < LightCount; i++) 
-		//for (uint i = 0; i < 1; i++)
 		{
 			float black_level = get_black_level(i);
+			// Skip lights that won't project black-enough shadows:
+			if (black_level > 0.95)
+				continue;
 			//float black_level = sm_black_level;
 			// Apply the same transform we applied to the geometry when computing the shadow map:
 			//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
@@ -630,7 +631,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		//const float3 H = normalize(L + eye_vec);
 		//spec = max(dot(N, H), 0.0);
-
 		
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
