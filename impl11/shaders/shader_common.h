@@ -14,11 +14,10 @@
 // Dynamic Cockpit: Maximum Number of DC elements per texture
 #define MAX_DC_COORDS_PER_TEXTURE 12
 
+// Maximum sun flares (not supported yet)
 #define MAX_SUN_FLARES 4
 
-// Z Far value (in meters) used for the shadow maps
-#define SM_Z_NEAR 0.0
-// Use this for screen-space shadow mapping
-//#define SM_Z_FAR 15.0
-// Use this for ShadowMap OBJ
-#define SM_Z_FAR 2.0
+#define MAX_XWA_LIGHTS 8
+// Currently only used for the lasers
+#define MAX_CB_POINT_LIGHTS 8
+

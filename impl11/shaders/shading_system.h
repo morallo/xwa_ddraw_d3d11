@@ -1,4 +1,5 @@
 #include "material_defs.h"
+#include "shader_common.h"
 
 // PSShadingSystemCB
 cbuffer ConstantBuffer : register(b4)

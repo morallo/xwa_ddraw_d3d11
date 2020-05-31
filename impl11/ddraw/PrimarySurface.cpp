@@ -5958,8 +5958,6 @@ Matrix4 PrimarySurface::ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool i
 				0, 0, 0, 1
 			);
 	}
-	//return T1 * L * S * T2;
-	//return L * S;
 	return L;
 }
 
@@ -5973,7 +5971,7 @@ void IncreaseSMZFactor(float Delta) {
  * Using the current 3D box limits loaded in g_OBJLimits, compute the 2D/Z-Depth limits
  * needed to center the Shadow Map depth buffer.
  */
-Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
+Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ) {
 	float minx = 100000.0, maxx = -100000.0f;
 	float miny = 100000.0, maxy = -100000.0f;
 	float minz = 100000.0, maxz = -100000.0f;
@@ -6071,14 +6069,14 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L) {
 		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
 
 	if (g_ShadowMapping.bOBJrange_override)
-		g_ShadowMapVSCBuffer.OBJrange = g_ShadowMapping.fOBJrange_override_value;
+		*OBJrange = g_ShadowMapping.fOBJrange_override_value;
 	else
-		g_ShadowMapVSCBuffer.OBJrange = maxz - minz;
+		*OBJrange = maxz - minz;
 
-	g_ShadowMapVSCBuffer.OBJminZ = minz;
+	*OBJminZ = minz;
 	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
-			maxz, g_ShadowMapVSCBuffer.OBJminZ, g_ShadowMapVSCBuffer.OBJrange);
+			maxz, *OBJminZ, *OBJrange);
 		log_debug("[DBG] [SHW] sm_z_factor: %0.6f, FOVDistScale: %0.3f",
 			g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapping.FOVDistScale);
 	}
@@ -6161,13 +6159,26 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 
+	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
+	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
+	{
+		float range, minZ;
+		// Compute the LightView (Parallel Projection) Matrix
+		Matrix4 L = ComputeLightViewMatrix(idx, H, false); // g_bShadowMapInvertL
+		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
+
+		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
+		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
+		//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
+		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
+		g_ShadowMapVSCBuffer.OBJrange[idx] = range;
+		g_ShadowMapVSCBuffer.OBJminZ[idx] = minZ;
+	}
+
+	// Render each light to its own shadow map
 	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
 	{
 		g_ShadowMapVSCBuffer.light_index = idx;
-
-		// Compute the LightView (Parallel Projection) Matrix
-		Matrix4 L = ComputeLightViewMatrix(idx, H, false); // g_bShadowMapInvertL
-		Matrix4 ST = GetShadowMapLimits(L);
 
 		// Initialize the Constant Buffer
 		// T * R does rotation first, then translation: so the object rotates around the origin
@@ -6178,11 +6189,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 		Ry.rotateY(g_fShadowMapAngleY);
 		T.translate(0, 0, g_fShadowMapDepthTrans);
 		*/
-
-		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
-		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
-		//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
-		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
+		
 		// Set the constant buffer
 		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
@@ -7696,9 +7703,15 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					if (g_ShadowMapping.Enabled) {
-						context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
-						//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMapArray);
-						DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"C:\\Temp\\_shadowMap.dds");
+						int s_XwaGlobalLightsCount = *(int*)0x00782848;
+						wchar_t wFileName[80];
+						for (int i = 0; i < s_XwaGlobalLightsCount; i++) {
+							//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
+							context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
+								resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
+							swprintf_s(wFileName, 80, L"c:\\Temp\\_shadowMap%d.dds", i);
+							DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, wFileName);
+						}
 					}
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");

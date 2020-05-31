@@ -40,11 +40,11 @@ typedef struct float4_struct {
 } float4;
 
 // Region names. Used in the erase_region and move_region commands
-const int LEFT_RADAR_HUD_BOX_IDX		= 0;
+const int LEFT_RADAR_HUD_BOX_IDX	= 0;
 const int RIGHT_RADAR_HUD_BOX_IDX	= 1;
 const int SHIELDS_HUD_BOX_IDX		= 2;
 const int BEAM_HUD_BOX_IDX			= 3;
-const int TARGET_HUD_BOX_IDX			= 4;
+const int TARGET_HUD_BOX_IDX		= 4;
 const int LEFT_MSG_HUD_BOX_IDX		= 5;
 const int RIGHT_MSG_HUD_BOX_IDX		= 6;
 const int TOP_LEFT_BOX_IDX			= 7;
@@ -392,13 +392,17 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
 
 	Vector3 POV;
-	float OBJrange;
+	float OBJrange_unused;
 
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint32_t sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level, OBJminZ;
+	float sm_black_level, OBJminZ_unused;
+
+	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
+	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
+	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
 } ShadowMapVertexShaderMatrixCB;
 
 typedef struct uv_coords_src_dst_struct {

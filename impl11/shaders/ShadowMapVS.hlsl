@@ -92,6 +92,7 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 
 	// xy: Parallel projection
 	// Map the useful Z depth into the range 0..0.98:
-	output.pos = float4(P.xy, (P.z - OBJminZ) / OBJrange * 0.98, 1.0);
+	//output.pos = float4(P.xy, (P.z - OBJminZ) / OBJrange * 0.98, 1.0);
+	output.pos = float4(P.xy, MetricZToDepth(light_index, P.z), 1.0);
 	return output;
 }

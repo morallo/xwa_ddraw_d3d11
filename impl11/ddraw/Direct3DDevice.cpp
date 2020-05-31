@@ -2932,6 +2932,8 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE_X;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 	g_ShadowMapVSCBuffer.sm_black_level = 0.2f;
+	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
+		g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
 
 	g_bDumpOBJEnabled = false;
 
@@ -3183,6 +3185,21 @@ bool LoadSSAOParams() {
 			
 			else if (_stricmp(param, "shadow_mapping_black_level") == 0) {
 				g_ShadowMapVSCBuffer.sm_black_level = fValue;
+				for (int i = 0; i < MAX_XWA_LIGHTS; i++)
+					g_ShadowMapVSCBuffer.sm_black_levels[i] = fValue;
+			}
+
+			else if (_stricmp(param, "shadow_mapping_black_level_0") == 0) {
+				g_ShadowMapVSCBuffer.sm_black_levels[0] = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_black_level_1") == 0) {
+				g_ShadowMapVSCBuffer.sm_black_levels[1] = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_black_level_2") == 0) {
+				g_ShadowMapVSCBuffer.sm_black_levels[2] = fValue;
+			}
+			else if (_stricmp(param, "shadow_mapping_black_level_3") == 0) {
+				g_ShadowMapVSCBuffer.sm_black_levels[3] = fValue;
 			}
 
 			else if (_stricmp(param, "shadow_mapping_depth_bias") == 0) {

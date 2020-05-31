@@ -1173,6 +1173,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				PatchWithValue(BASE_ADDR + 0x191F44 + 1, 0xE9, 1);
 				// At offset 192015, replace 75 with EB.
 				PatchWithValue(BASE_ADDR + 0x192015, 0xEB, 1);
+				log_debug("[DBG] [PATCH] Music Sync Fix Applied");
 				//log_debug("[DBG] [PATCH] After: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
 				//log_debug("[DBG] [PATCH] After: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
 			}
