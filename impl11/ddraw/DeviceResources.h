@@ -398,7 +398,8 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint32_t sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level, OBJminZ_unused;
+	float sm_black_level;
+	uint32_t sm_hardware_pcf;
 
 	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
 	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
@@ -886,7 +887,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
 	// Shadow Mapping
-	ComPtr<ID3D11ShaderResourceView> _shadowMapSRV; // This is an array SRV
+	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
+	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
@@ -943,6 +945,7 @@ public:
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 
 	ComPtr<ID3D11PixelShader> _shadowMapPS;
+	ComPtr<ID3D11SamplerState> _shadowPCFSamplerState;
 
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;

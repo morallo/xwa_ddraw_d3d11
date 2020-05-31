@@ -100,7 +100,7 @@ extern Vector3 g_LaserPointDebug;
 
 // SHADOW MAPPING
 extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDepthTrans, g_fShadowMapScale;
-extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS;
+extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bShadowMapHardwarePCF;
 
 HWND ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
@@ -701,6 +701,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShadowMapEnable = !g_bShadowMapEnable;
 				return 0;
 			}
+			case 'E': {
+				g_bShadowMapHardwarePCF = !g_bShadowMapHardwarePCF;
+				log_debug("[DBG] [SHW] g_bShadowMapHardwarePCF: %d", g_bShadowMapHardwarePCF);
+				return 0;
+			}
+
 			case 'F': {
 				CycleFOVSetting();
 				return 0;

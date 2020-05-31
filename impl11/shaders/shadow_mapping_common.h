@@ -16,7 +16,8 @@ cbuffer ConstantBuffer : register(b5)
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level, OBJminZ_unused;
+	float sm_black_level;
+	uint sm_hardware_pcf;
 
 	float4 sm_black_levels[MAX_XWA_LIGHTS / 4];
 	float4 OBJrange[MAX_XWA_LIGHTS / 4];
@@ -25,30 +26,10 @@ cbuffer ConstantBuffer : register(b5)
 
 inline float get_OBJrange(uint idx) {
 	return OBJrange[idx >> 2][idx & 0x03];
-	/*
-	float4 range = OBJrange[idx >> 2];
-	return range[idx % 4];
-	*/
-	/*
-	if (idx == 0) return range.x;
-	if (idx == 1) return range.y;
-	if (idx == 2) return range.z;
-	return range.w;
-	*/
 }
 
 inline float get_OBJminZ(uint idx) {
 	return OBJminZ[idx >> 2][idx & 0x03];
-	/*
-	float4 minZ = OBJminZ[idx >> 2];
-	return minZ[idx % 4];
-	*/
-	/*
-	if (idx == 0) return minZ.x;
-	if (idx == 1) return minZ.y;
-	if (idx == 2) return minZ.z;
-	return minZ.w;
-	*/
 }
 
 inline float MetricZToDepth(uint idx, float Z) {

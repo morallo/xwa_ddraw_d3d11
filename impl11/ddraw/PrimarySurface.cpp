@@ -124,6 +124,7 @@ extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraM
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 extern std::vector<Vector4> g_OBJLimits;
+bool g_bShadowMapHardwarePCF = false;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -3683,6 +3684,11 @@ void PrimarySurface::DeferredPass() {
 			resources->InitPixelShader(resources->_ssdoAddPS);
 		else
 			resources->InitPixelShader(resources->_headLightsPS);
+
+		// Set the PCF sampler state
+		if (g_ShadowMapping.Enabled)
+			context->PSSetSamplers(8, 1, resources->_shadowPCFSamplerState.GetAddressOf());
+
 		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
@@ -3714,7 +3720,8 @@ void PrimarySurface::DeferredPass() {
 			resources->_normBufSRV.Get(),							// Normals buffer
 			NULL,													// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System buffer
-			g_ShadowMapping.Enabled ? resources->_shadowMapSRV.Get() : NULL, // The shadow map
+			g_ShadowMapping.Enabled ? resources->_shadowMapArraySRV.Get() : NULL, // The shadow map
+			//g_ShadowMapping.Enabled ? resources->_shadowMapSingleSRV.Get() : NULL, // The shadow map
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
@@ -6162,6 +6169,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
+	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
@@ -7707,15 +7715,20 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					if (g_ShadowMapping.Enabled) {
+						//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
 						int s_XwaGlobalLightsCount = *(int*)0x00782848;
 						wchar_t wFileName[80];
 						for (int i = 0; i < s_XwaGlobalLightsCount; i++) {
-							//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
 							context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
 								resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
 							swprintf_s(wFileName, 80, L"c:\\Temp\\_shadowMap%d.dds", i);
 							DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, wFileName);
 						}
+						
+						/*
+						context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
+						DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"c:\\Temp\\_shadowMap.dds");
+						*/
 					}
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");

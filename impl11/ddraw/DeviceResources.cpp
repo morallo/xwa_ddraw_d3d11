@@ -1275,7 +1275,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	{
 		this->_shadowMap.Release();
 		this->_shadowMapDebug.Release();
-		this->_shadowMapSRV.Release();
+		this->_shadowMapArraySRV.Release();
+		//this->_shadowMapSingleSRV.Release();
 		this->_shadowMapDSV.Release();
 		this->_shadowMapArray.Release();
 
@@ -2737,21 +2738,20 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_shadowMapDSV);
 			if (FAILED(hr)) goto out;
 
-			// TEXTURE ARRAY FROM THIS POINT ON
-			step = "_shadowMapArray";
-			depthStencilDesc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
-			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
-			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
-			if (FAILED(hr)) goto out;
-
 			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			depthStencilDesc.BindFlags = 0;
-			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
+			depthStencilDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 			step = "_shadowMapDebug";
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapDebug);
 			if (FAILED(hr)) goto out;
 
-			step = "_shadowMapSRV";
+			// TEXTURE ARRAY FROM THIS POINT ON
+			step = "_shadowMapArray";
+			depthStencilDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			depthStencilDesc.ArraySize = MAX_XWA_LIGHTS;
+			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
+			if (FAILED(hr)) goto out;
+
+			step = "_shadowMapArraySRV";
 			D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
 			depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			depthStencilSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
@@ -2759,8 +2759,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilSRVDesc.Texture2DArray.MostDetailedMip = 0;
 			depthStencilSRVDesc.Texture2DArray.FirstArraySlice = 0;
 			depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_XWA_LIGHTS;
-			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapArray, &depthStencilSRVDesc, &this->_shadowMapSRV);
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapArray, &depthStencilSRVDesc, &this->_shadowMapArraySRV);
 			if (FAILED(hr)) goto out;
+
+			/*
+			step = "_shadowMapSingleSRV";
+			depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+			depthStencilSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			depthStencilSRVDesc.Texture2D.MipLevels = depthStencilDesc.MipLevels;
+			depthStencilSRVDesc.Texture2D.MostDetailedMip = 0;
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMap, &depthStencilSRVDesc, &this->_shadowMapSingleSRV);
+			if (FAILED(hr)) goto out;
+			*/
 		}
 	}
 
@@ -3350,6 +3360,41 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateRasterizerState(&rsDesc, &this->_sm_rasterizerState)))
 		return hr;
 	*/
+
+	/*
+	D3D11_SAMPLER_DESC SamDescShad =
+	{
+		D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,// D3D11_FILTER Filter;
+		D3D11_TEXTURE_ADDRESS_BORDER, //D3D11_TEXTURE_ADDRESS_MODE AddressU;
+		D3D11_TEXTURE_ADDRESS_BORDER, //D3D11_TEXTURE_ADDRESS_MODE AddressV;
+		D3D11_TEXTURE_ADDRESS_BORDER, //D3D11_TEXTURE_ADDRESS_MODE AddressW;
+		0,//FLOAT MipLODBias;
+		0,//UINT MaxAnisotropy;
+		D3D11_COMPARISON_LESS , //D3D11_COMPARISON_FUNC ComparisonFunc;
+		0.0,0.0,0.0,0.0,//FLOAT BorderColor[ 4 ];
+		0,//FLOAT MinLOD;
+		0//FLOAT MaxLOD;   
+	};
+	*/
+
+	// Create Sampler State for Shadow Mapping PCF
+	D3D11_SAMPLER_DESC samplerDescPCF;
+	ZeroMemory(&samplerDescPCF, sizeof(samplerDescPCF));
+	samplerDescPCF.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	samplerDescPCF.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDescPCF.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDescPCF.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDescPCF.BorderColor[0] = 1.0f;
+	samplerDescPCF.BorderColor[1] = 1.0f;
+	samplerDescPCF.BorderColor[2] = 1.0f;
+	samplerDescPCF.BorderColor[3] = 1.0f;
+	samplerDescPCF.ComparisonFunc = D3D11_COMPARISON_LESS;
+	//samplerDescPCF.ComparisonFunc = D3D11_COMPARISON_GREATER_EQUAL;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDescPCF, &this->_shadowPCFSamplerState)))
+		return hr;
+	else
+		log_debug("[DBG] [SHW] PCF Sampler State created");
 
 	D3D11_BUFFER_DESC constantBufferDesc;
 	constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
