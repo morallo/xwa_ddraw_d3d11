@@ -392,7 +392,7 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
 
 	Vector3 POV;
-	float OBJrange_unused;
+	float sm_resolution;
 
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;
@@ -606,8 +606,8 @@ public:
 #define MAX_SPEED_PARTICLES 256
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
-#define SHADOW_MAP_SIZE_X 1024
-#define SHADOW_MAP_SIZE_Y 1024
+#define SHADOW_MAP_SIZE 1024
+
 class ShadowMappingData {
 public:
 	bool Enabled;
@@ -615,7 +615,7 @@ public:
 	bool UseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
 	bool bOBJrange_override;
 	float fOBJrange_override_value;
-	int Width, Height;
+	int ShadowMapSize;
 	D3D11_VIEWPORT ViewPort;
 	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
 	float POV_XY_FACTOR;
@@ -631,13 +631,12 @@ public:
 		this->UseShadowOBJ = false;
 		this->NumVertices = 0;
 		this->NumIndices = 0;
-		this->Width   = SHADOW_MAP_SIZE_X;
-		this->Height  = SHADOW_MAP_SIZE_Y;
+		this->ShadowMapSize   = SHADOW_MAP_SIZE;
 		// Initialize the Viewport
 		this->ViewPort.TopLeftX = 0.0f;
 		this->ViewPort.TopLeftY = 0.0f;
-		this->ViewPort.Height   = (float)this->Height;
-		this->ViewPort.Width    = (float)this->Width;
+		this->ViewPort.Height   = (float)this->ShadowMapSize;
+		this->ViewPort.Width    = (float)this->ShadowMapSize;
 		this->ViewPort.MinDepth = D3D11_MIN_DEPTH;
 		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
 		this->POV_XY_FACTOR = 24.974f;
@@ -653,10 +652,9 @@ public:
 	}
 
 	void SetSize(int Width, int Height) {
-		this->Width = Width;
-		this->Height = Height;
-		this->ViewPort.Width = (float)Width;
-		this->ViewPort.Height = (float)Height;
+		this->ShadowMapSize = Width;
+		this->ViewPort.Width = (float)ShadowMapSize;
+		this->ViewPort.Height = (float)ShadowMapSize;
 	}
 };
 

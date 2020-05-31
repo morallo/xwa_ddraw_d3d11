@@ -10,7 +10,7 @@ cbuffer ConstantBuffer : register(b5)
 	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
 
 	float3 POV;
-	float OBJrange_unused;
+	float sm_resolution;
 
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;

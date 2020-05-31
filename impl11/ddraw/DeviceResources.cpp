@@ -2719,8 +2719,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// Shadow Mapping Textures
 		{
-			depthStencilDesc.Width = g_ShadowMapping.Width;
-			depthStencilDesc.Height = g_ShadowMapping.Height;
+			depthStencilDesc.Width = g_ShadowMapping.ShadowMapSize;
+			depthStencilDesc.Height = g_ShadowMapping.ShadowMapSize;
 			depthStencilDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
 			depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;

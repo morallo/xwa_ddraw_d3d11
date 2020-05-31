@@ -6158,6 +6158,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
+	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)

@@ -328,9 +328,9 @@ inline float PCSS(float idx, float3 Q)
 	float filterRadiusUV = sm_light_size * penumbraRatio;
 
 	// Step 3: Filtering
-	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, filterRadiusUV);
-	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius + filterRadiusUV);
-	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), 1024.0, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, filterRadiusUV);
+	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius + filterRadiusUV);
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
 
 inline float get_black_level(uint idx)
@@ -470,7 +470,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				}
 				else {
 					// PCF
-					shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), 1024.0, sm_pcss_samples, sm_pcss_radius);
+					shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
 					//shadow_factor = saturate(texShadowMap.SampleCmpLevelZero(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias)));
 					//shadow_factor = texShadowMap.SampleCmp(cmpSampler, sm_pos, MetricZToDepth(Q.z + sm_bias));
 				}
@@ -491,7 +491,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 	// Limit the blackness of the shadows to the ambient factor
-	total_shadow_factor = max(total_shadow_factor, ambient);
+	//total_shadow_factor = max(total_shadow_factor, ambient);
 
 	// Compute ray-traced shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);

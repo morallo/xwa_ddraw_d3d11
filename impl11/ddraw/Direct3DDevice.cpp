@@ -2929,7 +2929,7 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_max_edge_distance = 0.75f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
-	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE_X;
+	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 	g_ShadowMapVSCBuffer.sm_black_level = 0.2f;
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
