@@ -6175,6 +6175,11 @@ void PrimarySurface::RenderShadowMapOBJ()
 	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
 	{
 		float range, minZ;
+		// Don't bother computing shadow maps for lights with a high black
+		// level
+		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
+			continue;
+
 		// Compute the LightView (Parallel Projection) Matrix
 		Matrix4 L = ComputeLightViewMatrix(idx, H, false); // g_bShadowMapInvertL
 		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
@@ -6185,11 +6190,11 @@ void PrimarySurface::RenderShadowMapOBJ()
 		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
 		g_ShadowMapVSCBuffer.OBJrange[idx] = range;
 		g_ShadowMapVSCBuffer.OBJminZ[idx] = minZ;
-	}
+	//}
 
 	// Render each light to its own shadow map
-	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
-	{
+	//for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
+	//{
 		g_ShadowMapVSCBuffer.light_index = idx;
 
 		// Initialize the Constant Buffer

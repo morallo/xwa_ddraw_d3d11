@@ -3381,6 +3381,7 @@ HRESULT DeviceResources::LoadResources()
 	D3D11_SAMPLER_DESC samplerDescPCF;
 	ZeroMemory(&samplerDescPCF, sizeof(samplerDescPCF));
 	samplerDescPCF.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	//samplerDescPCF.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
 	samplerDescPCF.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
 	samplerDescPCF.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
 	samplerDescPCF.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;

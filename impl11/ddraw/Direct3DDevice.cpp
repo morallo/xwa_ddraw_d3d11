@@ -75,6 +75,16 @@ angle: atan(1080 / 1152) * 2 / pi * 180 = 86.3°
 
 focal_length = in-game-height * 1.0666f + 0.5f
 angle = atan(in-game-height / focal_length) * 2
+
+The formula for the angle becomes:
+	focal_length = in-game-height / tan(angle / 2)
+
+This is my default focal_length for 2560x1920 in-game: 1600x1200:
+	focal_length = 1280.0
+The formula above yields 1280.42, close enough
+	angle = atan(1200 / 1280) * 2 = 86.3
+
+
 The above becomes:
 in-game-height / focal_length = tan(angle / 2.0)
 focal_length = in-game-height / tan(angle / 2.0)
@@ -2117,10 +2127,16 @@ bool UpdateXWAHackerFOV()
 	bool bFOVWritten = false;
 	float focal_length = *g_fRawFOVDist;
 	float FOV = atan2(g_fCurInGameHeight, focal_length) * 2.0f;
+	// Convert radians to degrees:
 	FOV *= 180.0f / 3.141592f;
-	log_debug("[DBG] [FOV] FOV that will be saved: %0.3f", FOV);
+	log_debug("[DBG] [FOV] FOV that will be saved: %s = %0.3f", FOVname, FOV);
 	while (fgets(buf, 256, in_file) != NULL) {
 		line++;
+		// Commented lines are automatically pass-through
+		if (buf[0] == ';') {
+			fprintf(out_file, buf);
+			continue;
+		}
 
 		if (strstr(buf, FOVname) != NULL) {
 			fprintf(out_file, "%s = %0.3f\n", FOVname, FOV);
@@ -2293,6 +2309,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (fValue > 170.0f) fValue = 170.0f;
 				// Convert to radians
 				fValue = fValue * 3.141592f / 180.0f;
+				// This formula matches what Jeremy posted:
 				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				// Force the new FOV to be applied
@@ -2306,6 +2323,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				if (fValue > 170.0f) fValue = 170.0f;
 				// Convert to radians
 				fValue = fValue * 3.141592f / 180.0f;
+				// This formula matches what Jeremy posted:
 				g_fCurrentShipLargeFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
 				// Force the new FOV to be applied

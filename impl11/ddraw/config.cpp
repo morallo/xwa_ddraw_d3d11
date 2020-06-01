@@ -232,6 +232,7 @@ Config::Config()
 	if (this->ProcessAffinityCore > 0)
 	{
 		HANDLE process = GetCurrentProcess();
+		//HANDLE process = GetCurrentThread();
 
 		DWORD_PTR processAffinityMask;
 		DWORD_PTR systemAffinityMask;
@@ -257,6 +258,7 @@ Config::Config()
 			}
 
 			SetProcessAffinityMask(process, processAffinityMask);
+			//SetThreadAffinityMask(process, processAffinityMask);
 		}
 	}
 

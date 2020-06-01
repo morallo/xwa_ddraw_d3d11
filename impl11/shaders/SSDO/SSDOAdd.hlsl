@@ -331,7 +331,7 @@ inline void FindBlocker(float idx, float3 Q, out float d_blocker, out float samp
 
 	// Convert to texture coords: this maps -1..1 to 0..1:
 	float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-	float z = MetricZToDepth(idx, Q.z + sm_bias);
+	float z = MetricZToDepth(idx, Q.z/* + sm_bias*/);
 	float2 ofs = 0;
 
 	ofs.y = -sm_blocker_radius;
@@ -376,7 +376,7 @@ inline float PCSS(float idx, float3 Q)
 
 	// Step 3: Filtering
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, filterRadiusUV);
-	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z + sm_bias)), sm_resolution, filter_samples, radius);
+	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z/* + sm_bias*/)), sm_resolution, filter_samples, radius);
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
 
@@ -471,6 +471,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (sm_enabled)
 	{
 		float shadow_factor = 1.0;
+		//float3 P_bias = P + sm_bias * N;
 		for (uint i = 0; i < LightCount; i++) 
 		{
 			float black_level = get_black_level(i);
@@ -481,7 +482,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Apply the same transform we applied to the geometry when computing the shadow map:
 			//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
 			//Q.xyz += POV;
+			//float3 Q_bias = mul(lightWorldMatrix[i], float4(P_bias, 1.0)).xyz;
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
+			//Q.z = Q_bias.z;
 
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
@@ -490,13 +493,10 @@ PixelShaderOutput main(PixelShaderInput input)
 				shadow_factor = PCSS(i, Q);
 			}
 			else {
-				// Regular path
-				// Project
-				//float2 sm_pos = Q.xy; // Parallel projection
-				// Convert to texture coords: this maps -1..1 to 0..1:
-				float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-
+				// Regular PCF
 				if (sm_debug) {
+					// Convert to texture coords: this maps -1..1 to 0..1:
+					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
 					// Sample the shadow map and compare
 					float sm_Z = texShadowMap.SampleLevel(sampPos, // samplerShadowMap, 
 						float3(sm_pos, i), 0).x;
@@ -509,7 +509,8 @@ PixelShaderOutput main(PixelShaderInput input)
 					//sm_Z = (sm_Z - 0.5) * OBJrange;
 					sm_Z = DepthToMetricZ(i, sm_Z);
 					// sm_Z is now in metric space, we can compare it with P.z
-					shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
+					//shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
+					shadow_factor = sm_Z > Q.z ? 1.0 : 0.0;
 				}
 				else {
 					// PCF
