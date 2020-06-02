@@ -45,7 +45,7 @@ const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
-extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fDebugFOV;
+extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fDebugFOV, g_fDebugAspectRatio;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 void LoadFocalLength();
 void ApplyFocalLength(float focal_length);
@@ -120,11 +120,12 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 // SHADOW MAPPING
 extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS, g_bShadowMapInvertL;
+extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
+extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -6099,6 +6100,21 @@ void PrimarySurface::RenderShadowMapOBJ()
 	Matrix4 HeadingMatrix, CockpitMatrix;
 	Matrix4 T, Ry, Rx, S;
 
+	// Fade all non-sun lights
+	for (int j = 0; j < s_XwaGlobalLightsCount; j++) 
+	{
+		if (g_ShadowMapVSCBuffer.sm_black_levels[j] >= 0.95f)
+			continue;
+
+		// If this light has been tagged and isn't a sun, then fade it!
+		if (g_XWALightInfo[j].bTagged && !g_XWALightInfo[j].bIsSun) {
+			//g_XWALightInfo[j].fadeout += 0.01f;
+			g_ShadowMapVSCBuffer.sm_black_levels[j] += 0.01f;
+			if (g_ShadowMapVSCBuffer.sm_black_levels[j] > 0.95f)
+				log_debug("[DBG] [SHW] Light %d FADED", j);
+		}
+	}
+
 	//Matrix4 T1, T2;
 	//Matrix4 S;
 	//T1.translate(0.0f, -g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
@@ -6170,6 +6186,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
 	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
 	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
+	// Select either the SW or HW bias depending on which setting is enabled
+	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
@@ -6181,7 +6199,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 			continue;
 
 		// Compute the LightView (Parallel Projection) Matrix
-		Matrix4 L = ComputeLightViewMatrix(idx, H, false); // g_bShadowMapInvertL
+		Matrix4 L = ComputeLightViewMatrix(idx, H, false);
 		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
 
 		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();

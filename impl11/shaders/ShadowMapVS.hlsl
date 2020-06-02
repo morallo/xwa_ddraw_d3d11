@@ -73,16 +73,18 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	//P.x = sm_FOVscale * (P.x / P.z);
 	//P.y = sm_FOVscale * (P.y / P.z) + sm_y_center;
 
+	// Camera view --> Adjust by y_center and FOVscale
 	P.xy = sm_FOVscale * float2(P.x / sm_aspect_ratio, P.y + P.z * sm_y_center / sm_FOVscale);
 	// Project the point. The P.z here is OBJ-3D plus Camera transform
 	P.xy /= P.z;
 
-	// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
+	// The point is now in DirectX 2D coord sys (-1..1). The OBJ depth of the point is in P.z
 	// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
 	// they're in the same coord sys
 	P.xy *= vpScale.z * float2(sm_aspect_ratio, 1);
 	//P.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
-	P.z *= sm_z_factor;
+	// sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
+	P.z *= sm_z_factor; // <-- XWA-3D.Z = OBJ.Z * sm_z_factor
 	P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST, P.z, 1.0);
 
 	// The point is now in XWA 3D, with the POV at the origin.

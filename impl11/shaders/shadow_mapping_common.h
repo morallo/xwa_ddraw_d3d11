@@ -7,7 +7,7 @@ cbuffer ConstantBuffer : register(b5)
 	uint sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
-	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
+	float sm_aspect_ratio, sm_bias, sm_max_edge_distance_unused, sm_pcss_radius;
 
 	float3 POV;
 	float sm_resolution;
@@ -16,7 +16,7 @@ cbuffer ConstantBuffer : register(b5)
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level;
+	float sm_black_level_unused;
 	uint sm_hardware_pcf;
 
 	float4 sm_black_levels[MAX_XWA_LIGHTS / 4];

@@ -171,6 +171,7 @@ extern bool g_bShadowMappingEnabled;
 
 bool InitSteamVR();
 void LoadFocalLength();
+void ResetXWALightInfo();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */
 typedef enum {
@@ -1090,6 +1091,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_TextureVector.clear();
 	g_AuxTextureVector.clear();
 	DeleteRandomVectorTexture();
+	ResetXWALightInfo();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
 	this->_depthStencilL.Release();

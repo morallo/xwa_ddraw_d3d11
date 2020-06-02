@@ -110,7 +110,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 
 	// DEBUG
-	if (MainLight.z > 0.0) // Only lights with negative Z are in front of the camera.
+	if (MainLight.z < 0.0) // Only lights with positive Z are in front of the camera.
 		return output;
 	// DEBUG
 
@@ -127,7 +127,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// DEBUG
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
-	d = sdCircle(v.xy, -2.35 * vec2(-MainLight.x, MainLight.y), scale * cursor_radius);
+	d = sdCircle(v.xy, 2.35 /* FOV_mult_debug */ * vec2(/* st_aspect_ratio * */ MainLight.x, -MainLight.y), scale * cursor_radius);
 	// DEBUG
 	dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot

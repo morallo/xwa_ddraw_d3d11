@@ -24,7 +24,7 @@ extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
-extern float g_fDebugFOV;
+extern float g_fDebugFOV, g_fDebugAspectRatio;
 extern float g_fCurrentShipFocalLength;
 
 extern int g_KeySet;
@@ -427,6 +427,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
+				case 4:
+					g_fDebugAspectRatio += 0.5f;
+					log_debug("[DBG] g_fDebugAspectRatio: %0.3f", g_fDebugAspectRatio);
+					break;
 				case 6:
 					g_fShadowMapAngleX += 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);
@@ -454,6 +458,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_LaserPointDebug.y -= 0.1f;
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+				case 4:
+					g_fDebugAspectRatio -= 0.5f;
+					log_debug("[DBG] g_fDebugAspectRatio: %0.3f", g_fDebugAspectRatio);
+					break;
 				case 6:
 					g_fShadowMapAngleX -= 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleX: %0.3f", g_fShadowMapAngleX);

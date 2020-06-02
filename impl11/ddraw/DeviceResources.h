@@ -389,7 +389,7 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	uint32_t sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
-	float sm_aspect_ratio, sm_bias, sm_max_edge_distance, sm_pcss_radius;
+	float sm_aspect_ratio, sm_bias, sm_max_edge_distance_unused, sm_pcss_radius;
 
 	Vector3 POV;
 	float sm_resolution;
@@ -398,7 +398,7 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
 	uint32_t sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level;
+	float sm_black_level_unused;
 	uint32_t sm_hardware_pcf;
 
 	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
@@ -486,7 +486,6 @@ typedef enum {
 } TrackerType;
 
 struct MaterialStruct;
-
 extern struct MaterialStruct g_DefaultGlobalMaterial;
 
 // Materials
@@ -540,18 +539,23 @@ typedef struct AuxTextureDataStruct {
 } AuxTextureData;
 */
 
-/*
-class XWALightInfoStruct {
+// For shadow mapping, maybe we'd like to distinguish between sun-lights and
+// planet/background-lights. We'll use this struct to tag lights and fade
+// those lights which aren't suns
+class XWALightInfo {
 public:
-	bool Tested, IsSun;
+	bool bTagged, bIsSun;
 
 public:
-	XWALightInfoStruct() {
-		Tested = false;
-		IsSun = false;
+	XWALightInfo() {
+		this->Reset();
+	}
+
+	void Reset() {
+		this->bTagged = false;
+		this->bIsSun = true;
 	}
 };
-*/
 
 // S0x07D4FA0
 struct XwaGlobalLight
@@ -622,6 +626,8 @@ public:
 	float POV_XY_FACTOR;
 	float POV_Z_FACTOR;
 	float FOVDistScale;
+	float sw_pcf_bias;
+	float hw_pcf_bias;
 
 	int DepthBias;
 	float DepthBiasClamp;
@@ -647,6 +653,9 @@ public:
 		this->fOBJrange_override_value = 5.0f;
 		//this->FOVDistScale = 624.525f;
 		this->FOVDistScale = 620.0f; // This one seems a bit better
+		this->sw_pcf_bias = -0.03f;
+		this->hw_pcf_bias = -0.03f;
+
 		this->DepthBias = 0;
 		this->DepthBiasClamp = 0.0f;
 		this->SlopeScaledDepthBias = 0.0f;
