@@ -623,6 +623,7 @@ public:
 	int ShadowMapSize;
 	D3D11_VIEWPORT ViewPort;
 	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
+	float black_level;
 	float POV_XY_FACTOR;
 	float POV_Z_FACTOR;
 	float FOVDistScale;
@@ -646,6 +647,7 @@ public:
 		this->ViewPort.Width    = (float)this->ShadowMapSize;
 		this->ViewPort.MinDepth = D3D11_MIN_DEPTH;
 		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
+		this->black_level = 0.2f;
 		this->POV_XY_FACTOR = 24.974f;
 		this->POV_Z_FACTOR = 25.0f;
 		this->AnisotropicMapScale = true;

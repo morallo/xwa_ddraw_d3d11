@@ -41,6 +41,10 @@ const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
 const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
 const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 
+extern int *s_XwaGlobalLightsCount;
+extern XwaGlobalLight* s_XwaGlobalLights;
+extern Matrix4 g_CurrentHeadingViewMatrix;
+
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
@@ -126,6 +130,8 @@ extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
 extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
+extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
+extern int g_iNumSunCentroids;
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
@@ -271,9 +277,6 @@ void DumpGlobalLights()
 {
 	std::ostringstream str;
 
-	int s_XwaGlobalLightsCount = *(int*)0x00782848;
-	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
 	int s_XwaCurrentSceneCompData = *(int*)0x009B6D02;
 	int s_XwaSceneCompDatasOffset = *(int*)0x009B6CF8;
 
@@ -283,7 +286,7 @@ void DumpGlobalLights()
 	//DumpXwaTransform("ViewTransform", ViewTransform);
 	//DumpXwaTransform("WorldTransform", WorldTransform);
 
-	//for (int i = 0; i < s_XwaGlobalLightsCount; i++)
+	//for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
 	int i = 0;
 	{
 		log_debug("[DBG] ***************************");
@@ -2354,28 +2357,24 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		ComputeRotationMatrixFromXWAView(light, 2);
 	*/
 
-	int s_XwaGlobalLightsCount = *(int*)0x00782848;
-	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
 	// Use the heading matrix to move the lights
-	Matrix4 H = GetCurrentHeadingViewMatrix();
+	//Matrix4 H = GetCurrentHeadingViewMatrix();
 	// In skirmish mode, the light with the highest intensity seems to be in index 1 and it matches the 
 	// position of the Sun/Nebula. However, in regular missions, the main light source seems to come from
 	// index 0 and index 1 is a secondary light like a big planet or nebula or similar.
 	// We need to find the light with the highest intensity and use that for SSDO
 	float maxIntensity = -1.0;
-	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, s_XwaGlobalLightsCount);
+	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, *s_XwaGlobalLightsCount);
 	float cur_ambient = g_ShadingSys_PSBuffer.ambient;
 	if (g_bDumpSSAOBuffers) {
-		log_debug("[DBG] s_XwaGlobalLightsCount: %d", s_XwaGlobalLightsCount);
-		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", s_XwaGlobalLightsCount, maxLights);
+		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
+		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
 	}
 
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
 	{
 		for (int i = 0; i < maxLights; i++)
 		{
-			//Vector4 xwaLight = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
 			Vector4 col;
 			float intensity, value;
 			Vector4 xwaLight = Vector4(
@@ -2384,7 +2383,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 				s_XwaGlobalLights[i].PositionZ / 32768.0f,
 				0.0f);
 
-			light = H * xwaLight;
+			light = g_CurrentHeadingViewMatrix * xwaLight;
 			light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
 			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
 			//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
@@ -5589,12 +5588,12 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 	ViewMatrix = ViewMatrix * POVTrans;
 
 	if (g_bDumpSSAOBuffers) {
-		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
+		//log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 		//log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
 		//log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-		log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
+		//log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 	}
 
 	// Add the CockpitRef translation
@@ -5907,65 +5906,63 @@ void PrimarySurface::RenderAdditionalGeometry()
  */
 Matrix4 PrimarySurface::ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert)
 {
-	XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 	Matrix4 L;
 	L.identity();
 
-	{
-		Vector4 xwaLight = Vector4(
-			s_XwaGlobalLights[idx].PositionX / 32768.0f,
-			s_XwaGlobalLights[idx].PositionY / 32768.0f,
-			s_XwaGlobalLights[idx].PositionZ / 32768.0f,
-			0.0f);
+	Vector4 xwaLight = Vector4(
+		s_XwaGlobalLights[idx].PositionX / 32768.0f,
+		s_XwaGlobalLights[idx].PositionY / 32768.0f,
+		s_XwaGlobalLights[idx].PositionZ / 32768.0f,
+		0.0f);
 
-		xwaLight = Heading * xwaLight;
-		xwaLight.normalize();
-		//log_debug("[DBG] [SHW] xwaLight: %0.3f, %0.3f, %0.3f", xwaLight.x, xwaLight.y, xwaLight.z);
+	xwaLight = Heading * xwaLight;
+	xwaLight.normalize();
+	//log_debug("[DBG] [SHW] xwaLight: %0.3f, %0.3f, %0.3f", xwaLight.x, xwaLight.y, xwaLight.z);
 
-		// Rotate the light vector so that it lies in the X-Z plane
-		//Vector4 temp;
-		Matrix4 rotX, rotY, rot;
-		float pitch = atan2(xwaLight.y, xwaLight.z);
-		rotX.rotateX(pitch / DEG2RAD);
-		//temp = rotX * xwaLight;
-		// temp lies now in the X-Z plane, so Y is always zero:
-		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+	// Rotate the light vector so that it lies in the X-Z plane
+	//Vector4 temp;
+	Matrix4 rotX, rotY, rot;
+	float pitch = atan2(xwaLight.y, xwaLight.z);
+	rotX.rotateX(pitch / DEG2RAD);
+	//temp = rotX * xwaLight;
+	// temp lies now in the X-Z plane, so Y is always zero:
+	//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
 
-		// Rotate the vector around the Y axis so that x --> 0
-		rotY.rotateY(-asin(xwaLight.x) / DEG2RAD);
-		//temp = rotY * temp;
-		rot = rotY * rotX;
-		//temp = rot * xwaLight;
-		// x and y should now be 0, with z = 1 all the time:
-		//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
+	// Rotate the vector around the Y axis so that x --> 0
+	rotY.rotateY(-asin(xwaLight.x) / DEG2RAD);
+	//temp = rotY * temp;
+	rot = rotY * rotX;
+	//temp = rot * xwaLight;
+	// x and y should now be 0, with z = 1 all the time:
+	//log_debug("[DBG] [SHW] temp: %0.3f, %0.3f, %0.3f", temp.x, temp.y, temp.z);
 
-		// It is now easy to build a TBN matrix:
-		Vector4 R(1.0f,  0.0f,  0.0f,  0.0f);
-		Vector4 U(0.0f,  1.0f,  0.0f,  0.0f);
-		Vector4 F(0.0f,  0.0f, -1.0f,  0.0f); // We use -1 here so that the light points towards the origin
+	// It is now easy to build a TBN matrix:
+	Vector4 R(1.0f, 0.0f, 0.0f, 0.0f);
+	Vector4 U(0.0f, 1.0f, 0.0f, 0.0f);
+	Vector4 F(0.0f, 0.0f, -1.0f, 0.0f); // We use -1 here so that the light points towards the origin
 
-		// Invert the rotation chain:
-		rot.transpose();
-		// Invert the TBN system
-		R = rot * R;
-		U = rot * U;
-		F = rot * F;
-		// Build a TBN matrix in ViewSpace
-		if (!invert)
-			L.set(
-				R.x, U.x, F.x, 0,
-				R.y, U.y, F.y, 0,
-				R.z, U.z, F.z, 0,
-				0, 0, 0, 1
-			);
-		else
-			L.set(
-				R.x, R.y, R.z, 0,
-				U.x, U.y, U.z, 0,
-				F.x, F.y, F.z, 0,
-				0, 0, 0, 1
-			);
-	}
+	// Invert the rotation chain:
+	rot.transpose();
+	// Invert the TBN system
+	R = rot * R;
+	U = rot * U;
+	F = rot * F;
+	// Build a TBN matrix in ViewSpace
+	if (!invert)
+		L.set(
+			R.x, U.x, F.x, 0,
+			R.y, U.y, F.y, 0,
+			R.z, U.z, F.z, 0,
+			0, 0, 0, 1
+		);
+	else
+		L.set(
+			R.x, R.y, R.z, 0,
+			U.x, U.y, U.z, 0,
+			F.x, F.y, F.z, 0,
+			0, 0, 0, 1
+		);
+
 	return L;
 }
 
@@ -6096,12 +6093,19 @@ void PrimarySurface::RenderShadowMapOBJ()
 	auto &resources = this->_deviceResources;
 	auto &device = resources->_d3dDevice;
 	auto &context = resources->_d3dDeviceContext;
-	int s_XwaGlobalLightsCount = *(int*)0x00782848;
 	Matrix4 HeadingMatrix, CockpitMatrix;
 	Matrix4 T, Ry, Rx, S;
 
+	// Display debug information on g_XWALightInfo (are the lights tagged, are they suns?)
+	if (g_bDumpSSAOBuffers)
+		for (int j = 0; j < *s_XwaGlobalLightsCount; j++) 
+		{
+			log_debug("[DBG] [SHW] light[%d], bIsSun: %d, bTagged: %d, black_level: %0.3f",
+				j, g_XWALightInfo[j].bIsSun, g_XWALightInfo[j].bTagged, g_ShadowMapVSCBuffer.sm_black_levels[j]);
+		}
+
 	// Fade all non-sun lights
-	for (int j = 0; j < s_XwaGlobalLightsCount; j++) 
+	for (int j = 0; j < *s_XwaGlobalLightsCount; j++) 
 	{
 		if (g_ShadowMapVSCBuffer.sm_black_levels[j] >= 0.95f)
 			continue;
@@ -6175,9 +6179,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
 	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
 	// Use the heading matrix to move the lights
-	Matrix4 H = GetCurrentHeadingViewMatrix();
-	//Matrix4 H = HeadingMatrix;
-	//H.transpose();
+	//Matrix4 H = GetCurrentHeadingViewMatrix();
 
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
@@ -6190,7 +6192,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
-	for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
+	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
 	{
 		float range, minZ;
 		// Don't bother computing shadow maps for lights with a high black
@@ -6199,7 +6201,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 			continue;
 
 		// Compute the LightView (Parallel Projection) Matrix
-		Matrix4 L = ComputeLightViewMatrix(idx, H, false);
+		Matrix4 L = ComputeLightViewMatrix(idx, g_CurrentHeadingViewMatrix, false);
 		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
 
 		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
@@ -6211,7 +6213,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	//}
 
 	// Render each light to its own shadow map
-	//for (int idx = 0; idx < s_XwaGlobalLightsCount; idx++)
+	//for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
 	//{
 		g_ShadowMapVSCBuffer.light_index = idx;
 
@@ -7739,9 +7741,8 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					if (g_ShadowMapping.Enabled) {
 						//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
-						int s_XwaGlobalLightsCount = *(int*)0x00782848;
 						wchar_t wFileName[80];
-						for (int i = 0; i < s_XwaGlobalLightsCount; i++) {
+						for (int i = 0; i < *s_XwaGlobalLightsCount; i++) {
 							context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
 								resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
 							swprintf_s(wFileName, 80, L"c:\\Temp\\_shadowMap%d.dds", i);
@@ -8204,6 +8205,7 @@ HRESULT PrimarySurface::Flip(
 				g_bIsTargetHighlighted = false;
 				g_bExecuteBufferLock = false;
 				g_bDCWasClearedOnThisFrame = false;
+				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;
