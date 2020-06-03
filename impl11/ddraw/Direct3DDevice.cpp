@@ -678,6 +678,7 @@ Resets the g_XWALightInfo array to untagged, all suns.
 void ResetXWALightInfo()
 {
 	log_debug("[DBG] [SHW] Resetting g_XWALightInfo");
+	g_ShadowMapping.bGlobalSunFound = false;
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++) {
 		g_XWALightInfo[i].Reset();
 		g_ShadowMapVSCBuffer.sm_black_levels[i] = g_ShadowMapping.black_level;
@@ -2975,7 +2976,7 @@ bool LoadSSAOParams() {
 
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
-	g_ShadowMapping.Enabled = false;
+	g_ShadowMapping.bEnabled = false;
 	g_bShadowMapDebug = false;
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
@@ -3190,13 +3191,12 @@ bool LoadSSAOParams() {
 			// Shadow Mapping
 			else if (_stricmp(param, "shadow_mapping_enable") == 0) {
 				g_bShadowMapEnable = (bool)fValue;
-				g_ShadowMapping.Enabled = g_bShadowMapEnable;
-				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.Enabled;
-				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.Enabled);
+				g_ShadowMapping.bEnabled = g_bShadowMapEnable;
+				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.bEnabled;
+				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
 			}
 			else if (_stricmp(param, "shadow_mapping_anisotropic_scale") == 0) {
-				g_ShadowMapping.AnisotropicMapScale = fValue;
-				log_debug("[DBG] [SHW] g_ShadowMapping.AnisotropicMapScale: %d", g_ShadowMapping.AnisotropicMapScale);
+				g_ShadowMapping.bAnisotropicMapScale = (bool)fValue;
 			}
 			else if (_stricmp(param, "shadow_mapping_angle_x") == 0) {
 				g_fShadowMapAngleX = fValue;
@@ -7438,156 +7438,6 @@ HRESULT Direct3DDevice::Execute(
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
 							g_ShadertoyBuffer.VRmode = 0;
 						}
-
-						// If this texture hasn't been tagged, then let's find its corresponding light source.
-						// Finding the associated XWA light wasn't useful for finding light colors: most lights
-						// are white, so it's better to read the color properties from the MAT file.
-						// START LIGHT TAGGING
-						if (g_ShadowMapping.Enabled)
-						{
-							// Associate an XWA light to this texture
-							//if (lastTextureSelected->AssociatedXWALight == -1)
-							for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
-							{
-								// Skip lights that have been tagged
-								if (g_XWALightInfo[i].bTagged)
-									continue;
-
-								Vector4 xwaLight = Vector4(
-									s_XwaGlobalLights[i].PositionX / 32768.0f,
-									s_XwaGlobalLights[i].PositionY / 32768.0f,
-									s_XwaGlobalLights[i].PositionZ / 32768.0f,
-									0.0f);
-								// Convert the XWA light into viewspace coordinates:
-								Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
-								// Compute the matrix that transforms [0,0,1] into the light's direction:
-								//Matrix4 DirMatrix = GetSimpleDirectionMatrix(light, true);
-								//Vector2 Lcenter = Vector2(light.x, light.y);
-								//float intensity = 0.9f - Lcenter.length();
-								//if (intensity < 0.0f) intensity = 0.0f;
-								// Fade the flare near the edges of the screen (the following line is essentially dot(light, [0,0,1])^2:
-								//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
-								//light.z = -light.z;
-
-								// Only test lights in front of the camera:
-								if (light.z > 0.0f) {
-									Vector3 P, c = SunCentroid;
-									float X, Y, Z;
-									// Project the Centroid to in-game coords
-									Vector3 q = projectToInGameCoords(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
-									/*
-									// Convert in-game coords to DirectX 2D coords [-1..1]
-									X = lerp(-1.0,  1.0f, q.x / g_fCurInGameWidth);
-									Y = lerp( 1.0, -1.0f, q.y / g_fCurInGameHeight);
-									Z = Centroid.z;
-									// Back-project DirectX coords to XWA-3D space (code from ShadowMapVS):
-									X *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-									Y *= g_VSCBuffer.viewportScale[2];
-									Z *= g_ShadowMapVSCBuffer.sm_z_factor;
-									P.set(Z * X / DEFAULT_FOCAL_DIST, Z * Y / DEFAULT_FOCAL_DIST, Z);
-									// g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
-									//c = P;
-									*/
-
-									// Compensate point...
-									//X = g_ShadertoyBuffer.FOVscale * Centroid.x / g_VSCBuffer.aspect_ratio;
-									X = SunCentroid.x;
-									//Y = g_ShadertoyBuffer.FOVscale * Centroid.y + Centroid.z * g_ShadertoyBuffer.y_center / g_ShadertoyBuffer.FOVscale;
-									//Y = Centroid.y + g_fDebugAspectRatio * Centroid.z * g_ShadertoyBuffer.FOVscale;
-									// y_center = 153 / InGameHeight
-									// Higher resolutions need higher g_fDebugAspectRatio... this might be an artifact of a hidden dependency on Z
-									// For 1600x1200 I only needed -21
-									// For 800x600 I need -62.5
-									//Y = Centroid.y + g_ShadertoyBuffer.y_center * g_fDebugAspectRatio; // +Centroid.y * g_fDebugAspectRatio / *g_fRawFOVDist;
-									// I don't like this hard-coded value (-62.5f) but seems to work fine. There are other
-									// things to do, so this is good enough for now.
-									Y = SunCentroid.y + g_ShadertoyBuffer.y_center * (-62.5f); // +Centroid.y * g_fDebugAspectRatio / *g_fRawFOVDist;
-									Z = g_ShadertoyBuffer.FOVscale * SunCentroid.z / (float)DEFAULT_FOCAL_DIST;
-									P.set(X, Y, Z);
-									c = P;
-
-									c.normalize();
-									light.normalize();
-									float dot = c.x*light.x + c.y*light.y + c.z*light.z;
-									//log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], Centroid: [%0.3f, %0.3f, %0.3f]",
-									//	c.x, c.y, c.z, P.x, P.y, P.z);
-									//log_debug("[DBG] [SHW] light: [%0.3f, %0.3f, %0.3f], aspect_ratio: %0.3f, DOT: %0.3f",
-									//	light.x, light.y, light.z, g_VSCBuffer.aspect_ratio, dot);
-
-									// Convert the light direction into a position and project it into the screen
-									/*
-									Vector3 L = Vector3(light.x, light.y, light.z);
-									//L *= 65536.0f;
-									//L = project(L, g_viewMatrix, g_fullMatrixLeft);
-									L = projectToInGameCoords(L, g_viewMatrix, g_FullProjMatrixLeft);
-									// Convert in-game coords to desktop coords:
-									float X, Y;
-									InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-										(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
-									// Get the distance between the projected light source and the Sun's centroid, in desktop pixels:
-									Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
-									float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
-									*/
-
-									// Empirically, I noticed that the maximum distance D between a sun's centroid and its matching
-									// light is near the edges of the screen, and this was ~0.099, so that's our threshold.
-
-									if (dot > 0.95f)
-										//if (false) 
-									{
-										// Associate an XWA light to this texture and stop checking
-										//lastTextureSelected->AssociatedXWALight = i;
-										log_debug("[DBG] [SHW] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
-										//log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
-										//	s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
-
-										// At this point, I probably only want one sun casting shadows. So, as soon as we find our sun, we
-										// can stop tagging and shut down all the other lights as shadow casters.
-										for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
-										{
-											g_XWALightInfo[j].bIsSun = false;
-											g_XWALightInfo[j].bTagged = true;
-										}
-										g_XWALightInfo[i].bIsSun = true;
-										break;
-									}
-
-									// In Skirmish mode, light index 1 is always the sun. So let's use that to
-									// debug things:
-									/*
-									if (i == 1) {
-										//log_debug("[DBG] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
-										//log_debug("[DBG] D: %0.6f", D);
-										//g_ShadertoyBuffer.SunCoords[0].x = X;
-										//g_ShadertoyBuffer.SunCoords[0].y = Y;
-
-										//g_ShadingSys_PSBuffer.MainLight.x = lerp(-1.0f,  1.0f, X / g_fCurScreenWidth);
-										//g_ShadingSys_PSBuffer.MainLight.y = lerp( 1.0f, -1.0f, Y / g_fCurScreenHeight);
-
-										g_ShadingSys_PSBuffer.MainLight.x = light.x;
-										g_ShadingSys_PSBuffer.MainLight.y = light.y;
-										g_ShadingSys_PSBuffer.MainLight.z = 1.0f;
-									}
-									*/
-								}
-							}
-							
-							/*
-							// This sun has an associated XWA light, let's send the color down to the pixel shader
-							if (lastTextureSelected->AssociatedXWALight != -1) 
-							{
-								int idx = lastTextureSelected->AssociatedXWALight;
-								float intensity = s_XwaGlobalLights[idx].Intensity;
-								intensity = min(intensity, 1.0f);
-								g_PSCBuffer.SunColor[0] = intensity * s_XwaGlobalLights[idx].ColorR;
-								g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
-								g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
-								g_PSCBuffer.SunColor[3] = 1.0f;
-								memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
-							}
-							*/
-						}
-						// END LIGHT TAGGING
 					}
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);

@@ -956,7 +956,7 @@ void Direct3DTexture::TagTexture() {
 							log_debug("[DBG] [AC] WARNING: Could not load AC params");
 					}
 					// Load the cockpit Shadow geometry
-					if (g_ShadowMapping.Enabled) {
+					if (g_ShadowMapping.bEnabled) {
 						char sFileName[80];
 						snprintf(sFileName, 80, "./ShadowMapping/%s.obj", g_sCurrentCockpit);
 						log_debug("[DBG] [SHW] Loading file: %s", sFileName);

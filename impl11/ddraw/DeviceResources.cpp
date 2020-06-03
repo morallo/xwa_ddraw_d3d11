@@ -849,7 +849,7 @@ void DeviceResources::CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD
 	else
 		log_debug("[DBG] [SHW] _shadowIndexBuffer CREATED");
 
-	g_ShadowMapping.UseShadowOBJ = true;
+	g_ShadowMapping.bUseShadowOBJ = true;
 	g_ShadowMapping.NumVertices = numVertices;
 	g_ShadowMapping.NumIndices = numIndices;
 }
@@ -1273,7 +1273,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 	}
 
-	if (g_ShadowMapping.Enabled) 
+	if (g_ShadowMapping.bEnabled) 
 	{
 		this->_shadowMap.Release();
 		this->_shadowMapDebug.Release();

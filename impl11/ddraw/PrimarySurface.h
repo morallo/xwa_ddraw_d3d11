@@ -109,6 +109,8 @@ public:
 
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
+	void TagXWALights();
+
 	void RenderShadowMapOBJ();
 
 	void RenderSpeedEffect();

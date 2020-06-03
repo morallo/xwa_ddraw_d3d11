@@ -615,9 +615,10 @@ extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 class ShadowMappingData {
 public:
-	bool Enabled;
-	bool AnisotropicMapScale;
-	bool UseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
+	bool bEnabled;
+	bool bAnisotropicMapScale;
+	bool bGlobalSunFound;
+	bool bUseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
 	bool bOBJrange_override;
 	float fOBJrange_override_value;
 	int ShadowMapSize;
@@ -629,14 +630,17 @@ public:
 	float FOVDistScale;
 	float sw_pcf_bias;
 	float hw_pcf_bias;
+	float XWA_LIGHT_Y_CONV_SCALE;
 
 	int DepthBias;
 	float DepthBiasClamp;
 	float SlopeScaledDepthBias;
 
 	ShadowMappingData() {
-		this->Enabled = false;
-		this->UseShadowOBJ = false;
+		this->bEnabled = false;
+		this->bAnisotropicMapScale = true;
+		this->bGlobalSunFound = false;
+		this->bUseShadowOBJ = false;
 		this->NumVertices = 0;
 		this->NumIndices = 0;
 		this->ShadowMapSize   = SHADOW_MAP_SIZE;
@@ -650,13 +654,18 @@ public:
 		this->black_level = 0.2f;
 		this->POV_XY_FACTOR = 24.974f;
 		this->POV_Z_FACTOR = 25.0f;
-		this->AnisotropicMapScale = true;
+		this->bAnisotropicMapScale = true;
 		this->bOBJrange_override = false;
 		this->fOBJrange_override_value = 5.0f;
 		//this->FOVDistScale = 624.525f;
 		this->FOVDistScale = 620.0f; // This one seems a bit better
 		this->sw_pcf_bias = -0.03f;
 		this->hw_pcf_bias = -0.03f;
+		// The following scale factor is used when tagging lights (associating XWA lights
+		// with sun textures). I don't have a good explanation for this value; but
+		// it's used to compensate the Y coordinate so that the light and the centroid of
+		// the sun texture line up better. I'll investigate this in detail later.
+		this->XWA_LIGHT_Y_CONV_SCALE = -62.5f;
 
 		this->DepthBias = 0;
 		this->DepthBiasClamp = 0.0f;
