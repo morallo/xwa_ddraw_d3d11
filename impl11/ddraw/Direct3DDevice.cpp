@@ -220,13 +220,18 @@ const auto numberOfPlayersInGame = (int*)0x910DEC;
 
 FOVtype g_CurrentFOV = GLOBAL_FOV;
 
-// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable; but I can't prove that
-// the focal length is actually that because it actually behaves differently.
+// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
+// FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
+// and by computing the angle between the lights and the current forward point.
 // Data provided by keiranhalcyon7:
 uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+
+float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
+float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
+
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged

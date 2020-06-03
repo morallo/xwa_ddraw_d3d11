@@ -51,6 +51,7 @@ When the value is different of 0xFFFF, the player craft is in a hangar.
 */
 extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fDebugFOV, g_fDebugAspectRatio;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
+extern float g_fRealHorzFOV, g_fRealVertFOV;
 void LoadFocalLength();
 void ApplyFocalLength(float focal_length);
 Matrix4 g_ReflRotX;
@@ -680,8 +681,11 @@ void ComputeHyperFOVParams() {
 	g_ShadertoyBuffer.FOVscale = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// Compute y_center too
 	g_ShadertoyBuffer.y_center = 153.0f / g_fCurInGameHeight;
-	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale);
+	// Compute the *real* vertical and horizontal FOVs:
+	g_fRealVertFOV = 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist);
+	g_fRealHorzFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist);
+	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 }
 
 // void capture()
@@ -6098,31 +6102,40 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
  */
 void PrimarySurface::TagXWALights()
 {
-	for (int i = 0; i < g_iNumSunCentroids; i++)
+	int NumTagged = 0;
+
+	// Check all the lights to see if they match any sun centroid
+	for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
 	{
-		Vector3 SunCentroid = g_SunCentroids[i];
+		// Skip lights that have been tagged. If we have tagged everything, then
+		// we can stop tagging lights in future frames
+		if (g_XWALightInfo[i].bTagged) {
+			NumTagged++;
+			if (NumTagged >= *s_XwaGlobalLightsCount) {
+				log_debug("[DBG] [SHW] All lights have been tagged. Will set bGlobalSunFound to stop tagging lights");
+				g_ShadowMapping.bGlobalSunFound = true;
+				return;
+			}
+			continue;
+		}
 
-		// Check all the lights to see if they match this centroid
-		for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
+		Vector4 xwaLight = Vector4(
+			s_XwaGlobalLights[i].PositionX / 32768.0f,
+			s_XwaGlobalLights[i].PositionY / 32768.0f,
+			s_XwaGlobalLights[i].PositionZ / 32768.0f,
+			0.0f);
+		// Convert the XWA light direction into viewspace coordinates:
+		Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
+
+		// Only test lights in front of the camera:
+		if (light.z > 0.0f) 
 		{
-			// Skip lights that have been tagged
-			if (g_XWALightInfo[i].bTagged)
-				continue;
-
-			Vector4 xwaLight = Vector4(
-				s_XwaGlobalLights[i].PositionX / 32768.0f,
-				s_XwaGlobalLights[i].PositionY / 32768.0f,
-				s_XwaGlobalLights[i].PositionZ / 32768.0f,
-				0.0f);
-			// Convert the XWA light direction into viewspace coordinates:
-			Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
-
-			// Only test lights in front of the camera:
-			if (light.z > 0.0f) {
-				Vector3 P, c = SunCentroid;
+			for (int idx = 0; idx < g_iNumSunCentroids; idx++)
+			{
 				float X, Y, Z;
+				Vector3 P, c, SunCentroid = g_SunCentroids[idx];
 				// Project the Centroid to in-game coords
-				Vector3 q = projectToInGameCoords(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
+				//Vector3 q = projectToInGameCoords(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
 				/*
 				// Convert in-game coords to DirectX 2D coords [-1..1]
 				X = lerp(-1.0,  1.0f, q.x / g_fCurInGameWidth);
@@ -6156,6 +6169,10 @@ void PrimarySurface::TagXWALights()
 
 				c.normalize();
 				light.normalize();
+				// Here we're taking the dot product between the light's direction and the compensated
+				// centroid. Note that a centroid c = [0,0,0] is directly in the middle of the screen.
+				// So the vertical FOV should help us predict if the compensated centroid is visible
+				// in the screen or not.
 				float dot = c.x*light.x + c.y*light.y + c.z*light.z;
 				//log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], Centroid: [%0.3f, %0.3f, %0.3f]",
 				//	c.x, c.y, c.z, P.x, P.y, P.z);
@@ -6197,7 +6214,6 @@ void PrimarySurface::TagXWALights()
 					g_ShadowMapping.bGlobalSunFound = true; // We found the global sun, stop tagging lights
 					return;
 				}
-
 				// In Skirmish mode, light index 1 is always the sun. So let's use that to
 				// debug things:
 				/*
@@ -6216,6 +6232,30 @@ void PrimarySurface::TagXWALights()
 				}
 				*/
 			}
+
+			// If we reach this point, the light has been tested against all centroids
+			// If the light is close enough to the center of the screen and hasn't been tagged
+			// then we know it's not a sun:
+			if (!g_XWALightInfo[i].bTagged) {
+				// dot_light_center_of_screen = dot([0,0,1], light) = light.z
+				// The following gives us the angle between the center of the screen and the light:
+				float light_rad = acos(light.z); // dot product of the light's dir and the forward view
+				//float light_ang = light_rad / DEG2RAD;
+				//log_debug("[DBG] [SHW] light_ang[%d]: %0.3f, dot: %0.3f", i, light_rad / DEG2RAD, light.z);
+				float RealHalfFOV = min(g_fRealVertFOV, g_fRealHorzFOV) * 0.5f * 0.5f;
+				// We multiply by 0.5 because the angle is measured with respect to the screen's center
+				// 0.5 is added to make sure the light isn't too close to the edge of the screen (in this case,
+				// we want the light to be at least halfway into the center before comparing). If we compare
+				// the lights too close to the edges, we risk misclassifying true lights as non-Suns because
+				// there's a small error margin when comparing lights with sun centroids
+				if (light_rad < RealHalfFOV) {
+					// If we reach this point, then the light hasn't been tagged, it's clearly visible 
+					// on the screen and it's not a sun:
+					g_XWALightInfo[i].bTagged = true;
+					g_XWALightInfo[i].bIsSun = false;
+					log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", i);
+				}
+			}
 		}
 
 		/*
@@ -6233,6 +6273,7 @@ void PrimarySurface::TagXWALights()
 		}
 		*/
 	}
+
 }
 
 void PrimarySurface::RenderShadowMapOBJ()
@@ -6248,12 +6289,14 @@ void PrimarySurface::RenderShadowMapOBJ()
 		TagXWALights();
 
 	// Display debug information on g_XWALightInfo (are the lights tagged, are they suns?)
-	if (g_bDumpSSAOBuffers)
-		for (int j = 0; j < *s_XwaGlobalLightsCount; j++) 
+	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [SHW] RealVFOV: %0.3f, RealHFOV: %0.3f", g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
+		for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
 		{
 			log_debug("[DBG] [SHW] light[%d], bIsSun: %d, bTagged: %d, black_level: %0.3f",
 				j, g_XWALightInfo[j].bIsSun, g_XWALightInfo[j].bTagged, g_ShadowMapVSCBuffer.sm_black_levels[j]);
 		}
+	}
 
 	// Fade all non-sun lights
 	for (int j = 0; j < *s_XwaGlobalLightsCount; j++) 
