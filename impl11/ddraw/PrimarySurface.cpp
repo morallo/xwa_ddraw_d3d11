@@ -6194,12 +6194,14 @@ void PrimarySurface::TagXWALights()
 			float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
 			*/
 
-			if (dot > 0.95f)
+			if (dot > 0.98f)
 			{
 				// Associate an XWA light to this texture and stop checking
 				//lastTextureSelected->AssociatedXWALight = i;
 				//log_debug("[DBG] [SHW] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
-				log_debug("[DBG] [SHW] Sun Found: Light %d", i);
+				log_debug("[DBG] [SHW] Sun Found: Light %d, dot: %0.3f", i, dot);
+				log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], light: [%0.3f, %0.3f, %0.3f]",
+					c.x, c.y, c.z, light.x, light.y, light.z);
 				//log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
 				//	s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
 
@@ -6214,7 +6216,7 @@ void PrimarySurface::TagXWALights()
 				// can stop tagging and shut down all the other lights as shadow casters.
 				for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
 				{
-					g_XWALightInfo[j].bIsSun = false;
+					g_XWALightInfo[j].bIsSun = (j == i); // i is the current light being tagged
 					g_XWALightInfo[j].bTagged = true;
 				}
 				g_ShadowMapping.bAllLightsTagged = true; // We found the global sun, stop tagging lights
@@ -6251,7 +6253,7 @@ void PrimarySurface::TagXWALights()
 			//float light_ang = light_rad / DEG2RAD;
 			//log_debug("[DBG] [SHW] light_ang[%d]: %0.3f, dot: %0.3f", i, light_rad / DEG2RAD, light.z);
 			float MinRealFOV = min(g_fRealVertFOV, g_fRealHorzFOV);
-			float RealHalfFOV = MinRealFOV * 0.5f * 0.5f;
+			float RealHalfFOV = MinRealFOV / 2.0f  * 0.85f;
 			// We multiply by 0.5 because the angle is measured with respect to the screen's center
 			// 0.5 is added to make sure the light isn't too close to the edge of the screen (in this case,
 			// we want the light to be at least halfway into the center before comparing). If we compare
