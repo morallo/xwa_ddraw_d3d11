@@ -617,7 +617,7 @@ class ShadowMappingData {
 public:
 	bool bEnabled;
 	bool bAnisotropicMapScale;
-	bool bGlobalSunFound;
+	bool bAllLightsTagged;
 	bool bUseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
 	bool bOBJrange_override;
 	float fOBJrange_override_value;
@@ -639,7 +639,7 @@ public:
 	ShadowMappingData() {
 		this->bEnabled = false;
 		this->bAnisotropicMapScale = true;
-		this->bGlobalSunFound = false;
+		this->bAllLightsTagged = false;
 		this->bUseShadowOBJ = false;
 		this->NumVertices = 0;
 		this->NumIndices = 0;

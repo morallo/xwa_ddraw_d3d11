@@ -683,7 +683,7 @@ Resets the g_XWALightInfo array to untagged, all suns.
 void ResetXWALightInfo()
 {
 	log_debug("[DBG] [SHW] Resetting g_XWALightInfo");
-	g_ShadowMapping.bGlobalSunFound = false;
+	g_ShadowMapping.bAllLightsTagged = false;
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++) {
 		g_XWALightInfo[i].Reset();
 		g_ShadowMapVSCBuffer.sm_black_levels[i] = g_ShadowMapping.black_level;
