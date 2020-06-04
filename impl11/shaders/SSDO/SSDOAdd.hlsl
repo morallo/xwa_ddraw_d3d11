@@ -493,7 +493,6 @@ PixelShaderOutput main(PixelShaderInput input)
 				shadow_factor = PCSS(i, Q);
 			}
 			else {
-				// Regular PCF
 				if (sm_debug) {
 					// Convert to texture coords: this maps -1..1 to 0..1:
 					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);

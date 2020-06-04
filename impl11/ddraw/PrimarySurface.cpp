@@ -2989,7 +2989,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
-	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	//g_SSAO_PSCBuffer.shadow_enable = g_ShadowMapping.bEnabled;
 	g_SSAO_PSCBuffer.moire_offset  = g_fMoireOffsetDir;
 	//g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
@@ -3291,7 +3291,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		//	ssdoSRV = resources->_bentBufSRV.Get();
 		//else
 		//	ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
-		ID3D11ShaderResourceView *srvs_pass2[8] = {
+		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
@@ -3301,11 +3301,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
 			resources->_bentBufSRV.Get(),							// Bent Normals
-			resources->_ssMaskSRV.Get(),								// Shading System Mask buffer
-			
-			//resources->_ssEmissionMaskSRV.Get(),						// Emission mask
+			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
+			g_ShadowMapping.bEnabled ? resources->_shadowMapArraySRV.Get() : NULL, // The shadow map
 		};
-		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3651,8 +3650,8 @@ void PrimarySurface::DeferredPass() {
 	D3D11_VIEWPORT viewport{};
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = screen_res_x;
-	viewport.Height = screen_res_y;
+	viewport.Width    = screen_res_x;
+	viewport.Height   = screen_res_y;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
@@ -3668,13 +3667,10 @@ void PrimarySurface::DeferredPass() {
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
-	g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
+	//g_SSAO_PSCBuffer.shadow_enable = g_ShadowMapping.bEnabled;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
-	// Set the Shadow Mapping Constant Buffer for the Pixel Shader
-	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
-	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -6399,6 +6395,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
 	// Select either the SW or HW bias depending on which setting is enabled
 	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
@@ -6450,6 +6448,9 @@ void PrimarySurface::RenderShadowMapOBJ()
 		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, idx, 1), 0, 0, 0, 
 			resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
 	}
+
+	// Set the Shadow Mapping Constant Buffer for the Pixel Shader as well
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 }
 
 /*
@@ -7763,12 +7764,15 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			// Render the Shadow Map
 			// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
 			//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
 			g_ShadowMapping.bEnabled = g_bShadowMapEnable;
 			g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
-			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && !bExternalCamera)
+			// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
+			// Maybe also disable it if the cockpit is hidden
+			// Render the Shadow Map
+			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && 
+				!bExternalCamera && bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				RenderShadowMapOBJ();
 
@@ -7779,6 +7783,11 @@ HRESULT PrimarySurface::Flip(
 				// Restore the previous index and vertex buffers?
 				context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
 				resources->InitRasterizerState(resources->_rasterizerState);
+			}
+			else {
+				// We need to tell the pixel shaders not to sample the shadow map if it wasn't rendered:
+				g_ShadowMapVSCBuffer.sm_enabled = false;
+				resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 			}
 
 			// Render the hyperspace effect if necessary
