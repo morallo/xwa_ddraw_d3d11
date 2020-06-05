@@ -3241,20 +3241,21 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_black_level") == 0) {
 				g_ShadowMapping.black_level = fValue;
 				for (int i = 0; i < MAX_XWA_LIGHTS; i++)
-					g_ShadowMapVSCBuffer.sm_black_levels[i] = fValue;
+					if (!g_XWALightInfo[i].bTagged)
+						g_ShadowMapVSCBuffer.sm_black_levels[i] = fValue;
 			}
 
 			else if (_stricmp(param, "shadow_mapping_black_level_0") == 0) {
-				g_ShadowMapVSCBuffer.sm_black_levels[0] = fValue;
+				if (!g_XWALightInfo[0].bTagged) g_ShadowMapVSCBuffer.sm_black_levels[0] = fValue;
 			}
 			else if (_stricmp(param, "shadow_mapping_black_level_1") == 0) {
-				g_ShadowMapVSCBuffer.sm_black_levels[1] = fValue;
+				if (!g_XWALightInfo[1].bTagged) g_ShadowMapVSCBuffer.sm_black_levels[1] = fValue;
 			}
 			else if (_stricmp(param, "shadow_mapping_black_level_2") == 0) {
-				g_ShadowMapVSCBuffer.sm_black_levels[2] = fValue;
+				if (!g_XWALightInfo[2].bTagged) g_ShadowMapVSCBuffer.sm_black_levels[2] = fValue;
 			}
 			else if (_stricmp(param, "shadow_mapping_black_level_3") == 0) {
-				g_ShadowMapVSCBuffer.sm_black_levels[3] = fValue;
+				if (!g_XWALightInfo[3].bTagged) g_ShadowMapVSCBuffer.sm_black_levels[3] = fValue;
 			}
 
 			else if (_stricmp(param, "shadow_mapping_depth_bias") == 0) {
@@ -7850,9 +7851,12 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
+							//SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
+							resources->_renderTargetView.Get(),
+
 							resources->_renderTargetViewBloomMask.Get(),
-							g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+							//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+							g_bAOEnabled ? resources->_renderTargetViewDepthBuf.Get() : NULL, // Don't use dual depth anymore
 							// The normals hook should not be allowed to write normals for light textures
 							bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 							// Blast Marks are confused with glass because they are not shadeless; but they have transparency
@@ -8062,10 +8066,8 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[6] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								//resources->_renderTargetViewDepthBuf.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ?
-									resources->_renderTargetViewDepthBuf.Get() : 
-									resources->_renderTargetViewDepthBuf2.Get(),
+								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewDepthBuf.Get(), // Don't use dual SSAO anymore
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
@@ -8086,10 +8088,8 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[6] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								//resources->_renderTargetViewDepthBuf.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ? 
-									resources->_renderTargetViewDepthBuf.Get() : 
-									resources->_renderTargetViewDepthBuf2.Get(),
+								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewDepthBuf.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
@@ -8140,10 +8140,8 @@ HRESULT Direct3DDevice::Execute(
 								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
-								//resources->_renderTargetViewDepthBufR.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ? 
-									resources->_renderTargetViewDepthBufR.Get() : 
-									resources->_renderTargetViewDepthBuf2R.Get(),
+								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
+								resources->_renderTargetViewDepthBufR.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
 								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
@@ -8165,10 +8163,8 @@ HRESULT Direct3DDevice::Execute(
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 								resources->_renderTargetViewBloomMask.Get(),
-								//resources->_renderTargetViewDepthBuf.Get(),
-								g_bIsPlayerObject || g_bDisableDualSSAO ? 
-									resources->_renderTargetViewDepthBuf.Get() : 
-									resources->_renderTargetViewDepthBuf2.Get(),
+								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
+								resources->_renderTargetViewDepthBuf.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
 								// Blast Marks are confused with glass because they are not shadeless; but they have transparency

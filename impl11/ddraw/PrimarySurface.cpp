@@ -6115,6 +6115,7 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 void PrimarySurface::TagXWALights()
 {
 	int NumTagged = 0;
+	//g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 
 	// Check all the lights to see if they match any sun centroid
 	for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
@@ -6271,7 +6272,11 @@ void PrimarySurface::TagXWALights()
 			// we want the light to be at least halfway into the center before comparing). If we compare
 			// the lights too close to the edges, we risk misclassifying true lights as non-Suns because
 			// there's a small error margin when comparing lights with sun centroids
-			if (light_rad < RealHalfFOV) {
+			// I've noticed that sometimes light_ang is exactly 0. This is just ridiculous and I think it's
+			// happening because the lights or the transform hasn't been set properly yet. To prevent
+			// false-tagging lights, I'm adding the "light_rad > 0.01f" test below.
+			if (light_rad < RealHalfFOV /* && light_rad > 0.01f */ ) 
+			{
 				// If we reach this point, then the light hasn't been tagged, it's clearly visible 
 				// on the screen and it's not a sun:
 				g_XWALightInfo[i].bTagged = true;
@@ -6280,6 +6285,8 @@ void PrimarySurface::TagXWALights()
 				log_debug("[DBG] [SHW] MinRealFOV: %0.3f, light_ang: %0.3f", MinRealFOV / DEG2RAD, light_rad / DEG2RAD);
 				log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
 				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d", g_bCustomFOVApplied);
+				log_debug("[DBG] [SHW] Frame: %d", g_iPresentCounter);
+				ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
 			}
 		}
 
@@ -6311,8 +6318,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 	// Tag the XWA global lights unless everything has been tagged
 	// Looks like the very first frame cannot be used to tag anything: the lights are probably not in
 	// the right places and the FOV hasn't been computed, so let's wait until the FOV has been computed
-	// to tag anything
-	if (g_bCustomFOVApplied && !g_ShadowMapping.bAllLightsTagged)
+	// to tag anything and we've finished rendering a few frames
+	if (g_bCustomFOVApplied && !g_ShadowMapping.bAllLightsTagged && g_iPresentCounter > 5)
 		TagXWALights();
 
 	// Display debug information on g_XWALightInfo (are the lights tagged, are they suns?)
@@ -7916,7 +7923,7 @@ HRESULT PrimarySurface::Flip(
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
@@ -8338,6 +8345,14 @@ HRESULT PrimarySurface::Flip(
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
 			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
+			if (g_bDumpSSAOBuffers && !g_bAOEnabled) {
+				log_debug("[DBG] SSAO Disabled. Dumping buffers");
+				// If SSAO is OFF we would still like to dump some information.
+				DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
+					L"C:\\Temp\\_offscreenBuf.jpg");
+				DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
+			}
+
 			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR) {
@@ -8406,6 +8421,12 @@ HRESULT PrimarySurface::Flip(
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-2.jpg");
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-2.jpg");
 				DirectX::SaveWICTextureToFile(context, resources->_DCTextMSAA, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-2.jpg");
+				*/
+				/*
+				log_debug("[DBG] g_playerIndex: %d, objectIndex: %d",
+					*g_playerIndex, PlayerDataTable[*g_playerIndex].objectIndex);
+				log_debug("[DBG] currentTargetIndex: %d",
+					PlayerDataTable[*g_playerIndex].currentTargetIndex);
 				*/
 			}
 
