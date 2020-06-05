@@ -6769,14 +6769,22 @@ HRESULT Direct3DDevice::Execute(
 					Special state management ends here
 				 *************************************************************************/
 
-				//if (bIsBracket)
-				//if (lastPixelShader != resources->_pixelShaderTexture)
-				//{
-					//log_debug("[DBG] Non pixelShaderTexture");
-					//log_debug("[DBG] TargetCompDrawn:!PixelShaderTexture");
-					//if (g_bGlobalDebugFlag)
-						//g_bInhibitCMDBracket = true;
-				//}
+				if (!g_bAOEnabled && bIsLightTexture) {
+					// We need to set the blend state properly for light textures when AO is disabled.
+					// Not sure why; but here you go: This fixes the black textures bug
+					D3D11_BLEND_DESC blendDesc{};
+					blendDesc.AlphaToCoverageEnable = FALSE;
+					blendDesc.IndependentBlendEnable = FALSE;
+					blendDesc.RenderTarget[0].BlendEnable = TRUE;
+					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+					hr = resources->InitBlendState(nullptr, &blendDesc);
+				}
 
 				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
 				// switching to the cockpit while entering hyperspace was not a problem. Now, the HUD
@@ -7668,7 +7676,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
 					}
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
-					else if (lastTextureSelected->is_LightTexture) {
+					else if (bIsLightTexture) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
 							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
