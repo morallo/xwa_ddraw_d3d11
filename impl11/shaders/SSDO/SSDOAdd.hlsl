@@ -51,23 +51,7 @@ SamplerState samplerSSMask : register(s7);
 
 // The Shadow Map buffer
 Texture2DArray<float> texShadowMap : register(t8);
-//SamplerState samplerShadowMap : register(s8);
 SamplerComparisonState cmpSampler : register(s8);
-
-/*
-{
-	// sampler state
-	//Filter = COMPARISON_MIN_MAG_MIP_LINEAR;
-	Filter = COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-	//AddressU = CLAMP;
-	//AddressV = CLAMP;
-
-	// sampler comparison state
-	//ComparisonFunc = LESS;
-	ComparisonFunc = GREATER_THAN;
-};
-*/
-
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -380,11 +364,6 @@ inline float PCSS(float idx, float3 Q)
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
 
-inline float get_black_level(uint idx)
-{
-	return sm_black_levels[idx >> 2][idx & 0x03];
-}
-
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -470,10 +449,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float idx = 1.0;
 	if (sm_enabled)
 	{
-		float shadow_factor = 1.0;
 		//float3 P_bias = P + sm_bias * N;
+		[loop]
 		for (uint i = 0; i < LightCount; i++) 
 		{
+			float shadow_factor = 1.0;
 			float black_level = get_black_level(i);
 			// Skip lights that won't project black-enough shadows:
 			if (black_level > 0.95)
@@ -544,8 +524,6 @@ PixelShaderOutput main(PixelShaderInput input)
 			total_shadow_factor *= shadow_factor;
 		}
 	}
-	// Limit the blackness of the shadows to the ambient factor
-	//total_shadow_factor = max(total_shadow_factor, ambient);
 
 	// Compute ray-traced shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);

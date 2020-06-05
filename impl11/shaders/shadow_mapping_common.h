@@ -49,4 +49,7 @@ inline float DepthToMetricZ(uint idx, float z) {
 	return z / 0.98 * range + minZ;
 }
 
-
+inline float get_black_level(uint idx)
+{
+	return sm_black_levels[idx >> 2][idx & 0x03];
+}

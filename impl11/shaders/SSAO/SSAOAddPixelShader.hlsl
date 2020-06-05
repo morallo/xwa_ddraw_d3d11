@@ -11,6 +11,7 @@
 #include "..\HSV.h"
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
+#include "..\shadow_mapping_common.h"
 
 // The color buffer
 Texture2D texColor : register(t0);
@@ -20,25 +21,34 @@ SamplerState sampColor : register(s0);
 Texture2D texSSAO : register(t1);
 SamplerState samplerSSAO : register(s1);
 
+// s2/t2: 
+// indirect SSDO buffer
+
 // The SSAO mask
-Texture2D texSSAOMask : register(t2);
-SamplerState samplerSSAOMask : register(s2);
+Texture2D texSSAOMask : register(t3);
+SamplerState samplerSSAOMask : register(s3);
 
-// The Normals buffer
-Texture2D texNormal : register(t3);
-SamplerState samplerNormal : register(s3);
 
-// The Foreground 3D position buffer (linear X,Y,Z)
-Texture2D    texPos   : register(t4);
-SamplerState sampPos  : register(s4);
+// The position/depth buffer
+Texture2D texPos : register(t4);
+SamplerState sampPos : register(s4);
 
-// The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t5);
-SamplerState sampPos2 : register(s5);
+// The (Smooth) Normals buffer
+Texture2D texNormal : register(t5);
+SamplerState samplerNormal : register(s5);
+
+// s6/t6: 
+// Bent Normals buffer
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
+Texture2D texSSMask : register(t7);
+SamplerState samplerSSMask : register(s7);
+
+
+// The Shadow Map buffer
+Texture2DArray<float> texShadowMap : register(t8);
+SamplerComparisonState cmpSampler : register(s8);
+
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -54,41 +64,6 @@ cbuffer ConstantBuffer : register(b2)
 	float norm_weight, unused2, unused3;
 };
 
-/*
-// SSAOPixelShaderCBuffer
-cbuffer ConstantBuffer : register(b3)
-{
-	float screenSizeX, screenSizeY, indirect_intensity, bias;
-	// 16 bytes
-	float intensity, near_sample_radius, black_level;
-	uint samples;
-	// 32 bytes
-	uint z_division;
-	float bentNormalInit, max_dist, power;
-	// 48 bytes
-	uint ssao_debug;
-	float moire_offset, ssao_amplifyFactor;
-	uint fn_enable;
-	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
-	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, ssao_amplifyFactor2;
-	// 96 bytes
-	float x0, y0, x1, y1; // Viewport limits in uv space
-	// 112 bytes
-	float3 invLightColor;
-	float gamma;
-	// 128 bytes
-	float white_point_ssdo, shadow_step_size, shadow_steps, aspect_ratio;
-	// 144 bytes
-	float4 vpScale;
-	// 160 bytes
-	uint shadow_enable;
-	float shadow_k, ssao_unused0, ssao_unused1;
-	// 176 bytes
-};
-*/
-
 cbuffer ConstantBuffer : register(b4)
 {
 	matrix projEyeMatrix;
@@ -99,7 +74,7 @@ cbuffer ConstantBuffer : register(b4)
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
 
 struct PixelShaderOutput
@@ -108,15 +83,11 @@ struct PixelShaderOutput
 	float4 bloom : SV_TARGET1;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
-}
-
-float3 getPositionBG(in float2 uv, in float level) {
-	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 
 /*
@@ -135,10 +106,10 @@ float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
 
 	// Depth samples
-	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
+	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
+	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
+	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
 
 	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
@@ -168,9 +139,48 @@ float3 blend_normals(float3 n1, float3 n2)
 	return normalize(n1 * dot(n1, n2) - n1.z * n2);
 }
 
+// From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
+/*
+ * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
+ */
+inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize, float radius)
+{
+	float shadow = 0.0f;
+	float2 sm_pos = Q.xy;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	float2 grad = frac(sm_pos * resolution + 0.5);
+	// We assume that Q.z has already been bias-compensated
+	float samples = 0.0;
+	float2 ofs = 0.0;
+
+	ofs.y = -radius;
+	for (int i = -filterSize; i <= filterSize; i++)
+	{
+		ofs.x = -radius;
+		for (int j = -filterSize; j <= filterSize; j++)
+		{
+			float4 tmp = texShadowMap.Gather(sampPos, //samplerShadowMap,
+				float3(sm_pos + ofs, idx));
+			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
+			// so if a dpeth value is *lower* than Q.z it's an occluder
+			tmp.x = tmp.x < Q.z ? 0.0f : 1.0f;
+			tmp.y = tmp.y < Q.z ? 0.0f : 1.0f;
+			tmp.z = tmp.z < Q.z ? 0.0f : 1.0f;
+			tmp.w = tmp.w < Q.z ? 0.0f : 1.0f;
+			shadow += lerp(lerp(tmp.w, tmp.z, grad.x), lerp(tmp.x, tmp.y, grad.x), grad.y);
+			samples++;
+			ofs.x += radius;
+		}
+		ofs.y += radius;
+	}
+
+	return shadow / samples;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
-	float2 input_uv_sub = input.uv * amplifyFactor;
+	float2 input_uv_sub	 = input.uv * amplifyFactor;
 	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
 	float3 ssao          = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
@@ -190,6 +200,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
+
+	// DEBUG
+	//output.color = float4(ssao, 1);
+	//return output;
+	// DEBUG
 
 	// Normals with w == 0 are not available -- they correspond to things that don't have
 	// normals, like the skybox
@@ -220,17 +235,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Toggle the SSAO component for debugging purposes:
 	ssao = lerp(ssao, 1.0, sso_disable);
 
-	bool FGFlag;
-	float3 P1 = getPositionFG(input.uv, 0);
-	float3 P2 = getPositionBG(input.uv, 0);
-	if (P1.z < P2.z) {
-		pos3D = P1;
-		FGFlag = true;
-	}
-	else {
-		pos3D = P2;
-		FGFlag = false;
-	}
+	float3 P = getPosition(input.uv, 0);
+	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
+	// so that implies that Z increases towards the viewer and decreases away from the camera.
+	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
+	// normals.
+	pos3D = float3(P.xy, -P.z);
 
 	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
 	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
@@ -252,6 +262,39 @@ PixelShaderOutput main(PixelShaderInput input)
 		return float4(color * ssao, 1);
 	*/
 
+	// Compute shadows through shadow mapping
+	float total_shadow_factor = 1.0;
+	//float idx = 1.0;
+	if (sm_enabled)
+	{
+		//float3 P_bias = P + sm_bias * N;
+		[loop]
+		for (uint i = 0; i < LightCount; i++)
+		{
+			float shadow_factor = 1.0;
+			float black_level = get_black_level(i);
+			// Skip lights that won't project black-enough shadows:
+			if (black_level > 0.95)
+				continue;
+			// Apply the same transform we applied to the geometry when computing the shadow map:
+			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
+
+			// shadow_factor: 1 -- No shadow
+			// shadow_factor: 0 -- Full shadow
+			/*if (sm_PCSS_enabled == 1)
+				// PCSS
+				shadow_factor = PCSS(i, Q);
+			else*/
+				// PCF
+				shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
+			// Limit how black the shadows can be to a minimum of black_level
+			shadow_factor = max(shadow_factor, black_level);
+
+			// Accumulate this light's shadow factor with the total shadow factor
+			total_shadow_factor *= shadow_factor;
+		}
+	}
+
 	//float2 offset = float2(pixelSizeX, pixelSizeY);
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
@@ -262,12 +305,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		N = blend_normals(N, FakeNormal);
 	}
 
-	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
-	// so that implies that Z increases towards the viewer and decreases away from the camera.
-	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
-	// normals.
-	pos3D.z = -pos3D.z;
-
+	// ************************************************************************************************
+	// MATERIAL PROPERTIES
 	// Specular color
 	float3 spec_col = 1.0;
 	float3 HSV = RGBtoHSV(color);
@@ -282,6 +321,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
+	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
+	float exponent = max(global_glossiness * gloss_mask, 0.05);
+	float spec_bloom_int = global_spec_bloom_intensity;
+	if (GLASS_LO <= mask && mask < GLASS_HI) {
+		exponent *= 2.0;
+		spec_bloom_int *= 3.0; // Make the glass bloom more
+	}
+	// ************************************************************************************************
+
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	// Compute the shading contribution from the main lights
@@ -291,13 +339,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 		// diffuse component
 		float diffuse = max(dot(N, L), 0.0);
-		diffuse = ssao.x * diff_int * diffuse + ambient;
+		diffuse = total_shadow_factor * ssao.x * diff_int * diffuse + ambient;
 		//diffuse = (diff_max * diff_int * diffuse) + (ssao.x * amb_max * ambient);
 		//diffuse = diff_int * diffuse + ambient;
 
-		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
 		//diffuse = shadeless ? 1.0 : diffuse;
-		diffuse = lerp(diffuse, 1.0, shadeless);
+		// shadeless surfaces should still receive some amount of shadows
+		diffuse = lerp(diffuse, min(total_shadow_factor + 0.5, 1.0), shadeless);
 
 		// specular component
 		//float3 eye = 0.0;
@@ -313,15 +361,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		// We can't have exponent == 0 or we'll see a lot of shading artifacts:
-		float exponent = max(global_glossiness * gloss_mask, 0.05);
-		float spec_bloom_int = global_spec_bloom_intensity;
-		if (GLASS_LO <= mask && mask < GLASS_HI) {
-			exponent *= 2.0;
-			spec_bloom_int *= 3.0; // Make the glass bloom more
-		}
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
-		spec = LightIntensity * spec_int_mask * pow(spec, exponent);
+		spec = total_shadow_factor * LightIntensity * spec_int_mask * pow(spec, exponent);
 
 		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
 		// intact
@@ -330,7 +371,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
-		tmp_bloom += float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += total_shadow_factor * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
 	output.bloom = tmp_bloom;
 

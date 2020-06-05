@@ -2614,6 +2614,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Set the constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
 	// Set the SSAO pixel shader constant buffer
 	g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth;
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
@@ -2740,16 +2741,21 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[7] = {
+		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSAO component
+			NULL,													// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+
+			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals
-			resources->_depthBufSRV.Get(),							// Depth buffer 1
-			resources->_depthBuf2SRV.Get(),							// Depth buffer 2
-			resources->_ssMaskSRV.Get(),								// Shading System Mask
+			NULL,													// Bent Normals
+			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
+
+			g_ShadowMapping.bEnabled ? 
+				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
-		context->PSSetShaderResources(0, 7, srvs_pass2);
+		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -2874,16 +2880,21 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[7] = {
+			ID3D11ShaderResourceView *srvs_pass2[9] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
 				resources->_ssaoBufSRV_R.Get(),							// SSAO component
+				NULL,													// SSDO Indirect
 				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
+
+				resources->_depthBufSRV_R.Get(),						// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals
-				resources->_depthBufSRV_R.Get(),						// Depth buffer 1
-				resources->_depthBuf2SRV_R.Get(),						// Depth buffer 2
+				NULL,													// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System Mask
+
+				g_ShadowMapping.bEnabled ?
+					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 			};
-			context->PSSetShaderResources(0, 7, srvs_pass2);
+			context->PSSetShaderResources(0, 9, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
@@ -3293,7 +3304,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		//	ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
 		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
@@ -3302,7 +3312,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->_normBufSRV.Get(),							// Normals buffer
 			resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
-			g_ShadowMapping.bEnabled ? resources->_shadowMapArraySRV.Get() : NULL, // The shadow map
+
+			g_ShadowMapping.bEnabled ? 
+				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
@@ -3579,19 +3591,21 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[8] = {
+			ID3D11ShaderResourceView *srvs_pass2[9] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				//resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
 				resources->_ssaoBufSRV_R.Get(),							// SSDO Direct Component
 				resources->_ssaoBufSRV.Get(),							// SSDO Indirect Component
-				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
 
-				resources->_depthBufSRV_R.Get(),							// Depth buffer
+				resources->_depthBufSRV_R.Get(),						// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
 				resources->_bentBufSRV_R.Get(),							// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
+
+				g_ShadowMapping.bEnabled ?
+					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 			};
-			context->PSSetShaderResources(0, 8, srvs_pass2);
+			context->PSSetShaderResources(0, 9, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
@@ -3764,19 +3778,21 @@ void PrimarySurface::DeferredPass() {
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[8] = {
+			ID3D11ShaderResourceView *srvs_pass2[9] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				//resources->_offscreenAsInputBloomMaskSRV_R.Get(),		// Bloom mask
 				NULL,													// SSDO Direct Component
 				NULL,													// SSDO Indirect Component
-				resources->_ssaoMaskSRV_R.Get(),							// SSAO Mask
+				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
 
-				resources->_depthBufSRV_R.Get(),							// Depth buffer
+				resources->_depthBufSRV_R.Get(),						// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
 				NULL,													// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
+
+				g_ShadowMapping.bEnabled ?
+					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 			};
-			context->PSSetShaderResources(0, 8, srvs_pass2);
+			context->PSSetShaderResources(0, 9, srvs_pass2);
 			context->Draw(6, 0);
 		}
 	}
