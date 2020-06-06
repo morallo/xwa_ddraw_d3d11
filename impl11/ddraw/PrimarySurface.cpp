@@ -6276,9 +6276,10 @@ void PrimarySurface::TagXWALights()
 			//float light_ang = light_rad / DEG2RAD;
 			//log_debug("[DBG] [SHW] light_ang[%d]: %0.3f, dot: %0.3f", i, light_rad / DEG2RAD, light.z);
 			float MinRealFOV = min(g_fRealVertFOV, g_fRealHorzFOV);
-			float RealHalfFOV = MinRealFOV / 2.0f  * 0.85f;
-			// We multiply by 0.5 because the angle is measured with respect to the screen's center
-			// 0.5 is added to make sure the light isn't too close to the edge of the screen (in this case,
+			const float range = 0.6f;
+			float RealHalfFOV = MinRealFOV / 2.0f * range;
+			// We divide by 2.0 because the angle is measured with respect to the screen's center. The other
+			// factor is added to make sure the light isn't too close to the edge of the screen (in this case,
 			// we want the light to be at least halfway into the center before comparing). If we compare
 			// the lights too close to the edges, we risk misclassifying true lights as non-Suns because
 			// there's a small error margin when comparing lights with sun centroids
@@ -6292,11 +6293,11 @@ void PrimarySurface::TagXWALights()
 				g_XWALightInfo[i].bTagged = true;
 				g_XWALightInfo[i].bIsSun = false;
 				log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", i);
-				log_debug("[DBG] [SHW] MinRealFOV: %0.3f, light_ang: %0.3f", MinRealFOV / DEG2RAD, light_rad / DEG2RAD);
+				log_debug("[DBG] [SHW] MinRealFOV: %0.3f, light_ang: %0.3f, range: %0.3f",
+					MinRealFOV / DEG2RAD, light_rad / DEG2RAD, range);
 				log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
-				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d", g_bCustomFOVApplied);
-				log_debug("[DBG] [SHW] Frame: %d", g_iPresentCounter);
-				log_debug("[DBG] [SHW] VR mode: %d", g_bEnableVR);
+				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d, Frame: %d, VR mode: %d",
+					g_bCustomFOVApplied, g_iPresentCounter, g_bEnableVR);
 				ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
 			}
 		}
