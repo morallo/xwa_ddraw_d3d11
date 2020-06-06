@@ -55,7 +55,7 @@ Config::Config()
 	this->Radar2DRendererEnabled = true;
 	this->Text2DAntiAlias = true;
 	this->Geometry2DAntiAlias = true;
-	this->MusicSyncFix = true;
+	this->MusicSyncFix = false;
 
 	if (ifstream("Hook_D3d.dll"))
 	{

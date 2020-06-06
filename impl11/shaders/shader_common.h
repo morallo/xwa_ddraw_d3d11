@@ -2,7 +2,10 @@
 #define METRIC_SCALE_FACTOR 25.0
 //#define METRIC_SCALE_FACTOR 50.0
 
+// The following 2 should be the same; but I want to see if the focal dist = 1
+// causes distortions in VR.
 #define DEFAULT_FOCAL_DIST 2.0
+#define DEFAULT_FOCAL_DIST_VR 1.0
 
 // This is the limit, in meters, when we start fading out effects like SSAO and SSDO:
 #define INFINITY_Z0 10000 // Used to be 15000 in release 1.1.2

@@ -58,6 +58,7 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 	else 
 	{
+		// VR PATH
 		/*
 		output.pos = mul(projEyeMatrix, float4(input.pos.xyz, 1.0));
 		output.pos.xyz /= output.pos.w;
@@ -80,7 +81,7 @@ PixelShaderInput main(VertexShaderInput input)
 		float3 temp = input.pos.xyw;
 		temp.x *= aspect_ratio;
 		// TODO: Verify that the addition of DEFAULT_FOCAL_DIST didn't change this shader
-		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z);
+		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));

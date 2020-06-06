@@ -77,6 +77,7 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 	else
 	{
+		// VR PATH
 		/*
 		The reason we're back-projecting to 3D here is because I haven't figured out
 		how to apply FOVscale and y_center properly in 3D; but the answer should be
@@ -86,7 +87,7 @@ PixelShaderInput main(VertexShaderInput input)
 		float3 temp = input.pos.xyw;
 		temp.x *= aspect_ratio;
 		// TODO: Check that the addition of DEFAULT_FOCAL_DIST didn't change this shader
-		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z);
+		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));
