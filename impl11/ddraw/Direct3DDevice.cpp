@@ -13,7 +13,7 @@
 ********************************************************************************************
 
 @JeremyaFr Hey Jeremy, do you know if there's a way to tell which craft is currently the focus of the external camera?
-@blue_max Hello,, you can read the int value at offset 0B54 in the player struct and compare it with the player object index
+@blue_max Hello, you can read the int value at offset 0B54 in the player struct and compare it with the player object index
 
 ********************************************************************************************
 

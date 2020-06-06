@@ -837,39 +837,39 @@ struct PlayerDataEntry
 	char field_B11;
 	char field_B12;
 	char field_B13;
-	char chatString[49];
-	char chatStringTerminator;
-	char chatStringCharCount;
-	char multiChatMode;
-	int cameraX;
-	int cameraY;
-	int cameraZ;
-	int cameraFG;
-	int RelatedToMap;
-	__int16 pitch;
-	__int16 yaw;
-	__int16 roll;
-	__int16 cameraRoll;
-	__int16 cameraPitch;
-	__int16 cameraYaw;
+	char chatString[49];	   // 0xb14
+	char chatStringTerminator; // 0xb45
+	char chatStringCharCount;  // 0xb46
+	char multiChatMode;		   // 0xb47
+	int cameraX;			   // 0xb48
+	int cameraY;			   // 0xb4c
+	int cameraZ;			   // 0xb50
+	int cameraFG;			   // 0xb54
+	int RelatedToMap;		   // 0xb58
+	__int16 pitch;			   // 0xb5c
+	__int16 yaw;			   // 0xb5e
+	__int16 roll;			   // 0xb60
+	__int16 cameraRoll;		   // 0xb62
+	__int16 cameraPitch;	   // 0xb64
+	__int16 cameraYaw;		   // 0xb66
 	
-	int cockpitXReference;
-	int cockpitYReference;
-	int cockpitZReference;
+	int cockpitXReference;     // 0xb68
+	int cockpitYReference;	   // 0xb6c
+	int cockpitZReference;     // 0xb70
 
-	__int16 cockpitPitchReference;
-	__int16 cockpitYawReference;
-	__int16 cockpitRollReference;
+	__int16 cockpitPitchReference; // 0xb74
+	__int16 cockpitYawReference;   // 0xb76
+	__int16 cockpitRollReference;  // 0xb78
 
 	char field_B7A;
 	char field_B7B;
-	char viewMode1;
-	char viewMode2;
-	char field_B7E[7];
-	__int16 mapMode;
-	__int16 _RelatedToCamera_;
-	__int16 externalCamera;
-	int externalCameraDistance;
+	char viewMode1;				// 0xb7c
+	char viewMode2;				// 0xb7d
+	char field_B7E[7];		    // 0xb7e
+	__int16 mapMode;		    // 0xb85
+	__int16 _RelatedToCamera_;  // 0xb87
+	__int16 externalCamera;     // 0xb89
+	int externalCameraDistance; // 0xb8b
 	__int16 field_B8F;
 	char field_B91;
 	char field_B92;

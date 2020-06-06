@@ -7724,6 +7724,8 @@ HRESULT PrimarySurface::Flip(
 		auto &device = resources->_d3dDevice;
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
+		const bool bMapOFF = PlayerDataTable[*g_playerIndex].mapState == 0;
+		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].cameraFG;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -8111,7 +8113,8 @@ HRESULT PrimarySurface::Flip(
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
 			// on the first frame (sometimes it can happen and it's quite visible/ugly)
-			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar &&
+			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && bMapOFF &&
+				(!bExternalCamera || (bExternalCamera && *g_playerIndex == cameraObjIdx)) &&
 				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -8412,12 +8415,12 @@ HRESULT PrimarySurface::Flip(
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-2.jpg");
 				DirectX::SaveWICTextureToFile(context, resources->_DCTextMSAA, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-2.jpg");
 				*/
-				/*
-				log_debug("[DBG] g_playerIndex: %d, objectIndex: %d",
-					*g_playerIndex, PlayerDataTable[*g_playerIndex].objectIndex);
-				log_debug("[DBG] currentTargetIndex: %d",
-					PlayerDataTable[*g_playerIndex].currentTargetIndex);
-				*/
+				//log_debug("[DBG] g_playerIndex: %d, objectIndex: %d, currentTarget: %d",
+				//	*g_playerIndex, PlayerDataTable[*g_playerIndex].objectIndex, PlayerDataTable[*g_playerIndex].currentTargetIndex);
+				//log_debug("[DBG] mapState: %d", PlayerDataTable[*g_playerIndex].mapState);
+				// Read the int value at offset 0B54 in the player struct and compare it with the player object index
+				//int *pEntry = (int *)(&PlayerDataTable[*g_playerIndex] + 0x0B54);
+				//log_debug("[DBG] Focus idx: %d", PlayerDataTable[*g_playerIndex].cameraFG);
 			}
 
 			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC
