@@ -59,6 +59,9 @@ PixelShaderInput main(VertexShaderInput input)
 	else 
 	{
 		// VR PATH
+		// TODO: After enabling the AddGeomShader in VR, it looks like I *may* have to come back
+		// to this effect and adjust the reconstruction as well.
+		// I need to check that this effect works well regardless of in-game resolution and FOV.
 		/*
 		output.pos = mul(projEyeMatrix, float4(input.pos.xyz, 1.0));
 		output.pos.xyz /= output.pos.w;
