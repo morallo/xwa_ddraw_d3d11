@@ -5766,6 +5766,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0); // Draw OBJ
 
+		// Render the additional geometry on the right eye
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -5790,7 +5791,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 			else
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-			context->Draw(NumParticleVertices, 0);
+			context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0); // Draw OBJ
 		}
 	}
 
