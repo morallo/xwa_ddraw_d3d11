@@ -54,10 +54,8 @@ PixelShaderInput main(VertexShaderInput input)
 		//P.x = FOVscale * (P.x / P.z);
 		//P.y = FOVscale * (P.y / P.z) + y_center;
 
-		// Adjust the point for differences in FOV and y_center and project to 2D:
-		P.xy = FOVscale/P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
-		// Project the point. The P.z here is OBJ-3D plus Camera transform
-		//P.xy /= P.z;
+		// Adjust the point for differences in FOV and y_center AND PROJECT TO 2D:
+		P.xy = FOVscale / P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
 		// The 2D point is now in DirectX coords (-1..1)
 
 		// Fix the depth
@@ -79,18 +77,29 @@ PixelShaderInput main(VertexShaderInput input)
 	{
 		// VR PATH
 		/*
-		The reason we're back-projecting to 3D here is because I haven't figured out
-		how to apply FOVscale and y_center properly in 3D; but the answer should be
-		below now: it's just a matter of massaging the formulae.
+		The reason we're projecting to 2D, back-projecting to 3D and then projecting
+		to 2D again is because the first 3D->2D projection matches OBJ coords to XWA 2D
+		coords. Then these coords can be back-projected into VR 3D so that they can be
+		projected again into VR 2D.
+		I seriously need to do some refactoring here.
 		*/
-		// Back-project into 3D. In this case, the w component has the original Z value.
-		float3 temp = input.pos.xyw;
-		temp.x *= aspect_ratio;
-		// TODO: Check that the addition of DEFAULT_FOCAL_DIST didn't change this shader
+		// OBJ-3D to cockpit camera view:
+		float4 Q = mul(Camera, float4(input.pos.xyz, 1.0));
+
+		// Adjust the point for differences in FOV and y_center AND PROJECT TO 2D:
+		Q.xy = FOVscale / Q.z * float2(Q.x / sm_aspect_ratio, Q.y + Q.z * y_center / FOVscale);
+
+		// Back-project into 3D space again
+		float3 temp = Q.xyz;
+		// The additional 2.0 factor below is because in VR vpScale.xy is 1/{width,height}, but in non-VR it's 2/{width,height}
+		// so we have to compensate
+		// I'm not sure we needt vpScale.z, but I'm leaving it here for completeness
+		temp.xy *= vpScale.w * vpScale.z / 2.0 * float2(aspect_ratio, 1);
+		// TODO: Verify that the addition of DEFAULT_FOCAL_DIST_VR didn't change this shader
 		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
 		// Project again
 		P.z = -P.z;
-		output.pos = mul(projEyeMatrix, float4(P, 1.0));
+		output.pos = mul(projEyeMatrix, float4(P.xyz, 1.0));
 		// DirectX will divide output.pos by output.pos.w, so we don't need to do it here,
 		// plus we probably can't do it here in the case of SteamVR anyway...
 

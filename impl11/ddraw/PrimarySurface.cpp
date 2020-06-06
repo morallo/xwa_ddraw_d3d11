@@ -5012,13 +5012,9 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	// Transform the point with the view matrix
 	P = ViewMatrix * P;
 	// Project to 2D
-	P.x /= g_fAspectRatio;
+	P.x /= g_fAspectRatio; // TODO: Should this be g_fCurInGameAspectRatio?
 	particles[idx].sx = FOVFactor * (P.x / P.z);
 	particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
-
-	//particles[idx].sx = FOVFactor * (P.x / P.z);
-	//particles[idx].sy = FOVFactor * (P.y / P.z + y_center);
-		
 	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
 	particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
 	/*}
@@ -5712,7 +5708,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		resources->InitVSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	}
 
-	// First render: Render the speed effect
+	// First render: Render the additional geometry
 	// input: None
 	// output: renderTargetViewPost
 	{
@@ -5768,7 +5764,6 @@ void PrimarySurface::RenderAdditionalGeometry()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		//context->Draw(NumParticleVertices, 0);
 		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0); // Draw OBJ
 
 		if (g_bEnableVR) {
@@ -8180,9 +8175,6 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderAdditionalGeometry();
 			}
 
