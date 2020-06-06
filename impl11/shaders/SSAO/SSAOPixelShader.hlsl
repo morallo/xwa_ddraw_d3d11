@@ -6,17 +6,17 @@
 #include "..\shader_common.h"
 #include "..\SSAOPSConstantBuffer.h"
 
-// The Foreground 3D position buffer (linear X,Y,Z)
+// The 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
 
 // The normal buffer
-Texture2D    texNorm   : register(t2);
-SamplerState sampNorm  : register(s2);
+Texture2D    texNorm   : register(t1);
+SamplerState sampNorm  : register(s1);
 
 // The color buffer
-Texture2D    texColor  : register(t3);
-SamplerState sampColor : register(s3);
+Texture2D    texColor  : register(t2);
+SamplerState sampColor : register(s2);
 
 struct PixelShaderInput
 {

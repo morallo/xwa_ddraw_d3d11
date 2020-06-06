@@ -6734,13 +6734,10 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-						context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-						if (g_bUseSteamVR) {
+						if (g_bUseSteamVR)
 							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
-							context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
-								resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-						}
+
 						// DEBUG
 						//if (g_iPresentCounter == 100) {
 						   ////DirectX::SaveWICTextureToFile(context, resources->_depthBufAsInput, GUID_ContainerFormatJpeg,
@@ -8678,11 +8675,8 @@ HRESULT Direct3DDevice::BeginScene()
 			float zero[4] = { 0, 0, 0, 0 };
 
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
-			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2, infinity);
-			if (g_bUseSteamVR) {
+			if (g_bUseSteamVR)
 				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
-				context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf2R, infinity);
-			}
 		}
 
 	if (!bTransitionToHyperspace) {

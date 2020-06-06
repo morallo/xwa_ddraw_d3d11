@@ -797,10 +797,10 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
 	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _depthBuf2;
-	ComPtr<ID3D11Texture2D> _depthBuf2R;
-	ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
-	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
+	//ComPtr<ID3D11Texture2D> _depthBuf2;
+	//ComPtr<ID3D11Texture2D> _depthBuf2R;
+	//ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
+	//ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
 	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
@@ -821,7 +821,6 @@ public:
 	// Shadow Mapping
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
-	//ComPtr<ID3D11Texture2D> _shadowMapR;
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
 
 	// RTVs
@@ -853,8 +852,8 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
@@ -891,8 +890,8 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
-	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
-	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
+	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
+	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf

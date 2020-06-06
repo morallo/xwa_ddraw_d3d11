@@ -8,17 +8,17 @@
 Texture2D SSAOTex : register(t0);
 SamplerState SSAOSampler : register(s0);
 
-// The FG Depth Buffer
+// The Depth/Position Buffer
 Texture2D DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
 // The Normal Buffer
-Texture2D NormalTex : register(t3);
-SamplerState NormalSampler : register(s3);
+Texture2D NormalTex : register(t2);
+SamplerState NormalSampler : register(s2);
 
 // The Bent Normals
-Texture2D BentTex : register(t4);
-SamplerState BentSampler : register(s4);
+Texture2D BentTex : register(t3);
+SamplerState BentSampler : register(s3);
 
 struct BlurData {
 	float3 pos;

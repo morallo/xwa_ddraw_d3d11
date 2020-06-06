@@ -2640,9 +2640,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass1[4] = {
+		ID3D11ShaderResourceView *srvs_pass1[3] = {
 			resources->_depthBufSRV.Get(),
-			resources->_depthBuf2SRV.Get(),
 			resources->_normBufSRV.Get(),
 			resources->_offscreenAsInputShaderResourceView
 		};
@@ -2663,7 +2662,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 4, srvs_pass1);
+			context->PSSetShaderResources(0, 3, srvs_pass1);
 			context->Draw(6, 0);
 		}
 	}
@@ -2695,10 +2694,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Clear the destination buffers: the blur will re-populate them
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), bgColor);
 		context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), bgColor);
-		ID3D11ShaderResourceView *srvs[5] = {
+		ID3D11ShaderResourceView *srvs[4] = {
 				resources->_bloomOutput1SRV.Get(),
 				resources->_depthBufSRV.Get(),
-				resources->_depthBuf2SRV.Get(),
 				resources->_normBufSRV.Get(),
 				resources->_bentBufSRV_R.Get(),
 		};
@@ -2707,7 +2705,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			resources->_renderTargetViewSSAO.Get(),
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->PSSetShaderResources(0, 5, srvs);
+		context->PSSetShaderResources(0, 4, srvs);
 		context->Draw(6, 0);
 	}
 
@@ -2778,9 +2776,8 @@ out1:
 			// Resolve offscreenBuf
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
 				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass1[4] = {
+			ID3D11ShaderResourceView *srvs_pass1[3] = {
 				resources->_depthBufSRV_R.Get(),
-				resources->_depthBuf2SRV_R.Get(),
 				resources->_normBufSRV_R.Get(),
 				resources->_offscreenAsInputShaderResourceViewR
 			};
@@ -2791,7 +2788,7 @@ out1:
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 				context->OMSetRenderTargets(1, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs_pass1);
+				context->PSSetShaderResources(0, 3, srvs_pass1);
 				context->Draw(6, 0);
 				goto out2;
 			}
@@ -2834,10 +2831,9 @@ out1:
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
 			context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
-			ID3D11ShaderResourceView *srvs[5] = {
+			ID3D11ShaderResourceView *srvs[4] = {
 					resources->_bloomOutput1SRV.Get(),
 					resources->_depthBufSRV_R.Get(),
-					resources->_depthBuf2SRV_R.Get(),
 					resources->_normBufSRV_R.Get(),
 					resources->_bentBufSRV.Get(),
 			};
@@ -2846,7 +2842,7 @@ out1:
 				resources->_renderTargetViewSSAO_R.Get(),
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 5, srvs);
+			context->PSSetShaderResources(0, 4, srvs);
 			context->Draw(6, 0);
 		}
 
@@ -7880,13 +7876,9 @@ HRESULT PrimarySurface::Flip(
 					// This may happen if there is no GUI (all HUD indicators were switched off) or the
 					// external camera is active.
 					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					context->ResolveSubresource(resources->_depthBuf2AsInput, 0, resources->_depthBuf2, 0, AO_DEPTH_BUFFER_FORMAT);
-					if (g_bUseSteamVR) {
+					if (g_bUseSteamVR)
 						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
-						context->ResolveSubresource(resources->_depthBuf2AsInputR, 0,
-							resources->_depthBuf2R, 0, AO_DEPTH_BUFFER_FORMAT);
-					}
 				}
 
 				// We need to set the blend state properly for SSAO
