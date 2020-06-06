@@ -514,7 +514,7 @@ dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
-float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;

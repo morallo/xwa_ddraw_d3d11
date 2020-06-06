@@ -139,7 +139,7 @@ extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
-extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurInGameAspectRatio, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
@@ -5315,7 +5315,7 @@ void PrimarySurface::RenderSpeedEffect()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio		=  g_fAspectRatio;
+		g_VSCBuffer.aspect_ratio		=  g_bEnableVR ? g_fAspectRatio : g_fCurInGameAspectRatio;
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
@@ -5604,12 +5604,10 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 	ViewMatrix = ViewMatrix * POVTrans;
 
 	if (g_bDumpSSAOBuffers) {
-		//log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 		//log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
 		//log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
-		//log_debug("[DBG] [SHW] ComputeAddGeomViewMatrix()");
 	}
 
 	// Add the CockpitRef translation
@@ -5709,7 +5707,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 		// Set the ViewMatrix
 		g_ShadowMapVSCBuffer.Camera = ViewMatrix;
-		g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fAspectRatio;
+		g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
 		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 		resources->InitVSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	}
@@ -6409,7 +6407,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	// Use the heading matrix to move the lights
 	//Matrix4 H = GetCurrentHeadingViewMatrix();
 
-	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
+	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio; // g_VSCBuffer.aspect_ratio;
 	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
 	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;

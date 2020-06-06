@@ -153,7 +153,7 @@ extern int g_iNumACElements;
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 // SteamVR
 #include <headers/openvr.h>
@@ -2428,6 +2428,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
+		g_fCurInGameAspectRatio = g_fCurInGameWidth / g_fCurInGameHeight;
 	}
 
 	/* RTVs */
