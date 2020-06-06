@@ -6006,20 +6006,36 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 
 		// Project the point. The P.z here is OBJ-3D plus Camera transform
 		P.x /= g_ShadowMapVSCBuffer.sm_aspect_ratio;
-		P.x = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
-		P.y = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
+		P.x  = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
+		P.y  = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
 
 		// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
 		// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
 		// they're in the same coord sys
-		P.x *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
-		P.y *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
-		P.z *= g_ShadowMapVSCBuffer.sm_z_factor;
+		if (!g_bEnableVR) {
+			// Non-VR back-projection
+			P.x *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
+			P.y *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
+			P.z *= g_ShadowMapVSCBuffer.sm_z_factor;
 
-		Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST;
-		Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST;
-		Q.z = P.z;
-		Q.w = 1.0f;
+			Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST;
+			Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST;
+			Q.z = P.z;
+			Q.w = 1.0f;
+		}
+		else {
+			// VR back-projection. The factor of 2.0 below is because in non-VR viewPortScale is multiplied by 2;
+			// but in VR mode, we multiply by 1, so we have to compensate for that.
+			P.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.viewportScale[3] / 2.0f * g_ShadowMapVSCBuffer.sm_aspect_ratio;
+			P.y *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.viewportScale[3] / 2.0f;
+			P.z *= g_ShadowMapVSCBuffer.sm_z_factor * g_fMetricMult;
+
+			// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
+			Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST_VR;
+			Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST_VR;
+			Q.z = P.z;
+			Q.w = 1.0f;
+		}
 
 		// The point is now in XWA 3D, with the POV at the origin.
 		// let's apply the light transform, but keep points in metric 3D
