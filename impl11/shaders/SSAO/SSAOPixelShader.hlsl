@@ -10,10 +10,6 @@
 Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
 
-// The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t1);
-SamplerState sampPos2 : register(s1);
-
 // The normal buffer
 Texture2D    texNorm   : register(t2);
 SamplerState sampNorm  : register(s2);
@@ -33,43 +29,16 @@ struct PixelShaderOutput
 	float4 ssao        : SV_TARGET0;
 };
 
-/*
-// SSAOPixelShaderCBuffer
-cbuffer ConstantBuffer : register(b3)
-{
-	float screenSizeX, screenSizeY, indirect_intensity, bias;
-	// 16 bytes
-	float intensity, near_sample_radius, black_level;
-	uint samples;
-	// 32 bytes
-	uint z_division;
-	float bentNormalInit, max_dist, power;
-	// 48 bytes
-	uint debug;
-	float moire_offset, amplifyFactor;
-	uint fn_enable;
-	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
-	// 80 bytes
-	float far_sample_radius, nm_intensity_far, unused2, unused3;
-	// 96 bytes
-};
-*/
-
 struct BlurData {
 	float3 pos;
 	float3 normal;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
-}
-
-float3 getPositionBG(in float2 uv, in float level) {
-	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 
 inline float3 getNormal(in float2 uv, in float level) {
@@ -118,9 +87,9 @@ float3 blend_normals(float3 n1, float3 n2)
 }
 */
 
-inline float3 doAmbientOcclusion(bool FGFlag, in float2 sample_uv, in float3 P, in float3 Normal, in float level)
+inline float3 doAmbientOcclusion(in float2 sample_uv, in float3 P, in float3 Normal, in float level)
 {
-	float3 occluder = FGFlag ? getPositionFG(sample_uv, level) : getPositionBG(sample_uv, level);
+	float3 occluder = getPosition(sample_uv, level);
 	// diff: Vector from current pos (p) to sampled neighbor
 	float3 diff = occluder - P;
 	const float diff_sqr = dot(diff, diff);
@@ -140,26 +109,16 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = 1;
-	float3 P1 = getPositionFG(input.uv, 0);
-	float3 P2 = getPositionBG(input.uv, 0);
+	float3 p = getPosition(input.uv, 0);
 	float3 n  = getNormal(input.uv, 0);
 	float3 FakeNormal = 0;
 	float3 ao = 0;
-	float3 p;
 	float radius = near_sample_radius;
 	bool FGFlag;
 
 	// I believe the hook_normals hook is inverting the Z axis of the normal, so we need
 	// to flip it here again to get proper SSAO
 	n.z = -n.z;
-	if (P1.z < P2.z) {
-		p = P1;
-		FGFlag = true;
-	}
-	else {
-		p = P2;
-		FGFlag = false;
-	}
 
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
@@ -190,23 +149,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		//miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ao += doAmbientOcclusion(FGFlag, sample_uv, p, n, miplevel);
+		ao += doAmbientOcclusion(sample_uv, p, n, miplevel);
 	}
 	//ao = 1 - ao / (float)samples;
 	ao = 1 - intensity * ao / (float)samples;
-	
-	/*
-	// Normal mapping should be applied *after* blurring the AO buffer or the normal map will also
-	// get blurred
-	if (fn_enable) {
-		float2 offset = float2(1 / screenSizeX, 1 / screenSizeY);
-		float nm_intensity = lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
-		FakeNormal = get_normal_from_color(input.uv, offset);
-		n = blend_normals(nm_intensity * FakeNormal, n);
-		ao *= (1 - n.z);
-	}
-	*/
 	output.ssao.xyz *= lerp(black_level, ao, ao);
-
 	return output;
 }
