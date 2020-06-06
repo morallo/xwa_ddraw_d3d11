@@ -79,17 +79,32 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	P.xy /= P.z;
 
 	// The point is now in DirectX 2D coord sys (-1..1). The OBJ depth of the point is in P.z
-	// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
-	// they're in the same coord sys
-	P.xy *= vpScale.z * float2(sm_aspect_ratio, 1);
-	//P.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
-	// sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
-	P.z *= sm_z_factor; // <-- XWA-3D.Z = OBJ.Z * sm_z_factor
-	P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST, P.z, 1.0);
+	// The OBJ-2D should match XWA 2D at this point.
+	
+	// Let's back-project so that they're in the same coord sys
+	if (sm_VR_mode == 0) {
+		// Regular VertexShader reconstruction path
+		P.xy *= vpScale.z * float2(sm_aspect_ratio, 1); // TODO: Check if this is "sm_aspect_ratio" or "aspect_ratio"
+		//P.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
+		// sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
+		P.z *= sm_z_factor; // <-- XWA-3D.Z = OBJ.Z * sm_z_factor
+		P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST, P.z, 1.0);
+	}
+	else {
+		// VR SBSVertexShader reconstruction path. To understand the 2.0 factor below, see AddGeometryVertexShader.hlsl
+		P.xy *= vpScale.w * vpScale.z / 2.0 * float2(sm_aspect_ratio, 1); // TODO: "aspect_ratio" or "sm_aspect_ratio"?
+		//P.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
+		P.z *= sm_z_factor * metric_mult; // <-- XWA-3D.Z = OBJ.Z * sm_z_factor
+		// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
+		P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST_VR, P.z, 1.0);
+	}
 
-	// The point is now in XWA 3D, with the POV at the origin.
+	// We have transformed from OBJ 3D to XWA 3D. The point is now in
+	// reconstructed XWA 3D, with the POV at the origin.
+
 	// let's apply the light transform and project it from the
 	// light's point of view.
+	// When computing shadows, we start at this point
 	P = mul(lightWorldMatrix[light_index], P);
 
 	// xy: Parallel projection

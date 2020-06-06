@@ -15,9 +15,7 @@ cbuffer ConstantBuffer : register(b5)
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
-	uint sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level_unused;
-	uint sm_hardware_pcf;
+	uint sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
 
 	float4 sm_black_levels[MAX_XWA_LIGHTS / 4];
 	float4 OBJrange[MAX_XWA_LIGHTS / 4];

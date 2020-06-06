@@ -6280,6 +6280,7 @@ void PrimarySurface::TagXWALights()
 				log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
 				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d", g_bCustomFOVApplied);
 				log_debug("[DBG] [SHW] Frame: %d", g_iPresentCounter);
+				log_debug("[DBG] [SHW] VR mode: %d", g_bEnableVR);
 				ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
 			}
 		}
@@ -6414,6 +6415,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
 	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
@@ -6434,11 +6436,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
 		g_ShadowMapVSCBuffer.OBJrange[idx] = range;
 		g_ShadowMapVSCBuffer.OBJminZ[idx] = minZ;
-	//}
 
-	// Render each light to its own shadow map
-	//for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
-	//{
+		// Render each light to its own shadow map
 		g_ShadowMapVSCBuffer.light_index = idx;
 
 		// Initialize the Constant Buffer

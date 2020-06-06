@@ -397,9 +397,7 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;
 
-	uint32_t sm_PCSS_enabled, sm_pcss_samples;
-	float sm_black_level_unused;
-	uint32_t sm_hardware_pcf;
+	uint32_t sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
 
 	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
 	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows

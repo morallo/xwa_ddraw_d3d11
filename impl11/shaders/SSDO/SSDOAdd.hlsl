@@ -449,6 +449,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float idx = 1.0;
 	if (sm_enabled)
 	{
+		// In the VR case, we need to transform P into XWA 2D and then back-project
+		// to XWA 3D and put that in Ps
+		float3 Ps = P;
 		//float3 P_bias = P + sm_bias * N;
 		[loop]
 		for (uint i = 0; i < LightCount; i++) 
@@ -460,10 +463,8 @@ PixelShaderOutput main(PixelShaderInput input)
 				continue;
 			//float black_level = sm_black_level;
 			// Apply the same transform we applied to the geometry when computing the shadow map:
-			//float3 Q = mul(lightWorldMatrix, float4(P, 1.0)).xyz;
-			//Q.xyz += POV;
 			//float3 Q_bias = mul(lightWorldMatrix[i], float4(P_bias, 1.0)).xyz;
-			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
+			float3 Q = mul(lightWorldMatrix[i], float4(Ps, 1.0)).xyz;
 			//Q.z = Q_bias.z;
 
 			// shadow_factor: 1 -- No shadow
