@@ -3967,22 +3967,33 @@ void PrimarySurface::GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
  * GetCockpitViewMatrix.
  */
 void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert = true) {
-	float yaw, pitch;
+	
+	Matrix4 rotMatrixFull;
 
-	if (PlayerDataTable[*g_playerIndex].externalCamera) {
-		yaw = -(float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
-		pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
+	{
+		GetGunnerTurretViewMatrixSpeedEffect(&rotMatrixFull);
 	}
-	else {
-		yaw = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-		pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+	else 
+	{
+		float yaw, pitch;
+
+		if (PlayerDataTable[*g_playerIndex].externalCamera) {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+		}
+		else {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+		}
+
+		Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
 	}
 
-	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-	rotMatrixFull.identity();
-	rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
-	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
-	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
 	if (invert)
 		*result = rotMatrixFull.invert();
 	else
@@ -3990,77 +4001,152 @@ void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool inver
 }
 
 /*
- * Returns the current view matrix including the gunner turret view.
+ * Returns the gunner turret view matrix
+ */
+void PrimarySurface::GetGunnerTurretViewMatrix(Matrix4 *result) {
+	// This is what the matrix looks like when looking forward:
+	// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
+	float factor = 32768.0f;
+	/*
+	short *Turret = (short *)(0x8B94E0 + 0x21E);
+	Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
+	Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
+	Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
+	*/
+	Vector3 F(
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[0] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[1] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[2] / factor
+	);
+	Vector3 R(
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[0] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[1] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[2] / factor
+	);
+	Vector3 U(
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[0] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[1] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[2] / factor
+	);
+
+	// Pointing straight at the sun or "straight up":
+	// [4344] [DBG] F: [-0.015, -0.003, 1.000], R: [0.000, 1.000, 0.002], U: [-1.000, 0.000, -0.015]
+	// [12316] [DBG] F: [-0.004, 0.146, 0.989], R: [0.000, 0.989, -0.146], U: [-1.000, -0.000, -0.004]
+	// Pointing up again. ship looking at 90 to the right:
+	// [12316] [DBG] F: [0.020, 0.001, 0.999], R: [0.984, -0.177, -0.020], U: [0.177, 0.984, -0.004]
+	// Pointing up again, ship looking at 45 in the horizon:
+	// [12316] [DBG] F: [0.004, 0.061, 0.998], R: [0.691, 0.721, -0.047], U: [-0.723, 0.690, -0.039]
+	// Pointing up again; ship looking backwards:
+	// [12316] [DBG] F: [0.040, -0.013, 0.999], R: [-0.030, -0.999, -0.011], U: [0.998, -0.030, -0.040]
+	// Pointing up again, ship looking -90 left:
+	// [12316] [DBG] F: [-0.060, 0.003, 0.998], R: [-0.993, 0.097, -0.060], U: [-0.097, -0.995, -0.002]
+
+	// Pointing forward:
+	// [12316] [DBG] F: [0.001, 0.996, 0.076], R: [0.090, 0.076, -0.992], U: [-0.995, 0.008, -0.090]
+	// Pointing right:
+	// [12316][DBG] F: [0.992, -0.101, 0.071], R : [0.069, -0.028, -0.997], U : [0.102, 0.994, -0.021]
+	// Pointing backwards:
+	// [12316] [DBG] F: [-0.019, -0.992, -0.116], R: [-0.179, -0.110, 0.977], U: [-0.983, 0.039, -0.176]
+	// Pointing right because the ship rolled 90 deg right:
+	// [12316] [DBG] F: [0.974, 0.022, 0.221], R: [-0.002, 0.995, -0.089], U: [-0.222, 0.087, 0.970]
+	// Pointing left because the ship rolled 90 deg left:
+	// [12316] [DBG] F: [-0.998, 0.000, 0.043], R: [-0.004, 0.995, -0.090], U: [-0.043, -0.090, -0.995]
+
+	// Ship facing down from starting position, so that turret looks straight ahead:
+	// [16224][DBG] F: [0.000, 0.997, 0.069], R : [0.000, 0.069, -0.997], U : [-1.000, 0.000, 0.000]
+
+	Vector4 Rs, Us, Fs;
+	Matrix4 Heading = GetCurrentHeadingMatrix(Rs, Us, Fs);
+	//log_debug("[DBG] [GUN] (1) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+	//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+	// Transform the turret's orientation into the canonical x-y-z axes:
+	R = Heading * R;
+	U = Heading * U;
+	F = Heading * F;
+	// At this point the original [R, U, F] should always map to [0,0,1], [-1,0,0], [0,1,0] and this should only
+	// change if the turret moves
+	//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+	//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+	//float tpitch = atan2(F.y, F.x); // .. range?
+	//float tyaw   = acos(F.z); // 0..PI
+	//log_debug("[DBG] [GUN] tpitch: %0.3f, tyaw: %0.3f", 	tpitch / DEG2RAD, tyaw / DEG2RAD);
+
+	Matrix4 viewMat = Matrix4(
+		-R.x, -U.x, F.x, 0,
+		-R.y, -U.y, F.y, 0,
+		-R.z, -U.z, F.z, 0,
+		0, 0, 0, 1
+	);
+	Matrix4 rotX;
+	rotX.rotateX(180.0f);
+	*result = rotX * viewMat.invert();
+}
+
+/*
+ * Returns the gunner turret view matrix for the speed effect shaders
+ */
+void PrimarySurface::GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
+	// This is what the matrix looks like when looking forward:
+	// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
+	float factor = 32768.0f;
+	/*
+	short *Turret = (short *)(0x8B94E0 + 0x21E);
+	Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
+	Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
+	Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
+	*/
+	Vector3 F(
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[0] / factor, 
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[1] / factor, 
+		PlayerDataTable[*g_playerIndex].gunnerTurretF[2] / factor
+	);
+	Vector3 R(
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[0] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[1] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretR[2] / factor
+	);
+	Vector3 U(
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[0] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[1] / factor,
+		PlayerDataTable[*g_playerIndex].gunnerTurretU[2] / factor
+	);
+
+	Vector4 Rs, Us, Fs;
+	Matrix4 Heading = GetCurrentHeadingMatrix(Rs, Us, Fs);
+	//log_debug("[DBG] [GUN] (1) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+	//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+	// Transform the turret's orientation into the canonical x-y-z axes:
+	R = Heading * R;
+	U = Heading * U;
+	F = Heading * F;
+	// At this point the original [R, U, F] should always map to [0,0,1], [-1,0,0], [0,1,0] and this should only
+	// change if the turret moves
+	//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
+	//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
+
+	Matrix4 viewMat = Matrix4(
+		R.x, U.x, -F.x, 0,
+		R.y, U.y, -F.y, 0,
+		R.z, U.z, -F.z, 0,
+		0, 0, 0, 1
+	);
+	Matrix4 rotX;
+	rotX.rotateX(180.0f);
+	*result = rotX * viewMat;
+}
+
+/*
+ * Returns either the cockpit view matrix or the gunner turret view matrix.
  */
 void PrimarySurface::GetCraftViewMatrix(Matrix4 *result) {
 	const float DEG2RAD = 0.01745f;
 	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
-	{
-		// This is what the matrix looks like when looking forward:
-		// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
-		short *Turret = (short *)(0x8B94E0 + 0x21E);
-		float factor = 32768.0f;
-		Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
-		Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
-		Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
-
-		// Pointing straight at the sun or "straight up":
-		// [4344] [DBG] F: [-0.015, -0.003, 1.000], R: [0.000, 1.000, 0.002], U: [-1.000, 0.000, -0.015]
-		// [12316] [DBG] F: [-0.004, 0.146, 0.989], R: [0.000, 0.989, -0.146], U: [-1.000, -0.000, -0.004]
-		// Pointing up again. ship looking at 90 to the right:
-		// [12316] [DBG] F: [0.020, 0.001, 0.999], R: [0.984, -0.177, -0.020], U: [0.177, 0.984, -0.004]
-		// Pointing up again, ship looking at 45 in the horizon:
-		// [12316] [DBG] F: [0.004, 0.061, 0.998], R: [0.691, 0.721, -0.047], U: [-0.723, 0.690, -0.039]
-		// Pointing up again; ship looking backwards:
-		// [12316] [DBG] F: [0.040, -0.013, 0.999], R: [-0.030, -0.999, -0.011], U: [0.998, -0.030, -0.040]
-		// Pointing up again, ship looking -90 left:
-		// [12316] [DBG] F: [-0.060, 0.003, 0.998], R: [-0.993, 0.097, -0.060], U: [-0.097, -0.995, -0.002]
-
-		// Pointing forward:
-		// [12316] [DBG] F: [0.001, 0.996, 0.076], R: [0.090, 0.076, -0.992], U: [-0.995, 0.008, -0.090]
-		// Pointing right:
-		// [12316][DBG] F: [0.992, -0.101, 0.071], R : [0.069, -0.028, -0.997], U : [0.102, 0.994, -0.021]
-		// Pointing backwards:
-		// [12316] [DBG] F: [-0.019, -0.992, -0.116], R: [-0.179, -0.110, 0.977], U: [-0.983, 0.039, -0.176]
-		// Pointing right because the ship rolled 90 deg right:
-		// [12316] [DBG] F: [0.974, 0.022, 0.221], R: [-0.002, 0.995, -0.089], U: [-0.222, 0.087, 0.970]
-		// Pointing left because the ship rolled 90 deg left:
-		// [12316] [DBG] F: [-0.998, 0.000, 0.043], R: [-0.004, 0.995, -0.090], U: [-0.043, -0.090, -0.995]
-
-		// Ship facing down from starting position, so that turret looks straight ahead:
-		// [16224][DBG] F: [0.000, 0.997, 0.069], R : [0.000, 0.069, -0.997], U : [-1.000, 0.000, 0.000]
-
-		Vector4 Rs, Us, Fs;
-		Matrix4 Heading = GetCurrentHeadingMatrix(Rs, Us, Fs);
-		//log_debug("[DBG] [GUN] (1) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
-		//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
-
-		// Transform the turret's orientation into the canonical x-y-z axes:
-		R = Heading * R;
-		U = Heading * U;
-		F = Heading * F;
-		// At this point the original [R, U, F] should always map to [0,0,1], [-1,0,0], [0,1,0] and this should only
-		// change if the turret moves
-		//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
-		//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
-
-		//float tpitch = atan2(F.y, F.x); // .. range?
-		//float tyaw   = acos(F.z); // 0..PI
-		//log_debug("[DBG] [GUN] tpitch: %0.3f, tyaw: %0.3f", 	tpitch / DEG2RAD, tyaw / DEG2RAD);
-
-		Matrix4 viewMat = Matrix4(
-			-R.x, -U.x, F.x, 0,
-			-R.y, -U.y, F.y, 0,
-			-R.z, -U.z, F.z, 0,
-			 0,    0,   0,   1
-		);
-		Matrix4 rotX;
-		rotX.rotateX(180.0f);
-		*result = rotX * viewMat.invert();
-	}
-	else {
+		GetGunnerTurretViewMatrix(result);
+	else
 		GetCockpitViewMatrix(result);
-	}
 }
 
 /*
@@ -7791,6 +7877,11 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
 					}
 
+					if (g_bDumpSSAOBuffers) {
+						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"C:\\Temp\\_shadertoyBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
+					}
+
 					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
 					RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
@@ -7883,12 +7974,9 @@ HRESULT PrimarySurface::Flip(
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
-					//DirectX::SaveDDSTextureToFile(context, resources->_depthBuf2, L"C:\\Temp\\_depthBuf2.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");
-					//DirectX::SaveWICTextureToFile(context, resources->_ssaoMask, GUID_ContainerFormatJpeg,
-					//	L"C:\\Temp\\_ssaoMask.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
 					log_debug("[DBG] [AO] Captured debug buffers");

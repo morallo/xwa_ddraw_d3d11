@@ -8,6 +8,10 @@
 // _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- SCREEN Resolution
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
+// TODO: 
+//	     Add per-craft shadow blackness material setting
+//		 Add per-craft shadow map OBJ axis multiplier
+
 /*
 
 ********************************************************************************************
@@ -5936,7 +5940,7 @@ void DisplayBox(char *name, Box box) {
  */
 inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
 	auto& resources = this->_deviceResources;
-	auto& context = resources->_d3dDeviceContext;
+	//auto& context = resources->_d3dDeviceContext;
 
 	/*
 	// DEBUG
@@ -7888,8 +7892,7 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
-							//SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
-							resources->_renderTargetView.Get(),
+							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 
 							resources->_renderTargetViewBloomMask.Get(),
 							//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
@@ -8160,7 +8163,6 @@ HRESULT Direct3DDevice::Execute(
 						} else {
 							// SteamVR, Reshade is enabled, render to multiple output targets
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
@@ -8182,7 +8184,6 @@ HRESULT Direct3DDevice::Execute(
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),

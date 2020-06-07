@@ -87,6 +87,10 @@ public:
 
 	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
+	void GetGunnerTurretViewMatrix(Matrix4 * result);
+
+	void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
+
 	void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
