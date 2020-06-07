@@ -16,10 +16,6 @@ SamplerState DepthSampler : register(s1);
 Texture2D NormalTex : register(t2);
 SamplerState NormalSampler : register(s2);
 
-// The Bent Normals
-Texture2D BentTex : register(t3);
-SamplerState BentSampler : register(s3);
-
 struct BlurData {
 	float3 pos;
 	float3 normal;
