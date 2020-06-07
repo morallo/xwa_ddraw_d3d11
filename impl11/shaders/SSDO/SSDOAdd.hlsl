@@ -466,6 +466,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
+			/*
 			if (sm_PCSS_enabled == 1) {
 				// PCSS
 				shadow_factor = PCSS(i, Q);
@@ -494,6 +495,7 @@ PixelShaderOutput main(PixelShaderInput input)
 					if (sm_hardware_pcf)
 						shadow_factor = ShadowMapPCF_HW(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_pcss_samples, sm_pcss_radius);
 					else
+					*/
 						shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
 
 					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(Q.xy, i), MetricZToDepth(i, Q.z + sm_bias));
@@ -505,17 +507,19 @@ PixelShaderOutput main(PixelShaderInput input)
 					*/
 					//output.color = float4(shadow_factor, shadow_factor, shadow_factor, 1.0);
 					//return output;
-				}
-			}
+				/*}
+			}*/
 			// Limit how black the shadows can be to a minimum of black_level
 			shadow_factor = max(shadow_factor, black_level);
 
 			// DEBUG
+			/*
 			if (sm_debug == 1 && shadow_factor < 0.5)
 			{
 				output.color = float4(0.2, 0.2, 0.5, 1.0);
 				return output;
 			}
+			*/
 			// DEBUG
 
 			// Accumulate this light's shadow factor with the total shadow factor

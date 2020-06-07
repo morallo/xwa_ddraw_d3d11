@@ -579,8 +579,7 @@ float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLigh
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bDumpOBJEnabled = false;
-FILE *g_DumpOBJFile = NULL;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
@@ -590,6 +589,10 @@ int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
+
+bool g_bDumpOBJEnabled = false;
+FILE *g_DumpOBJFile = NULL;
+int g_iDumpOBJFaceIdx = 0, g_iDumpOBJIdx = 1;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -5507,6 +5510,7 @@ inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
  * into 3D space.
+ * After dumping solid polygons, I realized the back-project code skews the Y axis... considerably.
  */
 void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 {
@@ -5514,12 +5518,16 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 	uint32_t index;
 	UINT idx = curIndex;
 	Vector3 tempv0, tempv1, tempv2;
+	std::vector<int> indices;
 
 	if (file == NULL) {
 		log_debug("[DBG] Cannot dump vertices, NULL file ptr");
 		return;
 	}
 
+	// Start a new object
+	fprintf(file, "o obj_%d\n", g_iDumpOBJIdx);
+	indices.clear();
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
@@ -5536,7 +5544,21 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
 
 		triangle++;
+
+		indices.push_back(g_iDumpOBJFaceIdx++);
+		indices.push_back(g_iDumpOBJFaceIdx++);
+		indices.push_back(g_iDumpOBJFaceIdx++);
 	}
+	fprintf(file, "\n");
+
+	// Write the face data
+	for (uint32_t i = 0; i < indices.size(); i += 3)
+	{
+		fprintf(file, "f %d %d %d\n", indices[i], indices[i + 1], indices[i + 2]);
+	}
+	fprintf(file, "\n");
+
+	g_iDumpOBJIdx++;
 }
 
 // From: https://blackpawn.com/texts/pointinpoly/default.html
@@ -5994,6 +6016,8 @@ HRESULT Direct3DDevice::Execute(
 			if (g_DumpOBJFile != NULL)
 				fclose(g_DumpOBJFile);
 			fopen_s(&g_DumpOBJFile, "./DumpVertices.OBJ", "wt");
+			g_iDumpOBJIdx = 1;
+			g_iDumpOBJFaceIdx = 1;
 		}
 	}
 
@@ -7881,6 +7905,9 @@ HRESULT Direct3DDevice::Execute(
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 
+					if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit)
+						DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
+
 					// Old screen-space shadow mapping code. Obsolete now that OBJs can be side-loaded
 					/*
 					if (g_ShadowMapping.Enabled && !g_ShadowMapping.UseShadowOBJ && bIsCockpit) 
@@ -7889,9 +7916,6 @@ HRESULT Direct3DDevice::Execute(
 						Rx.rotateX(g_fShadowMapAngleX);
 						Ry.rotateY(g_fShadowMapAngleY);
 						T.translate(0, 0, g_fShadowMapDepthTrans);
-
-						if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled)
-							DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
 
 						resources->InitViewport(&g_ShadowMapping.ViewPort);
 						
