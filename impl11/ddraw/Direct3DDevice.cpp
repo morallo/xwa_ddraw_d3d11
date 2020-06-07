@@ -428,7 +428,7 @@ uint32_t *g_OrigIndex = NULL;
 // right images have been rendered.
 int g_iDrawCounter = 0, g_iNoDrawBeforeIndex = 0, g_iNoDrawAfterIndex = -1, g_iDrawCounterAfterHUD = -1;
 // Similar to the above, but only get incremented after each Execute() is finished.
-int /* g_iExecBufCounter = 0, */ g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
+int g_iNoExecBeforeIndex = 0, g_iNoExecAfterIndex = -1, g_iNoDrawAfterHUD = -1;
 // The Skybox cannot be detected using g_iExecBufCounter anymore when using the hook_d3d because the whole frame is
 // rendered with a single Execute call
 //int g_iSkyBoxExecIndex = DEFAULT_SKYBOX_INDEX; // This gives us the threshold for the Skybox
@@ -6515,6 +6515,7 @@ HRESULT Direct3DDevice::Execute(
 						// I think (?) we need to clear the depth buffer here so that the targeted craft is drawn properly
 						//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL,
 						//	D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+
 						/*
 						[14656] [DBG] PRESENT *******************
 						[14656] [DBG] Render CMD sub-bracket
@@ -7969,7 +7970,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// The game renders brackets with ZWrite disabled; but we need to enable it temporarily so that we
 				// can place the brackets at infinity and avoid visual contention
-				if (bIsBracket) 	{
+				if (bIsBracket) {
 					bModifiedShaders = true;
 					QuickSetZWriteEnabled(TRUE);
 					g_VSCBuffer.sz_override = 0.05f;
@@ -8030,19 +8031,6 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.z_override = g_fTextDepth;
 				}
 
-				/*
-				// HACK
-				// Skip the text call after the triangle pointer is rendered
-				if (g_bLastTrianglePointer && bLastTextureSelectedNotNULL && lastTextureSelected->is_Text) {
-					g_bLastTrianglePointer = false;
-					//log_debug("[DBG] Skipping text");
-					bModifiedShaders = true;
-					g_VSCBuffer.viewportScale[3] = g_fGUIElemScale;
-					g_VSCBuffer.z_override = g_fTextDepth;
-					//goto out;
-				}
-				*/
-
 				// Apply the changes to the vertex and pixel shaders
 				if (bModifiedShaders) {
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -8078,7 +8066,6 @@ HRESULT Direct3DDevice::Execute(
 							ID3D11RenderTargetView *rtvs[6] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
-								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewDepthBuf.Get(), // Don't use dual SSAO anymore
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
@@ -8152,7 +8139,6 @@ HRESULT Direct3DDevice::Execute(
 								//resources->_renderTargetViewR.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
 								resources->_renderTargetViewBloomMaskR.Get(),
-								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBufR.Get() : resources->_renderTargetViewDepthBuf2R.Get(),
 								resources->_renderTargetViewDepthBufR.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
@@ -8175,7 +8161,6 @@ HRESULT Direct3DDevice::Execute(
 								//resources->_renderTargetView.Get(),
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 								resources->_renderTargetViewBloomMask.Get(),
-								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
 								// The normals hook should not be allowed to write normals for light textures
 								bIsLightTexture ? NULL : resources->_renderTargetViewNormBuf.Get(),
@@ -8193,7 +8178,7 @@ HRESULT Direct3DDevice::Execute(
 						viewport.TopLeftX = 0.0f;
 					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-						viewport.TopLeftX = 0.0f + viewport.Width;
+						viewport.TopLeftX = viewport.Width;
 					}
 					viewport.Height = (float)resources->_backbufferHeight;
 					viewport.TopLeftY = 0.0f;
@@ -8681,6 +8666,8 @@ HRESULT Direct3DDevice::BeginScene()
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+		if (g_bUseSteamVR)
+			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 		//if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 

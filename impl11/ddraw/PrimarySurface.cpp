@@ -1186,9 +1186,6 @@ void PrimarySurface::barrelEffect3D() {
 	// Set the lens distortion constants for the barrel shader
 	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
 
-	// Clear the depth stencil
-	// Maybe I should be using resources->clearDepth instead of 1.0f:
-	//context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, 1.0f, 0); // I don't think this is necessary
 	// Clear the render target
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 	ID3D11RenderTargetView *rtvs[5] = {
@@ -1375,7 +1372,6 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	UINT stride = sizeof(MainVertex);
 	UINT offset = 0;
 	resources->InitVertexBuffer(resources->_mainVertexBuffer.GetAddressOf(), &stride, &offset);
-	//resources->InitVertexBuffer(resources->_steamVRPresentVertexBuffer.GetAddressOf(), &stride, &offset);
 	resources->InitIndexBuffer(resources->_mainIndexBuffer, false);
 
 	// Set Primitive Topology
@@ -1453,11 +1449,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_basicPixelShader);
 
-	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	context->DrawIndexed(6, 0, 0);
 
@@ -2798,7 +2792,7 @@ out1:
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
 				context->OMSetRenderTargets(1, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs_pass1);
+				context->PSSetShaderResources(0, 3, srvs_pass1);
 				context->Draw(6, 0);
 			}
 		}
@@ -3685,21 +3679,20 @@ void PrimarySurface::DeferredPass() {
 	context->IASetInputLayout(resources->_mainInputLayout);
 	resources->InitVertexShader(resources->_mainVertexShader);
 
+	if (!g_bEnableHeadLights)
+		resources->InitPixelShader(resources->_ssdoAddPS);
+	else
+		resources->InitPixelShader(resources->_headLightsPS);
+
+	// Set the PCF sampler state
+	if (g_ShadowMapping.bEnabled)
+		context->PSSetSamplers(8, 1, resources->_shadowPCFSamplerState.GetAddressOf());
+
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Deferred pass, Left Image
 	{
 		// input: offscreenAsInput (resolved here), normBuf
 		// output: offscreenBuf, bloomMask
-		if (!g_bEnableHeadLights)
-			resources->InitPixelShader(resources->_ssdoAddPS);
-		else
-			resources->InitPixelShader(resources->_headLightsPS);
-
-		// Set the PCF sampler state
-		if (g_ShadowMapping.bEnabled)
-			context->PSSetSamplers(8, 1, resources->_shadowPCFSamplerState.GetAddressOf());
-
-		// Reset the viewport for the final SSAO combine
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
 		viewport.Width	  = screen_res_x;
@@ -3721,7 +3714,6 @@ void PrimarySurface::DeferredPass() {
 			0, BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			//resources->_offscreenAsInputBloomMaskSRV.Get(),		// Bloom Mask
 			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
 			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
@@ -3730,67 +3722,52 @@ void PrimarySurface::DeferredPass() {
 			resources->_normBufSRV.Get(),							// Normals buffer
 			NULL,													// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System buffer
-			g_ShadowMapping.bEnabled ? resources->_shadowMapArraySRV.Get() : NULL, // The shadow map
-			//g_ShadowMapping.Enabled ? resources->_shadowMapSingleSRV.Get() : NULL, // The shadow map
+
+			g_ShadowMapping.bEnabled ?								// The shadow map
+				resources->_shadowMapArraySRV.Get() : NULL,
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Deferred pass, Right image
+	if (g_bUseSteamVR)
+	{
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
-		viewport.Width = screen_res_x;
-		viewport.Height = screen_res_y;
+		viewport.Width    = screen_res_x;
+		viewport.Height   = screen_res_y;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		resources->InitViewport(&viewport);
 
-		// Final combine, Right Image
-		{
-			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
-			// output: offscreenBufR
-			if (!g_bEnableHeadLights)
-				resources->InitPixelShader(resources->_ssdoAddPS);
-			else
-				resources->InitPixelShader(resources->_headLightsPS);
-			// Reset the viewport for the final SSAO combine
-			viewport.TopLeftX = 0.0f;
-			viewport.TopLeftY = 0.0f;
-			viewport.Width  = screen_res_x;
-			viewport.Height = screen_res_y;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			resources->InitViewport(&viewport);
-			// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
-			// so that it can be used as an SRV
-			ID3D11RenderTargetView *rtvs[5] = {
-				resources->_renderTargetViewR.Get(),
-				resources->_renderTargetViewBloomMaskR.Get(), 
-				NULL, NULL, NULL
-			};
-			context->OMSetRenderTargets(5, rtvs, NULL);
-			// Resolve offscreenBuf
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[9] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				NULL,													// SSDO Direct Component
-				NULL,													// SSDO Indirect Component
-				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
+		// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
+		// so that it can be used as an SRV
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewR.Get(),
+			resources->_renderTargetViewBloomMaskR.Get(),
+			NULL, NULL, NULL
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+		// Resolve offscreenBuf
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			0, BACKBUFFER_FORMAT);
+		ID3D11ShaderResourceView *srvs_pass2[9] = {
+			resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
+			NULL,													// SSDO Direct Component
+			NULL,													// SSDO Indirect Component
+			resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
 
-				resources->_depthBufSRV_R.Get(),						// Depth buffer
-				resources->_normBufSRV_R.Get(),							// Normals buffer
-				NULL,													// Bent Normals
-				resources->_ssMaskSRV_R.Get(),							// Shading System buffer
+			resources->_depthBufSRV_R.Get(),						// Depth buffer
+			resources->_normBufSRV_R.Get(),							// Normals buffer
+			NULL,													// Bent Normals
+			resources->_ssMaskSRV_R.Get(),							// Shading System buffer
 
-				g_ShadowMapping.bEnabled ?
-					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
-			};
-			context->PSSetShaderResources(0, 9, srvs_pass2);
-			context->Draw(6, 0);
-		}
+			g_ShadowMapping.bEnabled ?
+				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
+		};
+		context->PSSetShaderResources(0, 9, srvs_pass2);
+		context->Draw(6, 0);
 	}
 
 	// Restore previous rendertarget, etc
@@ -7345,18 +7322,11 @@ HRESULT PrimarySurface::Flip(
 			}
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
 		}
-		/*
-		if (g_bDynCockpitEnabled) {
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpit, this->_deviceResources->clearColor);
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitBG, this->_deviceResources->clearColor);
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInput, this->_deviceResources->clearColor);
-			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewDynCockpitAsInputBG, this->_deviceResources->clearColor);
-		}
-		*/
 
 		if (!g_bHyperspaceFirstFrame) {
 			context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+			if (g_bUseSteamVR)
+				context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 		}
 	}
 
@@ -8353,6 +8323,11 @@ HRESULT PrimarySurface::Flip(
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 					L"C:\\Temp\\_offscreenBuf.jpg");
 				DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
+				if (g_bUseSteamVR) {
+					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferR, GUID_ContainerFormatJpeg,
+						L"C:\\Temp\\_offscreenBufR.jpg");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMaskR, L"C:\\Temp\\_bloomMask1R.dds");
+				}
 			}
 
 			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
