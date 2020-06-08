@@ -12,7 +12,8 @@
 TODO: 
 	Add per-craft shadow blackness material setting
 	Add per-craft shadow map OBJ axis multiplier
-	Multiply Contact Shadow by SSDO
+	- Multiply Contact Shadow by SSDO -- CHECK
+	Fix shadows in hangar
 */
 
 /*
@@ -530,7 +531,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
-float g_fShadowOBJScaleX = 1.64f, g_fShadowOBJScaleY = 1.64f, g_fShadowOBJScaleZ = -1.64f; // TODO: These scale params should be in g_ShadowMapping
+float SHADOW_OBJ_SCALE_X = 1.64f, SHADOW_OBJ_SCALE_Y = 1.64f, SHADOW_OBJ_SCALE_Z = 1.64f; // TODO: These scale params should be in g_ShadowMapping
 bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false, g_bShadowMapEnable = false;
 std::vector<Vector4> g_OBJLimits; // Box limits of the OBJ loaded. This is used to compute the Z range of the shadow map
 
@@ -1925,6 +1926,19 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
 		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 	}
+	// Shadow Mapping settings
+	else if (_stricmp(param, "shadow_map_mult_x") == 0) {
+		g_ShadowMapping.shadow_map_mult_x = fValue;
+		log_debug("[DBG] [SHW] shadow_map_mult_x: %0.3f", fValue);
+	}
+	else if (_stricmp(param, "shadow_map_mult_y") == 0) {
+		g_ShadowMapping.shadow_map_mult_y = fValue;
+		log_debug("[DBG] [SHW] shadow_map_mult_y: %0.3f", fValue);
+	}
+	else if (_stricmp(param, "shadow_map_mult_z") == 0) {
+		g_ShadowMapping.shadow_map_mult_z = fValue;
+		log_debug("[DBG] [SHW] shadow_map_mult_z: %0.3f", fValue);
+	}
 }
 
 /*
@@ -3246,16 +3260,16 @@ bool LoadSSAOParams() {
 			}
 
 			else if (_stricmp(param, "shadow_mapping_OBJ_scale_X") == 0) {
-				g_fShadowOBJScaleX = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleX: %0.3f", g_fShadowOBJScaleX);
+				SHADOW_OBJ_SCALE_X = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleX: %0.3f", SHADOW_OBJ_SCALE_X);
 			}
 			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Y") == 0) {
-				g_fShadowOBJScaleY = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleY: %0.3f", g_fShadowOBJScaleY);
+				SHADOW_OBJ_SCALE_Y = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleY: %0.3f", SHADOW_OBJ_SCALE_Y);
 			}
 			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Z") == 0) {
-				g_fShadowOBJScaleZ = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleZ: %0.3f", g_fShadowOBJScaleZ);
+				SHADOW_OBJ_SCALE_Z = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScaleZ: %0.3f", SHADOW_OBJ_SCALE_Z);
 			}
 
 			else if (_stricmp(param, "shadow_mapping_z_factor") == 0) {
@@ -3709,7 +3723,7 @@ void ReloadMaterials()
 				g_OPTnames.push_back(OPTname);
 				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
 				log_debug("[DBG] [MAT] [OPT] Reloading file %s...", sFileName);
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
 			}
 		}
 		else if (strstr(surface_name, "dat,") != NULL) {
@@ -3719,7 +3733,7 @@ void ReloadMaterials()
 			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
 			if (sFileName[0] != 0) {
 				log_debug("[DBG] [MAT] [DAT] Reloading file %s...", sFileName);
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
 			}
 		}
 

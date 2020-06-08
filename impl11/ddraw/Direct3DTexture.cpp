@@ -16,7 +16,7 @@
 #include <vector>
 
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
-extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
+extern float SHADOW_OBJ_SCALE_X, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
 extern std::vector<Vector4> g_OBJLimits;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
@@ -371,9 +371,9 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			D3DTLVERTEX v;
 			float x, y, z;
 			sscanf_s(line, "v %f %f %f", &x, &y, &z);
-			x *= g_fShadowOBJScaleX;
-			y *= g_fShadowOBJScaleY;
-			z *= g_fShadowOBJScaleZ;
+			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE_X;
+			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE_Y;
+			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE_Z;
 
 			v.sx = x;
 			v.sy = y;
@@ -863,7 +863,7 @@ void Direct3DTexture::TagTexture() {
 				g_OPTnames.push_back(OPTname);
 				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
 				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
 			}
 		}
 		else if (strstr(surface->_name, "dat,") != NULL) {
@@ -871,7 +871,7 @@ void Direct3DTexture::TagTexture() {
 			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
 			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
 			if (sFileName[0] != 0)
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
 		}
 	}
 

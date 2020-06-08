@@ -494,7 +494,7 @@ typedef struct MaterialStruct {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
-	bool IsShadeless;
+	bool  IsShadeless;
 	Vector3 Light;
 
 	MaterialStruct() {
@@ -630,6 +630,9 @@ public:
 	float sw_pcf_bias;
 	float hw_pcf_bias;
 	float XWA_LIGHT_Y_CONV_SCALE;
+	float shadow_map_mult_x;
+	float shadow_map_mult_y;
+	float shadow_map_mult_z;
 
 	int DepthBias;
 	float DepthBiasClamp;
@@ -665,6 +668,10 @@ public:
 		// it's used to compensate the Y coordinate so that the light and the centroid of
 		// the sun texture line up better. I'll investigate this in detail later.
 		this->XWA_LIGHT_Y_CONV_SCALE = -62.5f;
+
+		this->shadow_map_mult_x =  1.0f;
+		this->shadow_map_mult_y =  1.0f;
+		this->shadow_map_mult_z = -1.0f;
 
 		this->DepthBias = 0;
 		this->DepthBiasClamp = 0.0f;

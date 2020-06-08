@@ -127,7 +127,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 extern ShadowMappingData g_ShadowMapping;
 extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
-extern float g_fShadowOBJScaleX, g_fShadowOBJScaleY, g_fShadowOBJScaleZ;
+extern float SHADOW_OBJ_SCALE_X, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
 extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
