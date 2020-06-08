@@ -634,7 +634,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		*/
 		diffuse = max(dot(N, L), 0.0);
 		//diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
-		diffuse = min(total_shadow_factor, ssdo.x) * diff_int * diffuse + ambient;
+		diffuse = total_shadow_factor * ssdo.x * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -669,7 +669,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
 		//spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
-		spec = min(contactShadow, total_shadow_factor) * debug_spec;
+		spec = contactShadow * total_shadow_factor * debug_spec;
 
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
@@ -687,7 +687,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 			//emissionMask);
 		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
-		tmp_bloom += min(total_shadow_factor, contactShadow) * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		
 	}
 	output.bloom = tmp_bloom;
@@ -731,7 +731,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
 	// Reinhard tone mapping:
-	if (HDREnabled) tmp_color = tmp_color / (HDR_white_point + tmp_color);
+	if (HDREnabled) {
+		//float I = dot(tmp_color, 0.333);
+		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	
 
