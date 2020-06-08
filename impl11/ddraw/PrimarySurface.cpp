@@ -7881,10 +7881,12 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
 					}
 
+					/*
 					if (g_bDumpSSAOBuffers) {
 						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"C:\\Temp\\_shadertoyBuf.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
 					}
+					*/
 
 					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.

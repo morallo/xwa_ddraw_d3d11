@@ -10,10 +10,13 @@
 
 /*
 TODO: 
-	Add per-craft shadow blackness material setting
-	Add per-craft shadow map OBJ axis multiplier
+	Add per-craft shadow blackness material setting -- I probably don't really need this
 	- Multiply Contact Shadow by SSDO -- CHECK
 	Fix shadows in hangar
+	Automatic Eye Adaptation
+	Tonemapping/Whiteout in HDR mode
+	Correct 1920x1080 xwahacker FOV conversion.
+	VR metric reconstruction
 */
 
 /*
@@ -408,6 +411,10 @@ Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
+// The following values were determined by comparing the back-projected 3D reconstructed
+// with ddraw against the OBJ exported from the OPT. The values were tweaked until a
+// proper match was found.
+float g_fOBJZMetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -3552,6 +3559,15 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);
 			}
 
+			else if (_stricmp(param, "g_fOBJZMetricMult") == 0) {
+				g_fOBJZMetricMult = fValue;
+				log_debug("[DBG] [SHOW] g_fOBJZMetricMult: %0.3f", g_fOBJZMetricMult);
+			}
+			else if (_stricmp(param, "g_fOBJGlobalMetricMult") == 0) {
+				g_fOBJGlobalMetricMult = fValue;
+				log_debug("[DBG] [SHOW] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
+			}
+
 			/*else if (_stricmp(param, "emission_intensity") == 0) {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
 			}*/
@@ -5316,6 +5332,112 @@ bool rayTriangleIntersect(
 #endif 
 }
 
+/*
+ * Fully-metric back-projection. This should write OBJ files that match the scale
+ * of OPT files 1:1 regardless of FOV and in-game resolution. This should help fix
+ * the distortion reported by users in SteamVR.
+ * This code is based on AddGeometryVertexShader -- it's basically the inverse of that
+ * code up to a scale factor.
+ */
+inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
+	float3 temp;
+	float FOVscaleZ;
+	// sm_z_factor = g_ShadowMapping.FOVDistScale (620) / g_fRawFOVDist
+	// g_ShadertoyBuffer.FOVscale = 2.0f * g_fRawFOVDist / g_fCurInGameHeight;
+	// FOVDist increases when FOV decreases
+	// FOVDist decreases when FOV increases
+	float sm_FOVscale = g_ShadowMapVSCBuffer.sm_FOVscale;
+	float sm_aspect_ratio = g_ShadowMapVSCBuffer.sm_aspect_ratio;
+	float sm_y_center = g_ShadowMapVSCBuffer.sm_y_center;
+
+	//temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw) * g_fOBJMetricMult;
+	P->z = sm_FOVscale * (1.0f / rhw) * g_fOBJZMetricMult;
+	// P->z is now metric 3D
+	FOVscaleZ = sm_FOVscale / P->z;
+
+	// Normalize into the 0..2 or 0.0..1.0 range
+	//temp.xy *= vpScale.xy;
+	temp.x = sx * g_VSCBuffer.viewportScale[0];
+	temp.y = sy * g_VSCBuffer.viewportScale[1];
+	// Non-VR case:
+	//		temp.x is now normalized to the range (0,  2)
+	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
+	// Direct-SBS:
+	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
+
+	/*
+	if (g_bEnableVR)
+	{
+		// SBSVertexShader
+		// temp.xy -= 0.5;
+		temp.x += -0.5f;
+		temp.y += -0.5f;
+		// temp.xy is now in the range -0.5 ..  0.5
+
+		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
+		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
+		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
+
+		// TODO: The code below hasn't been tested in VR:
+		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / rhw);
+	}
+	else
+	*/
+	{
+		//temp.y = -temp.y;
+		temp.x += -1.0f; // For nonVR, vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
+		temp.y +=  1.0f;
+		// temp.x is now in the range -1.0 .. 1.0 and
+		// temp.y is now in the range  1.0 ..-1.0 (?)
+		// temp.xy is now in DirectX coords [-1..1]
+
+		// P.x = sm_aspect_ratio * P2D.x / (FOVscale/P.z)
+		temp.x = temp.x / FOVscaleZ * sm_aspect_ratio;
+		// P.y = P2D.y / (FOVscale/P.z) - P.z * y_center / FOVscale
+		temp.y = temp.y / FOVscaleZ - P->z * sm_y_center / sm_FOVscale;
+		temp.z = P->z;
+		// temp.xyz is now 3D
+
+		temp.x /= 2.0f * SHADOW_OBJ_SCALE_X * (1600.0f / g_fCurInGameHeight);
+		temp.y /= 2.0f * SHADOW_OBJ_SCALE_Y * (1600.0f / g_fCurInGameHeight);
+		temp.z /= 2.0f * SHADOW_OBJ_SCALE_Z * (1600.0f / g_fCurInGameHeight);
+
+		temp.x *= g_fOBJGlobalMetricMult;
+		temp.y *= g_fOBJGlobalMetricMult;
+		temp.z *= g_fOBJGlobalMetricMult;
+
+		// DEBUG
+		// Final axis flip to get something viewable in Blender:
+		//temp.y = -temp.y;
+		temp.z = -temp.z;
+		// DEBUG
+	}
+
+	// I'm going to skip the overrides because they don't apply to cockpit textures...
+	// The back-projection into 3D is now very simple:
+	//float3 P = float3(temp.z * temp.xy, temp.z);
+	P->x = temp.x;
+	P->y = temp.y;
+	P->z = temp.z;
+
+	/*
+	if (g_bEnableVR)
+	{
+		// Further adjustment of the coordinates for the DirectSBS case:
+		//output.pos3D = float4(P.x, -P.y, P.z, 1);
+		P->y = -P->y;
+		// Adjust the coordinate system for SteamVR:
+		//P.yz = -P.yz;
+	}
+	*/
+}
+
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into OBJ METRIC 3D
+inline void backProjectMetric(WORD index, Vector3 *P) {
+	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
+}
+
 // Back-project a 2D vertex (specified in in-game coords)
 // into 3D, just like we do in the VertexShader or SBS VertexShader:
 inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
@@ -5569,15 +5691,15 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
-		backProject(index, &tempv0);
+		backProjectMetric(index, &tempv0);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
-		backProject(index, &tempv1);
+		backProjectMetric(index, &tempv1);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
-		backProject(index, &tempv2);
+		backProjectMetric(index, &tempv2);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
 
 		triangle++;
@@ -6055,6 +6177,9 @@ HRESULT Direct3DDevice::Execute(
 			fopen_s(&g_DumpOBJFile, "./DumpVertices.OBJ", "wt");
 			g_iDumpOBJIdx = 1;
 			g_iDumpOBJFaceIdx = 1;
+			log_debug("[DBG] [SHW] sm_FOVscale: %0.3f", g_ShadowMapVSCBuffer.sm_FOVscale);
+			log_debug("[DBG] [SHW] sm_y_center: %0.3f", g_ShadowMapVSCBuffer.sm_y_center);
+			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
 		}
 	}
 

@@ -40,6 +40,7 @@ PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 
+	// input.pos is OBJ * 1.64 * (+/-1 on each axis, depends on the MAT file)
 	// OBJ-3D to cockpit camera view:
 	float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
 	
@@ -60,6 +61,7 @@ PixelShaderInput main(VertexShaderInput input)
 		// Fix the depth
 		P.z = 0.0; // Depth value -- this makes the point visible
 		P.w = 1.0;
+		//P.w = P.z / FOVscale;
 		output.pos = P;
 		output.color = float4(1, 1, 0, 1);
 
@@ -73,15 +75,15 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 	else
 	{
-		// VR PATH
 		/*
+		VR PATH
+
 		The reason we're projecting to 2D, back-projecting to 3D and then projecting
 		to 2D again is because the first 3D->2D projection matches OBJ coords to XWA 2D
 		coords. Then these coords can be back-projected into VR 3D so that they can be
 		projected again into VR 2D.
 		I seriously need to do some refactoring here.
 		*/
-
 		// Back-project into 3D space again
 		float3 temp = P.xyz;
 		// The additional 2.0 factor below is because in VR vpScale.xy is 1/{width,height}, but in non-VR it's 2/{width,height}

@@ -89,6 +89,7 @@ void ShutdownFreePIE();
 enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
+extern float g_fOBJZMetricMult, g_fOBJGlobalMetricMult;
 // DEBUG
 extern bool g_bKeybExitHyperspace;
 extern bool g_bFXAAEnabled;
@@ -353,6 +354,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fShadowMapAngleY += 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
 					break;
+				case 8:
+					g_fOBJGlobalMetricMult += 0.05f;
+					log_debug("[DBG] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -397,6 +402,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 6:
 					g_fShadowMapAngleY -= 7.5f;
 					log_debug("[DBG] [SHW] g_fLightMapAngleY: %0.3f", g_fShadowMapAngleY);
+					break;
+				case 8:
+					g_fOBJGlobalMetricMult -= 0.05f;
+					log_debug("[DBG] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
 					break;
 				}
 
@@ -793,6 +802,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fHDRWhitePoint *= 2.0f;
 					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
 					break;
+				case 8:
+					g_fOBJZMetricMult += 5.0f;
+					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -823,6 +836,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					if (g_fHDRWhitePoint < 0.125f)
 						g_fHDRWhitePoint = 0.125f;
 					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
+					break;
+				case 8:
+					g_fOBJZMetricMult -= 5.0f;
+					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
 					break;
 				}
 				return 0;
