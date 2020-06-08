@@ -331,7 +331,8 @@ typedef struct PSShadingSystemCBStruct {
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
 	// 592 bytes
-	float ambient, headlights_angle_cos, ss_unused1, ss_unused2;
+	float ambient, headlights_angle_cos, HDR_white_point;
+	uint32_t HDREnabled;
 	// 608 bytes
 } PSShadingSystemCB;
 

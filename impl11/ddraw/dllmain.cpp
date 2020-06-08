@@ -79,6 +79,9 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable,
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
+extern bool g_bHDREnabled;
+extern float g_fHDRWhitePoint;
+
 extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
 void ShutdownFreePIE();
 
@@ -560,6 +563,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Toggle Normal Mapping
 				g_bFNEnable = !g_bFNEnable;
 				return 0;
+			case 'H':
+				g_bHDREnabled = !g_bHDREnabled;
+				return 0;
 
 			case 'B':
 				g_bDisableBarrelEffect = !g_bDisableBarrelEffect;
@@ -591,11 +597,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bCustomFOVApplied = false;
 				LoadVRParams();
 				return 0;
-			case 'H':
+			//case 'H':
 				//ToggleCockpitPZHack();
-				g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
+				//g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
 				//g_bGlobalDebugFlag = !g_bGlobalDebugFlag;
-				return 0;
+				//return 0;
 			case 'W':
 				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
@@ -725,6 +731,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_config.KbdSensitivity = 0.0f;
 				else
 					g_config.KbdSensitivity = 1.0f;
+				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				return 0;
 			}
 
@@ -782,6 +789,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fShadowMapScale += 0.1f;
 					log_debug("[DBG] [SHW] g_fLightMapScale: %0.3f", g_fShadowMapScale);
 					break;
+				case 7:
+					g_fHDRWhitePoint *= 2.0f;
+					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -806,6 +817,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fShadowMapScale -= 0.1f;
 					if (g_fShadowMapScale < 0.1f) g_fShadowMapScale = 0.2f;
 					log_debug("[DBG] [SHW] g_fLightMapScale: %0.3f", g_fShadowMapScale);
+					break;
+				case 7:
+					g_fHDRWhitePoint /= 2.0f;
+					if (g_fHDRWhitePoint < 0.125f)
+						g_fHDRWhitePoint = 0.125f;
+					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
 					break;
 				}
 				return 0;

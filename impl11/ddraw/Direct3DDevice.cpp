@@ -8,9 +8,12 @@
 // _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- SCREEN Resolution
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
-// TODO: 
-//	     Add per-craft shadow blackness material setting
-//		 Add per-craft shadow map OBJ axis multiplier
+/*
+TODO: 
+	Add per-craft shadow blackness material setting
+	Add per-craft shadow map OBJ axis multiplier
+	Multiply Contact Shadow by SSDO
+*/
 
 /*
 
@@ -585,7 +588,7 @@ bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadL
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bHDREnabled = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
+bool g_bOverrideLightPos = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
@@ -593,6 +596,14 @@ int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
+
+// white_point = 1 --> OK
+// white_point = 0.5 --> Makes everything bright
+// white_point = 4.0 --> Makes everything dark
+// So, a bright scene should cause the white point to go up, and a dark scence should cause
+// the white point to go down... but not by much in either direction.
+float g_fHDRLightsMultiplier = 2.8f, g_fHDRWhitePoint = 1.0f;
+bool g_bHDREnabled = false;
 
 bool g_bDumpOBJEnabled = false;
 FILE *g_DumpOBJFile = NULL;
@@ -2992,6 +3003,10 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
 	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f; // Smaller numbers fade less
 	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
+	g_bHDREnabled = false;
+	g_fHDRWhitePoint = 1.0f;
+	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+	g_ShadingSys_PSBuffer.HDR_white_point = g_fHDRWhitePoint;
 
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
@@ -3352,6 +3367,13 @@ bool LoadSSAOParams() {
 				g_bDumpOBJEnabled = (bool)fValue;
 			}
 			
+			else if (_stricmp(param, "HDR_enabled") == 0) {
+				g_bHDREnabled = (bool)fValue;
+				g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+			}
+			else if (_stricmp(param, "HDR_lights_intensity") == 0) {
+				g_fHDRLightsMultiplier = fValue;
+			}
 			
 			/*
 			else if (_stricmp(param, "flare_aspect_mult") == 0) {
@@ -3365,9 +3387,6 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "viewPitchSign") == 0) {
 				g_fViewPitchSign = fValue;
-			}
-			else if (_stricmp(param, "HDR_enabled") == 0) {
-				g_bHDREnabled = (bool)fValue;
 			}
 			/*
 			else if (_stricmp(param, "gamma") == 0) {

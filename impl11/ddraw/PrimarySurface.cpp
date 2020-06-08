@@ -206,7 +206,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bHDREnabled, g_bShadowEnable;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bShadowEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
@@ -636,6 +636,9 @@ extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_b3DSunPresent, g_b3DSkydomePresent;
 extern float g_fBloomAmplifyFactor;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
+
+extern float g_fHDRLightsMultiplier, g_fHDRWhitePoint;
+extern bool g_bHDREnabled;
 bool g_bGlobalSpecToggle = true;
 //extern float g_fFlareAspectMult;
 
@@ -2417,6 +2420,12 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			g_ShadingSys_PSBuffer.LightColor[i].z = g_fXWALightsIntensity * col.z;
 			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
 
+			if (g_ShadingSys_PSBuffer.HDREnabled) {
+				g_ShadingSys_PSBuffer.LightColor[i].x *= g_fHDRLightsMultiplier;
+				g_ShadingSys_PSBuffer.LightColor[i].y *= g_fHDRLightsMultiplier;
+				g_ShadingSys_PSBuffer.LightColor[i].z *= g_fHDRLightsMultiplier;
+			}
+
 			// Keep track of the light with the highest intensity
 			if (intensity > maxIntensity) {
 				maxIntensity = intensity;
@@ -2562,6 +2571,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	*/
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
+	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+	g_ShadingSys_PSBuffer.HDR_white_point = g_fHDRWhitePoint;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 	if (g_bEnableHeadLights)
 		g_ShadingSys_PSBuffer.ambient = cur_ambient;
@@ -3004,7 +3015,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
 			//resources->InitPixelShader(resources->_deathStarPS);
 		//else
-			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
 		resources->InitPixelShader(resources->_ssdoDirectPS);
 		//resources->InitPixelShader(resources->_ssaoPS); // Should be _ssdoDirectPS; but this will also work here
 
@@ -3246,8 +3256,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 #else
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif
-		//else
-			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
 		if (!g_bEnableHeadLights)
 			resources->InitPixelShader(resources->_ssdoAddPS);
 		else
@@ -3273,11 +3281,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *ssdoSRV = NULL;
-		//if (g_SSAO_Type == SSO_BENT_NORMALS)
-		//	ssdoSRV = resources->_bentBufSRV.Get();
-		//else
-		//	ssdoSRV = g_bHDREnabled ? resources->_bentBufSRV.Get() : resources->_ssaoBufSRV.Get();
+
 		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
@@ -3325,7 +3329,7 @@ out1:
 				resources->_ssaoMaskSRV_R.Get(),
 				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
 			};
-			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoDirectHDRPS : resources->_ssdoDirectPS);
+			
 			resources->InitPixelShader(resources->_ssdoDirectPS);
 			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 				ID3D11RenderTargetView *rtvs[2] = {
@@ -3542,7 +3546,7 @@ out1:
 		{
 			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
 			// output: offscreenBufR
-			//resources->InitPixelShader(g_bHDREnabled ? resources->_ssdoAddHDRPS : resources->_ssdoAddPS);
+
 			if (!g_bEnableHeadLights)
 				resources->InitPixelShader(resources->_ssdoAddPS);
 			else

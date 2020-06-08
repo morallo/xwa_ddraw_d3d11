@@ -386,6 +386,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
+	// Reinhard tone mapping:
+	if (HDREnabled) tmp_color = tmp_color / (HDR_white_point + tmp_color);
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	return output;
 }

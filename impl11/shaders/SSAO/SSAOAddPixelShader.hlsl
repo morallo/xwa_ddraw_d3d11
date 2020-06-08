@@ -408,6 +408,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	tmp_color += laser_light_intensity * laser_light_sum;
 
+	// Reinhard tone mapping:
+	if (HDREnabled) tmp_color = tmp_color / (HDR_white_point + tmp_color);
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	return output;
 }
