@@ -16,7 +16,7 @@
 #include <vector>
 
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
-extern float SHADOW_OBJ_SCALE_X, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
+extern float SHADOW_OBJ_SCALE;
 extern std::vector<Vector4> g_OBJLimits;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
@@ -371,9 +371,10 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			D3DTLVERTEX v;
 			float x, y, z;
 			sscanf_s(line, "v %f %f %f", &x, &y, &z);
-			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE_X;
-			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE_Y;
-			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE_Z;
+			// g_ShadowMapping.shadow_map_mult_x/y/z are supposed to be either 1 or -1
+			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE;
+			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE;
+			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE;
 
 			v.sx = x;
 			v.sy = y;

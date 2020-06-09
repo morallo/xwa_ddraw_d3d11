@@ -127,7 +127,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 extern ShadowMappingData g_ShadowMapping;
 extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
-extern float SHADOW_OBJ_SCALE_X, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
+extern float SHADOW_OBJ_SCALE, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
 extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
@@ -687,6 +687,8 @@ void ComputeHyperFOVParams() {
 	// Compute the *real* vertical and horizontal FOVs:
 	g_fRealVertFOV = 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist);
 	g_fRealHorzFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist);
+	// Compute the metric scale factor conversion
+	// ...
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 }

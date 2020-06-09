@@ -538,7 +538,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
 float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTrans = 0.0f, g_fShadowMapScale = 0.5f;
-float SHADOW_OBJ_SCALE_X = 1.64f, SHADOW_OBJ_SCALE_Y = 1.64f, SHADOW_OBJ_SCALE_Z = 1.64f; // TODO: These scale params should be in g_ShadowMapping
+float SHADOW_OBJ_SCALE = 1.64f; // TODO: These scale params should be in g_ShadowMapping
 bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false, g_bShadowMapEnable = false;
 std::vector<Vector4> g_OBJLimits; // Box limits of the OBJ loaded. This is used to compute the Z range of the shadow map
 
@@ -3266,17 +3266,9 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [SHW] g_fShadowMapScale: %0.3f", g_fShadowMapScale);
 			}
 
-			else if (_stricmp(param, "shadow_mapping_OBJ_scale_X") == 0) {
-				SHADOW_OBJ_SCALE_X = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleX: %0.3f", SHADOW_OBJ_SCALE_X);
-			}
-			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Y") == 0) {
-				SHADOW_OBJ_SCALE_Y = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleY: %0.3f", SHADOW_OBJ_SCALE_Y);
-			}
-			else if (_stricmp(param, "shadow_mapping_OBJ_scale_Z") == 0) {
-				SHADOW_OBJ_SCALE_Z = fValue;
-				log_debug("[DBG] [SHW] g_fShadowMapScaleZ: %0.3f", SHADOW_OBJ_SCALE_Z);
+			else if (_stricmp(param, "shadow_mapping_OBJ_scale") == 0) {
+				SHADOW_OBJ_SCALE = fValue;
+				log_debug("[DBG] [SHW] g_fShadowMapScale: %0.3f", SHADOW_OBJ_SCALE);
 			}
 
 			else if (_stricmp(param, "shadow_mapping_z_factor") == 0) {
@@ -5342,18 +5334,15 @@ bool rayTriangleIntersect(
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	float3 temp;
 	float FOVscaleZ;
-	// sm_z_factor = g_ShadowMapping.FOVDistScale (620) / g_fRawFOVDist
 	// g_ShadertoyBuffer.FOVscale = 2.0f * g_fRawFOVDist / g_fCurInGameHeight;
-	// FOVDist increases when FOV decreases
-	// FOVDist decreases when FOV increases
 	float sm_FOVscale = g_ShadowMapVSCBuffer.sm_FOVscale;
 	float sm_aspect_ratio = g_ShadowMapVSCBuffer.sm_aspect_ratio;
 	float sm_y_center = g_ShadowMapVSCBuffer.sm_y_center;
 
 	//temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw) * g_fOBJMetricMult;
-	P->z = sm_FOVscale * (1.0f / rhw) * g_fOBJZMetricMult;
-	// P->z is now metric 3D
-	FOVscaleZ = sm_FOVscale / P->z;
+	temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJZMetricMult;
+	// temp.z is now metric 3D
+	FOVscaleZ = sm_FOVscale / temp.z;
 
 	// Normalize into the 0..2 or 0.0..1.0 range
 	//temp.xy *= vpScale.xy;
@@ -5365,71 +5354,55 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	// Direct-SBS:
 	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
 
-	/*
 	if (g_bEnableVR)
 	{
-		// SBSVertexShader
-		// temp.xy -= 0.5;
-		temp.x += -0.5f;
-		temp.y += -0.5f;
-		// temp.xy is now in the range -0.5 ..  0.5
-
-		// temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
-		temp.x *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
-
-		// TODO: The code below hasn't been tested in VR:
-		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / rhw);
+		temp.x = 2.0f * temp.x;
+		temp.y = -2.0f * temp.y;
+		temp.x += -1.0f;
+		temp.y += 1.0f;
+		// temp.xy is now in the range [-1..1]
 	}
 	else
-	*/
 	{
-		//temp.y = -temp.y;
 		temp.x += -1.0f; // For nonVR, vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y +=  1.0f;
+		temp.y += 1.0f;
 		// temp.x is now in the range -1.0 .. 1.0 and
-		// temp.y is now in the range  1.0 ..-1.0 (?)
+		// temp.y is now in the range  1.0 ..-1.0
 		// temp.xy is now in DirectX coords [-1..1]
-
-		// P.x = sm_aspect_ratio * P2D.x / (FOVscale/P.z)
-		temp.x = temp.x / FOVscaleZ * sm_aspect_ratio;
-		// P.y = P2D.y / (FOVscale/P.z) - P.z * y_center / FOVscale
-		temp.y = temp.y / FOVscaleZ - P->z * sm_y_center / sm_FOVscale;
-		temp.z = P->z;
-		// temp.xyz is now 3D
-
-		temp.x /= 2.0f * SHADOW_OBJ_SCALE_X * (1600.0f / g_fCurInGameHeight);
-		temp.y /= 2.0f * SHADOW_OBJ_SCALE_Y * (1600.0f / g_fCurInGameHeight);
-		temp.z /= 2.0f * SHADOW_OBJ_SCALE_Z * (1600.0f / g_fCurInGameHeight);
-
-		temp.x *= g_fOBJGlobalMetricMult;
-		temp.y *= g_fOBJGlobalMetricMult;
-		temp.z *= g_fOBJGlobalMetricMult;
-
-		// DEBUG
-		// Final axis flip to get something viewable in Blender:
-		//temp.y = -temp.y;
-		temp.z = -temp.z;
-		// DEBUG
 	}
 
-	// I'm going to skip the overrides because they don't apply to cockpit textures...
-	// The back-projection into 3D is now very simple:
-	//float3 P = float3(temp.z * temp.xy, temp.z);
+	// P.x = sm_aspect_ratio * P2D.x / (FOVscale/P.z)
+	temp.x = temp.x / FOVscaleZ * sm_aspect_ratio;
+	// P.y = P2D.y / (FOVscale/P.z) - P.z * y_center / FOVscale
+	temp.y = temp.y / FOVscaleZ - temp.z * sm_y_center / sm_FOVscale;
+	// temp.xyz is now "straight" 3D up to a scale factor
+
+	/*
+	temp.x /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
+	temp.y /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
+	temp.z /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
+	temp.x *= g_fOBJGlobalMetricMult;
+	temp.y *= g_fOBJGlobalMetricMult;
+	temp.z *= g_fOBJGlobalMetricMult;
+	*/
+
+	float MetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
+	temp.x *= MetricScale;
+	temp.y *= MetricScale;
+	temp.z *= MetricScale;
+
+	// DEBUG
+	// Final axis flip to get something viewable nicely in Blender:
+	//temp.z = -temp.z;
+	// DEBUG
+
 	P->x = temp.x;
 	P->y = temp.y;
 	P->z = temp.z;
 
-	/*
 	if (g_bEnableVR)
-	{
-		// Further adjustment of the coordinates for the DirectSBS case:
-		//output.pos3D = float4(P.x, -P.y, P.z, 1);
+		// Further adjustment of the coordinates for the DirectSBS/SteamVR case:
 		P->y = -P->y;
-		// Adjust the coordinate system for SteamVR:
-		//P.yz = -P.yz;
-	}
-	*/
 }
 
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
@@ -8021,6 +7994,10 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bHyperspaceFirstFrame)
 					goto out;
 
+				// DEBUG: Dump an OBJ for the current cockpit
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit)
+					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
+
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
 				if (!g_bEnableVR) {
@@ -8065,9 +8042,6 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
-
-					if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit)
-						DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
 
 					// Old screen-space shadow mapping code. Obsolete now that OBJs can be side-loaded
 					/*
