@@ -378,7 +378,7 @@ const char *PITCH_OFFSET_CLPARAM     = "pitch_offset";
 const char *UV_COORDS_DCPARAM			= "uv_coords";
 const char *COVER_TEX_NAME_DCPARAM		= "cover_texture";
 const char *COVER_TEX_SIZE_DCPARAM		= "cover_texture_size";
-const char *ERASE_REGION_DCPARAM			= "erase_region";
+const char *ERASE_REGION_DCPARAM		= "erase_region";
 const char *MOVE_REGION_DCPARAM			= "move_region";
 const char *CT_BRIGHTNESS_DCPARAM		= "cover_texture_brightness";
 const char *DC_TARGET_COMP_UV_COORDS_VRPARAM   = "dc_target_comp_uv_coords";
@@ -537,6 +537,7 @@ int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
+bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 
@@ -2403,17 +2404,19 @@ bool LoadIndividualDCParams(char *sFileName) {
 				fValue = fValue * 3.141592f / 180.0f;
 				// This formula matches what Jeremy posted:
 				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
-				// Compute the focal length that would be applied in 1920x1080
-				float DFocalLength = 1080.0f / tan(fValue / 2.0f);
-				// Compute the real HFOV and desired HFOV:
-				float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipFocalLength);
-				float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
-				log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
-				// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
-				if (HFOV < DHFOV) {
-					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original regular focal length: %0.3f", g_fCurrentShipFocalLength);
-					g_fCurrentShipFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
-					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED regular focal length: %0.3f", g_fCurrentShipFocalLength);
+				if (g_bCompensateFOVfor1920x1080) {
+					// Compute the focal length that would be applied in 1920x1080
+					float DFocalLength = 1080.0f / tan(fValue / 2.0f);
+					// Compute the real HFOV and desired HFOV:
+					float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipFocalLength);
+					float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
+					log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
+					// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
+					if (HFOV < DHFOV) {
+						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original regular focal length: %0.3f", g_fCurrentShipFocalLength);
+						g_fCurrentShipFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
+						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED regular focal length: %0.3f", g_fCurrentShipFocalLength);
+					}
 				}
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
@@ -2430,20 +2433,22 @@ bool LoadIndividualDCParams(char *sFileName) {
 				fValue = fValue * 3.141592f / 180.0f;
 				// This formula matches what Jeremy posted:
 				g_fCurrentShipLargeFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
-				// Compute the focal length that would be applied in 1920x1080
-				float DFocalLength = 1080.0f / tan(fValue / 2.0f);
-				// For the large FOV we need to do some special processing. The large FOV is specified
-				// with respect to 1920x1080 and aspect ratio of 1.78. So, we need to compensate for
-				// other aspect ratios to provide a similar FOV.
-				// First, let's compute the real HFOV we would get from applying this focal length
-				float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipLargeFocalLength);
-				float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
-				log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
-				// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
-				if (HFOV < DHFOV) {
-					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
-					g_fCurrentShipLargeFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
-					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
+				if (g_bCompensateFOVfor1920x1080) {
+					// Compute the focal length that would be applied in 1920x1080
+					float DFocalLength = 1080.0f / tan(fValue / 2.0f);
+					// For the large FOV we need to do some special processing. The large FOV is specified
+					// with respect to 1920x1080 and aspect ratio of 1.78. So, we need to compensate for
+					// other aspect ratios to provide a similar FOV.
+					// First, let's compute the real HFOV we would get from applying this focal length
+					float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipLargeFocalLength);
+					float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
+					log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
+					// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
+					if (HFOV < DHFOV) {
+						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
+						g_fCurrentShipLargeFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
+						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
+					}
 				}
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
@@ -2639,6 +2644,9 @@ bool LoadDCParams() {
 			}
 			else if (_stricmp(param, "toggle_erase_commands_on_cockpit_displayed") == 0) {
 				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)value;
+			}
+			else if (_stricmp(param, "compensate_FOV_for_1920x1080") == 0) {
+				g_bCompensateFOVfor1920x1080 = (bool)value;
 			}
 
 			else if (_stricmp(param, "dc_brightness") == 0) {
