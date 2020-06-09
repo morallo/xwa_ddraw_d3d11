@@ -411,10 +411,12 @@ Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
+
+// METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
 // proper match was found.
-float g_fOBJZMetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f;
+float g_fOBJZMetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -5377,19 +5379,11 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	temp.y = temp.y / FOVscaleZ - temp.z * sm_y_center / sm_FOVscale;
 	// temp.xyz is now "straight" 3D up to a scale factor
 
-	/*
-	temp.x /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
-	temp.y /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
-	temp.z /= 2.0f * SHADOW_OBJ_SCALE * (1600.0f / g_fCurInGameHeight);
-	temp.x *= g_fOBJGlobalMetricMult;
-	temp.y *= g_fOBJGlobalMetricMult;
-	temp.z *= g_fOBJGlobalMetricMult;
-	*/
-
-	float MetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
-	temp.x *= MetricScale;
-	temp.y *= MetricScale;
-	temp.z *= MetricScale;
+	// g_fOBJCurMetricScale depends on the current in-game height and is computed
+	// whenever a new FOV is applied. See ComputeHyperFOVParams()
+	temp.x *= g_fOBJCurMetricScale;
+	temp.y *= g_fOBJCurMetricScale;
+	temp.z *= g_fOBJCurMetricScale;
 
 	// DEBUG
 	// Final axis flip to get something viewable nicely in Blender:

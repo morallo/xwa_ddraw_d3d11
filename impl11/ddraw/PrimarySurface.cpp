@@ -667,6 +667,7 @@ extern bool g_bCapture2DOffscreenBuffer;
 
 /* SteamVR HMD */
 #include <headers/openvr.h>
+extern float g_fOBJZMetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
@@ -688,7 +689,7 @@ void ComputeHyperFOVParams() {
 	g_fRealVertFOV = 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist);
 	g_fRealHorzFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist);
 	// Compute the metric scale factor conversion
-	// ...
+	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 }
