@@ -20,7 +20,7 @@
 
 #define DBG_MAX_PRESENT_LOGS 0
 
-const float DEG2RAD = 3.141593f / 180;
+const float DEG2RAD = 3.141593f / 180.0f;
 
 #include <vector>
 

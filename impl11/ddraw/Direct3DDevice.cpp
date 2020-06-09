@@ -9,13 +9,16 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 
 /*
-TODO: 
+TODO:
+	Correct 1920x1080 xwahacker FOV conversion.
+	Fix shadows in hangar
+
 	Add per-craft shadow blackness material setting -- I probably don't really need this
 	- Multiply Contact Shadow by SSDO -- CHECK
-	Fix shadows in hangar
+
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
-	Correct 1920x1080 xwahacker FOV conversion.
+	
 	VR metric reconstruction
 */
 
@@ -2256,6 +2259,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
 	float cover_tex_width = 1, cover_tex_height = 1;
+	const float DEG2RAD = 3.141593f / 180.0f;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");
@@ -2398,9 +2402,22 @@ bool LoadIndividualDCParams(char *sFileName) {
 				fValue = fValue * 3.141592f / 180.0f;
 				// This formula matches what Jeremy posted:
 				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
+				// Compute the focal length that would be applied in 1920x1080
+				float DFocalLength = 1080.0f / tan(fValue / 2.0f);
+				// Compute the real HFOV and desired HFOV:
+				float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipFocalLength);
+				float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
+				log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
+				// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
+				if (HFOV < DHFOV) {
+					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original regular focal length: %0.3f", g_fCurrentShipFocalLength);
+					g_fCurrentShipFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
+					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED regular focal length: %0.3f", g_fCurrentShipFocalLength);
+				}
+
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				// Force the new FOV to be applied
-				g_CurrentFOV = XWAHACKER_FOV;
+				if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV;
 				g_bCustomFOVApplied = false;
 			}
 			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
@@ -2412,9 +2429,25 @@ bool LoadIndividualDCParams(char *sFileName) {
 				fValue = fValue * 3.141592f / 180.0f;
 				// This formula matches what Jeremy posted:
 				g_fCurrentShipLargeFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
+				// Compute the focal length that would be applied in 1920x1080
+				float DFocalLength = 1080.0f / tan(fValue / 2.0f);
+				// For the large FOV we need to do some special processing. The large FOV is specified
+				// with respect to 1920x1080 and aspect ratio of 1.78. So, we need to compensate for
+				// other aspect ratios to provide a similar FOV.
+				// First, let's compute the real HFOV we would get from applying this focal length
+				float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipLargeFocalLength);
+				float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
+				log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
+				// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
+				if (HFOV < DHFOV) {
+					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
+					g_fCurrentShipLargeFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
+					log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
+				}
+
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
 				// Force the new FOV to be applied
-				g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
+				if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				g_bCustomFOVApplied = false;
 			}
 		}
