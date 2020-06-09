@@ -17,10 +17,6 @@
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
 
-// The bloom mask buffer
-//Texture2D texBloom : register(t1);
-//SamplerState samplerBloom : register(s1);
-
 // The SSDO Direct buffer
 Texture2D texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
@@ -81,6 +77,23 @@ struct PixelShaderOutput
 	float4 bloom : SV_TARGET1;
 	float4 bent  : SV_TARGET2;
 };
+
+// From: https://www.shadertoy.com/view/MdfXWr
+float3 ff_filmic_gamma3(float3 linearc) {
+	float3 x = max(0.0, linearc - 0.004);
+	return (x*(x*6.2 + 0.5)) / (x*(x*6.2 + 1.7) + 0.06);
+}
+
+// From: https://www.shadertoy.com/view/wl2SDt
+float3 ACESFilm(float3 x)
+{
+	float a = 2.51;
+	float b = 0.03;
+	float c = 2.43;
+	float d = 0.59;
+	float e = 0.14;
+	return (x*(a*x + b)) / (x*(c*x + d) + e);
+}
 
 inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
@@ -734,7 +747,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (HDREnabled) {
 		//float I = dot(tmp_color, 0.333);
 		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+		//tmp_color = ff_filmic_gamma3(tmp_color);
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	

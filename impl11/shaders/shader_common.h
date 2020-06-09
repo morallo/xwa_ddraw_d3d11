@@ -24,3 +24,7 @@
 // Currently only used for the lasers
 #define MAX_CB_POINT_LIGHTS 8
 
+// Used in the special_control CB field in the pixel shader
+#define SPECIAL_CONTROL_XWA_SHADOW 1
+#define SPECIAL_CONTROL_GLASS 2
+

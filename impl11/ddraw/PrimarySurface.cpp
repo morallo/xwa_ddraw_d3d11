@@ -6320,8 +6320,10 @@ void PrimarySurface::TagXWALights()
 		// If we reach this point, the light has been tested against all centroids or it has
 		// been tagged.
 		// If the light is close enough to the center of the screen and hasn't been tagged
-		// then we know it's not a sun:
-		if (!g_XWALightInfo[i].bTagged) {
+		// then we know it's not a sun.
+		if (!g_XWALightInfo[i].bTagged && 
+			NumTagged < *s_XwaGlobalLightsCount - 1) // Keep at least one light as shadow caster
+		{
 			// dot_light_center_of_screen = dot([0,0,1], light) = light.z
 			// The following gives us the angle between the center of the screen and the light:
 			float light_rad = acos(light.z); // dot product of the light's dir and the forward view

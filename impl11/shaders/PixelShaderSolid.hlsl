@@ -1,6 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
+#include "shader_common.h"
 #include "PixelShaderTextureCommon.h"
 
 Texture2D texture0 : register(t0);
@@ -27,11 +28,13 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.color	= input.color;
-	output.bloom	= float4(fBloomStrength * input.color.rgb, fBloomStrength);
+	bool IsShadow   = special_control == SPECIAL_CONTROL_XWA_SHADOW;
+
+	output.color	= IsShadow ? float4(0,0,0,0.25) : input.color;
+	output.bloom	= IsShadow ? 0.0 : float4(fBloomStrength * input.color.rgb, fBloomStrength);
 	output.pos3D	= 0;
 	output.normal	= 0;
-	output.ssaoMask = float4(1.0, 0.0, 0.0, 1.0);
+	output.ssaoMask = IsShadow ? 0.0 : float4(1.0, 0.0, 0.0, 1.0);
 	output.ssMask   = 0;
 	return output;
 }

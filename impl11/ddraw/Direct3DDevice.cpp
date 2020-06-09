@@ -10,8 +10,9 @@
 
 /*
 TODO:
-	Correct 1920x1080 xwahacker FOV conversion.
 	Fix shadows in hangar
+	Turn on headlights in the last mission.
+	Correct 1920x1080 xwahacker FOV conversion. CHECK
 
 	Add per-craft shadow blackness material setting -- I probably don't really need this
 	- Multiply Contact Shadow by SSDO -- CHECK
@@ -6661,6 +6662,8 @@ HRESULT Direct3DDevice::Execute(
 				// Cockpit Glass & Engine Glow are rendered with ZFunc D3DCMP_GREATER (5)
 				const bool bIsBracket = bIsNoZWrite && !bLastTextureSelectedNotNULL &&
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
+				const bool bIsXWAHangarShadow = *g_playerInHangar && bIsNoZWrite && !bLastTextureSelectedNotNULL &&
+					this->_renderStates->GetZFunc() == D3DCMP_GREATEREQUAL;
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
@@ -7572,6 +7575,45 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
+				}
+
+				if (bIsXWAHangarShadow) {
+					// For hangar shadows we need to change the blending operation (it's set to force alpha = 1)
+					D3D11_BLEND_DESC blendDesc{};
+					blendDesc.AlphaToCoverageEnable = FALSE;
+					blendDesc.IndependentBlendEnable = FALSE;
+					blendDesc.RenderTarget[0].BlendEnable = TRUE;
+					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+					hr = resources->InitBlendState(nullptr, &blendDesc);
+					//D3D11_BLEND_DESC desc = this->_renderStates->GetBlendDesc();
+					/*
+					log_debug("[DBG] ******************************");
+					log_debug("[DBG] BlendEnable: %d, BlendOp: %d, BlendOpAlpha: %d", 
+						desc.RenderTarget->BlendEnable, desc.RenderTarget->BlendOp, desc.RenderTarget->BlendOpAlpha);
+					log_debug("[DBG] SrcBlend: %d, SrcBlendAlpha: %d",
+						desc.RenderTarget->SrcBlend, desc.RenderTarget->SrcBlendAlpha);
+					log_debug("[DBG] DestBlend: %d, DestBlendAlpha: %d",
+						desc.RenderTarget->DestBlend, desc.RenderTarget->DestBlendAlpha);
+					log_debug("[DBG] ******************************");*/
+					/*
+					This is the blend state for hangar shadows (they are forced to be alpha 1):
+					[16360] [DBG] BlendEnable: 1, BlendOp: 1, BlendOpAlpha: 1
+					[16360] [DBG] SrcBlend: 5, SrcBlendAlpha: 2
+					[16360] [DBG] DestBlend: 6, DestBlendAlpha: 1
+					*/
+					//D3D11_BLEND_OP_ADD == 1
+					//D3D11_BLEND_ZERO == 1
+					//D3D11_BLEND_ONE == 2
+					//D3D11_BLEND_SRC_ALPHA == 5
+					//D3D11_BLEND_INV_SRC_ALPHA == 6
+					bModifiedShaders = true;
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
 				// Capture the centroid of the current sun texture and store it

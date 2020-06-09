@@ -24,7 +24,7 @@ cbuffer ConstantBuffer : register(b0)
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint debug;
+	uint special_control;
 	float ps_unused2;
 	// 80 bytes
 };
