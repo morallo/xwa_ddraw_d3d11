@@ -10,8 +10,8 @@
 
 /*
 TODO:
-	Fix shadows in hangar
 	Turn on headlights in the last mission.
+
 	Correct 1920x1080 xwahacker FOV conversion. CHECK
 
 	Add per-craft shadow blackness material setting -- I probably don't really need this
@@ -590,6 +590,7 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 extern PSShadingSystemCB	  g_ShadingSys_PSBuffer;
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
@@ -3035,7 +3036,6 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
 	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
-	g_SSAO_PSCBuffer.ambient = 0.15f;
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
@@ -3072,6 +3072,8 @@ bool LoadSSAOParams() {
 	g_fHDRWhitePoint = 1.0f;
 	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
 	g_ShadingSys_PSBuffer.HDR_white_point = g_fHDRWhitePoint;
+	g_fGlobalAmbient = 0.005f;
+	g_fHangarAmbient = 0.05f;
 
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
@@ -3239,8 +3241,11 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "ssdo_ambient") == 0 ||
 					 _stricmp(param, "ambient") == 0) {
-				g_SSAO_PSCBuffer.ambient = fValue;
 				g_ShadingSys_PSBuffer.ambient = fValue;
+				g_fGlobalAmbient = fValue;
+			}
+			else if (_stricmp(param, "hangar_ambient") == 0) {
+				g_fHangarAmbient = fValue;
 			}
 			else if (_stricmp(param, "xwa_lights_saturation") == 0) {
 				g_fXWALightsSaturation = fValue;

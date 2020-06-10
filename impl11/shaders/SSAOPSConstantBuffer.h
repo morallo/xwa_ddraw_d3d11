@@ -15,7 +15,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ssao_ambient, ssao_amplifyFactor2;
+	float far_sample_radius, nm_intensity_far, ssao_unused0, ssao_amplifyFactor2;
 	// 96 bytes
 	float2 p0, p1; // Viewport limits in uv space
 	// 112 bytes

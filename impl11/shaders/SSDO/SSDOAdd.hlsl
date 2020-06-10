@@ -95,6 +95,40 @@ float3 ACESFilm(float3 x)
 	return (x*(a*x + b)) / (x*(c*x + d) + e);
 }
 
+// From: https://64.github.io/tonemapping/
+float3 ACES_approx(float3 v)
+{
+	v *= 0.6f;
+	float a = 2.51f;
+	float b = 0.03f;
+	float c = 2.43f;
+	float d = 0.59f;
+	float e = 0.14f;
+	return clamp((v*(a*v + b)) / (v*(c*v + d) + e), 0.0f, 1.0f);
+}
+
+// From: https://64.github.io/tonemapping/
+float3 uncharted2_tonemap_partial(float3 x)
+{
+	float A = 0.15f;
+	float B = 0.50f;
+	float C = 0.10f;
+	float D = 0.20f;
+	float E = 0.02f;
+	float F = 0.30f;
+	return ((x*(A*x + C * B) + D * E) / (x*(A*x + B) + D * F)) - E / F;
+}
+
+float3 uncharted2_filmic(float3 v)
+{
+	float exposure_bias = 2.0f;
+	float3 curr = uncharted2_tonemap_partial(v * exposure_bias);
+
+	float3 W = 11.2f;
+	float3 white_scale = 1.0 / uncharted2_tonemap_partial(W);
+	return curr * white_scale;
+}
+
 inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
@@ -748,8 +782,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float I = dot(tmp_color, 0.333);
 		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
 		//tmp_color = ff_filmic_gamma3(tmp_color);
-		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		
 		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
+		//tmp_color = ACES_approx(tmp_color);
+
+		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		//tmp_color = uncharted2_filmic(tmp_color);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	

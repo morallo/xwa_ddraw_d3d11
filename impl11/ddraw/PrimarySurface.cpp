@@ -634,7 +634,7 @@ PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer		g_ShadertoyBuffer;
 extern LaserPointerCBuffer	g_LaserPointerBuffer;
 extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_b3DSunPresent, g_b3DSkydomePresent;
-extern float g_fBloomAmplifyFactor;
+extern float g_fBloomAmplifyFactor, g_fHangarAmbient, g_fGlobalAmbient;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 
 extern float g_fHDRLightsMultiplier, g_fHDRWhitePoint;
@@ -2572,6 +2572,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		}
 	}
 	*/
+
+	// TODO:
+	g_ShadingSys_PSBuffer.ambient = *g_playerInHangar ? g_fHangarAmbient : g_fGlobalAmbient;
 	g_ShadingSys_PSBuffer.ssdo_enabled = fSSDOEnabled;
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
