@@ -3070,6 +3070,7 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
 	g_bHDREnabled = false;
 	g_fHDRWhitePoint = 1.0f;
+	g_fHDRLightsMultiplier = 2.8f;
 	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
 	g_ShadingSys_PSBuffer.HDR_white_point = g_fHDRWhitePoint;
 	g_fGlobalAmbient = 0.005f;
@@ -3085,7 +3086,8 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
-		g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
+		if (!g_XWALightInfo[i].bTagged)
+			g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
 
 	g_bDumpOBJEnabled = false;
 

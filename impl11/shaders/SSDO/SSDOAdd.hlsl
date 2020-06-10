@@ -129,6 +129,13 @@ float3 uncharted2_filmic(float3 v)
 	return curr * white_scale;
 }
 
+// From https://64.github.io/tonemapping/
+inline float3 reinhard_extended(float3 v, float max_white)
+{
+	float3 numerator = v * (1.0f + (v / (max_white * max_white)));
+	return numerator / (1.0f + v);
+}
+
 inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
@@ -788,6 +795,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
 		//tmp_color = uncharted2_filmic(tmp_color);
+		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	
