@@ -10,7 +10,7 @@
 
 /*
 TODO:
-	Turn on headlights in the last mission.
+	Auto-turn on headlights in the last mission.
 
 	Correct 1920x1080 xwahacker FOV conversion. CHECK
 
