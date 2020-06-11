@@ -138,6 +138,7 @@ extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
 extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+extern MetricReconstructionCB g_MetricRecCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurInGameAspectRatio, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
@@ -685,11 +686,20 @@ void ComputeHyperFOVParams() {
 	g_ShadertoyBuffer.FOVscale = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// Compute y_center too
 	g_ShadertoyBuffer.y_center = 153.0f / g_fCurInGameHeight;
+	
 	// Compute the *real* vertical and horizontal FOVs:
 	g_fRealVertFOV = 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist);
 	g_fRealHorzFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist);
 	// Compute the metric scale factor conversion
 	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
+
+	// Populate the metric reconstruction CB
+	g_MetricRecCBuffer.mr_FOVscale = g_ShadertoyBuffer.FOVscale;
+	g_MetricRecCBuffer.mr_y_center = g_ShadertoyBuffer.y_center;
+	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
+	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJZMetricMult;
+
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 }
@@ -8602,6 +8612,11 @@ HRESULT PrimarySurface::Flip(
 
 				g_bCustomFOVApplied = true; // Becomes false in OnSizeChanged()
 				ComputeHyperFOVParams();
+				// The Hyper FOV params also compute the metric 3D reconstruction params. 
+				// This probably is a good place to set the VS constant buffer:
+				resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+				// TODO: Do we need this CB in the pixel shaders? Maybe if we replace the Shadertoy CB settings...
+				resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
 			}
 
 //#define HYPER_OVERRIDE 1

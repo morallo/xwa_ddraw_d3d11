@@ -20,6 +20,13 @@ cbuffer ConstantBuffer : register(b1)
 	matrix fullViewMatrix;
 };
 
+// MetricReconstructionCB
+cbuffer ConstantBuffer : register(b6)
+{
+	float mr_aspect_ratio, mr_FOVscale, mr_y_center, mr_z_metric_mult;
+	float mr_cur_metric_scale, mr_unused0, mr_unused1, mr_unused2;
+};
+
 struct VertexShaderInput
 {
 	float4 pos		: POSITION;
@@ -30,20 +37,20 @@ struct VertexShaderInput
 
 struct PixelShaderInput
 {
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
-	float4 pos3D  : COLOR1;
-	float4 normal : NORMAL; // hook_normals.dll populates this field
+	float4 pos      : SV_POSITION;
+	float4 color    : COLOR0;
+	float2 tex      : TEXCOORD0;
+	float4 pos3D    : COLOR1;
+	float4 normal   : NORMAL; // hook_normals.dll populates this field
 };
 
 PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 	float sz = input.pos.z;
-	//float pz = 1.0 - sz;
 	float w = 1.0 / input.pos.w;
 
+	/*
 	float3 temp = input.pos.xyz;
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
@@ -56,22 +63,46 @@ PixelShaderInput main(VertexShaderInput input)
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
+	*/
+
+	float3 temp = float3(input.pos.xy, w);
+	temp.z *= mr_FOVscale * mr_z_metric_mult;
+	// temp.z is now metric 3D
+
 	// Override the depth of this element if z_override is set
 	if (mult_z_override > -0.1)
-		temp.z *= mult_z_override;
+		temp.z *= mult_z_override; // * mr_cur_metric_scale ?
 	if (z_override > -0.1)
-		temp.z = z_override;
+		temp.z = z_override; // * mr_cur_metric_scale ?
+
+	float FOVscaleZ = mr_FOVscale / temp.z;
+
+	// Normalize into the 0.0..1.0 range
+	temp.xy *= vpScale.xy;
+	temp.xy *= float2(2.0, -2.0);
+	temp.xy += float2(-1.0, 1.0);
+	// temp.xy is now in the range [-1..1]
+	//temp.xy *= 2.0 * vpScale.w; // The 2.0 factor here is because in regular mode vpScale is multiplied by 2 as well, so we need to compensate
+
+	temp.xy = temp.xy / FOVscaleZ * float2(mr_aspect_ratio, 1.0);
+	temp.y -= temp.z * mr_y_center / mr_FOVscale;
+	// temp.xyz is now "straight" 3D up to a scale factor
+
+	temp *= mr_cur_metric_scale;
+	// temp.xyz is now fully-metric 3D.
 
 	// The back-projection into 3D is now very simple:
-	// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
-	float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
-	// Write the reconstructed 3D into the output so that it gets interpolated:
-	output.pos3D = float4(P.x, -P.y, P.z, 1);
-	// Adjust the coordinate system for SteamVR:
-	P.yz = -P.yz;
-	// Remove the effect of DEFAULT_FOCAL_DIST?
-	// P.xy /= DEFAULT_FOCAL_DIST
+	//float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
+	float3 P = temp;
 
+	// Write the reconstructed 3D into the output so that it gets interpolated:
+	//output.pos3D = float4(P.x, -P.y, P.z, 1);
+	output.pos3D = float4(P.x, P.y, P.z, 1);
+
+	// Adjust the coordinate system for SteamVR:
+	//P.yz = -P.yz;
+	P.z = -P.z;
+	
 	// Apply head position and project 3D --> 2D
 	if (bPreventTransform < 0.5f) {
 		if (bFullTransform < 0.5f)

@@ -169,6 +169,9 @@ extern float g_fSpeedShaderParticleRange;
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
 extern bool g_bShadowMappingEnabled;
 
+// Metric Reconstruction
+extern MetricReconstructionCB g_MetricRecCBuffer;
+
 bool InitSteamVR();
 void LoadFocalLength();
 void ResetXWALightInfo();
@@ -1272,17 +1275,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadowMap.Release();
 		this->_shadowMapDebug.Release();
 		this->_shadowMapArraySRV.Release();
-		//this->_shadowMapSingleSRV.Release();
 		this->_shadowMapDSV.Release();
 		this->_shadowMapArray.Release();
-
-		/*
-		if (g_bUseSteamVR) {
-			this->_shadowMapR.Release();
-			this->_shadowMapSRV_R.Release();
-			this->_shadowMapDSV_R.Release();
-		}
-		*/
 	}
 
 	this->_backBuffer.Release();
@@ -3361,6 +3355,13 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
 		return hr;
 
+	constantBufferDesc.ByteWidth = 32;
+	static_assert(sizeof(MetricReconstructionCB) == 32, "sizeof(MetricReconstructionCB) must be 32");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecVSConstantBuffer)))
+		return hr;
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecPSConstantBuffer)))
+		return hr;
+
 	// Create the constant buffer for the (3D) textured pixel shader
 	constantBufferDesc.ByteWidth = 80;
 	static_assert(sizeof(PixelShaderCBuffer) == 80, "sizeof(PixelShaderCBuffer) must be 80");
@@ -3843,32 +3844,32 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 
 void DeviceResources::InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer* psConstants)
 {
-	//static ID3D11Buffer** currentBuffer = nullptr;
-	//static DCPixelShaderCBuffer currentPSConstants = { 0 };
-	//static int sizeof_constants = sizeof(DCPixelShaderCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(1, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer)
 {
-	//static ID3D11Buffer** currentBuffer = nullptr;
-	//static LaserPointerCBuffer currentPSConstants = { 0 };
-	//static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
 	this->_d3dDeviceContext->VSSetConstantBuffers(5, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *psCBuffer)
 {
-	//static ID3D11Buffer** currentBuffer = nullptr;
-	//static LaserPointerCBuffer currentPSConstants = { 0 };
-	//static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(5, 1, buffer);
+}
+
+void DeviceResources::InitVSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *vsCBuffer)
+{
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
+	this->_d3dDeviceContext->VSSetConstantBuffers(METRIC_REC_CB_SLOT, 1, buffer);
+}
+
+void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *psCBuffer)
+{
+	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psCBuffer, 0, 0);
+	this->_d3dDeviceContext->PSSetConstantBuffers(METRIC_REC_CB_SLOT, 1, buffer);
 }
 
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)

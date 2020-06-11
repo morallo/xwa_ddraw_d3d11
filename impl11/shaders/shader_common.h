@@ -28,3 +28,6 @@
 #define SPECIAL_CONTROL_XWA_SHADOW 1
 #define SPECIAL_CONTROL_GLASS 2
 
+// Register slot for the metric reconstruction constant buffer
+#define METRIC_REC_CB_SLOT 6
+

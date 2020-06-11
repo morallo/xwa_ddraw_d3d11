@@ -672,6 +672,7 @@ DCPixelShaderCBuffer g_DCPSCBuffer;
 ShadertoyCBuffer	 g_ShadertoyBuffer;
 LaserPointerCBuffer	 g_LaserPointerBuffer;
 ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+MetricReconstructionCB g_MetricRecCBuffer;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
@@ -2422,7 +2423,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				// Force the new FOV to be applied
-				if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV;
+				//if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV;
+				g_CurrentFOV = XWAHACKER_FOV;
 				g_bCustomFOVApplied = false;
 			}
 			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
@@ -2454,7 +2456,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
 				// Force the new FOV to be applied
-				if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
+				//if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
+				g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				g_bCustomFOVApplied = false;
 			}
 		}
@@ -4469,11 +4472,18 @@ bool InitDirectSBS()
 	// match the format above:
 	g_EyeMatrixRightInv.transpose();
 
+	/*
+	Matrix from Trinus PSVR, June 11, 2020:
+	0.847458, 0.000000, 0.000000, 0.000000
+	0.000000, 0.746269, 0.000000, 0.000000
+	0.000000, 0.000000, -1.000010, -0.001000
+	0.000000, 0.000000, -1.000000, 0.000000
+	*/
 	g_projLeft.set
 	(
 		0.847458f, 0.0f,       0.0f,  0.0f,
 		0.0f,      0.746269f,  0.0f,  0.0f,
-		0.0f,      0.0f,      -1.0f, -0.01f, // Use the focal_dist here?
+		0.0f,      0.0f,      -1.000010f, -0.001f,
 		0.0f,      0.0f,      -1.0f,  0.0f
 	);
 	g_projLeft.transpose();
@@ -5385,7 +5395,6 @@ bool rayTriangleIntersect(
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	float3 temp;
 	float FOVscaleZ;
-	// g_ShadertoyBuffer.FOVscale = 2.0f * g_fRawFOVDist / g_fCurInGameHeight;
 	float sm_FOVscale = g_ShadowMapVSCBuffer.sm_FOVscale;
 	float sm_aspect_ratio = g_ShadowMapVSCBuffer.sm_aspect_ratio;
 	float sm_y_center = g_ShadowMapVSCBuffer.sm_y_center;
@@ -5407,16 +5416,16 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 
 	if (g_bEnableVR)
 	{
-		temp.x = 2.0f * temp.x;
+		temp.x =  2.0f * temp.x;
 		temp.y = -2.0f * temp.y;
 		temp.x += -1.0f;
-		temp.y += 1.0f;
+		temp.y +=  1.0f;
 		// temp.xy is now in the range [-1..1]
 	}
 	else
 	{
 		temp.x += -1.0f; // For nonVR, vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y += 1.0f;
+		temp.y +=  1.0f;
 		// temp.x is now in the range -1.0 .. 1.0 and
 		// temp.y is now in the range  1.0 ..-1.0
 		// temp.xy is now in DirectX coords [-1..1]
@@ -6311,6 +6320,9 @@ HRESULT Direct3DDevice::Execute(
 		if (g_bEnableVR) {
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
+
+			//g_VSCBuffer.viewportScale[0] = 2.0f / displayWidth;
+			//g_VSCBuffer.viewportScale[1] = 2.0f / displayHeight;
 		} else {
 			g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;

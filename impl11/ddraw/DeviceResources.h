@@ -405,6 +405,16 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
 } ShadowMapVertexShaderMatrixCB;
 
+// Holds the current 3D reconstruction constants, register b6
+typedef struct MetricReconstructionCBStruct {
+	float mr_aspect_ratio;   // Same as sm_aspect_ratio, remove sm_* later
+	float mr_FOVscale;       // Same as sm_FOVscale... same as g_ShadertoyBuffer.FOVscale
+	float mr_y_center;       // Same as sm_y_center... same as g_ShadertoyBuffer.y_center
+	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
+
+	float mr_cur_metric_scale, mr_unused[3];
+} MetricReconstructionCB;
+
 typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
 	uvfloat4 dst[MAX_DC_COORDS_PER_TEXTURE];
@@ -725,8 +735,12 @@ public:
 	void InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
+	// Shadow Mapping CBs
 	void InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer);
 	void InitPSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *psCBuffer);
+	// Metric Reconstruction CBs
+	void InitVSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *vsCBuffer);
+	void InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *psCBuffer);
 
 	void BuildHUDVertexBuffer(UINT width, UINT height);
 	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
@@ -1013,7 +1027,9 @@ public:
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
 	ComPtr<ID3D11Buffer> _shadowMappingVSConstantBuffer;
 	ComPtr<ID3D11Buffer> _shadowMappingPSConstantBuffer;
-	
+	ComPtr<ID3D11Buffer> _metricRecVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _metricRecPSConstantBuffer;
+
 	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
