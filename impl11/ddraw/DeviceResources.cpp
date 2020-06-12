@@ -173,7 +173,7 @@ extern bool g_bShadowMappingEnabled;
 extern MetricReconstructionCB g_MetricRecCBuffer;
 
 bool InitSteamVR();
-void LoadFocalLength();
+bool LoadFocalLength();
 void ResetXWALightInfo();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */

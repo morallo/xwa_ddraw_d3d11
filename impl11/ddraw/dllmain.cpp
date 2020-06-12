@@ -145,6 +145,9 @@ void ShutDownSteamVR();
 void ApplyFocalLength(float focal_length);
 bool UpdateXWAHackerFOV();
 void CycleFOVSetting();
+float ComputeRealVertFOV();
+float ComputeRealHorzFOV();
+float RealVertFOVToRawFocalLength(float real_FOV);
 
 /*
  * Save the current FOV and metric multiplier to an external file
@@ -167,14 +170,20 @@ void SaveFocalLength() {
 
 	fprintf(file, "; The focal length is measured in pixels. This parameter can be modified without\n");
 	fprintf(file, "; VR, so, technically, it's not a 'VRParam'\n");
-	fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
+	// Let's not write the focal length in pixels anymore. It doesn't make any sense to
+	// anyone and it's only useful internally. We'll continue to read it, but let's start
+	// using something sensible
+	//fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
+	// Save the *real* vert FOV
+	fprintf(file, "real_FOV = %0.3f\n", ComputeRealVertFOV());
 	fclose(file);
 }
 
-void LoadFocalLength() {
+bool LoadFocalLength() {
 	log_debug("[DBG] [FOV] Loading FocalLength...");
 	FILE *file;
 	int error = 0;
+	bool bApplied = false;
 
 	try {
 		error = fopen_s(&file, "./FocalLength.cfg", "rt");
@@ -185,7 +194,7 @@ void LoadFocalLength() {
 
 	if (error != 0) {
 		log_debug("[DBG] [FOV] Error %d when loading FocalLength.cfg", error);
-		return;
+		return bApplied;
 	}
 
 	char buf[160], param[80], svalue[80];
@@ -203,14 +212,22 @@ void LoadFocalLength() {
 			fValue = (float)atof(svalue);
 			if (_stricmp(param, "focal_length") == 0) {
 				ApplyFocalLength(fValue);
-				log_debug("[DBG] [FOV] Applied FOV: %0.6f", fValue);
+				log_debug("[DBG] [FOV] Applied FOV: %0.3f", fValue);
+				bApplied = true;
+			}
+			else if (_stricmp(param, "real_FOV") == 0) {
+				float RawFocalLength = RealVertFOVToRawFocalLength(fValue);
+				ApplyFocalLength(RawFocalLength);
+				log_debug("[DBG] [FOV] Applied Real FOV: %0.3f", RawFocalLength);
+				bApplied = true;
 			}
 		}
 	}
 	fclose(file);
+	return bApplied;
 }
 
-void ApplyFocalLength(float focal_length) 
+void ApplyFocalLength(float focal_length)
 {
 	log_debug("[DBG] [FOV] Old FOV: %0.3f, Applying: %0.3f", *g_fRawFOVDist, focal_length);
 	*g_fRawFOVDist = focal_length;

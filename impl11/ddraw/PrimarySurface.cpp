@@ -49,11 +49,13 @@ extern Matrix4 g_CurrentHeadingViewMatrix;
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
-extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fDebugFOV, g_fDebugAspectRatio;
+extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fVR_FOV;
+extern float g_fDebugFOV, g_fDebugAspectRatio;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 extern float g_fRealHorzFOV, g_fRealVertFOV;
-void LoadFocalLength();
+bool LoadFocalLength();
 void ApplyFocalLength(float focal_length);
+void SaveFocalLength();
 Matrix4 g_ReflRotX;
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
@@ -677,6 +679,17 @@ extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 void *g_pSurface = NULL;
 void WaitGetPoses();
 
+float ComputeRealVertFOV() {
+	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;
+}
+
+float ComputeRealHorzFOV() {
+	return 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist) / DEG2RAD;
+}
+
+float RealVertFOVToRawFocalLength(float real_FOV_deg) {
+	return 0.5f * g_fCurInGameHeight / tan(0.5f * real_FOV_deg * DEG2RAD);
+}
 
 /**
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
@@ -688,8 +701,8 @@ void ComputeHyperFOVParams() {
 	g_ShadertoyBuffer.y_center = 153.0f / g_fCurInGameHeight;
 	
 	// Compute the *real* vertical and horizontal FOVs:
-	g_fRealVertFOV = 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist);
-	g_fRealHorzFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist);
+	g_fRealVertFOV = ComputeRealVertFOV();
+	g_fRealHorzFOV = ComputeRealHorzFOV();
 	// Compute the metric scale factor conversion
 	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
 
@@ -8582,7 +8595,13 @@ HRESULT PrimarySurface::Flip(
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
 					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
-					LoadFocalLength();
+					if (!LoadFocalLength() && g_bEnableVR) {
+						// We couldn't load the custom FOV and we're running in VR mode, let's apply
+						// the current VR FOV...
+						ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
+						// ... and save it
+						SaveFocalLength();
+					}
 					break;
 				case XWAHACKER_FOV:
 					// If the current ship's DC file has a focal length, apply it:

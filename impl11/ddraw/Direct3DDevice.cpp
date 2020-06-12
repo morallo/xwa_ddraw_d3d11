@@ -253,7 +253,12 @@ float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
+#define PSVR_VERT_FOV 106.53f
+float RealVertFOVToRawFocalLength(float real_FOV);
+void ApplyFocalLength(float focal_length);
+void SaveFocalLength();
 
+float g_fVR_FOV = PSVR_VERT_FOV;
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
@@ -707,7 +712,7 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
 bool isInVector(char *OPTname, std::vector<OPTNameType> &vector);
 bool InitDirectSBS();
-void LoadFocalLength();
+bool LoadFocalLength();
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -2422,9 +2427,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 				}
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
+				g_CurrentFOV = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV;
 				// Force the new FOV to be applied
-				//if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV;
-				g_CurrentFOV = XWAHACKER_FOV;
 				g_bCustomFOVApplied = false;
 			}
 			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
@@ -2455,9 +2459,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 				}
 
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
+				g_CurrentFOV = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				// Force the new FOV to be applied
-				//if (!g_bEnableVR) g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
-				g_CurrentFOV = XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				g_bCustomFOVApplied = false;
 			}
 		}
@@ -4478,6 +4481,21 @@ bool InitDirectSBS()
 	0.000000, 0.746269, 0.000000, 0.000000
 	0.000000, 0.000000, -1.000010, -0.001000
 	0.000000, 0.000000, -1.000000, 0.000000
+
+	iVRy reported these values:
+
+	projLeft:
+	0.847458, 0.000000,  0.000000,  0.000000
+	0.000000, 0.746269,  0.000000,  0.000000
+	0.000000, 0.000000, -1.010101, -0.505050
+	0.000000, 0.000000, -1.000000,  0.000000
+
+	Raw data (Left eye):
+	Left: -1.180000, Right: 1.180000, Top: -1.340000, Bottom: 1.340000
+	Raw data (Right eye):
+	Left: -1.180000, Right: 1.180000, Top: -1.340000, Bottom: 1.340000
+
+	atan(1.34) = 53.26 deg, so that's 106.53 degrees vertical FOV
 	*/
 	g_projLeft.set
 	(
@@ -4496,6 +4514,10 @@ bool InitDirectSBS()
 	//ShowMatrix4(g_projLeft, "g_projLeft");
 	//ShowMatrix4(g_EyeMatrixRightInv, "g_EyeMatrixRightInv");
 	//ShowMatrix4(g_projRight, "g_projRight");
+
+	// Set the vertical FOV to 106.53. This will be applied after the first frame is
+	// rendered, in PrimarySurface::Flip
+	g_fVR_FOV = PSVR_VERT_FOV;
 	log_debug("[DBG] DirectSBS mode initialized");
 	g_bDirectSBSInitialized = true;
 	return true;

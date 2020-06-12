@@ -78,11 +78,9 @@ PixelShaderInput main(VertexShaderInput input)
 	float FOVscaleZ = mr_FOVscale / temp.z;
 
 	// Normalize into the 0.0..1.0 range
-	temp.xy *= vpScale.xy;
-	temp.xy *= float2(2.0, -2.0);
+	temp.xy *= float2(2.0 * vpScale.x, -2.0 * vpScale.y);
 	temp.xy += float2(-1.0, 1.0);
 	// temp.xy is now in the range [-1..1]
-	//temp.xy *= 2.0 * vpScale.w; // The 2.0 factor here is because in regular mode vpScale is multiplied by 2 as well, so we need to compensate
 
 	temp.xy = temp.xy / FOVscaleZ * float2(mr_aspect_ratio, 1.0);
 	temp.y -= temp.z * mr_y_center / mr_FOVscale;
