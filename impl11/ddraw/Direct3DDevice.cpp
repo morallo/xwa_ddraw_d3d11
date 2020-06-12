@@ -240,6 +240,7 @@ uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 
+const float DEG2RAD = 3.141593f / 180.0f;
 FOVtype g_CurrentFOV = GLOBAL_FOV;
 
 // xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
@@ -4342,6 +4343,12 @@ bool InitSteamVR()
 	if (g_bSteamVRPosFromFreePIE)
 		InitFreePIE();
 
+	// Compute the FOV from the left eye vertical params. This FOV will be applied
+	// and saved in PrimarySurface::Flip()
+	float left, right, top, bottom;
+	g_pHMD->GetProjectionRaw(vr::EVREye::Eye_Left, &left, &right, &top, &bottom);
+	g_fVR_FOV = (atan(fabs(top)) + atan(fabs(bottom))) / DEG2RAD;
+
 	// Dump information about the view matrices
 	if (file_error == 0) {
 		Matrix4 eye, test;
@@ -4394,7 +4401,6 @@ bool InitSteamVR()
 		DumpMatrix44(file, projRight);
 		fprintf(file, "\n");
 
-		float left, right, top, bottom;
 		g_pHMD->GetProjectionRaw(vr::EVREye::Eye_Left, &left, &right, &top, &bottom);
 		fprintf(file, "Raw data (Left eye):\n");
 		fprintf(file, "Left: %0.6f, Right: %0.6f, Top: %0.6f, Bottom: %0.6f\n",
