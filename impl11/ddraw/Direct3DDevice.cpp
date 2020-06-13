@@ -69,6 +69,8 @@ From: https://xwaupgrade.com/phpBB3/viewtopic.php?f=16&t=12462
 
 ********************************************************************************************
 
+https://xwaupgrade.com/phpBB3/viewtopic.php?f=9&t=12436
+
 Justagai:
 
 The cockpit camera position is in the CraftDefinition struct/table. Table starts at 0x5BB480

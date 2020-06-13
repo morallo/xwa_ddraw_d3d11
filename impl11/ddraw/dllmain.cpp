@@ -1060,6 +1060,58 @@ void PatchWithValue(uint32_t address, unsigned char value, int size) {
 		log_debug("[DBG] Could not patch address 0x%x", address);
 }
 
+void LoadPOVOffsets() {
+	log_debug("[DBG] [POV] Loading POVOffsets.cfg...");
+	FILE *file;
+	char buf[160];
+	int slot, x, y, z, num_params, entries_applied = 0, error = 0;
+	const char *CraftTableBase = (char *)0x5BB480;
+	const int16_t EntrySize = 0x3DB, POVOffset = 0x238;
+	// 0x5BB480 + (n-1) * 0x3DB + 0x238
+
+	try {
+		error = fopen_s(&file, "./POVOffsets.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [FOV] Could not load POVOffsets.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [FOV] Error %d when loading POVOffsets.cfg", error);
+		return;
+	}
+
+	while (fgets(buf, 160, file) != NULL) {
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		num_params = sscanf_s(buf, "%d %d %d %d", &slot, &x, &z, &y);
+		if (num_params == 4) {
+			int16_t *pov = (int16_t *)(CraftTableBase + (slot - 1) * EntrySize + POVOffset);
+			// Y, Z, X
+			*pov += y; pov++;
+			*pov += z; pov++;
+			*pov += x;
+			entries_applied++;
+		}
+		/*
+		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
+			fValue = (float)atof(svalue);
+			if (_stricmp(param, "focal_length") == 0) {
+				ApplyFocalLength(fValue);
+				log_debug("[DBG] [FOV] Applied FOV: %0.3f", fValue);
+				bApplied = true;
+			}
+		}
+		*/
+	}
+	fclose(file);
+	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -1241,6 +1293,28 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				log_debug("[DBG] [PATCH] Music Sync Fix Applied");
 				//log_debug("[DBG] [PATCH] After: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
 				//log_debug("[DBG] [PATCH] After: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
+			}
+
+			{
+				//short *POV_Y0 = (short *)(0x5BB480 + 0x238); // = 0x5BB6B8, 0x5BB480 + 0x32 = Craft name
+				//short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
+				//short *POV_X0 = (short *)(0x5BB480 + 0x23C);
+				//log_debug("[DBG] [POV] X,Z,Y: %d, %d, %d", *POV_X0, *POV_Z0, *POV_Y0);
+				//*POV_Z0 += 10; // Moves the POV up
+				//*POV_Y0 += 5;  // Moves the POV forward
+				//*POV_Y0 += 10; // This makes the X-Wing look good in VR
+				LoadPOVOffsets();
+
+				// DEBUG
+				/*
+				const char *CraftTableBase = (char *)0x5BB480;
+				const int16_t EntrySize = 0x3DB, POVOffset = 0x238;
+				for (int i = 1; i <= 3; i++) {
+					int16_t *pov = (int16_t *)(CraftTableBase + (i - 1) * EntrySize + POVOffset);
+					log_debug("[DBG] [POV] (%d): %d, %d, %d",
+						i, *pov, *(pov+1), *(pov+2));
+				}
+				*/
 			}
 		}
 		break;
