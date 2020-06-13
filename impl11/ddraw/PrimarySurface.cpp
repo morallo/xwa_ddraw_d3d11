@@ -1426,11 +1426,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// Resize the buffer to be presented for SteamVR
 	float scale_x = screen_res_x / g_steamVRWidth;
 	float scale_y = screen_res_y / g_steamVRHeight;
-	float scale = (scale_x + scale_y);
+	float scale = max(scale_x, scale_y);
+	//float scale = (scale_x + scale_y);
+	/*
 	if (!is_2D)
 		scale *= 0.5f;
 		//scale *= 0.75f; // HACK: Use this for Trinus PSVR
-	
+	*/
+
 	float newWidth = g_steamVRWidth * scale; // Use this when not running Trinus
 	//float newWidth = g_steamVRWidth * scale * 0.5f; // HACK: Use this for Trinus PSVR
 	float newHeight = g_steamVRHeight * scale;
@@ -1510,16 +1513,6 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 }
-
-/*
- * Applies the bloom effect on the 3D window.
- * pass 0:
- *		Input: an already-resolved _offscreenBufferAsInputReshade
- *		Renders to _reshadeOutput1
- * pass 1:
- *		Input: an already-resolved _reshadeOutput1
- *		Renders to _reshadeOutput2
- */
 
  /*
   * Applies a single bloom effect pass. Depending on the input:
@@ -8444,13 +8437,18 @@ HRESULT PrimarySurface::Flip(
 			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
 			if (g_bEnableVR) {
 				if (g_bUseSteamVR) {
+					/*
+					// The new Metric VR reconstruction shouldn't need any barrel effect distortion 
 					if (!g_bDisableBarrelEffect) {
 						// Do the barrel effect (_offscreenBuffer -> _offscreenBufferPost)
 						barrelEffectSteamVR();
 						context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
 						context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 					}
+					*/
 					// Resize the buffer to be presented (_offscreenBuffer -> _steamVRPresentBuffer)
+					// TODO: Compensate for the difference in aspect ratio between SteamVR's window
+					//       and the actual window size on the screen.
 					resizeForSteamVR(0, false);
 					// Resolve steamVRPresentBuffer to backBuffer so that it gets presented on the screen
 					context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);

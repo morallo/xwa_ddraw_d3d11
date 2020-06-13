@@ -661,6 +661,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				IncreaseScreenScale(-0.1f);
 				return 0;
 
+			// Ctrl+Alt + Key
 			case VK_UP:
 				IncreaseLensK1(0.1f);
 				SaveVRParams();
