@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE.txt
 // This shader is used to render the speed effect particles
 #include "ShadertoyCBuffer.h"
+#include "metric_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -80,11 +81,12 @@ PixelShaderInput main(VertexShaderInput input)
 		how to apply FOVscale and y_center properly in 3D; but the answer should be
 		below now: it's just a matter of massaging the formulae.
 		*/
-		// Back-project into 3D. In this case, the w component has the original Z value.
-		float3 temp = input.pos.xyw;
-		temp.x *= aspect_ratio;
-		// TODO: Verify that the addition of DEFAULT_FOCAL_DIST didn't change this shader
-		float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
+		// Back-project into 3D. In this case, the w component has the original Metric Z value.
+		float3 P, temp = input.pos.xyw;
+		P.x = temp.z * temp.x * aspect_ratio / mr_FOVscale;
+		P.y = temp.z * (temp.y - y_center) / mr_FOVscale;
+		P.z = temp.z;
+
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));

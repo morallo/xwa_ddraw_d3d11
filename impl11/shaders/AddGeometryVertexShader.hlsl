@@ -3,6 +3,7 @@
 // This shader is used to render the speed effect particles
 #include "ShadertoyCBuffer.h"
 #include "shadow_mapping_common.h"
+#include "metric_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -44,20 +45,18 @@ PixelShaderInput main(VertexShaderInput input)
 	// OBJ-3D to cockpit camera view:
 	float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
 	
-	// Original transform chain, including 2D projection:
-	//P.x /= sm_aspect_ratio;
-	//P.x = FOVscale * (P.x / P.z);
-	//P.y = FOVscale * (P.y / P.z) + y_center;
-
-	// Adjust the point for differences in FOV and y_center AND PROJECT TO 2D:
-	P.xy = FOVscale / P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
-	
 	// The 2D point is now in DirectX coords (-1..1) that are compatible with XWA 2D (minus scale)
-
 	if (bFullTransform < 0.5)
 	{
 		// Regular Vertex Shader
-		
+		// Original transform chain, including 2D projection:
+		//P.x /= sm_aspect_ratio;
+		//P.x = FOVscale * (P.x / P.z);
+		//P.y = FOVscale * (P.y / P.z) + y_center;
+
+		// Adjust the point for differences in FOV and y_center AND PROJECT TO 2D:
+		P.xy = FOVscale / P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
+
 		// Fix the depth
 		P.z = 0.0; // Depth value -- this makes the point visible
 		P.w = 1.0;
@@ -75,26 +74,48 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 	else
 	{
+		// VR PATH
+		// Remove the scale we added when loading the OBJ since we need fully-metric
+		// coords for the VR path:
+		P /= mr_shadow_OBJ_scale;
+
+		// Project:
+		P.z = -P.z;
+		output.pos = mul(projEyeMatrix, float4(P.xyz, 1.0));
+		
 		/*
 		VR PATH
 
 		The reason we're projecting to 2D, back-projecting to 3D and then projecting
-		to 2D again is because the first 3D->2D projection matches OBJ coords to XWA 2D
+		to 2D again is because the first 3D -> 2D projection matches OBJ coords to XWA 2D
 		coords. Then these coords can be back-projected into VR 3D so that they can be
 		projected again into VR 2D.
 		I seriously need to do some refactoring here.
 		*/
-		// Back-project into 3D space again
-		float3 temp = P.xyz;
-		// The additional 2.0 factor below is because in VR vpScale.xy is 1/{width,height}, but in non-VR it's 2/{width,height}
-		// so we have to compensate
-		// I'm not sure we need vpScale.z, but I'm leaving it here for completeness
-		temp.xy *= vpScale.w * vpScale.z / 2.0 * float2(aspect_ratio, 1);
-		// TODO: Verify that the addition of DEFAULT_FOCAL_DIST_VR didn't change this shader
-		float3 Q = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
+
+		/*
+		//temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJ_Z_MetricMult;
+		//rhw = 1.0 / (temp.z / g_fOBJ_Z_MetricMult / sm_FOVscale)
+		// temp.z is now metric 3D minus the g_fOBJCurMetricScale scale factor
+		float tempz = P.z / mr_cur_metric_scale; // Should be equal to: sm_FOVscale * (1.0f / rhw) * g_fOBJ_Z_MetricMult;
+		float FOVscaleZ = mr_FOVscale / tempz;
+
+		// temp.xy is already in DirectX coords [-1..1]
+		P.x = P.x / FOVscaleZ * mr_aspect_ratio;
+		P.y = P.y / FOVscaleZ - tempz * mr_y_center / mr_FOVscale;
+
+		// g_fOBJCurMetricScale depends on the current in-game height and is computed
+		// whenever a new FOV is applied. See ComputeHyperFOVParams()
+		P.xy *= mr_cur_metric_scale;
+		// P.z is already "pre-multiplied" by mr_cur_metric_scale
+
+		float3 Q = P.xyz;
 		// Project again
 		Q.z = -Q.z;
-		output.pos = mul(projEyeMatrix, float4(Q.xyz, 1.0));
+		Q = mul(eyeMatrix, float4(Q, 1)).xyz;
+		output.pos = mul(projEyeMatrix, float4(Q, 1.0));
+		*/
+
 		// DirectX will divide output.pos by output.pos.w, so we don't need to do it here,
 		// plus we probably can't do it here in the case of SteamVR anyway...
 

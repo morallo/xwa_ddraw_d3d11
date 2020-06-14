@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
 #include "shader_common.h"
+#include "metric_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -18,13 +19,6 @@ cbuffer ConstantBuffer : register(b1)
 	matrix projEyeMatrix;
 	matrix viewMatrix;
 	matrix fullViewMatrix;
-};
-
-// MetricReconstructionCB
-cbuffer ConstantBuffer : register(b6)
-{
-	float mr_aspect_ratio, mr_FOVscale, mr_y_center, mr_z_metric_mult;
-	float mr_cur_metric_scale, mr_unused0, mr_unused1, mr_unused2;
 };
 
 struct VertexShaderInput
@@ -95,7 +89,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	//output.pos3D = float4(P.x, -P.y, P.z, 1);
-	output.pos3D = float4(P.x, P.y, P.z, 1);
+	output.pos3D = float4(P, 1);
 
 	// Adjust the coordinate system for SteamVR:
 	//P.yz = -P.yz;

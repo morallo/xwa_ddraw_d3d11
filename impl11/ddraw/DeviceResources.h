@@ -390,7 +390,7 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	uint32_t sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
-	float sm_aspect_ratio, sm_bias, sm_max_edge_distance_unused, sm_pcss_radius;
+	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
 
 	Vector3 POV;
 	float sm_resolution;
@@ -412,7 +412,7 @@ typedef struct MetricReconstructionCBStruct {
 	float mr_y_center;       // Same as sm_y_center... same as g_ShadertoyBuffer.y_center
 	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
 
-	float mr_cur_metric_scale, mr_unused[3];
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_unused[2];
 } MetricReconstructionCB;
 
 typedef struct uv_coords_src_dst_struct {

@@ -715,6 +715,7 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
+	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
@@ -5078,6 +5079,7 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 {
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 	const float y_center = g_ShadertoyBuffer.y_center;
+	//const float y_center = 0.0f;
 	Vector4 P;
 	P.x = particles[idx].sx;
 	P.y = particles[idx].sy;
@@ -5089,7 +5091,7 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	P.x /= g_fAspectRatio; // TODO: Should this be g_fCurInGameAspectRatio?
 	particles[idx].sx = FOVFactor * (P.x / P.z);
 	particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
-	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX, setting it to 2.0 will clip it
+	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX. Setting it to 2.0 will clip it
 	particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
 	/*}
 	else {
@@ -5120,7 +5122,9 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	// The color is RRGGBB, so this value gets encoded in the blue component:
 	// Disable the following line so that particles are still displayed when parked.
 	sample.color = (uint32_t)(gray * 255.0f);
+	// DEBUG: Do not fade speed particles
 	//sample.color = 0xFFFFFFFF;
+	// DEBUG
 
 	// top
 	particles[j] = sample;
@@ -5675,7 +5679,7 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 
 	if (g_bDumpSSAOBuffers) {
 		//log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
-		//log_debug("[DBG] [SHW] POV1: %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
+		log_debug("[DBG] [SHW] POV (Original): %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
 			g_ShadowMapVSCBuffer.POV.x, g_ShadowMapVSCBuffer.POV.y, g_ShadowMapVSCBuffer.POV.z);
 	}
@@ -5869,10 +5873,12 @@ void PrimarySurface::RenderAdditionalGeometry()
 		}
 	}
 
+	/*
 	if (g_bDumpSSAOBuffers)
 	{
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_addGeom.png");
 	}
+	*/
 
 	// Second render: compose the cockpit over the previous effect
 	{
