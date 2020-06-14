@@ -428,7 +428,7 @@ float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
 // proper match was found.
-float g_fOBJZMetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
+float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -3612,8 +3612,8 @@ bool LoadSSAOParams() {
 			}
 
 			else if (_stricmp(param, "g_fOBJZMetricMult") == 0) {
-				g_fOBJZMetricMult = fValue;
-				log_debug("[DBG] [SHOW] g_fOBJZMetricMult: %0.3f", g_fOBJZMetricMult);
+				g_fOBJ_Z_MetricMult = fValue;
+				log_debug("[DBG] [SHOW] g_fOBJZMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 			}
 			else if (_stricmp(param, "g_fOBJGlobalMetricMult") == 0) {
 				g_fOBJGlobalMetricMult = fValue;
@@ -5421,16 +5421,24 @@ bool rayTriangleIntersect(
  * the distortion reported by users in SteamVR.
  * This code is based on AddGeometryVertexShader -- it's basically the inverse of that
  * code up to a scale factor.
+ *
+ * INPUT:
+ *		in-game 2D coordinates + rhw
+ * OUTPUT:
+ *		OPT-scale metric 3D centered on the current camera.
  */
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	float3 temp;
 	float FOVscaleZ;
-	float sm_FOVscale = g_ShadowMapVSCBuffer.sm_FOVscale;
-	float sm_aspect_ratio = g_ShadowMapVSCBuffer.sm_aspect_ratio;
-	float sm_y_center = g_ShadowMapVSCBuffer.sm_y_center;
+	float sm_FOVscale = g_MetricRecCBuffer.mr_FOVscale;
+	float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
+	float sm_y_center = g_MetricRecCBuffer.mr_y_center;
 
-	//temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw) * g_fOBJMetricMult;
-	temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJZMetricMult;
+	//log_debug("[DBG] sm_FOVscale: %0.3f, sm_aspect_ratio: %0.3f. sm_y_center: %0.3f",
+	//	sm_FOVscale, sm_aspect_ratio, sm_y_center);
+	//log_debug("[DBG] sx,sy,rhw: %0.3f, %0.3f, %0.3f", sx, sy, rhw);
+
+	temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJ_Z_MetricMult;
 	// temp.z is now metric 3D
 	FOVscaleZ = sm_FOVscale / temp.z;
 
@@ -5446,20 +5454,14 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 
 	if (g_bEnableVR)
 	{
-		temp.x =  2.0f * temp.x;
-		temp.y = -2.0f * temp.y;
-		temp.x += -1.0f;
-		temp.y +=  1.0f;
-		// temp.xy is now in the range [-1..1]
+		temp.x *=  2.0f;
+		temp.y *= -2.0f;
 	}
-	else
-	{
-		temp.x += -1.0f; // For nonVR, vpScale is mult by 2, so we need to add/substract with 1.0, not 0.5 to center the coords
-		temp.y +=  1.0f;
-		// temp.x is now in the range -1.0 .. 1.0 and
-		// temp.y is now in the range  1.0 ..-1.0
-		// temp.xy is now in DirectX coords [-1..1]
-	}
+	temp.x += -1.0f;
+	temp.y +=  1.0f;
+	// temp.x is now in the range -1.0 .. 1.0 and
+	// temp.y is now in the range  1.0 ..-1.0
+	// temp.xy is now in DirectX coords [-1..1]
 
 	// P.x = sm_aspect_ratio * P2D.x / (FOVscale/P.z)
 	temp.x = temp.x / FOVscaleZ * sm_aspect_ratio;
@@ -5485,6 +5487,146 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	if (g_bEnableVR)
 		// Further adjustment of the coordinates for the DirectSBS/SteamVR case:
 		P->y = -P->y;
+}
+
+/*
+ * Fully-metric projection: This is simply the inverse of the backProjectMetric code
+ * TODO: Check this code... I'm not sure this is the right way to project things in
+ *       VR Mode
+ */
+inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) {
+	Vector3 P, temp = pos3D;
+	float sm_FOVscale = g_MetricRecCBuffer.mr_FOVscale;
+	float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
+	float sm_y_center = g_MetricRecCBuffer.mr_y_center;
+	float FOVscaleZ = sm_FOVscale / temp.z;
+
+	if (g_bEnableVR) {
+		float w;
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		//Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Vector4 Q = Vector4(temp.x, temp.y, temp.z, 1.0f);
+		Q = projEyeMatrix * viewMatrix * Q;
+
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		w = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
+		P.x /= w;
+		P.y /= w;
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	}
+	else {
+		// g_fOBJCurMetricScale depends on the current in-game height and is computed
+		// whenever a new FOV is applied. See ComputeHyperFOVParams()
+		temp /= g_fOBJCurMetricScale;
+		FOVscaleZ = sm_FOVscale / temp.z;
+
+		temp.x = FOVscaleZ * (temp.x / sm_aspect_ratio);
+		temp.y = FOVscaleZ * (temp.y + temp.z * sm_y_center / sm_FOVscale);
+
+		// temp.xy is now in DirectX coords [-1..1]:
+		// temp.x is now in the range -1.0 .. 1.0 and
+		// temp.y is now in the range  1.0 ..-1.0
+
+		temp.x -= -1.0f;
+		temp.y -=  1.0f;
+
+		// Normalize into the 0..2 or 0.0..1.0 range
+		temp.x /= g_VSCBuffer.viewportScale[0];
+		temp.y /= g_VSCBuffer.viewportScale[1];
+		// temp.xy is now (sx,sy): in-game screen coords
+		// sx = temp.x; sy = temp.y;
+
+		// TODO: Convert to screen coords here
+
+		P.x = temp.x;
+		P.y = temp.y;
+		P.z = temp.z;
+		// Reconstruct w:
+		//w = temp.z / (sm_FOVscale * g_fOBJZMetricMult);
+	}
+	return P;
+}
+
+Vector3 projectToInGameCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+{
+	Vector3 P = pos3D;
+	//float w;
+	// Whatever is placed in P is returned at the end of this function
+
+	if (g_bEnableVR) {
+		float w;
+		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
+		// coord system
+		//Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f); // MetricVR (?)
+		Q = projEyeMatrix * viewMatrix * Q;
+
+		// output.pos = mul(projEyeMatrix, output.pos);
+		P.x = Q.x;
+		P.y = Q.y;
+		P.z = Q.z;
+		w = Q.w;
+		// Multiply by focal_dist? The focal dist should be in the projection matrix...
+
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed 
+		// division by Z)
+		P.x /= w;
+		P.y /= w;
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		P.x = P.x * 0.5f + 0.5f;
+		P.y = P.y * 0.5f + 0.5f;
+	}
+	else {
+		Vector3 temp = pos3D;
+		float sm_FOVscale = g_MetricRecCBuffer.mr_FOVscale;
+		float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
+		float sm_y_center = g_MetricRecCBuffer.mr_y_center;
+		float FOVscaleZ;
+
+		// g_fOBJCurMetricScale depends on the current in-game height and is computed
+		// whenever a new FOV is applied. See ComputeHyperFOVParams()
+		temp /= g_fOBJCurMetricScale;
+		FOVscaleZ = sm_FOVscale / temp.z;
+
+		temp.x = FOVscaleZ * (temp.x / sm_aspect_ratio);
+		temp.y = FOVscaleZ * (temp.y + temp.z * sm_y_center / sm_FOVscale);
+
+		// temp.xy is now in DirectX coords [-1..1]:
+		// temp.x is now in the range -1.0 .. 1.0 and
+		// temp.y is now in the range  1.0 ..-1.0
+
+		temp.x -= -1.0f;
+		temp.y -=  1.0f;
+
+		// Normalize into the 0..2 or 0.0..1.0 range
+		temp.x /= g_VSCBuffer.viewportScale[0];
+		temp.y /= g_VSCBuffer.viewportScale[1];
+		// temp.xy is now (sx,sy): in-game screen coords (CONFIRMED)
+		// sx = temp.x; sy = temp.y;
+
+		P.x = temp.x;
+		P.y = temp.y;
+		P.z = temp.z;
+	}
+	return P;
 }
 
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
@@ -5547,9 +5689,7 @@ inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 		temp.z = (float)METRIC_SCALE_FACTOR * (1.0f / rhw);
 	}
 
-	// I'm going to skip the overrides because they don't apply to cockpit textures...
 	// The back-projection into 3D is now very simple:
-	//float3 P = float3(temp.z * temp.xy, temp.z);
 	P->x = temp.z * temp.x / g_fFocalDist;
 	P->y = temp.z * temp.y / g_fFocalDist;
 	P->z = temp.z;
@@ -5655,7 +5795,7 @@ inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix 
 	return P;
 }
 
-inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
 	Vector3 P = pos3D;
 	//float w;
@@ -5665,7 +5805,8 @@ inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
-		Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		//Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
+		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f); // MetricVR (?)
 		Q = projEyeMatrix * viewMatrix * Q;
 
 		// output.pos = mul(projEyeMatrix, output.pos);
@@ -5837,15 +5978,18 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
-		backProject(index, &tempv0);
+		backProjectMetric(index, &tempv0);
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
-		backProject(index, &tempv1);
-		
+		backProjectMetric(index, &tempv1);
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
+
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
-		backProject(index, &tempv2);
+		backProjectMetric(index, &tempv2);
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
 
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
@@ -6234,7 +6378,7 @@ HRESULT Direct3DDevice::Execute(
 			g_iDumpOBJFaceIdx = 1;
 			log_debug("[DBG] [SHW] sm_FOVscale: %0.3f", g_ShadowMapVSCBuffer.sm_FOVscale);
 			log_debug("[DBG] [SHW] sm_y_center: %0.3f", g_ShadowMapVSCBuffer.sm_y_center);
-			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
+			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 		}
 	}
 
@@ -7681,8 +7825,9 @@ HRESULT Direct3DDevice::Execute(
 					if (bSunCentroidComputed && g_iNumSunCentroids < MAX_XWA_LIGHTS) {
 						// Looks like don't get multiple centroids for the same Sun. Seems to be a 1-1 correspondence
 						g_SunCentroids[g_iNumSunCentroids++] = SunCentroid;
-						//if (g_iNumSunCentroids > 1)
-						//	log_debug("[DBG] [SHW] g_iNumSunCentroids: %d", g_iNumSunCentroids);
+						//if (g_iNumSunCentroids == 1)
+						//	log_debug("[DBG] [SHW] SunCentroid: %0.3f, %0.3f, %0.3f",
+						//		SunCentroid.x, SunCentroid.y, SunCentroid.z);
 					}
 				}
 
@@ -7711,6 +7856,7 @@ HRESULT Direct3DDevice::Execute(
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].x = lastTextureSelected->material.Light.x;
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].y = lastTextureSelected->material.Light.y;
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].z = lastTextureSelected->material.Light.z;
+						// We have a color for this sun, let's set w to 1 to signal that
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 1.0f;
 					}
 
@@ -7721,6 +7867,7 @@ HRESULT Direct3DDevice::Execute(
 						g_ShadertoyBuffer.SunFlareCount++;
 						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						if (g_bEnableVR) {
+							// In VR mode, we store the Metric 3D position of the Centroid
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = SunCentroid.x;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = SunCentroid.y;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = SunCentroid.z;
@@ -7733,10 +7880,14 @@ HRESULT Direct3DDevice::Execute(
 							// DEBUG
 						}
 						else {
+							// In regular mode, we store the 2D screen coords of the centroid
 							float X, Y;
-							Vector3 q = projectToInGameCoords(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
+							Vector3 q = projectToInGameCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
 							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+							// In regular mode, the view and proj matrices below are ignored:
+							//Vector3 q = projectMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
+							//log_debug("[DBG] 2D centroid: %0.3f, %0.3f", q.x, q.y);
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;

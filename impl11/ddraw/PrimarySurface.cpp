@@ -60,6 +60,8 @@ Matrix4 g_ReflRotX;
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
+inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
+inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
@@ -670,7 +672,7 @@ extern bool g_bCapture2DOffscreenBuffer;
 
 /* SteamVR HMD */
 #include <headers/openvr.h>
-extern float g_fOBJZMetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
+extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
@@ -711,7 +713,7 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_y_center = g_ShadertoyBuffer.y_center;
 	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
-	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJZMetricMult;
+	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
@@ -6599,18 +6601,18 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	dir = Centroid;
 	dir.normalize();
 
-	backProject(0.0f, 0.0f, hb_rhw_depth, &v0);
-	backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
-	backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+	backProjectMetric(0.0f, 0.0f, hb_rhw_depth, &v0);
+	backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
+	backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
 	if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv)) {
 		U0 = 0.0f; U1 = 1.0f; U2 = 0.0f;
 		V0 = 0.0f; V1 = 0.0f; V2 = 1.0f;
 	}
 	else 
 	{
-		backProject(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
-		backProject(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
-		backProject(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
+		backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
+		backProjectMetric(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
+		backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
 		rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv);
 		U0 = 1.0f; U1 = 1.0f; U2 = 0.0f;
 		V0 = 0.0f; V1 = 1.0f; V2 = 1.0f;

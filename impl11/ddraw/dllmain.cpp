@@ -89,7 +89,7 @@ void ShutdownFreePIE();
 enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
-extern float g_fOBJZMetricMult, g_fOBJGlobalMetricMult;
+extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult;
 // DEBUG
 extern bool g_bKeybExitHyperspace;
 extern bool g_bFXAAEnabled;
@@ -821,8 +821,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
 					break;
 				case 8:
-					g_fOBJZMetricMult += 5.0f;
-					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
+					g_fOBJ_Z_MetricMult += 5.0f;
+					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				}
 				return 0;
@@ -856,8 +856,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] white point: %0.3f", g_fHDRWhitePoint);
 					break;
 				case 8:
-					g_fOBJZMetricMult -= 5.0f;
-					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJZMetricMult);
+					g_fOBJ_Z_MetricMult -= 5.0f;
+					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				}
 				return 0;
