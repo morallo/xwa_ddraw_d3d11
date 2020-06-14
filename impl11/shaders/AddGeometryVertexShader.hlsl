@@ -94,6 +94,9 @@ PixelShaderInput main(VertexShaderInput input)
 		*/
 
 		/*
+		// This code does a correct back-project -> project; but it requires the adjustment for
+		// differences in FOV and y_center performed in the regular path and it's missing the
+		// division by 1.64. Since the simple projection is better, this code is no longer needed
 		//temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJ_Z_MetricMult;
 		//rhw = 1.0 / (temp.z / g_fOBJ_Z_MetricMult / sm_FOVscale)
 		// temp.z is now metric 3D minus the g_fOBJCurMetricScale scale factor
