@@ -62,7 +62,7 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color	: SV_TARGET0;
+	float4 color  : SV_TARGET0;
 };
 
 /*
@@ -324,16 +324,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 		sunPos3D = depthTex.Sample(depthSampler, SunCoords[0].xy / iResolution.xy).xyz;
 	}
 	else {
-		sunPos = SunCoords[0].xy;
-		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later
+		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose
+		sunPos = SunCoords[0].xy;	   // 2D coord pass-through
+		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later, in SunFlareCompose
 	}
 
 	// Avoid displaying any flare if the sun is occluded:
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	vec3 flare = flare_intensity * lensflare(v.xy, sunPos, 0);
-	output.color.rgb += flare;
+	output.color.rgb += flare_intensity * lensflare(v.xy, sunPos, 0);
 	return output;
 
 	/*

@@ -5491,8 +5491,10 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 
 /*
  * Fully-metric projection: This is simply the inverse of the backProjectMetric code
- * TODO: Check this code... I'm not sure this is the right way to project things in
- *       VR Mode
+ * INPUT: 
+ *		OPT-scale metric 3D centered on the current camera.
+ * OUTPUT:
+ *		(regular and VR paths): post-proc coords (? -- Needs to be confirmed)
  */
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) {
 	Vector3 P, temp = pos3D;
@@ -5505,15 +5507,14 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
-		//Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
-		Vector4 Q = Vector4(temp.x, temp.y, temp.z, 1.0f);
+		Vector4 Q = Vector4(temp.x, temp.y, -temp.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
 
 		// output.pos = mul(projEyeMatrix, output.pos);
 		P.x = Q.x;
 		P.y = Q.y;
 		P.z = Q.z;
-		w = Q.w;
+		w   = Q.w;
 		// Multiply by focal_dist? The focal dist should be in the projection matrix...
 
 		// DirectX divides by w internally after the PixelShader output is written. We don't
@@ -5529,6 +5530,12 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		P.y = P.y * 0.5f + 0.5f;
 	}
 	else {
+		// (x0,y0)-(x1,y1) are the viewport limits
+		float x0 = g_LaserPointerBuffer.x0;
+		float y0 = g_LaserPointerBuffer.y0;
+		float x1 = g_LaserPointerBuffer.x1;
+		float y1 = g_LaserPointerBuffer.y1;
+
 		// g_fOBJCurMetricScale depends on the current in-game height and is computed
 		// whenever a new FOV is applied. See ComputeHyperFOVParams()
 		temp /= g_fOBJCurMetricScale;
@@ -5550,10 +5557,18 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		// temp.xy is now (sx,sy): in-game screen coords
 		// sx = temp.x; sy = temp.y;
 
-		// TODO: Convert to screen coords here
+		// The following lines are simply implementing the following formulas used from the VertexShader:
+		//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+		//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+		temp.x = (temp.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+		temp.y = (temp.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		// temp.x is now in -1 ..  1
+		// temp.y is now in  1 .. -1
 
-		P.x = temp.x;
-		P.y = temp.y;
+		// Now convert to UV coords: (0, 1)-(1, 0):
+		// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
+		P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
+		P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
 		P.z = temp.z;
 		// Reconstruct w:
 		//w = temp.z / (sm_FOVscale * g_fOBJZMetricMult);
@@ -5561,7 +5576,14 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 	return P;
 }
 
-Vector3 projectToInGameCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+/*
+ * INPUT:
+ *		OPT-scale metric 3D centered on the current camera.
+ * OUTPUT :
+ *		Regular path: in-game 2D coords (sx, sy)
+ *	    VR path: Post-proc coords
+ */
+inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
 {
 	Vector3 P = pos3D;
 	//float w;
@@ -5571,15 +5593,14 @@ Vector3 projectToInGameCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 p
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
-		//Vector4 Q = Vector4(g_fFocalDist * P.x, g_fFocalDist * -P.y, -P.z, 1.0f);
-		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f); // MetricVR (?)
+		Vector4 Q = Vector4(P.x, P.y, -P.z, 1.0f);
 		Q = projEyeMatrix * viewMatrix * Q;
 
 		// output.pos = mul(projEyeMatrix, output.pos);
 		P.x = Q.x;
 		P.y = Q.y;
 		P.z = Q.z;
-		w = Q.w;
+		w   = Q.w;
 		// Multiply by focal_dist? The focal dist should be in the projection matrix...
 
 		// DirectX divides by w internally after the PixelShader output is written. We don't
@@ -7817,7 +7838,8 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
-				// Capture the centroid of the current sun texture and store it
+				// Capture the centroid of the current sun texture and store it.
+				// Sun Centroids appear to be around 50m away in metric 3D space
 				if (bIsSun) 
 				{
 					// Get the centroid of the current sun
@@ -7867,6 +7889,8 @@ HRESULT Direct3DDevice::Execute(
 						g_ShadertoyBuffer.SunFlareCount++;
 						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						if (g_bEnableVR) {
+							//log_debug("[DBG] 3D centroid: %0.3f, %0.3f, %0.3f",
+							//	SunCentroid.x, SunCentroid.y, SunCentroid.z);
 							// In VR mode, we store the Metric 3D position of the Centroid
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = SunCentroid.x;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = SunCentroid.y;
@@ -7882,12 +7906,9 @@ HRESULT Direct3DDevice::Execute(
 						else {
 							// In regular mode, we store the 2D screen coords of the centroid
 							float X, Y;
-							Vector3 q = projectToInGameCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
+							Vector3 q = projectToInGameOrPostProcCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
 							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
-							// In regular mode, the view and proj matrices below are ignored:
-							//Vector3 q = projectMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
-							//log_debug("[DBG] 2D centroid: %0.3f, %0.3f", q.x, q.y);
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
 							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;

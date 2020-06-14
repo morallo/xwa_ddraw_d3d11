@@ -63,6 +63,7 @@ inline void backProject(float sx, float sy, float rhw, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
@@ -6601,6 +6602,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	dir = Centroid;
 	dir.normalize();
 
+	// Test the first triangle that makes up the hyperspace VB for an intersection:
 	backProjectMetric(0.0f, 0.0f, hb_rhw_depth, &v0);
 	backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
 	backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
@@ -6610,6 +6612,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	}
 	else 
 	{
+		// Test the second triangle that makes up the hyperspace VB for an intersection:
 		backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
 		backProjectMetric(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
 		backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
@@ -6624,11 +6627,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	*u = 2.0f * *u - 1.0f;
 	*v = 2.0f * *v - 1.0f;
 	// Apply the aspect ratio
-	//if (g_bUseSteamVR)
 	*u *= g_fCurScreenWidth / g_fCurScreenHeight;
-	//else
-		//*u *= g_fAspectRatio;
-		//*u *= g_fFlareAspectMult;
 }
 
 void PrimarySurface::RenderSunFlare()
@@ -6670,13 +6669,16 @@ void PrimarySurface::RenderSunFlare()
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
 			ProjectCentroidToPostProc(Centroid, &u, &v);
-			// Overwrite the centroid with the new 2D coordinates for the left/right images
+			// Overwrite the centroid with the new 2D coordinates for the left/right images.
+			// In VR mode, these UVs are *the same* for both eyes because they are defined
+			// with respect to distant the hyperspace VB. This is *not* a bug.
 			g_ShadertoyBuffer.SunCoords[i].x = u;
 			g_ShadertoyBuffer.SunCoords[i].y = v;
 			// Also project the centroid to 2D directly -- we'll need that during the compose pass
-			// to mask the flare
-			QL[i] = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
-			QR[i] = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			// to mask the flare. In VR mode, projectToInGameCoordsMetric produces post-proc
+			// coords, not in-game coords
+			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
 		}
 	}
 	// Set the shadertoy constant buffer:
@@ -6691,6 +6693,8 @@ void PrimarySurface::RenderSunFlare()
 	// output: _offscreenBufferPost, _offscreenBufferPostR
 	// The non-VR case produces a fully-finished image.
 	// The VR case produces only the flare on these buffers. The flare must be composed on top of the image in a further step
+	// The VR flare is rendered on a distant VB buffer. The uv coords in this buffer are the same regardless of the
+	// view because their frame of reference is the same VB buffer
 	{
 		// Set the new viewport (a full quad covering the full screen)
 		viewport.Width  = g_fCurScreenWidth;
@@ -6810,7 +6814,8 @@ void PrimarySurface::RenderSunFlare()
 	/*
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
+		if (g_bUseSteamVR)
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
 	}
 	*/
 
