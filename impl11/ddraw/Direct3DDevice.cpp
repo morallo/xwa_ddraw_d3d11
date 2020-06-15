@@ -733,6 +733,8 @@ extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos,
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR = false);
+
 /*
 Resets the g_XWALightInfo array to untagged, all suns.
 */
@@ -3390,12 +3392,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_invert_camera_matrix") == 0) {
 				g_bShadowMappingInvertCameraMatrix = (bool)fValue;
 			}
-			/*
-			else if (_stricmp(param, "shadow_mapping_invert_L") == 0) {
-				g_bShadowMapInvertL = (bool)fValue;
-			}
-			*/
-
+			
 			else if (_stricmp(param, "shadow_mapping_bias_sw") == 0) {
 				//g_ShadowMapVSCBuffer.sm_bias = fValue;
 				g_ShadowMapping.sw_pcf_bias = fValue;
@@ -3407,9 +3404,6 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [SHW] hw_pcf_bias: %0.3f", g_ShadowMapping.hw_pcf_bias);
 			}
 
-			/*else if (_stricmp(param, "shadow_mapping_max_edge_distance") == 0) {
-				g_ShadowMapVSCBuffer.sm_max_edge_distance = fValue;
-			}*/
 			else if (_stricmp(param, "shadow_mapping_debug") == 0) {
 				g_bShadowMapDebug = (bool)fValue;
 				g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
@@ -3441,6 +3435,13 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_fovdist_scale") == 0) {
 				g_ShadowMapping.FOVDistScale = fValue;
 			}
+
+			/*
+			else if (_stricmp(param, "shadow_mapping_XWA_LIGHT_Y_CONV_SCALE") == 0) {
+				g_ShadowMapping.XWA_LIGHT_Y_CONV_SCALE = fValue;
+			}
+			*/
+			
 
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;
@@ -5496,14 +5497,11 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
  * INPUT: 
  *		OPT-scale metric 3D centered on the current camera.
  * OUTPUT:
- *		(regular and VR paths): post-proc coords (? -- Needs to be confirmed)
+ *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
+ *		in the external HUD shader.
  */
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) {
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) {
 	Vector3 P, temp = pos3D;
-	float sm_FOVscale = g_MetricRecCBuffer.mr_FOVscale;
-	float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
-	float sm_y_center = g_MetricRecCBuffer.mr_y_center;
-	float FOVscaleZ = sm_FOVscale / temp.z;
 
 	if (g_bEnableVR) {
 		float w;
@@ -5517,7 +5515,6 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		P.y = Q.y;
 		P.z = Q.z;
 		w   = Q.w;
-		// Multiply by focal_dist? The focal dist should be in the projection matrix...
 
 		// DirectX divides by w internally after the PixelShader output is written. We don't
 		// see that division in the shader; but we have to do it explicitly here because
@@ -5532,11 +5529,14 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		P.y = P.y * 0.5f + 0.5f;
 	}
 	else {
+		float sm_FOVscale = g_MetricRecCBuffer.mr_FOVscale;
+		float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
+		float sm_y_center = g_MetricRecCBuffer.mr_y_center;
+		float FOVscaleZ;
+
 		// (x0,y0)-(x1,y1) are the viewport limits
-		float x0 = g_LaserPointerBuffer.x0;
-		float y0 = g_LaserPointerBuffer.y0;
-		float x1 = g_LaserPointerBuffer.x1;
-		float y1 = g_LaserPointerBuffer.y1;
+		float x0, y0, x1, y1;
+		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 
 		// g_fOBJCurMetricScale depends on the current in-game height and is computed
 		// whenever a new FOV is applied. See ComputeHyperFOVParams()
@@ -5545,14 +5545,12 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 
 		temp.x = FOVscaleZ * (temp.x / sm_aspect_ratio);
 		temp.y = FOVscaleZ * (temp.y + temp.z * sm_y_center / sm_FOVscale);
-
 		// temp.xy is now in DirectX coords [-1..1]:
 		// temp.x is now in the range -1.0 .. 1.0 and
 		// temp.y is now in the range  1.0 ..-1.0
 
 		temp.x -= -1.0f;
 		temp.y -=  1.0f;
-
 		// Normalize into the 0..2 or 0.0..1.0 range
 		temp.x /= g_VSCBuffer.viewportScale[0];
 		temp.y /= g_VSCBuffer.viewportScale[1];
@@ -5564,13 +5562,13 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 		//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
 		temp.x = (temp.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
 		temp.y = (temp.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
-		// temp.x is now in -1 ..  1
-		// temp.y is now in  1 .. -1
+		// temp.x is now in -1 ..  1 (left ... right)
+		// temp.y is now in  1 .. -1 (up ... down)
 
 		// Now convert to UV coords: (0, 1)-(1, 0):
 		// By using x0,y0-x1,y1 as limits, we're now converting to post-proc viewport UVs
-		P.x = lerp(x0, x1, (P.x + 1.0f) / 2.0f);
-		P.y = lerp(y1, y0, (P.y + 1.0f) / 2.0f);
+		P.x = lerp(x0, x1, (temp.x + 1.0f) / 2.0f);
+		P.y = lerp(y1, y0, (temp.y + 1.0f) / 2.0f);
 		P.z = temp.z;
 		// Reconstruct w:
 		//w = temp.z / (sm_FOVscale * g_fOBJZMetricMult);
@@ -6245,7 +6243,7 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
  * full-screen quad. This is used in SSDO to get the effective viewport limits in
  * uv-coords. Pixels outside the uv-coords computed here should be black.
  */
-void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false) 
+void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR) 
 {
 	if (!UseNonVR && g_bEnableVR) {
 		// In VR mode we can't see the edges of the screen anyway, so don't bother

@@ -60,8 +60,8 @@ Matrix4 g_ReflRotX;
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 bool rayTriangleIntersect(
@@ -4934,8 +4934,8 @@ void PrimarySurface::RenderExternalHUD()
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
-	if (g_bDumpSSAOBuffers)
-		ShowMatrix4(g_ShadertoyBuffer.viewMat, "Shadertoy viewMat");
+	//if (g_bDumpSSAOBuffers)
+	//	ShowMatrix4(g_ShadertoyBuffer.viewMat, "Shadertoy viewMat");
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -4946,6 +4946,35 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+
+	// DEBUG: Display light at index i:
+	int i = 1;
+	Vector4 xwaLight = Vector4(
+		s_XwaGlobalLights[i].PositionX / 32768.0f,
+		s_XwaGlobalLights[i].PositionY / 32768.0f,
+		s_XwaGlobalLights[i].PositionZ / 32768.0f,
+		0.0f);
+	// Convert the XWA light direction into viewspace coordinates:
+	Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
+
+	// Put light 1 in g_ShadingSys_PSBuffer so that the ExternalHUDShader can display it
+	// (In Skirmish mode, light index 1 is always the sun)
+	//log_debug("[DBG] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
+	//log_debug("[DBG] D: %0.6f", D);
+	//g_ShadertoyBuffer.SunCoords[0].x = X;
+	//g_ShadertoyBuffer.SunCoords[0].y = Y;
+
+	//g_ShadingSys_PSBuffer.MainLight.x = lerp(-1.0f,  1.0f, X / g_fCurScreenWidth);
+	//g_ShadingSys_PSBuffer.MainLight.y = lerp( 1.0f, -1.0f, Y / g_fCurScreenHeight);
+
+	Vector3 L(light.x, light.y, light.z);
+	L *= 65536.0f;
+	Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
+	//log_debug("[DBG] p: %0.3f, %0.3f", p.x, p.y);
+	g_ShadingSys_PSBuffer.MainLight.x = p.x;
+	g_ShadingSys_PSBuffer.MainLight.y = p.y;
+	g_ShadingSys_PSBuffer.MainLight.z = light.z;
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
 	resources->InitPixelShader(resources->_externalHUDPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -5108,13 +5137,15 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 	Vector4 Q, float zdisp, int ofs, float craft_speed)
 {
 	D3DTLVERTEX sample;
-	const float part_size = g_fSpeedShaderParticleSize;
+	// For VR we need to make the particles a little bigger or they'll be almost invisible:
+	const float part_size = g_bEnableVR ? g_fSpeedShaderParticleSize * 2.0f : g_fSpeedShaderParticleSize;
 	int j = ofs;
 	//const float FOVFactor = g_ShadertoyBuffer.FOVscale;
 
 	sample.sz = 0.0f;
 	sample.rhw = 0.0f;
-	float gray = g_fSpeedShaderMaxIntensity * min(craft_speed, 1.0f);
+	// For VR we need a higher intensity or the effect will be almost invisible
+	float gray = g_bEnableVR ? 1.0f : g_fSpeedShaderMaxIntensity * min(craft_speed, 1.0f);
 	// Move the cutoff point a little above speed 0: we want the particles to disappear
 	// a little before the craft stops.
 	gray -= 0.1f;
@@ -6205,14 +6236,17 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 void PrimarySurface::TagXWALights()
 {
 	int NumTagged = 0;
-	//g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
+	// Get the screen limits, we'll need them to tell when a light is visible on the screen
+	float x0, y0, x1, y1;
+	bool bExternal = PlayerDataTable[*g_playerIndex].externalCamera;
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 
 	// Check all the lights to see if they match any sun centroid
-	for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
+	for (int LightIdx = 0; LightIdx < *s_XwaGlobalLightsCount; LightIdx++)
 	{
 		// Skip lights that have been tagged. If we have tagged everything, then
 		// we can stop tagging lights in future frames
-		if (g_XWALightInfo[i].bTagged) {
+		if (g_XWALightInfo[LightIdx].bTagged) {
 			NumTagged++;
 			if (NumTagged >= *s_XwaGlobalLightsCount) {
 				log_debug("[DBG] [SHW] All lights have been tagged. Will set bAllLightsTagged to stop tagging lights");
@@ -6223,9 +6257,9 @@ void PrimarySurface::TagXWALights()
 		}
 
 		Vector4 xwaLight = Vector4(
-			s_XwaGlobalLights[i].PositionX / 32768.0f,
-			s_XwaGlobalLights[i].PositionY / 32768.0f,
-			s_XwaGlobalLights[i].PositionZ / 32768.0f,
+			s_XwaGlobalLights[LightIdx].PositionX / 32768.0f,
+			s_XwaGlobalLights[LightIdx].PositionY / 32768.0f,
+			s_XwaGlobalLights[LightIdx].PositionZ / 32768.0f,
 			0.0f);
 		// Convert the XWA light direction into viewspace coordinates:
 		Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
@@ -6234,41 +6268,32 @@ void PrimarySurface::TagXWALights()
 		if (light.z <= 0.0f)
 			continue;
 
-		for (int idx = 0; idx < g_iNumSunCentroids; idx++)
+		// Project this light to screen coords to see if it's visible
+		Vector3 L(light.x, light.y, light.z);
+		L *= 65536.0f;
+		Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
+		// p is now in post-proc UV coords. If it's within (x0,y0)-(x1,y1) then this
+		// light is visible on the screen
+		/*if (p.x < x0 + 0.05f || p.x > x1 - 0.05f ||
+			p.y < y0 + 0.05f || p.y > y1 - 0.05f)
+			continue;*/
+		bool Visible = x0 + 0.05f < p.x && p.x < x1 - 0.05f && 
+			           y0 + 0.05f < p.y && p.y < y1 - 0.05f;
+		if (!Visible)
+			continue;
+
+		// If we reach this point, it means this light is visible on the screen
+		for (int CentroidIdx = 0; CentroidIdx < g_iNumSunCentroids; CentroidIdx++)
 		{
 			float X, Y, Z;
-			Vector3 c, SunCentroid = g_SunCentroids[idx];
-			// Project the Centroid to in-game coords
-			//Vector3 q = projectToInGameCoords(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
-			/*
-			// Convert in-game coords to DirectX 2D coords [-1..1]
-			X = lerp(-1.0,  1.0f, q.x / g_fCurInGameWidth);
-			Y = lerp( 1.0, -1.0f, q.y / g_fCurInGameHeight);
-			Z = Centroid.z;
-			// Back-project DirectX coords to XWA-3D space (code from ShadowMapVS):
-			X *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.aspect_ratio;
-			Y *= g_VSCBuffer.viewportScale[2];
-			Z *= g_ShadowMapVSCBuffer.sm_z_factor;
-			P.set(Z * X / DEFAULT_FOCAL_DIST, Z * Y / DEFAULT_FOCAL_DIST, Z);
-			// g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
-			//c = P;
-			*/
+			Vector3 c, SunCentroid = g_SunCentroids[CentroidIdx];
 
 			// Compensate point...
-			//X = g_ShadertoyBuffer.FOVscale * Centroid.x / g_VSCBuffer.aspect_ratio;
 			X = SunCentroid.x;
-			//Y = g_ShadertoyBuffer.FOVscale * Centroid.y + Centroid.z * g_ShadertoyBuffer.y_center / g_ShadertoyBuffer.FOVscale;
-			//Y = Centroid.y + g_fDebugAspectRatio * Centroid.z * g_ShadertoyBuffer.FOVscale;
-			// y_center = 153 / InGameHeight
-			// Higher resolutions need higher g_fDebugAspectRatio... this might be an artifact of a hidden dependency on Z
-			// For 1600x1200 I only needed -21
-			// For 800x600 I need -62.5
-			//Y = Centroid.y + g_ShadertoyBuffer.y_center * g_fDebugAspectRatio; // +Centroid.y * g_fDebugAspectRatio / *g_fRawFOVDist;
-			// I don't like this hard-coded value (-62.5f) but seems to work fine. There are other
-			// things to do, so this is good enough for now.
-			Y = SunCentroid.y + g_ShadertoyBuffer.y_center * g_ShadowMapping.XWA_LIGHT_Y_CONV_SCALE; // + Centroid.y * g_fDebugAspectRatio / *g_fRawFOVDist;
-			Z = g_ShadertoyBuffer.FOVscale * SunCentroid.z / (float)DEFAULT_FOCAL_DIST;
-			
+			//Y = SunCentroid.y + bExternal ? 0.0f : g_ShadertoyBuffer.y_center;
+			Y = SunCentroid.y + g_ShadertoyBuffer.y_center;
+			Z = SunCentroid.z;
+
 			c.set(X, Y, Z);
 			c.normalize();
 			light.normalize();
@@ -6277,36 +6302,17 @@ void PrimarySurface::TagXWALights()
 			// So the vertical FOV should help us predict if the compensated centroid is visible
 			// in the screen or not.
 			float dot = c.x*light.x + c.y*light.y + c.z*light.z;
-			//log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], Centroid: [%0.3f, %0.3f, %0.3f]",
-			//	c.x, c.y, c.z, P.x, P.y, P.z);
-			//log_debug("[DBG] [SHW] light: [%0.3f, %0.3f, %0.3f], aspect_ratio: %0.3f, DOT: %0.3f",
-			//	light.x, light.y, light.z, g_VSCBuffer.aspect_ratio, dot);
-
-			// Convert the light direction into a position and project it into the screen
-			/*
-			Vector3 L = Vector3(light.x, light.y, light.z);
-			//L *= 65536.0f;
-			//L = project(L, g_viewMatrix, g_fullMatrixLeft);
-			L = projectToInGameCoords(L, g_viewMatrix, g_FullProjMatrixLeft);
-			// Convert in-game coords to desktop coords:
-			float X, Y;
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, L.x, L.y, &X, &Y);
-			// Get the distance between the projected light source and the Sun's centroid, in desktop pixels:
-			Vector2 dist = Vector2(Centroid.x - X, Centroid.y - Y);
-			float D = dist.length() / min(g_fCurScreenWidth, g_fCurScreenHeight);
-			*/
+			/*log_debug("[DBG] [SHW] sun vector: [%0.3f, %0.3f, %0.3f], Centroid: [%0.3f, %0.3f, %0.3f]",
+				c.x, c.y, c.z, X, Y, Z);
+			log_debug("[DBG] [SHW] light: [%0.3f, %0.3f, %0.3f], dot: %0.3f, SUN: %d",
+				light.x, light.y, light.z, dot, dot > 0.98f);*/
 
 			if (dot > 0.98f)
 			{
 				// Associate an XWA light to this texture and stop checking
-				//lastTextureSelected->AssociatedXWALight = i;
-				//log_debug("[DBG] [SHW] Sun %s associated with light %d", lastTextureSelected->_surface->_name, i);
-				log_debug("[DBG] [SHW] Sun Found: Light %d, dot: %0.3f", i, dot);
+				log_debug("[DBG] [SHW] Sun Found: Light %d, dot: %0.3f", LightIdx, dot);
 				log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], light: [%0.3f, %0.3f, %0.3f]",
 					c.x, c.y, c.z, light.x, light.y, light.z);
-				//log_debug("[DBG] intensity: %0.3f, color: %0.3f, %0.3f, %0.3f",
-				//	s_XwaGlobalLights[i].Intensity, s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB);
 
 #ifdef MULTIPLE_SHADOWS
 				// There may be missions with multiple suns, so, let's tag this one as a sun
@@ -6319,37 +6325,36 @@ void PrimarySurface::TagXWALights()
 				// can stop tagging and shut down all the other lights as shadow casters.
 				for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
 				{
-					g_XWALightInfo[j].bIsSun = (j == i); // i is the current light being tagged
+					g_XWALightInfo[j].bIsSun = (j == LightIdx); // i is the current light being tagged
 					g_XWALightInfo[j].bTagged = true;
 				}
 				g_ShadowMapping.bAllLightsTagged = true; // We found the global sun, stop tagging lights
 				return;
 #endif
 			}
-			// In Skirmish mode, light index 1 is always the sun. So let's use that to
-			// debug things:
-			/*
-			if (i == 1) {
-				//log_debug("[DBG] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
-				//log_debug("[DBG] D: %0.6f", D);
-				//g_ShadertoyBuffer.SunCoords[0].x = X;
-				//g_ShadertoyBuffer.SunCoords[0].y = Y;
-
-				//g_ShadingSys_PSBuffer.MainLight.x = lerp(-1.0f,  1.0f, X / g_fCurScreenWidth);
-				//g_ShadingSys_PSBuffer.MainLight.y = lerp( 1.0f, -1.0f, Y / g_fCurScreenHeight);
-
-				g_ShadingSys_PSBuffer.MainLight.x = light.x;
-				g_ShadingSys_PSBuffer.MainLight.y = light.y;
-				g_ShadingSys_PSBuffer.MainLight.z = 1.0f;
-			}
-			*/
 		}
 
-		// If we reach this point, the light has been tested against all centroids or it has
-		// been tagged.
+		// If we reach this point, the light is visible and it has been tested against all
+		// centroids. If the light was not tagged, then it's not a sun
+		if (!g_XWALightInfo[LightIdx].bTagged && NumTagged < *s_XwaGlobalLightsCount - 1) // Keep at least one light as shadow caster
+		{
+			// If we reach this point, then the light hasn't been tagged, it's clearly visible 
+			// on the screen and it's not a sun
+			g_XWALightInfo[LightIdx].bTagged = true;
+			g_XWALightInfo[LightIdx].bIsSun = false;
+			log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", LightIdx);
+			log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
+			log_debug("[DBG] [SHW] p: %0.3f, %0.3f", p.x, p.y);
+			log_debug("[DBG] [SHW] limits: (%0.3f, %0.3f)-(%0.3f, %0.3f)", x0, y0, x1, y1);
+			log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d, Frame: %d, VR mode: %d",
+				g_bCustomFOVApplied, g_iPresentCounter, g_bEnableVR);
+			ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
+		}
+
+		/*
 		// If the light is close enough to the center of the screen and hasn't been tagged
 		// then we know it's not a sun.
-		if (!g_XWALightInfo[i].bTagged && 
+		if (!g_XWALightInfo[LightIdx].bTagged && 
 			NumTagged < *s_XwaGlobalLightsCount - 1) // Keep at least one light as shadow caster
 		{
 			// dot_light_center_of_screen = dot([0,0,1], light) = light.z
@@ -6368,37 +6373,23 @@ void PrimarySurface::TagXWALights()
 			// I've noticed that sometimes light_ang is exactly 0. This is just ridiculous and I think it's
 			// happening because the lights or the transform hasn't been set properly yet. To prevent
 			// false-tagging lights, I'm adding the "light_rad > 0.01f" test below.
-			if (light_rad < RealHalfFOV /* && light_rad > 0.01f */ ) 
+			if (light_rad / DEG2RAD < RealHalfFOV)
 			{
 				// If we reach this point, then the light hasn't been tagged, it's clearly visible 
 				// on the screen and it's not a sun:
-				g_XWALightInfo[i].bTagged = true;
-				g_XWALightInfo[i].bIsSun = false;
-				log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", i);
+				g_XWALightInfo[LightIdx].bTagged = true;
+				g_XWALightInfo[LightIdx].bIsSun = false;
+				log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", LightIdx);
 				log_debug("[DBG] [SHW] MinRealFOV: %0.3f, light_ang: %0.3f, range: %0.3f",
-					MinRealFOV / DEG2RAD, light_rad / DEG2RAD, range);
+					MinRealFOV, light_rad / DEG2RAD, range);
 				log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
 				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d, Frame: %d, VR mode: %d",
 					g_bCustomFOVApplied, g_iPresentCounter, g_bEnableVR);
 				ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
 			}
 		}
-
-		/*
-		// This sun has an associated XWA light, let's send the color down to the pixel shader
-		if (lastTextureSelected->AssociatedXWALight != -1)
-		{
-			int idx = lastTextureSelected->AssociatedXWALight;
-			float intensity = s_XwaGlobalLights[idx].Intensity;
-			intensity = min(intensity, 1.0f);
-			g_PSCBuffer.SunColor[0] = intensity * s_XwaGlobalLights[idx].ColorR;
-			g_PSCBuffer.SunColor[1] = intensity * s_XwaGlobalLights[idx].ColorG;
-			g_PSCBuffer.SunColor[2] = intensity * s_XwaGlobalLights[idx].ColorB;
-			g_PSCBuffer.SunColor[3] = 1.0f;
-			memcpy(g_ShadertoyBuffer.SunColor, g_PSCBuffer.SunColor, sizeof(float) * 4);
-		}
 		*/
-	}
+	} // for LightIdx
 }
 
 void PrimarySurface::RenderShadowMapOBJ()
@@ -8167,12 +8158,12 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
+#if EXTERNAL_HUD
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
 			//if (g_config.ExternalHUDEnabled)
-			/*
-			if (false)
+			//if (false)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -8204,7 +8195,7 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
 			}
-			*/
+#endif
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 

@@ -639,7 +639,7 @@ public:
 	float FOVDistScale;
 	float sw_pcf_bias;
 	float hw_pcf_bias;
-	float XWA_LIGHT_Y_CONV_SCALE;
+	//float XWA_LIGHT_Y_CONV_SCALE;
 	float shadow_map_mult_x;
 	float shadow_map_mult_y;
 	float shadow_map_mult_z;
@@ -677,7 +677,7 @@ public:
 		// with sun textures). I don't have a good explanation for this value; but
 		// it's used to compensate the Y coordinate so that the light and the centroid of
 		// the sun texture line up better. I'll investigate this in detail later.
-		this->XWA_LIGHT_Y_CONV_SCALE = -62.5f;
+		//this->XWA_LIGHT_Y_CONV_SCALE = -62.5f;
 
 		this->shadow_map_mult_x =  1.0f;
 		this->shadow_map_mult_y =  1.0f;

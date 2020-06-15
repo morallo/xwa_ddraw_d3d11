@@ -19,18 +19,6 @@ SamplerState bgSampler : register(s0);
 #define thickness 0.02 //0.007
 #define scale 2.0
 
-/*
-	// saturation test:
-
-	vec3 col = vec3(0.0, 0.0, 1.0);
-	float g = dot(vec3(0.333), col);
-	vec3 gray = vec3(g);
-	// saturation test
-	float sat = 2.0;
-	vec3 final_col = gray + sat * (col - gray);
-
- */
-
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -92,7 +80,8 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 	return length(p - center) - radius;
 }
 
-PixelShaderOutput main(PixelShaderInput input) {
+// Display the HUD using a hyperspace-entry-like coord sys 
+PixelShaderOutput main_HUD(PixelShaderInput input) {
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
@@ -110,7 +99,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		return output;
 
 	// DEBUG
-	if (MainLight.z < 0.0) // Only lights with positive Z are in front of the camera.
+	if (MainLight.z > 0.0) // Skip lights behind the camera
 		return output;
 	// DEBUG
 
@@ -127,7 +116,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// DEBUG
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
-	d = sdCircle(v.xy, 2.35 /* FOV_mult_debug */ * vec2(/* st_aspect_ratio * */ MainLight.x, -MainLight.y), scale * cursor_radius);
+	d = sdCircle(v.xy, vec2(MainLight.x, -MainLight.y), scale * cursor_radius);
+	//d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
 	// DEBUG
 	dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
@@ -148,6 +138,31 @@ PixelShaderOutput main(PixelShaderInput input) {
 	dm += smoothstep(thickness, 0.0, abs(d));
 	*/
 	
+	dm = clamp(dm, 0.0, 1.0);
+	col *= dm;
+	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+	return output;
+}
+
+// Display the current MainLight, using regular UV post proc coords
+PixelShaderOutput main(PixelShaderInput input) {
+	PixelShaderOutput output;
+	vec3 color = 0.0;
+	output.color = bgTex.Sample(bgSampler, input.uv);
+
+	// Early exit: avoid rendering outside the original viewport edges
+	if (any(input.uv < p0) || any(input.uv > p1))
+		return output;
+
+	if (MainLight.z < 0.0) // Skip lights behind the camera
+		return output;
+
+	float3 col = float3(1.0, 0.1, 0.1); // Marker color
+	float d, dm;
+	d = sdCircle(input.uv, MainLight.xy, scale * cursor_radius);
+	dm = smoothstep(thickness * 0.5, 0.0, abs(d)); // Outer ring
+	dm += smoothstep(thickness * 0.5, 0.0, abs(d + 0.5 * scale * (cursor_radius - 0.001))); // Center dot
+
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
