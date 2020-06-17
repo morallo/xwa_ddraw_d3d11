@@ -261,6 +261,9 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 
+inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
+inline void backProjectMetric(WORD index, Vector3 *P);
+
 float g_fVR_FOV = PSVR_VERT_FOV;
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
@@ -5433,6 +5436,7 @@ bool rayTriangleIntersect(
  *		in-game 2D coordinates + rhw
  * OUTPUT:
  *		OPT-scale metric 3D centered on the current camera.
+ *	    VR path: same as non-VR but with Y flipped
  */
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	float3 temp;
@@ -5441,19 +5445,13 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 	float sm_aspect_ratio = g_MetricRecCBuffer.mr_aspect_ratio;
 	float sm_y_center = g_MetricRecCBuffer.mr_y_center;
 
-	temp.z = sm_FOVscale * (1.0f / rhw) * g_fOBJ_Z_MetricMult;
+	temp.z = sm_FOVscale * (1.0f / rhw) * g_MetricRecCBuffer.mr_z_metric_mult;
 	// temp.z is now metric 3D minus the g_fOBJCurMetricScale scale factor
 	FOVscaleZ = sm_FOVscale / temp.z;
 
-	// Normalize into the 0..2 or 0.0..1.0 range
-	//temp.xy *= vpScale.xy;
+	// Normalize into the 0.0..1.0 range
 	temp.x = sx * g_VSCBuffer.viewportScale[0];
 	temp.y = sy * g_VSCBuffer.viewportScale[1];
-	// Non-VR case:
-	//		temp.x is now normalized to the range (0,  2)
-	//		temp.y is now normalized to the range (0, -2) (viewPortScale[1] is negative for nonVR)
-	// Direct-SBS:
-	//		temp.xy is now normalized to the range [0..1] (notice how the Y-axis is swapped w.r.t to the Non-VR case
 
 	if (g_bEnableVR)
 	{
@@ -5474,9 +5472,9 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 
 	// g_fOBJCurMetricScale depends on the current in-game height and is computed
 	// whenever a new FOV is applied. See ComputeHyperFOVParams()
-	temp.x *= g_fOBJCurMetricScale;
-	temp.y *= g_fOBJCurMetricScale;
-	temp.z *= g_fOBJCurMetricScale;
+	temp.x *= g_MetricRecCBuffer.mr_cur_metric_scale;
+	temp.y *= g_MetricRecCBuffer.mr_cur_metric_scale;
+	temp.z *= g_MetricRecCBuffer.mr_cur_metric_scale;
 
 	// DEBUG
 	// Final axis flip to get something viewable nicely in Blender:
@@ -5492,6 +5490,12 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 		P->y = -P->y;
 }
 
+// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
+// into OBJ METRIC 3D
+inline void backProjectMetric(WORD index, Vector3 *P) {
+	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
+}
+
 /*
  * Fully-metric projection: This is simply the inverse of the backProjectMetric code
  * INPUT: 
@@ -5500,10 +5504,10 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
  *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
  *		in the external HUD shader.
  */
-Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) {
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
 	Vector3 P, temp = pos3D;
 
-	if (g_bEnableVR) {
+	if (!bForceNonVR && g_bEnableVR) {
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
@@ -5554,14 +5558,24 @@ Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix) 
 		// Normalize into the 0..2 or 0.0..1.0 range
 		temp.x /= g_VSCBuffer.viewportScale[0];
 		temp.y /= g_VSCBuffer.viewportScale[1];
+		if (bForceNonVR && g_bEnableVR) {
+			temp.x /=  2.0f;
+			temp.y /= -2.0f;
+		}
 		// temp.xy is now (sx,sy): in-game screen coords
 		// sx = temp.x; sy = temp.y;
 
 		// The following lines are simply implementing the following formulas used from the VertexShader:
 		//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
 		//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
-		temp.x = (temp.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
-		temp.y = (temp.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		if (bForceNonVR && g_bEnableVR) {
+			temp.x = ( 2.0f * temp.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+			temp.y = (-2.0f * temp.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		}
+		else {
+			temp.x = (temp.x * g_VSCBuffer.viewportScale[0] - 1.0f) * g_VSCBuffer.viewportScale[2];
+			temp.y = (temp.y * g_VSCBuffer.viewportScale[1] + 1.0f) * g_VSCBuffer.viewportScale[2];
+		}
 		// temp.x is now in -1 ..  1 (left ... right)
 		// temp.y is now in  1 .. -1 (up ... down)
 
@@ -5648,12 +5662,6 @@ inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 view
 		P.z = temp.z;
 	}
 	return P;
-}
-
-// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
-// into OBJ METRIC 3D
-inline void backProjectMetric(WORD index, Vector3 *P) {
-	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
 }
 
 // Back-project a 2D vertex (specified in in-game coords)
@@ -6000,16 +6008,19 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv0);
+		if (g_bEnableVR) tempv0.y = -tempv0.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv1);
+		if (g_bEnableVR) tempv1.y = -tempv1.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv2);
+		if (g_bEnableVR) tempv2.y = -tempv2.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
 
 		float u, v;
@@ -6515,9 +6526,6 @@ HRESULT Direct3DDevice::Execute(
 		if (g_bEnableVR) {
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
-
-			//g_VSCBuffer.viewportScale[0] = 2.0f / displayWidth;
-			//g_VSCBuffer.viewportScale[1] = 2.0f / displayHeight;
 		} else {
 			g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
@@ -7845,6 +7853,7 @@ HRESULT Direct3DDevice::Execute(
 					// Get the centroid of the current sun
 					bSunCentroidComputed = ComputeCentroid(instruction, currentIndexLocation, &SunCentroid);
 					if (bSunCentroidComputed && g_iNumSunCentroids < MAX_XWA_LIGHTS) {
+						//if (g_bEnableVR) SunCentroid.y = -SunCentroid.y;
 						// Looks like don't get multiple centroids for the same Sun. Seems to be a 1-1 correspondence
 						g_SunCentroids[g_iNumSunCentroids++] = SunCentroid;
 						//if (g_iNumSunCentroids == 1)

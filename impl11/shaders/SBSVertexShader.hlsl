@@ -61,13 +61,14 @@ PixelShaderInput main(VertexShaderInput input)
 
 	float3 temp = float3(input.pos.xy, w);
 	temp.z *= mr_FOVscale * mr_z_metric_mult;
-	// temp.z is now metric 3D
+	// temp.z is now metric 3D minus mr_cur_metric_scale
 
 	// Override the depth of this element if z_override is set
 	if (mult_z_override > -0.1)
-		temp.z *= mult_z_override; // * mr_cur_metric_scale ?
+		temp.z *= mult_z_override / mr_cur_metric_scale;
 	if (z_override > -0.1)
-		temp.z = z_override; // * mr_cur_metric_scale ?
+		//temp.z = z_override;
+		temp.z = z_override / mr_cur_metric_scale;
 
 	float FOVscaleZ = mr_FOVscale / temp.z;
 

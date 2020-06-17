@@ -61,7 +61,7 @@ Matrix4 g_ReflRotX;
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
-Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 bool rayTriangleIntersect(
@@ -4972,7 +4972,7 @@ void PrimarySurface::RenderExternalHUD()
 	Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
 	//log_debug("[DBG] p: %0.3f, %0.3f", p.x, p.y);
 	g_ShadingSys_PSBuffer.MainLight.x = p.x;
-	g_ShadingSys_PSBuffer.MainLight.y = p.y;
+	g_ShadingSys_PSBuffer.MainLight.y = g_bEnableVR ? -p.y : p.y;
 	g_ShadingSys_PSBuffer.MainLight.z = light.z;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
 
@@ -6239,7 +6239,10 @@ void PrimarySurface::TagXWALights()
 	// Get the screen limits, we'll need them to tell when a light is visible on the screen
 	float x0, y0, x1, y1;
 	bool bExternal = PlayerDataTable[*g_playerIndex].externalCamera;
-	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	// Don't tag anything in external view (I don't know if y_center needs to be used)
+	if (bExternal)
+		return;
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1, true);
 
 	// Check all the lights to see if they match any sun centroid
 	for (int LightIdx = 0; LightIdx < *s_XwaGlobalLightsCount; LightIdx++)
@@ -6271,7 +6274,7 @@ void PrimarySurface::TagXWALights()
 		// Project this light to screen coords to see if it's visible
 		Vector3 L(light.x, light.y, light.z);
 		L *= 65536.0f;
-		Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
+		Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft, true);
 		// p is now in post-proc UV coords. If it's within (x0,y0)-(x1,y1) then this
 		// light is visible on the screen
 		/*if (p.x < x0 + 0.05f || p.x > x1 - 0.05f ||
@@ -6665,6 +6668,10 @@ void PrimarySurface::RenderSunFlare()
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
+			// To keep the TagXwaLights working in non-VR space even when VR is enabled,
+			// the centroid is always stored in the nonVR coord sys. For VR, we need to 
+			// flip the Y coord:
+			if (g_bEnableVR) Centroid.y = -Centroid.y;
 			ProjectCentroidToPostProc(Centroid, &u, &v);
 			// Overwrite the centroid with the new 2D coordinates for the left/right images.
 			// In VR mode, these UVs are *the same* for both eyes because they are defined
