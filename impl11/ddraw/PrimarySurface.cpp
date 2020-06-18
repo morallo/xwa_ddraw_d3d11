@@ -58,10 +58,10 @@ void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 Matrix4 g_ReflRotX;
 
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
+Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
-Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
+inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 bool rayTriangleIntersect(
@@ -167,8 +167,9 @@ extern float g_fFrameTimeRemaining;
 extern Vector3 g_headCenter;
 extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
 extern vr::IVRSystem *g_pHMD;
-extern int g_iFreePIESlot;
+extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
+bool g_bEnableSteamVR_QPC = false;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -680,7 +681,7 @@ extern bool g_bSteamVREnabled, g_bUseSteamVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 void *g_pSurface = NULL;
-void WaitGetPoses();
+bool WaitGetPoses();
 
 float ComputeRealVertFOV() {
 	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;
@@ -7033,7 +7034,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	Matrix4 viewMatrix = g_viewMatrix;
 	viewMatrix.invert();
 	if (bProjectContOrigin) {
-		pos2D = project(contOriginDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
+		pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 		g_LaserPointerBuffer.bContOrigin = 1;
@@ -7051,9 +7052,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay = g_LaserPointer3DIntersection;
 		if (g_LaserPointerBuffer.bDebugMode) {
 			Vector3 q;
-			q = project(g_debug_v0, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = project(g_debug_v1, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = project(g_debug_v2, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+			q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+			q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+			q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 		}
 	} 
 	else {
@@ -7063,7 +7064,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
 	}
 	// Project the intersection point
-	pos2D = project(intersDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
+	pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 	g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
@@ -7127,7 +7128,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Dump some debug info to see what's happening with the intersection
 	if (g_bDumpLaserPointerDebugInfo) {
 		Vector3 pos3D = Vector3(g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z);
-		Vector3 p = project(pos3D, g_viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
+		Vector3 p = projectMetric(pos3D, g_viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
 		bool bIntersection = g_LaserPointerBuffer.bIntersection;
 		log_debug("[DBG] [AC] bIntersection: %d", bIntersection);
 		if (bIntersection) {
@@ -7216,7 +7217,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bProjectContOrigin) {
-				pos2D = project(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
+				pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = 1;
@@ -7225,15 +7226,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = project(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
+			pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = project(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = project(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = project(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT
@@ -7368,11 +7369,65 @@ void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint3
 }
 
 /* Convenience function to call WaitGetPoses() */
-inline void WaitGetPoses() {
-	// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
-	// error 101 when calling VRCompositor->Submit
+inline bool WaitGetPoses_QPC() {
+	static LARGE_INTEGER t0, t1, last_t, elapsed_us, elapsed_since_last_t_us, freq = { 0 };
+	uint64_t elapsed_ms, remaining_ms, waitgetposes_elapsed_ms;
+	bool result = false;
+
+	if (freq.QuadPart == 0) {
+		QueryPerformanceFrequency(&freq);
+		log_debug("[DBG] [QPF] freq: %lu", freq);
+	}
+	if (g_bEnableSteamVR_QPC) {
+		QueryPerformanceCounter(&t0);
+		// Compute the time elapsed since the previous last_t was taken
+		elapsed_since_last_t_us.QuadPart = t0.QuadPart - last_t.QuadPart;
+		elapsed_since_last_t_us.QuadPart *= 1000000;
+		elapsed_since_last_t_us.QuadPart /= freq.QuadPart;
+		//log_debug("[DBG] elapsed_since_last_t: %lu", elapsed_since_last_t_us.QuadPart);
+
+		// We want to call WaitGetPoses when we're about to reach a multiple of 11ms
+		// since the previous last_t. Say, we want to call it at either 8ms since last_t,
+		// 22-3ms = 19ms, 33-3ms = 30ms
+		elapsed_ms = elapsed_since_last_t_us.QuadPart / 1000;
+		// g_iSteamVR_VSync_ms default = 11
+		remaining_ms = g_iSteamVR_VSync_ms - (elapsed_ms % g_iSteamVR_VSync_ms);
+	}
+	else
+		remaining_ms = 0;
+	
+	if (remaining_ms <= g_iSteamVR_Remaining_ms) {
+		// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
+		// error 101 when calling VRCompositor->Submit
+		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
+			0, NULL, 0);
+		if (g_bEnableSteamVR_QPC) {
+			QueryPerformanceCounter(&t1);
+			elapsed_us.QuadPart = t1.QuadPart - t0.QuadPart;
+			elapsed_us.QuadPart *= 1000000;
+			elapsed_us.QuadPart /= freq.QuadPart;
+			waitgetposes_elapsed_ms = elapsed_us.QuadPart / 1000;
+			//if (waitgetposes_elapsed_ms > remaining_ms)
+			//	log_debug("[DBG] waitgetposes_elapsed_ms: %d", waitgetposes_elapsed_ms);
+		}
+
+		//Sleep(2); // Using "20" here I get values like: elapsed_us: 20381 below, so that validates
+		// that elapsed_us.QuadPart is in microseconds.
+		result = true;
+		//log_debug("[DBG] WaitGetPoses");
+	}
+
+	if (g_bEnableSteamVR_QPC)
+		// Store this timestamp for the next frame
+		last_t = t1;
+	//log_debug("[DBG] elapsed_us: %lu", elapsed_us.QuadPart);
+	return result;
+}
+
+inline bool WaitGetPoses() {
 	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
 		0, NULL, 0);
+	return true;
 }
 
 HRESULT PrimarySurface::Flip(
@@ -9079,6 +9134,7 @@ HRESULT PrimarySurface::Flip(
 			}
 			if (g_bUseSteamVR) {
 				g_pVRCompositor->PostPresentHandoff();
+
 				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
 				//if (seconds > 0.008)
 

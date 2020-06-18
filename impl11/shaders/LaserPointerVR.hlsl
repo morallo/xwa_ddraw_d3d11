@@ -49,7 +49,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b)
 }
 */
 
-/*
+#ifdef DEBUG
 float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 {
 	vec2 e0 = p1 - p0, e1 = p2 - p1, e2 = p0 - p2;
@@ -68,7 +68,7 @@ float debug_map(in vec2 p)
 {
 	return sdTriangle(p, v0, v1, v2);
 }
-*/
+#endif
 
 //=====================================================
 
@@ -177,9 +177,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float3 pointer_col = bIntersection ? dotcol : 0.7;
 	col = lerp(bgColor, pointer_col, v);
 
+#ifdef DEBUG
 	// Draw the triangle uv-color-coded
-	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
-	//	col = lerp(col, float3(uv, 0.0), 0.5);
+	if (bDebugMode && bIntersection && debug_map(p) < 0.001)
+		col = lerp(col, float3(uv, 0.0), 0.5);
+#endif
 
 	output.color = vec4(col, 1.0);
 	return output;

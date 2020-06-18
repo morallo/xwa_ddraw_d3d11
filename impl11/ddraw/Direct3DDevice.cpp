@@ -263,6 +263,7 @@ void SaveFocalLength();
 
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(WORD index, Vector3 *P);
+inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 
 float g_fVR_FOV = PSVR_VERT_FOV;
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
@@ -426,6 +427,7 @@ Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
+int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -980,6 +982,8 @@ void ResetVRParams() {
 	g_fMinPositionX = DEFAULT_MIN_POS_X; g_fMaxPositionX = DEFAULT_MAX_POS_X;
 	g_fMinPositionY = DEFAULT_MIN_POS_Y; g_fMaxPositionY = DEFAULT_MAX_POS_Y;
 	g_fMinPositionZ = DEFAULT_MIN_POS_Z; g_fMaxPositionZ = DEFAULT_MAX_POS_Z;
+
+	g_iSteamVR_Remaining_ms = 3; g_iSteamVR_VSync_ms = 11;
 
 	// Recompute the eye and projection matrices
 	if (!g_bUseSteamVR)
@@ -3867,6 +3871,8 @@ void LoadVRParams() {
 	//	log_debug("[DBG] [DC] Clearing g_DCElements");
 	//	ClearDynCockpitVector(g_DCElements);
 	//}
+	g_iSteamVR_VSync_ms = 11;
+	g_iSteamVR_Remaining_ms = 3;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -4005,6 +4011,13 @@ void LoadVRParams() {
 				g_fFrameTimeRemaining = fValue;
 			}
 
+			else if (_stricmp(param, "SteamVR_submit_frame_threshold_ms") == 0) {
+				g_iSteamVR_Remaining_ms = (int)fValue;
+			}
+			else if (_stricmp(param, "SteamVR_VSync_ms") == 0) {
+				g_iSteamVR_VSync_ms = (int)fValue;
+			}
+			
 			param_read_count++;
 		}
 	} // while ... read file
@@ -5504,7 +5517,7 @@ inline void backProjectMetric(WORD index, Vector3 *P) {
  *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
  *		in the external HUD shader.
  */
-Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
+inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
 	Vector3 P, temp = pos3D;
 
 	if (!bForceNonVR && g_bEnableVR) {
@@ -5739,7 +5752,7 @@ inline void backProject(WORD index, Vector3 *P) {
 }
 
 // The return values sx,sy are the screen coords (in in-game coords). Use them for debug purposes only
-inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */)
+Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */)
 {
 	Vector3 P = pos3D;
 	//float w;
@@ -6105,7 +6118,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
-		backProject(index, &tempv0);
+		backProjectMetric(index, &tempv0);
 		/* if (g_bDumpSSAOBuffers) {
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
 			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
@@ -6113,7 +6126,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			Vector3 q = projectMetric(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv0.x, tempv0.y, tempv0.z,
@@ -6123,7 +6136,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
-		backProject(index, &tempv1);
+		backProjectMetric(index, &tempv1);
 		/* if (g_bDumpSSAOBuffers) {
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
 			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
@@ -6131,7 +6144,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			Vector3 q = projectMetric(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw, 
 				tempv1.x, tempv1.y, tempv1.z,
@@ -6141,7 +6154,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
-		backProject(index, &tempv2);
+		backProjectMetric(index, &tempv2);
 		/* if (g_bDumpSSAOBuffers) {
 			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
 			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
@@ -6149,7 +6162,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 		} */
 		if (debug) {
 			vert = g_OrigVerts[index];
-			Vector3 q = project(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
+			Vector3 q = projectMetric(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
 			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
 				vert.sx, vert.sy, 1.0f/vert.rhw,
 				tempv2.x, tempv2.y, tempv2.z,

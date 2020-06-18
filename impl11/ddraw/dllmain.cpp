@@ -137,7 +137,7 @@ bool ShutDownDirectSBS();
 
 // SteamVR
 #include <headers/openvr.h>
-extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR;
+extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
@@ -761,6 +761,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				return 0;
 			}
+			case 'V':
+			{
+				g_bEnableSteamVR_QPC = !g_bEnableSteamVR_QPC;
+				log_debug("[DBG] [QPC] g_bEnableSteamVR_QPC: %d", g_bEnableSteamVR_QPC);
+				return 0;
+			}
 
 			// Ctrl+L is the landing gear
 
@@ -1064,7 +1070,8 @@ void PatchWithValue(uint32_t address, unsigned char value, int size) {
 void LoadPOVOffsets() {
 	log_debug("[DBG] [POV] Loading POVOffsets.cfg...");
 	FILE *file;
-	char buf[160];
+	char buf[160], param[80], svalue[80];
+	float fValue;
 	int slot, x, y, z, num_params, entries_applied = 0, error = 0;
 	const char *CraftTableBase = (char *)0x5BB480;
 	const int16_t EntrySize = 0x3DB, POVOffset = 0x238;
@@ -1074,11 +1081,11 @@ void LoadPOVOffsets() {
 		error = fopen_s(&file, "./POVOffsets.cfg", "rt");
 	}
 	catch (...) {
-		log_debug("[DBG] [FOV] Could not load POVOffsets.cfg");
+		log_debug("[DBG] [POV] Could not load POVOffsets.cfg");
 	}
 
 	if (error != 0) {
-		log_debug("[DBG] [FOV] Error %d when loading POVOffsets.cfg", error);
+		log_debug("[DBG] [POV] Error %d when loading POVOffsets.cfg", error);
 		return;
 	}
 
@@ -1089,26 +1096,33 @@ void LoadPOVOffsets() {
 		if (strlen(buf) == 0)
 			continue;
 
-		num_params = sscanf_s(buf, "%d %d %d %d", &slot, &x, &z, &y);
-		if (num_params == 4) {
-			int16_t *pov = (int16_t *)(CraftTableBase + (slot - 1) * EntrySize + POVOffset);
-			// Y, Z, X
-			*pov += y; pov++;
-			*pov += z; pov++;
-			*pov += x;
-			entries_applied++;
-		}
-		/*
-		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			fValue = (float)atof(svalue);
-			if (_stricmp(param, "focal_length") == 0) {
-				ApplyFocalLength(fValue);
-				log_debug("[DBG] [FOV] Applied FOV: %0.3f", fValue);
-				bApplied = true;
+		if (strstr(buf, "=") != NULL) {
+			if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
+				fValue = (float)atof(svalue);
+				if (_stricmp(param, "apply_custom_POVs") == 0) {
+					bool bValue = (bool)fValue;
+					log_debug("[DBG] [POV] POVOffsets Enabled: %d", bValue);
+					if (!bValue) {
+						log_debug("[DBG] [POV] POVOffsets will NOT be applied");
+						goto out;
+					}
+				}
 			}
 		}
-		*/
+		else {
+			num_params = sscanf_s(buf, "%d %d %d %d", &slot, &x, &z, &y);
+			if (num_params == 4) {
+				int16_t *pov = (int16_t *)(CraftTableBase + (slot - 1) * EntrySize + POVOffset);
+				// Y, Z, X
+				*pov += y; pov++;
+				*pov += z; pov++;
+				*pov += x;
+				entries_applied++;
+			}
+		}
 	}
+
+out:
 	fclose(file);
 	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
 }
