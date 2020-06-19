@@ -6099,9 +6099,9 @@ void IncreaseSMZFactor(float Delta) {
  * needed to center the Shadow Map depth buffer.
  */
 Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ) {
-	float minx = 100000.0, maxx = -100000.0f;
-	float miny = 100000.0, maxy = -100000.0f;
-	float minz = 100000.0, maxz = -100000.0f;
+	float minx = 100000.0f, maxx = -100000.0f;
+	float miny = 100000.0f, maxy = -100000.0f;
+	float minz = 100000.0f, maxz = -100000.0f;
 	float cx, cy, sx, sy;
 	Matrix4 S, T;
 	Vector4 P, Q;
@@ -6115,16 +6115,17 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 
 		// OBJ-3D to camera view
 		P = g_ShadowMapVSCBuffer.Camera * X;
-
-		// Project the point. The P.z here is OBJ-3D plus Camera transform
-		P.x /= g_ShadowMapVSCBuffer.sm_aspect_ratio;
-		P.x  = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
-		P.y  = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
-
-		// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
-		// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
-		// they're in the same coord sys
+		
 		if (!g_bEnableVR) {
+			// Project the point. The P.z here is OBJ-3D plus Camera transform
+			P.x /= g_ShadowMapVSCBuffer.sm_aspect_ratio;
+			P.x = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
+			P.y = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
+
+			// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
+			// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
+			// they're in the same coord sys
+
 			// Non-VR back-projection
 			P.x *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
 			P.y *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
@@ -6136,6 +6137,7 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 			Q.w = 1.0f;
 		}
 		else {
+			/*
 			// VR back-projection. The factor of 2.0 below is because in non-VR viewPortScale is multiplied by 2;
 			// but in VR mode, we multiply by 1, so we have to compensate for that.
 			P.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.viewportScale[3] / 2.0f * g_ShadowMapVSCBuffer.sm_aspect_ratio;
@@ -6146,6 +6148,14 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 			Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST_VR;
 			Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST_VR;
 			Q.z = P.z;
+			Q.w = 1.0f;
+			*/
+
+			// Remove the scale (1.64) we added when loading the OBJ since we need fully-metric
+			// coords for the VR path:
+			Q.x = P.x / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
+			Q.y = P.y / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
+			Q.z = P.z / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
 			Q.w = 1.0f;
 		}
 
@@ -6193,10 +6203,8 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 	// Compute the scale
 	sx = 1.95f / (maxx - minx); // Map to -0.975..0.975
 	sy = 1.95f / (maxy - miny); // Map to -0.975..0.975
-	// TODO:
 	// Having an anisotropic scale provides a better usage of the shadow map. However
-	// it also distorts the shadow map, making it harder to debug. For now, I'll do
-	// uniform scalling, but this has to go back to anisotropic scalling before
+	// it also distorts the shadow map, making it harder to debug.
 	// release
 	float s = min(sx, sy);
 	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
@@ -6211,13 +6219,14 @@ Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OB
 	else
 		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
 
-	if (g_ShadowMapping.bOBJrange_override)
-		*OBJrange = g_ShadowMapping.fOBJrange_override_value;
-	else
-		*OBJrange = maxz - minz;
-
 	*OBJminZ = minz;
+	*OBJrange = maxz - minz;
+	
 	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [SHW] min-x,y,z: %0.3f, %0.3f, %0.3f, max-x,y,z: %0.3f, %0.3f, %0.3f",
+			minx, miny, minz, maxx, maxy, maxz);
+		log_debug("[DBG] [SHW] cx,cy: %0.3f, %0.3f, sx,sy,s: %0.3f, %0.3f, %0.3f",
+			cx, cy, sx, sy, s);
 		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
 			maxz, *OBJminZ, *OBJrange);
 		log_debug("[DBG] [SHW] sm_z_factor: %0.6f, FOVDistScale: %0.3f",
@@ -9125,6 +9134,7 @@ HRESULT PrimarySurface::Flip(
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;
+				log_debug("[DBG] Present 3D failed, hr: 0x%x", hr);
 				if (!messageShown)
 				{
 					MessageBox(nullptr, _com_error(hr).ErrorMessage(), __FUNCTION__, MB_ICONERROR);

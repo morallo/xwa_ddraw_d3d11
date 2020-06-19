@@ -5,6 +5,7 @@
  */
 #include "shader_common.h"
 #include "shadow_mapping_common.h"
+#include "metric_common.h"
 
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -35,8 +36,8 @@ POVX =   0.0
 POVY =  37.0
 POVZ = -31.0
 
-POV_FACTOR_XY = 41
-POV_FACTOR_Z = 41
+POV_FACTOR_XY = 41 // This should probably be 40.96
+POV_FACTOR_Z = 41  // This should probably be 40.96
 
 shy = -0.075
 sz = 0.94
@@ -63,26 +64,25 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 {
 	SHADOW_PS_INPUT output;
 
-	// The input is expected to be OBJ-3D
-
+	// The input is expected to be OBJ-3D, which is OBJ * 1.64 * (+/-1 on each axis, depends on the MAT file)
 	// OBJ-3D to camera view:
 	float4 P = mul(Camera, float4(input.pos.xyz, 1.0));
-
-	// Project the OBJ point to 2D:
-	//P.x /= sm_aspect_ratio;
-	//P.x = sm_FOVscale * (P.x / P.z);
-	//P.y = sm_FOVscale * (P.y / P.z) + sm_y_center;
-
-	// Camera view --> Adjust by y_center and FOVscale
-	P.xy = sm_FOVscale * float2(P.x / sm_aspect_ratio, P.y + P.z * sm_y_center / sm_FOVscale);
-	// Project the point. The P.z here is OBJ-3D plus Camera transform
-	P.xy /= P.z;
-
-	// The point is now in DirectX 2D coord sys (-1..1). The OBJ depth of the point is in P.z
-	// The OBJ-2D should match XWA 2D at this point.
 	
 	// Let's back-project so that they're in the same coord sys
 	if (sm_VR_mode == 0) {
+		// Project the OBJ point to 2D:
+		//P.x /= sm_aspect_ratio;
+		//P.x = sm_FOVscale * (P.x / P.z);
+		//P.y = sm_FOVscale * (P.y / P.z) + sm_y_center;
+
+		// Camera view --> Adjust by y_center and FOVscale
+		P.xy = sm_FOVscale * float2(P.x / sm_aspect_ratio, P.y + P.z * sm_y_center / sm_FOVscale);
+		// Project the point. The P.z here is OBJ-3D plus Camera transform
+		P.xy /= P.z;
+
+		// The point is now in DirectX 2D coord sys (-1..1). The OBJ depth of the point is in P.z
+		// The OBJ-2D should match XWA 2D at this point.
+
 		// Regular VertexShader reconstruction path
 		P.xy *= vpScale.z * float2(sm_aspect_ratio, 1); // TODO: Check if this is "sm_aspect_ratio" or "aspect_ratio"
 		//P.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
@@ -91,12 +91,23 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 		P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST, P.z, 1.0);
 	}
 	else {
+		/*
 		// VR SBSVertexShader reconstruction path. To understand the 2.0 factor below, see AddGeometryVertexShader.hlsl
 		P.xy *= vpScale.w * vpScale.z / 2.0 * float2(sm_aspect_ratio, 1); // TODO: "aspect_ratio" or "sm_aspect_ratio"?
 		//P.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
 		P.z *= sm_z_factor * metric_mult; // <-- XWA3D.z = OBJ.z * sm_z_factor
 		// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
 		P = float4(P.z * P.xy / DEFAULT_FOCAL_DIST_VR, P.z, 1.0);
+		*/
+
+		// Remove the scale (1.64) we added when loading the OBJ since we need fully-metric
+		// coords for the VR path:
+		P.xyz /= mr_shadow_OBJ_scale;
+		P.w = 1.0;
+
+		// Project:
+		//P.z = -P.z;
+		//output.pos = mul(projEyeMatrix, float4(P.xyz, 1.0));
 	}
 
 	// NOTE: Since sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
@@ -110,7 +121,8 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 
 	// let's apply the light transform and project it from the
 	// light's point of view.
-	// When computing shadows, we start at this point
+
+	// When computing shadows in SSDOAdd/SSAOAdd, we start at this point
 	P = mul(lightWorldMatrix[light_index], P);
 
 	// xy: Parallel projection

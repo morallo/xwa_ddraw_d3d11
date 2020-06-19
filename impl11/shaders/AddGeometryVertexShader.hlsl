@@ -75,7 +75,7 @@ PixelShaderInput main(VertexShaderInput input)
 	else
 	{
 		// VR PATH
-		// Remove the scale we added when loading the OBJ since we need fully-metric
+		// Remove the scale (1.64) we added when loading the OBJ since we need fully-metric
 		// coords for the VR path:
 		P /= mr_shadow_OBJ_scale;
 
