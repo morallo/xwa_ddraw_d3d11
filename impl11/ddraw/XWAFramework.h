@@ -79,6 +79,7 @@ const auto loadScrnTotalMissionsListed = (int *)0x7830BC;
 const auto localPlayerIndex = (int *)0x8C1CC8;
 ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
 PlayerDataEntry* PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
+CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
 const auto localPlayerConnectedAs = (int *)0xABD7B4;
 const auto flightGroupInfo = (int *)0x783194;
 const auto battleSelectMissionScrollIndex = (int *)0x783174;

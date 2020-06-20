@@ -116,6 +116,7 @@ struct MobileObjectEntry
 
 static_assert(sizeof(MobileObjectEntry) == 229, "size of MobileObjectEntry must be 229");
 
+// The current target object index is stored as a word value at offset 0x25 in the player table. A value of 0xffff (-1) means that there is no target.
 struct PlayerDataEntry
 {
 	int objectIndex;
@@ -139,7 +140,7 @@ struct PlayerDataEntry
 	int timeInHyperspace;
 	char allowTargetBox;
 	char warheadLockState;
-	__int16 currentTargetIndex;
+	__int16 currentTargetIndex; // <-- This is the index of the currently-targeted object, a value of -1 means no target
 	char targetTimeTargetedSeconds;
 	char targetTimeTargetedMinutes;
 	__int16 lastTargetIndex;
@@ -889,10 +890,90 @@ struct PlayerDataEntry
 
 static_assert(sizeof(PlayerDataEntry) == 3023, "size of PlayerDataEntry must be 3023");
 
+struct CraftDefinitionEntry {
+	void *pCraftShortName;
+	void *pCraftName;
+	WORD Score;
+	WORD PromoPointWorth;
+	BYTE HasHyperdrive;
+	BYTE LaserConvergenceType;
+	BYTE HasShields;
+	DWORD ShieldHitPoints; // Ofs: 0000000F
+	BYTE HitsToEvade;
+	BYTE field_14;
+	DWORD HullHitpoints;
+	DWORD CriticalDmgThreshold;
+	WORD SystemHitpoints;
+	BYTE EngineThrottle; // Ofs: 0x1f
+	WORD TopSpeedMPH;
+	WORD Acceleration;
+	WORD Deceleration;
+	WORD YawRate;
+	WORD RollingYawPercentage;
+	WORD RollRate;
+	WORD PitchRate;
+	WORD DeathRotationSpeed;
+	WORD DriftSpeed; // Ofs: 0x30
+	char CockpitFileName[256]; // Ofs: 0x32
+	WORD LaserObjectType[3]; // Ofs 0x132
+	BYTE LaserStartingHardpoint[3];
+	BYTE LaserEndingHardpoint[3];
+	BYTE LaserNumOfCannons[3];
+	BYTE LaserGroupType[3]; // Ofs: 0x141
+	DWORD LaserRange[3];
+	WORD LaserFireRatio[3];
+	WORD WarheadObjectType[2]; // Ofs: 0x156
+	BYTE WahreadStartingHardpoint[2];
+	BYTE WarheadEndingHardpoint[2];
+	BYTE WarheadAccumulators[2];
+	BYTE WarheadCapacity[2]; // Ofs: 0x160
+	BYTE /* CraftDefHardpoints */ HardPoints[128]; // Ofs: 0x162
+	DWORD Engines[16];
+	BYTE EngineMeshIDs[16];
+	BYTE EnginesCount; // Ofs: 0x232
+	BYTE CountermeasuresCount;
+	DWORD field_234;
+	WORD CockpitPosY; // POV Y, Ofs: 0x238
+	WORD CockpitPosZ; // POV Z
+	WORD CockpitPosX; // POV X
+	WORD TurretPositionY[2]; // Ofs 0x23E
+	WORD TurretPositionZ[2];
+	WORD TurretPositionX[2];
+	WORD TurretOrientationX[2];
+	WORD TurretOrientationY[2];
+	WORD TurretOPTModelID[2]; // Ofs: 0x252
+	WORD TurretArcX[2]; // Ofs: 0x256
+	WORD TurretArcY[2];
+	DWORD DockPositionY;
+	DWORD DockFromSmallPositionZ;
+	DWORD DockFromBigPositionZ;
+	DWORD DockToSmallPositionZ;
+	DWORD DockToBigPositionZ; // Ofs: 0x26E
+	DWORD InsideHangarX;
+	DWORD InsideHangarZ;
+	DWORD InsideHangarY;
+	DWORD OutsideHangarX;
+	DWORD OutsideHangarZ;
+	DWORD OutsideHangarY;
+	WORD SizeScale; // Ofs: 0x28A
+	WORD SizeX;
+	WORD SizeZ;
+	WORD SizeY;
+	WORD NumOfDockingPoints; // Ofs: 0x292
+	BYTE DockingPoints[108]; // Ofs: 294 Vector3Int[9]
+	DWORD AccStartPositionX;
+	DWORD AccStartPositionZ;
+	DWORD AccStartPositionY;
+	DWORD AccEndPositionX;
+	DWORD AccEndPositionZ;
+	DWORD AccEndPositionY;
+	BYTE NumOfFloatHardpoints;
+	BYTE NumOfAccEndPoints;
+	BYTE AccEndPoints[96]; // Ofs: 0x31A Vector3Int[8];
+	BYTE NumOfJammingPoints;
+	BYTE JammingPoints[96]; // Ofs: 0x37b, VectorInt[8];
+};
+
+static_assert(sizeof(CraftDefinitionEntry) == 0x3DB, "size of CraftDefinition must be 0x3DB");
+
 #pragma pack(pop)
-
-
-
-
-
-

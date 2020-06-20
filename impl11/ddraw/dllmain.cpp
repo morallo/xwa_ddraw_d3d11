@@ -175,7 +175,10 @@ void SaveFocalLength() {
 	// using something sensible
 	//fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
 	// Save the *real* vert FOV
-	fprintf(file, "real_FOV = %0.3f\n", ComputeRealVertFOV());
+	if (!g_bEnableVR)
+		fprintf(file, "real_FOV = %0.3f\n", ComputeRealVertFOV());
+	else
+		fprintf(file, "VR_FOV = %0.3f\n", ComputeRealVertFOV());
 	fclose(file);
 }
 
@@ -215,10 +218,16 @@ bool LoadFocalLength() {
 				log_debug("[DBG] [FOV] Applied FOV: %0.3f", fValue);
 				bApplied = true;
 			}
-			else if (_stricmp(param, "real_FOV") == 0) {
+			else if (_stricmp(param, "real_FOV") == 0 && !g_bEnableVR) {
 				float RawFocalLength = RealVertFOVToRawFocalLength(fValue);
 				ApplyFocalLength(RawFocalLength);
 				log_debug("[DBG] [FOV] Applied Real FOV: %0.3f", RawFocalLength);
+				bApplied = true;
+			}
+			else if (_stricmp(param, "VR_FOV") == 0 && g_bEnableVR) {
+				float RawFocalLength = RealVertFOVToRawFocalLength(fValue);
+				ApplyFocalLength(RawFocalLength);
+				log_debug("[DBG] [FOV] Applied VR FOV: %0.3f", RawFocalLength);
 				bApplied = true;
 			}
 		}
@@ -1077,6 +1086,10 @@ void LoadPOVOffsets() {
 	const int16_t EntrySize = 0x3DB, POVOffset = 0x238;
 	// 0x5BB480 + (n-1) * 0x3DB + 0x238
 
+	// POV Offsets will only be applied if VR is enabled
+	if (!g_bEnableVR)
+		return;
+
 	try {
 		error = fopen_s(&file, "./POVOffsets.cfg", "rt");
 	}
@@ -1099,10 +1112,11 @@ void LoadPOVOffsets() {
 		if (strstr(buf, "=") != NULL) {
 			if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 				fValue = (float)atof(svalue);
-				if (_stricmp(param, "apply_custom_POVs") == 0) {
+				if (_stricmp(param, "apply_custom_VR_POVs") == 0) {
 					bool bValue = (bool)fValue;
 					log_debug("[DBG] [POV] POVOffsets Enabled: %d", bValue);
-					if (!bValue) {
+					if (!bValue) 
+					{
 						log_debug("[DBG] [POV] POVOffsets will NOT be applied");
 						goto out;
 					}
