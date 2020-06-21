@@ -170,17 +170,22 @@ void SaveFocalLength() {
 		return;
 	}
 
-	fprintf(file, "; The focal length is measured in pixels. This parameter can be modified without\n");
-	fprintf(file, "; VR, so, technically, it's not a 'VRParam'\n");
+	//fprintf(file, "; The focal length is measured in pixels. This parameter can be modified without\n");
+	//fprintf(file, "; VR, so, technically, it's not a 'VRParam'\n");
 	// Let's not write the focal length in pixels anymore. It doesn't make any sense to
 	// anyone and it's only useful internally. We'll continue to read it, but let's start
 	// using something sensible
 	//fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
 	// Save the *real* vert FOV
-	if (!g_bEnableVR)
+	fprintf(file, "; The FOV is measured in degrees. This is the actual vertical FOV.\n");
+	if (!g_bEnableVR) {
+		fprintf(file, "; This FOV is used when the game is in non-VR mode.\n");
 		fprintf(file, "real_FOV = %0.3f\n", ComputeRealVertFOV());
-	else
+	}
+	else {
+		fprintf(file, "; This FOV is used only when the game is in VR mode.\n");
 		fprintf(file, "VR_FOV = %0.3f\n", ComputeRealVertFOV());
+	}
 	fclose(file);
 }
 
