@@ -628,6 +628,7 @@ public:
 	bool bEnabled;
 	bool bAnisotropicMapScale;
 	bool bAllLightsTagged;
+	bool bMultipleSuns;
 	bool bUseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
 	bool bOBJrange_override;
 	float fOBJrange_override_value;
@@ -653,6 +654,7 @@ public:
 		this->bEnabled = false;
 		this->bAnisotropicMapScale = true;
 		this->bAllLightsTagged = false;
+		this->bMultipleSuns = false;
 		this->bUseShadowOBJ = false;
 		this->NumVertices = 0;
 		this->NumIndices = 0;

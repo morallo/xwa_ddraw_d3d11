@@ -6329,23 +6329,26 @@ void PrimarySurface::TagXWALights()
 				log_debug("[DBG] [SHW] centr: [%0.3f, %0.3f, %0.3f], light: [%0.3f, %0.3f, %0.3f]",
 					c.x, c.y, c.z, light.x, light.y, light.z);
 
-#ifdef MULTIPLE_SHADOWS
-				// There may be missions with multiple suns, so, let's tag this one as a sun
-				// but let's keep tagging.
-				g_XWALightInfo[i].bIsSun = true;
-				g_XWALightInfo[i].bTagged = true;
-				break;
-#else
-				// At this point, I probably only want one sun casting shadows. So, as soon as we find our sun, we
-				// can stop tagging and shut down all the other lights as shadow casters.
-				for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
+				if (g_ShadowMapping.bMultipleSuns) 
 				{
-					g_XWALightInfo[j].bIsSun = (j == LightIdx); // i is the current light being tagged
-					g_XWALightInfo[j].bTagged = true;
+					// There may be missions with multiple suns, so, let's tag this one as a sun
+					// but let's keep tagging.
+					g_XWALightInfo[LightIdx].bIsSun = true;
+					g_XWALightInfo[LightIdx].bTagged = true;
+					break;
 				}
-				g_ShadowMapping.bAllLightsTagged = true; // We found the global sun, stop tagging lights
-				return;
-#endif
+				else {
+					// At this point, I probably only want one sun casting shadows. So, as soon as we find our sun, we
+					// can stop tagging and shut down all the other lights as shadow casters.
+					for (int j = 0; j < *s_XwaGlobalLightsCount; j++)
+					{
+						g_XWALightInfo[j].bIsSun = (j == LightIdx); // LightIdx is the current light being tagged
+						g_XWALightInfo[j].bTagged = true;
+					}
+					g_ShadowMapping.bAllLightsTagged = true; // We found the global sun, stop tagging lights
+					return;
+				}
+
 			}
 		}
 

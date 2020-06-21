@@ -3444,6 +3444,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_fovdist_scale") == 0) {
 				g_ShadowMapping.FOVDistScale = fValue;
 			}
+			else if (_stricmp(param, "shadow_mapping_enable_multiple_suns") == 0) {
+				g_ShadowMapping.bMultipleSuns = (bool)fValue;
+			}
 
 			/*
 			else if (_stricmp(param, "shadow_mapping_XWA_LIGHT_Y_CONV_SCALE") == 0) {
