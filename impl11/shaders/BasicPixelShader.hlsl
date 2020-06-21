@@ -5,12 +5,11 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// MainShadersCBuffer
 cbuffer ConstantBuffer : register(b0)
 {
-	float scale;
-	float aspect_ratio;
-	float parallax;
-	float brightness; // Only one used in this PixelShader
+	float scale, aspect_ratio, parallax, brightness;
+	float use_3D, unused0, unused1, unused2;
 };
 
 struct PixelShaderInput

@@ -336,6 +336,7 @@ typedef struct PSShadingSystemCBStruct {
 	// 608 bytes
 } PSShadingSystemCB;
 
+// See PixelShaderTextureCommon.h for an explanation of these settings
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
@@ -346,7 +347,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t ps_unused1; // Formerly this was bIsSun
+	uint32_t ps_unused1;
 	// 32 bytes
 
 	float fBloomStrength;

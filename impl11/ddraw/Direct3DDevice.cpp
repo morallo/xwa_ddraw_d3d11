@@ -5,8 +5,9 @@
 // Shaders by Marty McFly (used with permission from the author)
 // https://github.com/martymcmodding/qUINT/tree/master/Shaders
 
-// _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- SCREEN Resolution
+// _deviceResources->_backbufferWidth, _backbufferHeight: 3240, 2160 -- Screen/Backbuffer Resolution
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
+// g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
 TODO:
@@ -553,6 +554,7 @@ bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebu
 bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
+extern int g_WindowWidth, g_WindowHeight;
 
 /*********************************************************/
 // SHADOW MAPPING

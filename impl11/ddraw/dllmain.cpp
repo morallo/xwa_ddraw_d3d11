@@ -26,6 +26,8 @@ auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOV, g_fDebugAspectRatio;
 extern float g_fCurrentShipFocalLength;
+// Current window width and height
+int g_WindowWidth, g_WindowHeight;
 
 extern int g_KeySet;
 extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
@@ -106,7 +108,7 @@ extern Vector3 g_LaserPointDebug;
 extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDepthTrans, g_fShadowMapScale;
 extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bShadowMapHardwarePCF;
 
-HWND ThisWindow = 0;
+HWND g_ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
 // User-facing functions
@@ -1033,10 +1035,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 bool ReplaceWindowProc(HWND hwnd)
 {
-	ThisWindow = hwnd;
-	OldWindowProc = (WNDPROC )SetWindowLong(ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
-	if (OldWindowProc != NULL)
+	RECT rect;
+	g_ThisWindow = hwnd;
+	OldWindowProc = (WNDPROC )SetWindowLong(g_ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
+	if (OldWindowProc != NULL) {
+		// SetProcessDPIAware(); // Reimar suggested using this to fix the DPI
+		GetWindowRect(g_ThisWindow, &rect);
+		log_debug("[DBG] RECT size: (%d, %d)-(%d, %d)", rect.left, rect.top, rect.right, rect.bottom);
+		g_WindowWidth = rect.right - rect.left;
+		g_WindowHeight = rect.bottom - rect.top;
 		return true;
+	}
+	
 	return false;
 }
 

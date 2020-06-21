@@ -140,7 +140,10 @@ struct PlayerDataEntry
 	int timeInHyperspace;
 	char allowTargetBox;
 	char warheadLockState;
-	__int16 currentTargetIndex; // <-- This is the index of the currently-targeted object, a value of -1 means no target
+	// This is the index of the currently-targeted object, a value of -1 means no target
+	// Use this index on this table:
+	// ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
+	__int16 currentTargetIndex; 
 	char targetTimeTargetedSeconds;
 	char targetTimeTargetedMinutes;
 	__int16 lastTargetIndex;

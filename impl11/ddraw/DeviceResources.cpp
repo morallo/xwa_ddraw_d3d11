@@ -1075,6 +1075,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bUseSteamVR) {
 		// dwWidth, dwHeight are the in-game's resolution
 		// When using SteamVR, let's override the size with the recommended size
+		log_debug("[DBG] Original dwWidth, dwHeight: %d, %d", dwWidth, dwHeight);
 		dwWidth = g_steamVRWidth;
 		dwHeight = g_steamVRHeight;
 		log_debug("[DBG] Using SteamVR settings: %u, %u", dwWidth, dwHeight);
@@ -1326,6 +1327,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.SampleDesc.Count = 1;
 			sd.SampleDesc.Quality = 0;
 			sd.Windowed = TRUE;
+			log_debug("[DBG] SwapChain W,H: %d, %d", sd.BufferDesc.Width, sd.BufferDesc.Height); // This line isn't actually executing
 
 			ComPtr<IDXGIFactory> dxgiFactory;
 			hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
@@ -3706,7 +3708,6 @@ void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
 	const float aspectRatio, const float scale, const float brightness)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
 		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_2D ||
 		g_MSCBuffer.parallax != parallax ||
@@ -3719,13 +3720,6 @@ void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float 
 		g_MSCBuffer.scale = scale;
 		g_MSCBuffer.brightness = brightness;
 		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
-	}
-
-	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
-		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_2D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_2D;

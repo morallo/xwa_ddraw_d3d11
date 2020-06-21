@@ -147,6 +147,7 @@ extern MetricReconstructionCB g_MetricRecCBuffer;
 extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
 extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurInGameAspectRatio, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
+extern int g_WindowWidth, g_WindowHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
 
@@ -1380,8 +1381,11 @@ void PrimarySurface::barrelEffectSteamVR() {
 }
 
 /*
- * When rendering for SteamVR, we're usually rendering at half the width; but the Present is done
- * at full resolution, so we need to resize the offscreenBuffer before presenting it.
+ * When rendering for SteamVR, we may be rendering at a resolution that is different
+ * from the current screen resolution, so some stretching will happen in the mirror
+ * window. We need to resize the offscreenBuffer before presenting it.
+ * Bonus points: Adjust the FOV to the original (~50) to avoid showing the distortion
+ * caused by the larger FOV used in most headsets.
  * Input: _offscreenBuffer
  * Output: _steamVRPresentBuffer
  */
@@ -1398,8 +1402,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	float screen_res_x = (float)g_FullScreenWidth;
-	float screen_res_y = (float)g_FullScreenHeight;
+	float screen_res_x = (float)g_WindowWidth;
+	float screen_res_y = (float)g_WindowHeight;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	// Set the vertex buffer
@@ -1413,7 +1417,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
-	// Temporarily disable ZWrite: we won't need it for the barrel effect
+	// Temporarily disable ZWrite: we won't need it here
 	D3D11_DEPTH_STENCIL_DESC desc;
 	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = FALSE;
@@ -1424,24 +1428,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
-	// use it as input
+	// use it as input in the shader
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, BACKBUFFER_FORMAT);
-
-	// Resize the buffer to be presented for SteamVR
-	float scale_x = screen_res_x / g_steamVRWidth;
-	float scale_y = screen_res_y / g_steamVRHeight;
-	float scale = max(scale_x, scale_y);
-	//float scale = (scale_x + scale_y);
-	/*
-	if (!is_2D)
-		scale *= 0.5f;
-		//scale *= 0.75f; // HACK: Use this for Trinus PSVR
-	*/
-
-	float newWidth = g_steamVRWidth * scale; // Use this when not running Trinus
-	//float newWidth = g_steamVRWidth * scale * 0.5f; // HACK: Use this for Trinus PSVR
-	float newHeight = g_steamVRHeight * scale;
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1463,26 +1452,39 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	}
 #endif
 
-	//viewport.TopLeftX = (screen_res_x - g_steamVRWidth) / 2.0f;
-	/*
+	// The viewport has to be in the range (0,0)-(g_steamVRWidth,g_steamVRHeight) or the image
+	// will be cropped. This is because the backbuffer has those same dimensions.
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = (float)g_steamVRWidth;
-	viewport.Height = (float)g_steamVRHeight;
-	*/
-
-	viewport.TopLeftX = (screen_res_x - newWidth) / 2.0f;
-	viewport.TopLeftY = (screen_res_y - newHeight) / 2.0f;
-	viewport.Width = (float)newWidth;
-	viewport.Height = (float)newHeight;
+	viewport.Width    = (float)g_steamVRWidth;
+	viewport.Height   = (float)g_steamVRHeight;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
+	
+	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
+	// If the display window has height > width, we can't make the the y axis smaller to compensate.
+	// Instead, I'm expanding the x-axis to keep the original aspect ratio. That'll cause the image
+	// to become bigger too. So we'll shrink the image by adjusting the scale as well:
+	float window_factor_y = (float)g_WindowHeight / (float)g_steamVRHeight;
+	float scale = 1.0f / window_factor_y;
 
+	float window_scale_x = (float)g_WindowWidth / (float)g_steamVRWidth;
+	float window_scale_y = (float)g_WindowHeight / (float)g_steamVRHeight;
+	float window_scale = min(window_scale_x, window_scale_y);
+	scale *= window_scale;
+
+	// The image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
+	float aspect_ratio = (1.0f / g_fConcourseAspectRatio) * 
+		g_fCurInGameAspectRatio * (1.0f / steamVR_aspect_ratio) * window_factor_x * window_factor_y;
+
+	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
+	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, 1.0f, 1.0f, 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Don't use 3D projection matrices
+		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_basicPixelShader);
 
