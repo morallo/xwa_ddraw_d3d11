@@ -1476,7 +1476,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
 	// If the display window has height > width, we can't make the the y axis smaller to compensate.
 	// Instead, I'm expanding the x-axis to keep the original aspect ratio. That'll cause the image
-	// to become bigger too. So we'll shrink the image by adjusting the scale as well:
+	// to become bigger too, so we'll shrink the image by adjusting the scale as well:
 	float window_factor_y = (float)g_WindowHeight / (float)g_steamVRHeight;
 	float scale = 1.0f / window_factor_y;
 
@@ -1484,10 +1484,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	float window_scale_y = (float)g_WindowHeight / (float)g_steamVRHeight;
 	float window_scale = min(window_scale_x, window_scale_y);
 	scale *= window_scale;
-
-	// The image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
-	float aspect_ratio = (1.0f / g_fConcourseAspectRatio) * 
-		g_fCurInGameAspectRatio * (1.0f / steamVR_aspect_ratio) * window_factor_x * window_factor_y;
+	
+	float aspect_ratio = 1.0f;
+	if (g_bRendering3D)
+		// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
+		aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+	else
+		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
+		aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.

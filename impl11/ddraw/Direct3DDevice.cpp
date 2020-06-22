@@ -346,14 +346,13 @@ const float DEFAULT_PITCH_OFFSET = 0.0f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
 const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
-const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
-const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
-const char *SIZE_POST_PROJ_VRPARAM = "post_projection_size";
+//const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
+//const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
 const char *WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM = "zoomed_out_on_startup";
 const char *CONCOURSE_WINDOW_SCALE_VRPARAM = "concourse_window_scale";
 const char *COCKPIT_Z_THRESHOLD_VRPARAM = "cockpit_z_threshold";
-const char *ASPECT_RATIO_VRPARAM = "3d_aspect_ratio";
+//const char *ASPECT_RATIO_VRPARAM = "3d_aspect_ratio";
 const char *CONCOURSE_ASPECT_RATIO_VRPARAM = "concourse_aspect_ratio";
 const char *K1_VRPARAM = "k1";
 const char *K2_VRPARAM = "k2";
@@ -1044,12 +1043,12 @@ void SaveVRParams() {
 	fprintf(file, "; remove the stereoscopy effect.\n");
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
 	fprintf(file, "%s = %0.1f\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
-	fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
-	fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
-	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
-	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
-	fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
-	fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
+	//fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
+	//fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
+	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
+	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+	//fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
+	//fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
 	//if (fabs(g_fPostProjScale - 1.0f) > 0.001f)
 	//	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
@@ -1066,11 +1065,11 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n\n", COCKPIT_Z_THRESHOLD_VRPARAM, g_fCockpitPZThreshold);
 	*/
 
-	fprintf(file, "\n; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
-	fprintf(file, "; ALWAYS specify BOTH the Concourse and 3D window aspect ratio.\n");
-	fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
-	fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
-	fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
+	//fprintf(file, "\n; Specify the aspect ratio here to override the aspect ratio computed by the library.\n");
+	//fprintf(file, "; ALWAYS specify BOTH the Concourse and 3D window aspect ratio.\n");
+	//fprintf(file, "; You can also edit ddraw.cfg and set 'PreserveAspectRatio = 1' to get the library to\n");
+	//fprintf(file, "; estimate the aspect ratio for you (this is the preferred method).\n");
+	//fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
 	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
 	fprintf(file, "; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
@@ -3896,21 +3895,18 @@ void LoadVRParams() {
 			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
 			}
-			else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
+			/*else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
 				g_fMetricMult = fValue;
 				log_debug("[DBG] [FOV] g_fMetricMult: %0.6f", g_fMetricMult);
 			}
 			else if (_stricmp(param, SIZE_3D_WINDOW_VRPARAM) == 0) {
 				// Size of the window while playing the game
 				g_fGlobalScale = fValue;
-			}
+			}*/
 			else if (_stricmp(param, SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM) == 0) {
 				// Size of the window while playing the game; but zoomed out to see all the GUI
 				g_fGlobalScaleZoomOut = fValue;
 			}
-			/*else if (_stricmp(param, SIZE_POST_PROJ_VRPARAM) == 0) {
-				g_fPostProjScale = fValue;
-			}*/
 			else if (_stricmp(param, WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM) == 0) {
 				g_bZoomOutInitialState = (bool)fValue;
 				g_bZoomOut = (bool)fValue;
@@ -3922,10 +3918,10 @@ void LoadVRParams() {
 			else if (_stricmp(param, COCKPIT_Z_THRESHOLD_VRPARAM) == 0) {
 				g_fCockpitPZThreshold = fValue;
 			}
-			else if (_stricmp(param, ASPECT_RATIO_VRPARAM) == 0) {
+			/* else if (_stricmp(param, ASPECT_RATIO_VRPARAM) == 0) {
 				g_fAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
-			}
+			} */
 			else if (_stricmp(param, CONCOURSE_ASPECT_RATIO_VRPARAM) == 0) {
 				g_fConcourseAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
