@@ -49,8 +49,9 @@ extern Matrix4 g_CurrentHeadingViewMatrix;
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
+extern float g_fYCenter, g_fFOVscale;
 extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fVR_FOV;
-extern float g_fDebugFOV, g_fDebugAspectRatio;
+extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 extern float g_fRealHorzFOV, g_fRealVertFOV;
 bool g_bMetricParamsNeedReapply = false;
@@ -700,12 +701,20 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
 /**
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
-void ComputeHyperFOVParams(/*DeviceResources *resources*/) {
-	// The FOV is set, we can read it now to compute FOV_Scale
-	g_ShadertoyBuffer.FOVscale = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
+void ComputeHyperFOVParams() {
+	// The original in-game resolutions are either 1.33 or 1.25 in aspect ratio. If these resolutions
+	// were changed by the user, then we need to compensate FOVscale and y_center.
+	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed. I've also tested aspect ratios of
+	// 1.2 (1296x1080) and 1.481 (1600x1080) and the rule seems to be: only compensate if the aspect
+	// ratio is above 1.333:
+	float aspect_ratio_factor = g_fCurInGameAspectRatio > 1.333f ? 1.333f / g_fCurInGameAspectRatio : 1.0f;
+	// The FOV is set, we can read it now to compute g_fFOVscale
+	g_fFOVscale = aspect_ratio_factor * 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// Compute y_center too
-	g_ShadertoyBuffer.y_center = 153.0f / g_fCurInGameHeight;
+	g_fYCenter = aspect_ratio_factor * 153.0f / g_fCurInGameHeight;
 	
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+	g_ShadertoyBuffer.y_center = g_fYCenter;
 	// Compute the *real* vertical and horizontal FOVs:
 	g_fRealVertFOV = ComputeRealVertFOV();
 	g_fRealHorzFOV = ComputeRealHorzFOV();
@@ -729,8 +738,13 @@ void ComputeHyperFOVParams(/*DeviceResources *resources*/) {
 	// We just modified the Metric Reconstruction parameters, let's reapply them on the next frame
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
+	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f, a/r factor: %0.3f",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD, aspect_ratio_factor);
+	// DEBUG
+	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
+	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOV: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
+	// DEBUG
 }
 
 // void capture()
@@ -4951,19 +4965,23 @@ void PrimarySurface::RenderExternalHUD()
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
-	//if (g_bDumpSSAOBuffers)
-	//	ShowMatrix4(g_ShadertoyBuffer.viewMat, "Shadertoy viewMat");
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = 0;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+	// DEBUG
+	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
+	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	// DEBUG
 
+	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+	
 	// DEBUG: Display light at index i:
 	int i = 1;
 	Vector4 xwaLight = Vector4(
@@ -5315,7 +5333,7 @@ void PrimarySurface::RenderSpeedEffect()
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
@@ -5763,7 +5781,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 
@@ -6680,7 +6698,7 @@ void PrimarySurface::RenderSunFlare()
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : 153.0f / g_fCurInGameHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.VRmode = g_bEnableVR;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
@@ -8248,12 +8266,11 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
-#if EXTERNAL_HUD
+//#if EXTERNAL_HUD
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
-			//if (g_config.ExternalHUDEnabled)
-			//if (false)
+			if (g_config.ExternalHUDEnabled)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -8285,7 +8302,7 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
 			}
-#endif
+//#endif
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
@@ -8722,7 +8739,7 @@ HRESULT PrimarySurface::Flip(
 				} // switch
 
 				g_bCustomFOVApplied = true; // Becomes false in OnSizeChanged()
-				ComputeHyperFOVParams(/*resources*/);
+				ComputeHyperFOVParams();
 			}
 
 			// Reapply the MetricRec constants if necessary

@@ -254,6 +254,8 @@ uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy 
 float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
+// Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
+float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
@@ -536,7 +538,7 @@ int g_iNumACElements = 0, g_iLaserDirSelector = 3;
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
-float g_fLPdebugPointOffset = 0.0f, g_fDebugYCenter = 0.0f;
+float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
 
 /*********************************************************/
@@ -591,10 +593,8 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOV = 2.2f;
-//float g_fDebugAspectRatio = 1.1f;
-//float g_fDebugAspectRatio = -51.0f;
-float g_fDebugAspectRatio = -62.5f;
+float g_fDebugFOVscale = 2.2f;
+float g_fDebugYCenter = 0.0f;
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;

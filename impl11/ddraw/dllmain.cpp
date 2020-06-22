@@ -24,7 +24,7 @@ extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
 extern float g_fDefaultFOVDist;
-extern float g_fDebugFOV, g_fDebugAspectRatio;
+extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern float g_fCurrentShipFocalLength;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
@@ -376,8 +376,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugFOV += 0.05f;
-					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					g_fDebugFOVscale += 0.025f;
+					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
+					ComputeHyperFOVParams();
 					break;
 				case 5:
 					g_fCockpitTranslationScale += 0.0005f;
@@ -425,8 +426,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugFOV -= 0.05f;
-					log_debug("[DBG] g_fDebugFOV: %0.3f", g_fDebugFOV);
+					g_fDebugFOVscale -= 0.025f;
+					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
+					ComputeHyperFOVParams();
 					break;
 				case 5:
 					g_fCockpitTranslationScale -= 0.0005f;
@@ -473,8 +475,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugAspectRatio += 0.5f;
-					log_debug("[DBG] g_fDebugAspectRatio: %0.3f", g_fDebugAspectRatio);
+					g_fDebugYCenter += 0.01f;
+					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					ComputeHyperFOVParams();
 					break;
 				case 6:
 					g_fShadowMapAngleX += 7.5f;
@@ -504,8 +507,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 				case 4:
-					g_fDebugAspectRatio -= 0.5f;
-					log_debug("[DBG] g_fDebugAspectRatio: %0.3f", g_fDebugAspectRatio);
+					g_fDebugYCenter -= 0.01f;
+					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					ComputeHyperFOVParams();
 					break;
 				case 6:
 					g_fShadowMapAngleX -= 7.5f;
