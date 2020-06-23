@@ -702,9 +702,11 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
 void ComputeHyperFOVParams() {
+	float g_WindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float y_center_raw = 153.0f / g_fCurInGameHeight;
 	float FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
-	bool bFixFactors = g_fCurInGameAspectRatio > 1.5996f; // 1.333 * 1.2 = 1.5996 -- This is the point where the fixed and non-fixed params are about the same
+	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
+	bool bFixFactors = g_fCurInGameAspectRatio > g_WindowAspectRatio;
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d",
 		y_center_raw, FOVscale_raw, 
 		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
@@ -713,9 +715,10 @@ void ComputeHyperFOVParams() {
 	// were changed by the user, then we need to compensate FOVscale and y_center.
 	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed.	
 	float aspect_ratio_factor = bFixFactors ? 1.333f / g_fCurInGameAspectRatio : 1.0f;
-	//float vert_factor = 1080.0f / g_fCurInGameHeight;
-	//float vert_factor = 1.136f * 1080.0f / g_fCurInGameHeight;
-	float vert_factor = bFixFactors ? 1.2f : 1.0f;
+	// The compensation factor is given by the ratio between the window aspect ratio and the game's intended
+	// aspect ratio of 1.333f. In other words, if the window's a/r is 1.6, then the compensation factor is 1.2.
+	// If the window's a/r is 1.333, then there's nothing to compensate, etc.
+	float vert_factor = bFixFactors ? g_WindowAspectRatio / 1.333f : 1.0f;
 	// The FOV is set, we can read it now to compute g_fFOVscale
 	g_fFOVscale = vert_factor * aspect_ratio_factor * FOVscale_raw;
 	g_fYCenter = vert_factor * aspect_ratio_factor * y_center_raw;
@@ -9173,7 +9176,7 @@ HRESULT PrimarySurface::Flip(
 			bool bEnableVSync = g_config.VSyncEnabled;
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
-			//log_debug("[DBG] ******************* PRESENT");
+			//log_debug("[DBG] ******************* PRESENT 3D");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;

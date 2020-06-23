@@ -1317,7 +1317,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		{
 			DXGI_SWAP_CHAIN_DESC sd{};
 			sd.BufferCount = 2;
-			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
+			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // ORIGINAL = 0x1
+			//sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+			//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 			sd.BufferDesc.Width  = g_bUseSteamVR ? g_steamVRWidth : 0;
 			sd.BufferDesc.Height = g_bUseSteamVR ? g_steamVRHeight : 0;
 			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
@@ -1346,6 +1348,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			{
 				DXGI_SWAP_CHAIN_DESC sd{};
 				this->_swapChain->GetDesc(&sd);
+				//sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // I believe this is the original setting
+				//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+				log_debug("[DBG] SwapEffect: 0x%x", sd.SwapEffect);
 				g_FullScreenWidth = sd.BufferDesc.Width;
 				g_FullScreenHeight = sd.BufferDesc.Height;
 				g_fCurScreenWidth = (float)sd.BufferDesc.Width;
