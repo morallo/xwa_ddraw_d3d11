@@ -98,33 +98,18 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
 
-	// DEBUG
-	//if (MainLight.z > 0.0) // Skip lights behind the camera
-	//	return output;
-	// DEBUG
-
 	float d, dm = 0.0;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
 	vec3 v = vec3(p, -FOVscale);
-	// ORIGINAL
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
 	float3 col = float3(0.2, 0.2, 0.8); // Reticle color
 	d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
-	// ORIGINAL
 
-	// DEBUG
-	/*
-	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
-	d = sdCircle(v.xy, vec2(MainLight.x, -MainLight.y), scale * cursor_radius);
-	//d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
-	*/
-	// DEBUG
 	//dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
-	//dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
+	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
 
-	// ORIGINAL:
 	d = sdLine(v.xy, scale * vec2(-0.05, 0.0), scale * vec2(-0.03, 0.0));
 	dm += smoothstep(thickness, 0.0, abs(d));
 

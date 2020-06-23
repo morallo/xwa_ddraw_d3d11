@@ -376,7 +376,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugFOVscale += 0.025f;
+					g_fDebugFOVscale += 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
 					ComputeHyperFOVParams();
 					break;
@@ -426,7 +426,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugFOVscale -= 0.025f;
+					g_fDebugFOVscale -= 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
 					ComputeHyperFOVParams();
 					break;

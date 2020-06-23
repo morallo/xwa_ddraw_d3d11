@@ -702,17 +702,24 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
 void ComputeHyperFOVParams() {
+	float y_center_raw = 153.0f / g_fCurInGameHeight;
+	float FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
+	bool bFixFactors = g_fCurInGameAspectRatio > 1.5996f; // 1.333 * 1.2 = 1.5996 -- This is the point where the fixed and non-fixed params are about the same
+	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d",
+		y_center_raw, FOVscale_raw, 
+		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
+
 	// The original in-game resolutions are either 1.33 or 1.25 in aspect ratio. If these resolutions
 	// were changed by the user, then we need to compensate FOVscale and y_center.
-	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed. I've also tested aspect ratios of
-	// 1.2 (1296x1080) and 1.481 (1600x1080) and the rule seems to be: only compensate if the aspect
-	// ratio is above 1.333:
-	float aspect_ratio_factor = g_fCurInGameAspectRatio > 1.333f ? 1.333f / g_fCurInGameAspectRatio : 1.0f;
+	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed.	
+	float aspect_ratio_factor = bFixFactors ? 1.333f / g_fCurInGameAspectRatio : 1.0f;
+	//float vert_factor = 1080.0f / g_fCurInGameHeight;
+	//float vert_factor = 1.136f * 1080.0f / g_fCurInGameHeight;
+	float vert_factor = bFixFactors ? 1.2f : 1.0f;
 	// The FOV is set, we can read it now to compute g_fFOVscale
-	g_fFOVscale = aspect_ratio_factor * 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
-	// Compute y_center too
-	g_fYCenter = aspect_ratio_factor * 153.0f / g_fCurInGameHeight;
-	
+	g_fFOVscale = vert_factor * aspect_ratio_factor * FOVscale_raw;
+	g_fYCenter = vert_factor * aspect_ratio_factor * y_center_raw;
+
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	g_ShadertoyBuffer.y_center = g_fYCenter;
 	// Compute the *real* vertical and horizontal FOVs:
@@ -721,29 +728,26 @@ void ComputeHyperFOVParams() {
 	// Compute the metric scale factor conversion
 	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
 
-	// Populate the metric reconstruction CB
-	g_MetricRecCBuffer.mr_FOVscale = g_ShadertoyBuffer.FOVscale;
-	g_MetricRecCBuffer.mr_y_center = g_ShadertoyBuffer.y_center;
+	// Populate the metric reconstruction CB. Noticeably, the Metric Rec values need the raw
+	// FOVscale and y_center, not the fixed ones. Making a 3D OBJ crosshairs as additional geometry
+	// also places the crosshairs at the right spot (the crosshairs need to be at (0,1,100))
+	g_MetricRecCBuffer.mr_FOVscale = FOVscale_raw;
+	g_MetricRecCBuffer.mr_y_center = y_center_raw;
 	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
-
-	/*
-	// This probably is a good place to set the VS constant buffer:
-	resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
-	// TODO: Do we need this CB in the pixel shaders? Maybe if we replace the Shadertoy CB settings...
-	resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
-	*/
-	// We just modified the Metric Reconstruction parameters, let's reapply them on the next frame
+	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f, a/r factor: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD, aspect_ratio_factor);
 	// DEBUG
-	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
-	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOV: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
+	/*g_fFOVscale = g_fDebugFOVscale;
+	g_fYCenter = g_fDebugYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	g_ShadertoyBuffer.y_center = g_fDebugYCenter;
+	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);*/
 	// DEBUG
 }
 
@@ -4978,6 +4982,7 @@ void PrimarySurface::RenderExternalHUD()
 	// DEBUG
 	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
 	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	//log_debug("[DBG] g_fDebugYCenter: %0.3f, g_fDebugFOV: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
 	// DEBUG
 
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
@@ -8297,9 +8302,6 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderExternalHUD();
 			}
 //#endif

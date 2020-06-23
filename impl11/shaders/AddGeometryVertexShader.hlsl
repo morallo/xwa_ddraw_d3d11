@@ -55,7 +55,7 @@ PixelShaderInput main(VertexShaderInput input)
 		//P.y = FOVscale * (P.y / P.z) + y_center;
 
 		// Adjust the point for differences in FOV and y_center AND PROJECT TO 2D:
-		P.xy = FOVscale / P.z * float2(P.x / sm_aspect_ratio, P.y + P.z * y_center / FOVscale);
+		P.xy = mr_FOVscale / P.z * float2(P.x / mr_aspect_ratio, P.y + P.z * mr_y_center / mr_FOVscale);
 
 		// Fix the depth
 		P.z = 0.0; // Depth value -- this makes the point visible
