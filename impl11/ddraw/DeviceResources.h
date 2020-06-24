@@ -257,7 +257,8 @@ typedef struct ShadertoyCBStruct {
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;
-	float flare_intensity, st_unused0, st_unused1;
+	float flare_intensity;
+	float preserveAspectRatioComp[2]; // Used to compensate for the distortion introduced when PreserveAspectRatio = 0 in DDraw.cfg
 	// 144 bytes
 	//float SunX, SunY, SunZ, flare_intensity;
 	float4 SunCoords[MAX_SUN_FLARES];

@@ -3642,6 +3642,12 @@ bool LoadSSAOParams() {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
 			}*/
 			
+			else if (_stricmp(param, "ext_hud_ar0") == 0) {
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = fValue;
+			}
+			else if (_stricmp(param, "ext_hud_ar1") == 0) {
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
+			}
 		}
 	}
 	fclose(file);

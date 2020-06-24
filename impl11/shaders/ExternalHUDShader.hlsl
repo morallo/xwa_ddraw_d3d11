@@ -109,9 +109,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float2 fragScale = 2.0;
 	//if (VRmode == 1) fragScale.x *= 2.0;
 	vec2 p = (fragScale * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	p *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
 	vec3 v = vec3(p, -FOVscale);
-	v = mul(viewMat, vec4(v, 0.0)).xyz;
+	v = mul(viewMat, vec4(v, 0.0)).xyz; // *float3(1.8, 1.0, 1.0);
 	//float3 col = float3(0.2, 0.2, 0.8); // Reticle color
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
 	d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);

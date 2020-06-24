@@ -702,11 +702,11 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
 void ComputeHyperFOVParams() {
-	float g_WindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
+	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	float y_center_raw = 153.0f / g_fCurInGameHeight;
 	float FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
-	bool bFixFactors = g_fCurInGameAspectRatio > g_WindowAspectRatio;
+	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d",
 		y_center_raw, FOVscale_raw, 
 		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
@@ -723,13 +723,38 @@ void ComputeHyperFOVParams() {
 	g_fFOVscale = vert_factor * aspect_ratio_factor * FOVscale_raw;
 	g_fYCenter = vert_factor * aspect_ratio_factor * y_center_raw;
 	*/
-	float comp_factor = bFixFactors ? g_WindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
+	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 	g_fFOVscale = comp_factor * FOVscale_raw;
 	g_fYCenter = comp_factor * y_center_raw;
 
 	
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	g_ShadertoyBuffer.y_center = g_fYCenter;
+	g_ShadertoyBuffer.preserveAspectRatioComp[0] = 1.0f;
+	g_ShadertoyBuffer.preserveAspectRatioComp[1] = 1.0f;
+	if (!g_config.AspectRatioPreserved) {
+		float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+		if (RealWindowAspectRatio > g_fCurInGameAspectRatio) {
+			// The display window is going to stretch the image horizontally, so we need
+			// to shrink the x axis:
+			if (RealWindowAspectRatio > 1.0f) // Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+		}
+		else {
+			// The display window is going to stretch the image vertically, so we need
+			// to shrink the y axis:
+			if (g_fCurInGameAspectRatio > 1.0f)
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+		}
+		log_debug("[DBG] [FOV] Real Window a/r: %0.3f, preserveA/R-Comp: %0.3f, %0.3f",
+			RealWindowAspectRatio, g_ShadertoyBuffer.preserveAspectRatioComp[0], g_ShadertoyBuffer.preserveAspectRatioComp[1]);
+	}
+	
+	
 	// Compute the *real* vertical and horizontal FOVs:
 	g_fRealVertFOV = ComputeRealVertFOV();
 	g_fRealHorzFOV = ComputeRealHorzFOV();
@@ -755,7 +780,7 @@ void ComputeHyperFOVParams() {
 	g_fYCenter = g_fDebugYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
 	g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f, vert_factor: %0.3f", g_fDebugYCenter, g_fDebugFOVscale);*/
+	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);*/
 	// DEBUG
 }
 
