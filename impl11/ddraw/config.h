@@ -39,7 +39,6 @@ public:
 
 	bool FXAAEnabled;
 	bool StayInHyperspace;
-	bool ExternalHUDEnabled;
 	bool TriangleTextEnabled;
 	bool TrianglePointerEnabled;
 	bool SimplifiedTrianglePointer;

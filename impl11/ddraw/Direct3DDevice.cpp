@@ -431,6 +431,8 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 
+bool g_bExternalHUDEnabled = false;
+
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
@@ -3642,6 +3644,9 @@ bool LoadSSAOParams() {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
 			}*/
 			
+			else if (_stricmp(param, "external_hud_enabled") == 0) {
+				g_bExternalHUDEnabled = (bool)fValue;
+			}
 			else if (_stricmp(param, "ext_hud_ar0") == 0) {
 				g_ShadertoyBuffer.preserveAspectRatioComp[0] = fValue;
 			}

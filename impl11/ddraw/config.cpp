@@ -47,7 +47,6 @@ Config::Config()
 	this->SwapJoystickXZAxes = false;
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
-	this->ExternalHUDEnabled = false;
 	this->TriangleTextEnabled = true;
 	this->TrianglePointerEnabled = true;
 	this->SimplifiedTrianglePointer = false;
@@ -177,10 +176,6 @@ Config::Config()
 			else if (name == "StayInHyperspace")
 			{
 				this->StayInHyperspace = (bool)stoi(value);
-			}
-			else if (name == "ExternalHUDEnabled")
-			{
-				this->ExternalHUDEnabled = (bool)stoi(value);
 			}
 			else if (name == "TriangleTextEnabled")
 			{

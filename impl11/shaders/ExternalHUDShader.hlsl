@@ -16,8 +16,10 @@ Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
 #define cursor_radius 0.04
-#define thickness 0.02 //0.007
-#define scale 2.0
+//#define thickness 0.02 
+//#define scale 2.0
+#define thickness 0.007
+#define scale 1.25
 
 struct PixelShaderInput
 {
@@ -117,7 +119,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
 	d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
 
-	//dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
+	dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
 	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
 
 	d = sdLine(v.xy, scale * vec2(-0.05, 0.0), scale * vec2(-0.03, 0.0));

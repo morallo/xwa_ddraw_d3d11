@@ -45,6 +45,8 @@ extern int *s_XwaGlobalLightsCount;
 extern XwaGlobalLight* s_XwaGlobalLights;
 extern Matrix4 g_CurrentHeadingViewMatrix;
 
+extern bool g_bExternalHUDEnabled;
+
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
@@ -711,29 +713,30 @@ void ComputeHyperFOVParams() {
 		y_center_raw, FOVscale_raw, 
 		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
 
-	/*
-	// The original in-game resolutions are either 1.33 or 1.25 in aspect ratio. If these resolutions
-	// were changed by the user, then we need to compensate FOVscale and y_center.
-	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed.	
-	float aspect_ratio_factor = bFixFactors ? 1.333f / g_fCurInGameAspectRatio : 1.0f;
-	// The compensation factor is given by the ratio between the window aspect ratio and the game's intended
-	// aspect ratio of 1.333f. In other words, if the window's a/r is 1.6, then the compensation factor is 1.2.
-	// If the window's a/r is 1.333, then there's nothing to compensate, etc.
-	float vert_factor = bFixFactors ? g_WindowAspectRatio / 1.333f : 1.0f;
-	g_fFOVscale = vert_factor * aspect_ratio_factor * FOVscale_raw;
-	g_fYCenter = vert_factor * aspect_ratio_factor * y_center_raw;
-	*/
+	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
+	// aspect ratio. In other words, the size of the display window will stretch the view, so we
+	// have to compensate for that.
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 	g_fFOVscale = comp_factor * FOVscale_raw;
 	g_fYCenter = comp_factor * y_center_raw;
-
-	
+	// Store the global FOVscale, y_center in the CB:
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	g_ShadertoyBuffer.y_center = g_fYCenter;
+	
+	// If PreserveAspectRatio is 0, then we need to apply further compensation because the image
+	// will further stretch in either the X or Y axis.
 	g_ShadertoyBuffer.preserveAspectRatioComp[0] = 1.0f;
 	g_ShadertoyBuffer.preserveAspectRatioComp[1] = 1.0f;
-	if (!g_config.AspectRatioPreserved) {
+	// The VR modes behave just like PreserveAspectRatio = 0. The funny thing is that
+	// it will stretch the image in the same amount as when running in non-VR mode.
+	// This means that the aspect ratio of the in-game resolution should be an integer
+	// multiple of the Display/SteamVR window to avoid distortion.
+	if (!g_config.AspectRatioPreserved || g_bEnableVR) {
 		float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+		// In SteamVR mode, the must compensate against the SteamVR window size
+		if (g_bUseSteamVR)
+			RealWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+		
 		if (RealWindowAspectRatio > g_fCurInGameAspectRatio) {
 			// The display window is going to stretch the image horizontally, so we need
 			// to shrink the x axis:
@@ -753,8 +756,8 @@ void ComputeHyperFOVParams() {
 		log_debug("[DBG] [FOV] Real Window a/r: %0.3f, preserveA/R-Comp: %0.3f, %0.3f",
 			RealWindowAspectRatio, g_ShadertoyBuffer.preserveAspectRatioComp[0], g_ShadertoyBuffer.preserveAspectRatioComp[1]);
 	}
-	
-	
+
+
 	// Compute the *real* vertical and horizontal FOVs:
 	g_fRealVertFOV = ComputeRealVertFOV();
 	g_fRealHorzFOV = ComputeRealHorzFOV();
@@ -5007,7 +5010,8 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = 0;
-	g_ShadertoyBuffer.VRmode = bDirectSBS;
+	//g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = g_bEnableVR;
 	//g_ShadertoyBuffer.iResolution[0] = bDirectSBS ? (float)resources->_backbufferWidth / 2.0f : g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
@@ -5220,7 +5224,6 @@ void PrimarySurface::RenderExternalHUD()
 				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			};
 			context->PSSetShaderResources(0, 2, srvs);
-			// TODO: Handle SteamVR cases
 			context->Draw(6, 0);
 
 			// TODO: Post-process the right image in SteamVR
@@ -8380,7 +8383,7 @@ HRESULT PrimarySurface::Flip(
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
-			if (g_config.ExternalHUDEnabled)
+			if (g_bExternalHUDEnabled)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
