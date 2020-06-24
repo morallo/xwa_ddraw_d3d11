@@ -83,12 +83,14 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 // Display the HUD using a hyperspace-entry-like coord sys 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;
-	vec3 color = 0.0;
-	output.color = bgTex.Sample(bgSampler, input.uv);
+	output.color = 0.0;
 
 	// DEBUG
+	//if (input.uv.x > 0.5)
+	//	output.color = float4(0, 1, 0, 1);
+	//else
+	//	output.color = float4(1, 0, 0, 1);
 	//output.color = float4(input.uv, 0.0, 1.0);
 	//output.color.b += 0.1;
 	//return output;
@@ -98,13 +100,20 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
 
-	float d, dm = 0.0;
+	// In SBS VR mode, each half-screen receives a full 0..1 uv range. So if we sample the
+	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
+	// right.
+	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
 
-	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	float d, dm = 0.0;
+	float2 fragScale = 2.0;
+	//if (VRmode == 1) fragScale.x *= 2.0;
+	vec2 p = (fragScale * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
 	vec3 v = vec3(p, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
-	float3 col = float3(0.2, 0.2, 0.8); // Reticle color
+	//float3 col = float3(0.2, 0.2, 0.8); // Reticle color
+	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
 	d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
 
 	//dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring
@@ -126,7 +135,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
-	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+
+	if (VRmode == 0)
+		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+	else
+		output.color = float4(col, 0.8 * dm);
 	return output;
 }
 

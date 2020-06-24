@@ -702,7 +702,7 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
 void ComputeHyperFOVParams() {
-	float g_WindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+	float g_WindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	float y_center_raw = 153.0f / g_fCurInGameHeight;
 	float FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
@@ -711,6 +711,7 @@ void ComputeHyperFOVParams() {
 		y_center_raw, FOVscale_raw, 
 		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
 
+	/*
 	// The original in-game resolutions are either 1.33 or 1.25 in aspect ratio. If these resolutions
 	// were changed by the user, then we need to compensate FOVscale and y_center.
 	// An aspect ratio of 1.25 or 1.33 is OK, it shouldn't be changed.	
@@ -719,10 +720,14 @@ void ComputeHyperFOVParams() {
 	// aspect ratio of 1.333f. In other words, if the window's a/r is 1.6, then the compensation factor is 1.2.
 	// If the window's a/r is 1.333, then there's nothing to compensate, etc.
 	float vert_factor = bFixFactors ? g_WindowAspectRatio / 1.333f : 1.0f;
-	// The FOV is set, we can read it now to compute g_fFOVscale
 	g_fFOVscale = vert_factor * aspect_ratio_factor * FOVscale_raw;
 	g_fYCenter = vert_factor * aspect_ratio_factor * y_center_raw;
+	*/
+	float comp_factor = bFixFactors ? g_WindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
+	g_fFOVscale = comp_factor * FOVscale_raw;
+	g_fYCenter = comp_factor * y_center_raw;
 
+	
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	g_ShadertoyBuffer.y_center = g_fYCenter;
 	// Compute the *real* vertical and horizontal FOVs:
@@ -743,14 +748,14 @@ void ComputeHyperFOVParams() {
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f, a/r factor: %0.3f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD, aspect_ratio_factor);
+	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 	// DEBUG
 	/*g_fFOVscale = g_fDebugFOVscale;
 	g_fYCenter = g_fDebugYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
 	g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);*/
+	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f, vert_factor: %0.3f", g_fDebugYCenter, g_fDebugFOVscale);*/
 	// DEBUG
 }
 
@@ -4978,17 +4983,11 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.iTime = 0;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
+	//g_ShadertoyBuffer.iResolution[0] = bDirectSBS ? (float)resources->_backbufferWidth / 2.0f : g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
-	// DEBUG
-	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
-	//log_debug("[DBG] g_fDebugYCenter: %0.3f, g_fDebugFOV: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
-	// DEBUG
-
-	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	
 	// DEBUG: Display light at index i:
 	int i = 1;
@@ -5018,13 +5017,14 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadingSys_PSBuffer.MainLight.y = g_bEnableVR ? -p.y : p.y;
 	g_ShadingSys_PSBuffer.MainLight.z = light.z;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	resources->InitPixelShader(resources->_externalHUDPS);
-	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
 	// Render the external HUD
 	{
 		// Set the new viewport (a full quad covering the full screen)
@@ -5046,13 +5046,13 @@ void PrimarySurface::RenderExternalHUD()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
 		g_VSCBuffer.cockpit_threshold = -1.0f;
-		g_VSCBuffer.bPreventTransform = 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bEnableVR)
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
@@ -5137,14 +5137,93 @@ void PrimarySurface::RenderExternalHUD()
 			context->Draw(6, 0);
 		}
 
-		// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
-		context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-		if (g_bUseSteamVR)
-			context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+		if (!g_bEnableVR)
+			goto out;
 
-		// Restore previous rendertarget, etc
-		resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+		if (g_bDumpSSAOBuffers) {
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_offscreenBufPostExternalHUD.jpg");
+		}
+
+		// Second render: If VR mode is enabled, then compose the previous render with the offscreen buffer
+		{
+			// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width    = g_fCurScreenWidth;
+			viewport.Height   = g_fCurScreenHeight;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+
+			// Reset the vertex shader to regular 2D post-process
+			// Set the Vertex Shader Constant buffers
+			resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+				0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+			// Set/Create the VertexBuffer and set the topology, etc
+			UINT stride = sizeof(MainVertex), offset = 0;
+			resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+			resources->InitInputLayout(resources->_mainInputLayout);
+			resources->InitVertexShader(resources->_mainVertexShader);
+
+			// Reset the UV limits for this shader
+			GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+			g_ShadertoyBuffer.x0 = x0;
+			g_ShadertoyBuffer.y0 = y0;
+			g_ShadertoyBuffer.x1 = x1;
+			g_ShadertoyBuffer.y1 = y1;
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+			g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+			resources->InitPixelShader(resources->_addGeomComposePS);
+
+			// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+			// to _shadertoyBuf to use it now:
+			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR)
+				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[2] = {
+				resources->_offscreenAsInputShaderResourceView.Get(), // The current render
+				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
+			};
+			context->PSSetShaderResources(0, 2, srvs);
+			// TODO: Handle SteamVR cases
+			context->Draw(6, 0);
+
+			// TODO: Post-process the right image in SteamVR
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewPostR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
+					resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+				context->Draw(6, 0);
+			}
+		}
 	}
+
+out:
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
@@ -5844,21 +5923,19 @@ void PrimarySurface::RenderAdditionalGeometry()
 	}
 	*/
 
-	// Render the Shadow Map OBJ
-	{
-		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
-		resources->InitInputLayout(resources->_inputLayout);
-		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		resources->InitVertexShader(resources->_addGeomVS);
+	// Render the Shadow Map OBJ as additional geometry
+	UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+	resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+	resources->InitInputLayout(resources->_inputLayout);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitVertexShader(resources->_addGeomVS);
 
-		// Set the ViewMatrix
-		g_ShadowMapVSCBuffer.Camera = ViewMatrix;
-		g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
-		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-		resources->InitVSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-	}
+	// Set the ViewMatrix
+	g_ShadowMapVSCBuffer.Camera = ViewMatrix;
+	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
+	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+	resources->InitVSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	// First render: Render the additional geometry
 	// input: None
@@ -5954,7 +6031,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	}
 	*/
 
-	// Second render: compose the cockpit over the previous effect
+	// Second render: compose
 	{
 		// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
 		viewport.TopLeftX = 0.0f;
@@ -6025,12 +6102,12 @@ void PrimarySurface::RenderAdditionalGeometry()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[3] = {
+		ID3D11ShaderResourceView *srvs[2] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // The current render
 			resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
-			resources->_depthBufSRV.Get(),   // The depth buffer
+			//resources->_depthBufSRV.Get(),   // The depth buffer
 		};
-		context->PSSetShaderResources(0, 3, srvs);
+		context->PSSetShaderResources(0, 2, srvs);
 		// TODO: Handle SteamVR cases
 		context->Draw(6, 0);
 
@@ -6042,12 +6119,12 @@ void PrimarySurface::RenderAdditionalGeometry()
 			};
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			// Set the SRVs:
-			ID3D11ShaderResourceView *srvs[3] = {
+			ID3D11ShaderResourceView *srvs[2] = {
 				resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
 				resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
-				resources->_depthBufSRV_R.Get(),   // The depth buffer
+				//resources->_depthBufSRV_R.Get(),   // The depth buffer
 			};
-			context->PSSetShaderResources(0, 3, srvs);
+			context->PSSetShaderResources(0, 2, srvs);
 			// TODO: Handle SteamVR cases
 			context->Draw(6, 0);
 		}
