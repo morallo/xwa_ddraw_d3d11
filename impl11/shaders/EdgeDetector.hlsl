@@ -1,6 +1,8 @@
 // Edge detectors from:
 // https://www.shadertoy.com/view/4sf3W8
 // https://www.shadertoy.com/view/XlSBzz
+// Luminance formulas:
+// https://stackoverflow.com/questions/596216/formula-to-determine-brightness-of-rgb-color
 #include "ShaderToyDefs.h"
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
@@ -8,6 +10,8 @@
 // The texture to process
 Texture2D    procTex     : register(t0);
 SamplerState procSampler : register(s0);
+
+static float3 tintColor = float3(0.1, 0.15, 0.5);
 
 struct PixelShaderInput
 {
@@ -56,27 +60,31 @@ PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	output.color = 0.0;
 
-	// Early exit: avoid rendering outside the original viewport edges
-	//if (any(input.uv < p0) || any(input.uv > p1))
-	//	return output;
+	// Early exit: avoid rendering outside the limits of the current box
+	if (any(input.uv < p0) || any(input.uv > p1)) {
+		output.color = procTex.SampleLevel(procSampler, input.uv, 0);
+		return output;
+	}
 
 	// DEBUG
 	//output.color = procTex.Sample(procSampler, input.uv);
 
-	//vec3 c[9];
 	float c[9];
 	float3 col;
 	for (int i = 0; i < 3; ++i)
 		for (int j = 0; j < 3; ++j) {
 			vec2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
-			col = procTex.Sample(procSampler, input.uv + ofs).rgb;
-			c[3 * i + j] = dot(0.333, col);
+			// TODO: Get the luminance from the RGB instead of doing a direct-to-grayscale conversion
+			col = procTex.SampleLevel(procSampler, input.uv + ofs, 0).rgb;
+			//c[3 * i + j] = dot(0.333, col);
+			// Approx Luminance formula:
+			c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b;
 		}
 
 	float Lx = 2.0 * (c[7] - c[1]) + c[6] + c[8] - c[2] - c[0];
 	float Ly = 2.0 * (c[3] - c[5]) + c[6] + c[0] - c[2] - c[8];
-	float G = sqrt(Lx*Lx + Ly*Ly);
+	float G = 1.5 * sqrt(Lx*Lx + Ly*Ly); // The original didn't multiply the sqrt by anything, but I like my displays bright
 
-	output.color = float4(G,G,G, 1.0);
+	output.color = float4(G * tintColor, G);
 	return output;
 }

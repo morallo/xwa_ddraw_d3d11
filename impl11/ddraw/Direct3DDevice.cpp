@@ -264,6 +264,8 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 
+void GetCraftViewMatrix(Matrix4 *result);
+
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(WORD index, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
@@ -557,7 +559,9 @@ bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebu
 bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
+bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
+extern bool g_bExecuteBufferLock;
 
 /*********************************************************/
 // SHADOW MAPPING
@@ -6443,6 +6447,10 @@ HRESULT Direct3DDevice::Execute(
 		}
 	}
 
+	// Apply the Edge Detector effect to the DC foreground texture
+	if (g_bEdgeDetectorEnabled && g_bDynCockpitEnabled && g_bRendering3D && !g_bEdgeEffectApplied)
+		RenderEdgeDetector();
+
 	HRESULT hr = S_OK;
 	UINT width, height, left, top;
 	float scale;
@@ -9072,6 +9080,131 @@ HRESULT Direct3DDevice::DeleteMatrix(
 	return DDERR_UNSUPPORTED;
 }
 
+void Direct3DDevice::RenderEdgeDetector()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	D3D11_DEPTH_STENCIL_DESC desc;
+	D3D11_BLEND_DESC blendDesc{};
+	ComPtr<ID3D11DepthStencilState> depthState;
+
+	// We need to set the blend state properly
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+
+	// Temporarily disable ZWrite
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	/*
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	*/
+	DCElemSrcBox *dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
+	if (dcElemSrcBox->bComputed) {
+		g_ShadertoyBuffer.x0 = dcElemSrcBox->coords.x0;
+		g_ShadertoyBuffer.y0 = dcElemSrcBox->coords.y0;
+		g_ShadertoyBuffer.x1 = dcElemSrcBox->coords.x1;
+		g_ShadertoyBuffer.y1 = dcElemSrcBox->coords.y1;
+	}
+	g_ShadertoyBuffer.iTime = 0;
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+	resources->InitPixelShader(resources->_edgeDetector);
+	if (g_bDumpSSAOBuffers) {
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg,
+			L"C:\\Temp\\_edgeDetectorInput.jpg");
+	}
+
+	// Apply the edge detector to the DC foreground buffer
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
+		g_VSCBuffer.z_override = -1.0f;
+		g_VSCBuffer.sz_override = -1.0f;
+		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.bPreventTransform = 0.0f;
+		g_VSCBuffer.bFullTransform = 0.0f;
+		g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+		g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+
+		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+		// and text float
+		g_VSCBuffer.z_override = 65535.0f;
+		g_VSCBuffer.metric_mult = g_fMetricMult;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		resources->InitVertexShader(resources->_vertexShader);
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//goto out;
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		//context->OMGetRenderTargets()
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputDynCockpitSRV);
+		context->Draw(6, 0);
+
+		if (g_bDumpSSAOBuffers) {
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_edgeDetector.jpg");
+		}
+	}
+
+	// Copy the result
+	context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
+	
+out:
+	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
+	// after applying this effect!
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+}
+
 HRESULT Direct3DDevice::BeginScene()
 {
 #if LOGGER
@@ -9147,21 +9280,20 @@ HRESULT Direct3DDevice::BeginScene()
 
 	// Clear the AO RTVs
 	if (g_bAOEnabled && !bTransitionToHyperspace) {
-			// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
-			// on the sides of the screen
-			float infinity[4] = { 0, 0, 32000.0f, 0 };
-			float zero[4] = { 0, 0, 0, 0 };
+		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
+		// on the sides of the screen
+		float infinity[4] = { 0, 0, 32000.0f, 0 };
+		float zero[4] = { 0, 0, 0, 0 };
 
-			context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
-			if (g_bUseSteamVR)
-				context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
-		}
+		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
+		if (g_bUseSteamVR)
+			context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
+	}
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 		if (g_bUseSteamVR)
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		//if (g_ShadowMapping.Enabled) context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
 	//log_debug("[DBG] BeginScene RenderMain");

@@ -83,15 +83,15 @@ public:
 
 	//Matrix4 GetCurrentHeadingViewMatrix();
 
-	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
+	//void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
 	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
-	void GetGunnerTurretViewMatrix(Matrix4 * result);
+	//void GetGunnerTurretViewMatrix(Matrix4 * result);
 
 	void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
 
-	void GetCraftViewMatrix(Matrix4 *result);
+	//void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
@@ -100,8 +100,6 @@ public:
 	void RenderFXAA();
 
 	void RenderExternalHUD();
-
-	void RenderEdgeDetector();
 
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
 
