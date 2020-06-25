@@ -101,6 +101,8 @@ public:
 
 	void RenderExternalHUD();
 
+	void RenderEdgeDetector();
+
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
 
 	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);

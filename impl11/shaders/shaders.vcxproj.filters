@@ -65,6 +65,7 @@
     <FxCompile Include="HeadLightsSSAOPS.hlsl" />
     <FxCompile Include="ShadowMapPS.hlsl" />
     <FxCompile Include="ShadowMapVS.hlsl" />
+    <FxCompile Include="EdgeDetector.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

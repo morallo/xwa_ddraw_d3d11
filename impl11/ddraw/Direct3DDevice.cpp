@@ -431,7 +431,7 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 
-bool g_bExternalHUDEnabled = false;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -3182,9 +3182,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "ssao_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor = (float)fValue;
 			}
-			else if (_stricmp(param, "ssao2_buffer_scale_divisor") == 0) {
+			/*else if (_stricmp(param, "ssao2_buffer_scale_divisor") == 0) {
 				g_fSSAOZoomFactor2 = (float)fValue;
-			}
+			}*/
 			else if (_stricmp(param, "enable_blur") == 0) {
 				g_bBlurSSAO = (bool)fValue;
 			}
@@ -3203,7 +3203,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "power") == 0) {
 				g_SSAO_PSCBuffer.power = fValue;
 			}
-			else if (_stricmp(param, "enable_dual_ssao") == 0) {
+			/*else if (_stricmp(param, "enable_dual_ssao") == 0) {
 				g_bDisableDualSSAO = !(bool)fValue;
 			}
 			else if (_stricmp(param, "enable_ssao_in_shader") == 0) {
@@ -3211,7 +3211,7 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "enable_bent_normals_in_shader") == 0) {
 				g_bEnableBentNormalsInShader = (bool)fValue;
-			}
+			}*/
 			else if (_stricmp(param, "debug") == 0) {
 				g_SSAO_PSCBuffer.debug = (int)fValue;
 				g_BloomPSCBuffer.debug = (int)fValue;
@@ -3475,18 +3475,19 @@ bool LoadSSAOParams() {
 			}
 			*/
 
-			else if (_stricmp(param, "viewYawSign") == 0) {
+			/*else if (_stricmp(param, "viewYawSign") == 0) {
 				g_fViewYawSign = fValue;
 			}
 			else if (_stricmp(param, "viewPitchSign") == 0) {
 				g_fViewPitchSign = fValue;
-			}
+			}*/
+
 			/*
 			else if (_stricmp(param, "gamma") == 0) {
 				g_SSAO_PSCBuffer.gamma = fValue;
 			}
 			*/
-			else if (_stricmp(param, "shadow_step_size") == 0) {
+			/*else if (_stricmp(param, "shadow_step_size") == 0) {
 				g_SSAO_PSCBuffer.shadow_step_size = fValue;
 			}
 			else if (_stricmp(param, "shadow_steps") == 0) {
@@ -3501,7 +3502,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_enable") == 0) {
 				g_bShadowEnable = (bool)fValue;
 				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
-			}
+			}*/
 			/*
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
@@ -3510,7 +3511,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "Bz_mult") == 0) {
 				g_SSAO_PSCBuffer.Bz_mult = fValue;
 			}
-			else if (_stricmp(param, "light_vector") == 0) {
+			/*else if (_stricmp(param, "light_vector") == 0) {
 				float x, y, z;
 				LoadGeneric3DCoords(buf, &x, &y, &z);
 				g_LightVector[0].x = x;
@@ -3551,7 +3552,7 @@ bool LoadSSAOParams() {
 				g_LightColor[1].w = 0.0f;
 				log_debug("[DBG] [AO] Light Color2: [%0.3f, %0.3f, %0.3f]",
 					g_LightColor[1].x, g_LightColor[1].y, g_LightColor[1].z);
-			}
+			}*/
 			/*
 			else if (_stricmp(param, "shadow_color") == 0) {
 				float x, y, z;
@@ -3622,23 +3623,22 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "headlights_angle") == 0) {
 				g_fHeadLightsAngleCos = cos(0.01745f * fValue);
 			}
-			else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
+			/*else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
 				g_fHeadLightsAutoTurnOnThreshold = fValue;
-			}
-
+			}*/
 			else if (_stricmp(param, "reload_materials_enabled") == 0) {
 				g_bReloadMaterialsEnabled = (bool)fValue;
 				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);
 			}
 
-			else if (_stricmp(param, "g_fOBJZMetricMult") == 0) {
+			/*else if (_stricmp(param, "g_fOBJZMetricMult") == 0) {
 				g_fOBJ_Z_MetricMult = fValue;
 				log_debug("[DBG] [SHOW] g_fOBJZMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 			}
 			else if (_stricmp(param, "g_fOBJGlobalMetricMult") == 0) {
 				g_fOBJGlobalMetricMult = fValue;
 				log_debug("[DBG] [SHOW] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
-			}
+			}*/
 
 			/*else if (_stricmp(param, "emission_intensity") == 0) {
 				g_ShadingSys_PSBuffer.emission_intensity = fValue;
@@ -3652,6 +3652,10 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "ext_hud_ar1") == 0) {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
+			}
+
+			else if (_stricmp(param, "enable_edge_detector") == 0) {
+				g_bEdgeDetectorEnabled = (bool)fValue;
 			}
 		}
 	}

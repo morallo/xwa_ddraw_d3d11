@@ -11,7 +11,7 @@
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
 
- // The background texture
+// The background texture
 Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
@@ -108,9 +108,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
 
 	float d, dm = 0.0;
-	float2 fragScale = 2.0;
-	//if (VRmode == 1) fragScale.x *= 2.0;
-	vec2 p = (fragScale * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
 	vec3 v = vec3(p, -FOVscale);
