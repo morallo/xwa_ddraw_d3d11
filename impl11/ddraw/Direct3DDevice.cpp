@@ -561,7 +561,7 @@ bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
-extern bool g_bExecuteBufferLock;
+float4 g_DCTargetingColor;
 
 /*********************************************************/
 // SHADOW MAPPING
@@ -727,6 +727,7 @@ bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
+bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z);
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
@@ -2317,6 +2318,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 	//	ClearDynCockpitVector(g_DCElements);
 	//}
 	//ClearDCMoveRegions();
+	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2487,6 +2489,15 @@ bool LoadIndividualDCParams(char *sFileName) {
 				g_CurrentFOV = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				// Force the new FOV to be applied
 				g_bCustomFOVApplied = false;
+			}
+			else if (_stricmp(param, "targeting_mesh_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingColor.x = x;
+					g_DCTargetingColor.y = y;
+					g_DCTargetingColor.z = z;
+					g_DCTargetingColor.w = 1.0f;
+				}
 			}
 		}
 	}
@@ -9092,16 +9103,6 @@ void Direct3DDevice::RenderEdgeDetector()
 	D3D11_BLEND_DESC blendDesc{};
 	ComPtr<ID3D11DepthStencilState> depthState;
 
-	// Set the new viewport (a full quad covering the full screen)
-	/*viewport.Width = g_fCurScreenWidth;
-	viewport.Height = g_fCurScreenHeight;
-	viewport.TopLeftX = 0.0f;
-	viewport.TopLeftY = 0.0f;
-	viewport.MinDepth = D3D11_MIN_DEPTH;
-	viewport.MaxDepth = D3D11_MAX_DEPTH;
-	resources->InitViewport(&viewport);
-	*/
-
 	DCElemSrcBox *dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
 	if (dcElemSrcBox->bComputed) {
 		float W = dcElemSrcBox->coords.x1 - dcElemSrcBox->coords.x0;
@@ -9145,9 +9146,14 @@ void Direct3DDevice::RenderEdgeDetector()
 	desc.StencilEnable = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
 
-	g_ShadertoyBuffer.iTime = 0;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.SunColor[0].x = 0.1f;
+	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
+	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
+	if (g_DCTargetingColor.w > 0.0f) {
+		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
+	}
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	resources->InitPixelShader(resources->_edgeDetector);
@@ -9189,6 +9195,8 @@ void Direct3DDevice::RenderEdgeDetector()
 		//goto out;
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
+		// viewport only overwrites the section we're going to process.
 		context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferDynCockpit);
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -9210,7 +9218,10 @@ void Direct3DDevice::RenderEdgeDetector()
 	context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
 	
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
-	// after applying this effect!
+	// after applying this effect.
+	// The reason we need this is because the original ddraw never expects another RTV other than
+	// _renderTargetView, so there isn't an InitRenderTargetView() function -- there's no need since
+	// this RTV is always going to be set. If we break that assumption here, things will stop working.
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 }
 
