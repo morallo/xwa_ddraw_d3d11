@@ -60,30 +60,34 @@ PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	output.color = 0.0;
 
+	/*
 	// Early exit: avoid rendering outside the limits of the current box
 	if (any(input.uv < p0) || any(input.uv > p1)) {
 		output.color = procTex.SampleLevel(procSampler, input.uv, 0);
 		return output;
 	}
+	*/
 
 	// DEBUG
 	//output.color = procTex.Sample(procSampler, input.uv);
+	//return output;
+	float2 uv = lerp(p0, p1, input.uv);
 
 	float c[9];
-	float3 col;
+	float4 col;
 	for (int i = 0; i < 3; ++i)
 		for (int j = 0; j < 3; ++j) {
 			vec2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
 			// TODO: Get the luminance from the RGB instead of doing a direct-to-grayscale conversion
-			col = procTex.SampleLevel(procSampler, input.uv + ofs, 0).rgb;
+			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
 			//c[3 * i + j] = dot(0.333, col);
 			// Approx Luminance formula:
-			c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b;
+			c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 0.5 * col.a;
 		}
 
 	float Lx = 2.0 * (c[7] - c[1]) + c[6] + c[8] - c[2] - c[0];
 	float Ly = 2.0 * (c[3] - c[5]) + c[6] + c[0] - c[2] - c[8];
-	float G = 1.5 * sqrt(Lx*Lx + Ly*Ly); // The original didn't multiply the sqrt by anything, but I like my displays bright
+	float G = sqrt(Lx*Lx + Ly*Ly);
 
 	output.color = float4(G * tintColor, G);
 	return output;

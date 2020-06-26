@@ -9085,13 +9085,44 @@ void Direct3DDevice::RenderEdgeDetector()
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 	D3D11_DEPTH_STENCIL_DESC desc;
 	D3D11_BLEND_DESC blendDesc{};
 	ComPtr<ID3D11DepthStencilState> depthState;
+
+	// Set the new viewport (a full quad covering the full screen)
+	/*viewport.Width = g_fCurScreenWidth;
+	viewport.Height = g_fCurScreenHeight;
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	resources->InitViewport(&viewport);
+	*/
+
+	DCElemSrcBox *dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
+	if (dcElemSrcBox->bComputed) {
+		float W = dcElemSrcBox->coords.x1 - dcElemSrcBox->coords.x0;
+		float H = dcElemSrcBox->coords.y1 - dcElemSrcBox->coords.y0;
+		
+		// Send the UV coords down to the shader as well
+		g_ShadertoyBuffer.x0 = dcElemSrcBox->coords.x0;
+		g_ShadertoyBuffer.y0 = dcElemSrcBox->coords.y0;
+		g_ShadertoyBuffer.x1 = dcElemSrcBox->coords.x1;
+		g_ShadertoyBuffer.y1 = dcElemSrcBox->coords.y1;
+		
+		viewport.Width    = g_fCurScreenWidth * W;
+		viewport.Height   = g_fCurScreenHeight * H;
+		viewport.TopLeftX = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+		viewport.TopLeftY = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+	}
+	else
+		return;
 
 	// We need to set the blend state properly
 	blendDesc.AlphaToCoverageEnable = FALSE;
@@ -9101,7 +9132,8 @@ void Direct3DDevice::RenderEdgeDetector()
 	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO; // This will replace the Dest alpha with the Src alpha, overwriting it
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	resources->InitBlendState(nullptr, &blendDesc);
@@ -9113,20 +9145,6 @@ void Direct3DDevice::RenderEdgeDetector()
 	desc.StencilEnable = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
 
-	/*
-	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	g_ShadertoyBuffer.x0 = x0;
-	g_ShadertoyBuffer.y0 = y0;
-	g_ShadertoyBuffer.x1 = x1;
-	g_ShadertoyBuffer.y1 = y1;
-	*/
-	DCElemSrcBox *dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGET_COMP_DC_ELEM_SRC_IDX];
-	if (dcElemSrcBox->bComputed) {
-		g_ShadertoyBuffer.x0 = dcElemSrcBox->coords.x0;
-		g_ShadertoyBuffer.y0 = dcElemSrcBox->coords.y0;
-		g_ShadertoyBuffer.x1 = dcElemSrcBox->coords.x1;
-		g_ShadertoyBuffer.y1 = dcElemSrcBox->coords.y1;
-	}
 	g_ShadertoyBuffer.iTime = 0;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
@@ -9140,15 +9158,6 @@ void Direct3DDevice::RenderEdgeDetector()
 
 	// Apply the edge detector to the DC foreground buffer
 	{
-		// Set the new viewport (a full quad covering the full screen)
-		viewport.Width = g_fCurScreenWidth;
-		viewport.Height = g_fCurScreenHeight;
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		resources->InitViewport(&viewport);
-
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
@@ -9179,7 +9188,8 @@ void Direct3DDevice::RenderEdgeDetector()
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		//goto out;
 
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferDynCockpit);
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -9192,14 +9202,13 @@ void Direct3DDevice::RenderEdgeDetector()
 
 		if (g_bDumpSSAOBuffers) {
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_edgeDetector.jpg");
+				L"C:\\Temp\\_edgeDetectorOutput.jpg");
 		}
 	}
 
 	// Copy the result
 	context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
 	
-out:
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect!
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
