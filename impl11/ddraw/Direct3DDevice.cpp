@@ -1973,6 +1973,10 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
 		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 	}
+	else if (_stricmp(param, "NoBloom") == 0) {
+		curMaterial->NoBloom = (bool)fValue;
+		log_debug("[DBG] NoBloom: %d", curMaterial->NoBloom);
+	}
 	// Shadow Mapping settings
 	else if (_stricmp(param, "shadow_map_mult_x") == 0) {
 		g_ShadowMapping.shadow_map_mult_x = fValue;
@@ -8251,6 +8255,14 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
+
+					// Remove Bloom for all textures with materials tagged as "NoBloom"
+					if (lastTextureSelected->bHasMaterial && lastTextureSelected->material.NoBloom)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = 0.0f;
+						g_PSCBuffer.bIsEngineGlow = 0;
+					}
 				}
 
 				// Apply BLOOM flags for textureless objects
@@ -9192,7 +9204,6 @@ void Direct3DDevice::RenderEdgeDetector()
 		resources->InitInputLayout(resources->_inputLayout);
 		resources->InitVertexShader(resources->_vertexShader);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		//goto out;
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
@@ -9202,7 +9213,6 @@ void Direct3DDevice::RenderEdgeDetector()
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
-		//context->OMGetRenderTargets()
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputDynCockpitSRV);

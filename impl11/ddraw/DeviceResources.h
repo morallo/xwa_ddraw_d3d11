@@ -507,6 +507,7 @@ typedef struct MaterialStruct {
 	float NMIntensity;
 	float SpecValue;
 	bool  IsShadeless;
+	bool  NoBloom;
 	Vector3 Light;
 
 	MaterialStruct() {
@@ -517,6 +518,7 @@ typedef struct MaterialStruct {
 		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
 		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
 		Light		= g_DefaultGlobalMaterial.Light;
+		NoBloom		= false;
 	}
 } Material;
 
