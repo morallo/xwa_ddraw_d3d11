@@ -65,6 +65,11 @@ std::vector<char *> Reticle_ResNames = {
 	"dat,12000,2200,", // 0xc33a94b3, // Warhead top indicator, right.
 };
 
+std::vector<char *> ReticleCenter_ResNames = {
+	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
+	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
+};
+
 std::vector<char *> Text_ResNames = {
 	"dat,16000,"
 };
@@ -490,6 +495,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_surface = surface;
 	this->is_Tagged = false;
 	this->is_Reticle = false;
+	this->is_ReticleCenter = false;
 	this->is_HighlightedReticle = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
@@ -727,9 +733,11 @@ void Direct3DTexture::TagTexture() {
 		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
 		else if (isInVector(surface->_name, Reticle_ResNames))
-			this->is_Reticle = true;
+			this->is_Reticle = true; // Standard Reticle from Reticle_ResNames
 		else if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
+		if (isInVector(surface->_name, ReticleCenter_ResNames))
+			this->is_ReticleCenter = true;
 
 		/*
 		 * TODO: For custom reticles, I would need to load the list of reticles from either the
@@ -776,7 +784,7 @@ void Direct3DTexture::TagTexture() {
 			// Check if this DAT image is a custom reticle
 			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
 				if (GroupId == 12000 && ImageId > 5000) {
-					this->is_Reticle = true;
+					this->is_Reticle = true; // Custom Reticle
 					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
 				}
 			}
@@ -1185,6 +1193,7 @@ HRESULT Direct3DTexture::Load(
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
 	this->is_Reticle = d3dTexture->is_Reticle;
+	this->is_ReticleCenter = d3dTexture->is_ReticleCenter;
 	this->is_HighlightedReticle = d3dTexture->is_HighlightedReticle;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;

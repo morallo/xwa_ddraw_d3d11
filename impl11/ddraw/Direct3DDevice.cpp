@@ -13,15 +13,10 @@
 TODO:
 	Auto-turn on headlights in the last mission.
 
-	Correct 1920x1080 xwahacker FOV conversion. CHECK
-
-	Add per-craft shadow blackness material setting -- I probably don't really need this
-	- Multiply Contact Shadow by SSDO -- CHECK
-
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
 	
-	VR metric reconstruction
+	VR metric reconstruction -- In progress
 */
 
 /*
@@ -237,7 +232,7 @@ FILE *g_HackFile = NULL;
 int *s_XwaGlobalLightsCount = (int*)0x00782848;
 XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 
-//ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
+//ObjectEntry **objects = *(ObjectEntry **)0x7B33C4;
 PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
@@ -256,6 +251,8 @@ float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), 
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
+Box g_ReticleLimits;
+bool g_bTriggerReticleCapture = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
@@ -6886,7 +6883,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bSunCentroidComputed = false;
 				Vector3 SunCentroid;
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
-				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false;
+				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
@@ -6896,6 +6893,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
 					bIsReticle = lastTextureSelected->is_Reticle;
+					bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
 					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
 					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
 					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
@@ -7007,13 +7005,12 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				const bool bExteriorCamera = PlayerDataTable[*g_playerIndex].externalCamera;
-				const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+				const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					(bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem);
 				bool bRenderToDynCockpitBGBuffer = false;
 
 				// Render HUD backgrounds to their own layer (HUD BG)
-				if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+				if ((g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					(bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc))
 					bRenderToDynCockpitBGBuffer = true;
 
@@ -7285,7 +7282,7 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
-				// Reset the DC HUD Regions
+				// Dynamic Cockpit: Reset the DC HUD Regions
 				if (g_bResetDC) {
 					for (unsigned int i = 0; i < g_DCHUDRegions.boxes.size(); i++) {
 						g_DCHUDRegions.boxes[i].bLimitsComputed = false;
@@ -7294,7 +7291,7 @@ HRESULT Direct3DDevice::Execute(
 					log_debug("[DBG] [DC] DC HUD Regions reset");
 				}
 
-				// Capture the bounds for all the HUDs elements to use later in the Dynamic Cockpit
+				// Dynamic Cockpit: Capture the bounds for all the HUDs elements to use later in the Dynamic Cockpit
 				{
 					// Capture the bounds for the left sensor:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
@@ -7671,6 +7668,24 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
+
+				// Reticle processing
+				if (g_bTriggerReticleCapture && bIsReticleCenter && !bExternalCamera &&
+					abs(PlayerDataTable[*g_playerIndex].cockpitCameraPitch) < 2000 &&
+					abs(PlayerDataTable[*g_playerIndex].cockpitCameraYaw) < 2000) 
+				{
+					float minX, minY, maxX, maxY;
+					Box uv_minmax = { 0 };
+					GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
+						&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
+					// minX,minY - maxX,maxY are the in-game coords of this element
+					if (minX < g_ReticleLimits.x0) g_ReticleLimits.x0 = minX;
+					if (minY < g_ReticleLimits.y0) g_ReticleLimits.y0 = minY;
+					if (maxX > g_ReticleLimits.x1) g_ReticleLimits.x1 = maxX;
+					if (maxY > g_ReticleLimits.y1) g_ReticleLimits.y1 = maxY;
+					//InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+				}
+				//if (PlayerDataTabl)
 
 				// Hide the text boxes for the X-Wing (this was a little experiment to see if this is possible)
 				/*
@@ -8099,7 +8114,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
 				if (
-					 (g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
+					 (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
 				   )
 				{					
@@ -9260,6 +9275,12 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ExecuteStateCount = 0;
 	g_ExecuteTriangleCount = 0;
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
+	// Reset the reticle limits at the beginning of each frame
+	// These are in-game coords:
+	g_ReticleLimits.x0 =  10000;
+	g_ReticleLimits.y0 =  10000;
+	g_ReticleLimits.x1 = -10000;
+	g_ReticleLimits.y1 = -10000;
 	//log_debug("[DBG] GetCurrentHeadingViewMatrix()");
 
 	if (!this->_deviceResources->_renderTargetView)

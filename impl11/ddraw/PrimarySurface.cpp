@@ -26,6 +26,7 @@ const float DEG2RAD = 3.141593f / 180.0f;
 
 #include "XWAObject.h"
 extern PlayerDataEntry* PlayerDataTable;
+ObjectEntry **objects = (ObjectEntry **)0x7B33C4;
 CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
 extern uint32_t* g_playerIndex;
 const auto mouseLook_Y = (int*)0x9E9624;
@@ -41,6 +42,8 @@ const short *g_POV_X0 = (short *)(0x5BB480 + 0x23C);
 const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
 const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
 const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
+const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
+auto g_hudScale = (float *)0x06002B8;
 
 extern int *s_XwaGlobalLightsCount;
 extern XwaGlobalLight* s_XwaGlobalLights;
@@ -53,6 +56,9 @@ dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
 extern float g_fYCenter, g_fFOVscale;
+extern Box g_ReticleLimits;
+extern bool g_bTriggerReticleCapture;
+
 extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fVR_FOV;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
@@ -64,7 +70,7 @@ void SaveFocalLength();
 Matrix4 g_ReflRotX;
 
 void GetCraftViewMatrix(Matrix4 *result);
-
+void DisplayBox(char *name, Box box);
 Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
@@ -709,20 +715,28 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  */
 void ComputeHyperFOVParams() {
 	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
+	// The Y-wing apparently needs 211.68 instead of 153.0:
 	float y_center_raw = 153.0f / g_fCurInGameHeight;
 	float FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
 	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
-	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d",
-		y_center_raw, FOVscale_raw, 
-		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors);
+
+	// The formula to compute y_center seems to be:
+	// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
+	// The in-game-center has to be computer properly if the cockpit isn't facing forward
 
 	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
 	// aspect ratio. In other words, the size of the display window will stretch the view, so we
 	// have to compensate for that.
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
+	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
+		y_center_raw, FOVscale_raw,
+		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, 
+		bFixFactors, comp_factor);
+
 	g_fFOVscale = comp_factor * FOVscale_raw;
 	g_fYCenter = comp_factor * y_center_raw;
+	//g_fYCenter = y_center_raw;
 	// Store the global FOVscale, y_center in the CB:
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	g_ShadertoyBuffer.y_center = g_fYCenter;
@@ -783,11 +797,14 @@ void ComputeHyperFOVParams() {
 	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.3f, RealHFOV: %0.3f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV / DEG2RAD, g_fRealHorzFOV / DEG2RAD);
 	// DEBUG
-	/*g_fFOVscale = g_fDebugFOVscale;
+	//g_fFOVscale = g_fDebugFOVscale;
+	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	
 	g_fYCenter = g_fDebugYCenter;
-	g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
 	g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);*/
+	g_MetricRecCBuffer.mr_y_center = g_fDebugYCenter;
+	log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
 	// DEBUG
 }
 
@@ -5874,6 +5891,14 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 			CraftDefinitionTable[1].LaserEndingHardpoint[1],
 			CraftDefinitionTable[1].LaserEndingHardpoint[2]);
 
+		//log_debug("[DBG] object->y: %d", (*objects)[PlayerDataTable[*g_playerIndex].objectIndex].y);
+		//log_debug("[DBG] objects: 0x%x, g_objectPtr: 0x%x", objects, *g_objectPtr);
+		//log_debug("[DBG] objectIndex: %d, g_FlightSurfaceHeight: %d, cameraY: %d",
+			//PlayerDataTable[*g_playerIndex].objectIndex,
+			//objects[PlayerDataTable[*g_playerIndex].objectIndex].y, 
+			//g_FlightSurfaceHeight, // Not relevant
+			//PlayerDataTable[*g_playerIndex].cameraY); // This looks like the absolute pos of the camera
+
 		//log_debug("[DBG] [SHW] POV0: %0.3f, %0.3f, %0.3f", (float)*g_POV_X0, (float)*g_POV_Z0, (float)*g_POV_Y0);
 		log_debug("[DBG] [SHW] POV (Original): %0.3f, %0.3f, %0.3f", *g_POV_X, *g_POV_Z, *g_POV_Y);
 		log_debug("[DBG] [SHW] Using POV: %0.3f, %0.3f, %0.3f",
@@ -8785,6 +8810,10 @@ HRESULT PrimarySurface::Flip(
 				g_bDCWasClearedOnThisFrame = false;
 				g_bEdgeEffectApplied = false;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+				if (g_bTriggerReticleCapture) {
+					DisplayBox("Reticle Limits: ", g_ReticleLimits);
+					g_bTriggerReticleCapture = false;
+				}
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;

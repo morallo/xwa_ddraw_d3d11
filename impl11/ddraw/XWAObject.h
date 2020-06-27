@@ -3,12 +3,218 @@
 #include <windows.h>
 #include "XWATypes.h"
 
+#pragma pack(push, 1)
+
 struct MobileObjectEntry;
 struct ProjectileInstance;
-struct CraftInstance;
 struct RotationMatrix3D;
 
-#pragma pack(push, 1)
+struct CraftInstance {
+	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
+	DWORD NumberInFG;
+	WORD CraftType; // enum CraftTypeEnum
+	DWORD LeaderCraftIndex;
+	BYTE VirtualCraftPointerSet;
+	BYTE CraftState; // enum CraftState
+	BYTE RemovedFromPlay;
+	WORD AiSkill;
+	WORD field_F; // Ofs 0x0F
+	WORD unknown2;
+	DWORD IsUnderBeamEffect[5];
+	BYTE SfoilsState; // Ofs 0x27
+	BYTE XwaAIData_m00;
+	BYTE meshStates[20]; // Ofs 0x29
+	BYTE waypointLoopsCompleted[20]; // 0x3D
+	BYTE XwaAIData_m29;
+	BYTE currentFlightPln;
+	BYTE startingFlightPlan;
+	BYTE currentTargetWaypoint;
+	BYTE savedAwaitingOrder;
+	DWORD CycleTime;
+	DWORD CycleTimer; // Ofs 0x5A
+	WORD RandomSeed;
+	WORD TargetObjectIndex;
+	WORD TargetObjectTagID;
+	WORD XwaAIData_m3C;
+	BYTE XwaAIData_m3E;
+	DWORD TargetWaypointPositionX; // Ofs 0x67
+	DWORD TargetWaypointPositionY;
+	DWORD TargetWaypointPositionZ;
+	DWORD angleDistanceToWaypoint;
+	DWORD XwaAIData_m4F;
+	WORD playerAttackOrderTargetIndex;
+	BYTE XwaAIData_m55; // Ofs 0x7D
+	WORD DesiredPitch;
+	WORD DesiredRoll;
+	WORD DesiredYaw;
+	BYTE currentManr;
+	BYTE specialTimerOrState;
+	DWORD TimerToAttack;
+	DWORD TimerToFlyWP;
+	WORD PickedUpObjectIndex;
+	WORD field_90;
+	WORD field_92;
+	WORD field_94;
+	WORD field_96;
+	WORD field_98;
+	WORD field_9A;
+	WORD ThreatenedByIndex; // Ofs 0x9C
+	WORD field_9E;
+	WORD field_A0;
+	WORD field_A2;
+	BYTE field_A4;
+	BYTE field_A5;
+	BYTE field_A6;
+	BYTE field_A7;
+	BYTE field_A8;
+	BYTE field_A9;
+	BYTE field_AA;
+	BYTE field_AB;
+	BYTE DoneBoardedCount;
+	BYTE BeingBoarded;
+	BYTE DoneDockingCount;
+	BYTE IsDocking;
+	WORD ObjectTagID2;
+	WORD field_B2; // Ofs 0xB2
+	DWORD field_B4;
+	DWORD field_B8;
+	DWORD field_BC;
+	DWORD field_C0;
+	WORD TopSpeedMPH;
+	WORD SpeedPercentage;
+	BYTE RotationRelatedUnk1;
+	BYTE RotationRelatedUnk2;
+	WORD PitchRate;
+	WORD PitchPercentage;
+	BYTE PitchState;
+	BYTE RotationRelatedUnk3;
+	WORD PitchMaxPercentage;
+	WORD RollRate;
+	WORD RollPercentage;
+	BYTE RollState;
+	WORD RollMaxPercentage;
+	WORD YawRate; // Ofs 0xD9
+	WORD YawPercentage;
+	BYTE YawState;
+	WORD YawMaxPercentage;
+	BYTE FormationType;
+	BYTE FormationSpacing;
+	BYTE SpecialCraft;
+	BYTE field_E3;
+	DWORD DriftXPos;
+	DWORD DriftYPos;
+	DWORD DriftZPos;
+	WORD EngineThrottleInput; // Ofs 0xF0
+	WORD PercentOfActiveEngines;
+	WORD MissionSetSpeed;
+	WORD EngineSLAMInput;
+	DWORD HullDamageReceived;
+	DWORD CriticalDamageThreshold;
+	DWORD HullStrength;
+	WORD SystemStrength;
+	DWORD field_106;
+	BYTE field_10A;
+	DWORD TotalDmgReceived;
+	DWORD TotalDmgToPlayer;
+	DWORD TotalDmgFromCollisions;
+	DWORD TotalDmgFromTurrets;
+	DWORD TotalDmgFromMines;
+	DWORD field_11F[8]; // Ofs 0x11F dd 8 dup(? ) 
+	BYTE field_13F[8];
+	DWORD field_147[8];
+	DWORD field_167[6];
+	WORD InitialCockpitInstruments;
+	WORD CockpitInstrumentStatus;
+	WORD InitialSubsystems;
+	WORD SubsystemStatus;
+	WORD MagTimeRemaining;
+	BYTE field_189;
+	BYTE field_18A;
+	BYTE CapturedBy;
+	BYTE AttackedByTeam[10];
+	BYTE InspectedByTeam[10];
+	BYTE CargoIndex;
+	BYTE field_1A1;
+	DWORD FrontShieldHitpoints[2]; // Ofs 0x1A2 dd 2 dup(? )
+	BYTE ElsShields;
+	BYTE ShieldDirection;
+	BYTE NumberOfLaserSets;
+	BYTE ElsLasers;
+	BYTE NumberOfLasers;
+	BYTE ConvergenceMode; // db ? ; enum LaserConvergenceMode
+	WORD LaserType[3];
+	BYTE LaserLinkStatus[3];
+	BYTE field_1B9[3];
+	BYTE LaserNextHardpoint[3];
+	WORD LaserCooldown[3];
+	DWORD LaserLastFireAttempt[3];
+	BYTE NumWarheadLauncherGroups; // Ofs 0x1D1
+	WORD WarheadType[2];
+	BYTE WarheadNextHardpoint[2];
+	WORD WarheadCooldown[2];
+	WORD LockTime;
+	BYTE BeamType;
+	BYTE ElsBeam;
+	WORD BeamEnergy;
+	BYTE BeamActive;
+	WORD BeamActive2;
+	BYTE field_1E5; // Ofs 0x1E5
+	BYTE field_1E6;
+	BYTE CountermeasureType;
+	BYTE CountermeasureAmount;
+	WORD ChaffLifespan;
+	WORD FlareLifespan;
+	WORD PrimaryLasersFired;
+	WORD PrimaryLasersHit;
+	WORD SecondaryLasersFired;
+	WORD SecondaryLasersHit;
+	BYTE WarheadsFired;
+	BYTE WarheadsHit;
+	BYTE SysRepairPriority[11]; // Ofs 0x1F7 db 11 dup(? )
+	WORD SysRepairPercent[11];
+	WORD SysRepairTimeRemaining[11];
+	BYTE MeshState[50];
+	BYTE MeshRotationAngles[50];
+	BYTE MeshHP[50];
+	WORD field_2C4; // Ofs 0x2C4       dw ?
+	WORD PlayerIndex;
+	WORD field_2C8;
+	BYTE field_2CA;
+	BYTE field_2CB; // enum PloEnum
+	BYTE field_2CC; // enum PloEnum
+	WORD field_2CD;
+	BYTE EngineThrottles[16]; // Ofs 0x2CF db 16 dup(? )
+	BYTE Hardpoints[224]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
+	WORD ObjectTagID; // Ofs 0x3BF     dw ?
+	WORD RotGunAngles[2];
+	WORD RotBeamAngles[2];
+	DWORD field_3C9[2];
+	DWORD field_3D1[2];
+	char Cargo[16]; // Ofs 0x3D9 string(C)
+	DWORD field_3E9;
+	DWORD field_3ED;
+	DWORD field_3F1;
+	DWORD pObject; // offset
+};
+
+static_assert(sizeof(CraftInstance) == 0x3F9, "size of ObjectEntry must be 39");
+
+/*
+00000000 CraftInstanceHardpoints struc ; (sizeof=0xE, mappedto_294)
+00000000                                         ; XREF: FF005D0F/o
+00000000                                         ; Craft/r ...
+00000000 ProjectileType  dw ?
+00000002 WeaponType      db ?
+00000003 LaserIndex      db ?
+00000004 Energy          db ?
+00000005 Count           db ?
+00000006 TurretCooldown  dw ?
+00000008 MeshID          db ?
+00000009 HardpointID     db ?
+0000000A TurretTargetIndex dw ?
+0000000C TurretTargetSearchCooldown dw ?
+0000000E CraftInstanceHardpoints ends
+*/
 
 struct RotationMatrix3D
 {
@@ -26,7 +232,7 @@ struct RotationMatrix3D
 struct ObjectEntry
 {
 	__int16 objectID;
-	__int16 objectSpecies;
+	__int16 objectSpecies; // Type enum ObjectTypeEnum
 	char objectGenus;
 	char FGIndex;
 	char region;
@@ -53,7 +259,7 @@ struct MobileObjectEntry
 	DWORD lastUpdateTime;
 	DWORD PosXDelta;
 	DWORD PosYDelta;
-	int PosZDelta;
+	DWORD PosZDelta;
 	char collisionChecksActive;
 	int collisionCheckTimers[16];
 	__int16 collisionCheckObjectIndex[16];
@@ -142,7 +348,7 @@ struct PlayerDataEntry
 	char warheadLockState;
 	// This is the index of the currently-targeted object, a value of -1 means no target
 	// Use this index on this table:
-	// ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
+	// ObjectEntry* objects = (ObjectEntry **)0x7B33C4;
 	__int16 currentTargetIndex; 
 	char targetTimeTargetedSeconds;
 	char targetTimeTargetedMinutes;

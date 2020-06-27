@@ -66,6 +66,8 @@ public:
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
 	// This flag is set during resource Load, by comparing its CRC with the set of known CRCs.
 	bool is_Reticle;
+	// This flag is true only for the HUD textures that serve as crosshairs.
+	bool is_ReticleCenter;
 	// This flag is set whenever the target can be fired upon (12000,600 or ... how do I detect this when a custom reticle is used?)
 	bool is_HighlightedReticle;
 	// This flag is set to true if this texture is the triangle pointer

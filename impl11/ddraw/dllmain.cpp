@@ -23,6 +23,8 @@ extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the si
 extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
+extern float *g_hudScale;
+
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern float g_fCurrentShipFocalLength;
@@ -31,6 +33,7 @@ int g_WindowWidth, g_WindowHeight;
 
 extern int g_KeySet;
 extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
+extern bool g_bTriggerReticleCapture;
 
 #ifdef DBG_VR
 extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
@@ -379,6 +382,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fDebugFOVscale += 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
 					ComputeHyperFOVParams();
+					//(*g_hudScale) += 0.1f;
+					//log_debug("[DBG] g_hudScale: %0.3f", *g_hudScale);
 					break;
 				case 5:
 					g_fCockpitTranslationScale += 0.0005f;
@@ -429,6 +434,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fDebugFOVscale -= 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
 					ComputeHyperFOVParams();
+					//(*g_hudScale) -= 0.1f;
+					//log_debug("[DBG] g_hudScale: %0.3f", *g_hudScale);
 					break;
 				case 5:
 					g_fCockpitTranslationScale -= 0.0005f;
@@ -783,8 +790,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			case 'V':
 			{
-				g_bEnableSteamVR_QPC = !g_bEnableSteamVR_QPC;
-				log_debug("[DBG] [QPC] g_bEnableSteamVR_QPC: %d", g_bEnableSteamVR_QPC);
+				//g_bEnableSteamVR_QPC = !g_bEnableSteamVR_QPC;
+				//log_debug("[DBG] [QPC] g_bEnableSteamVR_QPC: %d", g_bEnableSteamVR_QPC);
+				g_bTriggerReticleCapture = true;
 				return 0;
 			}
 
