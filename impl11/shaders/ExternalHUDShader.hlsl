@@ -104,7 +104,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// In SBS VR mode, each half-screen receives a full 0..1 uv range. So if we sample the
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
-	// right.
+	// right = 4 images in one screen!
 	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
 
 	float d, dm = 0.0;
@@ -115,6 +115,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	v = mul(viewMat, vec4(v, 0.0)).xyz; // *float3(1.8, 1.0, 1.0);
 	//float3 col = float3(0.2, 0.2, 0.8); // Reticle color
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
+
 	d = sdCircle(v.xy, vec2(0.0, 0.0), scale * cursor_radius);
 
 	dm  = smoothstep(thickness, 0.0, abs(d)); // Outer ring

@@ -251,7 +251,7 @@ float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), 
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
-Box g_ReticleLimits;
+Box g_ReticleCenterLimits;
 bool g_bTriggerReticleCapture = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
@@ -266,6 +266,7 @@ void GetCraftViewMatrix(Matrix4 *result);
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(WORD index, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
+inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 
 float g_fVR_FOV = PSVR_VERT_FOV;
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
@@ -5301,6 +5302,12 @@ inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, f
 	*y_out = top + y / g_fCurInGameHeight * height;
 }
 
+void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out)
+{
+	*x_out = g_fCurInGameWidth * (x - left) / width;
+	*y_out = g_fCurInGameHeight * (y - top) / height;
+}
+
 /*
 bool rayTriangleIntersect_old(
 	const Vector3 &orig, const Vector3 &dir,
@@ -5547,7 +5554,7 @@ inline void backProjectMetric(WORD index, Vector3 *P) {
  *		OPT-scale metric 3D centered on the current camera.
  * OUTPUT:
  *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
- *		in the external HUD shader.
+ *		in the external HUD shader).
  */
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
 	Vector3 P, temp = pos3D;
@@ -5642,13 +5649,13 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
  *		Regular path: in-game 2D coords (sx, sy)
  *	    VR path: Post-proc coords
  */
-inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix)
+inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR)
 {
 	Vector3 P = pos3D;
 	//float w;
 	// Whatever is placed in P is returned at the end of this function
 
-	if (g_bEnableVR) {
+	if (!bForceNonVR && g_bEnableVR) {
 		float w;
 		// We need to invert the sign of the z coord because the matrices are defined in the SteamVR
 		// coord system
@@ -5699,9 +5706,12 @@ inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 view
 		// Normalize into the 0..2 or 0.0..1.0 range
 		temp.x /= g_VSCBuffer.viewportScale[0];
 		temp.y /= g_VSCBuffer.viewportScale[1];
+		if (bForceNonVR && g_bEnableVR) {
+			temp.x /=  2.0f;
+			temp.y /= -2.0f;
+		}
 		// temp.xy is now (sx,sy): in-game screen coords (CONFIRMED)
 		// sx = temp.x; sy = temp.y;
-
 		P.x = temp.x;
 		P.y = temp.y;
 		P.z = temp.z;
@@ -7670,19 +7680,20 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Reticle processing
-				if (g_bTriggerReticleCapture && bIsReticleCenter && !bExternalCamera &&
-					abs(PlayerDataTable[*g_playerIndex].cockpitCameraPitch) < 2000 &&
-					abs(PlayerDataTable[*g_playerIndex].cockpitCameraYaw) < 2000) 
+				if (/*g_bTriggerReticleCapture && */ bIsReticleCenter && !bExternalCamera 
+					&& abs(PlayerDataTable[*g_playerIndex].cockpitCameraPitch) < 2000
+					&& abs(PlayerDataTable[*g_playerIndex].cockpitCameraYaw) < 2000 
+				   )
 				{
 					float minX, minY, maxX, maxY;
 					Box uv_minmax = { 0 };
 					GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
 						&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
 					// minX,minY - maxX,maxY are the in-game coords of this element
-					if (minX < g_ReticleLimits.x0) g_ReticleLimits.x0 = minX;
-					if (minY < g_ReticleLimits.y0) g_ReticleLimits.y0 = minY;
-					if (maxX > g_ReticleLimits.x1) g_ReticleLimits.x1 = maxX;
-					if (maxY > g_ReticleLimits.y1) g_ReticleLimits.y1 = maxY;
+					if (minX < g_ReticleCenterLimits.x0) g_ReticleCenterLimits.x0 = minX;
+					if (minY < g_ReticleCenterLimits.y0) g_ReticleCenterLimits.y0 = minY;
+					if (maxX > g_ReticleCenterLimits.x1) g_ReticleCenterLimits.x1 = maxX;
+					if (maxY > g_ReticleCenterLimits.y1) g_ReticleCenterLimits.y1 = maxY;
 					//InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
 				}
 				//if (PlayerDataTabl)
@@ -9277,10 +9288,10 @@ HRESULT Direct3DDevice::BeginScene()
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	// Reset the reticle limits at the beginning of each frame
 	// These are in-game coords:
-	g_ReticleLimits.x0 =  10000;
-	g_ReticleLimits.y0 =  10000;
-	g_ReticleLimits.x1 = -10000;
-	g_ReticleLimits.y1 = -10000;
+	g_ReticleCenterLimits.x0 =  10000;
+	g_ReticleCenterLimits.y0 =  10000;
+	g_ReticleCenterLimits.x1 = -10000;
+	g_ReticleCenterLimits.y1 = -10000;
 	//log_debug("[DBG] GetCurrentHeadingViewMatrix()");
 
 	if (!this->_deviceResources->_renderTargetView)
