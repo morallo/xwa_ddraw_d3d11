@@ -716,13 +716,13 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
  */
 void ComputeHyperFOVParams() {
-	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	float y_center_raw, FOVscale_raw;
-	// Find the current center of the screen after it has been displaced by the cockpit camera
+	// Find the current center of the screen after it has been displaced by the cockpit camera.
 	// We only care about the y-coordinate, as we're going to use it along with the reticle to
 	// compute y_center.
 	// To find the y-center of the screen, we're going to use math. The tangent of the current
-	// pitch can gives the information right away.
+	// pitch can give us the information right away. This is closely related to the FOV and
+	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
 	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 2.0f * PI;
 	float H = *g_fRawFOVDist * tan(pitch); // This will give us the height, in pixels, measured from the center of the screen
 	H += g_fCurInGameHeight / 2.0f;
@@ -741,6 +741,10 @@ void ComputeHyperFOVParams() {
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 
+	// Compute the aspect-ratio fix factors
+	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
+	if (g_bUseSteamVR)
+		g_fWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
 	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
 	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
@@ -748,14 +752,14 @@ void ComputeHyperFOVParams() {
 	// have to compensate for that.
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 
-	// Compute the compensated FOV and y_center:
-	g_fFOVscale = comp_factor * FOVscale_raw;
-	g_fYCenter = comp_factor * y_center_raw;
-
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
 		y_center_raw, FOVscale_raw,
 		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio,
 		bFixFactors, comp_factor);
+
+	// Compute the compensated FOV and y_center:
+	g_fFOVscale = comp_factor * FOVscale_raw;
+	g_fYCenter  = comp_factor * y_center_raw;
 
 	// Store the global FOVscale, y_center in the CB:
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
@@ -769,7 +773,8 @@ void ComputeHyperFOVParams() {
 	// it will stretch the image in the same amount as when running in non-VR mode.
 	// This means that the aspect ratio of the in-game resolution should be an integer
 	// multiple of the Display/SteamVR window to avoid distortion.
-	if (!g_config.AspectRatioPreserved || g_bEnableVR) {
+	if (!g_config.AspectRatioPreserved || g_bEnableVR)
+	{
 		float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 		// In SteamVR mode, the must compensate against the SteamVR window size
 		if (g_bUseSteamVR)
@@ -791,6 +796,7 @@ void ComputeHyperFOVParams() {
 			else
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
 		}
+
 		log_debug("[DBG] [FOV] Real Window a/r: %0.3f, preserveA/R-Comp: %0.3f, %0.3f",
 			RealWindowAspectRatio, g_ShadertoyBuffer.preserveAspectRatioComp[0], g_ShadertoyBuffer.preserveAspectRatioComp[1]);
 	}
@@ -813,59 +819,24 @@ void ComputeHyperFOVParams() {
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV);
 	// DEBUG
+	//static bool bFirstTime = true;
+	//if (bFirstTime) {
+	//	g_fDebugFOVscale = g_ShadertoyBuffer.FOVscale;
+	//	//g_fDebugYCenter = g_ShadertoyBuffer.y_center;
+	//	bFirstTime = false;
+	//}
 	//g_fFOVscale = g_fDebugFOVscale;
 	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
-	
+	//
 	//g_fYCenter = g_fDebugYCenter;
 	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
-	//g_MetricRecCBuffer.mr_y_center = g_fDebugYCenter;
-	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+	////g_MetricRecCBuffer.mr_y_center = g_fDebugYCenter;
+	////log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
 	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
 	// DEBUG
-	
-	/*
-	Matrix4 ViewMatrix;
-	// The matrix below will invert the Z axis:
-	GetCraftViewMatrix(&ViewMatrix);
-	Vector3 centerView3;
-	float X, Y;
-	//Vector4 centerView4(0.0f, 0.0f, 1.0f, 0.0); // This mimics what we do in ExternalHUDShader
-	//Vector4 centerView4(0.0f, 0.0f, 65536.0f, -g_fFOVscale); // This mimics what we do in ExternalHUDShader
-	//Vector4 centerView4(0.0f, 0.0f, -g_fFOVscale, 0.0f); // This mimics how we transform screen coords in ExternalHUDShader
-	Vector4 centerView4(0.0f, 0.0f, -g_fDebugFOVscale, 0.0f); // This mimics how we transform screen coords in ExternalHUDShader
-	centerView4 = ViewMatrix * centerView4;
-	centerView3.x =  centerView4.x;
-	centerView3.y = -centerView4.y; // The y-axis needs to be inverted for screen coords
-	centerView3.z =  centerView4.z;
-	log_debug("[DBG] (1) post-proc UV coords centerView3.xy: %0.3f, %0.3f, g_fDebugFOVscale: %0.3f", 
-		centerView3.x, centerView3.y, g_fDebugFOVscale);
-	// centerView3.xy is now in post-proc UV coords, we need to transform that into in-game coords
-	// Convert to screen coords
-	centerView3.x = (centerView3.x * minRes + g_fCurScreenWidth) / 2.0f;
-	centerView3.y = (centerView3.y * minRes + g_fCurScreenHeight) / 2.0f;
-	//log_debug("[DBG] (2) Screen coords centerView3.xy: %0.3f, %0.3f", centerView3.x, centerView3.y);
-	// Now convert to in-game coords:
-	ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
-		g_nonVRViewport.Width, g_nonVRViewport.Height, centerView3.x, centerView3.y, &X, &Y);
-	centerView3.x = X;
-	centerView3.y = Y;
-	*/
-	
-	/*
-	//log_debug("[DBG] [FOV] transformed centerView: %0.3f, %0.3f, %0.3f", centerView.x, centerView.y, centerView.z);
-	// projectMetric uses y_center, we don't want to use that to compute the screen's actual center, so let's
-	// temporarily set it to 0 and restore it afterwards
-	float temp = g_MetricRecCBuffer.mr_y_center;
-	g_MetricRecCBuffer.mr_y_center = 0.0f;
-	centerView3.set(0.0f, 0.0f, 1.0f);
-	centerView3 = ViewMatrix * centerView3;
-	centerView3 = projectToInGameOrPostProcCoordsMetric(centerView3, g_viewMatrix, g_FullProjMatrixLeft, true);
-	g_MetricRecCBuffer.mr_y_center = temp;
-	*/
-	//log_debug("[DBG] [FOV] Screen center: %0.1f, %0.1f", centerView3.x, centerView3.y);
 }
 
 // void capture()
