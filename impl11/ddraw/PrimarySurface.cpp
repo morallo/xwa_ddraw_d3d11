@@ -56,6 +56,7 @@ dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
 extern float g_fYCenter, g_fFOVscale;
+extern Vector2 g_ReticleCentroid;
 extern Box g_ReticleCenterLimits;
 extern bool g_bTriggerReticleCapture;
 
@@ -725,14 +726,13 @@ void ComputeHyperFOVParams() {
 	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 2.0f * PI;
 	float H = *g_fRawFOVDist * tan(pitch); // This will give us the height, in pixels, measured from the center of the screen
 	H += g_fCurInGameHeight / 2.0f;
-	log_debug("[DBG] [FOV] H: %0.3f, pitch: %0.3f", H, pitch / DEG2RAD);
-	if (g_ReticleCenterLimits.y1 > -1.0f) {
-		// We have reticle center limits in this frame and we can use it to compute y_center...
+	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);
+	if (g_ReticleCentroid.y > -1.0f) {
+		// We have reticle center visible this frame and we can use it to compute y_center...
 		// The formula to compute y_center seems to be:
 		// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
 		// The in-game-center has to be computer properly if the cockpit isn't facing forward
-		float HUD_center = (g_ReticleCenterLimits.y0 + g_ReticleCenterLimits.y1) / 2.0f;
-		y_center_raw = 2.0f * (H - HUD_center) / g_fCurInGameHeight;
+		y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
 		log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
 	}
 	else {
@@ -8871,9 +8871,11 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				if (g_bTriggerReticleCapture) {
-					DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
+					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
+					log_debug("Reticle Centroid: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
 					g_bTriggerReticleCapture = false;
 				}
+				
 				// Increase the post-hyperspace-exit frames; but only when we're in the right state:
 				if (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 					g_iHyperExitPostFrames++;
@@ -8967,6 +8969,8 @@ HRESULT PrimarySurface::Flip(
 				log_debug("[DBG] Reapplied MetricRec CBs");
 				g_bMetricParamsNeedReapply = false;
 			}
+			// Reset the Reticle Centroid *after* it has been used by ComputeHyperFOVParams
+			g_ReticleCentroid.set(-1.0f, -1.0f);
 
 //#define HYPER_OVERRIDE 1
 //#ifdef HYPER_OVERRIDE

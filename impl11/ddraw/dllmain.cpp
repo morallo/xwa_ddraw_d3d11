@@ -793,6 +793,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bEnableSteamVR_QPC = !g_bEnableSteamVR_QPC;
 				//log_debug("[DBG] [QPC] g_bEnableSteamVR_QPC: %d", g_bEnableSteamVR_QPC);
 				g_bTriggerReticleCapture = true;
+				g_bCustomFOVApplied = false; // Force reapplication/recomputation of FOV
 				return 0;
 			}
 

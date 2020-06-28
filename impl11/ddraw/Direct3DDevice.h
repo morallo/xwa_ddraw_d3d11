@@ -44,6 +44,8 @@ public:
 
 	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid);
 
+	bool ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 * Centroid);
+
 	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
 
 	void AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);

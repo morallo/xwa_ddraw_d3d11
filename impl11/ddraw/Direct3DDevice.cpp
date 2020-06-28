@@ -251,6 +251,7 @@ float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), 
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
+Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 Box g_ReticleCenterLimits;
 bool g_bTriggerReticleCapture = false;
 
@@ -6103,23 +6104,51 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 		triangle++;
 	}
 
-	// For DirectSBS and especially for SteamVR, we need to backproject this
-	// 2D coordinate into 3D and then project it into each eye using the
-	// camera matrices.
-	/*
-	Vector3 P, Q;
-	backProject(cx, cy, 1.0f / cz, &P);
-	Q = project(P, g_viewMatrix, g_fullMatrixLeft);
-	g_ShadertoyBuffer.SunXL = Q.x;
-	g_ShadertoyBuffer.SunYL = Q.y;
-	log_debug("[DBG] Qx,Qy: %0.3f, %0.3f, %0.3f", Q.x, Q.y);
-	if (g_bUseSteamVR) {
-		Q = project(P, g_viewMatrix, g_fullMatrixLeft);
-		g_ShadertoyBuffer.SunXR = Q.x;
-		g_ShadertoyBuffer.SunYR = Q.y;
-	}
-	*/
+	return false;
+}
 
+/*
+ Computes the 2D centroid of the given instruction as specified by its UV coordinates.
+ i.e. if UV = (0.5, 0.5) is visible on the screen, this function will return true and
+ a 2D point in in-game coordinates that corresponds to that UV.
+*/
+bool Direct3DDevice::ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 *Centroid)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
+
+	Vector2 tempv0, tempv1, tempv2;
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		tempv0.x = g_OrigVerts[index].sx; tempv0.y = g_OrigVerts[index].sy;
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		tempv1.x = g_OrigVerts[index].sx; tempv1.y = g_OrigVerts[index].sy;
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		tempv2.x = g_OrigVerts[index].sx; tempv2.y = g_OrigVerts[index].sy;
+
+		float u, v;
+		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
+			// Confirm:
+			//Vector2 Q = UV0 + u * (UV2 - UV0) + v * (UV1 - UV0);
+			//log_debug("[DBG] Q: %0.3f, %0.3f", Q.x, Q.y); // This should *always* display 0.5, 0.5
+
+			// Compute the 2D vertex where the UV coords are 0.5, 0.5.
+			*Centroid = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			return true;
+		}
+
+		triangle++;
+	}
 	return false;
 }
 
@@ -7680,11 +7709,9 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Reticle processing
-				if (/*g_bTriggerReticleCapture && */ bIsReticleCenter && !bExternalCamera 
-					&& abs(PlayerDataTable[*g_playerIndex].cockpitCameraPitch) < 2000
-					&& abs(PlayerDataTable[*g_playerIndex].cockpitCameraYaw) < 2000 
-				   )
+				if (bIsReticleCenter && !bExternalCamera)
 				{
+					/*
 					float minX, minY, maxX, maxY;
 					Box uv_minmax = { 0 };
 					GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
@@ -7694,9 +7721,21 @@ HRESULT Direct3DDevice::Execute(
 					if (minY < g_ReticleCenterLimits.y0) g_ReticleCenterLimits.y0 = minY;
 					if (maxX > g_ReticleCenterLimits.x1) g_ReticleCenterLimits.x1 = maxX;
 					if (maxY > g_ReticleCenterLimits.y1) g_ReticleCenterLimits.y1 = maxY;
-					//InGameToScreenCoords(left, top, width, height, minX, minY, &box.x0, &box.y0);
+					*/
+					Vector2 ReticleCentroid;
+					if (ComputeCentroid2D(instruction, currentIndexLocation, &ReticleCentroid)) {
+						g_ReticleCentroid = ReticleCentroid;
+						// DEBUG
+						/*{
+							float x, y;
+							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height,
+								g_ReticleCentroid.x, g_ReticleCentroid.y, &x, &y);
+							log_debug("[DBG] Reticle Centroid: %0.3f, %0.3f, Screen: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
+						}*/
+						// DEBUG
+					}
 				}
-				//if (PlayerDataTabl)
 
 				// Hide the text boxes for the X-Wing (this was a little experiment to see if this is possible)
 				/*
