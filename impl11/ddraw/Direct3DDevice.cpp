@@ -643,7 +643,7 @@ Vector4 g_LightColor[2], g_TempLightColor[2];
 // white_point = 4.0 --> Makes everything dark
 // So, a bright scene should cause the white point to go up, and a dark scence should cause
 // the white point to go down... but not by much in either direction.
-float g_fHDRLightsMultiplier = 2.8f, g_fHDRWhitePoint = 1.0f;
+float g_fHDRLightsMultiplier = 2.0f, g_fHDRWhitePoint = 1.0f;
 bool g_bHDREnabled = false;
 
 bool g_bDumpOBJEnabled = false;

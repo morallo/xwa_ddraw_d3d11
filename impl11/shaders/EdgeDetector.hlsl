@@ -41,7 +41,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			vec2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
 			// Approx Luminance formula:
-			c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 0.5 * col.a; // Add alpha here to make a hard edge around the objects
+			c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
 		}
 
 	float Lx = 2.0 * (c[7] - c[1]) + c[6] + c[8] - c[2] - c[0];
