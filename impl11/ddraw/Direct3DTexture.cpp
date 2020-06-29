@@ -229,6 +229,9 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 // SHADOW MAPPING;
 extern ShadowMappingData g_ShadowMapping;
 
+// METRIC RECONSTRUCTION:
+extern bool g_bYCenterHasBeenFixed;
+
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
 		if (x == crc)

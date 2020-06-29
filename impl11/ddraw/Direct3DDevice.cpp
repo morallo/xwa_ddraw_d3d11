@@ -253,7 +253,7 @@ float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 Box g_ReticleCenterLimits;
-bool g_bTriggerReticleCapture = false;
+bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
@@ -2188,6 +2188,7 @@ void CycleFOVSetting()
 		break;
 	}
 	// Apply the current FOV and recompute FOV-related parameters
+	g_bYCenterHasBeenFixed = false;
 	g_bCustomFOVApplied = false;
 }
 
@@ -3672,7 +3673,7 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
-			else if (_stricmp(param, "enable_edge_detector") == 0) {
+			else if (_stricmp(param, "enable_wireframe_CMD") == 0) {
 				g_bEdgeDetectorEnabled = (bool)fValue;
 			}
 		}
@@ -7709,7 +7710,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Reticle processing
-				if (bIsReticleCenter && !bExternalCamera)
+				if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
 				{
 					/*
 					float minX, minY, maxX, maxY;
@@ -7725,6 +7726,9 @@ HRESULT Direct3DDevice::Execute(
 					Vector2 ReticleCentroid;
 					if (ComputeCentroid2D(instruction, currentIndexLocation, &ReticleCentroid)) {
 						g_ReticleCentroid = ReticleCentroid;
+						// Force the re-application of the focal_length, this will make use the reticle centroid
+						// to compute a new y_center.
+						g_bCustomFOVApplied = false;
 						// DEBUG
 						/*{
 							float x, y;

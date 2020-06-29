@@ -58,7 +58,7 @@ When the value is different of 0xFFFF, the player craft is in a hangar.
 extern float g_fYCenter, g_fFOVscale;
 extern Vector2 g_ReticleCentroid;
 extern Box g_ReticleCenterLimits;
-extern bool g_bTriggerReticleCapture;
+extern bool g_bTriggerReticleCapture, g_bYCenterHasBeenFixed;
 
 extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fVR_FOV;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
@@ -734,6 +734,8 @@ void ComputeHyperFOVParams() {
 		// The in-game-center has to be computer properly if the cockpit isn't facing forward
 		y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
 		log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
+		// We can stop looking for the reticle center now:
+		g_bYCenterHasBeenFixed = true;
 	}
 	else {
 		// Provide a default value if the reticle isn't visible

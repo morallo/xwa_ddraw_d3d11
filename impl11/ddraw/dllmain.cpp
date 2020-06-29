@@ -28,6 +28,7 @@ extern float *g_hudScale;
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern float g_fCurrentShipFocalLength;
+extern bool g_bYCenterHasBeenFixed;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
 
@@ -252,6 +253,8 @@ void ApplyFocalLength(float focal_length)
 	*g_fRawFOVDist = focal_length;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+	// Force recomputation of the y center:
+	g_bYCenterHasBeenFixed = false;
 	ComputeHyperFOVParams();
 }
 
@@ -262,6 +265,8 @@ void IncreaseFOV(float delta)
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
 	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
 		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+	// Force recomputation of the y center:
+	g_bYCenterHasBeenFixed = false;
 	ComputeHyperFOVParams();
 }
 
