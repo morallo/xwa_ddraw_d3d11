@@ -350,6 +350,82 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 */
 #endif
 
+int ReticleIndexToHUDSlot(int ReticleIndex) {
+	// I hate this stupid numbering system
+	// The reticles start at 5151
+	// Every 14 slots, the group number will increase
+	// Every 100th slot, the group number will *also* increase, because, hey, why the hell not?
+	// This leads to this very stupid and complex algorithm:
+	int sub_slot = (ReticleIndex - 51) / 14;
+	int super_slot = (ReticleIndex / 100);
+	int slot_mod = (ReticleIndex % 100);
+	int slot = 5100 + 100 * sub_slot + 100 * super_slot + slot_mod;
+	log_debug("[DBG] [RET] index: %d, sub_slot: %d, super_slot: %d, slot_mod: %d slot: %d",
+		ReticleIndex, sub_slot, super_slot, slot_mod, slot);
+	return slot;
+}
+
+bool LoadReticleTXTFile(char *sFileName) {
+	log_debug("[DBG] [RET] Loading Reticle Text file...");
+	FILE *file;
+	int error = 0;
+	bool bApplied = false;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [RET] Could not load %s", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [RET] Error %d when loading %s", error, sFileName);
+		return false;
+	}
+
+	// The reticle file exists, let's parse it
+	char buf[160], param[80], svalue[80];
+	int param_read_count = 0;
+	int iValue = 0;
+
+	while (fgets(buf, 160, file) != NULL) {
+		// Skip comments and blank lines
+		if (buf[0] == ';')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
+			iValue = atoi(svalue);
+			if (_stricmp(param, "Reticle_5") == 0) {
+				log_debug("[DBG] [RET] Reticle_5: %d", iValue);
+				ReticleIndexToHUDSlot(iValue);
+			}
+			else if (_stricmp(param, "Reticle_7") == 0) {
+				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
+				ReticleIndexToHUDSlot(iValue);
+			}
+		}
+	}
+	fclose(file);
+	return true;
+}
+
+void LoadCustomReticle(char *sCurrentCockpit) {
+	char sFileName[80], sCurrent[80];
+	int len;
+	strcpy_s(sCurrent, sCurrentCockpit);
+	len = strlen(sCurrent);
+	// Remove the "Cockpit" from the name:
+	sCurrent[len - 7] = 0;
+	// Look for the Reticle.txt file
+	snprintf(sFileName, 80, "./FlightModels/%sReticle.txt", sCurrent);
+	log_debug("[DBG] [RET] Loading file: %s", sFileName);
+	if (!LoadReticleTXTFile(sFileName)) {
+		log_debug("[DBG] [RET] Could not load %s, searching the INI file for custom reticles", sFileName);
+	}
+}
+
 bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 	FILE *file;
 	int error = 0;
@@ -973,6 +1049,10 @@ void Direct3DTexture::TagTexture() {
 						snprintf(sFileName, 80, "./ShadowMapping/%s.obj", g_sCurrentCockpit);
 						log_debug("[DBG] [SHW] Loading file: %s", sFileName);
 						LoadShadowOBJ(sFileName);
+					}
+					// Load the reticle definition file
+					{
+						LoadCustomReticle(g_sCurrentCockpit);
 					}
 				}
 					
