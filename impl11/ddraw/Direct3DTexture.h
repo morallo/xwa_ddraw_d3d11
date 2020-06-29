@@ -61,10 +61,15 @@ class Direct3DTexture : public IDirect3DTexture
 public:
 	// Set to true once this texture has been tagged/classified.
 	bool is_Tagged;
-	// The CRC of the texture
-	//uint32_t crc;
+	// We don't know if the current cockpit has custom reticles until we see the name of the cockpit.
+	// However, the game loads HUD.dat before the cockpit resources. So, the custom reticles are
+	// already loaded by the time we see the cockpit name. To allow us a second chance at tagging
+	// custom reticles, we use this counter. Essentially any dat,12000,51XX, (or greater) resources
+	// have to be tagged at least two times to allow them to be recognized as custom reticles.
+	// The field below helps us tag these resources multiple times to recognize custom reticles.
+	uint8_t TagCount;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
-	// This flag is set during resource Load, by comparing its CRC with the set of known CRCs.
+	// This flag is set during resource Load
 	bool is_Reticle;
 	// This flag is true only for the HUD textures that serve as crosshairs.
 	bool is_ReticleCenter;

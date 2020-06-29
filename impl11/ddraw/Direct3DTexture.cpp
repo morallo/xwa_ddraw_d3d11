@@ -70,6 +70,8 @@ std::vector<char *> ReticleCenter_ResNames = {
 	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
 };
 
+std::vector<char *> CustomReticleCenter_ResNames;
+
 std::vector<char *> Text_ResNames = {
 	"dat,16000,"
 };
@@ -350,6 +352,10 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 */
 #endif
 
+/*
+ Converts an index number as specified in the custom reticle files to a slot index
+ as stored in HUD.dat.
+*/
 int ReticleIndexToHUDSlot(int ReticleIndex) {
 	// I hate this stupid numbering system
 	// The reticles start at 5151
@@ -365,11 +371,29 @@ int ReticleIndexToHUDSlot(int ReticleIndex) {
 	return slot;
 }
 
+/*
+ Converts an index number as specified in the custom reticle files to a HUD resname
+ in the form "dat,12000,<slot>,"
+*/
+void ReticleIndexToHUDresname(int ReticleIndex, char *out_str, int out_str_len) {
+	int slot = ReticleIndexToHUDSlot(ReticleIndex);
+	sprintf_s(out_str, out_str_len, "dat,12000,%d,", slot);
+}
+
+void ClearCustomReticleCenterResNames() {
+	for (char *res : CustomReticleCenter_ResNames) {
+		if (res != NULL) {
+			delete[] res;
+			res = NULL;
+		}
+	}
+	CustomReticleCenter_ResNames.clear();
+}
+
 bool LoadReticleTXTFile(char *sFileName) {
 	log_debug("[DBG] [RET] Loading Reticle Text file...");
 	FILE *file;
 	int error = 0;
-	bool bApplied = false;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");
@@ -384,10 +408,11 @@ bool LoadReticleTXTFile(char *sFileName) {
 	}
 
 	// The reticle file exists, let's parse it
-	char buf[160], param[80], svalue[80];
+	char buf[160], param[80], svalue[80], *ResName;
 	int param_read_count = 0;
 	int iValue = 0;
 
+	ClearCustomReticleCenterResNames();
 	while (fgets(buf, 160, file) != NULL) {
 		// Skip comments and blank lines
 		if (buf[0] == ';')
@@ -399,11 +424,17 @@ bool LoadReticleTXTFile(char *sFileName) {
 			iValue = atoi(svalue);
 			if (_stricmp(param, "Reticle_5") == 0) {
 				log_debug("[DBG] [RET] Reticle_5: %d", iValue);
-				ReticleIndexToHUDSlot(iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomReticleCenter_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
 			}
 			else if (_stricmp(param, "Reticle_7") == 0) {
 				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
-				ReticleIndexToHUDSlot(iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomReticleCenter_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
 			}
 		}
 	}
@@ -414,15 +445,25 @@ bool LoadReticleTXTFile(char *sFileName) {
 void LoadCustomReticle(char *sCurrentCockpit) {
 	char sFileName[80], sCurrent[80];
 	int len;
+	ClearCustomReticleCenterResNames();
+
 	strcpy_s(sCurrent, sCurrentCockpit);
 	len = strlen(sCurrent);
 	// Remove the "Cockpit" from the name:
 	sCurrent[len - 7] = 0;
-	// Look for the Reticle.txt file
+	// Look in the Reticle.txt file
 	snprintf(sFileName, 80, "./FlightModels/%sReticle.txt", sCurrent);
 	log_debug("[DBG] [RET] Loading file: %s", sFileName);
+	if (LoadReticleTXTFile(sFileName))
+		return;
+
+	log_debug("[DBG] [RET] Could not load %s, searching the INI file for custom reticles", sFileName);
+
+	// Look in the INI file
+	snprintf(sFileName, 80, "./FlightModels/%s.ini", sCurrent);
+	log_debug("[DBG] [RET] Loading file: %s", sFileName);
 	if (!LoadReticleTXTFile(sFileName)) {
-		log_debug("[DBG] [RET] Could not load %s, searching the INI file for custom reticles", sFileName);
+		log_debug("[DBG] [RET] Could not load %s. No custom reticles for this cockpit", sFileName);
 	}
 }
 
@@ -573,6 +614,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
 	this->is_Tagged = false;
+	this->TagCount = 3;
 	this->is_Reticle = false;
 	this->is_ReticleCenter = false;
 	this->is_HighlightedReticle = false;
@@ -809,14 +851,23 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
 			this->is_TrianglePointer = true;
-		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+		if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		else if (isInVector(surface->_name, Reticle_ResNames))
+		if (isInVector(surface->_name, Reticle_ResNames))
 			this->is_Reticle = true; // Standard Reticle from Reticle_ResNames
-		else if (isInVector(surface->_name, Text_ResNames))
+		if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
-		if (isInVector(surface->_name, ReticleCenter_ResNames))
-			this->is_ReticleCenter = true;
+		if (isInVector(surface->_name, ReticleCenter_ResNames)) {
+			this->is_ReticleCenter = true; // Standard Reticle Center
+			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_name);
+		}
+		if (isInVector(surface->_name, CustomReticleCenter_ResNames)) {
+			this->is_ReticleCenter = true; // Custom Reticle Center
+			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_name);
+			// Stop tagging this texture
+			this->is_Tagged = true;
+			this->TagCount = 0;
+		}
 
 		/*
 		 * TODO: For custom reticles, I would need to load the list of reticles from either the
@@ -865,6 +916,15 @@ void Direct3DTexture::TagTexture() {
 				if (GroupId == 12000 && ImageId > 5000) {
 					this->is_Reticle = true; // Custom Reticle
 					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
+					// This candidate may be a custom reticle center, let's tag it a few more times so that
+					// we can see the current cockpit name and check this texture to see if it's a custom
+					// reticle center
+					if (this->TagCount > 0) {
+						this->is_Tagged = false;
+						this->TagCount--;
+					}
+					//else
+					//	log_debug("[DBG] [RET] %s will not be tagged anymore", surface->_name);
 				}
 			}
 		}
@@ -1275,6 +1335,7 @@ HRESULT Direct3DTexture::Load(
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
+	this->TagCount = d3dTexture->TagCount;
 	this->is_Reticle = d3dTexture->is_Reticle;
 	this->is_ReticleCenter = d3dTexture->is_ReticleCenter;
 	this->is_HighlightedReticle = d3dTexture->is_HighlightedReticle;
