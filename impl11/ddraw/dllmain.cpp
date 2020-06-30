@@ -27,7 +27,7 @@ extern float *g_hudScale;
 
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
-extern float g_fCurrentShipFocalLength;
+extern float g_fCurrentShipFocalLength, g_fReticleScale;
 extern bool g_bYCenterHasBeenFixed;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
@@ -402,6 +402,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fOBJGlobalMetricMult += 0.05f;
 					log_debug("[DBG] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
 					break;
+				case 9:
+					g_fReticleScale += 0.1f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -453,6 +457,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 8:
 					g_fOBJGlobalMetricMult -= 0.05f;
 					log_debug("[DBG] g_fOBJGlobalMetricMult: %0.3f", g_fOBJGlobalMetricMult);
+					break;
+				case 9:
+					g_fReticleScale -= 0.1f;
+					if (g_fReticleScale < 0.1f)
+						g_fReticleScale = 0.1f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				}
 

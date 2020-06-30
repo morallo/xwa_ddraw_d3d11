@@ -106,6 +106,7 @@ extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
 extern bool g_bEdgeEffectApplied;
+extern float g_fReticleScale;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
@@ -5060,6 +5061,14 @@ void PrimarySurface::RenderExternalHUD()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
+	// g_ReticleCentroid is in in-game coordinates. For the shader, we need to transform that into UVs:
+	float x = g_ReticleCentroid.x / g_fCurInGameWidth, y = g_ReticleCentroid.y / g_fCurInGameHeight;
+	// Send the reticle centroid to the shader:
+	g_ShadertoyBuffer.SunCoords[0].x = x;
+	g_ShadertoyBuffer.SunCoords[0].y = y;
+	g_ShadertoyBuffer.SunCoords[0].z = g_fReticleScale;
+	//log_debug("[DBG] Centroid: %0.3f, %0.3f, UV: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
+
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
@@ -5068,11 +5077,12 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.y1 = y1;
 	//g_ShadertoyBuffer.iTime = 0;
 	//g_ShadertoyBuffer.VRmode = bDirectSBS;
-	g_ShadertoyBuffer.VRmode = g_bEnableVR;
+	g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+	
 	
 	// DEBUG: Display light at index i:
 	int i = 1;

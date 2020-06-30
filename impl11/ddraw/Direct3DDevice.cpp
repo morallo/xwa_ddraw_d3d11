@@ -561,6 +561,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor;
+float g_fReticleScale = 1.0f;
 
 /*********************************************************/
 // SHADOW MAPPING
@@ -4051,6 +4052,9 @@ void LoadVRParams() {
 			}
 			else if (_stricmp(param, "SteamVR_VSync_ms") == 0) {
 				g_iSteamVR_VSync_ms = (int)fValue;
+			}
+			else if (_stricmp(param, "reticle_scale") == 0) {
+				g_fReticleScale = fValue;
 			}
 			
 			param_read_count++;
@@ -9367,6 +9371,9 @@ HRESULT Direct3DDevice::BeginScene()
 	if (!bTransitionToHyperspace) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+		if (g_bEnableVR) {
+			context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
+		}
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);

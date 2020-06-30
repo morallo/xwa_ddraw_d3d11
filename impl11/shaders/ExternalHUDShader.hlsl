@@ -145,12 +145,19 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (VRmode == 0) {
 		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	}
-	else {
-		float4 reticle = reticleTex.Sample(reticleSampler, input.uv);
-		float alpha = dot(0.333, reticle);
-		output.color = float4(col, 0.8 * dm);
-		output.color.rgb = lerp(output.color.rgb, float3(1, 0, 0), alpha);
+	else { 
+		const float3 reticleCentroid = SunCoords[0].xyz;
+		float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
+		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
+		float alpha = 1.5 * dot(0.333, reticle);
+		// DEBUG
+		output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
+		output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
 		output.color.a = max(output.color.a, alpha);
+		// DEBUG
+
+		// Render only the scaled reticle:
+		//output.color = float4(reticle.rgb, alpha);
 	}
 	return output;
 }
