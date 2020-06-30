@@ -5109,6 +5109,13 @@ void PrimarySurface::RenderExternalHUD()
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	if (g_bEnableVR) {
+		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
+		if (g_bDumpSSAOBuffers) {
+			DirectX::SaveWICTextureToFile(context, resources->_ReticleBufAsInput, GUID_ContainerFormatPng,
+				L"C:\\Temp\\_reticleBufAsInput.png");
+		}
+	}
 
 	// Render the external HUD
 	{
@@ -5176,10 +5183,11 @@ void PrimarySurface::RenderExternalHUD()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[1] = {
+		ID3D11ShaderResourceView *srvs[2] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_ReticleSRV.Get(),
 		};
-		context->PSSetShaderResources(0, 1, srvs);
+		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 
 		// Render the right image
@@ -5206,18 +5214,20 @@ void PrimarySurface::RenderExternalHUD()
 			if (g_bUseSteamVR) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
+				ID3D11ShaderResourceView *srvs[2] = {
 					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_ReticleSRV.Get(),
 				};
-				context->PSSetShaderResources(0, 1, srvs);
+				context->PSSetShaderResources(0, 2, srvs);
 			}
 			else {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[1] = {
+				ID3D11ShaderResourceView *srvs[2] = {
 					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_ReticleSRV.Get(),
 				};
-				context->PSSetShaderResources(0, 1, srvs);
+				context->PSSetShaderResources(0, 2, srvs);
 			}
 			context->Draw(6, 0);
 		}
@@ -8131,6 +8141,11 @@ HRESULT PrimarySurface::Flip(
 				context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
 				g_bDCWasClearedOnThisFrame = true;
 				//log_debug("[DBG] DC Clearing RTVs because GUI was off");
+			}
+
+			if (g_bDumpSSAOBuffers) {
+				DirectX::SaveWICTextureToFile(context, resources->_ReticleBufMSAA, GUID_ContainerFormatPng,
+					L"C:\\Temp\\_reticleBufMSAA.png");
 			}
 
 			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied

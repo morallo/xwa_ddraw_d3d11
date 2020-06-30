@@ -7710,7 +7710,8 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Reticle processing
-				if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
+				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
+				if (bIsReticleCenter)
 				{
 					/*
 					float minX, minY, maxX, maxY;
@@ -7726,9 +7727,12 @@ HRESULT Direct3DDevice::Execute(
 					Vector2 ReticleCentroid;
 					if (ComputeCentroid2D(instruction, currentIndexLocation, &ReticleCentroid)) {
 						g_ReticleCentroid = ReticleCentroid;
-						// Force the re-application of the focal_length, this will make use the reticle centroid
-						// to compute a new y_center.
-						g_bCustomFOVApplied = false;
+						// The reticle centroid can be used to compute y_center:
+						if (!bExternalCamera && !g_bYCenterHasBeenFixed) {
+							// Force the re-application of the focal_length, this will make use the reticle centroid
+							// to compute a new y_center.
+							g_bCustomFOVApplied = false;
+						}
 						// DEBUG
 						/*{
 							float x, y;
@@ -8167,9 +8171,10 @@ HRESULT Direct3DDevice::Execute(
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
+				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle;
 				if (
 					 (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer)
+					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
 				{					
 					// Looks like we don't need to restore the blend/depth state???
@@ -8192,9 +8197,14 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					// Set the original vertex buffer and dynamic cockpit RTV:
 					resources->InitVertexShader(resources->_vertexShader);
-					if (bRenderToDynCockpitBGBuffer)
+					// Select the proper RTV
+					if (bRenderReticleToBuffer) {
+						context->OMSetRenderTargets(1, resources->_ReticleRTV.GetAddressOf(), NULL);
+					}
+					else if (bRenderToDynCockpitBGBuffer) {
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
 							resources->_depthStencilViewL.Get());
+					}
 					else {
 						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
 						//	resources->_depthStencilViewL.Get());

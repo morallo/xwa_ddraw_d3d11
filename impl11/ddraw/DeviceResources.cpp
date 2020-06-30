@@ -1158,6 +1158,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_DCTextAsInputRTV.Release();
 	}
 
+	if (g_bEnableVR) {
+		this->_ReticleBufMSAA.Release();
+		this->_ReticleBufAsInput.Release();
+		this->_ReticleRTV.Release();
+		this->_ReticleSRV.Release();
+	}
+
 	if (g_bActiveCockpitEnabled) {
 		ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
 	}
@@ -1466,6 +1473,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			// ReticleBufMSAA
+			if (g_bEnableVR) {
+				step = "_ReticleBufMSAA";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufMSAA);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				step = "_offscreenBufferDynCockpit";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
@@ -1664,6 +1682,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_bUseSteamVR) {
 				step = "_offscreenBufferAsInputR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			// ReticleBufAsInput
+			if (g_bEnableVR) {
+				step = "_ReticleBufAsInput";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufAsInput);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -2075,6 +2104,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			// _ReticleSRV
+			if (g_bEnableVR) {
+				step = "_ReticleSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_ReticleBufAsInput, &shaderResourceViewDesc, &this->_ReticleSRV);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+			}
+
 			if (g_bUseSteamVR) {
 				// Create the shader resource view for offscreenBufferAsInputR
 				step = "offscreenAsInputShaderResourceViewR";
@@ -2402,6 +2442,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (FAILED(hr)) {
 			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
 			goto out;
+		}
+
+		// _ReticleRTV
+		if (g_bEnableVR) {
+			step = "_ReticleRTV";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ReticleBufMSAA, &renderTargetViewDesc, &this->_ReticleRTV);
+			if (FAILED(hr)) goto out;
 		}
 
 		if (g_bUseSteamVR) {

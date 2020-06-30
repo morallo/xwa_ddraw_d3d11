@@ -15,6 +15,10 @@
 Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
+// The reticle texture
+Texture2D    reticleTex     : register(t1);
+SamplerState reticleSampler : register(s1);
+
 #define cursor_radius 0.04
 //#define thickness 0.02 
 //#define scale 2.0
@@ -138,10 +142,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
 
-	if (VRmode == 0)
+	if (VRmode == 0) {
 		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	else
+	}
+	else {
+		float4 reticle = reticleTex.Sample(reticleSampler, input.uv);
+		float alpha = dot(0.333, reticle);
 		output.color = float4(col, 0.8 * dm);
+		output.color.rgb = lerp(output.color.rgb, float3(1, 0, 0), alpha);
+		output.color.a = max(output.color.a, alpha);
+	}
 	return output;
 }
 
