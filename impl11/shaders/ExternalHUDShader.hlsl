@@ -90,6 +90,7 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	vec2 fragCoord = input.uv * iResolution.xy;
+	//vec2 texCoord = (input.uv - SunCoords[0].xy) * iResolution.xy;
 	output.color = 0.0;
 
 	// DEBUG
@@ -113,10 +114,20 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	float d, dm = 0.0;
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	//vec2 q = (2.0 * texCoord.xy  - iResolution.xy) / min(iResolution.x, iResolution.y);
+	//vec2 q = p;
 	p *= preserveAspectRatioComp;
+	//q *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
+	//q += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
+	//vec2 q = p + vec2(SunCoords[0].x, SunCoords[0].y);
+	//vec2 q = p * vec2(0.5, 1.0) + vec2(-0.5, 0.5);
+	//vec2 q = p * vec2(0.5, 1.0) + vec2(0.5,1.0)*vec2(-SunCoords[0].x, SunCoords[0].y);
+	//vec2 q = p + float2(-SunCoords[0].x, SunCoords[0].y);
 	vec3 v = vec3(p, -FOVscale);
-	v = mul(viewMat, vec4(v, 0.0)).xyz; // *float3(1.8, 1.0, 1.0);
+	//vec3 w = vec3(q, -FOVscale);
+	v = mul(viewMat, vec4(v, 0.0)).xyz;
+	//w = mul(viewMat, vec4(w, 0.0)).xyz;
 	//float3 col = float3(0.2, 0.2, 0.8); // Reticle color
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
 
@@ -146,18 +157,32 @@ PixelShaderOutput main(PixelShaderInput input) {
 		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	}
 	else { 
-		const float3 reticleCentroid = SunCoords[0].xyz;
-		float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
+		float3 reticleCentroid = SunCoords[0].xyz;
+		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
+		//float2 reticleUV = v.xy + reticleCentroid.xy;
+		//float2 reticleUV = ((v.xy * float2(0.5, 1.0)) + float2(-1.0, 0.5)) * float2(1.0, 1.0);
+		//float2 reticleUV = v.xy + reticleCentroid.xy;
+		float2 reticleScale = reticleCentroid.z;
+		if (VRmode == 1) reticleScale.x *= 0.5;
+		float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy); // / preserveAspectRatioComp
 		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
-		float alpha = 1.5 * dot(0.333, reticle);
+		float alpha = 2.0 * dot(0.333, reticle);
 		// DEBUG
-		output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
-		output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
-		output.color.a = max(output.color.a, alpha);
+		//output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
+		//output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
+		//output.color.a = max(output.color.a, alpha);
 		// DEBUG
 
 		// Render only the scaled reticle:
-		//output.color = float4(reticle.rgb, alpha);
+		output.color = float4(reticle.rgb, alpha);
+		
+		// DEBUG
+		/*if (reticleUV.x > reticleCentroid.x)
+			output.color.ba += 0.7;
+		if (reticleUV.y > reticleCentroid.y)
+			output.color.ga += 0.7;*/
+		//output.color.rga += float3(v.xy, 0.7);
+		// DEBUG
 	}
 	return output;
 }

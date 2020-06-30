@@ -107,6 +107,8 @@ extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
 extern bool g_bEdgeEffectApplied;
 extern float g_fReticleScale;
+float g_fReticleOfsX = 1.0f;
+float g_fReticleOfsY = 1.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
@@ -5063,10 +5065,20 @@ void PrimarySurface::RenderExternalHUD()
 
 	// g_ReticleCentroid is in in-game coordinates. For the shader, we need to transform that into UVs:
 	float x = g_ReticleCentroid.x / g_fCurInGameWidth, y = g_ReticleCentroid.y / g_fCurInGameHeight;
+	/*
+	float x, y;
+	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_ReticleCentroid.x, g_ReticleCentroid.y, &x, &y);
+	x /= g_fCurInGameWidth;
+	y /= g_fCurInGameHeight;
+	*/
+
 	// Send the reticle centroid to the shader:
 	g_ShadertoyBuffer.SunCoords[0].x = x;
 	g_ShadertoyBuffer.SunCoords[0].y = y;
 	g_ShadertoyBuffer.SunCoords[0].z = g_fReticleScale;
+	g_ShadertoyBuffer.SunCoords[1].x = g_fReticleOfsX;
+	g_ShadertoyBuffer.SunCoords[1].y = g_fReticleOfsY;
 	//log_debug("[DBG] Centroid: %0.3f, %0.3f, UV: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
