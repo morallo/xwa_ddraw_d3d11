@@ -1,10 +1,13 @@
 #include "common.h"
 #include "XwaDrawBracketHook.h"
 #include "utils.h"
+#include "Matrices.h"
 
 //extern bool g_bGlobalDebugFlag; // g_bInhibitCMDBracket, g_bTargetCompDrawn;
 
 std::vector<XwaBracket> g_xwa_bracket;
+
+Vector2 g_SubCMDBracket;
 
 void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14, int A18)
 {
@@ -28,8 +31,13 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 	// set to a low in-game resolution, like 640x480, then some brackets that should be
 	// rendered on ships will be misclassified as CMD brackets too because they are too
 	// small! Oh well, I can only do so much!
-	if (bracket.width <= 4)
+	if (bracket.width <= 4) {
 		bracket.DC = true;
+		g_SubCMDBracket.x = (float)bracket.positionX + (float)bracket.width / 2.0f;
+		g_SubCMDBracket.y = (float)bracket.positionY + (float)bracket.height / 2.0f;
+		// g_SubCMDBracket is in in-game coordinates
+		//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);
+	}
 
 	//log_debug("[DBG] bracket.width:%d", bracket.width);
 	// Looks like CMD brackets always have a width of 4, so that may help in sending them to

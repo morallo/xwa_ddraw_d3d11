@@ -565,6 +565,7 @@ bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor;
 float g_fReticleScale = 1.0f;
+extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 
 /*********************************************************/
 // SHADOW MAPPING
@@ -9243,6 +9244,24 @@ void Direct3DDevice::RenderEdgeDetector()
 		// Send the in-game resolution:
 		g_ShadertoyBuffer.SunCoords[2].x = 1.0f / g_fCurInGameWidth;
 		g_ShadertoyBuffer.SunCoords[2].y = 1.0f / g_fCurInGameHeight;
+		// If the Radar2DRenderer is enabled, then we'll put the subCMD bracket coords in
+		// SunCoords[3] and set SunCoords[3].w to 1.0. If not, then SunCoords[3].w will be set to 0.
+		if (g_config.Radar2DRendererEnabled) {
+			float x, y;
+			static float pulse = 3.0f;
+			pulse += 0.15f;
+			if (pulse > 10.0f)
+				pulse = 3.0f;
+			//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);
+			// Convert In-game coords to post-proc UVs
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_SubCMDBracket.x, g_SubCMDBracket.y, &x, &y);
+			g_ShadertoyBuffer.SunCoords[3].x = x / g_fCurScreenWidth;
+			g_ShadertoyBuffer.SunCoords[3].y = y / g_fCurScreenHeight;
+			g_ShadertoyBuffer.SunCoords[3].w = 1.0f;
+			g_ShadertoyBuffer.iTime = pulse;
+		} else
+			g_ShadertoyBuffer.SunCoords[3].w = 0.0f;
 	}
 	else
 		return;
@@ -9504,6 +9523,9 @@ HRESULT Direct3DDevice::EndScene()
 			+ " V=" + std::to_string(g_ExecuteVertexCount)
 			+ " I=" + std::to_string(g_ExecuteIndexCount)).c_str());
 	}*/
+
+	g_SubCMDBracket.x = -1.0f;
+	g_SubCMDBracket.y = -1.0f;
 
 	return D3D_OK;
 }

@@ -6,6 +6,8 @@
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
 
+#define thickness 0.007
+
 // The texture to process
 Texture2D    procTex     : register(t0);
 SamplerState procSampler : register(s0);
@@ -29,6 +31,11 @@ struct PixelShaderOutput
 	float4 color    : SV_TARGET0;
 };
 
+inline float sdCircle(in vec2 p, in vec2 center, float radius)
+{
+	return length(p - center) - radius;
+}
+
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	output.color = 0.0;
@@ -37,6 +44,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//output.color = procTex.Sample(procSampler, input.uv);
 	//return output;
 
+	uint render2Denabled = SunCoords[3].w > 0.5;
 	// p0, p1 hold the actual uv coords of the target box
 	float2 uv = lerp(p0, p1, input.uv);
 	float2 uvInGame = lerp(SunCoords[1].xy, SunCoords[1].zw, input.uv);
@@ -61,8 +69,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
 			c[3 * i + j] = dot(LuminanceDot, 4.0 * col);
 			// Dilate the subCMD bracket:
-			subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);
-			subCMD = max(subCMD, subCMDtap);
+			if (!render2Denabled) {
+				subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);
+				subCMD = max(subCMD, subCMDtap);
+			}
 			ofs.x += incr.x;
 			ofsInGame.x += incr.x;
 		}
@@ -77,6 +87,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// SunColor[0] holds the tint to colorize the edge detector
 	output.color = float4(G * SunColor[0].rgb, G);
 	
+	if (render2Denabled) {
+		const float radius = iTime;
+		const float d = sdCircle(uv, SunCoords[3].xy, radius * iResolution.y);
+		subCMD = smoothstep(thickness, 0.0, abs(d)); // ring
+		//subCMD = 1.0 - max(0.0, length(SunCoords[3].xy - uv) - 2.5 * iResolution.y);
+		//subCMD = any(uv > SunCoords[3].xy) ? 1.0 : 0.0;
+	}
+
 	// Add the sub-cmd:
 	//float4 subCMD = subCMDTex.SampleLevel(subCMDSampler, uv, 0);
 	//float alpha = 2.0 * dot(LuminanceDot.rgb, subCMD.rgb);
