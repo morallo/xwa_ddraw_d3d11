@@ -158,10 +158,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 	else { 
 		float3 reticleCentroid = SunCoords[0].xyz;
+		// The following line renders the flat reticle, without distortion due to FOV
 		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
-		//float2 reticleUV = v.xy + reticleCentroid.xy;
-		//float2 reticleUV = ((v.xy * float2(0.5, 1.0)) + float2(-1.0, 0.5)) * float2(1.0, 1.0);
-		//float2 reticleUV = v.xy + reticleCentroid.xy;
 		float2 reticleScale = reticleCentroid.z;
 		if (VRmode == 1) reticleScale.x *= 0.5;
 		float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy); // / preserveAspectRatioComp

@@ -407,7 +407,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				/*case 9:
-					g_fReticleOfsX += 0.1f;
+					g_fReticleOfsX += 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
 				}
@@ -469,7 +469,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				/*case 9:
-					g_fReticleOfsX -= 0.1f;
+					g_fReticleOfsX -= 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
 				}
