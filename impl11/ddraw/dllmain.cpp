@@ -85,7 +85,7 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable,
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
-extern bool g_bHDREnabled;
+extern bool g_bHDREnabled, g_bEdgeDetectorEnabled;
 extern float g_fHDRWhitePoint;
 
 extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
@@ -700,7 +700,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				*/
 				return 0;
 			case 'E':
-				g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
+				//g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
+				g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
 				return 0;
 			/*
 			case 'Q':
@@ -719,7 +720,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				IncreaseScreenScale(-0.1f);
 				return 0;
 
-			// Ctrl+Alt + Key
+			// Ctrl + Alt + Key
 			case VK_UP:
 				IncreaseLensK1(0.1f);
 				SaveVRParams();

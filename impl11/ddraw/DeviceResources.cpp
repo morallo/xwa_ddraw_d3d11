@@ -4012,6 +4012,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 				if (SUCCEEDED(hr))
 				{
 					pitchDelta = displayMap.RowPitch - width * ((bpp == 2 && this->_use16BppMainDisplayTexture) ? 2 : 4);
+					// Looks like this texture is used to store the loading menu
 					tex = this->_mainDisplayTextureTemp;
 					texView = this->_mainDisplayTextureViewTemp.Get();
 				}
@@ -4271,7 +4272,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
 	} 
 	else {
-		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't 3D projection matrices when VR is disabled
+		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't use 3D projection matrices when VR is disabled
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness);
 	}
 
@@ -4324,9 +4325,39 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
+				//log_debug("[DBG] viewport: %0.3f, %0.3f, %0.3f, %0.3f",
+				//	viewport.TopLeftX, viewport.TopLeftY, viewport.Width, viewport.Height);
+				//log_debug("[DBG] viewport: %d, %d, %d, %d", left, top, w, h);
+
+				// The following block will dump an texture defined in in-game resolution that has the
+				// sub-component CMD bracket
+				// DEBUG
+				/*
+				static bool bFirstTime = true;
+				if (bFirstTime) {
+					//ID3D11Resource *res = NULL;
+					//texView->GetResource(&res);
+					//DirectX::SaveWICTextureToFile(this->_d3dDeviceContext, res, GUID_ContainerFormatPng,
+					//	L"C:\\Temp\\_DCTexViewSubCMD.png");
+					// This actually saved the loading screen:
+					//DirectX::SaveWICTextureToFile(this->_d3dDeviceContext, this->_mainDisplayTextureTemp, GUID_ContainerFormatPng,
+					//	L"C:\\Temp\\_DCTexViewSubCMD.png");
+
+					// This texture has the sub-component bracket:
+					// How does this work? I believe the src argument provided for RenderMain contains the color data with
+					// the bracket already rendered in there. Then, these colors are copied to the _mainDisplayTexture by using
+					// a Map/Unmap operation. The VS/PS simply blit these colors on top of the screen/buffer that was rendered
+					// up to this point.
+					DirectX::SaveWICTextureToFile(this->_d3dDeviceContext, this->_mainDisplayTexture, GUID_ContainerFormatPng,
+						L"C:\\Temp\\_DCTexViewSubCMD.png");
+					log_debug("[DBG] Captured texture used in DC sub-component");
+					bFirstTime = false;
+				} */
+				// DEBUG
+
 				// We have just drawn something to the DC buffer, we need to resolve it before the next frame
 				// NOTE: This is executed *before* we run Execute(), so we can't clear the RTVs before this point 
-				// or this resolve operation will also clear the SRVs!
+				//       or this resolve operation will also clear the SRVs!
 				this->_d3dDeviceContext->ResolveSubresource(this->_offscreenAsInputDynCockpit,
 					0, this->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
 			}

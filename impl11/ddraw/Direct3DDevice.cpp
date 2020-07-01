@@ -11,12 +11,15 @@
 
 /*
 TODO:
+	VR metric reconstruction -- In progress
+	Finalize the reticle in VR
+
+	Check that the Tech Room is rendering properly in VR.
+
 	Auto-turn on headlights in the last mission.
 
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
-	
-	VR metric reconstruction -- In progress
 */
 
 /*
@@ -6501,6 +6504,9 @@ HRESULT Direct3DDevice::Execute(
 			log_debug("[DBG] [SHW] sm_y_center: %0.3f", g_ShadowMapVSCBuffer.sm_y_center);
 			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 		}
+		// The following texture has the sub-component bracket in in-game coordinates:
+		DirectX::SaveWICTextureToFile(context, resources->_mainDisplayTexture, GUID_ContainerFormatPng,
+			L"C:\\Temp\\_DCTexViewSubCMD.png");
 	}
 
 	// Apply the Edge Detector effect to the DC foreground texture
@@ -9216,6 +9222,27 @@ void Direct3DDevice::RenderEdgeDetector()
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		resources->InitViewport(&viewport);
+
+		// Convert the UVs into in-game UVs for the subCMD bracket
+		float x0, y0, x1, y1;
+		// Convert screen coords to in-game coords:
+		ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+			g_nonVRViewport.Width, g_nonVRViewport.Height, 
+			viewport.TopLeftX, viewport.TopLeftY, 
+			&x0, &y0);
+		ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+			g_nonVRViewport.Width, g_nonVRViewport.Height, 
+			viewport.TopLeftX + viewport.Width, viewport.TopLeftY + viewport.Height, 
+			&x1, &y1);
+		//log_debug("[DBG] subCMD box: (%0.3f, %0.3f)-(%0.3f, %0.3f)", x0, y0, x1, y1);
+		// Convert to UVs:
+		g_ShadertoyBuffer.SunCoords[1].x = x0 / g_fCurInGameWidth;
+		g_ShadertoyBuffer.SunCoords[1].y = y0 / g_fCurInGameHeight;
+		g_ShadertoyBuffer.SunCoords[1].z = x1 / g_fCurInGameWidth;
+		g_ShadertoyBuffer.SunCoords[1].w = y1 / g_fCurInGameHeight;
+		// Send the in-game resolution:
+		g_ShadertoyBuffer.SunCoords[2].x = g_fCurInGameWidth;
+		g_ShadertoyBuffer.SunCoords[2].y = g_fCurInGameHeight;
 	}
 	else
 		return;
@@ -9299,6 +9326,7 @@ void Direct3DDevice::RenderEdgeDetector()
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputDynCockpitSRV);
+		context->PSSetShaderResources(1, 1, resources->_mainDisplayTextureView.GetAddressOf());
 		context->Draw(6, 0);
 
 		if (g_bDumpSSAOBuffers) {
