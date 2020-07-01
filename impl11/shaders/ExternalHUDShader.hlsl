@@ -161,10 +161,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// The following line renders the flat reticle, without distortion due to FOV
 		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
 		float2 reticleScale = reticleCentroid.z;
-		if (VRmode == 1) reticleScale.x *= 0.5;
+		//if (VRmode == 1) reticleScale.x *= 0.5;
+		reticleScale.x *= 0.5;
 		float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy); // / preserveAspectRatioComp
 		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
-		float alpha = 2.0 * dot(0.333, reticle);
+		float alpha = 3.0 * dot(0.333, reticle);
 		// DEBUG
 		//output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
 		//output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);

@@ -5063,6 +5063,10 @@ void PrimarySurface::RenderExternalHUD()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
+	if (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)
+		// The reticle's centroid is not visible in this frame, nothing to do
+		return;
+
 	// g_ReticleCentroid is in in-game coordinates. For the shader, we need to transform that into UVs:
 	//float x = g_ReticleCentroid.x / g_fCurInGameWidth, y = g_ReticleCentroid.y / g_fCurInGameHeight;
 	float x, y;
