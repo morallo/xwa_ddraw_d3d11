@@ -14,7 +14,7 @@ SamplerState procSampler : register(s0);
 Texture2D    subCMDTex     : register(t1);
 SamplerState subCMDSampler : register(s1);
 
-static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 1.0);
+static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
 
 struct PixelShaderInput
 {
@@ -40,24 +40,34 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// p0, p1 hold the actual uv coords of the target box
 	float2 uv = lerp(p0, p1, input.uv);
 	float2 uvInGame = lerp(SunCoords[1].xy, SunCoords[1].zw, input.uv);
-	float2 inGameResolution = SunCoords[2].xy;
+	//float2 incr = 1.0 / iResolution.xy, incrInGame = 1.0 / SunCoords[2].xy;
+	// We expect iResolution and SunCoords to be 1.0 / ScreenResolution and 1.0 / InGameResolution respectively:
+	float2 incr = iResolution.xy, incrInGame = SunCoords[2].xy;
+	float2 start = -incr, startInGame = -incrInGame;
 
 	float c[9];
 	float4 col, subCMD = 0, subCMDtap;
+	float2 ofs = start, ofsInGame;
 	for (int i = 0; i < 3; ++i)
 	{
+		ofs.x = start.x;
+		ofsInGame.x = startInGame.x;
 		for (int j = 0; j < 3; ++j)
 		{
-			float2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
-			float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
+			//float2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
+			//float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
 			// Approx Luminance formula:
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
-			c[3 * i + j] = dot(LuminanceDot, col);
+			c[3 * i + j] = dot(LuminanceDot, 4.0 * col);
 			// Dilate the subCMD bracket:
 			subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);
 			subCMD = max(subCMD, subCMDtap);
+			ofs.x += incr.x;
+			ofsInGame.x += incr.x;
 		}
+		ofs.y += incr.y;
+		ofsInGame.y += incr.y;
 	}
 
 	float Lx = 2.0 * (c[7] - c[1]) + c[6] + c[8] - c[2] - c[0];

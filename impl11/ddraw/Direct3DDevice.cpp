@@ -9241,8 +9241,8 @@ void Direct3DDevice::RenderEdgeDetector()
 		g_ShadertoyBuffer.SunCoords[1].z = x1 / g_fCurInGameWidth;
 		g_ShadertoyBuffer.SunCoords[1].w = y1 / g_fCurInGameHeight;
 		// Send the in-game resolution:
-		g_ShadertoyBuffer.SunCoords[2].x = g_fCurInGameWidth;
-		g_ShadertoyBuffer.SunCoords[2].y = g_fCurInGameHeight;
+		g_ShadertoyBuffer.SunCoords[2].x = 1.0f / g_fCurInGameWidth;
+		g_ShadertoyBuffer.SunCoords[2].y = 1.0f / g_fCurInGameHeight;
 	}
 	else
 		return;
@@ -9268,8 +9268,8 @@ void Direct3DDevice::RenderEdgeDetector()
 	desc.StencilEnable = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
 
-	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
-	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.iResolution[0] = 1.0f / g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = 1.0f / g_fCurScreenHeight;
 	g_ShadertoyBuffer.SunColor[0].x = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
