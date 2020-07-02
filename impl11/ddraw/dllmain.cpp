@@ -155,6 +155,15 @@ float ComputeRealVertFOV();
 float ComputeRealHorzFOV();
 float RealVertFOVToRawFocalLength(float real_FOV);
 
+void IncreaseReticleScale(float delta) {
+	g_fReticleScale += delta;
+	if (g_fReticleScale < 0.2f)
+		g_fReticleScale = 0.2f;
+	if (g_fReticleScale > 5.0f)
+		g_fReticleScale = 5.0f;
+	log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
+}
+
 /*
  * Save the current FOV and metric multiplier to an external file
  */
@@ -496,8 +505,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					IncreaseMetricMult(0.1f);
-					SaveVRParams();
+					//IncreaseMetricMult(0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.y += 0.1f;
@@ -533,8 +542,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					IncreaseMetricMult(-0.1f);
-					SaveVRParams();
+					//IncreaseMetricMult(-0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.y -= 0.1f;
@@ -870,9 +879,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					IncreaseScreenScale(0.1f);
-					//IncreaseSMZFactor(0.025f); // DEBUG, remove this later
-					SaveVRParams();
+					//IncreaseScreenScale(0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z += 0.1f;
@@ -902,9 +910,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					PrintVector(g_LightVector[0]);
 					break;
 				case 2:
-					IncreaseScreenScale(-0.1f);
-					//IncreaseSMZFactor(-0.025f); // DEBUG, remove this later
-					SaveVRParams();
+					//IncreaseScreenScale(-0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z -= 0.1f;
@@ -928,18 +935,22 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				}
 				return 0;
+			// Ctrl + Left
 			case VK_LEFT:
 				switch (g_KeySet) {
 				case 2:
-					IncreaseAspectRatio(-0.05f);
+					//IncreaseAspectRatio(-0.05f);
+					IncreaseReticleScale(-0.1f);
 					SaveVRParams();
 					break;
 				}
 				return 0;
+			// Ctrl + Right
 			case VK_RIGHT:
 				switch (g_KeySet) {
 				case 2:
-					IncreaseAspectRatio(0.05f);
+					//IncreaseAspectRatio(0.05f);
+					IncreaseReticleScale(0.1f);
 					SaveVRParams();
 					break;
 				}

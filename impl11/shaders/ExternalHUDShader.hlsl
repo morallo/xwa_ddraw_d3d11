@@ -186,6 +186,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	return output;
 }
 
+/*
 // Display the current MainLight, using regular UV post proc coords
 PixelShaderOutput main_main_light(PixelShaderInput input) {
 	PixelShaderOutput output;
@@ -210,3 +211,4 @@ PixelShaderOutput main_main_light(PixelShaderInput input) {
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	return output;
 }
+*/

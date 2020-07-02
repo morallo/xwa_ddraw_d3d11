@@ -5082,7 +5082,7 @@ void PrimarySurface::RenderExternalHUD()
 	// Send the reticle centroid to the shader:
 	g_ShadertoyBuffer.SunCoords[0].x = x;
 	g_ShadertoyBuffer.SunCoords[0].y = y;
-	g_ShadertoyBuffer.SunCoords[0].z = g_fReticleScale;
+	g_ShadertoyBuffer.SunCoords[0].z = 1.0f / g_fReticleScale;
 	//g_ShadertoyBuffer.SunCoords[1].x = g_fReticleOfsX;
 	//g_ShadertoyBuffer.SunCoords[1].y = g_fReticleOfsY;
 	//log_debug("[DBG] Centroid: %0.3f, %0.3f, UV: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
@@ -8499,7 +8499,7 @@ HRESULT PrimarySurface::Flip(
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
-			if (g_bExternalHUDEnabled)
+			if (g_bExternalHUDEnabled || (g_bEnableVR && !bExternalCamera))
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 

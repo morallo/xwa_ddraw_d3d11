@@ -311,10 +311,15 @@ const float DEFAULT_CONCOURSE_SCALE = 12.0f;
 //const float DEFAULT_CONCOURSE_ASPECT_RATIO = 2.0f; // Default for non-SteamVR
 const float DEFAULT_CONCOURSE_ASPECT_RATIO = 1.33f; // Default for non-SteamVR
 const float DEFAULT_GLOBAL_SCALE = 1.8f;
-//const float DEFAULT_GLOBAL_SCALE_STEAMVR = 1.4f;
+/*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
 const float DEFAULT_LENS_K3 = 0.0f;
+*/
+const float DEFAULT_LENS_K1 =  3.80f;
+const float DEFAULT_LENS_K2 = -0.28f;
+const float DEFAULT_LENS_K3 =  0.0f;
+
 //const float DEFAULT_COCKPIT_PZ_THRESHOLD = 0.166f; // I used 0.13f for a long time until I jumped on a TIE-Interceptor
 const float DEFAULT_COCKPIT_PZ_THRESHOLD = 10.0f; // De-activated
 const int DEFAULT_SKYBOX_INDEX = 2;
@@ -349,6 +354,7 @@ const float DEFAULT_YAW_MULTIPLIER   = 1.0f;
 const float DEFAULT_PITCH_MULTIPLIER = 1.0f;
 const float DEFAULT_YAW_OFFSET   = 0.0f;
 const float DEFAULT_PITCH_OFFSET = 0.0f;
+const float DEFAULT_RETICLE_SCALE = 0.8f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
 const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
@@ -382,6 +388,7 @@ const char *NATURAL_CONCOURSE_ANIM_VRPARAM = "concourse_animations_at_25fps";
 const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
+const char *RETICLE_SCALE_VRPARAM = "reticle_scale";
 // 6dof vrparams
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
@@ -565,7 +572,7 @@ bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor;
 float4 g_DCTargetingIFFColors[6];
-float g_fReticleScale = 1.0f;
+float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 
 /*********************************************************/
@@ -946,6 +953,7 @@ void ResetVRParams() {
 	g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 	g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD;
 	g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold;
+	g_fReticleScale = DEFAULT_RETICLE_SCALE;
 
 	g_fAspectRatio = DEFAULT_ASPECT_RATIO;
 	g_fConcourseAspectRatio = DEFAULT_CONCOURSE_ASPECT_RATIO;
@@ -1051,18 +1059,18 @@ void SaveVRParams() {
 
 	//fprintf(file, "focal_dist = %0.6f # Try not to modify this value, change IPD instead.\n", focal_dist);
 
-	fprintf(file, "; %s is measured in cms; but it's an approximation to in-game units. Set it to 0 to\n", STEREOSCOPY_STRENGTH_VRPARAM);
-	fprintf(file, "; remove the stereoscopy effect.\n");
+	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", STEREOSCOPY_STRENGTH_VRPARAM);
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
-	fprintf(file, "%s = %0.1f\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
+	fprintf(file, "%s = %0.1f\n\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
 	//fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
 	//fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
-	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
-	//fprintf(file, "; The following value scales the final 2D images sent to the HMD. However, this may cause\n");
-	//fprintf(file, "; blurry vision so it's better to try 3d_window_size instead.\n");
-	//if (fabs(g_fPostProjScale - 1.0f) > 0.001f)
-	//	fprintf(file, "%s = %0.3f\n", SIZE_POST_PROJ_VRPARAM, g_fPostProjScale);
+
+	fprintf(file, "; Scale of the reticle in VR mode.\n");
+	fprintf(file, "%s = %0.3f\n\n", RETICLE_SCALE_VRPARAM, g_fReticleScale);
+	
+	fprintf(file, "; The following setting will reduce the scale of the HUD in VR mode.\n");
+	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
 	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
 	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
@@ -1084,9 +1092,9 @@ void SaveVRParams() {
 	//fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
 	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
-	fprintf(file, "; Lens correction parameters. k2 has the biggest effect and k1 fine-tunes the effect.\n");
-	fprintf(file, "; Positive values = convex warping; negative = concave warping. SteamVR already provides\n");
-	fprintf(file, "; it's own automatic warping effect, so you probably shouldn't enable this in SteamVR mode.\n");
+	fprintf(file, "; Lens correction parameters for the DirectSBS mode. Do NOT use in SteamVR mode.\n");
+	fprintf(file, "; k2 has the biggest effect and k1 fine - tunes the effect.\n");
+	fprintf(file, "; Positive values = convex warping; negative = concave warping.\n");
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
 	fprintf(file, "%s = %0.6f\n", K2_VRPARAM, g_fLensK2);
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
@@ -4140,7 +4148,7 @@ void LoadVRParams() {
 			else if (_stricmp(param, "SteamVR_VSync_ms") == 0) {
 				g_iSteamVR_VSync_ms = (int)fValue;
 			}
-			else if (_stricmp(param, "reticle_scale") == 0) {
+			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
 			}
 			
