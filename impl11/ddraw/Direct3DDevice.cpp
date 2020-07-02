@@ -9249,8 +9249,8 @@ void Direct3DDevice::RenderEdgeDetector()
 		if (g_config.Radar2DRendererEnabled) {
 			float x, y;
 			static float pulse = 3.0f;
-			pulse += 0.15f;
-			if (pulse > 10.0f)
+			pulse += 0.20f;
+			if (pulse > 12.0f)
 				pulse = 3.0f;
 			//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);
 			// Convert In-game coords to post-proc UVs

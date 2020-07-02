@@ -6,7 +6,7 @@
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
 
-#define thickness 0.007
+#define thickness 0.0015
 
 // The texture to process
 Texture2D    procTex     : register(t0);
@@ -48,7 +48,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// p0, p1 hold the actual uv coords of the target box
 	float2 uv = lerp(p0, p1, input.uv);
 	float2 uvInGame = lerp(SunCoords[1].xy, SunCoords[1].zw, input.uv);
-	//float2 incr = 1.0 / iResolution.xy, incrInGame = 1.0 / SunCoords[2].xy;
 	// We expect iResolution and SunCoords to be 1.0 / ScreenResolution and 1.0 / InGameResolution respectively:
 	float2 incr = iResolution.xy, incrInGame = SunCoords[2].xy;
 	float2 start = -incr, startInGame = -incrInGame;
@@ -91,18 +90,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 		const float radius = iTime;
 		const float d = sdCircle(uv, SunCoords[3].xy, radius * iResolution.y);
 		subCMD = smoothstep(thickness, 0.0, abs(d)); // ring
-		//subCMD = 1.0 - max(0.0, length(SunCoords[3].xy - uv) - 2.5 * iResolution.y);
-		//subCMD = any(uv > SunCoords[3].xy) ? 1.0 : 0.0;
 	}
 
 	// Add the sub-cmd:
-	//float4 subCMD = subCMDTex.SampleLevel(subCMDSampler, uv, 0);
-	//float alpha = 2.0 * dot(LuminanceDot.rgb, subCMD.rgb);
 	float alpha = max(subCMD.r, max(subCMD.g, subCMD.b));
 	alpha > 0.1 ? 2.0 : 0.0;
-	//output.color.rgb = lerp(output.color.rgb, alpha, alpha);
-	//output.color.rgb = lerp(output.color.rgb, 1.5, alpha);
-	//output.color.rgb += 1.5 * subCMD.rgb;
+
 	output.color.rgb = max(output.color.rgb, alpha);
+	output.color.a = max(output.color.a, alpha);
 	return output;
 }
