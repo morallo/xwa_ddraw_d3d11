@@ -235,7 +235,7 @@ FILE *g_HackFile = NULL;
 int *s_XwaGlobalLightsCount = (int*)0x00782848;
 XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 
-//ObjectEntry **objects = *(ObjectEntry **)0x7B33C4;
+extern ObjectEntry **objects;
 PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
@@ -564,6 +564,7 @@ int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor;
+float4 g_DCTargetingIFFColors[6];
 float g_fReticleScale = 1.0f;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 
@@ -2499,7 +2500,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				// Force the new FOV to be applied
 				g_bCustomFOVApplied = false;
 			}
-			else if (_stricmp(param, "targeting_mesh_color") == 0) {
+			else if (_stricmp(param, "wireframe_mesh_color") == 0) {
 				float x, y, z;
 				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
 					g_DCTargetingColor.x = x;
@@ -2643,6 +2644,32 @@ bool LoadDCParams() {
 	int param_read_count = 0;
 	float value = 0.0f;
 
+	// Initialize the IFF colors
+	// Rebel
+	g_DCTargetingIFFColors[0].x = 0.1f;
+	g_DCTargetingIFFColors[0].y = 0.7f;
+	g_DCTargetingIFFColors[0].z = 0.1f;
+	// Imperial
+	g_DCTargetingIFFColors[1].x = 0.5f;
+	g_DCTargetingIFFColors[1].y = 0.1f;
+	g_DCTargetingIFFColors[1].z = 0.1f;
+	// Neutral
+	g_DCTargetingIFFColors[2].x = 0.1f;
+	g_DCTargetingIFFColors[2].y = 0.1f;
+	g_DCTargetingIFFColors[2].z = 0.5f;
+	// Viraxo
+	g_DCTargetingIFFColors[3].x = 0.3f;
+	g_DCTargetingIFFColors[3].y = 0.2f;
+	g_DCTargetingIFFColors[3].z = 0.1f;
+	// Backdrop (?)
+	g_DCTargetingIFFColors[4].x = 0.1f;
+	g_DCTargetingIFFColors[4].y = 0.1f;
+	g_DCTargetingIFFColors[4].z = 0.1f;
+	// Azzameen
+	g_DCTargetingIFFColors[5].x = 0.5f;
+	g_DCTargetingIFFColors[5].y = 0.1f;
+	g_DCTargetingIFFColors[5].z = 0.5f;
+
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
 	//	log_debug("[DBG] [DC] Clearing g_DCElements");
@@ -2704,6 +2731,62 @@ bool LoadDCParams() {
 			else if (_stricmp(param, "dc_brightness") == 0) {
 				g_fDCBrightness = value;
 			}
+
+			else if (_stricmp(param, "wireframe_IFF_color_0") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[0].x = x;
+					g_DCTargetingIFFColors[0].y = y;
+					g_DCTargetingIFFColors[0].z = z;
+					g_DCTargetingIFFColors[0].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_IFF_color_1") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[1].x = x;
+					g_DCTargetingIFFColors[1].y = y;
+					g_DCTargetingIFFColors[1].z = z;
+					g_DCTargetingIFFColors[1].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_IFF_color_2") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[2].x = x;
+					g_DCTargetingIFFColors[2].y = y;
+					g_DCTargetingIFFColors[2].z = z;
+					g_DCTargetingIFFColors[2].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_IFF_color_3") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[3].x = x;
+					g_DCTargetingIFFColors[3].y = y;
+					g_DCTargetingIFFColors[3].z = z;
+					g_DCTargetingIFFColors[3].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_IFF_color_4") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[4].x = x;
+					g_DCTargetingIFFColors[4].y = y;
+					g_DCTargetingIFFColors[4].z = z;
+					g_DCTargetingIFFColors[4].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_IFF_color_5") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingIFFColors[5].x = x;
+					g_DCTargetingIFFColors[5].y = y;
+					g_DCTargetingIFFColors[5].z = z;
+					g_DCTargetingIFFColors[5].w = 1.0f;
+				}
+			}
+
 		}
 	}
 	fclose(file);
@@ -9289,9 +9372,19 @@ void Direct3DDevice::RenderEdgeDetector()
 
 	g_ShadertoyBuffer.iResolution[0] = 1.0f / g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = 1.0f / g_fCurScreenHeight;
+	// Set a default color for the wireframe
 	g_ShadertoyBuffer.SunColor[0].x = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
+	// Read the IFF of the current target and use it to colorize the wireframe display
+	int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	if (currentTargetIndex > 0) {
+		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		int IFF = object->MobileObjectPtr->IFF;
+		if (IFF >= 0 && IFF <= 5)
+			g_ShadertoyBuffer.SunColor[0] = g_DCTargetingIFFColors[IFF];
+	}
+	// Override all of the above if the current DC file has a wireframe color set:
 	if (g_DCTargetingColor.w > 0.0f) {
 		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
 	}
