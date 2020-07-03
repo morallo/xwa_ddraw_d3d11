@@ -52,7 +52,7 @@
 #include "../Debug/SunFlareShader.h"
 #include "../Debug/SunShader.h"
 #include "../Debug/SunFlareCompose.h"
-#include "../Debug/SpeedEffect.h"
+#include "../Debug/SpeedEffectPixelShader.h"
 #include "../Debug/SpeedEffectCompose.h"
 #include "../Debug/SpeedEffectVertexShader.h"
 #include "../Debug/AddGeometryVertexShader.h"
@@ -104,7 +104,7 @@
 #include "../Release/SunFlareShader.h"
 #include "../Release/SunShader.h"
 #include "../Release/SunFlareCompose.h"
-#include "../Release/SpeedEffect.h"
+#include "../Release/SpeedEffectPixelShader.h"
 #include "../Release/SpeedEffectCompose.h"
 #include "../Release/SpeedEffectVertexShader.h"
 #include "../Release/AddGeometryVertexShader.h"
@@ -865,63 +865,63 @@ void DeviceResources::CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD
 	g_ShadowMapping.NumIndices = numIndices;
 }
 
-void DeviceResources::FillReticleVertexBuffer(UINT width, UINT height, float Depth) {
+void DeviceResources::FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
 	auto &context = this->_d3dDeviceContext;
 	//float depth = g_fHUDDepth;
+	
 	// The values for rhw_depth and sz_depth were taken from the skybox
-	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
-	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
-	// Why do I even have to bother? Can I just use my *own* vertex shader and do
-	// away with all this silliness?
+	float rhw = 0.000863f; // this is the inverse of the depth (?)
+	float sz = 0.001839f;   // this is the Z-buffer value (?)
+	
 	D3DTLVERTEX ReticleVertices[6] = { 0 };
 
 	ReticleVertices[0].sx = 0;
 	ReticleVertices[0].sy = 0;
-	ReticleVertices[0].sz = sz_depth;
-	ReticleVertices[0].rhw = rhw_depth;
+	ReticleVertices[0].sz = sz;
+	ReticleVertices[0].rhw = rhw;
 	ReticleVertices[0].tu = 0;
 	ReticleVertices[0].tv = 0;
 	ReticleVertices[0].color = color;
 
-	ReticleVertices[1].sx = (float)width;
+	ReticleVertices[1].sx = width;
 	ReticleVertices[1].sy = 0;
-	ReticleVertices[1].sz = sz_depth;
-	ReticleVertices[1].rhw = rhw_depth;
+	ReticleVertices[1].sz = sz;
+	ReticleVertices[1].rhw = rhw;
 	ReticleVertices[1].tu = 1;
 	ReticleVertices[1].tv = 0;
 	ReticleVertices[1].color = color;
 
-	ReticleVertices[2].sx = (float)width;
-	ReticleVertices[2].sy = (float)height;
-	ReticleVertices[2].sz = sz_depth;
-	ReticleVertices[2].rhw = rhw_depth;
+	ReticleVertices[2].sx = width;
+	ReticleVertices[2].sy = height;
+	ReticleVertices[2].sz = sz;
+	ReticleVertices[2].rhw = rhw;
 	ReticleVertices[2].tu = 1;
 	ReticleVertices[2].tv = 1;
 	ReticleVertices[2].color = color;
 
-	ReticleVertices[3].sx = (float)width;
-	ReticleVertices[3].sy = (float)height;
-	ReticleVertices[3].sz = sz_depth;
-	ReticleVertices[3].rhw = rhw_depth;
+	ReticleVertices[3].sx = width;
+	ReticleVertices[3].sy = height;
+	ReticleVertices[3].sz = sz;
+	ReticleVertices[3].rhw = rhw;
 	ReticleVertices[3].tu = 1;
 	ReticleVertices[3].tv = 1;
 	ReticleVertices[3].color = color;
 
 	ReticleVertices[4].sx = 0;
-	ReticleVertices[4].sy = (float)height;
-	ReticleVertices[4].sz = sz_depth;
-	ReticleVertices[4].rhw = rhw_depth;
+	ReticleVertices[4].sy = height;
+	ReticleVertices[4].sz = sz;
+	ReticleVertices[4].rhw = rhw;
 	ReticleVertices[4].tu = 0;
 	ReticleVertices[4].tv = 1;
 	ReticleVertices[4].color = color;
 
 	ReticleVertices[5].sx = 0;
 	ReticleVertices[5].sy = 0;
-	ReticleVertices[5].sz = sz_depth;
-	ReticleVertices[5].rhw = rhw_depth;
+	ReticleVertices[5].sz = sz;
+	ReticleVertices[5].rhw = rhw;
 	ReticleVertices[5].tu = 0;
 	ReticleVertices[5].tv = 0;
 	ReticleVertices[5].color = color;
@@ -3060,7 +3060,7 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffect, sizeof(g_SpeedEffect), nullptr, &_speedEffectPS)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
@@ -3353,7 +3353,7 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffect, sizeof(g_SpeedEffect), nullptr, &_speedEffectPS)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))

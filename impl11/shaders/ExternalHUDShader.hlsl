@@ -111,23 +111,18 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
 	// right = 4 images in one screen!
 	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
-
-	float d, dm = 0.0;
+	
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//vec2 q = (2.0 * texCoord.xy  - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//vec2 q = p;
 	p *= preserveAspectRatioComp;
 	//q *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
-	//q += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
-	//vec2 q = p + vec2(SunCoords[0].x, SunCoords[0].y);
-	//vec2 q = p * vec2(0.5, 1.0) + vec2(-0.5, 0.5);
-	//vec2 q = p * vec2(0.5, 1.0) + vec2(0.5,1.0)*vec2(-SunCoords[0].x, SunCoords[0].y);
-	//vec2 q = p + float2(-SunCoords[0].x, SunCoords[0].y);
 	vec3 v = vec3(p, -FOVscale);
-	//vec3 w = vec3(q, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
-	//w = mul(viewMat, vec4(w, 0.0)).xyz;
+
+	/*
+	float d, dm = 0.0;
 	//float3 col = float3(0.2, 0.2, 0.8); // Reticle color
 	float3 col = float3(0.2, 1.0, 0.2); // Reticle color
 
@@ -149,14 +144,15 @@ PixelShaderOutput main(PixelShaderInput input) {
 	d = sdLine(v.xy, scale * vec2(0.0, 0.05), scale * vec2(0.0, 0.03));
 	dm += smoothstep(thickness, 0.0, abs(d));
 	
-	
 	dm = clamp(dm, 0.0, 1.0);
 	col *= dm;
+	*/
 
-	if (VRmode == 0) {
-		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	}
-	else { 
+	// This shader is not intended to be run outside VR anymore
+	//if (VRmode == 0) {
+		//output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+	//}
+	//else { 
 		float3 reticleCentroid = SunCoords[0].xyz;
 		// The following line renders the flat reticle, without distortion due to FOV
 		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
@@ -171,7 +167,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 		//output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
 		//output.color.a = max(output.color.a, alpha);
 		// DEBUG
-
 		// Render only the scaled reticle:
 		output.color = float4(reticle.rgb, alpha);
 		
@@ -182,7 +177,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			output.color.ga += 0.7;*/
 		//output.color.rga += float3(v.xy, 0.7);
 		// DEBUG
-	}
+	//}
 	return output;
 }
 

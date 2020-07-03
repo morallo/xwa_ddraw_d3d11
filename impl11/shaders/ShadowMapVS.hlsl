@@ -3,17 +3,10 @@
  * Simple VertexShader needed to populate the depth stencil used
  * for shadow mapping.
  */
+#include "VertexShaderCBuffer.h"
 #include "shader_common.h"
 #include "shadow_mapping_common.h"
 #include "metric_common.h"
-
-// VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-};
 
 struct VertexShaderInput
 {

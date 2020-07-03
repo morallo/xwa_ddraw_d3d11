@@ -441,7 +441,8 @@ vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
 Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
-float g_fMetricMult = DEFAULT_METRIC_MULT, g_fFrameTimeRemaining = 0.005f;
+//float g_fMetricMult = DEFAULT_METRIC_MULT, 
+float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 
 bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
@@ -763,8 +764,31 @@ Material g_DefaultGlobalMaterial;
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR = false);
 
 /*
-Resets the g_XWALightInfo array to untagged, all suns.
-*/
+ * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
+ */
+void ZToDepthRHW(float Z, float *sz_out, float *rhw_out)
+{
+	float sz = Z;
+	float *Znear = (float *)0x08B94CC;
+	float *Zfar = (float *)0x05B46B4;
+	//log_debug("[DBG] nearZ: %0.3f, farZ: %0.3f", *nearZ, *farZ);
+	if (sz < 0.0f)
+		sz = *Znear;
+	
+	float rhw = (sz * *Zfar) / (sz * *Zfar + *Znear);
+
+	if (rhw < 1.52590219E-05f)
+		rhw = 1.52590219E-05f;
+
+	// s_V0x064D1A8[s_V0x06628E0].z = st1;
+	*sz_out = rhw;
+	//s_V0x064D1A8[s_V0x06628E0].rhw = st0;
+	*rhw_out = sz;
+}
+
+/*
+ * Resets the g_XWALightInfo array to untagged, all suns.
+ */
 void ResetXWALightInfo()
 {
 	log_debug("[DBG] [SHW] Resetting g_XWALightInfo");
@@ -941,7 +965,7 @@ void IncreaseLensK2(float Delta) {
 void ResetVRParams() {
 	//g_fFocalDist = g_bSteamVREnabled ? DEFAULT_FOCAL_DIST_STEAMVR : DEFAULT_FOCAL_DIST;
 	g_fFocalDist = DEFAULT_FOCAL_DIST;
-	g_fMetricMult = DEFAULT_METRIC_MULT;
+	//g_fMetricMult = DEFAULT_METRIC_MULT;
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
@@ -5855,7 +5879,7 @@ inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 		temp.y *= g_VSCBuffer.viewportScale[3] * g_VSCBuffer.viewportScale[2];
 
 		// TODO: The code below hasn't been tested in VR:
-		temp.z = (float)METRIC_SCALE_FACTOR * g_fMetricMult * (1.0f / rhw);
+		temp.z = (float)METRIC_SCALE_FACTOR * /*g_fMetricMult*/ (1.0f / rhw);
 	}
 	else
 	{
@@ -6623,7 +6647,7 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform	  =  0.0f;
-	g_VSCBuffer.metric_mult		  =  g_fMetricMult;
+	g_VSCBuffer.metric_z_override = -1.0f;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -7817,17 +7841,6 @@ HRESULT Direct3DDevice::Execute(
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
 				if (bIsReticleCenter)
 				{
-					/*
-					float minX, minY, maxX, maxY;
-					Box uv_minmax = { 0 };
-					GetBoundingBoxUVs(instruction, currentIndexLocation, &minX, &minY, &maxX, &maxY,
-						&uv_minmax.x0, &uv_minmax.y0, &uv_minmax.x1, &uv_minmax.y1);
-					// minX,minY - maxX,maxY are the in-game coords of this element
-					if (minX < g_ReticleCenterLimits.x0) g_ReticleCenterLimits.x0 = minX;
-					if (minY < g_ReticleCenterLimits.y0) g_ReticleCenterLimits.y0 = minY;
-					if (maxX > g_ReticleCenterLimits.x1) g_ReticleCenterLimits.x1 = maxX;
-					if (maxY > g_ReticleCenterLimits.y1) g_ReticleCenterLimits.y1 = maxY;
-					*/
 					Vector2 ReticleCentroid;
 					if (ComputeCentroid2D(instruction, currentIndexLocation, &ReticleCentroid)) {
 						g_ReticleCentroid = ReticleCentroid;
@@ -8275,7 +8288,7 @@ HRESULT Direct3DDevice::Execute(
 				// FIXED by using discard and setting alpha to 1 when DC is active
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
-				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle;
+				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle; // && !bExternalCamera;
 				if (
 					 (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
@@ -8933,7 +8946,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
 					g_VSCBuffer.bFullTransform    =  0.0f;
-					g_VSCBuffer.metric_mult       =  g_fMetricMult;
+					g_VSCBuffer.metric_z_override = -1.0f;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
@@ -9425,7 +9438,7 @@ void Direct3DDevice::RenderEdgeDetector()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		g_VSCBuffer.metric_z_override = -1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;

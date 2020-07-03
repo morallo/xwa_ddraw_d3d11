@@ -33,7 +33,8 @@ extern bool g_bYCenterHasBeenFixed;
 int g_WindowWidth, g_WindowHeight;
 
 extern int g_KeySet;
-extern float g_fMetricMult, g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
+//extern float g_fMetricMult, 
+extern float g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
 
 #ifdef DBG_VR
@@ -279,6 +280,7 @@ void IncreaseFOV(float delta)
 	ComputeHyperFOVParams();
 }
 
+/*
 void IncreaseMetricMult(float delta) 
 {
 	g_fMetricMult += delta;
@@ -286,6 +288,7 @@ void IncreaseMetricMult(float delta)
 		g_fMetricMult = 0.1f;
 	log_debug("[DBG] [FOV] g_fMetricMult: %0.3f", g_fMetricMult);
 }
+*/
 
 void IncreaseAspectRatio(float delta) {
 	g_fAspectRatio += delta;
@@ -992,10 +995,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
 			case VK_LEFT:
-				IncreaseHUDParallax(-0.1f);
+				//IncreaseHUDParallax(-0.1f);
+				IncreaseHUDParallax(-10.0f);
 				return 0;
 			case VK_RIGHT:
-				IncreaseHUDParallax(0.1f);
+				//IncreaseHUDParallax(0.1f);
+				IncreaseHUDParallax(10.0f);
 				return 0;
 
 				/*

@@ -1,17 +1,9 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
+#include "VertexShaderCBuffer.h"
 #include "shader_common.h"
 #include "metric_common.h"
-
-// VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-	//float post_proj_scale, vsunused0, vsunused1, vsunused2;
-};
 
 // VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)
@@ -83,6 +75,9 @@ PixelShaderInput main(VertexShaderInput input)
 
 	temp *= mr_cur_metric_scale;
 	// temp.xyz is now fully-metric 3D.
+
+	if (metric_z_override > -1.0f)
+		temp.z = metric_z_override;
 
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);

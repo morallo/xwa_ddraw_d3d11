@@ -1,16 +1,9 @@
 // Copyright (c) 2020 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
 // This shader is used to render the speed effect particles
+#include "VertexShaderCBuffer.h"
 #include "ShadertoyCBuffer.h"
 #include "metric_common.h"
-
-// VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-};
 
 // VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)

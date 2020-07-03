@@ -55,7 +55,6 @@
     <FxCompile Include="SunFlareShader.hlsl" />
     <FxCompile Include="SunShader.hlsl" />
     <FxCompile Include="SunFlareCompose.hlsl" />
-    <FxCompile Include="SpeedEffect.hlsl" />
     <FxCompile Include="SpeedEffectCompose.hlsl" />
     <FxCompile Include="SpeedEffectVertexShader.hlsl" />
     <FxCompile Include="AddGeometryVertexShader.hlsl" />
@@ -66,6 +65,7 @@
     <FxCompile Include="ShadowMapPS.hlsl" />
     <FxCompile Include="ShadowMapVS.hlsl" />
     <FxCompile Include="EdgeDetector.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -101,6 +101,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="metric_common.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexShaderCBuffer.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

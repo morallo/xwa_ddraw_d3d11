@@ -74,6 +74,7 @@ void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 Matrix4 g_ReflRotX;
 
+void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
 void DisplayBox(char *name, Box box);
 Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
@@ -2138,7 +2139,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.metric_mult		  = g_fMetricMult;
+	g_VSCBuffer.metric_z_override = -1.0f;
 
 	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
@@ -4629,7 +4630,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		g_VSCBuffer.metric_z_override = -1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
@@ -4731,7 +4732,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		g_VSCBuffer.metric_z_override = -1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
@@ -5070,14 +5071,21 @@ void PrimarySurface::RenderExternalHUD()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
+	//bool bReticleCaptured = g_ReticleCentroid.x >= 0.0f && g_ReticleCentroid.y >= 0.0f;
+	// // The reticle's centroid is not visible in this frame and we're in the cockpit: nothing to do
+	//if (!bExternalView && (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)) {
 	if (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)
-		// The reticle's centroid is not visible in this frame, nothing to do
+		//log_debug("[DBG] NOTHING TO DO");
 		return;
+	//}
+
+	float sz, rhw;
+	ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
+	//log_debug("[DBG] sz: %0.3f, rhw: %0.3f", sz, rhw);
 
 	// g_ReticleCentroid is in in-game coordinates. For the shader, we need to transform that into UVs:
 	//float x = g_ReticleCentroid.x / g_fCurInGameWidth, y = g_ReticleCentroid.y / g_fCurInGameHeight;
 	float x, y;
-	
 	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
 		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_ReticleCentroid.x, g_ReticleCentroid.y, &x, &y);
 	x /= g_fCurScreenWidth;
@@ -5108,7 +5116,7 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 	
-	
+	/*/
 	// DEBUG: Display light at index i:
 	int i = 1;
 	Vector4 xwaLight = Vector4(
@@ -5118,17 +5126,7 @@ void PrimarySurface::RenderExternalHUD()
 		0.0f);
 	// Convert the XWA light direction into viewspace coordinates:
 	Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
-
-	// Put light 1 in g_ShadingSys_PSBuffer so that the ExternalHUDShader can display it
-	// (In Skirmish mode, light index 1 is always the sun)
-	//log_debug("[DBG] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
-	//log_debug("[DBG] D: %0.6f", D);
-	//g_ShadertoyBuffer.SunCoords[0].x = X;
-	//g_ShadertoyBuffer.SunCoords[0].y = Y;
-
-	//g_ShadingSys_PSBuffer.MainLight.x = lerp(-1.0f,  1.0f, X / g_fCurScreenWidth);
-	//g_ShadingSys_PSBuffer.MainLight.y = lerp( 1.0f, -1.0f, Y / g_fCurScreenHeight);
-
+	
 	Vector3 L(light.x, light.y, light.z);
 	L *= 65536.0f;
 	Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
@@ -5137,8 +5135,9 @@ void PrimarySurface::RenderExternalHUD()
 	g_ShadingSys_PSBuffer.MainLight.y = g_bEnableVR ? -p.y : p.y;
 	g_ShadingSys_PSBuffer.MainLight.z = light.z;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+	*/
+	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-
 	resources->InitPixelShader(resources->_externalHUDPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -5194,14 +5193,15 @@ void PrimarySurface::RenderExternalHUD()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		g_VSCBuffer.metric_z_override = -1.0f;
+		//g_VSCBuffer.metric_z_override = g_fHUDDepth;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight, 0.0f);
+		resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		//resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitVertexBuffer(resources->_reticleVertexBuffer.GetAddressOf(), &stride, &offset);
@@ -7020,7 +7020,7 @@ void PrimarySurface::RenderSunFlare()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_mult = g_fMetricMult;
+		g_VSCBuffer.metric_z_override = -1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
@@ -7791,16 +7791,23 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
+			bool bInTechRoom = (g_iDrawCounter > 0);
+			g_iDrawCounter = 0;
+
+			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
 			// If we don't have the metric params ready by the time the Tech Room is presented,
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.
 			// This is only needed in VR mode:
-			if (g_bEnableVR)
+			if (g_bEnableVR && bInTechRoom)
+			//if (g_bEnableVR && bFirstTime)
 			{
+				//float y_center_temp = g_MetricRecCBuffer.mr_y_center;
 				*g_fRawFOVDist = 256.0f;
 				*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 				*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
-				g_bYCenterHasBeenFixed = false; // Force the recomputation of YCenter when a mission loads
+				//g_bYCenterHasBeenFixed = false; // Force the recomputation of YCenter when a mission loads
+				g_bCustomFOVApplied = false;
 
 				// Compute the metric scale factor conversion
 				g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
@@ -7814,6 +7821,9 @@ HRESULT PrimarySurface::Flip(
 				// We need to set these CBs here if the Tech Room is displayed before any mission has set the FOV params
 				resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
 				resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+				// Restore the previous y_center:
+				//g_MetricRecCBuffer.mr_y_center = y_center_temp;
+				//log_debug("[DBG] Initializing 2D Metric Params");
 			}
 
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
@@ -8533,7 +8543,7 @@ HRESULT PrimarySurface::Flip(
 			// Draw the external HUD on top of everything else
 			// ORIGINAL
 			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
-			if (g_bExternalHUDEnabled || (g_bEnableVR && !bExternalCamera))
+			if (g_bExternalHUDEnabled || g_bEnableVR)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
