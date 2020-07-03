@@ -55,6 +55,10 @@ extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled;
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
+extern uint32_t *g_rawFOVDist; /* = (uint32_t *)0x91AB6C*/ // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
+extern float *g_fRawFOVDist; /*= (float *)0x8B94CC;*/ // FOV dist(float), same value as above
+extern float *g_cachedFOVDist; /*= (float *)0x8B94BC;*/ // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+
 extern float g_fYCenter, g_fFOVscale;
 extern Vector2 g_ReticleCentroid;
 extern Box g_ReticleCenterLimits;
@@ -826,6 +830,7 @@ void ComputeHyperFOVParams() {
 
 	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
 		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV);
+
 	// DEBUG
 	//static bool bFirstTime = true;
 	//if (bFirstTime) {
@@ -7782,6 +7787,31 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
+			// If we don't have the metric params ready by the time the Tech Room is presented,
+			// then nothing will show up, so it's better to initialize the params (with default
+			// values) just in case we go into the tech room before we load any mission.
+			// This is only needed in VR mode:
+			if (g_bEnableVR)
+			{
+				*g_fRawFOVDist = 256.0f;
+				*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
+				*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
+				g_bYCenterHasBeenFixed = false; // Force the recomputation of YCenter when a mission loads
+
+				// Compute the metric scale factor conversion
+				g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
+				
+				g_MetricRecCBuffer.mr_y_center = 0.0f;
+				g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
+				g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+				g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
+				g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+
+				// We need to set these CBs here if the Tech Room is displayed before any mission has set the FOV params
+				resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+				resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+			}
+
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
 			{
 				if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
@@ -8933,7 +8963,7 @@ HRESULT PrimarySurface::Flip(
 			// Apparently I have to wait until the first frame is fully executed in order to apply the custom FOV
 			if (!g_bCustomFOVApplied) {
 				log_debug("[DBG] [FOV] [Flip] Applying Custom FOV.");
-				
+
 				switch (g_CurrentFOV) {
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()

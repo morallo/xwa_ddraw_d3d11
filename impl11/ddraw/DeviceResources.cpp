@@ -996,6 +996,8 @@ void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size
 }
 
 void DeviceResources::ResetDynamicCockpit() {
+	// Force the recomputation of y_center for the next cockpit
+	g_bYCenterHasBeenFixed = false;
 	if (g_bDynCockpitEnabled && g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
 	{
 		ResetActiveCockpit();
@@ -1004,8 +1006,6 @@ void DeviceResources::ResetDynamicCockpit() {
 		g_sCurrentCockpit[0] = 0;
 		// Reset the current ship's custom focal length
 		g_fCurrentShipFocalLength = 0.0f;
-		// Force the recomputation of y_center for the next cockpit
-		g_bYCenterHasBeenFixed = false;
 		// Reset the HUD boxes: this will force a re-compute of the boxes and the DC elements
 		g_DCHUDRegions.ResetLimits();
 		// Reset the Source DC elements so that we know when they get re-computed.
@@ -1090,6 +1090,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_iPresentCounter = 0;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
+	// Force the recomputation of y_center for the next cockpit
+	g_bYCenterHasBeenFixed = false;
 	// Reset scene variables
 	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
 	g_b3DSunPresent = false;

@@ -12,6 +12,7 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
+	Triangle Pointer -- is it visible in VR?
 	Finalize the reticle in VR
 
 	Check that the Tech Room is rendering properly in VR.
@@ -253,7 +254,7 @@ float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as ab
 float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
-float g_fYCenter = 0.15f, g_fFOVscale = 2.0f;
+float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 Box g_ReticleCenterLimits;
 bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
