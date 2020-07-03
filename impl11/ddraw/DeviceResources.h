@@ -754,6 +754,8 @@ public:
 	void InitSpeedParticlesVB(UINT width, UINT height);
 	void BuildSpeedVertexBuffer(UINT width, UINT height);
 	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
+	void FillReticleVertexBuffer(UINT width, UINT height, float Depth);
+	void CreateReticleVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
@@ -1048,6 +1050,7 @@ public:
 	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
+	ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:

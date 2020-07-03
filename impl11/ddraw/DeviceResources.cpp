@@ -214,6 +214,10 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 void log_err(const char *format, ...)
 {
 	char buf[120];
@@ -401,6 +405,7 @@ DeviceResources::DeviceResources()
 	this->_shadowMappingVSConstantBuffer = nullptr;
 	this->_shadowVertexBuffer = nullptr;
 	this->_shadowIndexBuffer = nullptr;
+	this->_reticleVertexBuffer = nullptr;
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
@@ -860,13 +865,108 @@ void DeviceResources::CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD
 	g_ShadowMapping.NumIndices = numIndices;
 }
 
-inline float lerp(float x, float y, float s) {
-	return x + s * (y - x);
+void DeviceResources::FillReticleVertexBuffer(UINT width, UINT height, float Depth) {
+	HRESULT hr;
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	auto &device = this->_d3dDevice;
+	auto &context = this->_d3dDeviceContext;
+	//float depth = g_fHUDDepth;
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
+	// Why do I even have to bother? Can I just use my *own* vertex shader and do
+	// away with all this silliness?
+	D3DTLVERTEX ReticleVertices[6] = { 0 };
+
+	ReticleVertices[0].sx = 0;
+	ReticleVertices[0].sy = 0;
+	ReticleVertices[0].sz = sz_depth;
+	ReticleVertices[0].rhw = rhw_depth;
+	ReticleVertices[0].tu = 0;
+	ReticleVertices[0].tv = 0;
+	ReticleVertices[0].color = color;
+
+	ReticleVertices[1].sx = (float)width;
+	ReticleVertices[1].sy = 0;
+	ReticleVertices[1].sz = sz_depth;
+	ReticleVertices[1].rhw = rhw_depth;
+	ReticleVertices[1].tu = 1;
+	ReticleVertices[1].tv = 0;
+	ReticleVertices[1].color = color;
+
+	ReticleVertices[2].sx = (float)width;
+	ReticleVertices[2].sy = (float)height;
+	ReticleVertices[2].sz = sz_depth;
+	ReticleVertices[2].rhw = rhw_depth;
+	ReticleVertices[2].tu = 1;
+	ReticleVertices[2].tv = 1;
+	ReticleVertices[2].color = color;
+
+	ReticleVertices[3].sx = (float)width;
+	ReticleVertices[3].sy = (float)height;
+	ReticleVertices[3].sz = sz_depth;
+	ReticleVertices[3].rhw = rhw_depth;
+	ReticleVertices[3].tu = 1;
+	ReticleVertices[3].tv = 1;
+	ReticleVertices[3].color = color;
+
+	ReticleVertices[4].sx = 0;
+	ReticleVertices[4].sy = (float)height;
+	ReticleVertices[4].sz = sz_depth;
+	ReticleVertices[4].rhw = rhw_depth;
+	ReticleVertices[4].tu = 0;
+	ReticleVertices[4].tv = 1;
+	ReticleVertices[4].color = color;
+
+	ReticleVertices[5].sx = 0;
+	ReticleVertices[5].sy = 0;
+	ReticleVertices[5].sz = sz_depth;
+	ReticleVertices[5].rhw = rhw_depth;
+	ReticleVertices[5].tu = 0;
+	ReticleVertices[5].tv = 0;
+	ReticleVertices[5].color = color;
+
+	D3D11_MAPPED_SUBRESOURCE map;
+	hr = context->Map(this->_reticleVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	if (SUCCEEDED(hr))
+	{
+		size_t length = sizeof(D3DTLVERTEX) * 6;
+		memcpy(map.pData, &(ReticleVertices[0]), length);
+		context->Unmap(this->_reticleVertexBuffer, 0);
+	}
+	else
+		log_debug("[DBG] Could not fill _reticleVertexBuffer: 0x%x", hr);
+}
+
+void DeviceResources::CreateReticleVertexBuffer()
+{
+	HRESULT hr;
+	auto &device = this->_d3dDevice;
+
+	/* Create the VertexBuffer if necessary */
+	if (this->_reticleVertexBuffer != NULL)
+	{
+		this->_reticleVertexBuffer->Release();
+		this->_reticleVertexBuffer = NULL;
+	}
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+	vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC; // D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(D3DTLVERTEX) * 6 * 12;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	hr = device->CreateBuffer(&vertexBufferDesc, NULL, &this->_reticleVertexBuffer);
+	if (FAILED(hr)) {
+		log_debug("[DBG] Could not create _speedParticlesVertexBuffer");
+	}
 }
 
 // Sample kernel
 /*
-	std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
 std::default_random_engine generator;
 std::vector<glm::vec3> ssdoKernel;
 for (GLuint i = 0; i < 64; ++i)
@@ -2416,6 +2516,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		BuildPostProcVertexBuffer();
 		BuildSpeedVertexBuffer(_displayWidth, _displayHeight);
+		CreateReticleVertexBuffer();
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;

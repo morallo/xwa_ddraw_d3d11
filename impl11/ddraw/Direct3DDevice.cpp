@@ -11,6 +11,7 @@
 
 /*
 TODO:
+    Reset the ShadowOBJ boolean every time a cockpit changes
 	VR metric reconstruction -- In progress
 	Triangle Pointer -- is it visible in VR?
 	Finalize the reticle in VR

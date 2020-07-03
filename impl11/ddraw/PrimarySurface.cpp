@@ -5052,10 +5052,12 @@ void PrimarySurface::RenderFXAA()
 }
 
 /*
+ * The large FOV needed for VR causes the reticle to become huge as well. This shader is being reused
+ * to resize the reticle to a more reasonable size in VR. It may also help in reducing the distortion
+ * that happens when looking near the edges of the screen in VR mode.
  * Render an aiming reticle in cockpit/external view. Made obsolete by Jeremy's exterior hook, but
  * good for debugging the FOVscale and y_center params -- and good for displaying the lights as
- * well. Might re-use this code to render the reticle in SteamVR/VR mode since the greater FOV makes
- * the HUD quite large and distorted when looking around.
+ * well.
  */
 void PrimarySurface::RenderExternalHUD()
 {
@@ -5199,8 +5201,10 @@ void PrimarySurface::RenderExternalHUD()
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
+		resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight, 0.0f);
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		//resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_reticleVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
 			resources->InitVertexShader(resources->_sbsVertexShader);
