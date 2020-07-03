@@ -405,7 +405,7 @@ DeviceResources::DeviceResources()
 	this->_shadowMappingVSConstantBuffer = nullptr;
 	this->_shadowVertexBuffer = nullptr;
 	this->_shadowIndexBuffer = nullptr;
-	this->_reticleVertexBuffer = nullptr;
+	//this->_reticleVertexBuffer = nullptr;
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
@@ -860,12 +860,12 @@ void DeviceResources::CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD
 	else
 		log_debug("[DBG] [SHW] _shadowIndexBuffer CREATED");
 
-	g_ShadowMapping.bUseShadowOBJ = true;
 	g_ShadowMapping.NumVertices = numVertices;
 	g_ShadowMapping.NumIndices = numIndices;
 }
 
-void DeviceResources::FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/) {
+/*
+void DeviceResources::FillReticleVertexBuffer(float width, float height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
@@ -937,13 +937,15 @@ void DeviceResources::FillReticleVertexBuffer(float width, float height /*float 
 	else
 		log_debug("[DBG] Could not fill _reticleVertexBuffer: 0x%x", hr);
 }
+*/
 
+/*
 void DeviceResources::CreateReticleVertexBuffer()
 {
 	HRESULT hr;
 	auto &device = this->_d3dDevice;
 
-	/* Create the VertexBuffer if necessary */
+	// Create the VertexBuffer if necessary
 	if (this->_reticleVertexBuffer != NULL)
 	{
 		this->_reticleVertexBuffer->Release();
@@ -963,6 +965,7 @@ void DeviceResources::CreateReticleVertexBuffer()
 		log_debug("[DBG] Could not create _speedParticlesVertexBuffer");
 	}
 }
+*/
 
 // Sample kernel
 /*
@@ -2516,7 +2519,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
 		BuildPostProcVertexBuffer();
 		BuildSpeedVertexBuffer(_displayWidth, _displayHeight);
-		CreateReticleVertexBuffer();
+		//CreateReticleVertexBuffer();
 		CreateRandomVectorTexture();
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;

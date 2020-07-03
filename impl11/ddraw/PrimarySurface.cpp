@@ -137,7 +137,7 @@ extern float g_fLPdebugPointOffset, g_fDebugYCenter;
 // DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
-extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI;
+extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI, g_bFloatingAimingHUD;
 extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
 extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
 extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
@@ -2139,7 +2139,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.metric_z_override = -1.0f;
+	g_VSCBuffer.scale_override    = 1.0f;
 
 	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
@@ -4630,7 +4630,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.metric_z_override = -1.0f;
+		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
@@ -4732,7 +4732,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.metric_z_override = -1.0f;
+		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
@@ -5071,16 +5071,12 @@ void PrimarySurface::RenderExternalHUD()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
-	//bool bReticleCaptured = g_ReticleCentroid.x >= 0.0f && g_ReticleCentroid.y >= 0.0f;
-	// // The reticle's centroid is not visible in this frame and we're in the cockpit: nothing to do
-	//if (!bExternalView && (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)) {
+	// The reticle's centroid is not visible in this frame: nothing to do
 	if (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)
-		//log_debug("[DBG] NOTHING TO DO");
 		return;
-	//}
 
-	float sz, rhw;
-	ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
+	//float sz, rhw;
+	//ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
 	//log_debug("[DBG] sz: %0.3f, rhw: %0.3f", sz, rhw);
 
 	// g_ReticleCentroid is in in-game coordinates. For the shader, we need to transform that into UVs:
@@ -5143,6 +5139,7 @@ void PrimarySurface::RenderExternalHUD()
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	// Resolve the Reticle buffer
 	if (g_bEnableVR) {
 		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
 		if (g_bDumpSSAOBuffers) {
@@ -5190,21 +5187,25 @@ void PrimarySurface::RenderExternalHUD()
 			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
 		}
 
-		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
-		// and text float
-		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_z_override = -1.0f;
-		//g_VSCBuffer.metric_z_override = g_fHUDDepth;
+		// These are the same settings we used previously when rendering the HUD during a draw() call.
+		// We use these settings to place the HUD at different depths
+		g_VSCBuffer.z_override = g_fHUDDepth;
+		// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
+		// infinity
+		if (bExternalView)
+			g_VSCBuffer.z_override = 65536.0f;
+		if (g_bFloatingAimingHUD)
+			g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		//resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
-		//resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitVertexBuffer(resources->_reticleVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		//resources->InitVertexBuffer(resources->_reticleVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
 			resources->InitVertexShader(resources->_sbsVertexShader);
@@ -7020,7 +7021,7 @@ void PrimarySurface::RenderSunFlare()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_z_override = -1.0f;
+		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;

@@ -296,7 +296,7 @@ typedef struct VertexShaderCBStruct {
 	// 16 bytes
 	float aspect_ratio, cockpit_threshold, z_override, sz_override;
 	// 32 bytes
-	float mult_z_override, bPreventTransform, bFullTransform, metric_z_override;
+	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 48 bytes
 	//float vsunused0, vsunused1, vsunused2, vsunused3;
 	// 64 bytes
@@ -754,8 +754,8 @@ public:
 	void InitSpeedParticlesVB(UINT width, UINT height);
 	void BuildSpeedVertexBuffer(UINT width, UINT height);
 	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
-	void FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/);
-	void CreateReticleVertexBuffer();
+	//void FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/);
+	//void CreateReticleVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
@@ -1050,7 +1050,7 @@ public:
 	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
-	ComPtr<ID3D11Buffer> _reticleVertexBuffer;
+	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:

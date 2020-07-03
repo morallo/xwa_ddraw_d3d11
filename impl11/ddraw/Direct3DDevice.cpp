@@ -11,12 +11,12 @@
 
 /*
 TODO:
-    Reset the ShadowOBJ boolean every time a cockpit changes
 	VR metric reconstruction -- In progress
-	Triangle Pointer -- is it visible in VR?
-	Finalize the reticle in VR
 
-	Check that the Tech Room is rendering properly in VR.
+	Fixed, To Verify (Check again in SteamVR mode):
+		Triangle Pointer -- TO CHECK
+		Finalize the reticle in VR -- TO CHECK
+		Check that the Tech Room is rendering properly in VR.
 
 	Auto-turn on headlights in the last mission.
 
@@ -302,7 +302,7 @@ const float DEFAULT_FLOATING_GUI_PARALLAX = 0.495f;
 const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
-const float DEFAULT_GUI_ELEM_SCALE = 0.75f;
+const float DEFAULT_TRIANGLE_POINTER_SCALE = 0.25f;
 const float DEFAULT_GUI_ELEM_PZ_THRESHOLD = 0.0008f;
 const float DEFAULT_ZOOM_OUT_SCALE = 1.0f;
 const bool DEFAULT_ZOOM_OUT_INITIAL_STATE = false;
@@ -679,7 +679,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-float g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
+float g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 //float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
@@ -969,7 +969,7 @@ void ResetVRParams() {
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-	g_fGUIElemScale = DEFAULT_GUI_ELEM_SCALE;
+	g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 	//g_fPostProjScale = 1.0f;
@@ -2213,23 +2213,30 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName) {
 
 void CycleFOVSetting()
 {
-	switch (g_CurrentFOV) {
-	case GLOBAL_FOV:
-		g_CurrentFOV = XWAHACKER_FOV;
-		log_debug("[DBG] [FOV] Current FOV: GLOBAL");
-		break;
-	case XWAHACKER_FOV:
-		g_CurrentFOV = XWAHACKER_LARGE_FOV;
-		log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
-		break;
-	case XWAHACKER_LARGE_FOV:
+	// Don't change the FOV in VR mode: use your head to look around!
+	if (g_bEnableVR) {
 		g_CurrentFOV = GLOBAL_FOV;
-		log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
-		break;
 	}
-	// Apply the current FOV and recompute FOV-related parameters
-	g_bYCenterHasBeenFixed = false;
-	g_bCustomFOVApplied = false;
+	else {
+		switch (g_CurrentFOV) {
+		case GLOBAL_FOV:
+			g_CurrentFOV = XWAHACKER_FOV;
+			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
+			break;
+		case XWAHACKER_FOV:
+			g_CurrentFOV = XWAHACKER_LARGE_FOV;
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
+			break;
+		case XWAHACKER_LARGE_FOV:
+			g_CurrentFOV = GLOBAL_FOV;
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
+			break;
+		}
+
+		// Apply the current FOV and recompute FOV-related parameters
+		g_bYCenterHasBeenFixed = false;
+		g_bCustomFOVApplied = false;
+	}
 }
 
 /*
@@ -4176,6 +4183,9 @@ void LoadVRParams() {
 			}
 			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
+			}
+			else if (_stricmp(param, "triangle_pointer_scale") == 0) {
+				g_fTrianglePointerScale = fValue;
 			}
 			
 			param_read_count++;
@@ -6647,7 +6657,7 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform	  =  0.0f;
-	g_VSCBuffer.metric_z_override = -1.0f;
+	g_VSCBuffer.scale_override = 1.0f;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -8678,7 +8688,7 @@ HRESULT Direct3DDevice::Execute(
 				// Reduce the scale for GUI elements, except for the HUD and Lens Flare
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
-					g_VSCBuffer.viewportScale[3] = g_fGUIElemsScale;
+					g_VSCBuffer.scale_override = g_fGUIElemsScale;
 					// Enable the fixed GUI
 					if (g_bFixedGUI)
 						g_VSCBuffer.bFullTransform = 1.0f;
@@ -8733,7 +8743,7 @@ HRESULT Direct3DDevice::Execute(
 				// cockpit
 				if (g_bIsTrianglePointer) {
 					bModifiedShaders = true;
-					g_VSCBuffer.viewportScale[3] = g_fGUIElemScale;
+					g_VSCBuffer.scale_override = g_fTrianglePointerScale;
 					g_VSCBuffer.z_override = g_fTextDepth;
 				}
 
@@ -8946,7 +8956,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
 					g_VSCBuffer.bFullTransform    =  0.0f;
-					g_VSCBuffer.metric_z_override = -1.0f;
+					g_VSCBuffer.scale_override    =  1.0f;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
@@ -9438,7 +9448,7 @@ void Direct3DDevice::RenderEdgeDetector()
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
 		g_VSCBuffer.z_override = 65535.0f;
-		g_VSCBuffer.metric_z_override = -1.0f;
+		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;

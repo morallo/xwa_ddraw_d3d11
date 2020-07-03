@@ -536,6 +536,8 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 	log_debug("[DBG] [SHW] range-x,y,z: %0.3f, %0.3f, %0.3f",
 		rangex, rangey, rangez);
 
+	g_ShadowMapping.bUseShadowOBJ = true;
+	log_debug("[DBG] [SHW] Shadow Map OBJ loaded, enabling shadow mapping");
 	this->_deviceResources->CreateShadowVertexIndexBuffers(vertices.data(), indices.data(), vertices.size(), indices.size());
 	vertices.clear();
 	indices.clear();
@@ -1110,6 +1112,8 @@ void Direct3DTexture::TagTexture() {
 						char sFileName[80];
 						snprintf(sFileName, 80, "./ShadowMapping/%s.obj", g_sCurrentCockpit);
 						log_debug("[DBG] [SHW] Loading file: %s", sFileName);
+						// Disable shadow mapping, if we can load a Shadow Map OBJ, then it will be re-enabled again.
+						g_ShadowMapping.bUseShadowOBJ = false;
 						LoadShadowOBJ(sFileName);
 					}
 					// Load the reticle definition file

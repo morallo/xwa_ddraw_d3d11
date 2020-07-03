@@ -995,24 +995,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
 			case VK_LEFT:
-				//IncreaseHUDParallax(-0.1f);
-				IncreaseHUDParallax(-10.0f);
+				IncreaseHUDParallax(-0.1f);
 				return 0;
 			case VK_RIGHT:
-				//IncreaseHUDParallax(0.1f);
-				IncreaseHUDParallax(10.0f);
+				IncreaseHUDParallax(0.1f);
 				return 0;
-
-				/*
-				case VK_UP:
-					g_bUpKeyDownShift = false;
-					g_bUpKeyDown = false;
-					return 0;
-				case VK_DOWN:
-					g_bDownKeyDown = false;
-					g_bDownKeyDownShift = false;
-					return 0;
-				*/
 			}
 		}
 

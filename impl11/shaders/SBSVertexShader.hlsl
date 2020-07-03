@@ -59,7 +59,6 @@ PixelShaderInput main(VertexShaderInput input)
 	if (mult_z_override > -0.1)
 		temp.z *= mult_z_override / mr_cur_metric_scale;
 	if (z_override > -0.1)
-		//temp.z = z_override;
 		temp.z = z_override / mr_cur_metric_scale;
 
 	float FOVscaleZ = mr_FOVscale / temp.z;
@@ -76,8 +75,9 @@ PixelShaderInput main(VertexShaderInput input)
 	temp *= mr_cur_metric_scale;
 	// temp.xyz is now fully-metric 3D.
 
-	if (metric_z_override > -1.0f)
-		temp.z = metric_z_override;
+	temp.xy *= scale_override; // Scale GUI objects around the screen center, like the triangle pointer
+	//if (metric_z_override > -1.0f)
+	//	temp.z = metric_z_override;
 
 	// The back-projection into 3D is now very simple:
 	//float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
