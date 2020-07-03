@@ -617,6 +617,8 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 float g_fDebugFOVscale = 2.2f;
 float g_fDebugYCenter = 0.0f;
 
+void CalculateViewMatrix();
+
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
 const int DEFAULT_BLOOM_PASSES = 5;
@@ -9524,6 +9526,12 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ReticleCenterLimits.x1 = -10000;
 	g_ReticleCenterLimits.y1 = -10000;
 	//log_debug("[DBG] GetCurrentHeadingViewMatrix()");
+
+	/* Get the pose and calculate the full view matrix.
+	In SteamVR mode, this function will run WaitGetPoses() and block until ~3ms before the HMD vsync
+	to optimize tracker latency ("running start" algorithm).
+	*/
+	CalculateViewMatrix();
 
 	if (!this->_deviceResources->_renderTargetView)
 	{

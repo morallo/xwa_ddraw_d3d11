@@ -614,34 +614,6 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 }
 */
 
-void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
-{
-	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
-	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
-		//log_debug("[DBG] HMD is not connected");
-		return;
-	}
-
-	vr::VRControllerState_t state;
-	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
-	{
-		vr::TrackedDevicePose_t trackedDevicePose;
-		vr::HmdMatrix34_t poseMatrix;
-		vr::HmdQuaternionf_t q;
-		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
-
-		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0, &trackedDevicePose, 1);
-		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
-		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
-		quatToEuler(q, yaw, pitch, roll);
-
-		*x = poseMatrix.m[0][3];
-		*y = poseMatrix.m[1][3];
-		*z = poseMatrix.m[2][3];
-		*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
-	}
-}
-
 struct MainVertex
 {
 	float pos[2];
@@ -706,7 +678,38 @@ extern bool g_bSteamVREnabled, g_bUseSteamVR;
 extern uint32_t g_steamVRWidth, g_steamVRHeight;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 void *g_pSurface = NULL;
-bool WaitGetPoses();
+
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix)
+{
+	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
+	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
+		//log_debug("[DBG] HMD is not connected");
+		return;
+	}
+
+	vr::VRControllerState_t state;
+	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
+	{
+		vr::TrackedDevicePose_t trackedDevicePose;
+		vr::HmdMatrix34_t poseMatrix;
+		vr::HmdQuaternionf_t q;
+		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
+
+		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&trackedDevicePose, 0, NULL, 0);
+		if (error) {
+			log_debug("SteamVR WaitGetPoses() error: %d", error);
+		}
+		//vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0, &trackedDevicePose, 1);
+		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
+		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
+		quatToEuler(q, yaw, pitch, roll);
+
+		*x = poseMatrix.m[0][3];
+		*y = poseMatrix.m[1][3];
+		*z = poseMatrix.m[2][3];
+		*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+	}
+}
 
 float ComputeRealVertFOV() {
 	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;
@@ -7205,7 +7208,7 @@ void DisplayACAction(WORD *scanCodes);
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void PrimarySurface::ACRunAction(WORD *action) {
+void ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -7586,7 +7589,7 @@ out:
 */
 }
 
-void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
+void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
 	static uint32_t lastButtonsPressed = 0x0;
 	WORD events[6];
 
@@ -7704,10 +7707,276 @@ inline bool WaitGetPoses_QPC() {
 	return result;
 }
 
-inline bool WaitGetPoses() {
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
-	return true;
+
+/* Calculate the view matrices for the 3D>2D projection and store in g_VSMatrixCB
+   In SteamVR mode, this function will run WaitGetPoses() and block until ~3ms before the HMD vsync
+   to optimize tracker latency ("running start" algorithm)
+*/
+void CalculateViewMatrix()
+{
+	// Enable roll (formerly this was 6dof)
+	if (g_bUseSteamVR) {
+		float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+		float x = 0.0f, y = 0.0f, z = 0.0f;
+		Matrix3 rotMatrix;
+		//Vector3 pos;
+		//static Vector4 headCenter(0, 0, 0, 0);
+		//Vector3 headPos;
+		//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
+
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+		yaw *= RAD_TO_DEG * g_fYawMultiplier;
+		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
+		roll *= RAD_TO_DEG * g_fRollMultiplier;
+		yaw += g_fYawOffset;
+		pitch += g_fPitchOffset;
+
+		// Compute the full rotation
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+		//rotMatrixFull.invert();
+
+		// Adding headPosFromKeyboard is only to allow the keys to move the cockpit.
+		// g_HeadPos can be removed once positional tracking has been fixed... or 
+		// maybe we can leave it there to test things
+		/*
+		headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
+		headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
+		headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
+
+		// Limits clamping
+		if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
+		if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
+		if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
+
+		if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
+		if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
+		if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
+		*/
+
+		// Transform the absolute head position into a relative position. This is
+		// needed because the game will apply the yaw/pitch on its own. So, we need
+		// to undo the yaw/pitch transformation by computing the inverse of the
+		// rotation matrix. Fortunately, rotation matrices can be inverted with a
+		// simple transpose.
+		rotMatrix.invert();
+		//headPos = rotMatrix * headPos;
+
+		g_viewMatrix.identity();
+		g_viewMatrix.rotateZ(roll);
+		/*
+		g_viewMatrix[12] = headPos[0];
+		g_viewMatrix[13] = headPos[1];
+		g_viewMatrix[14] = headPos[2];
+		rotMatrixFull[12] = headPos[0];
+		rotMatrixFull[13] = headPos[1];
+		rotMatrixFull[14] = headPos[2];
+		*/
+		// viewMat is not a full transform matrix: it's only RotZ
+		// because the cockpit hook already applies the yaw/pitch rotation
+		g_VSMatrixCB.viewMat = g_viewMatrix;
+		g_VSMatrixCB.fullViewMat = rotMatrixFull;
+	}
+	else // non-VR and DirectSBS modes, read the roll and position from FreePIE
+	{
+		//float pitch, yaw, roll, pitchSign = -1.0f;
+		float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
+		static Vector4 headCenterPos(0, 0, 0, 0);
+		Vector4 headPos(0, 0, 0, 1);
+		//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
+
+		/*
+		if (g_bResetHeadCenter) {
+		g_HeadPos = { 0 };
+		g_HeadPosAnim = { 0 };
+		}
+		*/
+
+		// Read yaw/pitch/roll
+		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+			if (g_bResetHeadCenter && g_bOriginFromHMD) {
+				headCenterPos.x = g_FreePIEData.x;
+				headCenterPos.y = g_FreePIEData.y;
+				headCenterPos.z = g_FreePIEData.z;
+			}
+			Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
+			headPos = (pos - headCenterPos);
+			roll += g_FreePIEData.roll * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
+		}
+		else
+			headPos.set(0, 0, 0, 1);
+
+		if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
+			if (g_bResetHeadCenter && !g_bOriginFromHMD) {
+				headCenterPos[0] = g_FreePIEData.x;
+				headCenterPos[1] = g_FreePIEData.y;
+				headCenterPos[2] = g_FreePIEData.z;
+			}
+			g_contOriginWorldSpace.x = g_FreePIEData.x - headCenterPos.x;
+			g_contOriginWorldSpace.y = g_FreePIEData.y - headCenterPos.y;
+			g_contOriginWorldSpace.z = g_FreePIEData.z - headCenterPos.z;
+			g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+			if (g_bFreePIEControllerButtonDataAvailable) {
+				uint32_t buttonsPressed = *((uint32_t*)&(g_FreePIEData.yaw));
+				uint32_t axis0 = *((uint32_t*)&g_FreePIEData.pitch);
+				uint32_t axis1 = *((uint32_t*)&g_FreePIEData.roll);
+				ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
+				//g_bACTriggerState = buttonsPressed != 0x0;
+			}
+		}
+
+		// This section is AC-related -- compensate the cursor's position with the current view
+		// matrix
+		if (g_bCompensateHMDRotation) {
+			// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
+			Matrix4 cockpitView, cockpitViewDir;
+			//GetCockpitViewMatrix(&cockpitView);
+			yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+
+			Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
+			rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
+			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+			//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
+			// I'm not sure the cockpit roll should be applied to the controller's 3D position...
+			cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
+
+			switch (g_iLaserDirSelector)
+			{
+			case 1:
+				cockpitViewDir = cockpitView; // Laser Pointer looks in the same direction as the HMD; but rotates twice as fast
+				break;
+			case 2:
+				cockpitViewDir = cockpitView;
+				cockpitViewDir.invert(); // Laser Pointer direction tends to stay looking forward; but tends to follow the HMD
+										 // I think it only follows the HMD because I don't know the actual focal length
+				break;
+			case 3:
+			default:
+				// Follows the HMD's direction keeping the intersection on the same spot.
+				cockpitViewDir.identity();
+				break;
+			}
+
+			//cockpitViewDir.invert();
+			//cockpitViewDir.identity(); // This will change the direction to match the HMD's orientation
+			Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
+
+			temp = cockpitView * temp;
+
+			if (g_bCompensateHMDPosition) {
+				g_contOriginViewSpace.x = temp.x - headPos.x;
+				g_contOriginViewSpace.y = temp.y - headPos.y;
+				g_contOriginViewSpace.z = temp.z - headPos.z;
+			}
+			else {
+				g_contOriginViewSpace.x = temp.x;
+				g_contOriginViewSpace.y = temp.y;
+				g_contOriginViewSpace.z = temp.z;
+			}
+
+			g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+
+			temp.x = g_contDirWorldSpace.x;
+			temp.y = g_contDirWorldSpace.y;
+			temp.z = g_contDirWorldSpace.z;
+			temp.w = 0.0f;
+			g_contDirViewSpace = cockpitViewDir * temp;
+		}
+		else {
+			g_contOriginViewSpace = g_contOriginWorldSpace;
+			g_contDirViewSpace = g_contDirWorldSpace;
+		}
+
+		if (g_bYawPitchFromMouseOverride) {
+			// If FreePIE could not be read, then get the yaw/pitch from the mouse:
+			yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
+			pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
+		}
+
+		if (g_bResetHeadCenter)
+			g_bResetHeadCenter = false;
+
+		/*
+		headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
+		//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
+		headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
+		headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
+
+		// Limits clamping
+		if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
+		if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
+		if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
+
+		if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
+		if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
+		if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
+		*/
+
+		if (g_bEnableVR) {
+			if (PlayerDataTable[*g_playerIndex].externalCamera) {
+				yaw = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+				pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+			}
+			else {
+				yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+				pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+			}
+			Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+			rotMatrixFull.identity();
+			//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
+			rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+			rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+
+			// For the fixed GUI, yaw has to be like this:
+			rotMatrixFull.rotateY(yaw);
+			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
+			// But the matrix to compensate for the translation uses -yaw:
+			rotMatrixYaw = rotMatrixPitch * rotMatrixYaw;
+			// Can we avoid computing the matrix inverse?
+			rotMatrixYaw.invert();
+			//headPos = rotMatrixYaw * headPos;
+
+			g_viewMatrix.identity();
+			g_viewMatrix.rotateZ(roll);
+			//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
+			// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
+			// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
+			// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
+			// 
+			/*
+			g_viewMatrix[12] = headPos[0];
+			g_viewMatrix[13] = headPos[1];
+			g_viewMatrix[14] = headPos[2];
+			rotMatrixFull[12] = headPos[0];
+			rotMatrixFull[13] = headPos[1];
+			rotMatrixFull[14] = headPos[2];
+			*/
+			/* // This effect is now being applied in the cockpit look hook
+			// Map the translation from global coordinates to heading coords
+			Vector4 Rs, Us, Fs;
+			Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
+			headPos[3] = 0.0f;
+			headPos = HeadingMatrix * headPos;
+			if (*numberOfPlayersInGame == 1) {
+			PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
+			PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
+			PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
+			}
+			// END OF HACK
+			*/
+
+			// viewMat is not a full transform matrix: it's only RotZ + Translation
+			// because the cockpit hook already applies the yaw/pitch rotation
+			g_VSMatrixCB.viewMat = g_viewMatrix;
+			g_VSMatrixCB.fullViewMat = rotMatrixFull;
+		}
+	}
 }
 
 HRESULT PrimarySurface::Flip(
@@ -8104,7 +8373,7 @@ HRESULT PrimarySurface::Flip(
 						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable[*g_playerIndex].externalCamera);
 					}
 
-					if (g_bUseSteamVR) {					
+					if (g_bUseSteamVR) {
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
@@ -8157,8 +8426,8 @@ HRESULT PrimarySurface::Flip(
 
 					if (g_bUseSteamVR) {
 						g_pVRCompositor->PostPresentHandoff();
-						WaitGetPoses();
-					}		
+						//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+					}
 				}
 			}
 			else
@@ -9088,292 +9357,7 @@ HRESULT PrimarySurface::Flip(
 				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
 			*/
-			
-			// Enable roll (formerly this was 6dof)
-			if (g_bUseSteamVR) {
-				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
-				float x = 0.0f, y = 0.0f, z = 0.0f;
-				Matrix3 rotMatrix;
-				//Vector3 pos;
-				//static Vector4 headCenter(0, 0, 0, 0);
-				//Vector3 headPos;
-				//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
 
-				GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
-				yaw   *= RAD_TO_DEG * g_fYawMultiplier;
-				pitch *= RAD_TO_DEG * g_fPitchMultiplier;
-				roll  *= RAD_TO_DEG * g_fRollMultiplier;
-				yaw   += g_fYawOffset;
-				pitch += g_fPitchOffset;
-
-				// HACK ALERT: I'm reading the positional tracking data from FreePIE when
-				// running SteamVR because setting up the PSMoveServiceSteamVRBridge is kind
-				// of... tricky; and I'm not going to bother right now since PSMoveService
-				// already works very well for me.
-				// Read the positional data from FreePIE if the right flag is set
-				/*
-				if (g_bSteamVRPosFromFreePIE) {
-					ReadFreePIE(g_iFreePIESlot);
-					if (g_bResetHeadCenter) {
-						headCenter[0] = g_FreePIEData.x;
-						headCenter[1] = g_FreePIEData.y;
-						headCenter[2] = g_FreePIEData.z;
-						g_bResetHeadCenter = false;
-					}
-					x = g_FreePIEData.x - headCenter[0];
-					y = g_FreePIEData.y - headCenter[1];
-					z = g_FreePIEData.z - headCenter[2];
-				}
-				pos.set(x, y, z);
-				headPos = -pos;
-				*/
-
-				// Compute the full rotation
-				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-				rotMatrixFull.identity();
-				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-				//rotMatrixFull.invert();
-
-				// Adding headPosFromKeyboard is only to allow the keys to move the cockpit.
-				// g_HeadPos can be removed once positional tracking has been fixed... or 
-				// maybe we can leave it there to test things
-				/*
-				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
-				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-				// Limits clamping
-				if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-				if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-				if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-				*/
-
-				// Transform the absolute head position into a relative position. This is
-				// needed because the game will apply the yaw/pitch on its own. So, we need
-				// to undo the yaw/pitch transformation by computing the inverse of the
-				// rotation matrix. Fortunately, rotation matrices can be inverted with a
-				// simple transpose.
-				rotMatrix.invert();
-				//headPos = rotMatrix * headPos;
-
-				g_viewMatrix.identity();
-				g_viewMatrix.rotateZ(roll);
-				/*
-				g_viewMatrix[12] = headPos[0]; 
-				g_viewMatrix[13] = headPos[1];
-				g_viewMatrix[14] = headPos[2];
-				rotMatrixFull[12] = headPos[0];
-				rotMatrixFull[13] = headPos[1];
-				rotMatrixFull[14] = headPos[2];
-				*/
-				// viewMat is not a full transform matrix: it's only RotZ
-				// because the cockpit hook already applies the yaw/pitch rotation
-				g_VSMatrixCB.viewMat = g_viewMatrix;
-				g_VSMatrixCB.fullViewMat = rotMatrixFull;
-			}
-			else // non-VR and DirectSBS modes, read the roll and position from FreePIE
-			{ 
-				//float pitch, yaw, roll, pitchSign = -1.0f;
-				float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
-				static Vector4 headCenterPos(0, 0, 0, 0);
-				Vector4 headPos(0,0,0,1);
-				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
-				
-				/*
-				if (g_bResetHeadCenter) {
-					g_HeadPos = { 0 };
-					g_HeadPosAnim = { 0 };
-				}
-				*/
-
-				// Read yaw/pitch/roll
-				if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
-					if (g_bResetHeadCenter && g_bOriginFromHMD) {
-						headCenterPos.x = g_FreePIEData.x;
-						headCenterPos.y = g_FreePIEData.y;
-						headCenterPos.z = g_FreePIEData.z;
-					}
-					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
-					headPos = (pos - headCenterPos);
-					roll   += g_FreePIEData.roll  * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
-				}
-				else
-					headPos.set(0, 0, 0, 1);
-
-				if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
-					if (g_bResetHeadCenter && !g_bOriginFromHMD) {
-						headCenterPos[0] = g_FreePIEData.x;
-						headCenterPos[1] = g_FreePIEData.y;
-						headCenterPos[2] = g_FreePIEData.z;
-					}
-					g_contOriginWorldSpace.x =  g_FreePIEData.x - headCenterPos.x;
-					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
-					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
-					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-					if (g_bFreePIEControllerButtonDataAvailable) {
-						uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
-						uint32_t axis0 = *((uint32_t *)&g_FreePIEData.pitch);
-						uint32_t axis1 = *((uint32_t *)&g_FreePIEData.roll);
-						ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
-						//g_bACTriggerState = buttonsPressed != 0x0;
-					}
-				}
-				
-				// This section is AC-related -- compensate the cursor's position with the current view
-				// matrix
-				if (g_bCompensateHMDRotation) {
-					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
-					Matrix4 cockpitView, cockpitViewDir;
-					//GetCockpitViewMatrix(&cockpitView);
-					yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-					pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-
-					Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
-					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
-					// I'm not sure the cockpit roll should be applied to the controller's 3D position...
-					cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
-
-					switch (g_iLaserDirSelector) 
-					{
-					case 1:
-						cockpitViewDir = cockpitView; // Laser Pointer looks in the same direction as the HMD; but rotates twice as fast
-						break;
-					case 2:
-						cockpitViewDir = cockpitView;
-						cockpitViewDir.invert(); // Laser Pointer direction tends to stay looking forward; but tends to follow the HMD
-						// I think it only follows the HMD because I don't know the actual focal length
-						break;
-					case 3:
-					default:
-						// Follows the HMD's direction keeping the intersection on the same spot.
-						cockpitViewDir.identity();
-						break;
-					}
-					
-					//cockpitViewDir.invert();
-					//cockpitViewDir.identity(); // This will change the direction to match the HMD's orientation
-					Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
-					
-					temp = cockpitView * temp;
-
-					if (g_bCompensateHMDPosition) {
-						g_contOriginViewSpace.x = temp.x - headPos.x;
-						g_contOriginViewSpace.y = temp.y - headPos.y;
-						g_contOriginViewSpace.z = temp.z - headPos.z;
-					}
-					else {
-						g_contOriginViewSpace.x = temp.x;
-						g_contOriginViewSpace.y = temp.y;
-						g_contOriginViewSpace.z = temp.z;
-					}
-
-					g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-
-					temp.x = g_contDirWorldSpace.x;
-					temp.y = g_contDirWorldSpace.y;
-					temp.z = g_contDirWorldSpace.z;
-					temp.w = 0.0f;
-					g_contDirViewSpace = cockpitViewDir * temp;
-				}
-				else {
-					g_contOriginViewSpace = g_contOriginWorldSpace;
-					g_contDirViewSpace = g_contDirWorldSpace;
-				}
-				
-				if (g_bYawPitchFromMouseOverride) {
-					// If FreePIE could not be read, then get the yaw/pitch from the mouse:
-					yaw   =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
-					pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
-				}
-
-				if (g_bResetHeadCenter)
-					g_bResetHeadCenter = false;
-
-				/*
-				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0]; 
-				//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
-				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-				// Limits clamping
-				if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-				if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-				if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-				*/
-
-				if (g_bEnableVR) {
-					if (PlayerDataTable[*g_playerIndex].externalCamera) {
-						yaw = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
-						pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
-					}
-					else {
-						yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-						pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-					}
-					Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-					rotMatrixFull.identity();
-					//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
-					rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-
-					// For the fixed GUI, yaw has to be like this:
-					rotMatrixFull.rotateY(yaw);
-					rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
-					// But the matrix to compensate for the translation uses -yaw:
-					rotMatrixYaw = rotMatrixPitch * rotMatrixYaw;
-					// Can we avoid computing the matrix inverse?
-					rotMatrixYaw.invert();
-					//headPos = rotMatrixYaw * headPos;
-
-					g_viewMatrix.identity();
-					g_viewMatrix.rotateZ(roll);
-					//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
-					// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
-					// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
-					// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
-					// 
-					/*
-					g_viewMatrix[12] = headPos[0];
-					g_viewMatrix[13] = headPos[1];
-					g_viewMatrix[14] = headPos[2];
-					rotMatrixFull[12] = headPos[0];
-					rotMatrixFull[13] = headPos[1];
-					rotMatrixFull[14] = headPos[2];
-					*/
-					/* // This effect is now being applied in the cockpit look hook
-					// Map the translation from global coordinates to heading coords
-					Vector4 Rs, Us, Fs;
-					Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
-					headPos[3] = 0.0f;
-					headPos = HeadingMatrix * headPos;
-					if (*numberOfPlayersInGame == 1) {
-						PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-						PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-						PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
-					}
-					// END OF HACK
-					*/
-
-					// viewMat is not a full transform matrix: it's only RotZ + Translation
-					// because the cockpit hook already applies the yaw/pitch rotation
-					g_VSMatrixCB.viewMat = g_viewMatrix;
-					g_VSMatrixCB.fullViewMat = rotMatrixFull;
-				}
-			}
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
@@ -9412,7 +9396,6 @@ HRESULT PrimarySurface::Flip(
 					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
 					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
 				}
-				//g_pVRCompositor->PostPresentHandoff();
 			}
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
@@ -9466,14 +9449,6 @@ HRESULT PrimarySurface::Flip(
 			}
 			if (g_bUseSteamVR) {
 				g_pVRCompositor->PostPresentHandoff();
-
-				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
-				//if (seconds > 0.008)
-
-				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
-				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
-				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
-				WaitGetPoses();
 			}
 		}
 		else
