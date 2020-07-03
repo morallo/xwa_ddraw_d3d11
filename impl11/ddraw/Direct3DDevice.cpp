@@ -9341,7 +9341,8 @@ void Direct3DDevice::RenderEdgeDetector()
 		if (g_config.Radar2DRendererEnabled) {
 			float x, y;
 			static float pulse = 3.0f;
-			pulse += 0.20f;
+			//pulse += 0.20f;
+			pulse += 0.4f;
 			if (pulse > 12.0f)
 				pulse = 3.0f;
 			//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);

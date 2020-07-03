@@ -6,7 +6,8 @@
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
 
-#define thickness 0.0015
+//#define thickness 0.0015
+#define thickness 0.003
 
 // The texture to process
 Texture2D    procTex     : register(t0);
@@ -84,6 +85,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float G = sqrt(Lx*Lx + Ly*Ly);
 
 	// SunColor[0] holds the tint to colorize the edge detector
+	//float3 InvColor = 1.0 - SunColor[0].rgb;
 	output.color = float4(G * SunColor[0].rgb, G);
 	
 	if (render2Denabled) {
@@ -97,6 +99,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	alpha > 0.1 ? 2.0 : 0.0;
 
 	output.color.rgb = max(output.color.rgb, alpha);
+	//output.color.rgb = lerp(output.color.rgb, InvColor * alpha, alpha);
 	output.color.a = max(output.color.a, alpha);
 	return output;
 }
