@@ -11,6 +11,9 @@ class Direct3DTexture;
 void InitHeadingMatrix();
 Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
+void CalculateViewMatrix();
+void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
+void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
@@ -125,11 +128,7 @@ public:
 
 	void RenderSunFlare();
 
-	void ACRunAction(WORD * action);
-
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
-
-	void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
