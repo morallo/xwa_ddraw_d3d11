@@ -13,6 +13,7 @@
 TODO:
 	VR metric reconstruction -- In progress
 	
+	Triangle pointer: see https://www.shadertoy.com/view/MldcD7
 	DC texture names should be case-insensitive
 	What's wrong with the map in VR?
 
@@ -630,7 +631,7 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOVscale = 2.2f;
+float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
 
 // Bloom
@@ -2801,6 +2802,9 @@ bool LoadDCParams() {
 				g_fDCBrightness = fValue;
 			}
 
+			else if (_stricmp(param, "enable_wireframe_CMD") == 0) {
+				g_bEdgeDetectorEnabled = (bool)fValue;
+			}
 			else if (_stricmp(param, "wireframe_IFF_color_0") == 0) {
 				float x, y, z;
 				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
@@ -3868,9 +3872,6 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
-			else if (_stricmp(param, "enable_wireframe_CMD") == 0) {
-				g_bEdgeDetectorEnabled = (bool)fValue;
-			}
 		}
 	}
 	fclose(file);

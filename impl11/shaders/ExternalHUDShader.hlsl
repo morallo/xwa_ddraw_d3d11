@@ -113,10 +113,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
 	
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
-	//vec2 q = (2.0 * texCoord.xy  - iResolution.xy) / min(iResolution.x, iResolution.y);
-	//vec2 q = p;
 	p *= preserveAspectRatioComp;
-	//q *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center in cockpit view
 	vec3 v = vec3(p, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
@@ -150,16 +147,17 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// This shader is not intended to be run outside VR anymore
 	//if (VRmode == 0) {
+		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
 		//output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	//}
 	//else { 
 		float3 reticleCentroid = SunCoords[0].xyz;
-		// The following line renders the flat reticle, without distortion due to FOV
+		// The following line renders the flat reticle, without distortion due to FOV.
 		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
 		float2 reticleScale = reticleCentroid.z;
 		//if (VRmode == 1) reticleScale.x *= 0.5;
 		reticleScale.x *= 0.5;
-		float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy); // / preserveAspectRatioComp
+		float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy); // / preserveAspectRatioComp
 		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
 		float alpha = 3.0 * dot(0.333, reticle);
 		// DEBUG

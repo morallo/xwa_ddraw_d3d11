@@ -398,7 +398,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 4:
 					g_fDebugFOVscale += 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
-					ComputeHyperFOVParams();
+					//ComputeHyperFOVParams();
 					//(*g_hudScale) += 0.1f;
 					//log_debug("[DBG] g_hudScale: %0.3f", *g_hudScale);
 					break;
@@ -458,7 +458,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 4:
 					g_fDebugFOVscale -= 0.01f;
 					log_debug("[DBG] g_fDebugFOVscale: %0.3f", g_fDebugFOVscale);
-					ComputeHyperFOVParams();
+					//ComputeHyperFOVParams();
 					//(*g_hudScale) -= 0.1f;
 					//log_debug("[DBG] g_hudScale: %0.3f", *g_hudScale);
 					break;

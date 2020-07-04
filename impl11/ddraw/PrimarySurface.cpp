@@ -1558,6 +1558,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// use it as input in the shader
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, BACKBUFFER_FORMAT);
+	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+	//	0, BACKBUFFER_FORMAT);
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1589,6 +1591,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
+	//float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
 	// If the display window has height > width, we can't make the the y axis smaller to compensate.
@@ -1603,9 +1606,25 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	scale *= window_scale;
 	
 	float aspect_ratio = 1.0f;
-	if (g_bRendering3D)
+	if (g_bRendering3D) {
 		// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
 		aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
+		/*
+		if (!g_config.AspectRatioPreserved) {
+			float RealWindowAspectRatio = steamVR_aspect_ratio;
+			if (RealWindowAspectRatio > g_fCurInGameAspectRatio)
+				// The display window is going to stretch the image horizontally, so we need
+				// to shrink the x axis:
+				// Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
+				aspect_ratio *= RealWindowAspectRatio > 1.0f ? g_fCurInGameAspectRatio / RealWindowAspectRatio : RealWindowAspectRatio / g_fCurInGameAspectRatio;
+			else
+				// The display window is going to stretch the image vertically, so we need
+				// to shrink the y axis:
+				aspect_ratio *= g_fCurInGameAspectRatio > 1.0f ? RealWindowAspectRatio / g_fCurInGameAspectRatio : g_fCurInGameAspectRatio / RealWindowAspectRatio;
+		}
+		*/
+	}
 	else
 		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
 		aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
@@ -1623,6 +1642,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	//resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -6847,7 +6867,7 @@ void PrimarySurface::RenderShadowMapOBJ()
  * In VR mode, the centroid of the sun texture is a new vertex in metric
  * 3D space. We need to project it to the vertex buffer that is used to
  * render the flare (the hyperspace vertex buffer, so it's placed at
- * ~22km away. This projection yields a uv-coordinate in this distant
+ * ~22km away). This projection yields a uv-coordinate in this distant
  * vertex buffer. Then we need to project this distant point to post-proc
  * screen coordinates. The screen-space coords (u,v) have (0,0) at the
  * center of the screen. The output u is further multiplied by the aspect
@@ -6964,6 +6984,7 @@ void PrimarySurface::RenderSunFlare()
 			// coords, not in-game coords
 			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
 			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
 	// Set the shadertoy constant buffer:
