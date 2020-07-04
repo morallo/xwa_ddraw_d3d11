@@ -405,6 +405,7 @@ const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 const char *RETICLE_SCALE_VRPARAM = "reticle_scale";
+const char *TRIANGLE_POINTER_SCALE_VRPARAM = "triangle_pointer_scale";
 // 6dof vrparams
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
@@ -1173,28 +1174,32 @@ void SaveVRParams() {
 	fprintf(file, "; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
 	fprintf(file, "; able to see all the HUD simply by looking around. You may also lean forward to\n");
 	fprintf(file, "; zoom-in on the text messages to make them more readable.\n");
-	fprintf(file, "%s = %d\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
+	fprintf(file, "%s = %d\n\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
 
-	fprintf(file, "\n");
 	fprintf(file, "; Set the following parameter to lower the brightness of the text,\n");
 	fprintf(file, "; Concourse and 2D menus (avoids unwanted bloom when using ReShade).\n");
 	fprintf(file, "; A value of 1 is normal brightness, 0 will render everything black.\n");
-	fprintf(file, "%s = %0.3f\n", BRIGHTNESS_VRPARAM, g_fBrightness);
+	fprintf(file, "%s = %0.3f\n\n", BRIGHTNESS_VRPARAM, g_fBrightness);
 
-	fprintf(file, "\n; Interleaved Reprojection is a SteamVR setting that locks the framerate at 45fps.\n");
+	fprintf(file, "; Interleaved Reprojection is a SteamVR setting that locks the framerate at 45fps.\n");
 	fprintf(file, "; In some cases, it may help provide a smoother experience. Try toggling it\n");
 	fprintf(file, "; to see what works better for your specific case.\n");
-	fprintf(file, "%s = %d\n", INTERLEAVED_REPROJ_VRPARAM, g_bInterleavedReprojection);
+	fprintf(file, "%s = %d\n\n", INTERLEAVED_REPROJ_VRPARAM, g_bInterleavedReprojection);
 
 	//fprintf(file, "\n");
 	//fprintf(file, "%s = %d\n", INVERSE_TRANSPOSE_VRPARAM, g_bInverseTranspose);
-	fprintf(file, "\n; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
+	fprintf(file, "; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
 	fprintf(file, "; The settings for pitch, yaw and positional tracking are in CockpitLook.cfg\n");
-	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
+	fprintf(file, "%s = %0.3f\n\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
+
+	fprintf(file, "; The triangle pointer is placed at the edge of the screen in non-VR mode.To\n");
+	fprintf(file, "; make it visible in VR mode, we need to scale it down so that it moves closer\n");
+	fprintf(file, "; to the center of the screen.This setting controls that distance\n");
+	fprintf(file, "%s = %0.3f\n\n", TRIANGLE_POINTER_SCALE_VRPARAM, g_fTrianglePointerScale);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -4245,7 +4250,7 @@ void LoadVRParams() {
 			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
 			}
-			else if (_stricmp(param, "triangle_pointer_scale") == 0) {
+			else if (_stricmp(param, TRIANGLE_POINTER_SCALE_VRPARAM) == 0) {
 				g_fTrianglePointerScale = fValue;
 			}
 			
