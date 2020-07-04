@@ -12,6 +12,9 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
+	Fix the FOV in the mirror Window in SteamVR
+	DC texture names should be case-insenstive
+	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
 		Triangle Pointer -- TO CHECK
@@ -22,6 +25,17 @@ TODO:
 
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
+*/
+
+/*
+	The current HUD color is stored in these variables:
+	CODE: SELECT ALL
+
+	// V0x005B5318
+	unsigned int s_XwaFlightHudColor;
+
+	// V0x005B531C
+	unsigned int s_XwaFlightHudBorderColor;
 */
 
 /*
@@ -573,8 +587,9 @@ bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
-float4 g_DCTargetingColor;
+float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
+float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 
@@ -743,6 +758,7 @@ int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
 bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z);
+bool LoadGeneric4DCoords(char *buf, float *x, float *y, float *z, float *w);
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
@@ -2683,7 +2699,7 @@ bool LoadDCParams() {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	// Initialize the IFF colors
 	// Rebel
@@ -2710,6 +2726,13 @@ bool LoadDCParams() {
 	g_DCTargetingIFFColors[5].x = 0.5f;
 	g_DCTargetingIFFColors[5].y = 0.1f;
 	g_DCTargetingIFFColors[5].z = 0.5f;
+	// Other wireframe initialization
+	g_DCWireframeLuminance.x = 0.33f;
+	g_DCWireframeLuminance.y = 0.50f;
+	g_DCWireframeLuminance.z = 0.16f;
+	g_DCWireframeLuminance.w = 0.05f;
+
+	g_DCWireframeContrast = 3.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
@@ -2735,10 +2758,10 @@ bool LoadDCParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, DYNAMIC_COCKPIT_ENABLED_VRPARAM) == 0) {
-				g_bDynCockpitEnabled = (bool)value;
+				g_bDynCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [DC] g_bDynCockpitEnabled: %d", g_bDynCockpitEnabled);
 				if (!g_bDynCockpitEnabled) {
 					// Early abort: stop reading coordinates if the dynamic cockpit is disabled
@@ -2757,20 +2780,20 @@ bool LoadDCParams() {
 					LoadDCMoveRegion(buf);
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
-				g_fCoverTextureBrightness = value;
+				g_fCoverTextureBrightness = fValue;
 			}
 			else if (_stricmp(param, "ignore_erase_commands") == 0) {
-				g_bDCIgnoreEraseCommands = (bool)value;
+				g_bDCIgnoreEraseCommands = (bool)fValue;
 			}
 			else if (_stricmp(param, "toggle_erase_commands_on_cockpit_displayed") == 0) {
-				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)value;
+				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)fValue;
 			}
 			else if (_stricmp(param, "compensate_FOV_for_1920x1080") == 0) {
-				g_bCompensateFOVfor1920x1080 = (bool)value;
+				g_bCompensateFOVfor1920x1080 = (bool)fValue;
 			}
 
 			else if (_stricmp(param, "dc_brightness") == 0) {
-				g_fDCBrightness = value;
+				g_fDCBrightness = fValue;
 			}
 
 			else if (_stricmp(param, "wireframe_IFF_color_0") == 0) {
@@ -2826,6 +2849,22 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].z = z;
 					g_DCTargetingIFFColors[5].w = 1.0f;
 				}
+			}
+			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
+				float x, y, z, w;
+				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
+				if (LoadGeneric4DCoords(buf, &x, &y, &z, &w)) {
+					g_DCWireframeLuminance.x = x;
+					g_DCWireframeLuminance.y = y;
+					g_DCWireframeLuminance.z = z;
+					g_DCWireframeLuminance.w = w;
+					log_debug("[DBG] [DC] WireframeLuminance: %0.3f, %0.3f, %0.3f, %0.3f",
+						g_DCWireframeLuminance.x, g_DCWireframeLuminance.y, g_DCWireframeLuminance.z, g_DCWireframeLuminance.w);
+				}
+			}
+			else if (_stricmp(param, "wireframe_contrast") == 0) {
+				g_DCWireframeContrast = fValue;
+				log_debug("[DBG] [DC] Wireframe contrast: %0.3f", g_DCWireframeContrast);
 			}
 
 		}
@@ -3172,15 +3211,37 @@ bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
 	if (c != NULL) {
 		c += 1;
 		try {
-			res = sscanf_s(c, "%f, %f, %f",
-				x, y, z);
+			res = sscanf_s(c, "%f, %f, %f", x, y, z);
 			if (res < 3) {
-				log_debug("[DBG] [AO] ERROR (skipping), expected at least 3 elements in '%s'", c);
+				log_debug("[DBG] ERROR (skipping), expected at least 3 elements in [%s], read: %d", c, res);
 				return false;
 			}
 		}
 		catch (...) {
-			log_debug("[DBG] [AO] Could not read 3D from: %s", buf);
+			log_debug("[DBG] Could not read 3D from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool LoadGeneric4DCoords(char *buf, float *x, float *y, float *z, float *w)
+{
+	int res = 0;
+	char *c = NULL;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f, %f", x, y, z, w);
+			if (res < 4) {
+				log_debug("[DBG] ERROR (skipping), expected at least 4 elements in [%s], read %d", c, res);
+				return false;
+			}
+		}
+		catch (...) {
+			log_debug("[DBG] Could not read 4D from: %s", buf);
 			return false;
 		}
 	}
@@ -9383,6 +9444,15 @@ void Direct3DDevice::RenderEdgeDetector()
 	else
 		return;
 
+	// SunCoords[1] are the UV coords for the buffer that has the SubCMD when the 2D renderer is disabled
+	// SunCoords[2].xy is the in-game resolution
+	// SunCoords[3].xy is the center of the SubCMD component if the 2D renderer is enabled
+	
+	// SunColor[0].xyz is the color of the wireframe
+	// SunColor[0].w is the contrast enhancer
+	// SunColor[1] is the luminance vector
+	g_ShadertoyBuffer.SunColor[1] = g_DCWireframeLuminance;
+
 	// We need to set the blend state properly
 	blendDesc.AlphaToCoverageEnable = FALSE;
 	blendDesc.IndependentBlendEnable = FALSE;
@@ -9422,6 +9492,8 @@ void Direct3DDevice::RenderEdgeDetector()
 	if (g_DCTargetingColor.w > 0.0f) {
 		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
 	}
+	// Send the contrast data
+	g_ShadertoyBuffer.SunColor[0].w = g_DCWireframeContrast;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	resources->InitPixelShader(resources->_edgeDetector);
