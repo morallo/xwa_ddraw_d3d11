@@ -18,7 +18,7 @@
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
 #include "../Debug/MainPixelShaderBpp4ColorKey20.h"
 #include "../Debug/BarrelPixelShader.h"
-#include "../Debug/BasicPixelShader.h"
+#include "../Debug/SteamVRMirrorPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
 #include "../Debug/PassthroughVertexShader.h"
@@ -70,7 +70,7 @@
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
 #include "../Release/MainPixelShaderBpp4ColorKey20.h"
 #include "../Release/BarrelPixelShader.h"
-#include "../Release/BasicPixelShader.h"
+#include "../Release/SteamVRMirrorPixelShader.h"
 #include "../Release/SingleBarrelPixelShader.h"
 #include "../Release/VertexShader.h"
 #include "../Release/PassthroughVertexShader.h"
@@ -3021,7 +3021,7 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_MainPixelShader, sizeof(g_MainPixelShader), nullptr, &_mainPixelShader)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BasicPixelShader, sizeof(g_BasicPixelShader), nullptr, &_basicPixelShader)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SteamVRMirrorPixelShader, sizeof(g_SteamVRMirrorPixelShader), nullptr, &_steamVRMirrorPixelShader)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
@@ -3875,19 +3875,21 @@ void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspectRatio, const float scale, const float brightness)
+	const float aspectRatio, const float scale, const float brightness, float inv_scale)
 {
 	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
 		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_2D ||
 		g_MSCBuffer.parallax != parallax ||
 		g_MSCBuffer.aspectRatio != aspectRatio ||
 		g_MSCBuffer.scale != scale ||
-		g_MSCBuffer.brightness != brightness)
+		g_MSCBuffer.brightness != brightness || 
+		g_MSCBuffer.inv_scale != inv_scale)
 	{
 		g_MSCBuffer.parallax = parallax;
 		g_MSCBuffer.aspectRatio = aspectRatio;
 		g_MSCBuffer.scale = scale;
 		g_MSCBuffer.brightness = brightness;
+		g_MSCBuffer.inv_scale = inv_scale;
 		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
 		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 	}

@@ -1613,11 +1613,11 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? 0.7f : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_basicPixelShader);
+	resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
