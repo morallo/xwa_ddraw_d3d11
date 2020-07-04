@@ -12,13 +12,13 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
-	Fix the FOV in the mirror Window in SteamVR
-	DC texture names should be case-insenstive
+	
+	DC texture names should be case-insensitive
 	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
-		Triangle Pointer -- TO CHECK
-		Finalize the reticle in VR -- TO CHECK
+		Fix the FOV in the mirror Window in SteamVR -- approximate fix
+		Triangle Pointer -- visible, but may need more work
 		Check that the Tech Room is rendering properly in VR.
 
 	Auto-turn on headlights in the last mission.
