@@ -989,7 +989,7 @@ public:
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
-	ComPtr<ID3D11PixelShader> _edgeDetector;
+	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

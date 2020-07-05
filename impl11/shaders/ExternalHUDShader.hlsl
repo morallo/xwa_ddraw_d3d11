@@ -86,6 +86,31 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 	return length(p - center) - radius;
 }
 
+// From Inigo Quilez's: https://www.shadertoy.com/view/MldcD7
+// signed distance to a 2D triangle
+float sdTriangleIsosceles(in vec2 p, in vec2 q)
+{
+	p.x = abs(p.x);
+	vec2 a = p - q * clamp(dot(p, q) / dot(q, q), 0.0, 1.0);
+	vec2 b = p - q * vec2(clamp(p.x / q.x, 0.0, 1.0), 1.0);
+	float k = sign(q.y);
+	float d = min(dot(a, a), dot(b, b));
+	float s = max(k*(p.x*q.y - p.y*q.x), k*(p.y - q.y));
+	return sqrt(d)*sign(s);
+}
+
+// Translate and rotate the triangle about p
+vec2 tri_transform(vec2 p, float disp, float ang) {
+	float3x3 mR = float3x3(
+		-sin(ang), cos(ang), 0.0,
+		 cos(ang), sin(ang), 0.0,
+		 0.0, 0.0, 1.0);
+
+	vec3 T = mul(mR, vec3(0.0, disp, 1.0));
+	vec3 q = mul(mR, vec3(p + T.xy, 1.0));
+	return q.xy;
+}
+
 // Display the HUD using a hyperspace-entry-like coord sys 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
@@ -151,22 +176,42 @@ PixelShaderOutput main(PixelShaderInput input) {
 		//output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
 	//}
 	//else { 
-		float3 reticleCentroid = SunCoords[0].xyz;
-		// The following line renders the flat reticle, without distortion due to FOV.
-		//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
-		float2 reticleScale = reticleCentroid.z;
-		//if (VRmode == 1) reticleScale.x *= 0.5;
-		reticleScale.x *= 0.5;
-		float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy); // / preserveAspectRatioComp
-		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
-		float alpha = 3.0 * dot(0.333, reticle);
-		// DEBUG
-		//output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
-		//output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
-		//output.color.a = max(output.color.a, alpha);
-		// DEBUG
-		// Render only the scaled reticle:
-		output.color = float4(reticle.rgb, alpha);
+
+		// Render the HUD
+		if (SunCoords[0].w > 0.5) {
+			float3 reticleCentroid = SunCoords[0].xyz;
+			// The following line renders the flat reticle, without distortion due to FOV.
+			//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
+			float2 reticleScale = reticleCentroid.z;
+			//if (VRmode == 1) reticleScale.x *= 0.5;
+			reticleScale.x *= 0.5;
+			float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy); // / preserveAspectRatioComp
+			float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
+			float alpha = 3.0 * dot(0.333, reticle);
+			// DEBUG
+			//output.color = float4(col, 0.8 * dm); // Render the synthetic reticle
+			//output.color.rgb = lerp(output.color.rgb, reticle.rgb, alpha);
+			//output.color.a = max(output.color.a, alpha);
+			// DEBUG
+			// Render only the scaled reticle:
+			output.color = float4(reticle.rgb, alpha);
+		}
+
+		// Add the triangle pointer
+		if (SunCoords[1].w > 0.5) {
+			//float tri_scale = 0.25 + 0.5 * (mod(iTime, 0.5)) / 0.5;
+			float tri_scale = SunCoords[1].z;
+			const vec2 tri_size = tri_scale * vec2(0.05, 0.2); // width, height
+			//vec2 tri_q = tri_transform(v.xy, tri_size.y + SunCoords[1].y, SunCoords[1].x);
+			vec2 tri_q = tri_transform(p, tri_size.y + SunCoords[1].y, SunCoords[1].x);
+			// Compute the triangle
+			float d_tri = sdTriangleIsosceles(tri_q, tri_size);
+			// Antialias:
+			d_tri = smoothstep(0.015, 0.0, d_tri);
+			// Add it to the output:
+			output.color.rgb += float3(1.0, 1.0, 0.0) * d_tri;
+			output.color.a = max(output.color.a, d_tri);
+		}
 		
 		// DEBUG
 		/*if (reticleUV.x > reticleCentroid.x)

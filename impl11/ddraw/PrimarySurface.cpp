@@ -112,10 +112,13 @@ extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
 extern bool g_bEdgeEffectApplied;
 extern float g_fReticleScale;
-float g_fReticleOfsX = 0.0f;
-float g_fReticleOfsY = 0.0f;
+//float g_fReticleOfsX = 0.0f;
+//float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
+
+extern Vector2 g_TriangleCentroid;
+extern float g_fTrianglePointerDist;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
@@ -5090,9 +5093,11 @@ void PrimarySurface::RenderExternalHUD()
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	const bool bReticleInvisible = g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f;
+	const bool bTriangleInvisible = g_TriangleCentroid.x < 0.0f || g_TriangleCentroid.y < 0.0f;
 
-	// The reticle's centroid is not visible in this frame: nothing to do
-	if (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)
+	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
+	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
 	//float sz, rhw;
@@ -5110,13 +5115,37 @@ void PrimarySurface::RenderExternalHUD()
 	//log_debug("[DBG] g_ReticleCentroid, in-game coords: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
 	//log_debug("[DBG] ReticleCentroid UV: %0.3f, %0.3f, coords: %0.3f, %0.3f", x, y, x * g_fCurScreenWidth, y * g_fCurScreenHeight);
 
+	// SunCoords[0].xy: Reticle Centroid
+	// SunCoords[0].z: Inverse reticle scale
+	// SunCoords[0].w: Reticle visible (0 off, 1 on)
+
+	// SunCoords[1].x: Triangle pointer angle
+	// SunCoords[1].y: Triangle pointer displacement
+	// SunCoords[1].z: Triangle pointer scale (animated)
+	// SunCoords[1].w: Render triangle pointer (0 off, 1 on)
+
 	// Send the reticle centroid to the shader:
 	g_ShadertoyBuffer.SunCoords[0].x = x;
 	g_ShadertoyBuffer.SunCoords[0].y = y;
 	g_ShadertoyBuffer.SunCoords[0].z = 1.0f / g_fReticleScale;
-	//g_ShadertoyBuffer.SunCoords[1].x = g_fReticleOfsX;
-	//g_ShadertoyBuffer.SunCoords[1].y = g_fReticleOfsY;
-	//log_debug("[DBG] Centroid: %0.3f, %0.3f, UV: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
+	g_ShadertoyBuffer.SunCoords[0].w = (float)(!bReticleInvisible);
+
+	/*static float ang = 0.0f;
+	ang += 6.0f * 0.01745f;
+	if (ang > PI * 2.0f)
+		ang -= (PI * 2.0f);*/
+	static float time = 0.0f;
+	time += 0.1f;
+	if (time > 1.0f) time = 0.0f;
+	g_TriangleCentroid -= 0.5f * Vector2(g_fCurInGameWidth, g_fCurInGameHeight);
+	// Not sure if multiplying by preserveAspectRatioComp is necessary
+	g_TriangleCentroid.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
+	g_TriangleCentroid.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
+	float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
+	g_ShadertoyBuffer.SunCoords[1].x = ang;
+	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;
+	g_ShadertoyBuffer.SunCoords[1].z = 0.1f + 0.05f * time;
+	g_ShadertoyBuffer.SunCoords[1].w = (float)(!bTriangleInvisible);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
@@ -8920,7 +8949,7 @@ HRESULT PrimarySurface::Flip(
 				//log_debug("[DBG] Focus idx: %d", PlayerDataTable[*g_playerIndex].cameraFG);
 			}
 
-			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC
+			// RESET CONTROL VARS, FRAME COUNTERS, CLEAR VECTORS, ETC
 			{
 				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 				g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
@@ -8951,6 +8980,7 @@ HRESULT PrimarySurface::Flip(
 				g_bExecuteBufferLock = false;
 				g_bDCWasClearedOnThisFrame = false;
 				g_bEdgeEffectApplied = false;
+				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				if (g_bTriggerReticleCapture) {
 					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);

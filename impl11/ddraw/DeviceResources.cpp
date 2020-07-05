@@ -3093,7 +3093,7 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetector)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -3386,7 +3386,7 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetector)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

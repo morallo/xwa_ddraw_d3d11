@@ -27,7 +27,7 @@ extern float *g_hudScale;
 
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
-extern float g_fCurrentShipFocalLength, g_fReticleScale, g_fReticleOfsX, g_fReticleOfsY;
+extern float g_fCurrentShipFocalLength, g_fReticleScale;
 extern bool g_bYCenterHasBeenFixed;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
@@ -529,10 +529,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					/*g_fLightMapDistance += 1.0f;
 					log_debug("[DBG] [SHW] g_fLightMapDistance: %0.3f", g_fLightMapDistance);
 					break;*/
-				case 9:
+				/*case 9:
 					g_fReticleOfsY -= 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
-					break;
+					break;*/
 				}
 
 				//g_contOriginWorldSpace.y += 0.02f;
@@ -565,10 +565,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					/*g_fLightMapDistance -= 1.0f;
 					log_debug("[DBG] [SHW] g_fLightMapDistance: %0.3f", g_fLightMapDistance);
 					break;*/
-				case 9:
+				/*case 9:
 					g_fReticleOfsY += 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
-					break;
+					break;*/
 				}
 
 				//g_contOriginWorldSpace.y -= 0.02f;

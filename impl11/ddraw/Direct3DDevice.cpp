@@ -317,7 +317,7 @@ const float DEFAULT_FLOATING_GUI_PARALLAX = 0.495f;
 const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
-const float DEFAULT_TRIANGLE_POINTER_SCALE = 0.25f;
+const float DEFAULT_TRIANGLE_POINTER_DIST = 0.120f;
 const float DEFAULT_GUI_ELEM_PZ_THRESHOLD = 0.0008f;
 const float DEFAULT_ZOOM_OUT_SCALE = 1.0f;
 const bool DEFAULT_ZOOM_OUT_INITIAL_STATE = false;
@@ -406,7 +406,7 @@ const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 const char *RETICLE_SCALE_VRPARAM = "reticle_scale";
-const char *TRIANGLE_POINTER_SCALE_VRPARAM = "triangle_pointer_scale";
+const char *TRIANGLE_POINTER_DIST_VRPARAM = "triangle_pointer_distance";
 // 6dof vrparams
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
@@ -595,6 +595,8 @@ float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 
+Vector2 g_TriangleCentroid;
+
 /*********************************************************/
 // SHADOW MAPPING
 ShadowMappingData g_ShadowMapping;
@@ -631,7 +633,7 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOVscale = 1.0f;
+float g_fDebugFOVscale = 0.06f;
 float g_fDebugYCenter = 0.0f;
 
 // Bloom
@@ -696,7 +698,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-float g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
+float g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 //float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
@@ -987,7 +989,7 @@ void ResetVRParams() {
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-	g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
+	g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 	//g_fPostProjScale = 1.0f;
@@ -1197,10 +1199,10 @@ void SaveVRParams() {
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
 
-	fprintf(file, "; The triangle pointer is placed at the edge of the screen in non-VR mode.To\n");
-	fprintf(file, "; make it visible in VR mode, we need to scale it down so that it moves closer\n");
-	fprintf(file, "; to the center of the screen.This setting controls that distance\n");
-	fprintf(file, "%s = %0.3f\n\n", TRIANGLE_POINTER_SCALE_VRPARAM, g_fTrianglePointerScale);
+	fprintf(file, "; Places the triangle pointer at the specified distance from the center of the\n");
+	fprintf(file, "; screen. A value of 0 places it right at the center, a value of 0.5 puts it\n");
+	fprintf(file, "; near the edge of the screen.\n");
+	fprintf(file, "%s = %0.3f\n\n", TRIANGLE_POINTER_DIST_VRPARAM, g_fTrianglePointerDist);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -4251,8 +4253,8 @@ void LoadVRParams() {
 			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
 			}
-			else if (_stricmp(param, TRIANGLE_POINTER_SCALE_VRPARAM) == 0) {
-				g_fTrianglePointerScale = fValue;
+			else if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
+				g_fTrianglePointerDist = fValue;
 			}
 			
 			param_read_count++;
@@ -8809,9 +8811,14 @@ HRESULT Direct3DDevice::Execute(
 				// and let's put it at text depth so that it doesn't cause visual contention against the
 				// cockpit
 				if (g_bIsTrianglePointer) {
-					bModifiedShaders = true;
-					g_VSCBuffer.scale_override = g_fTrianglePointerScale;
-					g_VSCBuffer.z_override = g_fTextDepth;
+					/*bModifiedShaders = true;
+					g_VSCBuffer.scale_override = 0.25f;
+					g_VSCBuffer.z_override = g_fTextDepth;*/
+					
+					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
+					// Don't render the triangle pointer anymore, we'll do it later, when rendering the
+					// reticle
+					goto out;
 				}
 
 				// Add extra depth to Floating GUI elements and Lens Flare
@@ -9502,7 +9509,7 @@ void Direct3DDevice::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].w = g_DCWireframeContrast;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-	resources->InitPixelShader(resources->_edgeDetector);
+	resources->InitPixelShader(resources->_edgeDetectorPS);
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg,
 			L"C:\\Temp\\_edgeDetectorInput.jpg");
