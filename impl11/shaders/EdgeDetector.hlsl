@@ -56,9 +56,17 @@ struct PixelShaderOutput
 	float4 color    : SV_TARGET0;
 };
 
+/*
 inline float sdCircle(in vec2 p, in vec2 center, float radius)
 {
 	return length(p - center) - radius;
+}
+*/
+
+inline float sdBox(in vec2 p, in vec2 b)
+{
+	vec2 d = abs(p) - b;
+	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
 PixelShaderOutput main(PixelShaderInput input) {
@@ -131,8 +139,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color = float4(G * SunColor[0].rgb, G);
 	
 	if (render2Denabled) {
-		const float radius = 10.0 * iTime;
-		const float d = sdCircle(uv, SunCoords[3].xy, radius * iResolution.y);
+		const float radius = 5.0 * iTime * iResolution.y;
+		//const float d = sdCircle(uv, SunCoords[3].xy, radius);
+		const float d = sdBox(uv - SunCoords[3].xy, vec2(radius, radius));
 		subCMD = smoothstep(thickness, 0.0, abs(d)); // ring
 	}
 
