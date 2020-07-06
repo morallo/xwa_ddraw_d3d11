@@ -169,7 +169,7 @@ typedef struct HeadPosStruct {
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
-	float use_3D, unused0, unused1, unused2;
+	float use_3D, inv_scale, unused1, unused2;
 } MainShadersCBuffer;
 
 typedef struct BarrelPixelShaderCBStruct {
@@ -733,7 +733,7 @@ public:
 	void InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
-	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
+	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, float inv_scale = 1.0f);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
@@ -962,7 +962,7 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey00;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
-	ComPtr<ID3D11PixelShader> _basicPixelShader;
+	ComPtr<ID3D11PixelShader> _steamVRMirrorPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
@@ -989,7 +989,7 @@ public:
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
-	ComPtr<ID3D11PixelShader> _edgeDetector;
+	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

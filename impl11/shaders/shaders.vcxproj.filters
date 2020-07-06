@@ -34,7 +34,6 @@
     <FxCompile Include="PixelShaderDC.hlsl" />
     <FxCompile Include="PixelShaderHUD.hlsl" />
     <FxCompile Include="BloomBufferAddPS.hlsl" />
-    <FxCompile Include="BasicPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
@@ -66,6 +65,7 @@
     <FxCompile Include="ShadowMapVS.hlsl" />
     <FxCompile Include="EdgeDetector.hlsl" />
     <FxCompile Include="SpeedEffectPixelShader.hlsl" />
+    <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

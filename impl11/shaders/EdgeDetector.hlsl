@@ -17,7 +17,7 @@ SamplerState procSampler : register(s0);
 Texture2D    subCMDTex     : register(t1);
 SamplerState subCMDSampler : register(s1);
 
-static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
+//static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
 
 struct PixelShaderInput
 {
@@ -45,6 +45,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//output.color = procTex.Sample(procSampler, input.uv);
 	//return output;
 
+	const float contrast = SunColor[0].w;
+	const float4 LuminanceDot = SunColor[1];
 	uint render2Denabled = SunCoords[3].w > 0.5;
 	// p0, p1 hold the actual uv coords of the target box
 	float2 uv = lerp(p0, p1, input.uv);
@@ -67,7 +69,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
 			// Approx Luminance formula:
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
-			c[3 * i + j] = dot(LuminanceDot, 4.0 * col);
+			c[3 * i + j] = dot(LuminanceDot, contrast * col);
 			// Dilate the subCMD bracket:
 			if (!render2Denabled) {
 				subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);

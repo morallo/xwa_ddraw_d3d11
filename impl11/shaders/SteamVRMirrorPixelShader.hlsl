@@ -9,7 +9,7 @@ SamplerState sampler0 : register(s0);
 cbuffer ConstantBuffer : register(b0)
 {
 	float scale, aspect_ratio, parallax, brightness;
-	float use_3D, unused0, unused1, unused2;
+	float use_3D, inv_scale, unused1, unused2;
 };
 
 struct PixelShaderInput
@@ -20,7 +20,14 @@ struct PixelShaderInput
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	// Resize the mirror window about the center of the image so that we can 
+	// hide some of the ugly distortion we see near  the edges due to the wide
+	// FOV used in VR:
+	float2 uv = (input.tex - 0.5) * inv_scale + 0.5;
+	float4 texelColor = texture0.Sample(sampler0, uv);
+	//float2 D = abs(input.tex - 0.5);
+	//if (any(D > crop_amount))
+	//	texelColor.b += 0.7;
 
 	return float4(brightness * texelColor.xyz, 1.0f);
 }

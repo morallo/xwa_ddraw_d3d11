@@ -112,10 +112,13 @@ extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
 extern bool g_bEdgeEffectApplied;
 extern float g_fReticleScale;
-float g_fReticleOfsX = 0.0f;
-float g_fReticleOfsY = 0.0f;
+//float g_fReticleOfsX = 0.0f;
+//float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
+
+extern Vector2 g_TriangleCentroid;
+extern float g_fTrianglePointerDist;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
@@ -1561,6 +1564,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// use it as input in the shader
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 		0, BACKBUFFER_FORMAT);
+	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+	//	0, BACKBUFFER_FORMAT);
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1592,6 +1597,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
+	//float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
 	// If the display window has height > width, we can't make the the y axis smaller to compensate.
@@ -1606,9 +1612,25 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	scale *= window_scale;
 	
 	float aspect_ratio = 1.0f;
-	if (g_bRendering3D)
+	if (g_bRendering3D) {
 		// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
 		aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
+		/*
+		if (!g_config.AspectRatioPreserved) {
+			float RealWindowAspectRatio = steamVR_aspect_ratio;
+			if (RealWindowAspectRatio > g_fCurInGameAspectRatio)
+				// The display window is going to stretch the image horizontally, so we need
+				// to shrink the x axis:
+				// Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
+				aspect_ratio *= RealWindowAspectRatio > 1.0f ? g_fCurInGameAspectRatio / RealWindowAspectRatio : RealWindowAspectRatio / g_fCurInGameAspectRatio;
+			else
+				// The display window is going to stretch the image vertically, so we need
+				// to shrink the y axis:
+				aspect_ratio *= g_fCurInGameAspectRatio > 1.0f ? RealWindowAspectRatio / g_fCurInGameAspectRatio : g_fCurInGameAspectRatio / RealWindowAspectRatio;
+		}
+		*/
+	}
 	else
 		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
 		aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
@@ -1616,16 +1638,17 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? 0.7f : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_basicPixelShader);
+	resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	//resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -5073,9 +5096,11 @@ void PrimarySurface::RenderExternalHUD()
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	const bool bReticleInvisible = g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f;
+	const bool bTriangleInvisible = g_TriangleCentroid.x < 0.0f || g_TriangleCentroid.y < 0.0f;
 
-	// The reticle's centroid is not visible in this frame: nothing to do
-	if (g_ReticleCentroid.x < 0.0f || g_ReticleCentroid.y < 0.0f)
+	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
+	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
 	//float sz, rhw;
@@ -5093,13 +5118,37 @@ void PrimarySurface::RenderExternalHUD()
 	//log_debug("[DBG] g_ReticleCentroid, in-game coords: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
 	//log_debug("[DBG] ReticleCentroid UV: %0.3f, %0.3f, coords: %0.3f, %0.3f", x, y, x * g_fCurScreenWidth, y * g_fCurScreenHeight);
 
+	// SunCoords[0].xy: Reticle Centroid
+	// SunCoords[0].z: Inverse reticle scale
+	// SunCoords[0].w: Reticle visible (0 off, 1 on)
+
+	// SunCoords[1].x: Triangle pointer angle
+	// SunCoords[1].y: Triangle pointer displacement
+	// SunCoords[1].z: Triangle pointer scale (animated)
+	// SunCoords[1].w: Render triangle pointer (0 off, 1 on)
+
 	// Send the reticle centroid to the shader:
 	g_ShadertoyBuffer.SunCoords[0].x = x;
 	g_ShadertoyBuffer.SunCoords[0].y = y;
 	g_ShadertoyBuffer.SunCoords[0].z = 1.0f / g_fReticleScale;
-	//g_ShadertoyBuffer.SunCoords[1].x = g_fReticleOfsX;
-	//g_ShadertoyBuffer.SunCoords[1].y = g_fReticleOfsY;
-	//log_debug("[DBG] Centroid: %0.3f, %0.3f, UV: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
+	g_ShadertoyBuffer.SunCoords[0].w = (float)(!bReticleInvisible);
+
+	/*static float ang = 0.0f;
+	ang += 6.0f * 0.01745f;
+	if (ang > PI * 2.0f)
+		ang -= (PI * 2.0f);*/
+	static float time = 0.0f;
+	time += 0.1f;
+	if (time > 1.0f) time = 0.0f;
+	g_TriangleCentroid -= 0.5f * Vector2(g_fCurInGameWidth, g_fCurInGameHeight);
+	// Not sure if multiplying by preserveAspectRatioComp is necessary
+	g_TriangleCentroid.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
+	g_TriangleCentroid.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
+	float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
+	g_ShadertoyBuffer.SunCoords[1].x = ang;
+	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;
+	g_ShadertoyBuffer.SunCoords[1].z = 0.1f + 0.05f * time;
+	g_ShadertoyBuffer.SunCoords[1].w = (float)(!bTriangleInvisible);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
@@ -6850,7 +6899,7 @@ void PrimarySurface::RenderShadowMapOBJ()
  * In VR mode, the centroid of the sun texture is a new vertex in metric
  * 3D space. We need to project it to the vertex buffer that is used to
  * render the flare (the hyperspace vertex buffer, so it's placed at
- * ~22km away. This projection yields a uv-coordinate in this distant
+ * ~22km away). This projection yields a uv-coordinate in this distant
  * vertex buffer. Then we need to project this distant point to post-proc
  * screen coordinates. The screen-space coords (u,v) have (0,0) at the
  * center of the screen. The output u is further multiplied by the aspect
@@ -6967,6 +7016,7 @@ void PrimarySurface::RenderSunFlare()
 			// coords, not in-game coords
 			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
 			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
 	// Set the shadertoy constant buffer:
@@ -9168,7 +9218,7 @@ HRESULT PrimarySurface::Flip(
 				//log_debug("[DBG] Focus idx: %d", PlayerDataTable[*g_playerIndex].cameraFG);
 			}
 
-			// RESET FRAME COUNTERS, CONTROL VARS, CLEAR VECTORS, ETC
+			// RESET CONTROL VARS, FRAME COUNTERS, CLEAR VECTORS, ETC
 			{
 				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 				g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
@@ -9199,6 +9249,7 @@ HRESULT PrimarySurface::Flip(
 				g_bExecuteBufferLock = false;
 				g_bDCWasClearedOnThisFrame = false;
 				g_bEdgeEffectApplied = false;
+				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				if (g_bTriggerReticleCapture) {
 					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
@@ -9448,7 +9499,19 @@ HRESULT PrimarySurface::Flip(
 				hr = DDERR_SURFACELOST;
 			}
 			if (g_bUseSteamVR) {
+<<<<<<< HEAD
 				g_pVRCompositor->PostPresentHandoff();
+=======
+				//g_pVRCompositor->PostPresentHandoff();
+
+				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
+				//if (seconds > 0.008)
+
+				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
+				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
+				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
+				//WaitGetPoses();
+>>>>>>> Release_1_1_4
 			}
 		}
 		else

@@ -12,16 +12,31 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
+	
+	Triangle pointer: see https://www.shadertoy.com/view/MldcD7
+	DC texture names should be case-insensitive
+	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
-		Triangle Pointer -- TO CHECK
-		Finalize the reticle in VR -- TO CHECK
+		Fix the FOV in the mirror Window in SteamVR -- approximate fix
+		Triangle Pointer -- visible, but may need more work
 		Check that the Tech Room is rendering properly in VR.
 
 	Auto-turn on headlights in the last mission.
 
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
+*/
+
+/*
+	The current HUD color is stored in these variables:
+	CODE: SELECT ALL
+
+	// V0x005B5318
+	unsigned int s_XwaFlightHudColor;
+
+	// V0x005B531C
+	unsigned int s_XwaFlightHudBorderColor;
 */
 
 /*
@@ -302,7 +317,7 @@ const float DEFAULT_FLOATING_GUI_PARALLAX = 0.495f;
 const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
-const float DEFAULT_TRIANGLE_POINTER_SCALE = 0.25f;
+const float DEFAULT_TRIANGLE_POINTER_DIST = 0.120f;
 const float DEFAULT_GUI_ELEM_PZ_THRESHOLD = 0.0008f;
 const float DEFAULT_ZOOM_OUT_SCALE = 1.0f;
 const bool DEFAULT_ZOOM_OUT_INITIAL_STATE = false;
@@ -391,6 +406,7 @@ const char *DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char *FIXED_GUI_VRPARAM = "fixed_GUI";
 const char *STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 const char *RETICLE_SCALE_VRPARAM = "reticle_scale";
+const char *TRIANGLE_POINTER_DIST_VRPARAM = "triangle_pointer_distance";
 // 6dof vrparams
 const char *ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char *FREEPIE_SLOT_VRPARAM = "freepie_slot";
@@ -573,10 +589,13 @@ bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
-float4 g_DCTargetingColor;
+float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
+float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
+
+Vector2 g_TriangleCentroid;
 
 /*********************************************************/
 // SHADOW MAPPING
@@ -614,7 +633,7 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOVscale = 2.2f;
+float g_fDebugFOVscale = 0.06f;
 float g_fDebugYCenter = 0.0f;
 
 void CalculateViewMatrix();
@@ -681,7 +700,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-float g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
+float g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 //float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
@@ -745,6 +764,7 @@ int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 
 bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z);
+bool LoadGeneric4DCoords(char *buf, float *x, float *y, float *z, float *w);
 void LoadCockpitLookParams();
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
@@ -971,7 +991,7 @@ void ResetVRParams() {
 	EvaluateIPD(DEFAULT_IPD);
 	g_bCockpitPZHackEnabled = true;
 	g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
-	g_fTrianglePointerScale = DEFAULT_TRIANGLE_POINTER_SCALE;
+	g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
 	//g_fGlobalScale = g_bSteamVREnabled ? DEFAULT_GLOBAL_SCALE_STEAMVR : DEFAULT_GLOBAL_SCALE;
 	g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 	//g_fPostProjScale = 1.0f;
@@ -1159,28 +1179,32 @@ void SaveVRParams() {
 	fprintf(file, "; The HUD/GUI can be fixed in space now. If this setting is enabled, you'll be\n");
 	fprintf(file, "; able to see all the HUD simply by looking around. You may also lean forward to\n");
 	fprintf(file, "; zoom-in on the text messages to make them more readable.\n");
-	fprintf(file, "%s = %d\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
+	fprintf(file, "%s = %d\n\n", FIXED_GUI_VRPARAM, g_bFixedGUI);
 
-	fprintf(file, "\n");
 	fprintf(file, "; Set the following parameter to lower the brightness of the text,\n");
 	fprintf(file, "; Concourse and 2D menus (avoids unwanted bloom when using ReShade).\n");
 	fprintf(file, "; A value of 1 is normal brightness, 0 will render everything black.\n");
-	fprintf(file, "%s = %0.3f\n", BRIGHTNESS_VRPARAM, g_fBrightness);
+	fprintf(file, "%s = %0.3f\n\n", BRIGHTNESS_VRPARAM, g_fBrightness);
 
-	fprintf(file, "\n; Interleaved Reprojection is a SteamVR setting that locks the framerate at 45fps.\n");
+	fprintf(file, "; Interleaved Reprojection is a SteamVR setting that locks the framerate at 45fps.\n");
 	fprintf(file, "; In some cases, it may help provide a smoother experience. Try toggling it\n");
 	fprintf(file, "; to see what works better for your specific case.\n");
-	fprintf(file, "%s = %d\n", INTERLEAVED_REPROJ_VRPARAM, g_bInterleavedReprojection);
+	fprintf(file, "%s = %d\n\n", INTERLEAVED_REPROJ_VRPARAM, g_bInterleavedReprojection);
 
 	//fprintf(file, "\n");
 	//fprintf(file, "%s = %d\n", INVERSE_TRANSPOSE_VRPARAM, g_bInverseTranspose);
-	fprintf(file, "\n; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
+	fprintf(file, "; Cockpit roll multiplier. Set it to 0 to de-activate this axis.\n");
 	fprintf(file, "; The settings for pitch, yaw and positional tracking are in CockpitLook.cfg\n");
-	fprintf(file, "%s = %0.3f\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
+	fprintf(file, "%s = %0.3f\n\n", ROLL_MULTIPLIER_VRPARAM,  g_fRollMultiplier);
 
 	// STEAMVR_POS_FROM_FREEPIE_VRPARAM is not saved because it's kind of a hack -- I'm only
 	// using it because the PSMoveServiceSteamVRBridge is a bit tricky to setup and why would
 	// I do that when my current FreePIEBridgeLite is working properly -- and faster.
+
+	fprintf(file, "; Places the triangle pointer at the specified distance from the center of the\n");
+	fprintf(file, "; screen. A value of 0 places it right at the center, a value of 0.5 puts it\n");
+	fprintf(file, "; near the edge of the screen.\n");
+	fprintf(file, "%s = %0.3f\n\n", TRIANGLE_POINTER_DIST_VRPARAM, g_fTrianglePointerDist);
 
 	fclose(file);
 	log_debug("[DBG] vrparams.cfg saved");
@@ -2685,7 +2709,7 @@ bool LoadDCParams() {
 
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
-	float value = 0.0f;
+	float fValue = 0.0f;
 
 	// Initialize the IFF colors
 	// Rebel
@@ -2712,6 +2736,13 @@ bool LoadDCParams() {
 	g_DCTargetingIFFColors[5].x = 0.5f;
 	g_DCTargetingIFFColors[5].y = 0.1f;
 	g_DCTargetingIFFColors[5].z = 0.5f;
+	// Other wireframe initialization
+	g_DCWireframeLuminance.x = 0.33f;
+	g_DCWireframeLuminance.y = 0.50f;
+	g_DCWireframeLuminance.z = 0.16f;
+	g_DCWireframeLuminance.w = 0.05f;
+
+	g_DCWireframeContrast = 3.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
 	//if (!g_bRendering3D && g_DCElements.size() > 0) {
@@ -2737,10 +2768,10 @@ bool LoadDCParams() {
 			continue;
 
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			value = (float)atof(svalue);
+			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, DYNAMIC_COCKPIT_ENABLED_VRPARAM) == 0) {
-				g_bDynCockpitEnabled = (bool)value;
+				g_bDynCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [DC] g_bDynCockpitEnabled: %d", g_bDynCockpitEnabled);
 				if (!g_bDynCockpitEnabled) {
 					// Early abort: stop reading coordinates if the dynamic cockpit is disabled
@@ -2759,22 +2790,25 @@ bool LoadDCParams() {
 					LoadDCMoveRegion(buf);
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
-				g_fCoverTextureBrightness = value;
+				g_fCoverTextureBrightness = fValue;
 			}
 			else if (_stricmp(param, "ignore_erase_commands") == 0) {
-				g_bDCIgnoreEraseCommands = (bool)value;
+				g_bDCIgnoreEraseCommands = (bool)fValue;
 			}
 			else if (_stricmp(param, "toggle_erase_commands_on_cockpit_displayed") == 0) {
-				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)value;
+				g_bToggleEraseCommandsOnCockpitDisplayed = (bool)fValue;
 			}
 			else if (_stricmp(param, "compensate_FOV_for_1920x1080") == 0) {
-				g_bCompensateFOVfor1920x1080 = (bool)value;
+				g_bCompensateFOVfor1920x1080 = (bool)fValue;
 			}
 
 			else if (_stricmp(param, "dc_brightness") == 0) {
-				g_fDCBrightness = value;
+				g_fDCBrightness = fValue;
 			}
 
+			else if (_stricmp(param, "enable_wireframe_CMD") == 0) {
+				g_bEdgeDetectorEnabled = (bool)fValue;
+			}
 			else if (_stricmp(param, "wireframe_IFF_color_0") == 0) {
 				float x, y, z;
 				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
@@ -2828,6 +2862,22 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].z = z;
 					g_DCTargetingIFFColors[5].w = 1.0f;
 				}
+			}
+			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
+				float x, y, z, w;
+				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
+				if (LoadGeneric4DCoords(buf, &x, &y, &z, &w)) {
+					g_DCWireframeLuminance.x = x;
+					g_DCWireframeLuminance.y = y;
+					g_DCWireframeLuminance.z = z;
+					g_DCWireframeLuminance.w = w;
+					log_debug("[DBG] [DC] WireframeLuminance: %0.3f, %0.3f, %0.3f, %0.3f",
+						g_DCWireframeLuminance.x, g_DCWireframeLuminance.y, g_DCWireframeLuminance.z, g_DCWireframeLuminance.w);
+				}
+			}
+			else if (_stricmp(param, "wireframe_contrast") == 0) {
+				g_DCWireframeContrast = fValue;
+				log_debug("[DBG] [DC] Wireframe contrast: %0.3f", g_DCWireframeContrast);
 			}
 
 		}
@@ -3174,15 +3224,37 @@ bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
 	if (c != NULL) {
 		c += 1;
 		try {
-			res = sscanf_s(c, "%f, %f, %f",
-				x, y, z);
+			res = sscanf_s(c, "%f, %f, %f", x, y, z);
 			if (res < 3) {
-				log_debug("[DBG] [AO] ERROR (skipping), expected at least 3 elements in '%s'", c);
+				log_debug("[DBG] ERROR (skipping), expected at least 3 elements in [%s], read: %d", c, res);
 				return false;
 			}
 		}
 		catch (...) {
-			log_debug("[DBG] [AO] Could not read 3D from: %s", buf);
+			log_debug("[DBG] Could not read 3D from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool LoadGeneric4DCoords(char *buf, float *x, float *y, float *z, float *w)
+{
+	int res = 0;
+	char *c = NULL;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f, %f", x, y, z, w);
+			if (res < 4) {
+				log_debug("[DBG] ERROR (skipping), expected at least 4 elements in [%s], read %d", c, res);
+				return false;
+			}
+		}
+		catch (...) {
+			log_debug("[DBG] Could not read 4D from: %s", buf);
 			return false;
 		}
 	}
@@ -3804,9 +3876,6 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
-			else if (_stricmp(param, "enable_wireframe_CMD") == 0) {
-				g_bEdgeDetectorEnabled = (bool)fValue;
-			}
 		}
 	}
 	fclose(file);
@@ -4186,8 +4255,8 @@ void LoadVRParams() {
 			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
 			}
-			else if (_stricmp(param, "triangle_pointer_scale") == 0) {
-				g_fTrianglePointerScale = fValue;
+			else if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
+				g_fTrianglePointerDist = fValue;
 			}
 			
 			param_read_count++;
@@ -6691,6 +6760,11 @@ HRESULT Direct3DDevice::Execute(
 	float displayWidth  = (float)resources->_displayWidth;
 	float displayHeight = (float)resources->_displayHeight;
 
+	// Synchronization point to wait for vsync before we start to send work to the GPU
+	// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
+	// (that's what happens if we sync after Submit+Present)
+	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,	0, NULL, 0);
+
 	// Constant Buffer step (and aspect ratio)
 	if (SUCCEEDED(hr))
 	{
@@ -8744,9 +8818,14 @@ HRESULT Direct3DDevice::Execute(
 				// and let's put it at text depth so that it doesn't cause visual contention against the
 				// cockpit
 				if (g_bIsTrianglePointer) {
-					bModifiedShaders = true;
-					g_VSCBuffer.scale_override = g_fTrianglePointerScale;
-					g_VSCBuffer.z_override = g_fTextDepth;
+					/*bModifiedShaders = true;
+					g_VSCBuffer.scale_override = 0.25f;
+					g_VSCBuffer.z_override = g_fTextDepth;*/
+					
+					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
+					// Don't render the triangle pointer anymore, we'll do it later, when rendering the
+					// reticle
+					goto out;
 				}
 
 				// Add extra depth to Floating GUI elements and Lens Flare
@@ -9385,6 +9464,15 @@ void Direct3DDevice::RenderEdgeDetector()
 	else
 		return;
 
+	// SunCoords[1] are the UV coords for the buffer that has the SubCMD when the 2D renderer is disabled
+	// SunCoords[2].xy is the in-game resolution
+	// SunCoords[3].xy is the center of the SubCMD component if the 2D renderer is enabled
+	
+	// SunColor[0].xyz is the color of the wireframe
+	// SunColor[0].w is the contrast enhancer
+	// SunColor[1] is the luminance vector
+	g_ShadertoyBuffer.SunColor[1] = g_DCWireframeLuminance;
+
 	// We need to set the blend state properly
 	blendDesc.AlphaToCoverageEnable = FALSE;
 	blendDesc.IndependentBlendEnable = FALSE;
@@ -9424,9 +9512,11 @@ void Direct3DDevice::RenderEdgeDetector()
 	if (g_DCTargetingColor.w > 0.0f) {
 		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
 	}
+	// Send the contrast data
+	g_ShadertoyBuffer.SunColor[0].w = g_DCWireframeContrast;
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-	resources->InitPixelShader(resources->_edgeDetector);
+	resources->InitPixelShader(resources->_edgeDetectorPS);
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg,
 			L"C:\\Temp\\_edgeDetectorInput.jpg");
