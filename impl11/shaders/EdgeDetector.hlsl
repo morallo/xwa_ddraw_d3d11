@@ -82,6 +82,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float2 incr = iResolution.xy, incrInGame = SunCoords[2].xy;
 	float2 start = -incr, startInGame = -incrInGame;
 
+	// Avoid computing Sobel close to the edge of the viewport
+	if (any(uv < p0 + 6.0 * incr) || any(uv > p1 - 6.0 * incr))
+		return output;
+
 	float c[9];
 	float4 col, subCMD = 0, subCMDtap;
 	float2 ofs = start, ofsInGame;
@@ -95,6 +99,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			//float2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
 			//float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
+			col.rgb = col.a * col.rgb;
 			if (twirl > 0.0) {
 				float3 n = 2.0 * noise(64.0 * float3(uv + ofs, iTime));
 				col = lerp(col, float4(n, 1.0), twirl);
@@ -103,7 +108,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 			}
 			// Approx Luminance formula:
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
-			c[3 * i + j] = dot(LuminanceDot, contrast * col);
+			c[3 * i + j] = dot(LuminanceDot.rgb, contrast * col.rgb);
+			
 			// Dilate the subCMD bracket:
 			if (!render2Denabled) {
 				subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);
@@ -125,7 +131,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color = float4(G * SunColor[0].rgb, G);
 	
 	if (render2Denabled) {
-		const float radius = iTime;
+		const float radius = 10.0 * iTime;
 		const float d = sdCircle(uv, SunCoords[3].xy, radius * iResolution.y);
 		subCMD = smoothstep(thickness, 0.0, abs(d)); // ring
 	}
@@ -137,5 +143,6 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color.rgb = max(output.color.rgb, alpha);
 	//output.color.rgb = lerp(output.color.rgb, InvColor * alpha, alpha);
 	output.color.a = max(output.color.a, alpha);
+
 	return output;
 }

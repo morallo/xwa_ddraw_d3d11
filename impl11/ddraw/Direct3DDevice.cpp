@@ -2862,13 +2862,13 @@ bool LoadDCParams() {
 				}
 			}
 			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
-				float x, y, z, w;
+				float x, y, z;
 				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
-				if (LoadGeneric4DCoords(buf, &x, &y, &z, &w)) {
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
 					g_DCWireframeLuminance.x = x;
 					g_DCWireframeLuminance.y = y;
 					g_DCWireframeLuminance.z = z;
-					g_DCWireframeLuminance.w = w;
+					g_DCWireframeLuminance.w = 0.0f;
 					log_debug("[DBG] [DC] WireframeLuminance: %0.3f, %0.3f, %0.3f, %0.3f",
 						g_DCWireframeLuminance.x, g_DCWireframeLuminance.y, g_DCWireframeLuminance.z, g_DCWireframeLuminance.w);
 				}
@@ -7917,10 +7917,14 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Avoid rendering explosions on the CMD if we're rendering edges
+				// This didn't make much difference: the real problem is that the explosions and gas isn't doing
+				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
+				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					(lastTextureSelected->is_Explosion)) {
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark)) {
 					goto out;
 				}
+				*/
 
 				// Reticle processing
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
@@ -9445,8 +9449,7 @@ void Direct3DDevice::RenderEdgeDetector()
 		if (g_config.Radar2DRendererEnabled) {
 			float x, y;
 			static float pulse = 3.0f;
-			//pulse += 0.20f;
-			pulse += 0.4f;
+			pulse += 0.5f;
 			if (pulse > 12.0f)
 				pulse = 3.0f;
 			//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);
