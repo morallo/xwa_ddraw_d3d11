@@ -700,7 +700,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		// 0.027 (~2.5 frames) is the estimated time it will take for the next frame to be displayed.
 		// TODO: calculate predicted seconds to photons from now dynamically
-		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.027, &trackedDevicePose, 1);
+		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.027f, &trackedDevicePose, 1);
 		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
 		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
 		quatToEuler(q, yaw, pitch, roll);
