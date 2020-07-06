@@ -5153,10 +5153,14 @@ void PrimarySurface::RenderExternalHUD()
 	static float time = 0.0f;
 	time += 0.1f;
 	if (time > 1.0f) time = 0.0f;
+	// Convert the triangle centroid to screen coords:
+	//InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+	//	(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_TriangleCentroid.x, g_TriangleCentroid.y, &x, &y);
+	//Vector2 TriangleCentroidSC(x, y);
 	g_TriangleCentroid -= 0.5f * Vector2(g_fCurInGameWidth, g_fCurInGameHeight);
 	// Not sure if multiplying by preserveAspectRatioComp is necessary
-	g_TriangleCentroid.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
-	g_TriangleCentroid.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
+	//g_TriangleCentroidSC.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
+	//g_TriangleCentroidSC.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
 	float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
 	g_ShadertoyBuffer.SunCoords[1].x = ang;
 	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;

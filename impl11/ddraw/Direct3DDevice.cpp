@@ -13,14 +13,14 @@
 TODO:
 	VR metric reconstruction -- In progress
 	
-	Triangle pointer: see https://www.shadertoy.com/view/MldcD7
-	DC texture names should be case-insensitive
 	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
 		Fix the FOV in the mirror Window in SteamVR -- approximate fix
 		Triangle Pointer -- visible, but may need more work
-		Check that the Tech Room is rendering properly in VR.
+		Check that the Tech Room is rendering properly in VR. DONE.
+
+		DC texture names should be case-insensitive DONE
 
 	Auto-turn on headlights in the last mission.
 
@@ -8821,9 +8821,9 @@ HRESULT Direct3DDevice::Execute(
 				// and let's put it at text depth so that it doesn't cause visual contention against the
 				// cockpit
 				if (g_bIsTrianglePointer) {
-					/*bModifiedShaders = true;
-					g_VSCBuffer.scale_override = 0.25f;
-					g_VSCBuffer.z_override = g_fTextDepth;*/
+					//bModifiedShaders = true;
+					//g_VSCBuffer.scale_override = 0.25f;
+					//g_VSCBuffer.z_override = g_fTextDepth;
 					
 					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
 					// Don't render the triangle pointer anymore, we'll do it later, when rendering the
