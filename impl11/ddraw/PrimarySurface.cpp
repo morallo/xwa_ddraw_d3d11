@@ -698,11 +698,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&trackedDevicePose, 0, NULL, 0);
-		if (error) {
-			log_debug("SteamVR WaitGetPoses() error: %d", error);
-		}
-		//vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0, &trackedDevicePose, 1);
+		// 0.027 (~2.5 frames) is the estimated time it will take for the next frame to be displayed.
+		// TODO: calculate predicted seconds to photons from now dynamically
+		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.027, &trackedDevicePose, 1);
 		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
 		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
 		quatToEuler(q, yaw, pitch, roll);
@@ -9409,6 +9407,7 @@ HRESULT PrimarySurface::Flip(
 			}
 			*/
 
+			CalculateViewMatrix();
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
@@ -9497,17 +9496,6 @@ HRESULT PrimarySurface::Flip(
 				}
 				messageShown = true;
 				hr = DDERR_SURFACELOST;
-			}
-			if (g_bUseSteamVR) {
-				//g_pVRCompositor->PostPresentHandoff();
-
-				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
-				//if (seconds > 0.008)
-
-				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
-				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
-				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
-				//WaitGetPoses();
 			}
 		}
 		else

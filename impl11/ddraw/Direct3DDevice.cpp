@@ -9617,12 +9617,6 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ReticleCenterLimits.y1 = -10000;
 	//log_debug("[DBG] GetCurrentHeadingViewMatrix()");
 
-	/* Get the pose and calculate the full view matrix.
-	In SteamVR mode, this function will run WaitGetPoses() and block until ~3ms before the HMD vsync
-	to optimize tracker latency ("running start" algorithm).
-	*/
-	CalculateViewMatrix();
-
 	if (!this->_deviceResources->_renderTargetView)
 	{
 #if LOGGER
