@@ -197,7 +197,7 @@ extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_b
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
-bool g_bEnableSteamVR_QPC = false;
+bool g_bEnableSteamVR_QPC = false, g_bTogglePostPresentHandoff = false;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -8472,10 +8472,12 @@ HRESULT PrimarySurface::Flip(
 						break;
 					}
 
-					if (g_bUseSteamVR) {
+					if (g_bUseSteamVR && g_bTogglePostPresentHandoff) {
 						g_pVRCompositor->PostPresentHandoff();
 						//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 					}
+					vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+
 				}
 			}
 			else
@@ -9496,6 +9498,10 @@ HRESULT PrimarySurface::Flip(
 				}
 				messageShown = true;
 				hr = DDERR_SURFACELOST;
+			}
+			// We may still need the PostPresentHandoff here...
+			if (g_bUseSteamVR && g_bTogglePostPresentHandoff) {
+				g_pVRCompositor->PostPresentHandoff();
 			}
 		}
 		else

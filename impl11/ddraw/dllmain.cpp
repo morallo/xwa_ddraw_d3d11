@@ -29,6 +29,7 @@ extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern float g_fCurrentShipFocalLength, g_fReticleScale;
 extern bool g_bYCenterHasBeenFixed;
+extern bool g_bTogglePostPresentHandoff;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
 
@@ -845,6 +846,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
 			case 'P':
+				g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
+				log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+				/*
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
 					char prevFileName[80], scrFileName[80];
@@ -862,6 +866,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else {
 					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
 				}
+				*/
 				break;
 
 #if DBR_VR
