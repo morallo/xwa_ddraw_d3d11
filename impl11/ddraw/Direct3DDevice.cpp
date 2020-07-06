@@ -12,6 +12,8 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
+
+	The hyperspace entry and exit doesn't rotate well when looking around
 	
 	What's wrong with the map in VR?
 
