@@ -9516,7 +9516,7 @@ HRESULT PrimarySurface::Flip(
 				hr = DDERR_SURFACELOST;
 			}
 			if (g_bUseSteamVR) {
-				g_pVRCompositor->PostPresentHandoff();
+				//g_pVRCompositor->PostPresentHandoff();
 
 				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
 				//if (seconds > 0.008)
@@ -9524,7 +9524,7 @@ HRESULT PrimarySurface::Flip(
 				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
 				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
 				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
-				WaitGetPoses();
+				//WaitGetPoses();
 			}
 		}
 		else
