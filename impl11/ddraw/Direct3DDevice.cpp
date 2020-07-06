@@ -8286,6 +8286,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_BACKGROUND;
 					// Suns are pushed to infinity too:
 					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
 				}

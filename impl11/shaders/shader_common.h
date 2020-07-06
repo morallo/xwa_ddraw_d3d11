@@ -27,6 +27,7 @@
 // Used in the special_control CB field in the pixel shader
 #define SPECIAL_CONTROL_XWA_SHADOW 1
 #define SPECIAL_CONTROL_GLASS 2
+#define SPECIAL_CONTROL_BACKGROUND 3
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6
