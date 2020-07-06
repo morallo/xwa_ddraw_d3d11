@@ -731,6 +731,7 @@ void ComputeHyperFOVParams() {
 	// Find the current center of the screen after it has been displaced by the cockpit camera.
 	// We only care about the y-coordinate, as we're going to use it along with the reticle to
 	// compute y_center.
+
 	// To find the y-center of the screen, we're going to use math. The tangent of the current
 	// pitch can give us the information right away. This is closely related to the FOV and
 	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
@@ -739,17 +740,32 @@ void ComputeHyperFOVParams() {
 	H += g_fCurInGameHeight / 2.0f;
 	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);
 	if (g_ReticleCentroid.y > -1.0f) {
-		// We have reticle center visible this frame and we can use it to compute y_center...
-		// The formula to compute y_center seems to be:
-		// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
-		// The in-game-center has to be computer properly if the cockpit isn't facing forward
-		y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
-		log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
-		// We can stop looking for the reticle center now:
-		g_bYCenterHasBeenFixed = true;
+		// *sigh* for whatever stupid reason, sometimes we can have ReticleCentroid.y == 0.0 while looking straight ahead (pitch == 0)
+		// This situation completely destroys the calculation below, so we need to make sure that the camera pitch and the centroid
+		// are consistent.
+		// Another way to solve this problem is to prevent this calculation until the reticle centroid is close-ish to the center
+		// of the screen
+		float y_dist_from_screen_center = (float)fabs(g_ReticleCentroid.y - g_fCurInGameHeight / 2.0f);
+		if (y_dist_from_screen_center < g_fCurInGameHeight / 2.0f) {
+			// The reticle center visible this frame and it's not close to the edge of the screen.
+			// We can use it to compute y_center...
+
+			// The formula to compute y_center seems to be:
+			// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
+			// The in-game-center has to be computer properly if the cockpit isn't facing forward
+			y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
+			log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
+			// We can stop looking for the reticle center now:
+			g_bYCenterHasBeenFixed = true;
+		}
+		else
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED TO COMPUTE Y_CENTER. WILL RETRY.");
+		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
+		// come back to this path on the next frame where a reticle is visible.
 	}
-	else {
-		// Provide a default value if the reticle isn't visible
+	
+	if (!g_bYCenterHasBeenFixed) {
+		// Provide a default value if we couldn't compute y_center
 		y_center_raw = 153.0f / g_fCurInGameHeight;
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
@@ -9034,13 +9050,22 @@ HRESULT PrimarySurface::Flip(
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
 					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
-					if (!LoadFocalLength() && g_bEnableVR) {
-						// We couldn't load the custom FOV and we're running in VR mode, let's apply
-						// the current VR FOV...
-						ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
-						// ... and save it
-						SaveFocalLength();
+					if (!LoadFocalLength()) {
+						if (g_bEnableVR) {
+							// We couldn't load the custom FOV and we're running in VR mode, let's apply
+							// the current VR FOV...
+							ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
+							// ... and save it
+							SaveFocalLength();
+						}
+						else {
+							// We couldn't load the focal length and we're not running in VR mode.
+							// We still need to compute the FOVscale and y_center:
+							ComputeHyperFOVParams();
+						}
 					}
+					// else: LoadFocalLength calls ApplyFocalLength, which in turn calls ComputeHyperFOVParams, which is
+					// where we compute y_center and FOVscale, so we're good.
 					break;
 				case XWAHACKER_FOV:
 					// If the current ship's DC file has a focal length, apply it:

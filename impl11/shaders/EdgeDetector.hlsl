@@ -19,6 +19,30 @@ SamplerState subCMDSampler : register(s1);
 
 //static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
 
+// Noise from https://www.shadertoy.com/view/4sfGzS
+float hash(vec3 p)  // replace this by something better
+{
+	p = fract(p*0.3183099 + .1);
+	p *= 17.0;
+	return fract(p.x*p.y*p.z*(p.x + p.y + p.z));
+}
+
+float noise(in vec3 x)
+{
+	vec3 i = floor(x);
+	vec3 f = fract(x);
+	f = f * f*(3.0 - 2.0*f);
+
+	return mix(mix(mix(hash(i + vec3(0, 0, 0)),
+		hash(i + vec3(1, 0, 0)), f.x),
+		mix(hash(i + vec3(0, 1, 0)),
+			hash(i + vec3(1, 1, 0)), f.x), f.y),
+		mix(mix(hash(i + vec3(0, 0, 1)),
+			hash(i + vec3(1, 0, 1)), f.x),
+			mix(hash(i + vec3(0, 1, 1)),
+				hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -42,6 +66,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.color = 0.0;
 
 	// DEBUG
+	//output.color.rgb = noise(64.0 * float3(input.uv, iTime));
+	//output.color.a = 1.0;
+	//return output;
 	//output.color = procTex.Sample(procSampler, input.uv);
 	//return output;
 
@@ -58,6 +85,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float c[9];
 	float4 col, subCMD = 0, subCMDtap;
 	float2 ofs = start, ofsInGame;
+	//float n = noise(64.0 * float3(input.uv, iTime));
 	for (int i = 0; i < 3; ++i)
 	{
 		ofs.x = start.x;
@@ -67,6 +95,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 			//float2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
 			//float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
+			if (twirl > 0.0) {
+				float3 n = 2.0 * noise(64.0 * float3(uv + ofs, iTime));
+				col = lerp(col, float4(n, 1.0), twirl);
+				//col.rgb = 2.0 * noise(64.0 * float3(uv + ofs, iTime));
+				//col.a = 1.0;
+			}
 			// Approx Luminance formula:
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
 			c[3 * i + j] = dot(LuminanceDot, contrast * col);

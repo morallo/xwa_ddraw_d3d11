@@ -7916,6 +7916,12 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				// Avoid rendering explosions on the CMD if we're rendering edges
+				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
+					(lastTextureSelected->is_Explosion)) {
+					goto out;
+				}
+
 				// Reticle processing
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
 				if (bIsReticleCenter)
@@ -9507,6 +9513,28 @@ void Direct3DDevice::RenderEdgeDetector()
 	}
 	// Send the contrast data
 	g_ShadertoyBuffer.SunColor[0].w = g_DCWireframeContrast;
+	// Set the time
+	static float time = 0.0f;
+	time += 0.1f;
+	if (time > 2.0f) time = 0.0f;
+	g_ShadertoyBuffer.iTime = time;
+	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
+	static float destroyedTimer = 0.0f;
+	if (currentTargetIndex > -1) {
+		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance->CraftState == 3 && !bExternalView) {
+			destroyedTimer += 0.005f;
+			destroyedTimer = min(destroyedTimer, 1.0f);
+		}
+		else
+			destroyedTimer = 0.0f;
+	}
+	else
+		destroyedTimer = 0.0f;
+	g_ShadertoyBuffer.twirl = destroyedTimer;
+	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	resources->InitPixelShader(resources->_edgeDetectorPS);
