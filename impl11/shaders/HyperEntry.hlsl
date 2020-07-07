@@ -128,9 +128,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//else
 		// Non-VR:
 		p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+		p *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
-	float p_len = length(p);
+	//float p_len = length(p);
 	//vec3 v = vec3(p, 1.0 - length(p) * 0.2);
 	//vec3 v = vec3(p, -1.0);
 	vec3 v = vec3(p, -FOVscale);

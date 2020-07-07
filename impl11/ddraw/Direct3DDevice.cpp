@@ -3937,10 +3937,7 @@ bool LoadHyperParams() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, "y_center") == 0) {
-				//g_ShadertoyBuffer.y_center = fValue;
-			}
-			else if (_stricmp(param, "disney_style") == 0) {
+			if (_stricmp(param, "disney_style") == 0) {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
@@ -3949,12 +3946,11 @@ bool LoadHyperParams() {
 			else if (_stricmp(param, "twirl") == 0) {
 				g_ShadertoyBuffer.twirl = fValue;
 			}
-			else if (_stricmp(param, "FOV_scale") == 0) {
-				//g_fOverrideFOVScale = fValue;
-				//g_ShadertoyBuffer.FOVscale = fValue;
-			}
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bHyperDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug_fsm") == 0) {
+				g_iHyperStateOverride = (int)fValue;
 			}
 			else if (_stricmp(param, "light_rotation_speed") == 0) {
 				g_fHyperLightRotationSpeed = fValue;

@@ -304,6 +304,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
 	//vec3 v = vec3(p.x, -p.y, -FOVscale); // Use this for light vectors
+	p *= preserveAspectRatioComp;
 	vec3 v = vec3(p, -FOVscale);
 	//v = mul(viewMat, vec4(v, 0.0)).xyz;
 	//vec3 v = vec3(p, 0.0);

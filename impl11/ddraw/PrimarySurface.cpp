@@ -766,9 +766,9 @@ void ComputeHyperFOVParams() {
 	}
 	
 	if (!g_bYCenterHasBeenFixed) {
-		// Provide a default value if we couldn't compute y_center
-		//y_center_raw = 153.0f / g_fCurInGameHeight;
-		y_center_raw = 0.0f;
+		// Provide a default value if we couldn't compute y_center:
+		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 0.0f; // I can't do this because the cockpits look wrong in the hangar. They look skewed
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 
@@ -4562,10 +4562,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 
 	//#ifdef HYPER_OVERRIDE
-		//iTime += 0.1f;
-		//if (iTime > 2.0f) iTime = 0.0f;
-	if (g_bHyperDebugMode)
-		iTime = g_fHyperTimeOverride;
+		
+	if (g_bHyperDebugMode) {
+		//iTime = g_fHyperTimeOverride;
+
+		static float TimeOverride = 0.0f;
+		TimeOverride += 0.01f;
+		if (TimeOverride > 2.0f) TimeOverride = 0.0f;
+		iTime = TimeOverride;
+	}
 	//#endif
 
 	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
@@ -4618,10 +4623,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
-	if (g_bEnableVR) {
+	/*if (g_bEnableVR) {
 		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
 			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-	}
+	}*/
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	//const int CAPTURE_FRAME = 75; // Hyper-entry
@@ -4689,7 +4694,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->InitVertexShader(resources->_vertexShader);
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -4768,7 +4772,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		//g_VSCBuffer.viewportScale[3] = 1.0f;
 		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
