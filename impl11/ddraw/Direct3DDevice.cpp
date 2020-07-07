@@ -6652,7 +6652,12 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-
+	// Synchronization point to wait for vsync before we start to send work to the GPU
+	// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
+	// (that's what happens if we sync after Submit+Present)
+	if (g_ExecuteCount == 0) { //only wait once per frame
+		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+	}
 	g_ExecuteCount++;
 
 	//log_debug("[DBG] Execute (1)");
