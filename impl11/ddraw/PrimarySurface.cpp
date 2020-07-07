@@ -33,6 +33,7 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+bool g_bPrevPlayerInHangar = false;
 #define GENERIC_POV_SCALE 44.0f
 // These values match MXvTED exactly:
 const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
@@ -759,14 +760,15 @@ void ComputeHyperFOVParams() {
 			g_bYCenterHasBeenFixed = true;
 		}
 		else
-			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED TO COMPUTE Y_CENTER. WILL RETRY.");
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED COMPUTE Y_CENTER. WILL RETRY. Frame: %d", g_iPresentCounter);
 		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
 		// come back to this path on the next frame where a reticle is visible.
 	}
 	
 	if (!g_bYCenterHasBeenFixed) {
 		// Provide a default value if we couldn't compute y_center
-		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 153.0f / g_fCurInGameHeight;
+		y_center_raw = 0.0f;
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 
@@ -848,8 +850,8 @@ void ComputeHyperFOVParams() {
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV);
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, g_iPresentCounter);
 
 	// DEBUG
 	//static bool bFirstTime = true;
@@ -9002,6 +9004,17 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+
+				// Reset the frame counter if we just exited the hangar
+				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
+					g_iPresentCounter = 0;
+					log_debug("[DBG] EXITED HANGAR");
+				}
+				g_bPrevPlayerInHangar = *g_playerInHangar;
+				// Force recomputation of y_center at the beginning of each match, or after exiting the hangar
+				if (g_iPresentCounter == 5)
+					g_bYCenterHasBeenFixed = false;
+
 				if (g_bTriggerReticleCapture) {
 					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
 					log_debug("Reticle Centroid: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
