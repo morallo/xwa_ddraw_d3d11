@@ -134,6 +134,7 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
+void ApplyFocalLength(float focal_length);
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
@@ -143,18 +144,8 @@ bool InitDirectSBS();
 bool ShutDownDirectSBS();
 
 // SteamVR
-#include <headers/openvr.h>
-extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC;
-extern vr::IVRSystem *g_pHMD;
-extern vr::IVRScreenshots *g_pVRScreenshots;
-bool InitSteamVR();
-void ShutDownSteamVR();
-void ApplyFocalLength(float focal_length);
-bool UpdateXWAHackerFOV();
-void CycleFOVSetting();
-float ComputeRealVertFOV();
-float ComputeRealHorzFOV();
-float RealVertFOVToRawFocalLength(float real_FOV);
+#include "SteamVR.h"
+
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;

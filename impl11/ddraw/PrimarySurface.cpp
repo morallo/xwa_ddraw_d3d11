@@ -17,6 +17,7 @@
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
+#include "SteamVR.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
@@ -182,7 +183,6 @@ void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x,
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
-#include <headers/openvr.h>
 const float PI = 3.141592f;
 const float RAD_TO_DEG = 180.0f / PI;
 extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
@@ -193,11 +193,8 @@ extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
 extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
-extern vr::IVRSystem *g_pHMD;
-extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
-extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
-bool g_bEnableSteamVR_QPC = false;
+extern bool g_bReshadeEnabled;
+extern int g_iFreePIESlot;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -281,8 +278,6 @@ struct XwaTransform
 	/* 0x0000 */ XwaVector3 Position;
 	/* 0x000C */ XwaMatrix3x3 Rotation;
 };
-
-void ShowMatrix4(const Matrix4 &mat, char *name);
 
 // S0x0000001
 // L00439B30
@@ -633,7 +628,8 @@ void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, f
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0, &trackedDevicePose, 1);
+		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.029f, &trackedDevicePose, 1);
+
 		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
 		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
 		quatToEuler(q, yaw, pitch, roll);
@@ -701,15 +697,8 @@ extern bool g_bCapture2DOffscreenBuffer;
 #endif
 
 /* SteamVR HMD */
-#include <headers/openvr.h>
 extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
-extern vr::IVRSystem *g_pHMD;
-extern vr::IVRCompositor *g_pVRCompositor;
-extern bool g_bSteamVREnabled, g_bUseSteamVR;
-extern uint32_t g_steamVRWidth, g_steamVRHeight;
-extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 void *g_pSurface = NULL;
-bool WaitGetPoses();
 
 float ComputeRealVertFOV() {
 	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;
@@ -7718,67 +7707,7 @@ void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint3
 	lastButtonsPressed = buttonsPressed;
 }
 
-/* Convenience function to call WaitGetPoses() */
-inline bool WaitGetPoses_QPC() {
-	static LARGE_INTEGER t0, t1, last_t, elapsed_us, elapsed_since_last_t_us, freq = { 0 };
-	uint64_t elapsed_ms, remaining_ms, waitgetposes_elapsed_ms;
-	bool result = false;
 
-	if (freq.QuadPart == 0) {
-		QueryPerformanceFrequency(&freq);
-		log_debug("[DBG] [QPF] freq: %lu", freq);
-	}
-	if (g_bEnableSteamVR_QPC) {
-		QueryPerformanceCounter(&t0);
-		// Compute the time elapsed since the previous last_t was taken
-		elapsed_since_last_t_us.QuadPart = t0.QuadPart - last_t.QuadPart;
-		elapsed_since_last_t_us.QuadPart *= 1000000;
-		elapsed_since_last_t_us.QuadPart /= freq.QuadPart;
-		//log_debug("[DBG] elapsed_since_last_t: %lu", elapsed_since_last_t_us.QuadPart);
-
-		// We want to call WaitGetPoses when we're about to reach a multiple of 11ms
-		// since the previous last_t. Say, we want to call it at either 8ms since last_t,
-		// 22-3ms = 19ms, 33-3ms = 30ms
-		elapsed_ms = elapsed_since_last_t_us.QuadPart / 1000;
-		// g_iSteamVR_VSync_ms default = 11
-		remaining_ms = g_iSteamVR_VSync_ms - (elapsed_ms % g_iSteamVR_VSync_ms);
-	}
-	else
-		remaining_ms = 0;
-	
-	if (remaining_ms <= g_iSteamVR_Remaining_ms) {
-		// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
-		// error 101 when calling VRCompositor->Submit
-		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-			0, NULL, 0);
-		if (g_bEnableSteamVR_QPC) {
-			QueryPerformanceCounter(&t1);
-			elapsed_us.QuadPart = t1.QuadPart - t0.QuadPart;
-			elapsed_us.QuadPart *= 1000000;
-			elapsed_us.QuadPart /= freq.QuadPart;
-			waitgetposes_elapsed_ms = elapsed_us.QuadPart / 1000;
-			//if (waitgetposes_elapsed_ms > remaining_ms)
-			//	log_debug("[DBG] waitgetposes_elapsed_ms: %d", waitgetposes_elapsed_ms);
-		}
-
-		//Sleep(2); // Using "20" here I get values like: elapsed_us: 20381 below, so that validates
-		// that elapsed_us.QuadPart is in microseconds.
-		result = true;
-		//log_debug("[DBG] WaitGetPoses");
-	}
-
-	if (g_bEnableSteamVR_QPC)
-		// Store this timestamp for the next frame
-		last_t = t1;
-	//log_debug("[DBG] elapsed_us: %lu", elapsed_us.QuadPart);
-	return result;
-}
-
-inline bool WaitGetPoses() {
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
-	return true;
-}
 
 HRESULT PrimarySurface::Flip(
 	LPDIRECTDRAWSURFACE lpDDSurfaceTargetOverride,

@@ -120,6 +120,7 @@
 #include <WICTextureLoader.h>
 #include <headers/openvr.h>
 #include <vector>
+#include "SteamVR.h"
 
 void InitOPTnames();
 void ClearOPTnames();
@@ -157,10 +158,6 @@ extern bool g_bReshadeEnabled, g_bBloomEnabled;
 extern float g_fHUDDepth;
 extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
-// SteamVR
-#include <headers/openvr.h>
-extern bool g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableVR;
-extern uint32_t g_steamVRWidth, g_steamVRHeight;
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
 // Speed Effect
@@ -208,11 +205,6 @@ extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
-
-/* SteamVR HMD */
-extern vr::IVRSystem *g_pHMD;
-extern vr::IVRCompositor *g_pVRCompositor;
-extern bool g_bSteamVREnabled, g_bUseSteamVR;
 
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);

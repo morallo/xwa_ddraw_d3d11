@@ -122,6 +122,7 @@
     <ClCompile Include="MipmapSurface.cpp" />
     <ClCompile Include="OffscreenSurface.cpp" />
     <ClCompile Include="PrimarySurface.cpp" />
+    <ClCompile Include="SteamVR.cpp" />
     <ClCompile Include="TextureSurface.cpp" />
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="XwaDrawBracketHook.cpp" />
@@ -152,6 +153,7 @@
     <ClInclude Include="OffscreenSurface.h" />
     <ClInclude Include="PrimarySurface.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="SteamVR.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TextureSurface.h" />
     <ClInclude Include="utils.h" />
