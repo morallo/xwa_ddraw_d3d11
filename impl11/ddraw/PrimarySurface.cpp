@@ -33,6 +33,7 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+bool g_bPrevPlayerInHangar = false;
 #define GENERIC_POV_SCALE 44.0f
 // These values match MXvTED exactly:
 const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
@@ -732,6 +733,7 @@ void ComputeHyperFOVParams() {
 	// Find the current center of the screen after it has been displaced by the cockpit camera.
 	// We only care about the y-coordinate, as we're going to use it along with the reticle to
 	// compute y_center.
+
 	// To find the y-center of the screen, we're going to use math. The tangent of the current
 	// pitch can give us the information right away. This is closely related to the FOV and
 	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
@@ -740,18 +742,34 @@ void ComputeHyperFOVParams() {
 	H += g_fCurInGameHeight / 2.0f;
 	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);
 	if (g_ReticleCentroid.y > -1.0f) {
-		// We have reticle center visible this frame and we can use it to compute y_center...
-		// The formula to compute y_center seems to be:
-		// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
-		// The in-game-center has to be computer properly if the cockpit isn't facing forward
-		y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
-		log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
-		// We can stop looking for the reticle center now:
-		g_bYCenterHasBeenFixed = true;
+		// *sigh* for whatever stupid reason, sometimes we can have ReticleCentroid.y == 0.0 while looking straight ahead (pitch == 0)
+		// This situation completely destroys the calculation below, so we need to make sure that the camera pitch and the centroid
+		// are consistent.
+		// Another way to solve this problem is to prevent this calculation until the reticle centroid is close-ish to the center
+		// of the screen
+		float y_dist_from_screen_center = (float)fabs(g_ReticleCentroid.y - g_fCurInGameHeight / 2.0f);
+		if (y_dist_from_screen_center < g_fCurInGameHeight / 2.0f) {
+			// The reticle center visible this frame and it's not close to the edge of the screen.
+			// We can use it to compute y_center...
+
+			// The formula to compute y_center seems to be:
+			// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
+			// The in-game-center has to be computer properly if the cockpit isn't facing forward
+			y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
+			log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
+			// We can stop looking for the reticle center now:
+			g_bYCenterHasBeenFixed = true;
+		}
+		else
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED COMPUTE Y_CENTER. WILL RETRY. Frame: %d", g_iPresentCounter);
+		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
+		// come back to this path on the next frame where a reticle is visible.
 	}
-	else {
-		// Provide a default value if the reticle isn't visible
+	
+	if (!g_bYCenterHasBeenFixed) {
+		// Provide a default value if we couldn't compute y_center:
 		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 0.0f; // I can't do this because the cockpits look wrong in the hangar. They look skewed
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 
@@ -830,11 +848,12 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV);
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, g_iPresentCounter);
 
 	// DEBUG
 	//static bool bFirstTime = true;
@@ -4545,10 +4564,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 
 	//#ifdef HYPER_OVERRIDE
-		//iTime += 0.1f;
-		//if (iTime > 2.0f) iTime = 0.0f;
-	if (g_bHyperDebugMode)
-		iTime = g_fHyperTimeOverride;
+		
+	if (g_bHyperDebugMode) {
+		//iTime = g_fHyperTimeOverride;
+
+		static float TimeOverride = 0.0f;
+		TimeOverride += 0.01f;
+		if (TimeOverride > 2.0f) TimeOverride = 0.0f;
+		iTime = TimeOverride;
+	}
 	//#endif
 
 	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
@@ -4601,10 +4625,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
-	if (g_bEnableVR) {
+	/*if (g_bEnableVR) {
 		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
 			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-	}
+	}*/
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	//const int CAPTURE_FRAME = 75; // Hyper-entry
@@ -4672,7 +4696,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->InitVertexShader(resources->_vertexShader);
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -4751,7 +4774,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		//g_VSCBuffer.viewportScale[3] = 1.0f;
 		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -5138,10 +5160,14 @@ void PrimarySurface::RenderExternalHUD()
 	static float time = 0.0f;
 	time += 0.1f;
 	if (time > 1.0f) time = 0.0f;
+	// Convert the triangle centroid to screen coords:
+	//InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+	//	(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_TriangleCentroid.x, g_TriangleCentroid.y, &x, &y);
+	//Vector2 TriangleCentroidSC(x, y);
 	g_TriangleCentroid -= 0.5f * Vector2(g_fCurInGameWidth, g_fCurInGameHeight);
 	// Not sure if multiplying by preserveAspectRatioComp is necessary
-	g_TriangleCentroid.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
-	g_TriangleCentroid.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
+	//g_TriangleCentroidSC.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
+	//g_TriangleCentroidSC.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
 	float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
 	g_ShadertoyBuffer.SunCoords[1].x = ang;
 	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;
@@ -7351,6 +7377,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
+	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
+	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
+	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
 	// Detect triggers:
 	if (g_bACLastTriggerState && !g_bACTriggerState)
 		g_bACActionTriggered = true;
@@ -9251,6 +9280,17 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+
+				// Reset the frame counter if we just exited the hangar
+				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
+					g_iPresentCounter = 0;
+					log_debug("[DBG] EXITED HANGAR");
+				}
+				g_bPrevPlayerInHangar = *g_playerInHangar;
+				// Force recomputation of y_center at the beginning of each match, or after exiting the hangar
+				if (g_iPresentCounter == 5)
+					g_bYCenterHasBeenFixed = false;
+
 				if (g_bTriggerReticleCapture) {
 					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
 					log_debug("Reticle Centroid: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
@@ -9303,13 +9343,22 @@ HRESULT PrimarySurface::Flip(
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
 					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
-					if (!LoadFocalLength() && g_bEnableVR) {
-						// We couldn't load the custom FOV and we're running in VR mode, let's apply
-						// the current VR FOV...
-						ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
-						// ... and save it
-						SaveFocalLength();
+					if (!LoadFocalLength()) {
+						if (g_bEnableVR) {
+							// We couldn't load the custom FOV and we're running in VR mode, let's apply
+							// the current VR FOV...
+							ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
+							// ... and save it
+							SaveFocalLength();
+						}
+						else {
+							// We couldn't load the focal length and we're not running in VR mode.
+							// We still need to compute the FOVscale and y_center:
+							ComputeHyperFOVParams();
+						}
 					}
+					// else: LoadFocalLength calls ApplyFocalLength, which in turn calls ComputeHyperFOVParams, which is
+					// where we compute y_center and FOVscale, so we're good.
 					break;
 				case XWAHACKER_FOV:
 					// If the current ship's DC file has a focal length, apply it:

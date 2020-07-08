@@ -1037,6 +1037,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_fShadowMapAngleX = 0.0f;
 				g_fShadowMapAngleY = 0.0f;
 				g_fShadowMapScale = 1.0f;
+				// Force recalculation of y-center:
+				g_bYCenterHasBeenFixed = false;
 				break;
 			}
 		}

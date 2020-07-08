@@ -9,6 +9,7 @@
 #include "TextureSurface.h"
 #include "MipmapSurface.h"
 #include <comdef.h>
+//#include <shlwapi.h>
 
 #include <ScreenGrab.h>
 #include <WICTextureLoader.h>
@@ -243,14 +244,14 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 
 bool isInVector(char *name, std::vector<char *> &vector) {
 	for (char *x : vector)
-		if (strstr(name, x) != NULL)
+		if (stristr(name, x) != NULL)
 			return true;
 	return false;
 }
 
 int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 	for (int i = 0; i < num_elems; i++) {
-		if (strstr(name, dc_elements[i].name) != NULL)
+		if (stristr(name, dc_elements[i].name) != NULL)
 			return i;
 	}
 	return -1;
@@ -258,7 +259,7 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 
 int isInVector(char *name, ac_element *ac_elements, int num_elems) {
 	for (int i = 0; i < num_elems; i++) {
-		if (strstr(name, ac_elements[i].name) != NULL)
+		if (stristr(name, ac_elements[i].name) != NULL)
 			return i;
 	}
 	return -1;
@@ -946,49 +947,49 @@ void Direct3DTexture::TagTexture() {
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 				this->is_DC_TargetCompSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
-				(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_LeftSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
-				(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_RightSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
 				this->is_DC_ShieldsSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_SolidMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_BorderMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_LaserBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_IonBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_BeamBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopLeftSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopRightSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
@@ -1237,7 +1238,6 @@ void Direct3DTexture::TagTexture() {
 						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
 						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
 							&(resources->dc_coverTexture[idx]));
-							//&coverTexture);
 						if (FAILED(res)) {
 							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
 							//	g_DCElements[idx].coverTextureName, res);

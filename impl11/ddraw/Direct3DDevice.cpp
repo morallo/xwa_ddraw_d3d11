@@ -12,15 +12,12 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
-	
-	Triangle pointer: see https://www.shadertoy.com/view/MldcD7
-	DC texture names should be case-insensitive
+	The AC cursor does not move according to the settings
+
 	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
 		Fix the FOV in the mirror Window in SteamVR -- approximate fix
-		Triangle Pointer -- visible, but may need more work
-		Check that the Tech Room is rendering properly in VR.
 
 	Auto-turn on headlights in the last mission.
 
@@ -2864,13 +2861,13 @@ bool LoadDCParams() {
 				}
 			}
 			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
-				float x, y, z, w;
+				float x, y, z;
 				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
-				if (LoadGeneric4DCoords(buf, &x, &y, &z, &w)) {
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
 					g_DCWireframeLuminance.x = x;
 					g_DCWireframeLuminance.y = y;
 					g_DCWireframeLuminance.z = z;
-					g_DCWireframeLuminance.w = w;
+					g_DCWireframeLuminance.w = 0.0f;
 					log_debug("[DBG] [DC] WireframeLuminance: %0.3f, %0.3f, %0.3f, %0.3f",
 						g_DCWireframeLuminance.x, g_DCWireframeLuminance.y, g_DCWireframeLuminance.z, g_DCWireframeLuminance.w);
 				}
@@ -3937,10 +3934,7 @@ bool LoadHyperParams() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, "y_center") == 0) {
-				//g_ShadertoyBuffer.y_center = fValue;
-			}
-			else if (_stricmp(param, "disney_style") == 0) {
+			if (_stricmp(param, "disney_style") == 0) {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
@@ -3949,12 +3943,11 @@ bool LoadHyperParams() {
 			else if (_stricmp(param, "twirl") == 0) {
 				g_ShadertoyBuffer.twirl = fValue;
 			}
-			else if (_stricmp(param, "FOV_scale") == 0) {
-				//g_fOverrideFOVScale = fValue;
-				//g_ShadertoyBuffer.FOVscale = fValue;
-			}
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bHyperDebugMode = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug_fsm") == 0) {
+				g_iHyperStateOverride = (int)fValue;
 			}
 			else if (_stricmp(param, "light_rotation_speed") == 0) {
 				g_fHyperLightRotationSpeed = fValue;
@@ -7923,6 +7916,16 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
+				// Avoid rendering explosions on the CMD if we're rendering edges
+				// This didn't make much difference: the real problem is that the explosions and gas isn't doing
+				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
+				/*
+				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark)) {
+					goto out;
+				}
+				*/
+
 				// Reticle processing
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
 				if (bIsReticleCenter)
@@ -8283,6 +8286,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_BACKGROUND;
 					// Suns are pushed to infinity too:
 					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
 				}
@@ -8818,9 +8822,9 @@ HRESULT Direct3DDevice::Execute(
 				// and let's put it at text depth so that it doesn't cause visual contention against the
 				// cockpit
 				if (g_bIsTrianglePointer) {
-					/*bModifiedShaders = true;
-					g_VSCBuffer.scale_override = 0.25f;
-					g_VSCBuffer.z_override = g_fTextDepth;*/
+					//bModifiedShaders = true;
+					//g_VSCBuffer.scale_override = 0.25f;
+					//g_VSCBuffer.z_override = g_fTextDepth;
 					
 					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
 					// Don't render the triangle pointer anymore, we'll do it later, when rendering the
@@ -9446,8 +9450,7 @@ void Direct3DDevice::RenderEdgeDetector()
 		if (g_config.Radar2DRendererEnabled) {
 			float x, y;
 			static float pulse = 3.0f;
-			//pulse += 0.20f;
-			pulse += 0.4f;
+			pulse += 0.5f;
 			if (pulse > 12.0f)
 				pulse = 3.0f;
 			//log_debug("[DBG] g_SubCMDBracket: %0.3f, %0.3f", g_SubCMDBracket.x, g_SubCMDBracket.y);
@@ -9514,6 +9517,28 @@ void Direct3DDevice::RenderEdgeDetector()
 	}
 	// Send the contrast data
 	g_ShadertoyBuffer.SunColor[0].w = g_DCWireframeContrast;
+	// Set the time
+	static float time = 0.0f;
+	time += 0.1f;
+	if (time > 2.0f) time = 0.0f;
+	g_ShadertoyBuffer.iTime = time;
+	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
+	static float destroyedTimer = 0.0f;
+	if (currentTargetIndex > -1) {
+		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance->CraftState == 3 && !bExternalView) {
+			destroyedTimer += 0.005f;
+			destroyedTimer = min(destroyedTimer, 1.0f);
+		}
+		else
+			destroyedTimer = 0.0f;
+	}
+	else
+		destroyedTimer = 0.0f;
+	g_ShadertoyBuffer.twirl = destroyedTimer;
+	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	resources->InitPixelShader(resources->_edgeDetectorPS);

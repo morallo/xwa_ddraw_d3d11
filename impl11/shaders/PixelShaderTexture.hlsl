@@ -211,5 +211,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+
+	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
+	//	output.color.r += 0.7;
 	return output;
 }

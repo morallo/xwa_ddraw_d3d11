@@ -102,6 +102,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.bloom = 0;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
+	p *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	// Early exit: avoid rendering outside the original viewport edges

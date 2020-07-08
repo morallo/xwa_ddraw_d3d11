@@ -1,11 +1,26 @@
-// Scale factor used to reconstruct metric 3D for VR and other uses
-#define METRIC_SCALE_FACTOR 25.0
-//#define METRIC_SCALE_FACTOR 50.0
+/*
+Constant Buffer Registers
 
-// The following 2 should be the same; but I want to see if the focal dist = 1
-// causes distortions in VR.
+PixelShaderCBuffer and several others : register(b0)
+VertexShaderMatrixCB and several others : register(b1)
+BloomPixelShaderCBuffer : register(b2)
+SSAOPixelShaderCBuffer : register(b3)
+PSShadingSystemCB : register(b4)
+ShadowMapVertexShaderMatrixCB : register(b5)
+MetricReconstructionCB : register(b6)
+ShadertoyCBuffer : register(b7)
+LaserPointerCBuffer : register(b8)
+
+*/
+
+// Scale factor used to reconstruct metric 3D for VR and other uses
+// This is now OBSOLETE in the VR path. Only used in non-VR mode and this will probably
+// be removed later as well
+#define METRIC_SCALE_FACTOR 25.0
+
+// Only used in the non-VR path, and it should be removed later once the non-VR path
+// is fully metric as well.
 #define DEFAULT_FOCAL_DIST 2.0
-#define DEFAULT_FOCAL_DIST_VR 1.0
 
 // This is the limit, in meters, when we start fading out effects like SSAO and SSDO:
 #define INFINITY_Z0 10000 // Used to be 15000 in release 1.1.2
@@ -27,7 +42,7 @@
 // Used in the special_control CB field in the pixel shader
 #define SPECIAL_CONTROL_XWA_SHADOW 1
 #define SPECIAL_CONTROL_GLASS 2
+#define SPECIAL_CONTROL_BACKGROUND 3
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6
-
