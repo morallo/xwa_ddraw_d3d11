@@ -3982,7 +3982,7 @@ void DeviceResources::InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, c
 	static int sizeof_constants = sizeof(ShadertoyCBuffer);
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
-	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
+	this->_d3dDeviceContext->PSSetConstantBuffers(8, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)

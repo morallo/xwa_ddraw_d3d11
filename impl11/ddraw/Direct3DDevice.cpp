@@ -12,17 +12,12 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
+	The AC cursor does not move according to the settings
 
-	The hyperspace entry and exit doesn't rotate well when looking around
-	
 	What's wrong with the map in VR?
 
 	Fixed, To Verify (Check again in SteamVR mode):
 		Fix the FOV in the mirror Window in SteamVR -- approximate fix
-		Triangle Pointer -- visible, but may need more work
-		Check that the Tech Room is rendering properly in VR. DONE.
-
-		DC texture names should be case-insensitive DONE
 
 	Auto-turn on headlights in the last mission.
 

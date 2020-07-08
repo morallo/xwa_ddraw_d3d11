@@ -20,7 +20,6 @@ cbuffer ConstantBuffer : register(b7)
 	float flare_intensity;
 	float2 preserveAspectRatioComp;
 	// 144 bytes
-	//float SunX, SunY, SunZ, flare_intensity;
 	float4 SunCoords[MAX_SUN_FLARES];
 	// 208 bytes
 	float4 SunColor[MAX_SUN_FLARES];

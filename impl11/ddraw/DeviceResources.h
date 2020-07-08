@@ -286,7 +286,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	float cursor_radius, unused[2];
+	float cursor_radius, lp_aspect_ratio[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 
@@ -409,12 +409,12 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
-	float mr_aspect_ratio;   // Same as sm_aspect_ratio, remove sm_* later
-	float mr_FOVscale;       // Same as sm_FOVscale... same as g_ShadertoyBuffer.FOVscale
-	float mr_y_center;       // Same as sm_y_center... same as g_ShadertoyBuffer.y_center
+	float mr_aspect_ratio;   // Same as sm_aspect_ratio (g_fCurInGameAspectRatio), remove sm_* later
+	float mr_FOVscale;       // Same as sm_FOVscale NOT the same as g_ShadertoyBuffer.FOVscale
+	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
 	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
 
-	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_unused[2];
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_unused;
 } MetricReconstructionCB;
 
 typedef struct uv_coords_src_dst_struct {

@@ -847,6 +847,7 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
@@ -7375,6 +7376,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
+	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
+	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
+	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
 	// Detect triggers:
 	if (g_bACLastTriggerState && !g_bACTriggerState)
 		g_bACActionTriggered = true;
