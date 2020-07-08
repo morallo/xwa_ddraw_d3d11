@@ -50,7 +50,15 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix);
 bool WaitGetPoses();
+
+void quatToEuler(vr::HmdQuaternionf_t q, float* yaw, float* roll, float* pitch);
+vr::HmdQuaternionf_t eulerToQuat(float yaw, float pitch, float roll);
+vr::HmdMatrix33_t quatToMatrix(vr::HmdQuaternionf_t q);
+vr::HmdQuaternionf_t rotationToQuaternion(vr::HmdMatrix34_t m);
+Matrix3 HmdMatrix34toMatrix3(const vr::HmdMatrix34_t& mat);
+Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t& mat);
 
 void DumpMatrix34(FILE* file, const vr::HmdMatrix34_t& m);
 void DumpMatrix44(FILE* file, const vr::HmdMatrix44_t& m);
