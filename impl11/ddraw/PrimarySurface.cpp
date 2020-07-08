@@ -194,7 +194,7 @@ extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
 extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
+extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bRunningStartAppliedOnThisFrame;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
@@ -8501,12 +8501,11 @@ HRESULT PrimarySurface::Flip(
 						break;
 					}
 
-					if (g_bUseSteamVR && g_bTogglePostPresentHandoff) {
-						g_pVRCompositor->PostPresentHandoff();
-						//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+					if (g_bUseSteamVR) {
+						if (g_bTogglePostPresentHandoff)
+							g_pVRCompositor->PostPresentHandoff();
+						vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 					}
-					vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
-
 				}
 			}
 			else
@@ -9280,6 +9279,7 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+				g_bRunningStartAppliedOnThisFrame = false; // Apply WaitGetPoses again on the next frame
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {

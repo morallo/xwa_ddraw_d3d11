@@ -449,7 +449,7 @@ bool g_bSteamVRInitialized = false; // The system will set this flag after Steam
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bResetHeadCenter = true; // Reset the head center on startup
-bool g_bSteamVRDistortionEnabled = true;
+bool g_bSteamVRDistortionEnabled = true, g_bRunningStartAppliedOnThisFrame = false;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
@@ -6753,10 +6753,13 @@ HRESULT Direct3DDevice::Execute(
 	float displayWidth  = (float)resources->_displayWidth;
 	float displayHeight = (float)resources->_displayHeight;
 
-	// Synchronization point to wait for vsync before we start to send work to the GPU
-	// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
-	// (that's what happens if we sync after Submit+Present)
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,	0, NULL, 0);
+	if (g_bUseSteamVR && !g_bRunningStartAppliedOnThisFrame) {
+		// Synchronization point to wait for vsync before we start to send work to the GPU
+		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
+		// (that's what happens if we sync after Submit+Present)
+		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+		g_bRunningStartAppliedOnThisFrame = true;
+	}
 
 	// Constant Buffer step (and aspect ratio)
 	if (SUCCEEDED(hr))
