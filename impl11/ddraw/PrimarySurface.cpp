@@ -5615,6 +5615,15 @@ void PrimarySurface::RenderSpeedEffect()
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderScaleFactor;
 
+	/*
+	viewMode1 and viewMode2 both become 18 in external view and 0 in cockpit view.
+	They don't change when fly-by camera is active
+	log_debug("[DBG] RelatedToCamera: %d, viewMode1: %d viewMode2: %d",
+		PlayerDataTable[*g_playerIndex]._RelatedToCamera_,
+		PlayerDataTable[*g_playerIndex].viewMode1,
+		PlayerDataTable[*g_playerIndex].viewMode2);
+	*/
+
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
@@ -8269,6 +8278,7 @@ HRESULT PrimarySurface::Flip(
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 		const bool bMapOFF = PlayerDataTable[*g_playerIndex].mapState == 0;
 		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].cameraFG;
+		int FlyByCameraTime = PlayerDataTable[*g_playerIndex].FlyByCameraTime;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -8660,7 +8670,8 @@ HRESULT PrimarySurface::Flip(
 			// on the first frame (sometimes it can happen and it's quite visible/ugly)
 			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && bMapOFF &&
 				(!bExternalCamera || (bExternalCamera && *g_playerIndex == cameraObjIdx)) &&
-				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
+				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) &&
+				FlyByCameraTime == 0)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 

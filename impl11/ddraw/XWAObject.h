@@ -1066,7 +1066,7 @@ struct PlayerDataEntry
 	__int16 _RelatedToCamera_;  // 0xb87
 	__int16 externalCamera;     // 0xb89
 	int externalCameraDistance; // 0xb8b
-	__int16 field_B8F;
+	__int16 FlyByCameraTime;    // Starts at 0 when Alt-J is pressed and goes all the way to ~1175 before being reset to 0
 	char field_B91;
 	char field_B92;
 	char field_B93;
