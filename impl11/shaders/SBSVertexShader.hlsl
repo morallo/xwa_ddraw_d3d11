@@ -98,6 +98,7 @@ PixelShaderInput main(VertexShaderInput input)
 		else
 			output.pos = mul(fullViewMatrix, float4(P, 1));
 	} else {
+		// bPreventTransform == true
 		// The HUD should not be transformed so that it's possible to aim properly
 		// This case is specifically to keep the aiming HUD centered so that it can still be used
 		// to aim the lasers. Here, we ignore all translations to keep the HUD in the right spot.

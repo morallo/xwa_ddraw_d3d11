@@ -52,6 +52,8 @@ extern Matrix4 g_CurrentHeadingViewMatrix;
 
 extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled;
 
+extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
+
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
@@ -199,6 +201,7 @@ extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 bool g_bEnableSteamVR_QPC = false;
+bool g_bInTechRoom = false;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -7880,7 +7883,7 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
-			bool bInTechRoom = (g_iDrawCounter > 0);
+			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
 			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
@@ -7888,8 +7891,7 @@ HRESULT PrimarySurface::Flip(
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.
 			// This is only needed in VR mode:
-			if (g_bEnableVR && bInTechRoom)
-			//if (g_bEnableVR && bFirstTime)
+			if (g_bEnableVR && g_bInTechRoom)
 			{
 				//float y_center_temp = g_MetricRecCBuffer.mr_y_center;
 				*g_fRawFOVDist = 256.0f;
@@ -7913,6 +7915,75 @@ HRESULT PrimarySurface::Flip(
 				// Restore the previous y_center:
 				//g_MetricRecCBuffer.mr_y_center = y_center_temp;
 				//log_debug("[DBG] Initializing 2D Metric Params");
+			}
+
+			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
+			// on the next frame
+			//if (g_bEnableVR)
+			{
+				float yaw, pitch, roll, x,y,z;
+				Matrix3 rotMatrix;
+
+				if (g_bUseSteamVR) {
+					GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+					// We need to multiply the yaw and pitch in SteamVR mode to invert the rotation
+					yaw   *= RAD_TO_DEG * g_fYawMultiplier * -1.0f;
+					pitch *= RAD_TO_DEG * g_fPitchMultiplier * -1.0f;
+					roll  *= RAD_TO_DEG * g_fRollMultiplier;
+					yaw   += g_fYawOffset;
+					pitch += g_fPitchOffset;
+				}
+				else {
+					// DirectSBS case
+					static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
+					// Read yaw/pitch/roll from FreePIE
+					if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+						if (g_bResetHeadCenter) {
+							home_yaw   = g_FreePIEData.yaw;
+							home_pitch = g_FreePIEData.pitch;
+							home_roll  = g_FreePIEData.roll;
+							g_bResetHeadCenter = false;
+						}
+						yaw   = (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
+						pitch = (g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+						roll  = (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
+					}
+
+					// DEBUG
+					/*
+					{
+						static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
+						bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
+						bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
+						bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
+						bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
+
+						if (LeftKey)
+							fake_yaw -= 1.0f;
+						if (RightKey)
+							fake_yaw += 1.0f;
+
+						if (UpKey)
+							fake_pitch += 1.0f;
+						if (DownKey)
+							fake_pitch -= 1.0f;
+						yaw = fake_yaw;
+						pitch = fake_pitch;
+						roll = fake_roll;
+					}
+					*/
+					// DEBUG
+				}
+
+				// Compute the full rotation
+				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+				rotMatrixFull.identity();
+				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(g_f2DYawMul * yaw);
+				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(g_f2DPitchMul * pitch);
+				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(g_f2DRollMul * roll);
+				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
 
 			if (this->_deviceResources->_frontbufferSurface == nullptr)

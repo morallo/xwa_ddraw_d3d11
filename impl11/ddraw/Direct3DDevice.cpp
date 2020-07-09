@@ -457,6 +457,8 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
+// Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInTechRoom;
 
 bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
 
@@ -465,6 +467,8 @@ bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
 // proper match was found.
 float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
+
+float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -4249,6 +4253,16 @@ void LoadVRParams() {
 			else if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
 				g_fTrianglePointerDist = fValue;
 			}
+
+			else if (_stricmp(param, "2D_yaw_mul") == 0) {
+				g_f2DYawMul = fValue;
+			}
+			else if (_stricmp(param, "2D_pitch_mul") == 0) {
+				g_f2DPitchMul = fValue;
+			}
+			else if (_stricmp(param, "2D_roll_mul") == 0) {
+				g_f2DRollMul = fValue;
+			}
 			
 			param_read_count++;
 		}
@@ -6709,16 +6723,17 @@ HRESULT Direct3DDevice::Execute(
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
 	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
+	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
-	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
+	g_VSCBuffer.aspect_ratio	  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
 	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
 	g_VSCBuffer.bPreventTransform =  0.0f;
-	g_VSCBuffer.bFullTransform	  =  0.0f;
+	g_VSCBuffer.bFullTransform	  =  FullTransform;
 	g_VSCBuffer.scale_override = 1.0f;
 
 	g_PSCBuffer = { 0 };
@@ -9033,7 +9048,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
-					g_VSCBuffer.bFullTransform    =  0.0f;
+					g_VSCBuffer.bFullTransform    =  FullTransform;
 					g_VSCBuffer.scale_override    =  1.0f;
 
 					g_PSCBuffer = { 0 };
@@ -9554,15 +9569,15 @@ reset:
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
 		g_VSCBuffer.cockpit_threshold = -1.0f;
-		g_VSCBuffer.bPreventTransform = 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
-		g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
-		g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		g_VSCBuffer.viewportScale[0]  =  2.0f / resources->_displayWidth;
+		g_VSCBuffer.viewportScale[1]  = -2.0f / resources->_displayHeight;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
