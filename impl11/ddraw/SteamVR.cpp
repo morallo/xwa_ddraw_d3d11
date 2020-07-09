@@ -2,12 +2,11 @@
 #include <stdio.h>
 #include "common.h"
 #include "utils.h"
+#include "commonVR.h"
 #include "SteamVR.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"
 
-const float PI = 3.141592f;
-const float DEG2RAD = 3.141593f / 180.0f;
 vr::IVRSystem* g_pHMD = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
 vr::IVRScreenshots* g_pVRScreenshots = NULL;
@@ -20,16 +19,13 @@ bool g_bEnableSteamVR_QPC;
 const bool DEFAULT_INTERLEAVED_REPROJECTION = false;
 const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
-bool g_bResetHeadCenter = true; // Reset the head center on startup
 bool g_bSteamVRDistortionEnabled = true;
-Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
-Matrix4 g_projLeft, g_projRight;
-Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
+void* g_pSurface = NULL;
+
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
-Vector3 g_headCenter;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 
 bool InitSteamVR()

@@ -96,7 +96,7 @@ void ShutdownFreePIE();
 enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
-extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult;
+
 // DEBUG
 extern bool g_bKeybExitHyperspace;
 extern bool g_bFXAAEnabled;
@@ -122,7 +122,6 @@ void SaveVRParams();
 void LoadVRParams();
 void ComputeHyperFOVParams();
 
-void IncreaseIPD(float Delta);
 void IncreaseScreenScale(float Delta); // Changes overall zoom
 //void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
 //void IncreasePostProjScale(float Delta);

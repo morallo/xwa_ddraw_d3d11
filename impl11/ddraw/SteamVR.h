@@ -20,20 +20,14 @@ extern bool g_bEnableSteamVR_QPC;
 extern const bool DEFAULT_INTERLEAVED_REPROJECTION;
 extern const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 extern bool g_bInterleavedReprojection;
-extern bool g_bResetHeadCenter; // Reset the head center on startup
 extern bool g_bSteamVRDistortionEnabled;
 extern vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
-extern vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
-extern Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
-extern vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
-extern Matrix4 g_projLeft, g_projRight;
-extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 extern float g_fFrameTimeRemaining;
 extern int g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
-extern Vector3 g_headCenter;
 extern bool g_bSteamVRPosFromFreePIE;
-extern float g_fVR_FOV;
+extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
+extern void* g_pSurface;
 
 /*
  *	SteamVR specific functions declarations

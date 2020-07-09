@@ -7,7 +7,9 @@
 #include "targetver.h"
 
 #define WIN32_LEAN_AND_MEAN
+#ifndef STRICT
 #define STRICT
+#endif
 #include <ddraw.h>
 #include <d3d.h>
 

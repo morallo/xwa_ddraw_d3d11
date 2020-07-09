@@ -101,6 +101,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BackbufferSurface.cpp" />
+    <ClCompile Include="commonVR.cpp" />
     <ClCompile Include="config.cpp" />
     <ClCompile Include="ddraw.cpp" />
     <ClCompile Include="DepthSurface.cpp" />
@@ -112,6 +113,7 @@
     <ClCompile Include="Direct3DViewport.cpp" />
     <ClCompile Include="DirectDraw.cpp" />
     <ClCompile Include="DirectDraw2.cpp" />
+    <ClCompile Include="DirectSBS.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
@@ -132,6 +134,7 @@
   <ItemGroup>
     <ClInclude Include="BackbufferSurface.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="commonVR.h" />
     <ClInclude Include="ComPtr.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="DepthSurface.h" />
@@ -143,6 +146,7 @@
     <ClInclude Include="Direct3DViewport.h" />
     <ClInclude Include="DirectDraw.h" />
     <ClInclude Include="DirectDraw2.h" />
+    <ClInclude Include="DirectSBS.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />

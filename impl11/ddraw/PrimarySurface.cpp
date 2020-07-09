@@ -17,11 +17,11 @@
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
+#include "commonVR.h"
 #include "SteamVR.h"
+#include "DirectSBS.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
-
-const float DEG2RAD = 3.141593f / 180.0f;
 
 #include <vector>
 
@@ -183,8 +183,6 @@ void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x,
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
-const float PI = 3.141592f;
-const float RAD_TO_DEG = 180.0f / PI;
 extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
 extern float g_fYawOffset, g_fPitchOffset;
 extern float g_fPosXMultiplier, g_fPosYMultiplier, g_fPosZMultiplier;
@@ -521,9 +519,7 @@ extern FILE *g_HackFile;
 extern bool g_bCapture2DOffscreenBuffer;
 #endif
 
-/* SteamVR HMD */
-extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
-void *g_pSurface = NULL;
+
 
 float ComputeRealVertFOV() {
 	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;

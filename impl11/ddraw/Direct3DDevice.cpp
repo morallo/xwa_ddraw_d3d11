@@ -239,9 +239,11 @@ float s_XwaHudScale = 1.0f;
 #include <vector>
 //#include <assert.h>
 
+#include "commonVR.h"
 #include "FreePIE.h"
 #include "SteamVR.h"
-//#include <headers/openvr.h>
+#include "DirectSBS.h"
+
 #include "Matrices.h"
 
 #include "XWAObject.h"
@@ -261,8 +263,6 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
-
-const float DEG2RAD = 3.141593f / 180.0f;
 FOVtype g_CurrentFOV = GLOBAL_FOV;
 
 // xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
@@ -281,7 +281,7 @@ bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
-#define PSVR_VERT_FOV 106.53f
+
 float RealVertFOVToRawFocalLength(float real_FOV);
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
@@ -293,7 +293,7 @@ inline void backProjectMetric(WORD index, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 
-float g_fVR_FOV = PSVR_VERT_FOV;
+
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
@@ -312,9 +312,7 @@ int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV,
 
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
-const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float DEFAULT_METRIC_MULT = 1.0f;
-
 const float DEFAULT_HUD_PARALLAX = 1.7f;
 const float DEFAULT_TEXT_PARALLAX = 0.45f;
 const float DEFAULT_FLOATING_GUI_PARALLAX = 0.495f;
@@ -444,12 +442,6 @@ VRModeEnum g_VRMode = VR_MODE_DIRECT_SBS;
 
 bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
 
-// METRIC 3D RECONSTRUCTION
-// The following values were determined by comparing the back-projected 3D reconstructed
-// with ddraw against the OBJ exported from the OPT. The values were tweaked until a
-// proper match was found.
-float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
-
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 float g_fYawMultiplier   = DEFAULT_YAW_MULTIPLIER;
@@ -464,7 +456,6 @@ float g_fMinPositionX = DEFAULT_MIN_POS_X, g_fMaxPositionX = DEFAULT_MAX_POS_X;
 float g_fMinPositionY = DEFAULT_MIN_POS_Y, g_fMaxPositionY = DEFAULT_MAX_POS_Y;
 float g_fMinPositionZ = DEFAULT_MIN_POS_Z, g_fMaxPositionZ = DEFAULT_MAX_POS_Z;
 bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
-extern Vector3 g_headCenter; // The head's center: this value should be re-calibrated whenever we set the headset
 
 /* Vertices that will be used for the VertexBuffer. */
 D3DTLVERTEX *g_OrigVerts = NULL;
@@ -700,7 +691,6 @@ float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
-bool g_bDirectSBSInitialized = false;
 //float g_fXWAScale = 1.0f; // This is the scale value as computed during Execute()
 D3D11_VIEWPORT g_nonVRViewport{};
 
@@ -716,7 +706,6 @@ MetricReconstructionCB g_MetricRecCBuffer;
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
 
-const float IPD_SCALE_FACTOR = 100.0f; // Transform centimeters to meters (IPD = 6.5 becomes 0.065)
 const float GAME_SCALE_FACTOR = 60.0f; // Estimated empirically
 const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
 
@@ -724,8 +713,7 @@ const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
 const float C = 1.0f, Z_FAR = 1.0f;
 const float LOG_K = 1.0f;
 
-float g_fIPD = DEFAULT_IPD / IPD_SCALE_FACTOR;
-float g_fHalfIPD = g_fIPD / 2.0f;
+
 float g_fFocalDist = DEFAULT_FOCAL_DIST;
 float g_fFakeRoll = 0.0f;
 
@@ -747,7 +735,6 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector);
 int isInVector(char *name, dc_element *dc_elements, int num_elems);
 int isInVector(char *name, ac_element *ac_elements, int num_elems);
 bool isInVector(char *OPTname, std::vector<OPTNameType> &vector);
-bool InitDirectSBS();
 bool LoadFocalLength();
 
 SmallestK g_LaserList;
@@ -816,21 +803,7 @@ void SmallestK::insert(Vector3 P, Vector3 col) {
 	}
 }
 
-// NewIPD is in cms
-void EvaluateIPD(float NewIPD) {
-	if (NewIPD < 0.0f)
-		NewIPD = 0.0f;
 
-	g_fIPD = NewIPD / IPD_SCALE_FACTOR;
-	log_debug("[DBG] NewIPD: %0.3f, Actual g_fIPD: %0.6f", NewIPD, g_fIPD);
-	g_fHalfIPD = g_fIPD / 2.0f;
-}
-
-// Delta is in cms here
-void IncreaseIPD(float Delta) {
-	float NewIPD = g_fIPD * IPD_SCALE_FACTOR + Delta;
-	EvaluateIPD(NewIPD);
-}
 
 void ToggleCockpitPZHack() {
 	g_bCockpitPZHackEnabled = !g_bCockpitPZHackEnabled;
@@ -4338,90 +4311,6 @@ void Test2DMesh() {
 	Q = Q / Q[3];
 	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
 }
-
-
-
-bool InitDirectSBS()
-{
-	InitFreePIE();
-	g_headCenter.set(0, 0, 0);
-
-	g_EyeMatrixLeftInv.set
-	(
-		1.0f, 0.0f, 0.0f, g_fHalfIPD,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	);
-	// Matrices are stored in column-major format, so we have to transpose them to
-	// match the format above:
-	g_EyeMatrixLeftInv.transpose();
-
-	g_EyeMatrixRightInv.set
-	(
-		1.0f, 0.0f, 0.0f, -g_fHalfIPD,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	);
-	// Matrices are stored in column-major format, so we have to transpose them to
-	// match the format above:
-	g_EyeMatrixRightInv.transpose();
-
-	/*
-	Matrix from Trinus PSVR, June 11, 2020:
-	0.847458, 0.000000, 0.000000, 0.000000
-	0.000000, 0.746269, 0.000000, 0.000000
-	0.000000, 0.000000, -1.000010, -0.001000
-	0.000000, 0.000000, -1.000000, 0.000000
-
-	iVRy reported these values:
-
-	projLeft:
-	0.847458, 0.000000,  0.000000,  0.000000
-	0.000000, 0.746269,  0.000000,  0.000000
-	0.000000, 0.000000, -1.010101, -0.505050
-	0.000000, 0.000000, -1.000000,  0.000000
-
-	Raw data (Left eye):
-	Left: -1.180000, Right: 1.180000, Top: -1.340000, Bottom: 1.340000
-	Raw data (Right eye):
-	Left: -1.180000, Right: 1.180000, Top: -1.340000, Bottom: 1.340000
-
-	atan(1.34) = 53.26 deg, so that's 106.53 degrees vertical FOV
-	*/
-	g_projLeft.set
-	(
-		0.847458f, 0.0f,       0.0f,  0.0f,
-		0.0f,      0.746269f,  0.0f,  0.0f,
-		0.0f,      0.0f,      -1.000010f, -0.001f,
-		0.0f,      0.0f,      -1.0f,  0.0f
-	);
-	g_projLeft.transpose();
-	g_projRight = g_projLeft;
-
-	g_FullProjMatrixLeft  = g_projLeft  * g_EyeMatrixLeftInv;
-	g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
-
-	//ShowMatrix4(g_EyeMatrixLeftInv, "g_EyeMatrixLeftInv");
-	//ShowMatrix4(g_projLeft, "g_projLeft");
-	//ShowMatrix4(g_EyeMatrixRightInv, "g_EyeMatrixRightInv");
-	//ShowMatrix4(g_projRight, "g_projRight");
-
-	// Set the vertical FOV to 106.53. This will be applied after the first frame is
-	// rendered, in PrimarySurface::Flip
-	g_fVR_FOV = PSVR_VERT_FOV;
-	log_debug("[DBG] DirectSBS mode initialized");
-	g_bDirectSBSInitialized = true;
-	return true;
-}
-
-bool ShutDownDirectSBS() {
-	ShutdownFreePIE();
-	return true;
-}
-
-
 
 ////////////////////////////////////////////////////////////////
 // End of SteamVR functions
