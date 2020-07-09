@@ -9500,10 +9500,14 @@ void Direct3DDevice::RenderEdgeDetector()
 	int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	if (currentTargetIndex > 0) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
-		int IFF = object->MobileObjectPtr->IFF;
+		if (object == NULL) goto nocolor;
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto nocolor;
+		int IFF = mobileObject->IFF;
 		if (IFF >= 0 && IFF <= 5)
 			g_ShadertoyBuffer.SunColor[0] = g_DCTargetingIFFColors[IFF];
 	}
+nocolor:
 	// Override all of the above if the current DC file has a wireframe color set:
 	if (g_DCTargetingColor.w > 0.0f) {
 		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
@@ -9519,8 +9523,11 @@ void Direct3DDevice::RenderEdgeDetector()
 	static float destroyedTimer = 0.0f;
 	if (currentTargetIndex > -1) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		if (object == NULL) goto reset;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto reset;
 		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance == NULL) goto reset;
 		if (craftInstance->CraftState == 3 && !bExternalView) {
 			destroyedTimer += 0.005f;
 			destroyedTimer = min(destroyedTimer, 1.0f);
@@ -9528,8 +9535,10 @@ void Direct3DDevice::RenderEdgeDetector()
 		else
 			destroyedTimer = 0.0f;
 	}
-	else
+	else {
+reset:
 		destroyedTimer = 0.0f;
+	}
 	g_ShadertoyBuffer.twirl = destroyedTimer;
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
