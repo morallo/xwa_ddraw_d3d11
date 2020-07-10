@@ -7948,32 +7948,32 @@ HRESULT PrimarySurface::Flip(
 						pitch = (g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
 						roll  = (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
 					}
-
-					// DEBUG
-					/*
-					{
-						static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
-						bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
-						bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
-						bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
-						bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
-
-						if (LeftKey)
-							fake_yaw -= 1.0f;
-						if (RightKey)
-							fake_yaw += 1.0f;
-
-						if (UpKey)
-							fake_pitch += 1.0f;
-						if (DownKey)
-							fake_pitch -= 1.0f;
-						yaw = fake_yaw;
-						pitch = fake_pitch;
-						roll = fake_roll;
-					}
-					*/
-					// DEBUG
 				}
+
+				// DEBUG
+				/*
+				{
+					static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
+					bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
+					bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
+					bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
+					bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
+
+					if (LeftKey)
+						fake_yaw -= 1.0f;
+					if (RightKey)
+						fake_yaw += 1.0f;
+
+					if (UpKey)
+						fake_pitch += 1.0f;
+					if (DownKey)
+						fake_pitch -= 1.0f;
+					yaw = fake_yaw;
+					pitch = fake_pitch;
+					roll = fake_roll;
+				}
+				*/
+				// DEBUG
 
 				// Compute the full rotation
 				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -8251,20 +8251,7 @@ HRESULT PrimarySurface::Flip(
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
 					
-					//if (g_bRendering3D) 
-					if (i == 0) // Only clear the RTVs on the first frame of the interval, see the for loop above.
-					{
-						// We're about to switch from 3D to 2D rendering.
-						// Let's clear the render target for the next iteration or we'll get multiple images during
-						// the animation
-						auto &context = this->_deviceResources->_d3dDeviceContext;
-						float bgColor[4] = { 0, 0, 0, 0 };
-						context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-						}
-					}
+					
 
 					if (g_bUseSteamVR) {					
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
@@ -8320,8 +8307,23 @@ HRESULT PrimarySurface::Flip(
 					if (g_bUseSteamVR) {
 						g_pVRCompositor->PostPresentHandoff();
 						WaitGetPoses();
-					}		
+					}
 				}
+
+				// Clear the RTVs for the next frame
+				{
+					// We're about to switch from 3D to 2D rendering.
+					// Let's clear the render target for the next iteration or we'll get multiple images during
+					// the animation
+					auto &context = this->_deviceResources->_d3dDeviceContext;
+					float bgColor[4] = { 0, 0, 0, 0 };
+					context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+					if (g_bUseSteamVR) {
+						context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
+					}
+				}
+
 			}
 			else
 			{
