@@ -9615,8 +9615,11 @@ reset:
 		}
 	}
 
-	// Copy the result
-	context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
+	// Copy or resolve the result
+	if (g_config.MultisamplingAntialiasingEnabled)
+		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+	else
+		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
 	
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.

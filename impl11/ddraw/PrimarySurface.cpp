@@ -778,7 +778,7 @@ void ComputeHyperFOVParams() {
 	// Compute the aspect-ratio fix factors
 	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	if (g_bUseSteamVR)
-		g_fWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+		g_fWindowAspectRatio = max(1.0f, (float)g_steamVRWidth / (float)g_steamVRHeight);
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
 	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
 	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
