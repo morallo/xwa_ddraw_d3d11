@@ -8230,6 +8230,7 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
 						else {
+							// Non-VR path
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						}
 					}
@@ -8249,8 +8250,11 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					if (g_bRendering3D) {
-						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library (?)
+					
+					//if (g_bRendering3D) 
+					if (i == 0) // Only clear the RTVs on the first frame of the interval, see the for loop above.
+					{
+						// We're about to switch from 3D to 2D rendering.
 						// Let's clear the render target for the next iteration or we'll get multiple images during
 						// the animation
 						auto &context = this->_deviceResources->_d3dDeviceContext;
@@ -8260,7 +8264,6 @@ HRESULT PrimarySurface::Flip(
 							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 						}
-						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable[*g_playerIndex].externalCamera);
 					}
 
 					if (g_bUseSteamVR) {					

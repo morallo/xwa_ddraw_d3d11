@@ -460,7 +460,7 @@ int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
-bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -9512,7 +9512,7 @@ void Direct3DDevice::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
 	// Read the IFF of the current target and use it to colorize the wireframe display
-	int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	if (currentTargetIndex > 0) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto nocolor;

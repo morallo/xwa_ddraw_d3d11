@@ -713,7 +713,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'E':
 				//g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
-				g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
+				//g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
 				return 0;
 			/*
 			case 'Q':
