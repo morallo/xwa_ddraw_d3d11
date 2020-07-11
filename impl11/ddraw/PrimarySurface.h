@@ -11,7 +11,7 @@ class Direct3DTexture;
 void InitHeadingMatrix();
 Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
-void CalculateViewMatrix();
+void UpdateViewMatrix();
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
 void ACRunAction(WORD* action);
 

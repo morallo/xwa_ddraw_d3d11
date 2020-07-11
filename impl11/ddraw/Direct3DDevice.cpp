@@ -225,6 +225,7 @@ float s_XwaHudScale = 1.0f;
 #include "Direct3DTexture.h"
 #include "BackbufferSurface.h"
 #include "ExecuteBufferDumper.h"
+#include "PrimarySurface.h"
 // TODO: Remove later
 #include "TextureSurface.h"
 
@@ -4563,6 +4564,7 @@ bool InitSteamVR()
 	}
 	log_debug("[DBG] SteamVR Compositor Initialized");
 
+	g_pVRCompositor->SetTrackingSpace(vr::TrackingUniverseSeated);
 	g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 	log_debug("[DBG] InterleavedReprojection: %d", g_bInterleavedReprojection);
 
@@ -6645,14 +6647,16 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-
+/*
 	if (g_bUseSteamVR && g_ExecuteCount==0) {//only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
-		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+		//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+		CalculateViewMatrix();
 		g_bRunningStartAppliedOnThisFrame = true;
 	}
+*/
 	g_ExecuteCount++;
 
 	//log_debug("[DBG] Execute (1)");
@@ -6949,6 +6953,15 @@ HRESULT Direct3DDevice::Execute(
 		{
 			this->_deviceResources->InitIndexBuffer(this->_indexBuffer, g_config.D3dHookExists);
 		}
+	}
+
+	if (g_bUseSteamVR && g_ExecuteCount == 1) {//only wait once per frame
+	// Synchronization point to wait for vsync before we start to send work to the GPU
+	// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
+	// (that's what happens if we sync after Submit+Present)
+	//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
+		UpdateViewMatrix();
+		g_bRunningStartAppliedOnThisFrame = true;
 	}
 
 	// Render images
