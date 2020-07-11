@@ -15,6 +15,7 @@
 #include "shading_system.h"
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
+#include "metric_common.h"
 
  // The background texture
 Texture2D    bgTex     : register(t0);
@@ -326,7 +327,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 	else {
 		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose
-		sunPos = SunCoords[0].xy;	   // 2D coord pass-through
+		sunPos = SunCoords[0].xy;	// 2D coord pass-through
 		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later, in SunFlareCompose
 	}
 

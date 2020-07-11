@@ -316,7 +316,7 @@ const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
 const float DEFAULT_TRIANGLE_POINTER_DIST = 0.120f;
 const float DEFAULT_GUI_ELEM_PZ_THRESHOLD = 0.0008f;
-const float DEFAULT_ZOOM_OUT_SCALE = 1.0f;
+const float DEFAULT_ZOOM_OUT_SCALE = 0.5f;
 const bool DEFAULT_ZOOM_OUT_INITIAL_STATE = false;
 //const float DEFAULT_ASPECT_RATIO = 1.33f;
 const float DEFAULT_ASPECT_RATIO = 1.25f;
@@ -324,7 +324,8 @@ const float DEFAULT_ASPECT_RATIO = 1.25f;
 const float DEFAULT_CONCOURSE_SCALE = 12.0f;
 //const float DEFAULT_CONCOURSE_ASPECT_RATIO = 2.0f; // Default for non-SteamVR
 const float DEFAULT_CONCOURSE_ASPECT_RATIO = 1.33f; // Default for non-SteamVR
-const float DEFAULT_GLOBAL_SCALE = 1.8f;
+const float DEFAULT_GLOBAL_SCALE = 1.0f;
+const float DEFAULT_GUI_SCALE = 0.7f;
 /*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
@@ -449,7 +450,7 @@ bool g_bSteamVRInitialized = false; // The system will set this flag after Steam
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bResetHeadCenter = true; // Reset the head center on startup
-bool g_bSteamVRDistortionEnabled = true;
+bool g_bSteamVRDistortionEnabled = true, g_bSteamVRYawPitchRollFromMouseLook = false;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
@@ -457,6 +458,7 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
+float g_fSteamVRMirrorWindow3DScale = 0.7f;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
@@ -717,7 +719,7 @@ bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
 float g_fDCBrightness = 1.0f;
-float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
+float g_fGUIElemsScale = DEFAULT_GUI_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
@@ -865,7 +867,7 @@ void ToggleCockpitPZHack() {
 
 void ToggleZoomOutMode() {
 	g_bZoomOut = !g_bZoomOut;
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 }
 
 void IncreaseZOverride(float Delta) {
@@ -879,7 +881,7 @@ void IncreaseZoomOutScale(float Delta) {
 		g_fGlobalScaleZoomOut = 0.2f;
 
 	// Apply this change by modifying the global scale:
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 
 	g_fConcourseScale += Delta;
 	if (g_fConcourseScale < 0.2f)
@@ -996,7 +998,7 @@ void ResetVRParams() {
 	//g_fPostProjScale = 1.0f;
 	g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 	g_bZoomOut = g_bZoomOutInitialState;
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 	g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 	g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD;
 	g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold;
@@ -4263,12 +4265,22 @@ void LoadVRParams() {
 			else if (_stricmp(param, "2D_roll_mul") == 0) {
 				g_f2DRollMul = fValue;
 			}
+
+			else if (_stricmp(param, "steamvr_mirror_window_scale") == 0) {
+				// This one is used to zoom in the view in the mirror window to avoid showing
+				// wide-FOV-related artifacts
+				g_fSteamVRMirrorWindow3DScale = fValue;
+			}
+			else if (_stricmp(param, "steamvr_yaw_pitch_roll_from_mouse_look") == 0) {
+				g_bSteamVRYawPitchRollFromMouseLook = (bool)fValue;
+			}
+			
 			
 			param_read_count++;
 		}
 	} // while ... read file
 	// Apply the initial Zoom Out state:
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 	fclose(file);
 
 next:
@@ -6731,10 +6743,10 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
-	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
+	g_VSCBuffer.apply_uv_comp     =  false;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform	  =  FullTransform;
-	g_VSCBuffer.scale_override = 1.0f;
+	g_VSCBuffer.scale_override    =  1.0f;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -6842,7 +6854,7 @@ HRESULT Direct3DDevice::Execute(
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
 		g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
-		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
+		g_VSCBuffer.apply_uv_comp     = false;
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
@@ -8774,6 +8786,7 @@ HRESULT Direct3DDevice::Execute(
 				// * Cockpit sparks?
 
 				// Reduce the scale for GUI elements, except for the HUD and Lens Flare
+				// I'm not sure when this path is hit anymore. Maybe when DC is off?
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
 					g_VSCBuffer.scale_override = g_fGUIElemsScale;
@@ -9573,7 +9586,7 @@ reset:
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		g_VSCBuffer.viewportScale[0]  =  2.0f / resources->_displayWidth;

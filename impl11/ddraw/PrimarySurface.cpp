@@ -195,8 +195,9 @@ extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
+extern float g_fSteamVRMirrorWindow3DScale;
 extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled;
+extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
@@ -621,6 +622,37 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 }
 */
 
+void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
+	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
+	bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
+	bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
+	bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
+	bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
+
+	if (LeftKey)
+		fake_yaw -= 1.0f;
+	if (RightKey)
+		fake_yaw += 1.0f;
+
+	if (UpKey)
+		fake_pitch += 1.0f;
+	if (DownKey)
+		fake_pitch -= 1.0f;
+
+	*yaw = fake_yaw;
+	*pitch = fake_pitch;
+	*roll = fake_roll;
+}
+
+/*
+ * Returns the current yaw, pitch in PlayerDataTable in degrees
+ */
+void GetFakeYawPitchRollFromMouseLook(float *yaw, float *pitch, float *roll) {
+	*yaw   = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f;
+	*pitch =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+	*roll  =  0.0f;
+}
+
 void GetSteamVRPositionalData(float *yaw, float *pitch, float *roll, float *x, float *y, float *z, Matrix3 *rotMatrix)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
@@ -851,11 +883,33 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			if (g_config.AspectRatioPreserved) {
+				g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = g_ShadertoyBuffer.preserveAspectRatioComp[1];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			}
+		}
+		else {
+			// DirectSBS path
+			g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+		}
+	}
+
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, Frame: %d",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, g_iPresentCounter);
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, mr_aspect_ratio: %0.3f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, 
+		g_MetricRecCBuffer.mr_aspect_ratio, g_iPresentCounter);
 
 	// DEBUG
 	//static bool bFirstTime = true;
@@ -1657,7 +1711,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? 0.7f : 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -2166,7 +2220,7 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.z_override        = -1.0f;
 	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override   = -1.0f;
-	g_VSCBuffer.cockpit_threshold = -1.0f;
+	g_VSCBuffer.apply_uv_comp     =  g_bUseSteamVR;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform    =  0.0f;
 	if (g_bEnableVR) {
@@ -2184,7 +2238,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.scale_override    = 1.0f;
+	g_VSCBuffer.scale_override	  = g_fGUIElemsScale;
 
 	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
@@ -4662,7 +4716,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bUseSteamVR)
@@ -4761,7 +4815,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       = false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR) 
@@ -5251,7 +5305,7 @@ void PrimarySurface::RenderExternalHUD()
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bEnableVR)
@@ -5765,7 +5819,7 @@ void PrimarySurface::RenderSpeedEffect()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -6203,7 +6257,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -7092,7 +7146,7 @@ void PrimarySurface::RenderSunFlare()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR)
@@ -7952,26 +8006,7 @@ HRESULT PrimarySurface::Flip(
 
 				// DEBUG
 				/*
-				{
-					static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
-					bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
-					bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
-					bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
-					bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
-
-					if (LeftKey)
-						fake_yaw -= 1.0f;
-					if (RightKey)
-						fake_yaw += 1.0f;
-
-					if (UpKey)
-						fake_pitch += 1.0f;
-					if (DownKey)
-						fake_pitch -= 1.0f;
-					yaw = fake_yaw;
-					pitch = fake_pitch;
-					roll = fake_roll;
-				}
+				GetFakeYawPitchRollFromKeyboard(&yaw, &pitch, &roll);
 				*/
 				// DEBUG
 
@@ -8952,6 +8987,7 @@ HRESULT PrimarySurface::Flip(
 				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
 				// HUD regions were erased
 				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
+
 				DrawHUDVertices();
 			}
 
@@ -9290,6 +9326,12 @@ HRESULT PrimarySurface::Flip(
 				yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 				pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 				roll  *= RAD_TO_DEG * g_fRollMultiplier;
+
+				// DEBUG
+				if (g_bSteamVRYawPitchRollFromMouseLook)
+					GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
+				// DEBUG
+
 				yaw   += g_fYawOffset;
 				pitch += g_fPitchOffset;
 

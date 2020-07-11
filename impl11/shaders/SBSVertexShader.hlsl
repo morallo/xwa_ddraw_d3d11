@@ -75,6 +75,8 @@ PixelShaderInput main(VertexShaderInput input)
 	temp *= mr_cur_metric_scale;
 	// temp.xyz is now fully-metric 3D.
 
+	if (apply_uv_comp)
+		temp.xy *= mv_vr_vertexbuf_aspect_ratio_comp;
 	temp.xy *= scale_override; // Scale GUI objects around the screen center, like the triangle pointer
 	//if (metric_z_override > -1.0f)
 	//	temp.z = metric_z_override;
@@ -145,7 +147,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos.z = sz_override;
 
 	output.color  = input.color.zyxw;
-	output.tex	  = input.tex;
 	output.normal = input.specular;
+	output.tex    = input.tex;
 	return output;
 }

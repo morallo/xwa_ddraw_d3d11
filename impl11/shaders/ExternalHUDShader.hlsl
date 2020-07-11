@@ -10,6 +10,7 @@
 #include "ShaderToyDefs.h"
 #include "shading_system.h"
 #include "ShadertoyCBuffer.h"
+#include "metric_common.h"
 
 // The background texture
 Texture2D    bgTex     : register(t0);
@@ -185,7 +186,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 			float2 reticleScale = reticleCentroid.z;
 			//if (VRmode == 1) reticleScale.x *= 0.5;
 			reticleScale.x *= 0.5;
-			float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy); // / preserveAspectRatioComp
+			// This is the regular DirectSBS path:
+			//float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy);
+			// SteamVR: If PreserveAspectRatio = 0, then the following line fixes the HUD:
+			//float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy);
+			// SteamVR: If PreserveAspectRatio = 1, then we need to multiply by preserveAspectRatioComp:
+			//float2 reticleUV = (v.xy * reticleScale * preserveAspectRatioComp + reticleCentroid.xy);
+			float2 reticleUV = (v.xy * reticleScale * mr_vr_aspect_ratio_comp + reticleCentroid.xy);
 			float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
 			float alpha = 3.0 * dot(0.333, reticle);
 			// DEBUG
@@ -207,7 +214,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			// Compute the triangle
 			float d_tri = sdTriangleIsosceles(tri_q, tri_size);
 			// Antialias:
-			d_tri = smoothstep(0.015, 0.0, d_tri);
+			d_tri = smoothstep(0.005, 0.0, d_tri);
 			// Add it to the output:
 			output.color.rgb += float3(1.0, 1.0, 0.0) * d_tri;
 			output.color.a = max(output.color.a, d_tri);
