@@ -462,7 +462,7 @@ float g_fSteamVRMirrorWindow3DScale = 0.7f;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
-bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -3877,6 +3877,9 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
+			if (_stricmp(param, "star_debug_enabled") == 0) {
+				g_bStarDebugEnabled = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

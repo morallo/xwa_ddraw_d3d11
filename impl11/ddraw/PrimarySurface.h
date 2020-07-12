@@ -99,6 +99,8 @@ public:
 
 	void RenderFXAA();
 
+	void RenderStarDebug();
+
 	void RenderExternalHUD();
 
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);

@@ -66,6 +66,7 @@
     <FxCompile Include="EdgeDetector.hlsl" />
     <FxCompile Include="SpeedEffectPixelShader.hlsl" />
     <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
+    <FxCompile Include="StarDebug.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

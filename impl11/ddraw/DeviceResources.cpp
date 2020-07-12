@@ -63,6 +63,7 @@
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
 #include "../Debug/EdgeDetector.h"
+#include "../Debug/StarDebug.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -115,6 +116,7 @@
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
 #include "../Release/EdgeDetector.h"
+#include "../Release/StarDebug.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3103,6 +3105,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3394,6 +3399,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
