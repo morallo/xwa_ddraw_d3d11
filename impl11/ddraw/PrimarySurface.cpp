@@ -166,6 +166,7 @@ extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
+extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
 extern int g_iNumSunCentroids;
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -819,9 +820,7 @@ void ComputeHyperFOVParams() {
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
-		y_center_raw, FOVscale_raw,
-		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio,
-		bFixFactors, comp_factor);
+		y_center_raw, FOVscale_raw, g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors, comp_factor);
 
 	// Compute the compensated FOV and y_center:
 	g_fFOVscale = comp_factor * FOVscale_raw;
@@ -7253,7 +7252,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v) {
 	/*
 	 * The following circus happens because the vertex buffer we're using to render the flare
-	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
+	 * is at ~22km away. We want it there, so that it's at "infinity". So we need to trace a ray
 	 * from the camera through the Centroid and then extend that until it intersects the vertex
 	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
 	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
@@ -7321,6 +7320,12 @@ void PrimarySurface::RenderSunFlare()
 	Vector2 Q[MAX_SUN_FLARES];
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
 
+	// DEBUG
+	g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
+	resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	// DEBUG
+
 	iTime += 0.01f;
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -7335,6 +7340,8 @@ void PrimarySurface::RenderSunFlare()
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	if (g_bEnableVR) {
 		float u, v;
+		if (bDirectSBS)
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth / 2.0f;
 		// This is a first step towards having multiple flares; but more work is needed
 		// because flares are blocked depending on stuff that lies in front of them, so
 		// we can't render all flares on the same go. It has to be done one by one, eye
@@ -7342,6 +7349,7 @@ void PrimarySurface::RenderSunFlare()
 		// hard-coded to only render flare 0 in the shaders.
 		// Project all flares to post-proc coords in the hyperspace vertex buffer:
 		for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
+			/*
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
@@ -7350,17 +7358,45 @@ void PrimarySurface::RenderSunFlare()
 			// flip the Y coord:
 			if (g_bEnableVR) Centroid.y = -Centroid.y;
 			ProjectCentroidToPostProc(Centroid, &u, &v);
+			*/
+			
+			/*
+			// g_SunCentroids2D is in in-game coordinates. For the shader, we need to transform that into UVs:
+			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_SunCentroids2D[i].x, g_SunCentroids2D[i].y, &u, &v);
+			u /= g_fCurScreenWidth;
+			v /= g_fCurScreenHeight;
+			*/
+			// The Sun Centroid is in in-game coords, convert to the range [0..1]:
+			u = g_SunCentroids2D[i].x / g_fCurInGameWidth;
+			v = g_SunCentroids2D[i].y / g_fCurInGameHeight;
+			QL[i].x = u; QL[i].y = v;
+			QR[i].x = u; QR[i].y = v;
+			// ... and now convert to the range [-1..1]
+			u = (u - 0.5f) * 2.0f;
+			v = (v - 0.5f) * 2.0f;
+			if (bDirectSBS) {
+				v *= g_fCurScreenHeight / (g_fCurScreenWidth / 2.0f);
+			}
+			else {
+				// SteamVR mode
+				v *= ((float)g_steamVRHeight / (float)g_steamVRWidth);
+			}
+
 			// Overwrite the centroid with the new 2D coordinates for the left/right images.
 			// In VR mode, these UVs are *the same* for both eyes because they are defined
 			// with respect to distant the hyperspace VB. This is *not* a bug.
 			g_ShadertoyBuffer.SunCoords[i].x = u;
 			g_ShadertoyBuffer.SunCoords[i].y = v;
+			//log_debug("[DBG] Sun uv: %0.3f, %0.3f", u, v);
+
 			// Also project the centroid to 2D directly -- we'll need that during the compose pass
 			// to mask the flare. In VR mode, projectToInGameCoordsMetric produces post-proc
 			// coords, not in-game coords
-			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
-			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
-			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
+			//QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+			//QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+			
+			log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
 	// Set the shadertoy constant buffer:
@@ -7493,13 +7529,11 @@ void PrimarySurface::RenderSunFlare()
 		}
 	}
 	
-	/*
 	if (g_bDumpSSAOBuffers) {
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
 		if (g_bUseSteamVR)
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlareR.png");
 	}
-	*/
 
 	// Post-process: compose the flare on top of the offscreen buffers
 	if (g_bEnableVR)
@@ -8995,10 +9029,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
-//#if EXTERNAL_HUD
-			// Draw the external HUD on top of everything else
-			// ORIGINAL
-			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
+			// Draw the reticle on top of everything else
 			if (g_bExternalHUDEnabled || g_bEnableVR)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -9029,7 +9060,6 @@ HRESULT PrimarySurface::Flip(
 				RenderExternalHUD();
 			}
 
-//#endif
 			if (g_bStarDebugEnabled)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get

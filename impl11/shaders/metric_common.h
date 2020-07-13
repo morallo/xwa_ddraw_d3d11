@@ -6,7 +6,7 @@ cbuffer ConstantBuffer : register(b6)
 
 	float mr_cur_metric_scale, mr_shadow_OBJ_scale;
 	float mr_screen_aspect_ratio; // g_fCurScreenWidth / g_fCurScreenHeight
-	float mr_unused1;
+	float mr_debug_value;
 
 	float2 mr_vr_aspect_ratio_comp;
 	float2 mv_vr_vertexbuf_aspect_ratio_comp;

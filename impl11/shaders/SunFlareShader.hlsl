@@ -286,6 +286,15 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 	return length(p - center) - radius;
 }
 
+/*
+float sdLine(in vec2 p, in vec2 a, in vec2 b)
+{
+	vec2 pa = p - a, ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+*/
+
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
 	vec2 fragCoord = input.uv * iResolution.xy;
@@ -306,8 +315,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
 	//vec3 v = vec3(p.x, -p.y, -FOVscale); // Use this for light vectors
 	
-	p *= preserveAspectRatioComp;
-	vec3 v = vec3(p, -FOVscale);
+	//p *= preserveAspectRatioComp;
+	//vec3 v = vec3(p, -FOVscale);
+	vec3 v = float3(p, 0);
+
 	//v = mul(viewMat, vec4(v, 0.0)).xyz;
 	//vec3 v = vec3(p, 0.0);
 	//vec2 sunPos = (vec2(SunXL, SunYL) - 0.5) * 2.0;
@@ -328,7 +339,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	}
 	else {
 		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose
+		//p *= preserveAspectRatioComp;
+		//vec3 v = vec3(p, -FOVscale);
 		sunPos = SunCoords[0].xy; // 2D coord pass-through
+		sunPos *= float2(1.0, mr_debug_value);
+		//sunPos = (sunPos - 0.5) * 2.0;
 		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later, in SunFlareCompose
 	}
 
@@ -336,7 +351,15 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	output.color.rgb += flare_intensity * lensflare(v.xy, sunPos, 0);
+	//output.color.rgb += flare_intensity * lensflare(v.xy * float2(mr_debug_value, 1.0), sunPos, 0);
+
+	float3 col = float3(1.0, 0.1, 0.1); // Marker color
+	d = sdCircle(v.xy, sunPos, 1.25 * 0.04);
+	dm = smoothstep(thickness * 0.5, 0.0, abs(d)); // Outer ring
+	dm += smoothstep(thickness * 0.5, 0.0, abs(d + 0.5 * scale * (cursor_radius - 0.001))); // Center dot
+	col *= dm;
+	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
+
 	return output;
 
 	/*

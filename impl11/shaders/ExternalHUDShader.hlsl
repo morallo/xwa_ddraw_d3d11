@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	// In SBS VR mode, each half-screen receives a full 0..1 uv range. So if we sample the
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
-	// right = 4 images in one screen!
+	// right. That's 4 images in one screen!
 	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
 	
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);

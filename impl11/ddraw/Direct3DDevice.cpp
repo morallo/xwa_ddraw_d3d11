@@ -615,6 +615,7 @@ bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bS
 std::vector<Vector4> g_OBJLimits; // Box limits of the OBJ loaded. This is used to compute the Z range of the shadow map
 
 Vector3 g_SunCentroids[MAX_XWA_LIGHTS]; // Stores all the sun centroids seen in this frame in in-game coords
+Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS]; // Stores all the 2D sun centroids seen in this frame in in-game coords
 int g_iNumSunCentroids = 0;
 
 /*********************************************************/
@@ -636,7 +637,7 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOVscale = 0.06f;
+float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
 
 // Bloom
@@ -6256,7 +6257,8 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 }
 
 /*
- Computes the centroid of the given texture, returns a metric 3D point in space.
+ Computes the centroid of the given texture, returns a metric 3D point in space,
+ and 2D centroid in in-game coordinates.
  We're using this to find the center of the Suns to add lens flare, etc.
 
  Returns true if the centroid could be computed (i.e. if the centroid is visible)
@@ -6276,7 +6278,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 	 q  is the cursor that goes from 0 to 1
 	 A  is the attribute at the current point we're interpolating
  */
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid, Vector2 *Centroid2D)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
@@ -6284,24 +6286,28 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
 
 	Vector3 tempv0, tempv1, tempv2, tempP;
+	Vector2 v0, v1, v2;
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv0);
 		if (g_bEnableVR) tempv0.y = -tempv0.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv1);
 		if (g_bEnableVR) tempv1.y = -tempv1.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv2);
 		if (g_bEnableVR) tempv2.y = -tempv2.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
@@ -6315,7 +6321,8 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			// Compute the 3D vertex where the UV coords are 0.5, 0.5. By using the back-projected
 			// 3D vertices, we automatically get perspective-correct results when projecting back to 2D:
 			*Centroid = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			
+			*Centroid2D = v0 + u * (v2 - v0) + v * (v1 - v0);
+
 			/*
 			q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
 			
@@ -7152,6 +7159,7 @@ HRESULT Direct3DDevice::Execute(
 				// brackets around the currently-selected object (and maybe other situations)
 				bool bSunCentroidComputed = false;
 				Vector3 SunCentroid;
+				Vector2 SunCentroid2D;
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
@@ -8204,15 +8212,18 @@ HRESULT Direct3DDevice::Execute(
 				// Sun Centroids appear to be around 50m away in metric 3D space
 				if (bIsSun) 
 				{
-					// Get the centroid of the current sun
-					bSunCentroidComputed = ComputeCentroid(instruction, currentIndexLocation, &SunCentroid);
+					// Get the centroid of the current sun. The 2D centroid may suffer from perspective-incorrect interpolation
+					// so it jumps a little when the containing polygons are clipped near the edges of the screen.
+					// TODO: SunCentroid2D is not useful because the centroid jumps due to perspective-incorrect interpolation.
+					//		 Remove it later...
+					bSunCentroidComputed = ComputeCentroid(instruction, currentIndexLocation, &SunCentroid, &SunCentroid2D);
 					if (bSunCentroidComputed && g_iNumSunCentroids < MAX_XWA_LIGHTS) {
 						//if (g_bEnableVR) SunCentroid.y = -SunCentroid.y;
 						// Looks like don't get multiple centroids for the same Sun. Seems to be a 1-1 correspondence
 						g_SunCentroids[g_iNumSunCentroids++] = SunCentroid;
 						//if (g_iNumSunCentroids == 1)
-						//	log_debug("[DBG] [SHW] SunCentroid: %0.3f, %0.3f, %0.3f",
-						//		SunCentroid.x, SunCentroid.y, SunCentroid.z);
+						//	log_debug("[DBG] [SHW] SunCentroid: %0.3f, %0.3f",
+						//		SunCentroid2D.x, SunCentroid2D.y);
 					}
 				}
 
@@ -8232,7 +8243,7 @@ HRESULT Direct3DDevice::Execute(
 					g_ShadertoyBuffer.iTime = iTime;
 					iTime += 0.01f;
 
-					// The centroid of the current sun should be computed already, so let's just use it
+					// The 3D centroid of the current sun should be computed already, so let's just use it
 					int SunFlareIdx = g_ShadertoyBuffer.SunFlareCount;
 					// By default suns don't have any color. We specify that by setting the alpha component to 0:
 					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
@@ -8250,7 +8261,6 @@ HRESULT Direct3DDevice::Execute(
 					{
 						// If the centroid is visible, then let's display the sun flare:
 						g_ShadertoyBuffer.SunFlareCount++;
-						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						if (g_bEnableVR) {
 							//log_debug("[DBG] 3D centroid: %0.3f, %0.3f, %0.3f",
 							//	SunCentroid.x, SunCentroid.y, SunCentroid.z);
@@ -8266,16 +8276,24 @@ HRESULT Direct3DDevice::Execute(
 							//	Centroid.x, Centroid.y, Centroid.z, q.x, q.y);
 							// DEBUG
 						}
-						else {
+						
+						{
 							// In regular mode, we store the 2D screen coords of the centroid
 							float X, Y;
-							Vector3 q = projectToInGameOrPostProcCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
-							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
-							g_ShadertoyBuffer.VRmode = 0;
+							Vector3 q = projectToInGameOrPostProcCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft, true);
+							
+							// Store the in-game 2D centroid coords for later use, during sun flare rendering
+							g_SunCentroids2D[SunFlareIdx].x = q.x;
+							g_SunCentroids2D[SunFlareIdx].y = q.y;
+
+							if (!g_bEnableVR) {
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
+								g_ShadertoyBuffer.VRmode = 0;
+							}
 						}
 					}
 					// Set the constant buffer

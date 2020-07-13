@@ -416,7 +416,7 @@ typedef struct MetricReconstructionCBStruct {
 	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
 	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
 
-	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_unused1;
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_debug_value;
 
 	float mr_vr_aspect_ratio_comp[2]; // This is used with shaders that work with the postproc vertexbuf, like the reticle shader
 	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD

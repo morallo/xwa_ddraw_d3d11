@@ -49,9 +49,19 @@ float sdCircle(in vec2 p, in vec2 center, float radius)
 
 // Display the current MainLight, using regular UV post proc coords
 PixelShaderOutput main(PixelShaderInput input) {
+	/* This shader doesn't work well in VR mode. */
 	PixelShaderOutput output;
 	vec3 color = 0.0;
-	output.color = bgTex.Sample(bgSampler, input.uv);
+	output.color = 0;
+
+	if (VRmode == 0) 
+		output.color = bgTex.Sample(bgSampler, input.uv);
+	else if (VRmode == 1) {
+		if (input.uv.x <= 0.5)
+			output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0));
+		else
+			output.color = bgTex.Sample(bgSampler, input.uv * float2(0.5, 1.0) + float2(0.5, 0.0));
+	}
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))
