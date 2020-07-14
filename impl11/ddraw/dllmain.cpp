@@ -144,7 +144,7 @@ bool ShutDownDirectSBS();
 
 // SteamVR
 #include <headers/openvr.h>
-extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC;
+extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC, g_bSteamVRMirrorWindowLeftEye;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
@@ -422,6 +422,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsX += 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
+				case 10:
+					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
+					break;
 				}
 
 				//g_contOriginWorldSpace.x += 0.02f;
@@ -484,6 +487,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsX -= 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
+				case 10:
+					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
+					break;
 				}
 
 				//g_contOriginWorldSpace.x -= 0.02f;

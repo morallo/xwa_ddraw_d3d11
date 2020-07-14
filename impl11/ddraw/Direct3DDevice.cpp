@@ -4150,9 +4150,11 @@ void LoadVRParams() {
 				// Concourse and 2D menus scale
 				g_fConcourseScale = fValue;
 			}
+			/*
 			else if (_stricmp(param, COCKPIT_Z_THRESHOLD_VRPARAM) == 0) {
 				g_fCockpitPZThreshold = fValue;
 			}
+			*/
 			/* else if (_stricmp(param, ASPECT_RATIO_VRPARAM) == 0) {
 				g_fAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
@@ -4213,12 +4215,16 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_DIRECT_SBS;
 					g_bSteamVREnabled = false;
 					g_bEnableVR = true;
+					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
+					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using Direct SBS mode");
 				}
 				else if (_stricmp(svalue, VR_MODE_STEAMVR_SVAL) == 0) {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
+					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
+					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");
 				}
 			}

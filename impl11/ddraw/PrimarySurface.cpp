@@ -203,7 +203,7 @@ extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 bool g_bEnableSteamVR_QPC = false;
-bool g_bInTechRoom = false;
+bool g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -1634,10 +1634,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
 	// use it as input in the shader
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, BACKBUFFER_FORMAT);
-	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-	//	0, BACKBUFFER_FORMAT);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, BACKBUFFER_FORMAT);
+	}
+	else {
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			0, BACKBUFFER_FORMAT);
+	}
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1719,8 +1723,12 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
-	//resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	}
+	else {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	}
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -7342,6 +7350,7 @@ void PrimarySurface::RenderSunFlare()
 		float u, v;
 		if (bDirectSBS)
 			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth / 2.0f;
+
 		// This is a first step towards having multiple flares; but more work is needed
 		// because flares are blocked depending on stuff that lies in front of them, so
 		// we can't render all flares on the same go. It has to be done one by one, eye
@@ -7349,7 +7358,6 @@ void PrimarySurface::RenderSunFlare()
 		// hard-coded to only render flare 0 in the shaders.
 		// Project all flares to post-proc coords in the hyperspace vertex buffer:
 		for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
-			/*
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
@@ -7357,24 +7365,13 @@ void PrimarySurface::RenderSunFlare()
 			// the centroid is always stored in the nonVR coord sys. For VR, we need to 
 			// flip the Y coord:
 			if (g_bEnableVR) Centroid.y = -Centroid.y;
+			/*
 			ProjectCentroidToPostProc(Centroid, &u, &v);
 			*/
 			
-			/*
-			// g_SunCentroids2D is in in-game coordinates. For the shader, we need to transform that into UVs:
-			InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-				(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, g_SunCentroids2D[i].x, g_SunCentroids2D[i].y, &u, &v);
-			u /= g_fCurScreenWidth;
-			v /= g_fCurScreenHeight;
-			*/
-			// The Sun Centroid is in in-game coords, convert to the range [0..1]:
-			u = g_SunCentroids2D[i].x / g_fCurInGameWidth;
-			v = g_SunCentroids2D[i].y / g_fCurInGameHeight;
-			QL[i].x = u; QL[i].y = v;
-			QR[i].x = u; QR[i].y = v;
-			// ... and now convert to the range [-1..1]
-			u = (u - 0.5f) * 2.0f;
-			v = (v - 0.5f) * 2.0f;
+			// The Sun Centroid is in in-game coords, convert to the range [-1..1]:
+			u = (g_SunCentroids2D[i].x / g_fCurInGameWidth - 0.5f) * 2.0f;
+			v = (g_SunCentroids2D[i].y / g_fCurInGameHeight - 0.5f) * 2.0f;
 			if (bDirectSBS) {
 				v *= g_fCurScreenHeight / (g_fCurScreenWidth / 2.0f);
 			}
@@ -7388,15 +7385,16 @@ void PrimarySurface::RenderSunFlare()
 			// with respect to distant the hyperspace VB. This is *not* a bug.
 			g_ShadertoyBuffer.SunCoords[i].x = u;
 			g_ShadertoyBuffer.SunCoords[i].y = v;
-			//log_debug("[DBG] Sun uv: %0.3f, %0.3f", u, v);
 
 			// Also project the centroid to 2D directly -- we'll need that during the compose pass
 			// to mask the flare. In VR mode, projectToInGameCoordsMetric produces post-proc
 			// coords, not in-game coords
-			//QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
-			//QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
-			
-			log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
+			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
+			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
+
+			g_ShadertoyBuffer.SunCoords[i].z = QL[i].x;
+			g_ShadertoyBuffer.SunCoords[i].w = QL[i].y;
+			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
 	// Set the shadertoy constant buffer:
