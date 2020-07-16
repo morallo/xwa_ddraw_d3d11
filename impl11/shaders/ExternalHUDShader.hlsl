@@ -209,7 +209,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			
 			// ORIGINAL:
 			//float2 reticleUV = (v.xy * reticleScale * mr_vr_aspect_ratio_comp + reticleCentroid.xy);
-			float2 reticleUV = (v.xy * reticleScale * float2(mr_debug_value, 1.0) + reticleCentroid.xy);
+			float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy);
 
 			float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
 			float alpha = 3.0 * dot(0.333, reticle);
