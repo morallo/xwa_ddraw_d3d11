@@ -1120,13 +1120,16 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n\n", RETICLE_SCALE_VRPARAM, g_fReticleScale);
 	
 	fprintf(file, "; The following setting will reduce the scale of the HUD in VR mode.\n");
-	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+	fprintf(file, "%s = %0.3f\n\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
-	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
-	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
+	fprintf(file, "%s = %d\n\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
+
+	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
+
 	fprintf(file, "; The concourse animations can be played as fast as possible, or at its original\n");
 	fprintf(file, "; 25fps setting:\n");
-	fprintf(file, "%s = %d\n", NATURAL_CONCOURSE_ANIM_VRPARAM, g_iNaturalConcourseAnimations);
+	fprintf(file, "%s = %d\n\n", NATURAL_CONCOURSE_ANIM_VRPARAM, g_iNaturalConcourseAnimations);
 	/*
 	fprintf(file, "; The following is a hack to increase the stereoscopy on objects. Unfortunately it\n");
 	fprintf(file, "; also causes some minor artifacts: this is basically the threshold between the\n");
@@ -1159,18 +1162,23 @@ void SaveVRParams() {
 	fprintf(file, "; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
 	fprintf(file, "; As a reference, the background starfield is 65km meters away.\n");
-	fprintf(file, "%s = %0.3f\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
+	fprintf(file, "%s = %0.3f\n\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
+
 	fprintf(file, "; If 6dof is enabled, the aiming HUD can be fixed to the cockpit or it can \"float\"\n");
 	fprintf(file, "; and follow the lasers. When it's fixed, it's probably more realistic; but it will\n");
 	fprintf(file, "; be harder to aim when you lean.\n");
 	fprintf(file, "; When the aiming HUD is floating, it will follow the lasers when you lean,\n");
 	fprintf(file, "; making it easier to aim properly.\n");
-	fprintf(file, "%s = %d\n", FLOATING_AIMING_HUD_VRPARAM, g_bFloatingAimingHUD);
-	fprintf(file, "%s = %0.3f\n", GUI_PARALLAX_VRPARAM, g_fFloatingGUIDepth);
-	fprintf(file, "%s = %0.3f\n", GUI_OBJ_PARALLAX_VRPARAM, g_fFloatingGUIObjDepth);
+	fprintf(file, "%s = %d\n\n", FLOATING_AIMING_HUD_VRPARAM, g_bFloatingAimingHUD);
+
+	fprintf(file, "%s = %0.3f\n\n", GUI_PARALLAX_VRPARAM, g_fFloatingGUIDepth);
+
+	fprintf(file, "%s = %0.3f\n\n", GUI_OBJ_PARALLAX_VRPARAM, g_fFloatingGUIObjDepth);
+
 	fprintf(file, "; %s is relative and it's always added to %s\n", GUI_OBJ_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; This has the effect of making the targeted object \"hover\" above the targeting computer\n");
-	fprintf(file, "%s = %0.3f\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
+	fprintf(file, "%s = %0.3f\n\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
+
 	fprintf(file, "; As a rule of thumb always make %s <= %s so that\n", TEXT_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; the text hovers above the targeting computer\n\n");
 	fprintf(file, "; This is the depth added to the controls in the tech library. Make it negative to bring the\n");

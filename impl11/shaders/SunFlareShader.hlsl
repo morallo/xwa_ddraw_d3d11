@@ -353,7 +353,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	// float2(1.0, mr_vr_aspect_ratio) * 
+	// The aspect_ratio_comp factor was added for the DirectSBS mode, but while it fixes the aspect
+	// ratio of the flares, it might mess up the position of the centroid.
 	const float2 aspect_ratio_comp = float2(1.0, mr_vr_aspect_ratio);
 	output.color.rgb += flare_intensity * lensflare(aspect_ratio_comp * p.xy, aspect_ratio_comp * sunPos, 0);
 

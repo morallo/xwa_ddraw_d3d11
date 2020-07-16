@@ -247,8 +247,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// DEBUG
 	//}
 
+#ifdef DISPLAY_DEBUG
 	// DEBUG
-	// Render a square in the middle of the screen to help calibrate the aspect ratio of the reticle:
+	// Render a square and a circle in the middle of the screen to help calibrate the aspect ratio of the reticle:
 		float d, a;
 		//p = 2.0 * (input.uv - 0.5);
 		//p = float2(1.0, 0.84) * p; // This makes the following look square/round if in-game a/r is 1.333, this is steamVR's a/r
@@ -267,8 +268,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 		a = 0.8 * d;
 		output.color.rgb = lerp(output.color.rgb, d, a);
 		output.color.a = max(output.color.a, a);
-		
 	// DEBUG
+#endif
 
 	return output;
 }

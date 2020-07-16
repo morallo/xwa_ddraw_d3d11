@@ -889,7 +889,7 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
 	if (g_bEnableVR) {
 		if (g_bUseSteamVR)
-			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
 		else {
 			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
 			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
@@ -903,22 +903,14 @@ void ComputeHyperFOVParams() {
 	if (g_bEnableVR) {
 		if (g_bUseSteamVR) {
 			if (g_config.AspectRatioPreserved) {
-				//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = g_ShadertoyBuffer.preserveAspectRatioComp[0];
-				//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = g_ShadertoyBuffer.preserveAspectRatioComp[1];
 				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
 				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
 			}
 		}
 		else {
 			// DirectSBS path
-			//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
-			//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
-
 			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
 			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
-
-			//g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 0.5f / g_MetricRecCBuffer.mr_vr_aspect_ratio;
-			//g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
 		}
 	}
 
