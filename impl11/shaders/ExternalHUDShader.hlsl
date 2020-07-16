@@ -112,6 +112,17 @@ vec2 tri_transform(vec2 p, float disp, float ang) {
 	return q.xy;
 }
 
+inline float sdBox(in vec2 p, in vec2 b)
+{
+	vec2 d = abs(p) - b;
+	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+float sdCircle(in vec2 p, float radius)
+{
+	return length(p) - radius;
+}
+
 // Display the HUD using a hyperspace-entry-like coord sys 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
@@ -184,15 +195,22 @@ PixelShaderOutput main(PixelShaderInput input) {
 			// The following line renders the flat reticle, without distortion due to FOV.
 			//float2 reticleUV = ((input.uv - reticleCentroid.xy) * reticleCentroid.z) + reticleCentroid.xy;
 			float2 reticleScale = reticleCentroid.z;
-			//if (VRmode == 1) reticleScale.x *= 0.5;
-			reticleScale.x *= 0.5;
+			
+			// This path is expected to run only in VR mode, so it's safe to multiply by the VR aspect ratio
+			// compensation factor here:
+			reticleScale.x *= mr_vr_aspect_ratio;
+
 			// This is the regular DirectSBS path:
 			//float2 reticleUV = (v.xy * reticleScale / preserveAspectRatioComp + reticleCentroid.xy);
 			// SteamVR: If PreserveAspectRatio = 0, then the following line fixes the HUD:
 			//float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy);
 			// SteamVR: If PreserveAspectRatio = 1, then we need to multiply by preserveAspectRatioComp:
 			//float2 reticleUV = (v.xy * reticleScale * preserveAspectRatioComp + reticleCentroid.xy);
-			float2 reticleUV = (v.xy * reticleScale * mr_vr_aspect_ratio_comp + reticleCentroid.xy);
+			
+			// ORIGINAL:
+			//float2 reticleUV = (v.xy * reticleScale * mr_vr_aspect_ratio_comp + reticleCentroid.xy);
+			float2 reticleUV = (v.xy * reticleScale * float2(mr_debug_value, 1.0) + reticleCentroid.xy);
+
 			float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
 			float alpha = 3.0 * dot(0.333, reticle);
 			// DEBUG
@@ -228,6 +246,30 @@ PixelShaderOutput main(PixelShaderInput input) {
 		//output.color.rga += float3(v.xy, 0.7);
 		// DEBUG
 	//}
+
+	// DEBUG
+	// Render a square in the middle of the screen to help calibrate the aspect ratio of the reticle:
+		float d, a;
+		//p = 2.0 * (input.uv - 0.5);
+		//p = float2(1.0, 0.84) * p; // This makes the following look square/round if in-game a/r is 1.333, this is steamVR's a/r
+		//p *= preserveAspectRatioComp * float2(1.0, 1.0/0.84);
+		//p += float2(0, y_center);
+		const float radius = 0.1;
+		p = v.xy;
+		d = sdBox(p, radius);
+		d = smoothstep(0.01, 0.0, abs(d)); // ring
+		a = 0.8 * d;
+		output.color.rgb = lerp(output.color.rgb, d, a);
+		output.color.a = max(output.color.a, a);
+
+		d = sdCircle(p, radius);
+		d = smoothstep(0.01, 0.0, abs(d));
+		a = 0.8 * d;
+		output.color.rgb = lerp(output.color.rgb, d, a);
+		output.color.a = max(output.color.a, a);
+		
+	// DEBUG
+
 	return output;
 }
 

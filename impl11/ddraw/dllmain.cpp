@@ -523,9 +523,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugYCenter += 0.01f;
-					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
-					ComputeHyperFOVParams();
+					//g_fDebugYCenter += 0.01f;
+					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					//ComputeHyperFOVParams();
+					g_fReticleScale += 0.02f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				case 6:
 					g_fShadowMapAngleX += 7.5f;
@@ -559,9 +561,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 				case 4:
-					g_fDebugYCenter -= 0.01f;
-					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
-					ComputeHyperFOVParams();
+					//g_fDebugYCenter -= 0.01f;
+					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					//ComputeHyperFOVParams();
+					g_fReticleScale -= 0.02f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				case 6:
 					g_fShadowMapAngleX -= 7.5f;

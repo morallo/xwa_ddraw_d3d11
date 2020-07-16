@@ -882,24 +882,43 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
-	g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
-	g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
 	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
 	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR)
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+		else {
+			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
+			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
+			// we need to trust that the user will set the current desktop resolution to the HMD's 
+			// resolution. So let's use the desktop's resolution to compensate for aspect ratio in
+			// SBS mode:
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_WindowHeight / (float)g_WindowWidth;
+		}
+	}
 
 	if (g_bEnableVR) {
 		if (g_bUseSteamVR) {
 			if (g_config.AspectRatioPreserved) {
-				g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = g_ShadertoyBuffer.preserveAspectRatioComp[0];
-				g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = g_ShadertoyBuffer.preserveAspectRatioComp[1];
+				//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = g_ShadertoyBuffer.preserveAspectRatioComp[1];
 				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
 				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
 			}
 		}
 		else {
 			// DirectSBS path
-			g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
-			g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+
+			//g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 0.5f / g_MetricRecCBuffer.mr_vr_aspect_ratio;
+			//g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
 		}
 	}
 
@@ -2227,7 +2246,7 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.z_override        = -1.0f;
 	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override   = -1.0f;
-	g_VSCBuffer.apply_uv_comp     =  g_bUseSteamVR;
+	g_VSCBuffer.apply_uv_comp     =  g_bEnableVR;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform    =  0.0f;
 	if (g_bEnableVR) {
@@ -5441,6 +5460,12 @@ void PrimarySurface::RenderExternalHUD()
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
+	// DEBUG
+	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
+	//resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	//resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	// DEBUG
+
 	//float sz, rhw;
 	//ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
 	//log_debug("[DBG] sz: %0.3f, rhw: %0.3f", sz, rhw);
@@ -7327,12 +7352,6 @@ void PrimarySurface::RenderSunFlare()
 	Vector3 Centroid, QL[MAX_SUN_FLARES], QR[MAX_SUN_FLARES];
 	Vector2 Q[MAX_SUN_FLARES];
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
-
-	// DEBUG
-	g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
-	resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
-	resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
-	// DEBUG
 
 	iTime += 0.01f;
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);

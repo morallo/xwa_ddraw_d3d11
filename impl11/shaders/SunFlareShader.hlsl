@@ -353,7 +353,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	output.color.rgb += flare_intensity * lensflare(p.xy, sunPos, 0);
+	// float2(1.0, mr_vr_aspect_ratio) * 
+	const float2 aspect_ratio_comp = float2(1.0, mr_vr_aspect_ratio);
+	output.color.rgb += flare_intensity * lensflare(aspect_ratio_comp * p.xy, aspect_ratio_comp * sunPos, 0);
 
 	/*
 	float3 col = float3(0.1, 1.0, 0.1); // Marker color
