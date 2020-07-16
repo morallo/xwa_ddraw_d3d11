@@ -372,7 +372,7 @@ const float DEFAULT_PITCH_OFFSET = 0.0f;
 const float DEFAULT_RETICLE_SCALE = 0.8f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
-const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
+const char *IPD_VRPARAM = "IPD";
 //const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
 //const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
@@ -1109,9 +1109,9 @@ void SaveVRParams() {
 
 	//fprintf(file, "focal_dist = %0.6f # Try not to modify this value, change IPD instead.\n", focal_dist);
 
-	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", STEREOSCOPY_STRENGTH_VRPARAM);
+	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", IPD_VRPARAM);
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
-	fprintf(file, "%s = %0.1f\n\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
+	fprintf(file, "%s = %0.1f\n\n", IPD_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
 	//fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
 	//fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
@@ -1145,19 +1145,21 @@ void SaveVRParams() {
 	//fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
 	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
-	fprintf(file, "; Lens correction parameters for the DirectSBS mode. Do NOT use in SteamVR mode.\n");
-	fprintf(file, "; k2 has the biggest effect and k1 fine - tunes the effect.\n");
+	fprintf(file, "; DirectSBS Lens correction parameters -- ignored in SteamVR mode.\n");
+	fprintf(file, "; k2 has the biggest effect and k1 fine-tunes the effect.\n");
 	fprintf(file, "; Positive values = convex warping; negative = concave warping.\n");
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
 	fprintf(file, "%s = %0.6f\n", K2_VRPARAM, g_fLensK2);
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
 	fprintf(file, "%s = %d\n\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
 
+	/*
 	fprintf(file, "; The following parameter will enable/disable SteamVR's lens distortion correction\n");
 	fprintf(file, "; The default is 1, only set it to 0 if you're seeing distortion in SteamVR.\n");
 	fprintf(file, "; If you set it to 0, I suggest you enable %s above to use the internal lens\n", BARREL_EFFECT_STATE_VRPARAM);
 	fprintf(file, "; distortion correction instead\n");
 	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
+	*/
 
 	fprintf(file, "; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
@@ -1177,10 +1179,10 @@ void SaveVRParams() {
 
 	fprintf(file, "; %s is relative and it's always added to %s\n", GUI_OBJ_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; This has the effect of making the targeted object \"hover\" above the targeting computer\n");
-	fprintf(file, "%s = %0.3f\n\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
-
 	fprintf(file, "; As a rule of thumb always make %s <= %s so that\n", TEXT_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; the text hovers above the targeting computer\n\n");
+	fprintf(file, "%s = %0.3f\n\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
+
 	fprintf(file, "; This is the depth added to the controls in the tech library. Make it negative to bring the\n");
 	fprintf(file, "; controls towards you. Objects in the tech library are obviously scaled by XWA, because there's\n");
 	fprintf(file, "; otherwise no way to visualize both a Star Destroyer and an A-Wing in the same volume.\n");
@@ -4135,7 +4137,7 @@ void LoadVRParams() {
 				g_fFocalDist = fValue;
 				log_debug("[DBG] Focal Distance: %0.3f", g_fFocalDist);
 			}
-			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
+			else if (_stricmp(param, IPD_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
 			}
 			/*else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
