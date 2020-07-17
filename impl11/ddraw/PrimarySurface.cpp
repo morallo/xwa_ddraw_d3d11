@@ -9729,6 +9729,13 @@ HRESULT PrimarySurface::Flip(
 				// because the cockpit hook already applies the yaw/pitch rotation
 				g_VSMatrixCB.viewMat = g_viewMatrix;
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;
+
+				//log_debug("[DBG] Laser Pointer: No HMD compensation");
+				g_contOriginViewSpace = g_contOriginWorldSpace;
+				g_contDirViewSpace = g_contDirWorldSpace;
+
+				// In VR mode, the y-axis is flipped with respect to the non-VR path:
+				g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
 			}
 			else // non-VR and DirectSBS modes, read the roll and position from FreePIE
 			{ 
@@ -9759,6 +9766,7 @@ HRESULT PrimarySurface::Flip(
 				else
 					headPos.set(0, 0, 0, 1);
 
+				// Read the position of the controller from FreePIE
 				if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
 					if (g_bResetHeadCenter && !g_bOriginFromHMD) {
 						headCenterPos[0] = g_FreePIEData.x;
@@ -9837,9 +9845,14 @@ HRESULT PrimarySurface::Flip(
 					g_contDirViewSpace = cockpitViewDir * temp;
 				}
 				else {
+					//log_debug("[DBG] Laser Pointer: No HMD compensation");
 					g_contOriginViewSpace = g_contOriginWorldSpace;
 					g_contDirViewSpace = g_contDirWorldSpace;
 				}
+
+				// In VR mode, the y-axis is flipped with respect to the non-VR path:
+				if (g_bEnableVR)
+					g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
 				
 				if (g_bYawPitchFromMouseOverride) {
 					// If FreePIE could not be read, then get the yaw/pitch from the mouse:

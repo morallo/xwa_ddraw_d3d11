@@ -102,7 +102,7 @@ extern bool g_bKeybExitHyperspace;
 extern bool g_bFXAAEnabled;
 
 // ACTIVE COCKPIT
-extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
+extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
@@ -427,8 +427,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				}
 
-				//g_contOriginWorldSpace.x += 0.02f;
-
 				/*
 				g_fHyperTimeOverride += 0.1f;
 				if (g_fHyperTimeOverride > 2.5f)
@@ -492,8 +490,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				}
 
-				//g_contOriginWorldSpace.x -= 0.02f;
-
 				/*
 				g_fHyperTimeOverride -= 0.1f;
 				if (g_fHyperTimeOverride < 0.0f)
@@ -543,7 +539,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;*/
 				}
 
-				//g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
 				switch (g_KeySet) {
@@ -581,7 +576,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;*/
 				}
 
-				//g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
 			}
 		}
@@ -746,12 +740,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_UP:
 				IncreaseLensK1(0.1f);
 				SaveVRParams();
-				//g_contOriginWorldSpace.z += 0.04f;
 				return 0;
 			case VK_DOWN:
 				IncreaseLensK1(-0.1f);
 				SaveVRParams();
-				//g_contOriginWorldSpace.z -= 0.04f;
 				return 0;
 			case VK_LEFT:
 				IncreaseLensK2(-0.1f);
@@ -912,6 +904,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fOBJ_Z_MetricMult += 5.0f;
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
+				case 11:
+					g_contOriginWorldSpace.y += 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -946,6 +942,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fOBJ_Z_MetricMult -= 5.0f;
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
+				case 11:
+					g_contOriginWorldSpace.y -= 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 			// Ctrl + Left
@@ -956,6 +956,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseReticleScale(-0.1f);
 					SaveVRParams();
 					break;
+				case 11:
+					g_contOriginWorldSpace.x -= 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 			// Ctrl + Right
@@ -965,6 +969,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//IncreaseAspectRatio(0.05f);
 					IncreaseReticleScale(0.1f);
 					SaveVRParams();
+					break;
+				case 11:
+					g_contOriginWorldSpace.x += 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
