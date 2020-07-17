@@ -888,8 +888,9 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
 	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
 	if (g_bEnableVR) {
-		if (g_bUseSteamVR)
+		if (g_bUseSteamVR) {
 			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
+		}
 		else {
 			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
 			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
@@ -7372,7 +7373,7 @@ void PrimarySurface::RenderSunFlare()
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
-			// To keep the TagXwaLights working in non-VR space even when VR is enabled,
+			// To keep TagXwaLights() working in non-VR space even when VR is enabled,
 			// the centroid is always stored in the nonVR coord sys. For VR, we need to 
 			// flip the Y coord:
 			if (g_bEnableVR) Centroid.y = -Centroid.y;
@@ -7388,7 +7389,10 @@ void PrimarySurface::RenderSunFlare()
 			}
 			else {
 				// SteamVR mode
-				v *= ((float)g_steamVRHeight / (float)g_steamVRWidth);
+				if (g_steamVRWidth < g_steamVRHeight)
+					v *= (float)g_steamVRHeight / (float)g_steamVRWidth;
+				else
+					u *= (float)g_steamVRWidth / (float)g_steamVRHeight;
 			}
 
 			// Overwrite the centroid with the new 2D coordinates for the left/right images.
@@ -7402,9 +7406,6 @@ void PrimarySurface::RenderSunFlare()
 			// coords, not in-game coords
 			QL[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixLeft);
 			QR[i] = projectToInGameOrPostProcCoordsMetric(Centroid, g_viewMatrix, g_FullProjMatrixRight);
-
-			g_ShadertoyBuffer.SunCoords[i].z = QL[i].x;
-			g_ShadertoyBuffer.SunCoords[i].w = QL[i].y;
 			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
