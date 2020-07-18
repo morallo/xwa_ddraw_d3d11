@@ -694,16 +694,15 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		vr::TrackedDevicePose_t trackedDevicePose;
+		//vr::TrackedDevicePose_t trackedDevicePose;
+		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		// 0.027 (~2.5 frames) is the estimated time it will take for the next frame to be displayed.
-		// TODO: calculate predicted seconds to photons from now dynamically
-		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.027f, &trackedDevicePose, 1);
-		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
-		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
+		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);		
+		poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
+		q = rotationToQuaternion(poseMatrix);
 		quatToEuler(q, yaw, pitch, roll);
 
 		*x = poseMatrix.m[0][3];
@@ -7785,11 +7784,10 @@ inline bool WaitGetPoses_QPC() {
 }
 
 
-/* Calculate the view matrices for the 3D>2D projection and store in g_VSMatrixCB
-   In SteamVR mode, this function will run WaitGetPoses() and block until ~3ms before the HMD vsync
-   to optimize tracker latency ("running start" algorithm)
+/*
+Calculate the view matrices for the 3D>2D projection and store in g_VSMatrixCB
 */
-void CalculateViewMatrix()
+void UpdateViewMatrix()
 {
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
@@ -9458,7 +9456,7 @@ HRESULT PrimarySurface::Flip(
 			}
 			*/
 
-			CalculateViewMatrix();
+			//CalculateViewMatrix();
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
