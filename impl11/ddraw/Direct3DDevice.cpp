@@ -462,7 +462,7 @@ float g_fSteamVRMirrorWindow3DScale = 0.7f;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
-bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false, g_bTransparentExplosions = true;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -7969,18 +7969,15 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
-				// Avoid rendering explosions on the CMD if we're rendering edges
-				// This didn't make much difference: the real problem is that the explosions and gas isn't doing
+				// Avoid rendering explosions on the CMD if we're rendering edges.
+				// This didn't make much difference: the real problem is that the explosions and smoke isn't doing
 				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
 				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark)) {
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
 					goto out;
 				}
 				*/
-
-				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Explosion && g_bTransparentExplosions)
-				//	EnableTransparency();
 
 				// Reticle processing
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
@@ -8233,6 +8230,12 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
+					bModifiedShaders = true;
+					//EnableTransparency();
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+				}
+
 				// Capture the centroid of the current sun texture and store it.
 				// Sun Centroids appear to be around 50m away in metric 3D space
 				if (bIsSun) 
@@ -8393,7 +8396,7 @@ HRESULT Direct3DDevice::Execute(
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
-						lastTextureSelected->is_Explosion)
+						lastTextureSelected->is_Explosion || lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
@@ -9595,8 +9598,10 @@ nocolor:
 	time += 0.1f;
 	if (time > 2.0f) time = 0.0f;
 	g_ShadertoyBuffer.iTime = time;
+
 	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
 	static float destroyedTimer = 0.0f;
+	/*
 	if (currentTargetIndex > -1) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto reset;
@@ -9615,6 +9620,7 @@ nocolor:
 reset:
 		destroyedTimer = 0.0f;
 	}
+	*/
 	g_ShadertoyBuffer.twirl = destroyedTimer;
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);

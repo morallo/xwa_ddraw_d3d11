@@ -95,6 +95,8 @@ public:
 	bool is_EngineGlow;
 	// True if this is an Explosion texture
 	bool is_Explosion;
+	// True if this is smoke coming from an explosion
+	bool is_Smoke;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
 	// True if this texture is a gunner texture

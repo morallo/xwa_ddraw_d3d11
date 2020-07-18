@@ -86,7 +86,7 @@ extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable,
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 
-extern bool g_bHDREnabled, g_bEdgeDetectorEnabled, g_bTransparentExplosions;
+extern bool g_bHDREnabled, g_bEdgeDetectorEnabled;
 extern float g_fHDRWhitePoint;
 
 extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
@@ -717,9 +717,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'E':
 				//g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
-				//g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
-				g_bTransparentExplosions = !g_bTransparentExplosions;
-				log_debug("[DBG] g_bTransparentExplosions: %d", g_bTransparentExplosions);
+				g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
 				return 0;
 			/*
 			case 'Q':
