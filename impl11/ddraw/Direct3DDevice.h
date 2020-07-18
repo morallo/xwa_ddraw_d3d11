@@ -54,6 +54,8 @@ public:
 
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
 
+	void EnableTransparency();
+
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
 	STDMETHOD(AddViewport)(THIS_ LPDIRECT3DVIEWPORT);

@@ -462,7 +462,7 @@ float g_fSteamVRMirrorWindow3DScale = 0.7f;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
-bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false, g_bTransparentExplosions = true;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -6684,6 +6684,23 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMas
 		return regularRTV;
 }
 
+inline void Direct3DDevice::EnableTransparency() {
+	auto& resources = this->_deviceResources;
+	D3D11_BLEND_DESC blendDesc{};
+
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -7539,18 +7556,7 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bAOEnabled && bIsLightTexture) {
 					// We need to set the blend state properly for light textures when AO is disabled.
 					// Not sure why; but here you go: This fixes the black textures bug
-					D3D11_BLEND_DESC blendDesc{};
-					blendDesc.AlphaToCoverageEnable = FALSE;
-					blendDesc.IndependentBlendEnable = FALSE;
-					blendDesc.RenderTarget[0].BlendEnable = TRUE;
-					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-					hr = resources->InitBlendState(nullptr, &blendDesc);
+					EnableTransparency();
 				}
 
 				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
@@ -7973,6 +7979,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 				*/
 
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Explosion && g_bTransparentExplosions)
+				//	EnableTransparency();
+
 				// Reticle processing
 				//if (!g_bYCenterHasBeenFixed && bIsReticleCenter && !bExternalCamera)
 				if (bIsReticleCenter)
@@ -8383,7 +8392,8 @@ HRESULT Direct3DDevice::Execute(
 				if (bLastTextureSelectedNotNULL)
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
-						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked)
+						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
+						lastTextureSelected->is_Explosion)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
@@ -8400,9 +8410,10 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
-						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
-						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
-						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 
+						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Spark || 
+						lastTextureSelected->is_Chaff || lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */
+						/* || (lastTextureSelected->is_Explosion && !g_bTransparentExplosions) */
+						)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
