@@ -9601,7 +9601,6 @@ nocolor:
 
 	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
 	static float destroyedTimer = 0.0f;
-	/*
 	if (currentTargetIndex > -1) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto reset;
@@ -9620,7 +9619,6 @@ nocolor:
 reset:
 		destroyedTimer = 0.0f;
 	}
-	*/
 	g_ShadertoyBuffer.twirl = destroyedTimer;
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
