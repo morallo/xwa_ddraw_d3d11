@@ -103,7 +103,7 @@ extern bool g_bKeybExitHyperspace;
 extern bool g_bFXAAEnabled;
 
 // ACTIVE COCKPIT
-extern Vector4 g_contOriginWorldSpace; // , g_contOriginViewSpace;
+extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
 extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
@@ -145,7 +145,7 @@ bool ShutDownDirectSBS();
 
 // SteamVR
 #include <headers/openvr.h>
-extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC;
+extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC, g_bSteamVRMirrorWindowLeftEye;
 extern vr::IVRSystem *g_pHMD;
 extern vr::IVRScreenshots *g_pVRScreenshots;
 bool InitSteamVR();
@@ -347,7 +347,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey	  = (GetAsyncKeyState(VK_UP)			& 0x8000) == 0x8000;
+	bool UpKey	  = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
 	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
@@ -423,9 +423,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsX += 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
+				case 10:
+					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
+					break;
 				}
-
-				//g_contOriginWorldSpace.x += 0.02f;
 
 				/*
 				g_fHyperTimeOverride += 0.1f;
@@ -485,9 +486,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsX -= 0.01f;
 					log_debug("[DBG] g_fReticleOfsX: %0.3f", g_fReticleOfsX);
 					break;*/
+				case 10:
+					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
+					break;
 				}
-
-				//g_contOriginWorldSpace.x -= 0.02f;
 
 				/*
 				g_fHyperTimeOverride -= 0.1f;
@@ -518,9 +520,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 					break;
 				case 4:
-					g_fDebugYCenter += 0.01f;
-					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
-					ComputeHyperFOVParams();
+					//g_fDebugYCenter += 0.01f;
+					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					//ComputeHyperFOVParams();
+					g_fReticleScale += 0.02f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				case 6:
 					g_fShadowMapAngleX += 7.5f;
@@ -536,7 +540,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;*/
 				}
 
-				//g_contOriginWorldSpace.y += 0.02f;
 				return 0;
 			case VK_DOWN:
 				switch (g_KeySet) {
@@ -554,9 +557,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
 				case 4:
-					g_fDebugYCenter -= 0.01f;
-					log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
-					ComputeHyperFOVParams();
+					//g_fDebugYCenter -= 0.01f;
+					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+					//ComputeHyperFOVParams();
+					g_fReticleScale -= 0.02f;
+					log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
 					break;
 				case 6:
 					g_fShadowMapAngleX -= 7.5f;
@@ -572,7 +577,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;*/
 				}
 
-				//g_contOriginWorldSpace.y -= 0.02f;
 				return 0;
 			}
 		}
@@ -737,12 +741,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_UP:
 				IncreaseLensK1(0.1f);
 				SaveVRParams();
-				//g_contOriginWorldSpace.z += 0.04f;
 				return 0;
 			case VK_DOWN:
 				IncreaseLensK1(-0.1f);
 				SaveVRParams();
-				//g_contOriginWorldSpace.z -= 0.04f;
 				return 0;
 			case VK_LEFT:
 				IncreaseLensK2(-0.1f);
@@ -907,6 +909,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fOBJ_Z_MetricMult += 5.0f;
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
+				case 11:
+					g_contOriginWorldSpace.y += 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -941,6 +947,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fOBJ_Z_MetricMult -= 5.0f;
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
+				case 11:
+					g_contOriginWorldSpace.y -= 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 			// Ctrl + Left
@@ -951,6 +961,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseReticleScale(-0.1f);
 					SaveVRParams();
 					break;
+				case 11:
+					g_contOriginWorldSpace.x -= 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
 				}
 				return 0;
 			// Ctrl + Right
@@ -960,6 +974,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//IncreaseAspectRatio(0.05f);
 					IncreaseReticleScale(0.1f);
 					SaveVRParams();
+					break;
+				case 11:
+					g_contOriginWorldSpace.x += 0.02f;
+					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;

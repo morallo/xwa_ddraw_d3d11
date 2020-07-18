@@ -294,7 +294,9 @@ typedef struct LaserPointerCBStruct {
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	// 16 bytes
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
+	float aspect_ratio;
+	uint32_t apply_uv_comp;
+	float z_override, sz_override;
 	// 32 bytes
 	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 48 bytes
@@ -414,7 +416,11 @@ typedef struct MetricReconstructionCBStruct {
 	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
 	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
 
-	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_unused;
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_debug_value;
+
+	//float mr_vr_aspect_ratio_comp[2]; // This is used with shaders that work with the postproc vertexbuf, like the reticle shader
+	float mr_vr_aspect_ratio, mr_unused0;
+	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD
 } MetricReconstructionCB;
 
 typedef struct uv_coords_src_dst_struct {
@@ -748,11 +754,11 @@ public:
 	void InitVSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *vsCBuffer);
 	void InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *psCBuffer);
 
-	void BuildHUDVertexBuffer(UINT width, UINT height);
-	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void BuildHUDVertexBuffer(float width, float height);
+	void BuildHyperspaceVertexBuffer(float width, float height);
 	void BuildPostProcVertexBuffer();
-	void InitSpeedParticlesVB(UINT width, UINT height);
-	void BuildSpeedVertexBuffer(UINT width, UINT height);
+	void InitSpeedParticlesVB();
+	void BuildSpeedVertexBuffer();
 	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
 	//void FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/);
 	//void CreateReticleVertexBuffer();
@@ -990,6 +996,7 @@ public:
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
+	ComPtr<ID3D11PixelShader> _starDebugPS;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

@@ -317,7 +317,7 @@ const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
 const float DEFAULT_TRIANGLE_POINTER_DIST = 0.120f;
 const float DEFAULT_GUI_ELEM_PZ_THRESHOLD = 0.0008f;
-const float DEFAULT_ZOOM_OUT_SCALE = 1.0f;
+const float DEFAULT_ZOOM_OUT_SCALE = 0.5f;
 const bool DEFAULT_ZOOM_OUT_INITIAL_STATE = false;
 //const float DEFAULT_ASPECT_RATIO = 1.33f;
 const float DEFAULT_ASPECT_RATIO = 1.25f;
@@ -325,7 +325,8 @@ const float DEFAULT_ASPECT_RATIO = 1.25f;
 const float DEFAULT_CONCOURSE_SCALE = 12.0f;
 //const float DEFAULT_CONCOURSE_ASPECT_RATIO = 2.0f; // Default for non-SteamVR
 const float DEFAULT_CONCOURSE_ASPECT_RATIO = 1.33f; // Default for non-SteamVR
-const float DEFAULT_GLOBAL_SCALE = 1.8f;
+const float DEFAULT_GLOBAL_SCALE = 1.0f;
+const float DEFAULT_GUI_SCALE = 0.7f;
 /*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
@@ -372,7 +373,7 @@ const float DEFAULT_PITCH_OFFSET = 0.0f;
 const float DEFAULT_RETICLE_SCALE = 0.8f;
 
 const char *FOCAL_DIST_VRPARAM = "focal_dist";
-const char *STEREOSCOPY_STRENGTH_VRPARAM = "IPD";
+const char *IPD_VRPARAM = "IPD";
 //const char *METRIC_MULT_VRPARAM = "stereoscopy_multiplier";
 //const char *SIZE_3D_WINDOW_VRPARAM = "3d_window_size";
 const char *SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM = "3d_window_zoom_out_size";
@@ -450,7 +451,7 @@ bool g_bSteamVRInitialized = false; // The system will set this flag after Steam
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bResetHeadCenter = true; // Reset the head center on startup
-bool g_bSteamVRDistortionEnabled = true; // g_bRunningStartAppliedOnThisFrame = false;
+bool g_bSteamVRDistortionEnabled = true, g_bSteamVRYawPitchRollFromMouseLook = false;
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_projLeft, g_projRight;
@@ -458,14 +459,19 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
+float g_fSteamVRMirrorWindow3DScale = 0.7f;
+// Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInTechRoom;
 
-bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = false;
+bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
 // proper match was found.
 float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
+
+float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
 bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
@@ -610,6 +616,7 @@ bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bS
 std::vector<Vector4> g_OBJLimits; // Box limits of the OBJ loaded. This is used to compute the Z range of the shadow map
 
 Vector3 g_SunCentroids[MAX_XWA_LIGHTS]; // Stores all the sun centroids seen in this frame in in-game coords
+Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS]; // Stores all the 2D sun centroids seen in this frame in in-game coords
 int g_iNumSunCentroids = 0;
 
 /*********************************************************/
@@ -631,10 +638,8 @@ XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
-float g_fDebugFOVscale = 0.06f;
+float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
-
-void CalculateViewMatrix();
 
 // Bloom
 const int MAX_BLOOM_PASSES = 9;
@@ -664,7 +669,7 @@ bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadL
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bShadowEnable = true, g_bEnableSpeedShader = false, g_bEnableAdditionalGeometry = false;
+bool g_bOverrideLightPos = false, g_bShadowEnable = true, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
@@ -716,7 +721,7 @@ bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
 float g_fCoverTextureBrightness = 1.0f;
 float g_fDCBrightness = 1.0f;
-float g_fGUIElemsScale = DEFAULT_GLOBAL_SCALE; // Used to reduce the size of all the GUI elements
+float g_fGUIElemsScale = DEFAULT_GUI_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
 bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
@@ -864,7 +869,7 @@ void ToggleCockpitPZHack() {
 
 void ToggleZoomOutMode() {
 	g_bZoomOut = !g_bZoomOut;
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 }
 
 void IncreaseZOverride(float Delta) {
@@ -878,7 +883,7 @@ void IncreaseZoomOutScale(float Delta) {
 		g_fGlobalScaleZoomOut = 0.2f;
 
 	// Apply this change by modifying the global scale:
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 
 	g_fConcourseScale += Delta;
 	if (g_fConcourseScale < 0.2f)
@@ -995,7 +1000,7 @@ void ResetVRParams() {
 	//g_fPostProjScale = 1.0f;
 	g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
 	g_bZoomOut = g_bZoomOutInitialState;
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 	g_fConcourseScale = DEFAULT_CONCOURSE_SCALE;
 	g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD;
 	g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold;
@@ -1105,9 +1110,9 @@ void SaveVRParams() {
 
 	//fprintf(file, "focal_dist = %0.6f # Try not to modify this value, change IPD instead.\n", focal_dist);
 
-	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", STEREOSCOPY_STRENGTH_VRPARAM);
+	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", IPD_VRPARAM);
 	fprintf(file, "; This setting is ignored in SteamVR mode. Configure the IPD through SteamVR instead.\n");
-	fprintf(file, "%s = %0.1f\n\n", STEREOSCOPY_STRENGTH_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
+	fprintf(file, "%s = %0.1f\n\n", IPD_VRPARAM, g_fIPD * IPD_SCALE_FACTOR);
 	//fprintf(file, "; %s amplifies the stereoscopy of objects in the game. Never set it to 0\n", METRIC_MULT_VRPARAM);
 	//fprintf(file, "%s = %0.3f\n", METRIC_MULT_VRPARAM, g_fMetricMult);
 	//fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_VRPARAM, g_fGlobalScale);
@@ -1116,13 +1121,16 @@ void SaveVRParams() {
 	fprintf(file, "%s = %0.3f\n\n", RETICLE_SCALE_VRPARAM, g_fReticleScale);
 	
 	fprintf(file, "; The following setting will reduce the scale of the HUD in VR mode.\n");
-	fprintf(file, "%s = %0.3f\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+	fprintf(file, "%s = %0.3f\n\n", SIZE_3D_WINDOW_ZOOM_OUT_VRPARAM, g_fGlobalScaleZoomOut);
+
 	fprintf(file, "; Set the following to 1 to start the HUD in zoomed-out mode:\n");
-	fprintf(file, "%s = %d\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
-	fprintf(file, "%s = %0.3f\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
+	fprintf(file, "%s = %d\n\n", WINDOW_ZOOM_OUT_INITIAL_STATE_VRPARAM, g_bZoomOutInitialState);
+
+	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_WINDOW_SCALE_VRPARAM, g_fConcourseScale);
+
 	fprintf(file, "; The concourse animations can be played as fast as possible, or at its original\n");
 	fprintf(file, "; 25fps setting:\n");
-	fprintf(file, "%s = %d\n", NATURAL_CONCOURSE_ANIM_VRPARAM, g_iNaturalConcourseAnimations);
+	fprintf(file, "%s = %d\n\n", NATURAL_CONCOURSE_ANIM_VRPARAM, g_iNaturalConcourseAnimations);
 	/*
 	fprintf(file, "; The following is a hack to increase the stereoscopy on objects. Unfortunately it\n");
 	fprintf(file, "; also causes some minor artifacts: this is basically the threshold between the\n");
@@ -1138,37 +1146,44 @@ void SaveVRParams() {
 	//fprintf(file, "%s = %0.3f\n", ASPECT_RATIO_VRPARAM, g_fAspectRatio);
 	fprintf(file, "%s = %0.3f\n\n", CONCOURSE_ASPECT_RATIO_VRPARAM, g_fConcourseAspectRatio);
 
-	fprintf(file, "; Lens correction parameters for the DirectSBS mode. Do NOT use in SteamVR mode.\n");
-	fprintf(file, "; k2 has the biggest effect and k1 fine - tunes the effect.\n");
+	fprintf(file, "; DirectSBS Lens correction parameters -- ignored in SteamVR mode.\n");
+	fprintf(file, "; k2 has the biggest effect and k1 fine-tunes the effect.\n");
 	fprintf(file, "; Positive values = convex warping; negative = concave warping.\n");
 	fprintf(file, "%s = %0.6f\n", K1_VRPARAM, g_fLensK1);
 	fprintf(file, "%s = %0.6f\n", K2_VRPARAM, g_fLensK2);
 	fprintf(file, "%s = %0.6f\n", K3_VRPARAM, g_fLensK3);
 	fprintf(file, "%s = %d\n\n", BARREL_EFFECT_STATE_VRPARAM, !g_bDisableBarrelEffect);
 
+	/*
 	fprintf(file, "; The following parameter will enable/disable SteamVR's lens distortion correction\n");
 	fprintf(file, "; The default is 1, only set it to 0 if you're seeing distortion in SteamVR.\n");
 	fprintf(file, "; If you set it to 0, I suggest you enable %s above to use the internal lens\n", BARREL_EFFECT_STATE_VRPARAM);
 	fprintf(file, "; distortion correction instead\n");
 	fprintf(file, "%s = %d\n\n", STEAMVR_DISTORTION_ENABLED_VRPARAM, g_bSteamVRDistortionEnabled);
+	*/
 
 	fprintf(file, "; Depth for various GUI elements in meters from the head's origin.\n");
 	fprintf(file, "; Positive depth is forwards, negative is backwards (towards you).\n");
 	fprintf(file, "; As a reference, the background starfield is 65km meters away.\n");
-	fprintf(file, "%s = %0.3f\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
+	fprintf(file, "%s = %0.3f\n\n", HUD_PARALLAX_VRPARAM, g_fHUDDepth);
+
 	fprintf(file, "; If 6dof is enabled, the aiming HUD can be fixed to the cockpit or it can \"float\"\n");
 	fprintf(file, "; and follow the lasers. When it's fixed, it's probably more realistic; but it will\n");
 	fprintf(file, "; be harder to aim when you lean.\n");
 	fprintf(file, "; When the aiming HUD is floating, it will follow the lasers when you lean,\n");
 	fprintf(file, "; making it easier to aim properly.\n");
-	fprintf(file, "%s = %d\n", FLOATING_AIMING_HUD_VRPARAM, g_bFloatingAimingHUD);
-	fprintf(file, "%s = %0.3f\n", GUI_PARALLAX_VRPARAM, g_fFloatingGUIDepth);
-	fprintf(file, "%s = %0.3f\n", GUI_OBJ_PARALLAX_VRPARAM, g_fFloatingGUIObjDepth);
+	fprintf(file, "%s = %d\n\n", FLOATING_AIMING_HUD_VRPARAM, g_bFloatingAimingHUD);
+
+	fprintf(file, "%s = %0.3f\n\n", GUI_PARALLAX_VRPARAM, g_fFloatingGUIDepth);
+
+	fprintf(file, "%s = %0.3f\n\n", GUI_OBJ_PARALLAX_VRPARAM, g_fFloatingGUIObjDepth);
+
 	fprintf(file, "; %s is relative and it's always added to %s\n", GUI_OBJ_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; This has the effect of making the targeted object \"hover\" above the targeting computer\n");
-	fprintf(file, "%s = %0.3f\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
 	fprintf(file, "; As a rule of thumb always make %s <= %s so that\n", TEXT_PARALLAX_VRPARAM, GUI_PARALLAX_VRPARAM);
 	fprintf(file, "; the text hovers above the targeting computer\n\n");
+	fprintf(file, "%s = %0.3f\n\n", TEXT_PARALLAX_VRPARAM, g_fTextDepth);
+
 	fprintf(file, "; This is the depth added to the controls in the tech library. Make it negative to bring the\n");
 	fprintf(file, "; controls towards you. Objects in the tech library are obviously scaled by XWA, because there's\n");
 	fprintf(file, "; otherwise no way to visualize both a Star Destroyer and an A-Wing in the same volume.\n");
@@ -3874,6 +3889,9 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
+			if (_stricmp(param, "star_debug_enabled") == 0) {
+				g_bStarDebugEnabled = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -4120,7 +4138,7 @@ void LoadVRParams() {
 				g_fFocalDist = fValue;
 				log_debug("[DBG] Focal Distance: %0.3f", g_fFocalDist);
 			}
-			else if (_stricmp(param, STEREOSCOPY_STRENGTH_VRPARAM) == 0) {
+			else if (_stricmp(param, IPD_VRPARAM) == 0) {
 				EvaluateIPD(fValue);
 			}
 			/*else if (_stricmp(param, METRIC_MULT_VRPARAM) == 0) {
@@ -4143,9 +4161,11 @@ void LoadVRParams() {
 				// Concourse and 2D menus scale
 				g_fConcourseScale = fValue;
 			}
+			/*
 			else if (_stricmp(param, COCKPIT_Z_THRESHOLD_VRPARAM) == 0) {
 				g_fCockpitPZThreshold = fValue;
 			}
+			*/
 			/* else if (_stricmp(param, ASPECT_RATIO_VRPARAM) == 0) {
 				g_fAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
@@ -4206,12 +4226,16 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_DIRECT_SBS;
 					g_bSteamVREnabled = false;
 					g_bEnableVR = true;
+					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
+					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using Direct SBS mode");
 				}
 				else if (_stricmp(svalue, VR_MODE_STEAMVR_SVAL) == 0) {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
+					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
+					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");
 				}
 			}
@@ -4252,12 +4276,32 @@ void LoadVRParams() {
 			else if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
 				g_fTrianglePointerDist = fValue;
 			}
+
+			else if (_stricmp(param, "2D_yaw_mul") == 0) {
+				g_f2DYawMul = fValue;
+			}
+			else if (_stricmp(param, "2D_pitch_mul") == 0) {
+				g_f2DPitchMul = fValue;
+			}
+			else if (_stricmp(param, "2D_roll_mul") == 0) {
+				g_f2DRollMul = fValue;
+			}
+
+			else if (_stricmp(param, "steamvr_mirror_window_scale") == 0) {
+				// This one is used to zoom in the view in the mirror window to avoid showing
+				// wide-FOV-related artifacts
+				g_fSteamVRMirrorWindow3DScale = fValue;
+			}
+			else if (_stricmp(param, "steamvr_yaw_pitch_roll_from_mouse_look") == 0) {
+				g_bSteamVRYawPitchRollFromMouseLook = (bool)fValue;
+			}
+			
 			
 			param_read_count++;
 		}
 	} // while ... read file
 	// Apply the initial Zoom Out state:
-	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : g_fGlobalScale;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
 	fclose(file);
 
 next:
@@ -6231,7 +6275,8 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 }
 
 /*
- Computes the centroid of the given texture, returns a metric 3D point in space.
+ Computes the centroid of the given texture, returns a metric 3D point in space,
+ and 2D centroid in in-game coordinates.
  We're using this to find the center of the Suns to add lens flare, etc.
 
  Returns true if the centroid could be computed (i.e. if the centroid is visible)
@@ -6251,7 +6296,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 	 q  is the cursor that goes from 0 to 1
 	 A  is the attribute at the current point we're interpolating
  */
-bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid)
+bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid, Vector2 *Centroid2D)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
@@ -6259,24 +6304,28 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	Vector2 P, UV0, UV1, UV2, UV = Vector2(0.5f, 0.5f);
 
 	Vector3 tempv0, tempv1, tempv2, tempP;
+	Vector2 v0, v1, v2;
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv0);
 		if (g_bEnableVR) tempv0.y = -tempv0.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv1);
 		if (g_bEnableVR) tempv1.y = -tempv1.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
 
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv2);
 		if (g_bEnableVR) tempv2.y = -tempv2.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
@@ -6290,7 +6339,8 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			// Compute the 3D vertex where the UV coords are 0.5, 0.5. By using the back-projected
 			// 3D vertices, we automatically get perspective-correct results when projecting back to 2D:
 			*Centroid = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			
+			*Centroid2D = v0 + u * (v2 - v0) + v * (v1 - v0);
+
 			/*
 			q = projectToInGameCoords(tempP, g_viewMatrix, g_fullMatrixLeft);
 			
@@ -6636,6 +6686,23 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMas
 		return regularRTV;
 }
 
+inline void Direct3DDevice::EnableTransparency() {
+	auto& resources = this->_deviceResources;
+	D3D11_BLEND_DESC blendDesc{};
+
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -6722,17 +6789,18 @@ HRESULT Direct3DDevice::Execute(
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
 	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
+	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
-	g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
+	g_VSCBuffer.aspect_ratio	  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
-	g_VSCBuffer.cockpit_threshold =  g_fGUIElemPZThreshold;
+	g_VSCBuffer.apply_uv_comp     =  false;
 	g_VSCBuffer.bPreventTransform =  0.0f;
-	g_VSCBuffer.bFullTransform	  =  0.0f;
-	g_VSCBuffer.scale_override = 1.0f;
+	g_VSCBuffer.bFullTransform	  =  FullTransform;
+	g_VSCBuffer.scale_override    =  1.0f;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -6834,13 +6902,13 @@ HRESULT Direct3DDevice::Execute(
 			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
 			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
 		}
-		g_VSCBuffer.viewportScale[2]  = scale;
+		g_VSCBuffer.viewportScale[2]  =  scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
-		g_VSCBuffer.viewportScale[3]  = g_fGlobalScale;
+		g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
-		g_VSCBuffer.aspect_ratio	  = g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
-		g_SSAO_PSCBuffer.aspect_ratio = g_VSCBuffer.aspect_ratio;
-		g_VSCBuffer.cockpit_threshold = g_fCockpitPZThreshold; // This thing is definitely not used anymore...
+		g_VSCBuffer.aspect_ratio	  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
@@ -6955,7 +7023,7 @@ HRESULT Direct3DDevice::Execute(
 		}
 	}
 
-	if (g_bUseSteamVR && g_ExecuteCount == 1) { //only wait once per frame
+	if (g_bEnableVR && g_ExecuteCount == 1) { //only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
@@ -7144,6 +7212,7 @@ HRESULT Direct3DDevice::Execute(
 				// brackets around the currently-selected object (and maybe other situations)
 				bool bSunCentroidComputed = false;
 				Vector3 SunCentroid;
+				Vector2 SunCentroid2D;
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
@@ -7507,18 +7576,7 @@ HRESULT Direct3DDevice::Execute(
 				if (!g_bAOEnabled && bIsLightTexture) {
 					// We need to set the blend state properly for light textures when AO is disabled.
 					// Not sure why; but here you go: This fixes the black textures bug
-					D3D11_BLEND_DESC blendDesc{};
-					blendDesc.AlphaToCoverageEnable = FALSE;
-					blendDesc.IndependentBlendEnable = FALSE;
-					blendDesc.RenderTarget[0].BlendEnable = TRUE;
-					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-					hr = resources->InitBlendState(nullptr, &blendDesc);
+					EnableTransparency();
 				}
 
 				// Before the exterior (HUD) hook, the HUD was never rendered in the exterior view, so
@@ -7931,12 +7989,12 @@ HRESULT Direct3DDevice::Execute(
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 					goto out;
 
-				// Avoid rendering explosions on the CMD if we're rendering edges
-				// This didn't make much difference: the real problem is that the explosions and gas isn't doing
+				// Avoid rendering explosions on the CMD if we're rendering edges.
+				// This didn't make much difference: the real problem is that the explosions and smoke isn't doing
 				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
 				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark)) {
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
 					goto out;
 				}
 				*/
@@ -8192,19 +8250,28 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
+					bModifiedShaders = true;
+					//EnableTransparency();
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+				}
+
 				// Capture the centroid of the current sun texture and store it.
 				// Sun Centroids appear to be around 50m away in metric 3D space
 				if (bIsSun) 
 				{
-					// Get the centroid of the current sun
-					bSunCentroidComputed = ComputeCentroid(instruction, currentIndexLocation, &SunCentroid);
+					// Get the centroid of the current sun. The 2D centroid may suffer from perspective-incorrect interpolation
+					// so it jumps a little when the containing polygons are clipped near the edges of the screen.
+					// TODO: SunCentroid2D is not useful because the centroid jumps due to perspective-incorrect interpolation.
+					//		 Remove it later...
+					bSunCentroidComputed = ComputeCentroid(instruction, currentIndexLocation, &SunCentroid, &SunCentroid2D);
 					if (bSunCentroidComputed && g_iNumSunCentroids < MAX_XWA_LIGHTS) {
 						//if (g_bEnableVR) SunCentroid.y = -SunCentroid.y;
 						// Looks like don't get multiple centroids for the same Sun. Seems to be a 1-1 correspondence
 						g_SunCentroids[g_iNumSunCentroids++] = SunCentroid;
 						//if (g_iNumSunCentroids == 1)
-						//	log_debug("[DBG] [SHW] SunCentroid: %0.3f, %0.3f, %0.3f",
-						//		SunCentroid.x, SunCentroid.y, SunCentroid.z);
+						//	log_debug("[DBG] [SHW] SunCentroid: %0.3f, %0.3f",
+						//		SunCentroid2D.x, SunCentroid2D.y);
 					}
 				}
 
@@ -8224,7 +8291,7 @@ HRESULT Direct3DDevice::Execute(
 					g_ShadertoyBuffer.iTime = iTime;
 					iTime += 0.01f;
 
-					// The centroid of the current sun should be computed already, so let's just use it
+					// The 3D centroid of the current sun should be computed already, so let's just use it
 					int SunFlareIdx = g_ShadertoyBuffer.SunFlareCount;
 					// By default suns don't have any color. We specify that by setting the alpha component to 0:
 					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
@@ -8242,7 +8309,6 @@ HRESULT Direct3DDevice::Execute(
 					{
 						// If the centroid is visible, then let's display the sun flare:
 						g_ShadertoyBuffer.SunFlareCount++;
-						//g_ShadertoyBuffer.sun_intensity = intensity * intensity;
 						if (g_bEnableVR) {
 							//log_debug("[DBG] 3D centroid: %0.3f, %0.3f, %0.3f",
 							//	SunCentroid.x, SunCentroid.y, SunCentroid.z);
@@ -8258,16 +8324,24 @@ HRESULT Direct3DDevice::Execute(
 							//	Centroid.x, Centroid.y, Centroid.z, q.x, q.y);
 							// DEBUG
 						}
-						else {
+						
+						{
 							// In regular mode, we store the 2D screen coords of the centroid
 							float X, Y;
-							Vector3 q = projectToInGameOrPostProcCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft);
-							InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-								(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
-							g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
-							g_ShadertoyBuffer.VRmode = 0;
+							Vector3 q = projectToInGameOrPostProcCoordsMetric(SunCentroid, g_viewMatrix, g_FullProjMatrixLeft, true);
+							
+							// Store the in-game 2D centroid coords for later use, during sun flare rendering
+							g_SunCentroids2D[SunFlareIdx].x = q.x;
+							g_SunCentroids2D[SunFlareIdx].y = q.y;
+
+							if (!g_bEnableVR) {
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, q.x, q.y, &X, &Y);
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].x = X;
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].y = Y;
+								g_ShadertoyBuffer.SunCoords[SunFlareIdx].z = 0.0f;
+								g_ShadertoyBuffer.VRmode = 0;
+							}
 						}
 					}
 					// Set the constant buffer
@@ -8341,7 +8415,8 @@ HRESULT Direct3DDevice::Execute(
 				if (bLastTextureSelectedNotNULL)
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
-						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked)
+						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
+						lastTextureSelected->is_Explosion || lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
@@ -8358,9 +8433,10 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
-						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Explosion ||
-						lastTextureSelected->is_Spark || lastTextureSelected->is_Chaff ||
-						lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */ ) 
+						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Spark || 
+						lastTextureSelected->is_Chaff || lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */
+						/* || (lastTextureSelected->is_Explosion && !g_bTransparentExplosions) */
+						)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
@@ -8781,6 +8857,7 @@ HRESULT Direct3DDevice::Execute(
 				// * Cockpit sparks?
 
 				// Reduce the scale for GUI elements, except for the HUD and Lens Flare
+				// I'm not sure when this path is hit anymore. Maybe when DC is off?
 				if (g_bIsScaleableGUIElem) {
 					bModifiedShaders = true;
 					g_VSCBuffer.scale_override = g_fGUIElemsScale;
@@ -9055,7 +9132,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override       = -1.0f;
 					g_VSCBuffer.mult_z_override   = -1.0f;
 					g_VSCBuffer.bPreventTransform =  0.0f;
-					g_VSCBuffer.bFullTransform    =  0.0f;
+					g_VSCBuffer.bFullTransform    =  FullTransform;
 					g_VSCBuffer.scale_override    =  1.0f;
 
 					g_PSCBuffer = { 0 };
@@ -9519,13 +9596,17 @@ void Direct3DDevice::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
 	// Read the IFF of the current target and use it to colorize the wireframe display
-	int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	if (currentTargetIndex > 0) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
-		int IFF = object->MobileObjectPtr->IFF;
+		if (object == NULL) goto nocolor;
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto nocolor;
+		int IFF = mobileObject->IFF;
 		if (IFF >= 0 && IFF <= 5)
 			g_ShadertoyBuffer.SunColor[0] = g_DCTargetingIFFColors[IFF];
 	}
+nocolor:
 	// Override all of the above if the current DC file has a wireframe color set:
 	if (g_DCTargetingColor.w > 0.0f) {
 		g_ShadertoyBuffer.SunColor[0] = g_DCTargetingColor;
@@ -9537,12 +9618,16 @@ void Direct3DDevice::RenderEdgeDetector()
 	time += 0.1f;
 	if (time > 2.0f) time = 0.0f;
 	g_ShadertoyBuffer.iTime = time;
+
 	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
 	static float destroyedTimer = 0.0f;
 	if (currentTargetIndex > -1) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		if (object == NULL) goto reset;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto reset;
 		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance == NULL) goto reset;
 		if (craftInstance->CraftState == 3 && !bExternalView) {
 			destroyedTimer += 0.005f;
 			destroyedTimer = min(destroyedTimer, 1.0f);
@@ -9550,8 +9635,10 @@ void Direct3DDevice::RenderEdgeDetector()
 		else
 			destroyedTimer = 0.0f;
 	}
-	else
+	else {
+reset:
 		destroyedTimer = 0.0f;
+	}
 	g_ShadertoyBuffer.twirl = destroyedTimer;
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -9567,15 +9654,15 @@ void Direct3DDevice::RenderEdgeDetector()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
-		g_VSCBuffer.z_override = -1.0f;
-		g_VSCBuffer.sz_override = -1.0f;
-		g_VSCBuffer.mult_z_override = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
-		g_VSCBuffer.bPreventTransform = 0.0f;
-		g_VSCBuffer.bFullTransform = 0.0f;
-		g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
-		g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		g_VSCBuffer.viewportScale[0]  =  2.0f / resources->_displayWidth;
+		g_VSCBuffer.viewportScale[1]  = -2.0f / resources->_displayHeight;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -9613,8 +9700,11 @@ void Direct3DDevice::RenderEdgeDetector()
 		}
 	}
 
-	// Copy the result
-	context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
+	// Copy or resolve the result
+	if (g_config.MultisamplingAntialiasingEnabled)
+		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+	else
+		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
 	
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.

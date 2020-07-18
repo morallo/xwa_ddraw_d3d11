@@ -63,6 +63,7 @@
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
 #include "../Debug/EdgeDetector.h"
+#include "../Debug/StarDebug.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -115,6 +116,7 @@
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
 #include "../Release/EdgeDetector.h"
+#include "../Release/StarDebug.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -516,7 +518,7 @@ HRESULT DeviceResources::Initialize()
 	return hr;
 }
 
-void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
+void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
@@ -534,7 +536,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[0].tv  = 0;
 	HUDVertices[0].color = color;
 
-	HUDVertices[1].sx = (float)width;
+	HUDVertices[1].sx = width;
 	HUDVertices[1].sy = 0;
 	HUDVertices[1].sz  = sz_depth;
 	HUDVertices[1].rhw = rhw_depth;
@@ -542,16 +544,16 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[1].tv  = 0;
 	HUDVertices[1].color = color;
 	
-	HUDVertices[2].sx = (float)width;
-	HUDVertices[2].sy = (float)height;
+	HUDVertices[2].sx = width;
+	HUDVertices[2].sy = height;
 	HUDVertices[2].sz  = sz_depth;
 	HUDVertices[2].rhw = rhw_depth;
 	HUDVertices[2].tu  = 1;
 	HUDVertices[2].tv  = 1;
 	HUDVertices[2].color = color;
 	
-	HUDVertices[3].sx = (float)width;
-	HUDVertices[3].sy = (float)height;
+	HUDVertices[3].sx = width;
+	HUDVertices[3].sy = height;
 	HUDVertices[3].sz  = sz_depth;
 	HUDVertices[3].rhw = rhw_depth;
 	HUDVertices[3].tu  = 1;
@@ -559,7 +561,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[3].color = color;
 	
 	HUDVertices[4].sx = 0;
-	HUDVertices[4].sy = (float)height;
+	HUDVertices[4].sy = height;
 	HUDVertices[4].sz  = sz_depth;
 	HUDVertices[4].rhw = rhw_depth;
 	HUDVertices[4].tu  = 0;
@@ -615,7 +617,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	this->_bHUDVerticesReady = true;
 }
 
-void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
+void DeviceResources::BuildHyperspaceVertexBuffer(float width, float height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
@@ -635,7 +637,7 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[0].tv  = 0;
 	HyperVertices[0].color = color;
 
-	HyperVertices[1].sx  = (float)width;
+	HyperVertices[1].sx  = width;
 	HyperVertices[1].sy  = 0;
 	HyperVertices[1].sz  = sz_depth;
 	HyperVertices[1].rhw = rhw_depth;
@@ -643,16 +645,16 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[1].tv  = 0;
 	HyperVertices[1].color = color;
 
-	HyperVertices[2].sx  = (float)width;
-	HyperVertices[2].sy  = (float)height;
+	HyperVertices[2].sx  = width;
+	HyperVertices[2].sy  = height;
 	HyperVertices[2].sz  = sz_depth;
 	HyperVertices[2].rhw = rhw_depth;
 	HyperVertices[2].tu  = 1;
 	HyperVertices[2].tv  = 1;
 	HyperVertices[2].color = color;
 
-	HyperVertices[3].sx  = (float)width;
-	HyperVertices[3].sy  = (float)height;
+	HyperVertices[3].sx  = width;
+	HyperVertices[3].sy  = height;
 	HyperVertices[3].sz  = sz_depth;
 	HyperVertices[3].rhw = rhw_depth;
 	HyperVertices[3].tu  = 1;
@@ -660,7 +662,7 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[3].color = color;
 
 	HyperVertices[4].sx  = 0;
-	HyperVertices[4].sy  = (float)height;
+	HyperVertices[4].sy  = height;
 	HyperVertices[4].sz  = sz_depth;
 	HyperVertices[4].rhw = rhw_depth;
 	HyperVertices[4].tu  = 0;
@@ -741,7 +743,7 @@ void DeviceResources::BuildPostProcVertexBuffer()
 	}
 }
 
-void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
+void DeviceResources::InitSpeedParticlesVB()
 {
 	// The values for rhw_depth and sz_depth were taken from the skybox
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
@@ -762,7 +764,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 	}
 }
 
-void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height) 
+void DeviceResources::BuildSpeedVertexBuffer() 
 {
 	HRESULT hr;
 	auto &device = this->_d3dDevice;
@@ -782,7 +784,7 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
 	vertexBufferDesc.MiscFlags = 0;
 
-	InitSpeedParticlesVB(width, height);
+	InitSpeedParticlesVB();
 
 	//D3D11_SUBRESOURCE_DATA vertexBufferData;
 	//ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
@@ -2517,15 +2519,20 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Build the vertex buffers
 	if (SUCCEEDED(hr))
 	{
-		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
-		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
-		BuildPostProcVertexBuffer();
-		BuildSpeedVertexBuffer(_displayWidth, _displayHeight);
-		//CreateReticleVertexBuffer();
-		CreateRandomVectorTexture();
+		float W = (float )_displayWidth, H = (float )_displayHeight;
+		if (g_bUseSteamVR) {
+			W /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
+			H /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
+		}
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 		g_fCurInGameAspectRatio = g_fCurInGameWidth / g_fCurInGameHeight;
+
+		BuildHUDVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		BuildHyperspaceVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		BuildPostProcVertexBuffer();
+		BuildSpeedVertexBuffer();
+		CreateRandomVectorTexture();
 	}
 
 	/* RTVs */
@@ -3098,6 +3105,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3391,6 +3401,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 			return hr;
@@ -3528,8 +3541,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(MetricReconstructionCB) == 32, "sizeof(MetricReconstructionCB) must be 32");
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(MetricReconstructionCB) == 48, "sizeof(MetricReconstructionCB) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecPSConstantBuffer)))

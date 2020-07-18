@@ -50,7 +50,9 @@ extern int *s_XwaGlobalLightsCount;
 extern XwaGlobalLight* s_XwaGlobalLights;
 extern Matrix4 g_CurrentHeadingViewMatrix;
 
-extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled;
+extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
+
+extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -164,6 +166,7 @@ extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
+extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
 extern int g_iNumSunCentroids;
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -193,12 +196,14 @@ extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
+extern float g_fSteamVRMirrorWindow3DScale;
 extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled; // g_bRunningStartAppliedOnThisFrame;
+extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 bool g_bEnableSteamVR_QPC = false, g_bTogglePostPresentHandoff = false;
+bool g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -618,6 +623,37 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 }
 */
 
+void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
+	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
+	bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
+	bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
+	bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
+	bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
+
+	if (LeftKey)
+		fake_yaw -= 1.0f;
+	if (RightKey)
+		fake_yaw += 1.0f;
+
+	if (UpKey)
+		fake_pitch += 1.0f;
+	if (DownKey)
+		fake_pitch -= 1.0f;
+
+	*yaw = fake_yaw;
+	*pitch = fake_pitch;
+	*roll = fake_roll;
+}
+
+/*
+ * Returns the current yaw, pitch in PlayerDataTable in degrees
+ */
+void GetFakeYawPitchRollFromMouseLook(float *yaw, float *pitch, float *roll) {
+	*yaw   = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f;
+	*pitch =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+	*roll  =  0.0f;
+}
+
 struct MainVertex
 {
 	float pos[2];
@@ -775,7 +811,7 @@ void ComputeHyperFOVParams() {
 	// Compute the aspect-ratio fix factors
 	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	if (g_bUseSteamVR)
-		g_fWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+		g_fWindowAspectRatio = max(1.0f, (float)g_steamVRWidth / (float)g_steamVRHeight);
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
 	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
 	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
@@ -784,9 +820,7 @@ void ComputeHyperFOVParams() {
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
-		y_center_raw, FOVscale_raw,
-		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio,
-		bFixFactors, comp_factor);
+		y_center_raw, FOVscale_raw, g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors, comp_factor);
 
 	// Compute the compensated FOV and y_center:
 	g_fFOVscale = comp_factor * FOVscale_raw;
@@ -848,11 +882,45 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
+		}
+		else {
+			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
+			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
+			// we need to trust that the user will set the current desktop resolution to the HMD's 
+			// resolution. So let's use the desktop's resolution to compensate for aspect ratio in
+			// SBS mode:
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_WindowHeight / (float)g_WindowWidth;
+		}
+	}
+
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			if (g_config.AspectRatioPreserved) {
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			}
+		}
+		else {
+			// DirectSBS path
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+		}
+	}
+
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, Frame: %d",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, g_iPresentCounter);
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, mr_aspect_ratio: %0.3f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, 
+		g_MetricRecCBuffer.mr_aspect_ratio, g_iPresentCounter);
 
 	// DEBUG
 	//static bool bFirstTime = true;
@@ -1578,10 +1646,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
 	// use it as input in the shader
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, BACKBUFFER_FORMAT);
-	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-	//	0, BACKBUFFER_FORMAT);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, BACKBUFFER_FORMAT);
+	}
+	else {
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			0, BACKBUFFER_FORMAT);
+	}
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1654,7 +1726,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? 0.7f : 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -1663,8 +1735,12 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
-	//resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	}
+	else {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	}
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -2163,7 +2239,7 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.z_override        = -1.0f;
 	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override   = -1.0f;
-	g_VSCBuffer.cockpit_threshold = -1.0f;
+	g_VSCBuffer.apply_uv_comp     =  g_bEnableVR;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform    =  0.0f;
 	if (g_bEnableVR) {
@@ -2181,7 +2257,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.scale_override    = 1.0f;
+	g_VSCBuffer.scale_override	  = g_fGUIElemsScale;
 
 	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
@@ -4659,7 +4735,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bUseSteamVR)
@@ -4758,7 +4834,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       = false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR) 
@@ -5097,6 +5173,261 @@ void PrimarySurface::RenderFXAA()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+void PrimarySurface::RenderStarDebug()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	//g_ShadertoyBuffer.iTime = 0;
+	//g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+
+	// DEBUG: Display the light at index i:
+	int i = 1;
+	Vector4 xwaLight = Vector4(
+		s_XwaGlobalLights[i].PositionX / 32768.0f,
+		s_XwaGlobalLights[i].PositionY / 32768.0f,
+		s_XwaGlobalLights[i].PositionZ / 32768.0f,
+		0.0f);
+	// Convert the XWA light direction into viewspace coordinates:
+	Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
+
+	Vector3 L(light.x, light.y, light.z);
+	L *= 65536.0f;
+	Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
+	//log_debug("[DBG] p: %0.3f, %0.3f", p.x, p.y);
+	g_ShadingSys_PSBuffer.MainLight.x = p.x;
+	g_ShadingSys_PSBuffer.MainLight.y = g_bEnableVR ? -p.y : p.y;
+	g_ShadingSys_PSBuffer.MainLight.z = light.z;
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPixelShader(resources->_starDebugPS);
+
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
+	// Render the star centroid
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
+		g_VSCBuffer.z_override = -1.0f;
+		g_VSCBuffer.sz_override = -1.0f;
+		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.apply_uv_comp = false;
+		g_VSCBuffer.bPreventTransform = 0.0f;
+		g_VSCBuffer.bFullTransform = 0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// These are the same settings we used previously when rendering the HUD during a draw() call.
+		// We use these settings to place the HUD at different depths
+		g_VSCBuffer.z_override = g_fHUDDepth;
+		// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
+		// infinity
+		if (bExternalView)
+			g_VSCBuffer.z_override = 65536.0f;
+		if (g_bFloatingAimingHUD)
+			g_VSCBuffer.bPreventTransform = 1.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		//resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[2] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_ReticleSRV.Get(),
+		};
+		context->PSSetShaderResources(0, 2, srvs);
+		context->Draw(6, 0);
+
+		// Render the right image
+		if (g_bEnableVR) {
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			if (g_bUseSteamVR) {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_ReticleSRV.Get(),
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+			}
+			else {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_ReticleSRV.Get(),
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+			}
+			context->Draw(6, 0);
+		}
+
+		if (!g_bEnableVR)
+			goto out;
+
+		// Second render: If VR mode is enabled, then compose the previous render with the offscreen buffer
+		{
+			// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width = g_fCurScreenWidth;
+			viewport.Height = g_fCurScreenHeight;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+
+			// Reset the vertex shader to regular 2D post-process
+			// Set the Vertex Shader Constant buffers
+			resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+				0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+			// Set/Create the VertexBuffer and set the topology, etc
+			UINT stride = sizeof(MainVertex), offset = 0;
+			resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+			resources->InitInputLayout(resources->_mainInputLayout);
+			resources->InitVertexShader(resources->_mainVertexShader);
+
+			// Reset the UV limits for this shader
+			GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+			g_ShadertoyBuffer.x0 = x0;
+			g_ShadertoyBuffer.y0 = y0;
+			g_ShadertoyBuffer.x1 = x1;
+			g_ShadertoyBuffer.y1 = y1;
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+			g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+			resources->InitPixelShader(resources->_addGeomComposePS);
+
+			// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+			// to _shadertoyBuf to use it now:
+			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR)
+				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[2] = {
+				resources->_offscreenAsInputShaderResourceView.Get(), // The current render
+				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
+			};
+			context->PSSetShaderResources(0, 2, srvs);
+			context->Draw(6, 0);
+
+			// TODO: Post-process the right image in SteamVR
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewPostR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
+					resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+				context->Draw(6, 0);
+			}
+		}
+	}
+
+out:
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+}
+
 /*
  * The large FOV needed for VR causes the reticle to become huge as well. This shader is being reused
  * to resize the reticle to a more reasonable size in VR. It may also help in reducing the distortion
@@ -5121,6 +5452,12 @@ void PrimarySurface::RenderExternalHUD()
 	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
+
+	// DEBUG
+	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
+	//resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	//resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	// DEBUG
 
 	//float sz, rhw;
 	//ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
@@ -5248,7 +5585,7 @@ void PrimarySurface::RenderExternalHUD()
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bEnableVR)
@@ -5615,6 +5952,15 @@ void PrimarySurface::RenderSpeedEffect()
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderScaleFactor;
 
+	/*
+	viewMode1 and viewMode2 both become 18 in external view and 0 in cockpit view.
+	They don't change when fly-by camera is active
+	log_debug("[DBG] RelatedToCamera: %d, viewMode1: %d viewMode2: %d",
+		PlayerDataTable[*g_playerIndex]._RelatedToCamera_,
+		PlayerDataTable[*g_playerIndex].viewMode1,
+		PlayerDataTable[*g_playerIndex].viewMode2);
+	*/
+
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
@@ -5753,7 +6099,7 @@ void PrimarySurface::RenderSpeedEffect()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -6191,7 +6537,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -6932,7 +7278,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v) {
 	/*
 	 * The following circus happens because the vertex buffer we're using to render the flare
-	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
+	 * is at ~22km away. We want it there, so that it's at "infinity". So we need to trace a ray
 	 * from the camera through the Centroid and then extend that until it intersects the vertex
 	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
 	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
@@ -7014,6 +7360,9 @@ void PrimarySurface::RenderSunFlare()
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	if (g_bEnableVR) {
 		float u, v;
+		if (bDirectSBS)
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth / 2.0f;
+
 		// This is a first step towards having multiple flares; but more work is needed
 		// because flares are blocked depending on stuff that lies in front of them, so
 		// we can't render all flares on the same go. It has to be done one by one, eye
@@ -7024,16 +7373,34 @@ void PrimarySurface::RenderSunFlare()
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
-			// To keep the TagXwaLights working in non-VR space even when VR is enabled,
+			// To keep TagXwaLights() working in non-VR space even when VR is enabled,
 			// the centroid is always stored in the nonVR coord sys. For VR, we need to 
 			// flip the Y coord:
 			if (g_bEnableVR) Centroid.y = -Centroid.y;
+			/*
 			ProjectCentroidToPostProc(Centroid, &u, &v);
+			*/
+			
+			// The Sun Centroid is in in-game coords, convert to the range [-1..1]:
+			u = (g_SunCentroids2D[i].x / g_fCurInGameWidth - 0.5f) * 2.0f;
+			v = (g_SunCentroids2D[i].y / g_fCurInGameHeight - 0.5f) * 2.0f;
+			if (bDirectSBS) {
+				v *= g_fCurScreenHeight / (g_fCurScreenWidth / 2.0f);
+			}
+			else {
+				// SteamVR mode
+				if (g_steamVRWidth < g_steamVRHeight)
+					v *= (float)g_steamVRHeight / (float)g_steamVRWidth;
+				else
+					u *= (float)g_steamVRWidth / (float)g_steamVRHeight;
+			}
+
 			// Overwrite the centroid with the new 2D coordinates for the left/right images.
 			// In VR mode, these UVs are *the same* for both eyes because they are defined
 			// with respect to distant the hyperspace VB. This is *not* a bug.
 			g_ShadertoyBuffer.SunCoords[i].x = u;
 			g_ShadertoyBuffer.SunCoords[i].y = v;
+
 			// Also project the centroid to 2D directly -- we'll need that during the compose pass
 			// to mask the flare. In VR mode, projectToInGameCoordsMetric produces post-proc
 			// coords, not in-game coords
@@ -7080,7 +7447,7 @@ void PrimarySurface::RenderSunFlare()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR)
@@ -7172,13 +7539,11 @@ void PrimarySurface::RenderSunFlare()
 		}
 	}
 	
-	/*
 	if (g_bDumpSSAOBuffers) {
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
 		if (g_bUseSteamVR)
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlareR.png");
 	}
-	*/
 
 	// Post-process: compose the flare on top of the offscreen buffers
 	if (g_bEnableVR)
@@ -7785,8 +8150,9 @@ inline bool WaitGetPoses_QPC() {
 
 
 /*
-Calculate the view matrices for the 3D>2D projection and store in g_VSMatrixCB
-*/
+ * Compute the current view matrices from SteamVR or FreePIE and store them in g_VSMatrixCB.
+ * This function also reads FreePIE to update the laser pointer.
+ */
 void UpdateViewMatrix()
 {
 	// Enable roll (formerly this was 6dof)
@@ -7800,10 +8166,16 @@ void UpdateViewMatrix()
 		//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
 
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
-		yaw *= RAD_TO_DEG * g_fYawMultiplier;
+		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
-		roll *= RAD_TO_DEG * g_fRollMultiplier;
-		yaw += g_fYawOffset;
+		roll  *= RAD_TO_DEG * g_fRollMultiplier;
+
+		// DEBUG
+		if (g_bSteamVRYawPitchRollFromMouseLook)
+			GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
+		// DEBUG
+
+		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
 		// Compute the full rotation
@@ -7962,14 +8334,10 @@ void UpdateViewMatrix()
 			temp.w = 0.0f;
 			g_contDirViewSpace = cockpitViewDir * temp;
 		}
-		else {
-			g_contOriginViewSpace = g_contOriginWorldSpace;
-			g_contDirViewSpace = g_contDirWorldSpace;
-		}
 
 		if (g_bYawPitchFromMouseOverride) {
 			// If FreePIE could not be read, then get the yaw/pitch from the mouse:
-			yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
+			yaw   =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
 			pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
 		}
 
@@ -8052,6 +8420,14 @@ void UpdateViewMatrix()
 			g_VSMatrixCB.fullViewMat = rotMatrixFull;
 		}
 	}
+
+	// Update the laser pointer position... please note that this code overrides all the 
+	// controller-FreePIE stuff in SBS and non-VR modes, so that needs to be fixed later.
+	g_contOriginViewSpace = g_contOriginWorldSpace;
+	g_contDirViewSpace = g_contDirWorldSpace;
+	// In VR mode, the y-axis of the laser pointer is flipped with respect to the non-VR path:
+	if (g_bEnableVR)
+		g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
 }
 
 HRESULT PrimarySurface::Flip(
@@ -8136,7 +8512,7 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
-			bool bInTechRoom = (g_iDrawCounter > 0);
+			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
 			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
@@ -8144,8 +8520,7 @@ HRESULT PrimarySurface::Flip(
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.
 			// This is only needed in VR mode:
-			if (g_bEnableVR && bInTechRoom)
-			//if (g_bEnableVR && bFirstTime)
+			if (g_bEnableVR && g_bInTechRoom)
 			{
 				//float y_center_temp = g_MetricRecCBuffer.mr_y_center;
 				*g_fRawFOVDist = 256.0f;
@@ -8169,6 +8544,56 @@ HRESULT PrimarySurface::Flip(
 				// Restore the previous y_center:
 				//g_MetricRecCBuffer.mr_y_center = y_center_temp;
 				//log_debug("[DBG] Initializing 2D Metric Params");
+			}
+
+			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
+			// on the next frame
+			//if (g_bEnableVR)
+			{
+				float yaw, pitch, roll, x,y,z;
+				Matrix3 rotMatrix;
+
+				if (g_bUseSteamVR) {
+					GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+					// We need to multiply the yaw and pitch in SteamVR mode to invert the rotation
+					yaw   *= RAD_TO_DEG * g_fYawMultiplier * -1.0f;
+					pitch *= RAD_TO_DEG * g_fPitchMultiplier * -1.0f;
+					roll  *= RAD_TO_DEG * g_fRollMultiplier;
+					yaw   += g_fYawOffset;
+					pitch += g_fPitchOffset;
+				}
+				else {
+					// DirectSBS case
+					static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
+					// Read yaw/pitch/roll from FreePIE
+					if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+						if (g_bResetHeadCenter) {
+							home_yaw   = g_FreePIEData.yaw;
+							home_pitch = g_FreePIEData.pitch;
+							home_roll  = g_FreePIEData.roll;
+							g_bResetHeadCenter = false;
+						}
+						yaw   = (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
+						pitch = (g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+						roll  = (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
+					}
+				}
+
+				// DEBUG
+				/*
+				GetFakeYawPitchRollFromKeyboard(&yaw, &pitch, &roll);
+				*/
+				// DEBUG
+
+				// Compute the full rotation
+				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+				rotMatrixFull.identity();
+				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(g_f2DYawMul * yaw);
+				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(g_f2DPitchMul * pitch);
+				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(g_f2DRollMul * roll);
+				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
 
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
@@ -8415,6 +8840,7 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
 						else {
+							// Non-VR path
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						}
 					}
@@ -8434,19 +8860,8 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					if (g_bRendering3D) {
-						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library (?)
-						// Let's clear the render target for the next iteration or we'll get multiple images during
-						// the animation
-						auto &context = this->_deviceResources->_d3dDeviceContext;
-						float bgColor[4] = { 0, 0, 0, 0 };
-						context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-						}
-						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable[*g_playerIndex].externalCamera);
-					}
+					
+					
 
 					if (g_bUseSteamVR) {
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
@@ -8505,6 +8920,21 @@ HRESULT PrimarySurface::Flip(
 						vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 					}
 				}
+
+				// Clear the RTVs for the next frame
+				{
+					// We're about to switch from 3D to 2D rendering.
+					// Let's clear the render target for the next iteration or we'll get multiple images during
+					// the animation
+					auto &context = this->_deviceResources->_d3dDeviceContext;
+					float bgColor[4] = { 0, 0, 0, 0 };
+					context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+					if (g_bUseSteamVR) {
+						context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
+					}
+				}
+
 			}
 			else
 			{
@@ -8535,6 +8965,7 @@ HRESULT PrimarySurface::Flip(
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 		const bool bMapOFF = PlayerDataTable[*g_playerIndex].mapState == 0;
 		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].cameraFG;
+		int FlyByCameraTime = PlayerDataTable[*g_playerIndex].FlyByCameraTime;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -8885,10 +9316,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
-//#if EXTERNAL_HUD
-			// Draw the external HUD on top of everything else
-			// ORIGINAL
-			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
+			// Draw the reticle on top of everything else
 			if (g_bExternalHUDEnabled || g_bEnableVR)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -8919,14 +9347,43 @@ HRESULT PrimarySurface::Flip(
 				RenderExternalHUD();
 			}
 
-//#endif
+			if (g_bStarDebugEnabled)
+			{
+				// We need to set the blend state properly for Bloom, or else we might get
+				// different results when brackets are rendered because they alter the 
+				// blend state
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display Bloom
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				RenderStarDebug();
+			}
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
 			// on the first frame (sometimes it can happen and it's quite visible/ugly)
 			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && bMapOFF &&
 				(!bExternalCamera || (bExternalCamera && *g_playerIndex == cameraObjIdx)) &&
-				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
+				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) &&
+				FlyByCameraTime == 0)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -9131,6 +9588,7 @@ HRESULT PrimarySurface::Flip(
 				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
 				// HUD regions were erased
 				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
+
 				DrawHUDVertices();
 			}
 
