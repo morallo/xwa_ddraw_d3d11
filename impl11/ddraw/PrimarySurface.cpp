@@ -8160,10 +8160,6 @@ void UpdateViewMatrix()
 		float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
 		float x = 0.0f, y = 0.0f, z = 0.0f;
 		Matrix3 rotMatrix;
-		//Vector3 pos;
-		//static Vector4 headCenter(0, 0, 0, 0);
-		//Vector3 headPos;
-		//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
 
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
@@ -8185,25 +8181,6 @@ void UpdateViewMatrix()
 		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
 		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
 		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-		//rotMatrixFull.invert();
-
-		// Adding headPosFromKeyboard is only to allow the keys to move the cockpit.
-		// g_HeadPos can be removed once positional tracking has been fixed... or 
-		// maybe we can leave it there to test things
-		/*
-		headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
-		headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-		headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-		// Limits clamping
-		if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-		if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-		if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-		if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-		if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-		if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-		*/
 
 		// Transform the absolute head position into a relative position. This is
 		// needed because the game will apply the yaw/pitch on its own. So, we need
@@ -8211,129 +8188,24 @@ void UpdateViewMatrix()
 		// rotation matrix. Fortunately, rotation matrices can be inverted with a
 		// simple transpose.
 		rotMatrix.invert();
-		//headPos = rotMatrix * headPos;
 
 		g_viewMatrix.identity();
 		g_viewMatrix.rotateZ(roll);
-		/*
-		g_viewMatrix[12] = headPos[0];
-		g_viewMatrix[13] = headPos[1];
-		g_viewMatrix[14] = headPos[2];
-		rotMatrixFull[12] = headPos[0];
-		rotMatrixFull[13] = headPos[1];
-		rotMatrixFull[14] = headPos[2];
-		*/
+		
 		// viewMat is not a full transform matrix: it's only RotZ
 		// because the cockpit hook already applies the yaw/pitch rotation
 		g_VSMatrixCB.viewMat = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = rotMatrixFull;
 	}
-	else // non-VR and DirectSBS modes, read the roll and position from FreePIE
+	else 
 	{
-		//float pitch, yaw, roll, pitchSign = -1.0f;
+		// non-VR and DirectSBS modes, read the roll and position from FreePIE
 		float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
 		static Vector4 headCenterPos(0, 0, 0, 0);
-		Vector4 headPos(0, 0, 0, 1);
-		//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
 
-		/*
-		if (g_bResetHeadCenter) {
-		g_HeadPos = { 0 };
-		g_HeadPosAnim = { 0 };
-		}
-		*/
-
-		// Read yaw/pitch/roll
-		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
-			if (g_bResetHeadCenter && g_bOriginFromHMD) {
-				headCenterPos.x = g_FreePIEData.x;
-				headCenterPos.y = g_FreePIEData.y;
-				headCenterPos.z = g_FreePIEData.z;
-			}
-			Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
-			headPos = (pos - headCenterPos);
+		// Read yaw/pitch/roll from FreePIE
+		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot))
 			roll += g_FreePIEData.roll * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
-		}
-		else
-			headPos.set(0, 0, 0, 1);
-
-		if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
-			if (g_bResetHeadCenter && !g_bOriginFromHMD) {
-				headCenterPos[0] = g_FreePIEData.x;
-				headCenterPos[1] = g_FreePIEData.y;
-				headCenterPos[2] = g_FreePIEData.z;
-			}
-			g_contOriginWorldSpace.x = g_FreePIEData.x - headCenterPos.x;
-			g_contOriginWorldSpace.y = g_FreePIEData.y - headCenterPos.y;
-			g_contOriginWorldSpace.z = g_FreePIEData.z - headCenterPos.z;
-			g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-			if (g_bFreePIEControllerButtonDataAvailable) {
-				uint32_t buttonsPressed = *((uint32_t*)&(g_FreePIEData.yaw));
-				uint32_t axis0 = *((uint32_t*)&g_FreePIEData.pitch);
-				uint32_t axis1 = *((uint32_t*)&g_FreePIEData.roll);
-				ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
-				//g_bACTriggerState = buttonsPressed != 0x0;
-			}
-		}
-
-		// This section is AC-related -- compensate the cursor's position with the current view
-		// matrix
-		if (g_bCompensateHMDRotation) {
-			// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
-			Matrix4 cockpitView, cockpitViewDir;
-			//GetCockpitViewMatrix(&cockpitView);
-			yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-			pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-
-			Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
-			rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
-			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-			//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
-			// I'm not sure the cockpit roll should be applied to the controller's 3D position...
-			cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
-
-			switch (g_iLaserDirSelector)
-			{
-			case 1:
-				cockpitViewDir = cockpitView; // Laser Pointer looks in the same direction as the HMD; but rotates twice as fast
-				break;
-			case 2:
-				cockpitViewDir = cockpitView;
-				cockpitViewDir.invert(); // Laser Pointer direction tends to stay looking forward; but tends to follow the HMD
-										 // I think it only follows the HMD because I don't know the actual focal length
-				break;
-			case 3:
-			default:
-				// Follows the HMD's direction keeping the intersection on the same spot.
-				cockpitViewDir.identity();
-				break;
-			}
-
-			//cockpitViewDir.invert();
-			//cockpitViewDir.identity(); // This will change the direction to match the HMD's orientation
-			Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
-
-			temp = cockpitView * temp;
-
-			if (g_bCompensateHMDPosition) {
-				g_contOriginViewSpace.x = temp.x - headPos.x;
-				g_contOriginViewSpace.y = temp.y - headPos.y;
-				g_contOriginViewSpace.z = temp.z - headPos.z;
-			}
-			else {
-				g_contOriginViewSpace.x = temp.x;
-				g_contOriginViewSpace.y = temp.y;
-				g_contOriginViewSpace.z = temp.z;
-			}
-
-			g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-
-			temp.x = g_contDirWorldSpace.x;
-			temp.y = g_contDirWorldSpace.y;
-			temp.z = g_contDirWorldSpace.z;
-			temp.w = 0.0f;
-			g_contDirViewSpace = cockpitViewDir * temp;
-		}
 
 		if (g_bYawPitchFromMouseOverride) {
 			// If FreePIE could not be read, then get the yaw/pitch from the mouse:
@@ -8343,22 +8215,6 @@ void UpdateViewMatrix()
 
 		if (g_bResetHeadCenter)
 			g_bResetHeadCenter = false;
-
-		/*
-		headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
-		//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
-		headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-		headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-		// Limits clamping
-		if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-		if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-		if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-		if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-		if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-		if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-		*/
 
 		if (g_bEnableVR) {
 			if (PlayerDataTable[*g_playerIndex].externalCamera) {
@@ -8388,31 +8244,6 @@ void UpdateViewMatrix()
 			g_viewMatrix.identity();
 			g_viewMatrix.rotateZ(roll);
 			//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
-			// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
-			// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
-			// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
-			// 
-			/*
-			g_viewMatrix[12] = headPos[0];
-			g_viewMatrix[13] = headPos[1];
-			g_viewMatrix[14] = headPos[2];
-			rotMatrixFull[12] = headPos[0];
-			rotMatrixFull[13] = headPos[1];
-			rotMatrixFull[14] = headPos[2];
-			*/
-			/* // This effect is now being applied in the cockpit look hook
-			// Map the translation from global coordinates to heading coords
-			Vector4 Rs, Us, Fs;
-			Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
-			headPos[3] = 0.0f;
-			headPos = HeadingMatrix * headPos;
-			if (*numberOfPlayersInGame == 1) {
-			PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-			PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-			PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
-			}
-			// END OF HACK
-			*/
 
 			// viewMat is not a full transform matrix: it's only RotZ + Translation
 			// because the cockpit hook already applies the yaw/pitch rotation
@@ -8421,8 +8252,29 @@ void UpdateViewMatrix()
 		}
 	}
 
-	// Update the laser pointer position... please note that this code overrides all the 
-	// controller-FreePIE stuff in SBS and non-VR modes, so that needs to be fixed later.
+	/*
+	// Read the controller's position from FreePIE
+	if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
+		if (g_bResetHeadCenter && !g_bOriginFromHMD) {
+			headCenterPos[0] = g_FreePIEData.x;
+			headCenterPos[1] = g_FreePIEData.y;
+			headCenterPos[2] = g_FreePIEData.z;
+		}
+		g_contOriginWorldSpace.x = g_FreePIEData.x - headCenterPos.x;
+		g_contOriginWorldSpace.y = g_FreePIEData.y - headCenterPos.y;
+		g_contOriginWorldSpace.z = g_FreePIEData.z - headCenterPos.z;
+		g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+		if (g_bFreePIEControllerButtonDataAvailable) {
+			uint32_t buttonsPressed = *((uint32_t*)&(g_FreePIEData.yaw));
+			uint32_t axis0 = *((uint32_t*)&g_FreePIEData.pitch);
+			uint32_t axis1 = *((uint32_t*)&g_FreePIEData.roll);
+			ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
+			//g_bACTriggerState = buttonsPressed != 0x0;
+		}
+	}
+	*/
+
+	// Update the laser pointer position.
 	g_contOriginViewSpace = g_contOriginWorldSpace;
 	g_contDirViewSpace = g_contDirWorldSpace;
 	// In VR mode, the y-axis of the laser pointer is flipped with respect to the non-VR path:

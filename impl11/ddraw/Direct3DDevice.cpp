@@ -6715,7 +6715,7 @@ HRESULT Direct3DDevice::Execute(
 	LogText(str.str());
 #endif
 /*
-	if (g_bUseSteamVR && g_ExecuteCount==0) {//only wait once per frame
+	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
@@ -7023,13 +7023,12 @@ HRESULT Direct3DDevice::Execute(
 		}
 	}
 
-	if (g_bEnableVR && g_ExecuteCount == 1) { //only wait once per frame
+	if (g_ExecuteCount == 1) { //only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
 		//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 		UpdateViewMatrix();
-		//g_bRunningStartAppliedOnThisFrame = true;
 	}
 
 	// Render images
