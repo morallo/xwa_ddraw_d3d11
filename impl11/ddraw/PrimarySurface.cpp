@@ -202,8 +202,7 @@ extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_b
 extern vr::IVRSystem *g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
-bool g_bEnableSteamVR_QPC = false, g_bTogglePostPresentHandoff = false;
-bool g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
+bool g_bTogglePostPresentHandoff = false, g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -8092,73 +8091,19 @@ void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPress
 	lastButtonsPressed = buttonsPressed;
 }
 
-/* Convenience function to call WaitGetPoses() */
-inline bool WaitGetPoses_QPC() {
-	static LARGE_INTEGER t0, t1, last_t, elapsed_us, elapsed_since_last_t_us, freq = { 0 };
-	uint64_t elapsed_ms, remaining_ms, waitgetposes_elapsed_ms;
-	bool result = false;
-
-	if (freq.QuadPart == 0) {
-		QueryPerformanceFrequency(&freq);
-		log_debug("[DBG] [QPF] freq: %lu", freq);
-	}
-	if (g_bEnableSteamVR_QPC) {
-		QueryPerformanceCounter(&t0);
-		// Compute the time elapsed since the previous last_t was taken
-		elapsed_since_last_t_us.QuadPart = t0.QuadPart - last_t.QuadPart;
-		elapsed_since_last_t_us.QuadPart *= 1000000;
-		elapsed_since_last_t_us.QuadPart /= freq.QuadPart;
-		//log_debug("[DBG] elapsed_since_last_t: %lu", elapsed_since_last_t_us.QuadPart);
-
-		// We want to call WaitGetPoses when we're about to reach a multiple of 11ms
-		// since the previous last_t. Say, we want to call it at either 8ms since last_t,
-		// 22-3ms = 19ms, 33-3ms = 30ms
-		elapsed_ms = elapsed_since_last_t_us.QuadPart / 1000;
-		// g_iSteamVR_VSync_ms default = 11
-		remaining_ms = g_iSteamVR_VSync_ms - (elapsed_ms % g_iSteamVR_VSync_ms);
-	}
-	else
-		remaining_ms = 0;
-	
-	if (remaining_ms <= g_iSteamVR_Remaining_ms) {
-		// We need to call WaitGetPoses so that SteamVR gets the focus, otherwise we'll just get
-		// error 101 when calling VRCompositor->Submit
-		vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-			0, NULL, 0);
-		if (g_bEnableSteamVR_QPC) {
-			QueryPerformanceCounter(&t1);
-			elapsed_us.QuadPart = t1.QuadPart - t0.QuadPart;
-			elapsed_us.QuadPart *= 1000000;
-			elapsed_us.QuadPart /= freq.QuadPart;
-			waitgetposes_elapsed_ms = elapsed_us.QuadPart / 1000;
-			//if (waitgetposes_elapsed_ms > remaining_ms)
-			//	log_debug("[DBG] waitgetposes_elapsed_ms: %d", waitgetposes_elapsed_ms);
-		}
-
-		//Sleep(2); // Using "20" here I get values like: elapsed_us: 20381 below, so that validates
-		// that elapsed_us.QuadPart is in microseconds.
-		result = true;
-		//log_debug("[DBG] WaitGetPoses");
-	}
-
-	if (g_bEnableSteamVR_QPC)
-		// Store this timestamp for the next frame
-		last_t = t1;
-	//log_debug("[DBG] elapsed_us: %lu", elapsed_us.QuadPart);
-	return result;
-}
-
-
 /*
- * Compute the current view matrices from SteamVR or FreePIE and store them in g_VSMatrixCB.
- * This function also reads FreePIE to update the laser pointer.
+ * Compute the current view matrices from SteamVR or FreePIE and store them in
+ * g_VSMatrixCB.viewMat, and g_VSMatrixCB.fullViewMat = rotMatrixFull.
+ * This function also updates the laser pointer (this is mostly "TO-DO" at the moment)
  */
 void UpdateViewMatrix()
 {
+	float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+	float x = 0.0f, y = 0.0f, z = 0.0f;
+	static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
+
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-		float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
-		float x = 0.0f, y = 0.0f, z = 0.0f;
 		Matrix3 rotMatrix;
 
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
@@ -8200,12 +8145,21 @@ void UpdateViewMatrix()
 	else 
 	{
 		// non-VR and DirectSBS modes, read the roll and position from FreePIE
-		float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
-		static Vector4 headCenterPos(0, 0, 0, 0);
+		//static Vector4 headCenterPos(0, 0, 0, 0);
 
 		// Read yaw/pitch/roll from FreePIE
-		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot))
-			roll += g_FreePIEData.roll * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
+		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+			if (g_bResetHeadCenter) {
+				home_yaw   = g_FreePIEData.yaw;
+				home_pitch = g_FreePIEData.pitch;
+				home_roll  = g_FreePIEData.roll;
+				g_bResetHeadCenter = false;
+			}
+			yaw   =  (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
+			pitch = -(g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+			roll  =  (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
+
+		}
 
 		if (g_bYawPitchFromMouseOverride) {
 			// If FreePIE could not be read, then get the yaw/pitch from the mouse:
@@ -8213,21 +8167,24 @@ void UpdateViewMatrix()
 			pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
 		}
 
-		if (g_bResetHeadCenter)
-			g_bResetHeadCenter = false;
-
 		if (g_bEnableVR) {
-			if (PlayerDataTable[*g_playerIndex].externalCamera) {
-				yaw = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
-				pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+			// If we're rendering 2D, then the PlayerDataTable camera will not be updated by the mouse hook,
+			// so we need to use the yaw,pitch,roll coming from FreePIE. But if we're doing 3D rendering, then
+			// the hook should've updated the cockpit/external camera and we can read it here:
+			if (g_bRendering3D) {
+				if (PlayerDataTable[*g_playerIndex].externalCamera) {
+					yaw   = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+				}
+				else {
+					yaw   = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+				}
 			}
-			else {
-				yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-				pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-			}
+
+			// Compute the rotation matrices with the current yaw, pitch, roll:
 			Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 			rotMatrixFull.identity();
-			//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
 			rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
 			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
 			rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
@@ -8235,11 +8192,9 @@ void UpdateViewMatrix()
 			// For the fixed GUI, yaw has to be like this:
 			rotMatrixFull.rotateY(yaw);
 			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
-			// But the matrix to compensate for the translation uses -yaw:
-			rotMatrixYaw = rotMatrixPitch * rotMatrixYaw;
+			rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
 			// Can we avoid computing the matrix inverse?
 			rotMatrixYaw.invert();
-			//headPos = rotMatrixYaw * headPos;
 
 			g_viewMatrix.identity();
 			g_viewMatrix.rotateZ(roll);
@@ -8251,6 +8206,9 @@ void UpdateViewMatrix()
 			g_VSMatrixCB.fullViewMat = rotMatrixFull;
 		}
 	}
+
+	if (g_bResetHeadCenter)
+		g_bResetHeadCenter = false;
 
 	/*
 	// Read the controller's position from FreePIE
@@ -8400,6 +8358,8 @@ HRESULT PrimarySurface::Flip(
 
 			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
 			// on the next frame
+			UpdateViewMatrix();
+#ifdef DISABLED
 			//if (g_bEnableVR)
 			{
 				float yaw, pitch, roll, x,y,z;
@@ -8447,6 +8407,7 @@ HRESULT PrimarySurface::Flip(
 
 				g_VSMatrixCB.fullViewMat = rotMatrixFull;
 			}
+#endif
 
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
 			{
@@ -8769,7 +8730,6 @@ HRESULT PrimarySurface::Flip(
 					if (g_bUseSteamVR) {
 						if (g_bTogglePostPresentHandoff)
 							g_pVRCompositor->PostPresentHandoff();
-						vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 					}
 				}
 
@@ -9587,7 +9547,6 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
-				//g_bRunningStartAppliedOnThisFrame = false; // Apply WaitGetPoses again on the next frame
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {

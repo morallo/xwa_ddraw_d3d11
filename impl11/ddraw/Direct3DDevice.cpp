@@ -311,7 +311,7 @@ const float DEFAULT_METRIC_MULT = 1.0f;
 
 const float DEFAULT_HUD_PARALLAX = 1.7f;
 const float DEFAULT_TEXT_PARALLAX = 0.45f;
-const float DEFAULT_FLOATING_GUI_PARALLAX = 0.495f;
+const float DEFAULT_FLOATING_GUI_PARALLAX = 0.450f;
 const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
 
 const float DEFAULT_TECH_LIB_PARALLAX = -2.0f;
@@ -334,7 +334,7 @@ const float DEFAULT_LENS_K3 = 0.0f;
 */
 const float DEFAULT_LENS_K1 =  3.80f;
 const float DEFAULT_LENS_K2 = -0.28f;
-const float DEFAULT_LENS_K3 =  0.0f;
+const float DEFAULT_LENS_K3 =  100.0f;
 
 //const float DEFAULT_COCKPIT_PZ_THRESHOLD = 0.166f; // I used 0.13f for a long time until I jumped on a TIE-Interceptor
 const float DEFAULT_COCKPIT_PZ_THRESHOLD = 10.0f; // De-activated
@@ -7023,11 +7023,18 @@ HRESULT Direct3DDevice::Execute(
 		}
 	}
 
-	if (g_ExecuteCount == 1) { //only wait once per frame
+	/*
+	 * When the game is displaying 3D geometry in the tech room, we have a hybrid situation.
+	 * First, the game will call UpdateViewMatrix() at the beginning of 2D content, like the Concourse
+	 * and 2D menus, but if the Tech Room is displayed, then it will come down this path to render 3D
+	 * content before going back to the 2D path and executing the final Flip().
+	 * In other words, when the Tech Room is displayed, we already called UpdateViewMatrix(), so we
+	 * don't need to call it again here.
+	 */
+	if (g_ExecuteCount == 1 && !g_bInTechRoom) { //only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
-		//vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose, 0, NULL, 0);
 		UpdateViewMatrix();
 	}
 
