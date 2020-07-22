@@ -52,7 +52,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint i;
 
 	// Fix the text alpha and blend it with the HUD foreground
-	float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
+	//float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
+	float textAlpha = saturate(10.0 * dot(float3(0.33, 0.5, 0.16), texelText.rgb));
 	texelColor.rgb = lerp(texelColor.rgb, texelText.rgb, textAlpha);
 	texelColor.w = max(texelColor.w, textAlpha);
 	alpha = texelColor.w;
