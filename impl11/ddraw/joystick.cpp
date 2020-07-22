@@ -85,7 +85,7 @@ UINT WINAPI emulJoyGetNumDevs(void)
 	return 1;
 }
 
-static UINT joyYmax;
+static UINT joyYmax, joyZmax, joyZmin;
 
 UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 {
@@ -97,6 +97,15 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 		log_debug("[DBG] xmax: %d, ymax: %d, rmax: %d", pjc->wXmax, pjc->wYmax, pjc->wRmax);
 		log_debug("[DBG] *************************************");*/
 		if (g_config.InvertYAxis && joy == 0 && pjc && size == 0x194) joyYmax = pjc->wYmax;
+		if (joy == 0 && pjc && size == 0x194) {
+			joyZmax = pjc->wZmax;
+			joyZmin = pjc->wZmin;
+			if (joyZmin > joyZmax) {
+				UINT temp = joyZmin;
+				joyZmin = joyZmax;
+				joyZmax = temp;
+			}
+		}
 		return res;
 	}
 	if (joy != 0) return MMSYSERR_NODRIVER;
@@ -162,6 +171,8 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			pji->dwXpos = pji->dwRpos;
 			pji->dwRpos = X;
 		}
+
+		if (g_config.InvertThrottle) pji->dwZpos = (joyZmax - pji->dwZpos) + joyZmin;
 		return res;
 	}
 	if (joy != 0) return MMSYSERR_NODRIVER;

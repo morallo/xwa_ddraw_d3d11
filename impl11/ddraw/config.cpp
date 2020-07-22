@@ -28,6 +28,7 @@ Config::Config()
 
 	this->XInputTriggerAsThrottle = 0;
 	this->InvertYAxis = false;
+	this->InvertThrottle = false;
 	this->MouseSensitivity = 0.5f;
 	this->KbdSensitivity = 1.0f;
 
@@ -144,6 +145,10 @@ Config::Config()
 			else if (name == "SwapJoystickXZAxes")
 			{
 				this->SwapJoystickXZAxes = (bool)stoi(value);
+			}
+			else if (name == "InvertThrottle")
+			{
+				this->InvertThrottle = (bool)stoi(value);
 			}
 			else if (name == "MouseSensitivity")
 			{
