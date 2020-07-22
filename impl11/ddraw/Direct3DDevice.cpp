@@ -12,7 +12,8 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
-	The AC cursor does not move according to the settings
+	Invert the throttle axis.
+	Sun flares are still not right in SBS mode.
 
 	What's wrong with the map in VR?
 
@@ -9625,6 +9626,9 @@ nocolor:
 	if (time > 2.0f) time = 0.0f;
 	g_ShadertoyBuffer.iTime = time;
 
+	/*
+	// The noise effect doesn't look that great on all cockpits, and in VR it becomes really low-res
+	// I'm going to disable it, but this block can be used to re-enable it in the future.
 	// Check the state of the targeted craft. If it's destroyed, then add some noise to the screen...
 	static float destroyedTimer = 0.0f;
 	if (currentTargetIndex > -1) {
@@ -9646,6 +9650,22 @@ reset:
 		destroyedTimer = 0.0f;
 	}
 	g_ShadertoyBuffer.twirl = destroyedTimer;
+	*/
+
+	// Shut down the CMD if the target has been destroyed. Otherwise we might see some artifacts
+	// due to explosions and gas.
+	g_ShadertoyBuffer.twirl = 1.0f; // Display the CMD
+	if (currentTargetIndex > -1) {
+		ObjectEntry *object = &((*objects)[currentTargetIndex]);
+		if (object == NULL) goto nochange;
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto nochange;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance == NULL) goto nochange;
+		if (craftInstance->CraftState == 3)
+			g_ShadertoyBuffer.twirl = 0.0f; // Shut down the CMD
+	}
+nochange:
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
