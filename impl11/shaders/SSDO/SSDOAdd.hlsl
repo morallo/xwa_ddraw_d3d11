@@ -362,6 +362,7 @@ inline float PenumbraSize(float zReceiver, float zBlocker)
 	return (zReceiver - zBlocker) / zBlocker;
 }
 
+#ifdef DISABLED
 inline void FindBlocker(float idx, float3 Q, out float d_blocker, out float samples) 
 {
 	d_blocker = 0.0;
@@ -417,6 +418,7 @@ inline float PCSS(float idx, float3 Q)
 	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z/* + sm_bias*/)), sm_resolution, filter_samples, radius);
 	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
 }
+#endif
 
 PixelShaderOutput main(PixelShaderInput input)
 {

@@ -3657,12 +3657,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_mapping_pcss_radius") == 0) {
 				g_ShadowMapVSCBuffer.sm_pcss_radius = fValue;
 			}
-			else if (_stricmp(param, "shadow_mapping_light_size") == 0) {
-				g_ShadowMapVSCBuffer.sm_light_size = fValue;
-			}
-			else if (_stricmp(param, "shadow_mapping_blocker_radius") == 0) {
-				g_ShadowMapVSCBuffer.sm_blocker_radius = fValue;
-			}
+			//else if (_stricmp(param, "shadow_mapping_light_size") == 0) {
+			//	g_ShadowMapVSCBuffer.sm_light_size = fValue;
+			//}
+			//else if (_stricmp(param, "shadow_mapping_blocker_radius") == 0) {
+			//	g_ShadowMapVSCBuffer.sm_blocker_radius = fValue;
+			//}
 			else if (_stricmp(param, "shadow_mapping_POV_X") == 0) {
 				g_ShadowMapVSCBuffer.POV.x = fValue;
 			}
