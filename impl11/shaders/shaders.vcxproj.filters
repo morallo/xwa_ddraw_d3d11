@@ -67,6 +67,7 @@
     <FxCompile Include="SpeedEffectPixelShader.hlsl" />
     <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
     <FxCompile Include="StarDebug.hlsl" />
+    <FxCompile Include="PixelShaderDCHolo.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

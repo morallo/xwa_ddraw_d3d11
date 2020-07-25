@@ -25,6 +25,7 @@
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderDCHolo.h"
 #include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
@@ -78,6 +79,7 @@
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderDCHolo.h"
 #include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
@@ -1129,6 +1131,7 @@ void DeviceResources::ResetDynamicCockpit() {
 				}
 				elem->bActive = false;
 				elem->bNameHasBeenTested = false;
+				elem->bHologram = false;
 			}
 		}
 		// Reset the dynamic cockpit vector
@@ -3311,6 +3314,9 @@ HRESULT DeviceResources::LoadResources()
 
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDCHolo, sizeof(g_PixelShaderDCHolo), nullptr, &_pixelShaderDCHolo)))
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderEmptyDC, sizeof(g_PixelShaderEmptyDC), nullptr, &_pixelShaderEmptyDC)))

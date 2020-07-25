@@ -446,7 +446,7 @@ typedef struct dc_element_struct {
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
 	//ID3D11ShaderResourceView *coverTexture = NULL;
-	bool bActive, bNameHasBeenTested;
+	bool bActive, bNameHasBeenTested, bHologram;
 } dc_element;
 
 typedef struct move_region_coords_struct {
@@ -1028,6 +1028,7 @@ public:
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderDCHolo;
 	ComPtr<ID3D11PixelShader> _pixelShaderEmptyDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;

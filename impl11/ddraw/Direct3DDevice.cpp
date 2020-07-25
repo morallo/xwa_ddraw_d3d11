@@ -2449,6 +2449,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 					dc_elem.num_erase_slots = 0;
 					dc_elem.bActive = false;
 					dc_elem.bNameHasBeenTested = false;
+					dc_elem.bHologram = false;
 					//g_DCElements.push_back(dc_elem);
 					g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
@@ -2589,6 +2590,10 @@ bool LoadIndividualDCParams(char *sFileName) {
 					g_DCTargetingColor.z = z;
 					g_DCTargetingColor.w = 1.0f;
 				}
+			}
+			else if (_stricmp(param, "hologram") == 0) {
+				g_DCElements[lastDCElemSelected].bHologram = (bool)fValue;
+				log_debug("[DBG] [DC] %s is a Hologram", g_DCElements[lastDCElemSelected].name);
 			}
 		}
 	}
@@ -8668,6 +8673,7 @@ HRESULT Direct3DDevice::Execute(
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitStrength;
 							int numCoords = 0;
+							bool bHologram = false;
 							for (int i = 0; i < dc_element->coords.numCoords; i++)
 							{
 								int src_slot = dc_element->coords.src_slot[i];
@@ -8695,6 +8701,9 @@ HRESULT Direct3DDevice::Execute(
 									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
 								else
 									g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
+								// The hologram property will make *all* uvcoords in this DC element
+								// holographic as well:
+								bHologram |= (dc_element->bHologram);
 								numCoords++;
 							} // for
 							g_PSCBuffer.DynCockpitSlots = numCoords;
@@ -8721,7 +8730,7 @@ HRESULT Direct3DDevice::Execute(
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
 							if (g_PSCBuffer.DynCockpitSlots > 0) {
 								bModifiedPixelShader = true;
-								resources->InitPixelShader(resources->_pixelShaderDC);
+								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
 							}
 							else if (g_PSCBuffer.bUseCoverTexture) {
 								bModifiedPixelShader = true;
