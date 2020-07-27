@@ -8358,7 +8358,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
 			// on the next frame
-			UpdateViewMatrix();
+			UpdateViewMatrix(); // VR in TechRoom
 #ifdef DISABLED
 			//if (g_bEnableVR)
 			{
@@ -8673,21 +8673,13 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					
-					
 
 					if (g_bUseSteamVR) {
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-						if (g_bSteamVRDistortionEnabled) {
-							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-						}
-						else {
-							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-						}
+						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
 					
 					g_bRendering3D = false;
@@ -9747,23 +9739,12 @@ HRESULT PrimarySurface::Flip(
 				vr::Texture_t leftEyeTexture;
 				vr::Texture_t rightEyeTexture;
 
-				if (g_bDisableBarrelEffect) {
-					leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-				}
-				else {
-					leftEyeTexture = { this->_deviceResources->_offscreenBufferPost.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferPostR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-				}
+				leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+				rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 
-				if (g_bSteamVRDistortionEnabled) {
-					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-				}
-				else {
-					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-				}
+				//log_debug("[DBG] Submit 3D");
+				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 			}
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
@@ -9803,6 +9784,9 @@ HRESULT PrimarySurface::Flip(
 			bool bEnableVSync = g_config.VSyncEnabled;
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
+			// If SteamVR is on, we do NOT want to do VSync with the monitor as well: that'll kill the performance.
+			if (g_bUseSteamVR)
+				bEnableVSync = false;
 			//log_debug("[DBG] ******************* PRESENT 3D");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{

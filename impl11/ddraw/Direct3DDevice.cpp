@@ -7073,7 +7073,7 @@ HRESULT Direct3DDevice::Execute(
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
-		UpdateViewMatrix();
+		UpdateViewMatrix(); // g_ExecuteCount == 1 && !g_bInTechRoom
 	}
 
 	// Render images
