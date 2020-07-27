@@ -10,11 +10,9 @@
 #include "PixelShaderTextureCommon.h"
 
 // This color should be specified by the current HUD color
-static const float4 BG_COLOR = float4(0.1, 0.1, 0.8, 0.3);
-
-// Cover texture
-//Texture2D    texture0 : register(t0);
-//SamplerState sampler0 : register(s0);
+static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 0.9);
+static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 0.9);
+static const float4 BLACK        = 0.0;
 
 // HUD offscreen buffer
 Texture2D    texture1 : register(t1);
@@ -84,16 +82,15 @@ uint getBGColor(uint i) {
 	return bgColor[idx][sub_idx];
 }
 
+float sdBox(in float2 p, in float2 b)
+{
+	float2 d = abs(p) - b;
+	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	//float4 coverColor = texture0.Sample(sampler0, input.tex); // coverColor is the cover texture
-	//const float coverAlpha = coverColor.w; // alpha of the cover texture
-	// DEBUG: Make the cover texture transparent to show the DC contents clearly
-	//const float coverAlpha = 0.0;
-	// DEBUG
-	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
-	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = 0;
@@ -102,14 +99,45 @@ PixelShaderOutput main(PixelShaderInput input)
 	// hook_normals code:
 	output.normal = 0; // Holograms are shadeless
 
+	// Compute the background color
+	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
+	//float4 hud_texelColor = BG_COLOR;
+	float2 p = input.tex.xy;
+	float d = sdBox(p - 0.5, 0.32 * 1.0);
+	// Make the edges round:
+	float din = d - 0.02;
+	//float dout = d - 0.1;
+	float dout = d - 0.07; // Smaller blackout margin
+	//float dout = d - 0.03; // Even smaller blackout margin
+	din = smoothstep(0.0, 0.1, din);
+	dout = smoothstep(0.0, 0.1, dout);
+	float4 bgColor = lerp(BG_COLOR, BORDER_COLOR, din);
+	//bgColor = lerp(bgColor, BLACK, dout);
+	//float4 bgColor = BG_COLOR;
+	const float holo_alpha = lerp(bgColor.a, 0.0, dout);
+	bgColor.a = holo_alpha;
+
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
 	//output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
 	//output.ssaoMask.a = 0.0;
-	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, 0.0 /* coverAlpha */);
+	// The material is Plastic because that's material 0. If we set it to SHADELESS_MAT,
+	// that's 0.75, so this material will get blended from 0.75 down 0.0, making a hard
+	// edge as the material properties change. Blending non-plastic materials makes no
+	// sense. Using a plastic material, we avoid blending the material and keep the soft
+	// edges -- we just need to kill all the glossiness.
+	output.ssaoMask = float4(PLASTIC_MAT, 0.0, 0.0, 0.0 /* coverAlpha */);
 
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
+	output.ssMask = float4(0.0, 0.0, 0.0, 0.0);
+
+	// DEBUG
+	output.color      = bgColor;
+	output.bloom.a    = holo_alpha;
+	output.ssaoMask.a = holo_alpha;
+	output.ssMask.a   = holo_alpha;
+	//return output;
+	// DEBUG
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -122,7 +150,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG
 		//return 0.7*hud_texelColor + 0.3*texelColor; // DEBUG DEBUG DEBUG!!! Remove this later! This helps position the elements easily
 
-
 	// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
 	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
 	// dst uv coords
@@ -132,8 +159,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (input.tex.x < 0.0) input.tex.x += 1.0;
 	if (input.tex.y < 0.0) input.tex.y += 1.0;
 	float intensity = 1.0, text_alpha_override = 1.0, obj_alpha_override = 1.0;
-	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
-	float4 hud_texelColor = BG_COLOR;
+	float4 hud_texelColor = bgColor;
+
 	//[unroll] unroll or loop?
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
@@ -141,7 +168,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
 		//float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override, obj_alpha_override);
-		float4 bgColor = BG_COLOR;
 
 		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
@@ -155,6 +181,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
 			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
 			hud_texelColor = saturate(intensity * hud_texelColor);
+			// We can make the text shadeless so that it's easier to read.
+			output.ssaoMask.r = lerp(output.ssaoMask.r, SHADELESS_MAT, textAlpha);
 
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs
@@ -210,15 +238,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	else 
 	*/
-	{
+	//{
 		// Holograms don't use cover textures
 		//float4 coverColor = hud_texelColor;
 		//float diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
-		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
-		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
-	}
-	output.color = float4(/* diffuse * */ hud_texelColor.rgb, hud_texelColor.w);
+		//output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
+		//output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
+	//}
+	//output.color = float4(/* diffuse * */ hud_texelColor.rgb, hud_texelColor.w);
+	output.color = float4(hud_texelColor.rgb, max(holo_alpha, hud_texelColor.w));
 	if (bInHyperspace) output.color.a = 1.0;
 	return output;
 }

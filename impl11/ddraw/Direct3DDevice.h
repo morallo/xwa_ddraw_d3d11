@@ -56,6 +56,12 @@ public:
 
 	void EnableTransparency();
 
+	void EnableHoloTransparency();
+
+	void SaveBlendState();
+
+	void RestoreBlendState();
+
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
 	STDMETHOD(AddViewport)(THIS_ LPDIRECT3DVIEWPORT);
@@ -95,4 +101,5 @@ public:
 	DWORD _maxExecuteBufferSize;
 	ComPtr<ID3D11Buffer> _vertexBuffer;
 	ComPtr<ID3D11Buffer> _indexBuffer;
+	D3D11_BLEND_DESC m_SavedBlendDesc;
 };

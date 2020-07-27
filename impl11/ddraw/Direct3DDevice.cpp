@@ -6709,6 +6709,38 @@ inline void Direct3DDevice::EnableTransparency() {
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
+inline void Direct3DDevice::EnableHoloTransparency() {
+	auto& resources = this->_deviceResources;
+	D3D11_BLEND_DESC blendDesc{};
+
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
+/*
+ * Saves the current blend state to m_SavedBlendDesc
+ */
+inline void Direct3DDevice::SaveBlendState() {
+	m_SavedBlendDesc = this->_renderStates->GetBlendDesc();
+}
+
+/*
+ * Restore a previously-saved blend state in m_SavedBlendDesc
+ */
+inline void Direct3DDevice::RestoreBlendState() {
+	auto& resources = this->_deviceResources;
+	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -6794,7 +6826,7 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -8167,11 +8199,12 @@ HRESULT Direct3DDevice::Execute(
 				}
 #endif
 
-				// We will be modifying the normal render state from this point on. The state and the Pixel/Vertex
+				// We will be modifying the regular render state from this point on. The state and the Pixel/Vertex
 				// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 				// so that we can restore the state at the end of the draw call.
-				bModifiedShaders = false;
+				bModifiedShaders     = false;
 				bModifiedPixelShader = false;
+				bModifiedBlendState  = false;
 
 				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
 #ifdef DISABLED
@@ -8730,7 +8763,13 @@ HRESULT Direct3DDevice::Execute(
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
 							if (g_PSCBuffer.DynCockpitSlots > 0) {
 								bModifiedPixelShader = true;
+								//bModifiedBlendState = true;
+								// Holograms require alpha blending to be enabled, but we also need to save the current
+								// blending state so that it gets restored at the end of this draw call.
+								//SaveBlendState();
+								//EnableHoloTransparency();
 								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
+								//resources->InitPixelShader(resources->_pixelShaderDC);
 							}
 							else if (g_PSCBuffer.bUseCoverTexture) {
 								bModifiedPixelShader = true;
@@ -9168,9 +9207,6 @@ HRESULT Direct3DDevice::Execute(
 						//resources->InitPixelShader(lastPixelShader);
 					}
 
-					if (bModifiedPixelShader)
-						resources->InitPixelShader(lastPixelShader);
-
 					// Remove the cover texture
 					//context->PSSetShaderResources(1, 1, NULL);
 					//g_PSCBuffer.bUseCoverTexture  = 0;
@@ -9182,6 +9218,14 @@ HRESULT Direct3DDevice::Execute(
 					//g_PSCBuffer.bIsEngineGlow = 0;
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+				}
+
+				if (bModifiedPixelShader)
+					resources->InitPixelShader(lastPixelShader);
+
+				if (bModifiedBlendState) {
+					RestoreBlendState();
+					bModifiedBlendState = false;
 				}
 
 				currentIndexLocation += 3 * instruction->wCount;
