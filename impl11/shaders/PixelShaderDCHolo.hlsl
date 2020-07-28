@@ -4,14 +4,19 @@
 // enabled. For regular textures or when the Dynamic Cockpit is disabled,
 // use "PixelShader.hlsl" instead.
 // This is the holographic version of PixelShaderDC.hlsl
+// Noise from https://www.shadertoy.com/view/4sfGzS
+// Original VCR effect from ryk: https://www.shadertoy.com/view/ldjGzV
+// Stripes from: https://www.shadertoy.com/view/Ms23DR
 #include "HSV.h"
 #include "shader_common.h"
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
+#include "ShaderToyDefs.h"
+#include "ShadertoyCBuffer.h"
 
 // This color should be specified by the current HUD color
-static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 0.9);
-static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 0.9);
+static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 1.0);
+static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 1.0);
 static const float4 BLACK        = 0.0;
 
 // HUD offscreen buffer
@@ -59,6 +64,35 @@ cbuffer ConstantBuffer : register(b1)
 	float unused2, unused3;
 };
 
+// Noise from https://www.shadertoy.com/view/4sfGzS
+float hash(vec3 p)  // replace this by something better
+{
+	p = fract(p*0.3183099 + .1);
+	p *= 17.0;
+	return fract(p.x*p.y*p.z*(p.x + p.y + p.z));
+}
+
+float noise(in vec3 x)
+{
+	vec3 i = floor(x);
+	vec3 f = fract(x);
+	f = f * f*(3.0 - 2.0*f);
+
+	return mix(mix(mix(hash(i + vec3(0, 0, 0)),
+		hash(i + vec3(1, 0, 0)), f.x),
+		mix(hash(i + vec3(0, 1, 0)),
+			hash(i + vec3(1, 1, 0)), f.x), f.y),
+		mix(mix(hash(i + vec3(0, 0, 1)),
+			hash(i + vec3(1, 0, 1)), f.x),
+			mix(hash(i + vec3(0, 1, 1)),
+				hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+inline float noise2(in vec2 v) {
+	vec3 x = 150.0 * vec3(v, iTime);
+	return noise(x);
+}
+
 float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override) {
 	float4 result = float4(
 		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
@@ -88,6 +122,76 @@ float sdBox(in float2 p, in float2 b)
 	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
+float4 hologram(float2 p)
+{
+	// Compute the background color
+	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
+	//float4 hud_texelColor = BG_COLOR;
+	float d = sdBox(p - 0.5, 0.32 * 1.0);
+
+	// Make the edges round:
+	//float din = d - 0.02;
+	
+	//float dout = d - 0.1;
+	float dout = d - 0.07; // Smaller blackout margin
+	//float dout = d - 0.03; // Even smaller blackout margin
+
+	//din = smoothstep(0.0, 0.1, din);
+	//dout = smoothstep(0.0, 0.1, dout);
+	//float4 bgColor = lerp(BG_COLOR, BORDER_COLOR, din);
+	//bgColor.a = lerp(bgColor.a, 0.0, dout);
+	
+	float4 bgColor = BG_COLOR;
+	dout = smoothstep(0.0, 0.1, dout);
+	
+	// Apply scanline noise to the background
+	float scans = saturate(2.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
+	bgColor *= scans;
+
+	//float scans = 0.5 + 3.0 * sin(25.0*iTime + p.y*250.0);
+	//bgColor.rgb *= scans;
+	//bgColor.a *= saturate(scans);
+
+	bgColor.a = lerp(bgColor.a, 0.0, dout);
+	return bgColor;
+}
+
+//*****************************************************************
+// CRT/VCR distortion effect
+float onOff(float a, float b, float c)
+{
+	return step(c, sin(iTime + a * cos(iTime*b)));
+}
+
+float ramp(float y, float start, float end)
+{
+	float inside = step(start, y) - step(end, y);
+	float fact = (y - start) / (end - start)*inside;
+	return (1.0 - fact) * inside;
+}
+
+float stripes(vec2 uv)
+{
+
+	float n = noise2(uv*vec2(0.5, 1.0) + vec2(1.0, 3.0));
+	return n * ramp(mod(uv.y*4. + iTime / 2.0 + sin(iTime + sin(iTime*0.63)), 1.), 0.5, 0.6);
+}
+
+float4 getVideo(vec2 uv, out vec2 look)
+{
+	look = uv;
+	float window = 1.0 / (1.0 + 20.0*(look.y - mod(iTime / 4.0, 1.0))*(look.y - mod(iTime / 4.0, 1.0)));
+	look.x = look.x + 0.6 * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
+	//float vShift = 0.4*onOff(2.,3.,.9)*(sin(iTime)*sin(iTime*20.) + 
+	//									 (0.5 + 0.1*sin(iTime*200.)*cos(iTime)));
+
+	//look.y = mod(look.y + vShift, 1.);
+	float4 video = hologram(look);
+	return video;
+}
+
+//*****************************************************************
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -95,27 +199,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = 0;
 	output.pos3D = 0;
-
-	// hook_normals code:
 	output.normal = 0; // Holograms are shadeless
 
-	// Compute the background color
-	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
-	//float4 hud_texelColor = BG_COLOR;
-	float2 p = input.tex.xy;
-	float d = sdBox(p - 0.5, 0.32 * 1.0);
-	// Make the edges round:
-	float din = d - 0.02;
-	//float dout = d - 0.1;
-	float dout = d - 0.07; // Smaller blackout margin
-	//float dout = d - 0.03; // Even smaller blackout margin
-	din = smoothstep(0.0, 0.1, din);
-	dout = smoothstep(0.0, 0.1, dout);
-	float4 bgColor = lerp(BG_COLOR, BORDER_COLOR, din);
-	//bgColor = lerp(bgColor, BLACK, dout);
-	//float4 bgColor = BG_COLOR;
-	const float holo_alpha = lerp(bgColor.a, 0.0, dout);
-	bgColor.a = holo_alpha;
+	// Fix UVs that are greater than 1 or negative.
+	input.tex = frac(input.tex);
+	if (input.tex.x < 0.0) input.tex.x += 1.0;
+	if (input.tex.y < 0.0) input.tex.y += 1.0;
+
+	//float4 bgColor = hologram(input.tex.xy);
+	float2 distorted_uv;
+	float4 bgColor = getVideo(input.tex.xy, distorted_uv);
+	// Apply noise to the hologram
+	bgColor.rgb *= 2.0 * (0.5 + 0.5 * noise2(input.tex.xy));
+
+	float holo_alpha = bgColor.a;
 
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
@@ -131,13 +228,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
 	output.ssMask = float4(0.0, 0.0, 0.0, 0.0);
 
-	// DEBUG
 	output.color      = bgColor;
+	output.bloom	  = 0.15 * bgColor;
 	output.bloom.a    = holo_alpha;
 	output.ssaoMask.a = holo_alpha;
 	output.ssMask.a   = holo_alpha;
-	//return output;
-	// DEBUG
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -153,11 +248,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
 	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
 	// dst uv coords
-
-	// Fix UVs that are greater than 1 or negative.
-	input.tex = frac(input.tex);
-	if (input.tex.x < 0.0) input.tex.x += 1.0;
-	if (input.tex.y < 0.0) input.tex.y += 1.0;
+	
 	float intensity = 1.0, text_alpha_override = 1.0, obj_alpha_override = 1.0;
 	float4 hud_texelColor = bgColor;
 
@@ -165,7 +256,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
 		float2 delta = dst[i].zw - dst[i].xy;
-		float2 s = (input.tex - dst[i].xy) / delta;
+		//float2 s = (input.tex - dst[i].xy) / delta;
+		float2 s = (distorted_uv - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
 		//float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override, obj_alpha_override);
 
@@ -183,6 +275,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor = saturate(intensity * hud_texelColor);
 			// We can make the text shadeless so that it's easier to read.
 			output.ssaoMask.r = lerp(output.ssaoMask.r, SHADELESS_MAT, textAlpha);
+			if (textAlpha > 0.7) output.bloom = 0.75 * float4(texelText.rgb, textAlpha);
 
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs

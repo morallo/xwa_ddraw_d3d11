@@ -589,7 +589,7 @@ int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
-bool g_bCompensateFOVfor1920x1080 = true;
+bool g_bCompensateFOVfor1920x1080 = true, g_bDCHologramsVisible = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
@@ -8739,6 +8739,7 @@ HRESULT Direct3DDevice::Execute(
 								bHologram |= (dc_element->bHologram);
 								numCoords++;
 							} // for
+							if (bHologram && !g_bDCHologramsVisible) goto out;
 							g_PSCBuffer.DynCockpitSlots = numCoords;
 							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
@@ -8762,14 +8763,17 @@ HRESULT Direct3DDevice::Execute(
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
 							if (g_PSCBuffer.DynCockpitSlots > 0) {
+								static float time = 0.0f;
 								bModifiedPixelShader = true;
 								//bModifiedBlendState = true;
 								// Holograms require alpha blending to be enabled, but we also need to save the current
 								// blending state so that it gets restored at the end of this draw call.
 								//SaveBlendState();
-								//EnableHoloTransparency();
+								//EnableTransparency();
+								time += 0.0166f;
+								g_ShadertoyBuffer.iTime = time;
+								resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
-								//resources->InitPixelShader(resources->_pixelShaderDC);
 							}
 							else if (g_PSCBuffer.bUseCoverTexture) {
 								bModifiedPixelShader = true;

@@ -90,7 +90,7 @@ extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 extern bool g_bHDREnabled, g_bEdgeDetectorEnabled;
 extern float g_fHDRWhitePoint;
 
-extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights;
+extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
 void ShutdownFreePIE();
 
 // DEBUG
@@ -809,7 +809,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			}
 			case 'T': {
-				g_bShadowMapEnablePCSS = !g_bShadowMapEnablePCSS;
+				//g_bShadowMapEnablePCSS = !g_bShadowMapEnablePCSS;
+				g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				return 0;
 			}
 			case 'S': {
