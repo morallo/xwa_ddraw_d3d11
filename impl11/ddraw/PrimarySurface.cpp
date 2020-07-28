@@ -53,6 +53,7 @@ extern Matrix4 g_CurrentHeadingViewMatrix;
 extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
 
 extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
+extern TrackerType g_TrackerType;
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -8171,7 +8172,7 @@ void UpdateViewMatrix()
 			// If we're rendering 2D, then the PlayerDataTable camera will not be updated by the mouse hook,
 			// so we need to use the yaw,pitch,roll coming from FreePIE. But if we're doing 3D rendering, then
 			// the hook should've updated the cockpit/external camera and we can read it here:
-			if (g_bRendering3D) {
+			if (g_bRendering3D && !g_playerInHangar) {
 				if (PlayerDataTable[*g_playerIndex].externalCamera) {
 					yaw   = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
 					pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
@@ -8209,6 +8210,27 @@ void UpdateViewMatrix()
 
 	if (g_bResetHeadCenter)
 		g_bResetHeadCenter = false;
+
+	// At this point, yaw, pitch, roll contain the data read from either SteamVR or FreePIE.
+	// We can use these values to apply head tracking to the hangar.
+	// The reason we have to do this here is because the hangar does not activate the regular
+	// mouse look hook.
+	if (g_TrackerType != TRACKER_NONE && *g_playerInHangar) {
+		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+		
+		// For the DirectSBS mode we need to invert the yaw:
+		if (g_TrackerType == TRACKER_FREEPIE)
+			yaw = -yaw;
+
+		if (bExternalCamera) {
+			PlayerDataTable[*g_playerIndex].cameraYaw = -(short )((yaw / 360.0f) * 65535.0f);
+			PlayerDataTable[*g_playerIndex].cameraPitch = (short)((pitch / 360.0f) * 65535.0f);
+		}
+		else {
+			PlayerDataTable[*g_playerIndex].cockpitCameraYaw = -(short)((yaw / 360.0f) * 65535.0f);
+			PlayerDataTable[*g_playerIndex].cockpitCameraPitch = (short)((pitch / 360.0f) * 65535.0f);
+		}
+	}
 
 	/*
 	// Read the controller's position from FreePIE
@@ -8777,9 +8799,23 @@ HRESULT PrimarySurface::Flip(
 		//PlayerDataTable[*g_playerIndex].cameraPitch += 15 * *mouseLook_Y;
 		//yaw += 600;
 		//log_debug("[DBG] roll: %0.3f", PlayerDataTable[*g_playerIndex].roll / 32768.0f * 180.0f);
-		// This looks like it's always 0:
-		//log_debug("[DBG] els Lasers: %d, Shields: %d, Beam: %d",
-		//	PlayerDataTable[*g_playerIndex].elsLasers, PlayerDataTable[*g_playerIndex].elsShields, PlayerDataTable[*g_playerIndex].elsBeam);
+		/*
+		if (*g_playerInHangar) 
+		{
+			static int yaw = 0;
+			yaw += 256;
+			log_debug("[DBG] yaw: %0.3f", (float)yaw / 65536.0f);
+			if (bExternalCamera) {
+				PlayerDataTable[*g_playerIndex].cameraYaw = yaw;
+			}
+			else {
+				PlayerDataTable[*g_playerIndex].cockpitCameraYaw = yaw;
+			}
+
+			if (yaw > 65535)
+				yaw -= 65535;
+		}
+		*/
 
 		if (this->_deviceResources->_swapChain)
 		{
