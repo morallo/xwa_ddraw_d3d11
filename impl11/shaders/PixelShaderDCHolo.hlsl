@@ -172,16 +172,16 @@ float ramp(float y, float start, float end)
 
 float stripes(vec2 uv)
 {
-
 	float n = noise2(uv*vec2(0.5, 1.0) + vec2(1.0, 3.0));
 	return n * ramp(mod(uv.y*4. + iTime / 2.0 + sin(iTime + sin(iTime*0.63)), 1.), 0.5, 0.6);
 }
 
 float4 getVideo(vec2 uv, out vec2 look)
 {
+#define SHAKE_AMOUNT 0.3
 	look = uv;
 	float window = 1.0 / (1.0 + 20.0*(look.y - mod(iTime / 4.0, 1.0))*(look.y - mod(iTime / 4.0, 1.0)));
-	look.x = look.x + 0.6 * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
+	look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
 	//float vShift = 0.4*onOff(2.,3.,.9)*(sin(iTime)*sin(iTime*20.) + 
 	//									 (0.5 + 0.1*sin(iTime*200.)*cos(iTime)));
 
@@ -271,18 +271,16 @@ PixelShaderOutput main(PixelShaderInput input)
 			float textAlpha = text_alpha_override * saturate(10.0 * dot(float3(0.33, 0.5, 0.16), texelText.rgb));
 			// Blend the text with the DC buffer
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
-			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
+			hud_texelColor.a = saturate(dc_brightness * max(hud_texelColor.a, textAlpha));
 			hud_texelColor = saturate(intensity * hud_texelColor);
+			float hud_alpha = hud_texelColor.a;
 			// We can make the text shadeless so that it's easier to read.
-			output.ssaoMask.r = lerp(output.ssaoMask.r, SHADELESS_MAT, textAlpha);
-			if (textAlpha > 0.7) output.bloom = 0.75 * float4(texelText.rgb, textAlpha);
-
-			const float hud_alpha = hud_texelColor.w;
-			// DEBUG: Display the source UVs
-			//const float hud_alpha = 1.0;
-			//hud_texelColor = float4(dyn_uv, 0, 1);
-			// DEBUG
-
+			if (hud_alpha > 0.5) {
+				output.ssaoMask.r = SHADELESS_MAT;
+				output.ssaoMask.a = 1.0;
+				output.bloom = 0.75 * float4(hud_texelColor);
+			}
+			
 			// Add the background color to the dynamic cockpit display:
 			hud_texelColor = lerp(bgColor, hud_texelColor, hud_alpha);
 		}
@@ -339,8 +337,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		//output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 		//output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
 	//}
-	//output.color = float4(/* diffuse * */ hud_texelColor.rgb, hud_texelColor.w);
-	output.color = float4(hud_texelColor.rgb, max(holo_alpha, hud_texelColor.w));
+	//output.color = float4(/* diffuse * */ hud_texelColor.rgb, hud_texelColor.a);
+	//output.color = float4(hud_texelColor.rgb, max(holo_alpha, hud_texelColor.a));
+	output.color = hud_texelColor;
 	if (bInHyperspace) output.color.a = 1.0;
 	return output;
 }
