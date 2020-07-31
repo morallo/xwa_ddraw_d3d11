@@ -271,7 +271,6 @@ float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
-Box g_ReticleCenterLimits;
 bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
@@ -589,7 +588,7 @@ int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCIgnoreEraseCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false, g_bToggleEraseCommandsOnCockpitDisplayed = true;
-bool g_bCompensateFOVfor1920x1080 = true, g_bDCHologramsVisible = true;
+bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
 bool g_bEdgeEffectApplied = false;
@@ -599,6 +598,9 @@ float4 g_DCTargetingIFFColors[6];
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
+// HOLOGRAMS
+float g_fDCHologramFadeIn = 0.0f, g_fDCHologramTime = 0.0f;
+bool g_bDCHologramsVisible = true, g_bDCHologramsVisiblePrev = true;
 
 Vector2 g_TriangleCentroid;
 
@@ -6746,6 +6748,16 @@ inline void Direct3DDevice::RestoreBlendState() {
 	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
 }
 
+inline void UpdateDCHologramState() {
+	if (!g_bDCHologramsVisiblePrev && g_bDCHologramsVisible) {
+		g_fDCHologramFadeIn = 0.0f;
+	}
+	g_fDCHologramTime += 0.0166f;
+	g_fDCHologramFadeIn += 0.04f;
+	g_fDCHologramFadeIn = min(g_fDCHologramFadeIn, 1.0f);
+	g_bDCHologramsVisiblePrev = g_bDCHologramsVisible;
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -8768,15 +8780,14 @@ HRESULT Direct3DDevice::Execute(
 							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
 							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
 							if (g_PSCBuffer.DynCockpitSlots > 0) {
-								static float time = 0.0f;
 								bModifiedPixelShader = true;
 								//bModifiedBlendState = true;
 								// Holograms require alpha blending to be enabled, but we also need to save the current
 								// blending state so that it gets restored at the end of this draw call.
 								//SaveBlendState();
 								//EnableTransparency();
-								time += 0.0166f;
-								g_ShadertoyBuffer.iTime = time;
+								g_ShadertoyBuffer.iTime = g_fDCHologramTime;
+								g_ShadertoyBuffer.twirl = g_fDCHologramFadeIn;
 								resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
 							}
@@ -9827,13 +9838,7 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ExecuteStateCount = 0;
 	g_ExecuteTriangleCount = 0;
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
-	// Reset the reticle limits at the beginning of each frame
-	// These are in-game coords:
-	g_ReticleCenterLimits.x0 =  10000;
-	g_ReticleCenterLimits.y0 =  10000;
-	g_ReticleCenterLimits.x1 = -10000;
-	g_ReticleCenterLimits.y1 = -10000;
-	//log_debug("[DBG] GetCurrentHeadingViewMatrix()");
+	UpdateDCHologramState();
 
 	if (!this->_deviceResources->_renderTargetView)
 	{

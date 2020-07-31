@@ -289,59 +289,24 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
 
-	/*
-	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
-	// Also go shadeless where the cover texture is bright enough and mark that in the bloom mask.
-	if (bUseCoverTexture > 0) {
-		// We don't have an alpha overlay texture anymore; but we can fake it by disabling shading
-		// on areas with a high lightness value
-
-		// coverColor is the cover_texture right now
-		float3 HSV = RGBtoHSV(coverColor.xyz);
-		float brightness = ct_brightness;
-		// The cover texture is bright enough, go shadeless and make it brighter
-		if (HSV.z * coverAlpha >= 0.8) {
-			diffuse = 1;
-			// Increase the brightness:
-			HSV = RGBtoHSV(coverColor.xyz);
-			HSV.z *= 1.2;
-			coverColor.xyz = HSVtoRGB(HSV);
-			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
-			brightness = 1.0;
-			output.ssaoMask.r = SHADELESS_MAT;
-			output.ssaoMask.ga = 1; // Maximum glossiness on light areas?
-			output.ssaoMask.b = 0.15; // Low spec intensity
-		}
-		// Display the dynamic cockpit texture only where the texture cover is transparent:
-		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
-		// that's what the brightness setting below is for:
-		coverColor = lerp(hud_texelColor, brightness * coverColor, coverAlpha);
-		output.bloom = lerp(0.0, output.bloom, coverAlpha);
-		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-		diffuse = lerp(1.0, diffuse, coverAlpha);
-		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
-		// ssMask: NMIntensity, SpecValue, unused
-		// DC areas are shadeless, have high glossiness and low spec intensity
-		// if coverAlpha is 1, this is the cover texture
-		// if coverAlpha is 0, this is the hole in the cover texture
-		output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
-		output.ssMask.rg = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
-		output.ssaoMask.a = max(output.ssaoMask.a, (1.0 - coverAlpha));
-		output.ssMask.a = output.ssaoMask.a; // Already clamped in the previous line
-	}
-	else 
-	*/
-	//{
-		// Holograms don't use cover textures
-		//float4 coverColor = hud_texelColor;
-		//float diffuse = 1.0;
-		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
-		//output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
-		//output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
-	//}
 	//output.color = float4(/* diffuse * */ hud_texelColor.rgb, hud_texelColor.a);
 	//output.color = float4(hud_texelColor.rgb, max(holo_alpha, hud_texelColor.a));
 	output.color = hud_texelColor;
-	if (bInHyperspace) output.color.a = 1.0;
+
+	// Black-noise fade in -- this part will be played when turning
+	// on the effect.
+	const float fadeIn = twirl;
+	if (fadeIn < 1.0) {
+		const float size = 10.0 + 30.0 * fadeIn;
+		float speckle_noise = 3.0 * (noise(size * float3(input.tex, 20.0 * fadeIn)) - 0.5);
+		float4 nvideo = output.color * lerp(speckle_noise, 1.0, fadeIn);
+		output.color = lerp(0.0, nvideo, clamp(fadeIn * 3.0, 0.0, 1.0));
+		output.bloom = lerp(0.0, nvideo, clamp(fadeIn, 0.0, 1.0));
+	}
+	//output.color = clamp(3.0 * (noise(30.0 * float3(input.tex, 20.0 * iTime)) - 0.5), 0.0, 1.0);
+	//output.bloom = 0.15 * output.color;
+
+	// Verify this later:
+	if (bInHyperspace) output.color.a = 0.0;
 	return output;
 }
