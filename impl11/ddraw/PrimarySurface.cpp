@@ -197,7 +197,7 @@ extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
-extern float g_fSteamVRMirrorWindow3DScale;
+extern float g_fSteamVRMirrorWindow3DScale, g_fSteamVRMirrorWindowAspectRatio;
 extern Vector3 g_headCenter;
 extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
 extern vr::IVRSystem *g_pHMD;
@@ -1701,8 +1701,11 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	
 	float aspect_ratio = 1.0f;
 	if (g_bRendering3D) {
-		// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
-		aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		if (g_fSteamVRMirrorWindowAspectRatio > 0.01f)
+			aspect_ratio = g_fSteamVRMirrorWindowAspectRatio;
+		else
+			// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
+			aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
 		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
 		/*
 		if (!g_config.AspectRatioPreserved) {

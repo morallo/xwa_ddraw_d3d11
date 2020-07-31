@@ -1176,8 +1176,7 @@ void LoadPOVOffsets() {
 	// 0x5BB480 + (n-1) * 0x3DB + 0x238
 
 	// POV Offsets will only be applied if VR is enabled
-	if (!g_bEnableVR)
-		return;
+	//if (!g_bEnableVR) return;
 
 	try {
 		error = fopen_s(&file, "./POVOffsets.cfg", "rt");
@@ -1396,6 +1395,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			{
 				/*
 					// Patch to fix the music when ProcessAffinityCore = 0
+					// This patch doesn't work. It was superseeded by the music freeze hook.
 					At offset 191F44, replace 0F84 with 90E9.
 					At offset 192015, replace 75 with EB.
 				*/

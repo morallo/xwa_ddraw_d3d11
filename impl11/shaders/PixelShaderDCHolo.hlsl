@@ -182,6 +182,8 @@ float4 getVideo(vec2 uv, out vec2 look)
 	look = uv;
 	float window = 1.0 / (1.0 + 20.0*(look.y - mod(iTime / 4.0, 1.0))*(look.y - mod(iTime / 4.0, 1.0)));
 	look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
+	//look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(1.0, 1.0, 0.1) * window;
+
 	//float vShift = 0.4*onOff(2.,3.,.9)*(sin(iTime)*sin(iTime*20.) + 
 	//									 (0.5 + 0.1*sin(iTime*200.)*cos(iTime)));
 

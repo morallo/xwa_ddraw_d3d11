@@ -460,7 +460,7 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
-float g_fSteamVRMirrorWindow3DScale = 0.7f;
+float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
@@ -4297,6 +4297,11 @@ void LoadVRParams() {
 				// This one is used to zoom in the view in the mirror window to avoid showing
 				// wide-FOV-related artifacts
 				g_fSteamVRMirrorWindow3DScale = fValue;
+			}
+			else if (_stricmp(param, "steamvr_mirror_aspect_ratio") == 0) {
+				// A value greater than 0 overrides the automatic aspect ratio computed by ddraw in
+				// resizeForSteamVR().
+				g_fSteamVRMirrorWindowAspectRatio = fValue;
 			}
 			else if (_stricmp(param, "steamvr_yaw_pitch_roll_from_mouse_look") == 0) {
 				g_bSteamVRYawPitchRollFromMouseLook = (bool)fValue;
