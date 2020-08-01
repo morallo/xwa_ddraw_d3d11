@@ -1170,6 +1170,7 @@ void LoadPOVOffsets() {
 	FILE *file;
 	char buf[160], param[80], svalue[80];
 	float fValue;
+	bool bApplyPOVs = false;
 	int slot, x, y, z, num_params, entries_applied = 0, error = 0;
 	const char *CraftTableBase = (char *)0x5BB480;
 	const int16_t EntrySize = 0x3DB, POVOffset = 0x238;
@@ -1197,23 +1198,41 @@ void LoadPOVOffsets() {
 		if (strlen(buf) == 0)
 			continue;
 
-		if (strstr(buf, "=") != NULL) {
+		if (strstr(buf, "=") != NULL) 
+		{
 			if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 				fValue = (float)atof(svalue);
+				
 				if (_stricmp(param, "apply_custom_VR_POVs") == 0) {
-					bool bValue = (bool)fValue;
-					log_debug("[DBG] [POV] POVOffsets Enabled: %d", bValue);
-					if (!bValue) 
-					{
-						log_debug("[DBG] [POV] POVOffsets will NOT be applied");
-						goto out;
+					if ((bool)fValue && g_bEnableVR) {
+						bApplyPOVs = true;
+						log_debug("[DBG] [POV] Applying Custom VR POVs: %d", bApplyPOVs);
 					}
 				}
+
+				if (_stricmp(param, "force_apply_custom_POVs") == 0) {
+					if ((bool)fValue) {
+						bApplyPOVs = true;
+						log_debug("[DBG] [POV] Applying Custom POVs: %d", bApplyPOVs);
+					}
+				}
+
 			}
 		}
-		else {
+		else 
+		{
 			num_params = sscanf_s(buf, "%d %d %d %d", &slot, &x, &z, &y);
-			if (num_params == 4) {
+			if (num_params == 4) 
+			{
+				// I know it's weird to apply the exit here, but this works because
+				// *this* is when we start reading the POV lines, otherwise, blank lines, etc
+				// will also take the "else" path and if we put the exit there, we won't
+				// read any POVs.
+				if (!bApplyPOVs) {
+					log_debug("[DBG] [POV] POVOffsets will NOT be applied");
+					goto out;
+				}
+
 				int16_t *pov = (int16_t *)(CraftTableBase + (slot - 1) * EntrySize + POVOffset);
 				// Y, Z, X
 				*pov += y; pov++;

@@ -8218,7 +8218,7 @@ void UpdateViewMatrix()
 	// We can use these values to apply head tracking to the hangar.
 	// The reason we have to do this here is because the hangar does not activate the regular
 	// mouse look hook.
-	if (g_TrackerType != TRACKER_NONE && *g_playerInHangar) {
+	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR) && *g_playerInHangar) {
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 		
 		// For the DirectSBS mode we need to invert the yaw:
