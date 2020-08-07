@@ -10410,25 +10410,66 @@ void PrimarySurface::RenderText()
 	IDWriteTextFormat* textFormat = nullptr;
 	int fontSize = 0;
 
-	for (const auto& xwaText : g_xwa_text)
+	std::vector<XwaText>::iterator it = g_xwa_text.begin();
+	while (it != g_xwa_text.end()) 
 	{
-		if (xwaText.color != brushColor)
-		{
-			brushColor = xwaText.color;
-			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
-		}
+		std::wstring wtexts; // potentially several chars
+		float x = 0;
+		float y = 0;
 
-		if (xwaText.fontSize != fontSize)
-		{
-			fontSize = xwaText.fontSize;
+		// grab first char from vector (or first char remaining, after a new color / size / y level)
+		if (it != g_xwa_text.end()) {
+			XwaText xwaText = *it;
 
-			for (int index = 0; index < 3; index++)
+			x = (float)left + (float)xwaText.positionX * scaleX;
+			y = (float)top + (float)xwaText.positionY * scaleY;
+
+			char t[2];
+			t[0] = xwaText.textChar;
+			t[1] = 0;
+			std::wstring wtext = string_towstring(t);
+			wtexts.append(wtext); // add first char to the string
+
+			if (xwaText.color != brushColor)
 			{
-				if (fontSize == fontSizes[index])
+				brushColor = xwaText.color;
+				this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			}
+
+			if (xwaText.fontSize != fontSize)
+			{
+				fontSize = xwaText.fontSize;
+
+				for (int index = 0; index < 3; index++)
 				{
-					textFormat = textFormats[index];
-					break;
+					if (fontSize == fontSizes[index])
+					{
+						textFormat = textFormats[index];
+						break;
+					}
 				}
+			}
+			it++;
+		}
+		bool matches = true;
+		// cycle through remaining chars to see if they have the same attributes
+		while (it != g_xwa_text.end() && matches) 
+		{
+			XwaText xwaText = *it;
+			// if same size and color of text, in the same line (would need some work to avoid text on the same line but spaced apart)
+			if (xwaText.color == brushColor && xwaText.fontSize == fontSize && y == (float)top + (float)xwaText.positionY * scaleY) 
+			{
+				char t[2];
+				t[0] = xwaText.textChar;
+				t[1] = 0;
+				std::wstring wtext = string_towstring(t);
+
+				wtexts.append(wtext); // add the char to the string
+				it++; // advance the iterator
+			}
+			else
+			{
+				matches = false; // no match, the iterator doesn't advance.  This char will become the first char of a new string
 			}
 		}
 
@@ -10442,26 +10483,19 @@ void PrimarySurface::RenderText()
 			continue;
 		}
 
-		char t[2];
-		t[0] = xwaText.textChar;
-		t[1] = 0;
-
-		std::wstring wtext = string_towstring(t);
-
-		if (wtext.empty())
+		if (wtexts.empty())
 		{
 			continue;
 		}
 
-		float x = (float)left + (float)xwaText.positionX * scaleX;
-		float y = (float)top + (float)xwaText.positionY * scaleY;
-
+		// render possibly many chars at once
 		this->_deviceResources->_d2d1RenderTarget->DrawTextA(
-			wtext.c_str(),
-			wtext.length(),
+			wtexts.c_str(),
+			wtexts.length(),
 			textFormat,
 			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
 			brush);
+
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
