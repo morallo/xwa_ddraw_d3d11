@@ -12,7 +12,6 @@
 /*
 TODO:
 	VR metric reconstruction -- In progress
-	Invert the throttle axis.
 	Sun flares are still not right in SBS mode.
 
 	What's wrong with the map in VR?
@@ -28,7 +27,6 @@ TODO:
 
 /*
 	The current HUD color is stored in these variables:
-	CODE: SELECT ALL
 
 	// V0x005B5318
 	unsigned int s_XwaFlightHudColor;
@@ -256,6 +254,10 @@ PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
 uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
 uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
+// The current HUD color
+uint32_t *g_XwaFlightHudColor = (uint32_t *)0x005B5318;
+// The current HUD border color
+uint32_t *g_XwaFlightHudBorderColor = (uint32_t *)0x005B531C;
 
 const float DEG2RAD = 3.141593f / 180.0f;
 FOVtype g_CurrentFOV = GLOBAL_FOV;
@@ -8760,7 +8762,7 @@ HRESULT Direct3DDevice::Execute(
 							g_PSCBuffer.DynCockpitSlots = numCoords;
 							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
-
+							
 							// slot 0 is the cover texture
 							// slot 1 is the HUD offscreen buffer
 							// slot 2 is the text buffer
@@ -8786,9 +8788,15 @@ HRESULT Direct3DDevice::Execute(
 								// blending state so that it gets restored at the end of this draw call.
 								//SaveBlendState();
 								//EnableTransparency();
-								g_ShadertoyBuffer.iTime = g_fDCHologramTime;
-								g_ShadertoyBuffer.twirl = g_fDCHologramFadeIn;
-								resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+								if (bHologram) {
+									uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
+									//log_debug("[DBG] hud_color, border, inside: 0x%x, 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
+									g_ShadertoyBuffer.iTime = g_fDCHologramTime;
+									g_ShadertoyBuffer.twirl = g_fDCHologramFadeIn;
+									// Override the background color if the current DC element is a hologram:
+									g_DCPSCBuffer.bgColor[0] = hud_color;
+									resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+								}
 								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
 							}
 							else if (g_PSCBuffer.bUseCoverTexture) {

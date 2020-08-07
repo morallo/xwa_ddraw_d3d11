@@ -16,7 +16,7 @@
 
 // This color should be specified by the current HUD color
 static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 1.0);
-static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 1.0);
+//static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 1.0);
 static const float4 BLACK        = 0.0;
 
 // HUD offscreen buffer
@@ -93,21 +93,13 @@ inline float noise2(in vec2 v) {
 	return noise(x);
 }
 
-float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override) {
-	float4 result = float4(
-		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
-		((color >> 8) & 0xFF) / 255.0,  // G 0x00FF00
-		(color & 0xFF) / 255.0,  // B 0x0000FF
-		1); // Alpha
-// The alpha component encodes more information:
-// bits 0-1: an integer in the range 0..3 that specifies the intensity. intensity = bits[0..1] + 1
-// bit 2: Enable/Disable text layer (on/off switch)
-//intensity = ((color >> 24) & 0xFF) / 64.0;
-	uint temp = (color >> 24) & 0xFF;
-	intensity = (temp & 0x03) + 1.0;
-	text_alpha_override = (float)((temp & 0x04) >> 2);
-	obj_alpha_override = (float)((temp & 0x08) >> 3);
-	return result;
+float4 uintColorToFloat4(uint color_idx) {
+	return float4(
+		((color_idx >> 16) & 0xFF) / 255.0,  // R 0xFF0000
+		((color_idx >>  8) & 0xFF) / 255.0,  // G 0x00FF00
+		 (color_idx        & 0xFF) / 255.0,  // B 0x0000FF
+		 0.75
+	); // Alpha
 }
 
 uint getBGColor(uint i) {
@@ -122,7 +114,7 @@ float sdBox(in float2 p, in float2 b)
 	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-float4 hologram(float2 p)
+float4 hologram(float2 p, float4 bgColor)
 {
 	// Compute the background color
 	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
@@ -141,7 +133,8 @@ float4 hologram(float2 p)
 	//float4 bgColor = lerp(BG_COLOR, BORDER_COLOR, din);
 	//bgColor.a = lerp(bgColor.a, 0.0, dout);
 	
-	float4 bgColor = BG_COLOR;
+	//float4 bgColor = BG_COLOR;
+	//float4 bgColor = SunColor[0];
 	dout = smoothstep(0.0, 0.1, dout);
 	
 	// Apply scanline noise to the background
@@ -176,7 +169,7 @@ float stripes(vec2 uv)
 	return n * ramp(mod(uv.y*4. + iTime / 2.0 + sin(iTime + sin(iTime*0.63)), 1.), 0.5, 0.6);
 }
 
-float4 getVideo(vec2 uv, out vec2 look)
+float4 getVideo(float2 uv, out float2 look, in float4 hudColor)
 {
 #define SHAKE_AMOUNT 0.3
 	look = uv;
@@ -188,7 +181,7 @@ float4 getVideo(vec2 uv, out vec2 look)
 	//									 (0.5 + 0.1*sin(iTime*200.)*cos(iTime)));
 
 	//look.y = mod(look.y + vShift, 1.);
-	float4 video = hologram(look);
+	float4 video = hologram(look, hudColor);
 	return video;
 }
 
@@ -210,7 +203,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//float4 bgColor = hologram(input.tex.xy);
 	float2 distorted_uv;
-	float4 bgColor = getVideo(input.tex.xy, distorted_uv);
+	float4 hudColor = uintColorToFloat4(getBGColor(0));
+	float4 bgColor = getVideo(input.tex.xy, distorted_uv, hudColor);
 	// Apply noise to the hologram
 	bgColor.rgb *= 2.0 * (0.5 + 0.5 * noise2(input.tex.xy));
 
