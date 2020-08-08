@@ -10417,18 +10417,23 @@ void PrimarySurface::RenderText()
 		float x = 0;
 		float y = 0;
 
-		// grab first char from vector (or first char remaining, after a new color / size / y level)
-		if (it != g_xwa_text.end()) {
+		float prevx = 0;
+		bool matches = true;
+
+		// grab first char from vector (or first char after a new color / size / y level)
+		if (it != g_xwa_text.end()) 
+		{
 			XwaText xwaText = *it;
 
 			x = (float)left + (float)xwaText.positionX * scaleX;
 			y = (float)top + (float)xwaText.positionY * scaleY;
 
+			prevx = x;
+
 			char t[2];
 			t[0] = xwaText.textChar;
 			t[1] = 0;
 			std::wstring wtext = string_towstring(t);
-			wtexts.append(wtext); // add first char to the string
 
 			if (xwaText.color != brushColor)
 			{
@@ -10449,22 +10454,40 @@ void PrimarySurface::RenderText()
 					}
 				}
 			}
+
+			if (!brush || !textFormat || wtext.empty()) 
+			{
+				matches = false; // don't start a string with an empty char.  WIll advance to the next one
+			}
+			else {
+				wtexts.append(wtext); // add the first char to the string
+			}
+
 			it++;
 		}
-		bool matches = true;
+
 		// cycle through remaining chars to see if they have the same attributes
 		while (it != g_xwa_text.end() && matches) 
 		{
 			XwaText xwaText = *it;
+			float currentx = (float)left + (float)xwaText.positionX * scaleX;
 			// if same size and color of text, in the same line (would need some work to avoid text on the same line but spaced apart)
-			if (xwaText.color == brushColor && xwaText.fontSize == fontSize && y == (float)top + (float)xwaText.positionY * scaleY) 
+			if (xwaText.color == brushColor && xwaText.fontSize == fontSize && y == (float)top + (float)xwaText.positionY * scaleY && currentx > prevx && currentx - prevx < xwaText.fontSize)
 			{
 				char t[2];
-				t[0] = xwaText.textChar;
+				//t[0] = *".";
+				t[0] = xwaText.textChar; //*"W";
 				t[1] = 0;
 				std::wstring wtext = string_towstring(t);
-
-				wtexts.append(wtext); // add the char to the string
+				if (!wtext.empty())
+				{
+					wtexts.append(wtext); // add the char to the string
+					prevx = currentx;
+				}
+				else
+				{
+					matches = false; // end appending on an empty char
+				}
 				it++; // advance the iterator
 			}
 			else
@@ -10495,6 +10518,7 @@ void PrimarySurface::RenderText()
 			textFormat,
 			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
 			brush);
+
 
 	}
 
