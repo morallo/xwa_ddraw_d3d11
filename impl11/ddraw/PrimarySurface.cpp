@@ -10455,12 +10455,12 @@ void PrimarySurface::RenderText()
 				}
 			}
 
-			if (!brush || !textFormat || wtext.empty()) 
+			if (!brush || !textFormat || wtext.empty() || t[0] <= 37 || t[0] >= 137)
 			{
-				matches = false; // don't start a string with an empty char.  WIll advance to the next one
+				matches = false; // don't start a string with an empty char.  Will skip the inner while below, and advance to the next one
 			}
 			else {
-				wtexts.append(wtext); // add the first char to the string
+				wtexts = wtext; // begin the string with the first char
 			}
 
 			it++;
@@ -10475,11 +10475,10 @@ void PrimarySurface::RenderText()
 			if (xwaText.color == brushColor && xwaText.fontSize == fontSize && y == (float)top + (float)xwaText.positionY * scaleY && currentx > prevx && currentx - prevx < xwaText.fontSize)
 			{
 				char t[2];
-				//t[0] = *".";
-				t[0] = xwaText.textChar; //*"W";
+				t[0] = xwaText.textChar;
 				t[1] = 0;
 				std::wstring wtext = string_towstring(t);
-				if (!wtext.empty())
+				if (!wtext.empty() && t[0] > 37 && t[0] < 137)
 				{
 					wtexts.append(wtext); // add the char to the string
 					prevx = currentx;
@@ -10488,11 +10487,11 @@ void PrimarySurface::RenderText()
 				{
 					matches = false; // end appending on an empty char
 				}
-				it++; // advance the iterator
+				it++; // advance the iterator.  Either because we added a char or skipped an empty one
 			}
 			else
 			{
-				matches = false; // no match, the iterator doesn't advance.  This char will become the first char of a new string
+				matches = false; // attributes don't match, the iterator doesn't advance.  This char will become the first char of a new string
 			}
 		}
 
