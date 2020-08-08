@@ -10361,6 +10361,8 @@ D2D1_POINT_2F origin;
 IDWriteFactory* pDWriteFactory_;
 ID2D1Factory* pD2DFactory_;
 ComPtr<IDWriteTextLayout> layouts[381];
+ComPtr<ID2D1SolidColorBrush> brushes[32];
+int brushColors[32] = {};
 boolean font_initialized = false;
 
 void PrimarySurface::RenderText()
@@ -10397,7 +10399,7 @@ void PrimarySurface::RenderText()
 	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
 
 
-	ComPtr<ID2D1SolidColorBrush> brush;
+	ID2D1SolidColorBrush* brush = nullptr;
 	unsigned int brushColor = 0;
 
 	IDWriteTextFormat* textFormat = nullptr;
@@ -10454,6 +10456,10 @@ void PrimarySurface::RenderText()
 				);
 			}
 		}
+		for (int brush_index = 0; brush_index < 32; brush_index++)
+		{
+			brushColors[brush_index] = -1;
+		}
 		font_initialized = true;
 	}
 
@@ -10463,7 +10469,21 @@ void PrimarySurface::RenderText()
 		if (xwaText.color != brushColor)
 		{
 			brushColor = xwaText.color;
-			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			int brush_index = 0;
+			for (brush_index = 0; brush_index < 32; brush_index++)
+			{
+				if (brushColor == brushColors[brush_index])
+				{
+					break;
+				}
+				else if (brushColors[brush_index] == -1)
+				{
+					brushColors[brush_index] = brushColor;
+					this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brushes[brush_index]);
+					break;
+				}
+			}
+			brush = brushes[brush_index];
 		}
 
 		if (xwaText.fontSize != fontSize)
