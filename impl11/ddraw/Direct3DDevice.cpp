@@ -7280,9 +7280,17 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
-				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false, bIsHologram = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				if (bLastTextureSelectedNotNULL) {
+					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
+					{
+						int idx = lastTextureSelected->DCElementIndex;
+						if (idx >= 0 && idx < g_iNumDCElements) {
+							bIsHologram |= g_DCElements[idx].bHologram;
+						}
+					}
+
 					bIsLaser = lastTextureSelected->is_Laser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
@@ -8104,10 +8112,10 @@ HRESULT Direct3DDevice::Execute(
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_3DSun)
 				//	goto out;
 				// DEBUG
-
+				
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
-					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest))
+					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
 				{
 					Vector3 orig, dir, v0, v1, v2, P;
 					//bool debug = false;
@@ -8725,7 +8733,6 @@ HRESULT Direct3DDevice::Execute(
 							bModifiedShaders = true;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitStrength;
 							int numCoords = 0;
-							bool bHologram = false;
 							for (int i = 0; i < dc_element->coords.numCoords; i++)
 							{
 								int src_slot = dc_element->coords.src_slot[i];
@@ -8755,10 +8762,10 @@ HRESULT Direct3DDevice::Execute(
 									g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
 								// The hologram property will make *all* uvcoords in this DC element
 								// holographic as well:
-								bHologram |= (dc_element->bHologram);
+								//bIsHologram |= (dc_element->bHologram);
 								numCoords++;
 							} // for
-							if (bHologram && !g_bDCHologramsVisible) goto out;
+							if (bIsHologram && !g_bDCHologramsVisible) goto out;
 							g_PSCBuffer.DynCockpitSlots = numCoords;
 							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
@@ -8788,7 +8795,7 @@ HRESULT Direct3DDevice::Execute(
 								// blending state so that it gets restored at the end of this draw call.
 								//SaveBlendState();
 								//EnableTransparency();
-								if (bHologram) {
+								if (bIsHologram) {
 									uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
 									//log_debug("[DBG] hud_color, border, inside: 0x%x, 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
 									g_ShadertoyBuffer.iTime = g_fDCHologramTime;
@@ -8797,7 +8804,7 @@ HRESULT Direct3DDevice::Execute(
 									g_DCPSCBuffer.bgColor[0] = hud_color;
 									resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 								}
-								resources->InitPixelShader(bHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
+								resources->InitPixelShader(bIsHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
 							}
 							else if (g_PSCBuffer.bUseCoverTexture) {
 								bModifiedPixelShader = true;
