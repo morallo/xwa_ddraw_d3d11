@@ -10355,6 +10355,16 @@ HRESULT PrimarySurface::UpdateOverlayZOrder(
 	return DDERR_UNSUPPORTED;
 }
 
+ComPtr<IDWriteTextFormat> textFormats[3];
+int fontSizes[] = { 12, 16, 10 };
+D2D1_POINT_2F origin;
+IDWriteFactory* pDWriteFactory_;
+ID2D1Factory* pD2DFactory_;
+ComPtr<IDWriteTextLayout> layouts[381];
+ComPtr<ID2D1SolidColorBrush> brushes[32];
+int brushColors[32] = {};
+boolean font_initialized = false;
+
 void PrimarySurface::RenderText()
 {
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -10388,48 +10398,110 @@ void PrimarySurface::RenderText()
 	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
 	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
 
-	ComPtr<IDWriteTextFormat> textFormats[3];
-	int fontSizes[] = { 12, 16, 10 };
 
-	for (int index = 0; index < 3; index++)
-	{
-		this->_deviceResources->_dwriteFactory->CreateTextFormat(
-			g_config.TextFontFamily.c_str(),
-			nullptr,
-			DWRITE_FONT_WEIGHT_NORMAL,
-			DWRITE_FONT_STYLE_NORMAL,
-			DWRITE_FONT_STRETCH_NORMAL,
-			(float)fontSizes[index] * min(scaleX, scaleY),
-			L"en-US",
-			&textFormats[index]);
-	}
-
-	ComPtr<ID2D1SolidColorBrush> brush;
+	ID2D1SolidColorBrush* brush = nullptr;
 	unsigned int brushColor = 0;
 
 	IDWriteTextFormat* textFormat = nullptr;
 	int fontSize = 0;
 
+	IDWriteTextLayout* layout = nullptr;
+
+	if (!font_initialized)
+	{
+		for (int index = 0; index < 3; index++)
+		{
+			this->_deviceResources->_dwriteFactory->CreateTextFormat(
+				g_config.TextFontFamily.c_str(),
+				nullptr,
+				DWRITE_FONT_WEIGHT_NORMAL,
+				DWRITE_FONT_STYLE_NORMAL,
+				DWRITE_FONT_STRETCH_NORMAL,
+				(float)fontSizes[index] * min(scaleX, scaleY),
+				L"en-US",
+				&textFormats[index]);
+		}
+
+		D2D1CreateFactory(
+			D2D1_FACTORY_TYPE_SINGLE_THREADED,
+			&pD2DFactory_
+		);
+
+		DWriteCreateFactory(
+			DWRITE_FACTORY_TYPE_SHARED,
+			__uuidof(IDWriteFactory),
+			reinterpret_cast<IUnknown**>(&pDWriteFactory_)
+		);
+
+		origin = D2D1::Point2F(
+			static_cast<FLOAT>(0),
+			static_cast<FLOAT>(0)
+		);
+
+		for (int size_index = 0; size_index < 3; size_index++)
+		{
+			for (int char_index = 0; char_index < 127; char_index++)
+			{
+				char tm[2];
+				tm[0] = char_index;
+				tm[1] = 0;
+				std::wstring ttext = string_towstring(tm);
+				pDWriteFactory_->CreateTextLayout(
+					ttext.c_str(),     
+					ttext.length(),  
+					textFormats[size_index],
+					fontSizes[size_index] * scaleX,
+					fontSizes[size_index] * scaleY,
+					&layouts[size_index * 127 + char_index]
+				);
+			}
+		}
+		for (int brush_index = 0; brush_index < 32; brush_index++)
+		{
+			brushColors[brush_index] = -1;
+		}
+		font_initialized = true;
+	}
+
+	int size_index = 0;
 	for (const auto& xwaText : g_xwa_text)
 	{
 		if (xwaText.color != brushColor)
 		{
 			brushColor = xwaText.color;
-			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			int brush_index = 0;
+			for (brush_index = 0; brush_index < 32; brush_index++)
+			{
+				if (brushColor == brushColors[brush_index])
+				{
+					break;
+				}
+				else if (brushColors[brush_index] == -1)
+				{
+					brushColors[brush_index] = brushColor;
+					this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brushes[brush_index]);
+					break;
+				}
+			}
+			brush = brushes[brush_index];
 		}
 
 		if (xwaText.fontSize != fontSize)
 		{
 			fontSize = xwaText.fontSize;
 
-			for (int index = 0; index < 3; index++)
+			for (size_index = 0; size_index < 3; size_index++)
 			{
-				if (fontSize == fontSizes[index])
+				if (fontSize == fontSizes[size_index])
 				{
-					textFormat = textFormats[index];
 					break;
 				}
 			}
+		}
+
+		if (xwaText.textChar <= 31 || xwaText.textChar >= 127)
+		{
+			continue;
 		}
 
 		if (!brush)
@@ -10437,31 +10509,16 @@ void PrimarySurface::RenderText()
 			continue;
 		}
 
-		if (!textFormat)
-		{
-			continue;
-		}
+		layout = layouts[size_index * 127 + xwaText.textChar];
 
-		char t[2];
-		t[0] = xwaText.textChar;
-		t[1] = 0;
+		origin.x = (float)left + (float)xwaText.positionX * scaleX;
+		origin.y = (float)top + (float)xwaText.positionY * scaleY;
 
-		std::wstring wtext = string_towstring(t);
-
-		if (wtext.empty())
-		{
-			continue;
-		}
-
-		float x = (float)left + (float)xwaText.positionX * scaleX;
-		float y = (float)top + (float)xwaText.positionY * scaleY;
-
-		this->_deviceResources->_d2d1RenderTarget->DrawTextA(
-			wtext.c_str(),
-			wtext.length(),
-			textFormat,
-			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
-			brush);
+		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+			origin,
+			layout,
+			brush
+		); 
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
