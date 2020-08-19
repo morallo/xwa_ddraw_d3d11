@@ -10673,44 +10673,62 @@ void PrimarySurface::RenderRadar()
 
 void PrimarySurface::RenderBracket()
 {
+	static DWORD s_displayWidth = 0;
+	static DWORD s_displayHeight = 0;
+	// It's probably not necessary to have two brushes, but I don't think it hurts either and
+	// I'm doing this just in case brushes can't be shared between different RTVs
+	static ComPtr<ID2D1SolidColorBrush> s_brushOffscreen, s_brushDC, s_brush;
+	static UINT s_left;
+	static UINT s_top;
+	static float s_scaleX;
+	static float s_scaleY;
+
+	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
+	{
+		s_displayWidth = this->_deviceResources->_displayWidth;
+		s_displayHeight = this->_deviceResources->_displayHeight;
+
+		UINT w;
+		UINT h;
+
+		if (g_config.AspectRatioPreserved)
+		{
+			if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+			{
+				w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+				h = this->_deviceResources->_backbufferHeight;
+			}
+			else
+			{
+				w = this->_deviceResources->_backbufferWidth;
+				h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			}
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+
+		s_left = (this->_deviceResources->_backbufferWidth - w) / 2;
+		s_top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+		s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+		s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+		this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushOffscreen);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushDC);
+	}
+
 	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1OffscreenRenderTarget->BeginDraw();
 
 	this->_deviceResources->_d2d1DCRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1DCRenderTarget->BeginDraw();
 
-	UINT w;
-	UINT h;
-
-	if (g_config.AspectRatioPreserved)
-	{
-		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
-		{
-			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
-			h = this->_deviceResources->_backbufferHeight;
-		}
-		else
-		{
-			w = this->_deviceResources->_backbufferWidth;
-			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
-		}
-	}
-	else
-	{
-		w = this->_deviceResources->_backbufferWidth;
-		h = this->_deviceResources->_backbufferHeight;
-	}
-
-	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
-	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
-
-	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
-	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
-
-	ComPtr<ID2D1SolidColorBrush> brush;
 	unsigned int brushColor = 0;
-	this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
-	this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+	s_brushOffscreen->SetColor(D2D1::ColorF(brushColor));
+	s_brushDC->SetColor(D2D1::ColorF(brushColor));
 
 	for (const auto& xwaBracket : g_xwa_bracket)
 	{
@@ -10737,44 +10755,45 @@ void PrimarySurface::RenderBracket()
 		if (esi != brushColor)
 		{
 			brushColor = esi;
-			this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
-			this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			s_brushOffscreen->SetColor(D2D1::ColorF(brushColor));
+			s_brushDC->SetColor(D2D1::ColorF(brushColor));
 		}
 
-		float posX = left + (float)xwaBracket.positionX * scaleX;
-		float posY = top + (float)xwaBracket.positionY * scaleY;
-		float posW = (float)xwaBracket.width * scaleX;
-		float posH = (float)xwaBracket.height * scaleY;
+		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
+		float posY = s_top + (float)xwaBracket.positionY * s_scaleY;
+		float posW = (float)xwaBracket.width * s_scaleX;
+		float posH = (float)xwaBracket.height * s_scaleY;
 		float posSide = 0.125;
 
-		float strokeWidth = 2.0f * min(scaleX, scaleY);
+		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
 
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
 		// Select the DC RTV if this bracket was classified as belonging to
 		// the Dynamic Cockpit display
 		ID2D1RenderTarget *rtv = xwaBracket.DC ? this->_deviceResources->_d2d1DCRenderTarget : this->_deviceResources->_d2d1OffscreenRenderTarget;
+		s_brush = xwaBracket.DC ? s_brushDC : s_brushOffscreen;
 
 		if (fill)
 		{
-			rtv->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), brush);
+			rtv->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), s_brush);
 		}
 		else
 		{
 			// top left
-			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), s_brush, strokeWidth);
 
 			// top right
-			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), s_brush, strokeWidth);
 
 			// bottom left
-			rtv->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), s_brush, strokeWidth);
 
 			// bottom right
-			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 		}
 	}
 
