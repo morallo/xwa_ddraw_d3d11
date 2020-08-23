@@ -601,7 +601,7 @@ float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
-float g_fDCHologramFadeIn = 0.0f, g_fDCHologramTime = 0.0f;
+float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
 bool g_bDCHologramsVisible = true, g_bDCHologramsVisiblePrev = true;
 
 Vector2 g_TriangleCentroid;
@@ -6753,10 +6753,15 @@ inline void Direct3DDevice::RestoreBlendState() {
 inline void UpdateDCHologramState() {
 	if (!g_bDCHologramsVisiblePrev && g_bDCHologramsVisible) {
 		g_fDCHologramFadeIn = 0.0f;
+		g_fDCHologramFadeInIncr = 0.04f;
+	} else if (g_bDCHologramsVisiblePrev && !g_bDCHologramsVisible) {
+		g_fDCHologramFadeIn = 1.0f;
+		g_fDCHologramFadeInIncr = -0.04f;
 	}
 	g_fDCHologramTime += 0.0166f;
-	g_fDCHologramFadeIn += 0.04f;
-	g_fDCHologramFadeIn = min(g_fDCHologramFadeIn, 1.0f);
+	g_fDCHologramFadeIn += g_fDCHologramFadeInIncr;
+	if (g_fDCHologramFadeIn > 1.0f) g_fDCHologramFadeIn = 1.0f;
+	if (g_fDCHologramFadeIn < 0.0f) g_fDCHologramFadeIn = 0.0f;
 	g_bDCHologramsVisiblePrev = g_bDCHologramsVisible;
 }
 
@@ -8765,7 +8770,9 @@ HRESULT Direct3DDevice::Execute(
 								//bIsHologram |= (dc_element->bHologram);
 								numCoords++;
 							} // for
-							if (bIsHologram && !g_bDCHologramsVisible) goto out;
+							// g_bDCHologramsVisible is a hard switch, let's use g_fDCHologramFadeIn instead to
+							// provide a softer ON/OFF animation
+							if (bIsHologram && g_fDCHologramFadeIn <= 0.01f) goto out;
 							g_PSCBuffer.DynCockpitSlots = numCoords;
 							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
