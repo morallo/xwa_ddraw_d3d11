@@ -9637,10 +9637,10 @@ HRESULT PrimarySurface::Flip(
 			if (!g_bCustomFOVApplied) {
 				log_debug("[DBG] [FOV] [Flip] Applying Custom FOV.");
 
-				switch (g_CurrentFOV) {
+				switch (g_CurrentFOVType) {
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+					log_debug("[DBG] [FOV] [Flip] GLOBAL_FOV Loading Focal_Length.cfg");
 					if (!LoadFocalLength()) {
 						if (g_bEnableVR) {
 							// We couldn't load the custom FOV and we're running in VR mode, let's apply
@@ -9661,24 +9661,24 @@ HRESULT PrimarySurface::Flip(
 				case XWAHACKER_FOV:
 					// If the current ship's DC file has a focal length, apply it:
 					if (g_fCurrentShipFocalLength > 0.0f) {
-						log_debug("[DBG] [FOV] [Flip] Applying DC REGULAR Focal Length: %0.3f", g_fCurrentShipFocalLength);
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_FOV Applying DC REGULAR Focal Length: %0.3f", g_fCurrentShipFocalLength);
 						ApplyFocalLength(g_fCurrentShipFocalLength);
 					}
 					else {
 						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_FOV Loading Focal_Length.cfg");
 						LoadFocalLength();
 					}
 					break;
 				case XWAHACKER_LARGE_FOV:
 					// If the current ship's DC file has a focal length, apply it:
 					if (g_fCurrentShipLargeFocalLength > 0.0f) {
-						log_debug("[DBG] [FOV] [Flip] Applying DC LARGE Focal Length: %0.3f", g_fCurrentShipLargeFocalLength);
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_LARGE_FOV Applying DC LARGE Focal Length: %0.3f", g_fCurrentShipLargeFocalLength);
 						ApplyFocalLength(g_fCurrentShipLargeFocalLength);
 					}
 					else {
 						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_LARGE_FOV Loading Focal_Length.cfg");
 						LoadFocalLength();
 					}
 					break;

@@ -260,7 +260,7 @@ uint32_t *g_XwaFlightHudColor = (uint32_t *)0x005B5318;
 uint32_t *g_XwaFlightHudBorderColor = (uint32_t *)0x005B531C;
 
 const float DEG2RAD = 3.141593f / 180.0f;
-FOVtype g_CurrentFOV = GLOBAL_FOV;
+FOVtype g_CurrentFOVType = GLOBAL_FOV;
 
 // xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
 // FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
@@ -2259,20 +2259,20 @@ void CycleFOVSetting()
 {
 	// Don't change the FOV in VR mode: use your head to look around!
 	if (g_bEnableVR) {
-		g_CurrentFOV = GLOBAL_FOV;
+		g_CurrentFOVType = GLOBAL_FOV;
 	}
 	else {
-		switch (g_CurrentFOV) {
+		switch (g_CurrentFOVType) {
 		case GLOBAL_FOV:
-			g_CurrentFOV = XWAHACKER_FOV;
+			g_CurrentFOVType = XWAHACKER_FOV;
 			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
 			break;
 		case XWAHACKER_FOV:
-			g_CurrentFOV = XWAHACKER_LARGE_FOV;
+			g_CurrentFOVType = XWAHACKER_LARGE_FOV;
 			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
 			break;
 		case XWAHACKER_LARGE_FOV:
-			g_CurrentFOV = GLOBAL_FOV;
+			g_CurrentFOVType = GLOBAL_FOV;
 			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
 			break;
 		}
@@ -2296,7 +2296,7 @@ bool UpdateXWAHackerFOV()
 	char buf[256];
 	char *FOVname = NULL;
 
-	switch (g_CurrentFOV) {
+	switch (g_CurrentFOVType) {
 	case GLOBAL_FOV:
 		return false;
 	case XWAHACKER_FOV:
@@ -2349,7 +2349,7 @@ bool UpdateXWAHackerFOV()
 	float FOV = atan2(g_fCurInGameHeight, focal_length) * 2.0f;
 	// Convert radians to degrees:
 	FOV *= 180.0f / 3.141592f;
-	log_debug("[DBG] [FOV] FOV that will be saved: %s = %0.3f", FOVname, FOV);
+	log_debug("[DBG] [FOV] FOVType: %d, FOV that will be saved: %s = %0.3f", g_CurrentFOVType, FOVname, FOV);
 	while (fgets(buf, 256, in_file) != NULL) {
 		line++;
 		// Commented lines are automatically pass-through
@@ -2377,6 +2377,42 @@ bool UpdateXWAHackerFOV()
 	remove(sFileName);
 	rename(sTempFileName, sFileName);
 	return true;
+}
+
+float SetCurrentShipFOV(float FOV)
+{
+	float FocalLength;
+	// Prevent nonsensical values:
+	if (FOV < 15.0f) FOV = 15.0f;
+	if (FOV > 170.0f) FOV = 170.0f;
+	// Convert to radians
+	FOV = FOV * 3.141592f / 180.0f;
+	// This formula matches what Jeremy posted:
+	FocalLength = g_fCurInGameHeight / tan(FOV / 2.0f);
+	if (g_bCompensateFOVfor1920x1080) {
+		// Compute the focal length that would be applied in 1920x1080
+		float DFocalLength = 1080.0f / tan(FOV / 2.0f);
+		// Compute the real HFOV and desired HFOV:
+		float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, FocalLength);
+		float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
+		log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
+		// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
+		if (HFOV < DHFOV) {
+			log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original regular focal length: %0.3f", FocalLength);
+			FocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
+			log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED regular focal length: %0.3f", FocalLength);
+		}
+	}
+
+	switch (g_CurrentFOVType) {
+	case XWAHACKER_FOV:
+		g_fCurrentShipFocalLength = FocalLength;
+		break;
+	case XWAHACKER_LARGE_FOV:
+		g_fCurrentShipLargeFocalLength = FocalLength;
+		break;
+	}
+	return FocalLength;
 }
 
 /*
@@ -2527,62 +2563,17 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "xwahacker_fov") == 0) {
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOV: %0.3f", fValue);
-				// Prevent nonsensical values:
-				if (fValue < 15.0f) fValue = 15.0f;
-				if (fValue > 170.0f) fValue = 170.0f;
-				// Convert to radians
-				fValue = fValue * 3.141592f / 180.0f;
-				// This formula matches what Jeremy posted:
-				g_fCurrentShipFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
-				if (g_bCompensateFOVfor1920x1080) {
-					// Compute the focal length that would be applied in 1920x1080
-					float DFocalLength = 1080.0f / tan(fValue / 2.0f);
-					// Compute the real HFOV and desired HFOV:
-					float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipFocalLength);
-					float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
-					log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
-					// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
-					if (HFOV < DHFOV) {
-						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original regular focal length: %0.3f", g_fCurrentShipFocalLength);
-						g_fCurrentShipFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
-						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED regular focal length: %0.3f", g_fCurrentShipFocalLength);
-					}
-				}
-
+				g_fCurrentShipFocalLength = SetCurrentShipFOV(fValue);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
-				g_CurrentFOV = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV;
+				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV;
 				// Force the new FOV to be applied
 				g_bCustomFOVApplied = false;
 			}
 			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOV: %0.3f", fValue);
-				// Prevent nonsensical values:
-				if (fValue < 15.0f) fValue = 15.0f;
-				if (fValue > 170.0f) fValue = 170.0f;
-				// Convert to radians
-				fValue = fValue * 3.141592f / 180.0f;
-				// This formula matches what Jeremy posted:
-				g_fCurrentShipLargeFocalLength = g_fCurInGameHeight / tan(fValue / 2.0f);
-				if (g_bCompensateFOVfor1920x1080) {
-					// Compute the focal length that would be applied in 1920x1080
-					float DFocalLength = 1080.0f / tan(fValue / 2.0f);
-					// For the large FOV we need to do some special processing. The large FOV is specified
-					// with respect to 1920x1080 and aspect ratio of 1.78. So, we need to compensate for
-					// other aspect ratios to provide a similar FOV.
-					// First, let's compute the real HFOV we would get from applying this focal length
-					float HFOV = 2.0f * atan2(0.5f * g_fCurInGameWidth, g_fCurrentShipLargeFocalLength);
-					float DHFOV = 2.0f * atan2(0.5f * 1920.0f, DFocalLength);
-					log_debug("[DBG] [FOV] [DC] HFOV: %0.3f, DHFOV: %0.3f", HFOV / DEG2RAD, DHFOV / DEG2RAD);
-					// If the actual HFOV is lower than the desired HFOV, then we need to adjust:
-					if (HFOV < DHFOV) {
-						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. Original large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
-						g_fCurrentShipLargeFocalLength = 0.5f * g_fCurInGameWidth / tan(0.5f * DHFOV);
-						log_debug("[DBG] [FOV] [DC] ADJUSTING FOV. ADJUSTED large focal length: %0.3f", g_fCurrentShipLargeFocalLength);
-					}
-				}
-
+				g_fCurrentShipLargeFocalLength = SetCurrentShipFOV(fValue);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
-				g_CurrentFOV = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
+				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				// Force the new FOV to be applied
 				g_bCustomFOVApplied = false;
 			}

@@ -24,10 +24,11 @@ extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
 extern float *g_hudScale;
+extern float g_fCurInGameHeight;
 
 extern float g_fDefaultFOVDist;
 extern float g_fDebugFOVscale, g_fDebugYCenter;
-extern float g_fCurrentShipFocalLength, g_fReticleScale;
+extern float g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fReticleScale;
 extern bool g_bYCenterHasBeenFixed;
 extern bool g_bTogglePostPresentHandoff;
 // Current window width and height
@@ -121,6 +122,7 @@ WNDPROC OldWindowProc = 0;
 void ResetVRParams(); // Restores default values for the view params
 void SaveVRParams();
 void LoadVRParams();
+float SetCurrentShipFOV(float FOV);
 void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
@@ -274,8 +276,8 @@ void IncreaseFOV(float delta)
 	*g_fRawFOVDist += delta;
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
-	log_debug("[DBG] [FOV] rawFOV: %d, fRawFOV: %0.6f, cachedFOV: %0.6f",
-		*g_rawFOVDist, *g_fRawFOVDist, *g_cachedFOVDist);
+	log_debug("[DBG] [FOV] IncreaseFOV. fRawFOV: %0.6f", *g_fRawFOVDist);
+	SetCurrentShipFOV(2.0f * atan2(g_fCurInGameHeight, *g_fRawFOVDist) / 0.01745f);
 	// Force recomputation of the y center:
 	g_bYCenterHasBeenFixed = false;
 	ComputeHyperFOVParams();

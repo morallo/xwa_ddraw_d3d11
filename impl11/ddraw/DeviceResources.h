@@ -544,7 +544,7 @@ typedef enum {
 	XWAHACKER_FOV,
 	XWAHACKER_LARGE_FOV
 } FOVtype;
-extern FOVtype g_CurrentFOV;
+extern FOVtype g_CurrentFOVType;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
