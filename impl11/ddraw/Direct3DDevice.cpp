@@ -11,7 +11,8 @@
 
 /*
 TODO:
-	VR metric reconstruction -- In progress
+	The speed effect doesn't work in the external camera anymore.
+
 	Sun flares are still not right in SBS mode.
 
 	What's wrong with the map in VR?

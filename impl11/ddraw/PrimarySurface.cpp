@@ -9813,6 +9813,10 @@ HRESULT PrimarySurface::Flip(
 					g_HyperspacePhaseFSM = HS_INIT_ST;
 				}
 			}
+			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
+			// the Holdo bug (but more changes may be needed).
+			if (*g_playerInHangar)
+				g_HyperspacePhaseFSM = HS_INIT_ST;
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
