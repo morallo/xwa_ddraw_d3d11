@@ -138,8 +138,8 @@ float4 hologram(float2 p, float4 bgColor)
 	dout = smoothstep(0.0, 0.1, dout);
 	
 	// Apply scanline noise to the background
-	float scans = saturate(2.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
-	bgColor *= scans;
+	float scans = saturate(3.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
+	bgColor.rgb *= scans;
 
 	//float scans = 0.5 + 3.0 * sin(25.0*iTime + p.y*250.0);
 	//bgColor.rgb *= scans;
@@ -171,7 +171,7 @@ float stripes(vec2 uv)
 
 float4 getVideo(float2 uv, out float2 look, in float4 hudColor)
 {
-#define SHAKE_AMOUNT 0.3
+#define SHAKE_AMOUNT 0.1
 	look = uv;
 	float window = 1.0 / (1.0 + 20.0*(look.y - mod(iTime / 4.0, 1.0))*(look.y - mod(iTime / 4.0, 1.0)));
 	look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
