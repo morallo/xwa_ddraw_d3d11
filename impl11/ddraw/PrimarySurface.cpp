@@ -114,7 +114,7 @@ extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
 extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
-extern bool g_bEdgeEffectApplied;
+extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
@@ -7662,6 +7662,16 @@ void ACRunAction(WORD *action) {
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
+		return;
+	}
+
+	// Special internal action: these actions don't need to synthesize any input
+	if (action[0] = 0xFF) {
+		switch (action[1]) {
+		case AC_HOLOGRAM_FAKE_VK_CODE:
+			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		}
 		return;
 	}
 

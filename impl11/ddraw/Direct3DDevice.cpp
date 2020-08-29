@@ -1615,9 +1615,9 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// scan codes
 	if (strstr("F1", action) != NULL) {
 		if      (strstr(action, "SHIFT") != NULL)	scanCodes[j] = 0x54;
-		else if (strstr(action, "CTRL") != NULL)		scanCodes[j] = 0x5E;
+		else if (strstr(action, "CTRL") != NULL)	scanCodes[j] = 0x5E;
 		else if (strstr(action, "ALT") != NULL)		scanCodes[j] = 0x68;
-		else											scanCodes[j] = 0x3B;
+		else										scanCodes[j] = 0x3B;
 		return;
 	}
 	// End of function keys
@@ -1626,7 +1626,7 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 	// Composite keys
 	ptr = action;
 	if ((cursor = strstr(action, "SHIFT")) != NULL) { 	scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
-	if ((cursor = strstr(action, "CTRL")) != NULL) {		scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(action, "CTRL")) != NULL) {	scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
 	if ((cursor = strstr(action, "ALT")) != NULL) {		scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
 
 	// Process the function keys
@@ -1709,6 +1709,12 @@ void TranslateACAction(WORD *scanCodes, char *action) {
 		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "HOLOGRAM") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
 			return;
 		}
 	}
