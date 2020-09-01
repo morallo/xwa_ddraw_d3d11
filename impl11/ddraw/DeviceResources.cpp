@@ -150,7 +150,7 @@ extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern float g_fCurrentShipFocalLength;
-extern bool g_bExecuteBufferLock;
+extern bool g_bExecuteBufferLock, g_bDCApplyEraseRegionCommands, g_bHUDVisibleOnStartup;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
@@ -318,7 +318,7 @@ std::vector<const char *>g_HUDRegionNames = {
 	"BEAM_REGION",				// 3
 	"TARGET_AND_LASERS_REGION",	// 4
 	"LEFT_TEXT_BOX_REGION",		// 5
-	"RIGHT_TEXT_BOX_REGION",		// 6
+	"RIGHT_TEXT_BOX_REGION",	// 6
 	"TOP_LEFT_REGION",			// 7
 	"TOP_RIGHT_REGION"			// 8
 };
@@ -329,23 +329,23 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"LASER_RECHARGE_SRC",		// 2
 	"SHIELD_RECHARGE_SRC",		// 3
 	"ENGINE_POWER_SRC",			// 4
-	"BEAM_RECHARGE_SRC",			// 5
+	"BEAM_RECHARGE_SRC",		// 5
 	"SHIELDS_SRC",				// 6
-	"BEAM_LEVEL_SRC"	,			// 7
+	"BEAM_LEVEL_SRC"	,		// 7
 	"TARGETING_COMPUTER_SRC",	// 8
 	"QUAD_LASERS_LEFT_SRC",		// 9
-	"QUAD_LASERS_RIGHT_SRC",		// 10
-	"LEFT_TEXT_BOX_SRC",			// 11
+	"QUAD_LASERS_RIGHT_SRC",	// 10
+	"LEFT_TEXT_BOX_SRC",		// 11
 	"RIGHT_TEXT_BOX_SRC",		// 12
 	"SPEED_THROTTLE_SRC",		// 13
 	"MISSILES_SRC",				// 14
-	"NAME_TIME_SRC",				// 15
-	"NUM_SHIPS_SRC",				// 16
+	"NAME_TIME_SRC",			// 15
+	"NUM_SHIPS_SRC",			// 16
 	"QUAD_LASERS_BOTH_SRC",		// 17
-	"DUAL_LASERS_L_SRC",			// 18
-	"DUAL_LASERS_R_SRC",			// 19
+	"DUAL_LASERS_L_SRC",		// 18
+	"DUAL_LASERS_R_SRC",		// 19
 	"DUAL_LASERS_BOTH_SRC",		// 20
-	"B_WING_LASERS_SRC",			// 21
+	"B_WING_LASERS_SRC",		// 21
 	"SIX_LASERS_BOTH_SRC",		// 22
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
@@ -1207,6 +1207,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_b3DSunPresent = false;
 	g_b3DSkydomePresent = false;
 	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
+	g_bDCApplyEraseRegionCommands = !g_bHUDVisibleOnStartup;
 	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSkydomePresent");
 
 	g_TextureVector.clear();

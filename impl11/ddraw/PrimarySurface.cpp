@@ -113,7 +113,7 @@ extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
+extern bool g_bDCApplyEraseRegionCommands;
 extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
 //float g_fReticleOfsX = 0.0f;
@@ -2169,10 +2169,7 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 int PrimarySurface::ClearHUDRegions() {
 	D3D11_VIEWPORT viewport = { 0 };
 	int num_regions_erased = 0;
-	// Ignore the "erase_region" commands if the global toggle is set:
-	if (g_bDCIgnoreEraseCommands)
-		return num_regions_erased;
-
+	
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
 	viewport.Width    = (float )_deviceResources->_backbufferWidth;
@@ -9423,10 +9420,8 @@ HRESULT PrimarySurface::Flip(
 			//if (true)
 			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
-				// Ignore DC erase commands if the cockpit is hidden
-				if (g_bToggleEraseCommandsOnCockpitDisplayed) g_bDCIgnoreEraseCommands = !bCockpitDisplayed;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled && !bExternalCamera)
+				if (g_bDynCockpitEnabled && g_bDCApplyEraseRegionCommands && !bExternalCamera)
 					ClearHUDRegions();
 
 				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file

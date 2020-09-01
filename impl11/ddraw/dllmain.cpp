@@ -91,7 +91,7 @@ extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
 extern bool g_bHDREnabled, g_bEdgeDetectorEnabled;
 extern float g_fHDRWhitePoint;
 
-extern bool bFreePIEAlreadyInitialized, g_bDCIgnoreEraseCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
+extern bool bFreePIEAlreadyInitialized, g_bDCApplyEraseRegionCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
 void ShutdownFreePIE();
 
 // DEBUG
@@ -666,8 +666,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Toggle Normal Mapping
 				g_bFNEnable = !g_bFNEnable;
 				return 0;
+			// Ctrl+Alt+H
 			case 'H':
-				g_bHDREnabled = !g_bHDREnabled;
+				//g_bHDREnabled = !g_bHDREnabled;
+				g_bDCApplyEraseRegionCommands = !g_bDCApplyEraseRegionCommands;
+				//g_bGlobalDebugFlag = !g_bGlobalDebugFlag;
 				return 0;
 
 			case 'B':
@@ -700,11 +703,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bCustomFOVApplied = false;
 				LoadVRParams();
 				return 0;
-			//case 'H':
-				//ToggleCockpitPZHack();
-				//g_bDCIgnoreEraseCommands = !g_bDCIgnoreEraseCommands;
-				//g_bGlobalDebugFlag = !g_bGlobalDebugFlag;
-				//return 0;
+			
 			case 'W':
 				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
@@ -810,20 +809,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bShadowMapDebug = !g_bShadowMapDebug;
 				return 0;
 			}
-			case 'T': {
+			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
+			//case 'T': {
 				//g_bShadowMapEnablePCSS = !g_bShadowMapEnablePCSS;
-				g_bDCHologramsVisible = !g_bDCHologramsVisible;
-				return 0;
-			}
+				//g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				//return 0;
+			//}
 			case 'S': {
 				g_bShadowMapEnable = !g_bShadowMapEnable;
 				return 0;
 			}
-			case 'E': {
-				g_bShadowMapHardwarePCF = !g_bShadowMapHardwarePCF;
-				log_debug("[DBG] [SHW] g_bShadowMapHardwarePCF: %d", g_bShadowMapHardwarePCF);
-				return 0;
-			}
+			//case 'E': {
+			//	g_bShadowMapHardwarePCF = !g_bShadowMapHardwarePCF;
+			//	log_debug("[DBG] [SHW] g_bShadowMapHardwarePCF: %d", g_bShadowMapHardwarePCF);
+			//	return 0;
+			//}
 
 			case 'F': {
 				CycleFOVSetting();
@@ -1001,6 +1001,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					return 0;
 				*/
 #endif
+			case 'T': {
+				g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				return 0;
+			}
 
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
@@ -1060,6 +1064,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_fShadowMapScale = 1.0f;
 				// Force recalculation of y-center:
 				g_bYCenterHasBeenFixed = false;
+				break;
+
+			case 'D' :
+				g_bDCApplyEraseRegionCommands = !g_bDCApplyEraseRegionCommands;
 				break;
 			}
 		}
