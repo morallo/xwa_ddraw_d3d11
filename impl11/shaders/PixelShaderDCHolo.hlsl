@@ -138,7 +138,8 @@ float4 hologram(float2 p, float4 bgColor)
 	dout = smoothstep(0.0, 0.1, dout);
 	
 	// Apply scanline noise to the background
-	float scans = saturate(3.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
+	//float scans = saturate(3.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
+	float scans = 0.9 + 0.1 * sin(25.0*iTime + p.y*250.0);
 	bgColor.rgb *= scans;
 
 	//float scans = 0.5 + 3.0 * sin(25.0*iTime + p.y*250.0);
