@@ -119,7 +119,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.ssaoMask.a = 0.0;
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, coverAlpha);
 
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
+	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 

@@ -2596,7 +2596,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "hologram") == 0) {
 				g_DCElements[lastDCElemSelected].bHologram = (bool)fValue;
-				log_debug("[DBG] [DC] %s is a Hologram", g_DCElements[lastDCElemSelected].name);
+				//log_debug("[DBG] [DC] %s is a Hologram", g_DCElements[lastDCElemSelected].name);
 			}
 		}
 	}

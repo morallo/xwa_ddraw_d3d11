@@ -14,6 +14,7 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
+static const float HOLOGRAM_ALPHA = 0.9; // This is the max alpha of the hologram
 // This color should be specified by the current HUD color
 static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 1.0);
 //static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 1.0);
@@ -98,8 +99,8 @@ float4 uintColorToFloat4(uint color_idx) {
 		((color_idx >> 16) & 0xFF) / 255.0,  // R 0xFF0000
 		((color_idx >>  8) & 0xFF) / 255.0,  // G 0x00FF00
 		 (color_idx        & 0xFF) / 255.0,  // B 0x0000FF
-		 0.75
-	); // Alpha
+		 HOLOGRAM_ALPHA // Alpha
+	);
 }
 
 uint getBGColor(uint i) {
@@ -114,16 +115,16 @@ float sdBox(in float2 p, in float2 b)
 	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-float4 hologram(float2 p, float4 bgColor)
+float4 hologram(float2 p, float4 bgColor, out float shadeless_alpha)
 {
 	// Compute the background color
 	//float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
 	//float4 hud_texelColor = BG_COLOR;
-	float d = sdBox(p - 0.5, 0.32 * 1.0);
+	float d = sdBox(p - 0.5, 0.32);
+	float ds = sdBox(p - 0.5, 0.2);
 
 	// Make the edges round:
-	//float din = d - 0.02;
-	
+	float din = ds - 0.07;
 	//float dout = d - 0.1;
 	float dout = d - 0.07; // Smaller blackout margin
 	//float dout = d - 0.03; // Even smaller blackout margin
@@ -136,6 +137,7 @@ float4 hologram(float2 p, float4 bgColor)
 	//float4 bgColor = BG_COLOR;
 	//float4 bgColor = SunColor[0];
 	dout = smoothstep(0.0, 0.1, dout);
+	shadeless_alpha = smoothstep(0.2, 0.0, din);
 	
 	// Apply scanline noise to the background
 	//float scans = saturate(3.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
@@ -147,6 +149,8 @@ float4 hologram(float2 p, float4 bgColor)
 	//bgColor.a *= saturate(scans);
 
 	bgColor.a = lerp(bgColor.a, 0.0, dout);
+	//shadeless_alpha = lerp(1.0, 0.0, din);
+	//din = lerp(din, 0.0, din); --> This creates a square margin
 	return bgColor;
 }
 
@@ -170,7 +174,7 @@ float stripes(vec2 uv)
 	return n * ramp(mod(uv.y*4. + iTime / 2.0 + sin(iTime + sin(iTime*0.63)), 1.), 0.5, 0.6);
 }
 
-float4 getVideo(float2 uv, out float2 look, in float4 hudColor)
+float4 getVideo(float2 uv, out float2 look, in float4 hudColor, out float shadeless_alpha)
 {
 #define SHAKE_AMOUNT 0.1
 	look = uv;
@@ -182,7 +186,7 @@ float4 getVideo(float2 uv, out float2 look, in float4 hudColor)
 	//									 (0.5 + 0.1*sin(iTime*200.)*cos(iTime)));
 
 	//look.y = mod(look.y + vShift, 1.);
-	float4 video = hologram(look, hudColor);
+	float4 video = hologram(look, hudColor, shadeless_alpha);
 	return video;
 }
 
@@ -192,9 +196,9 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	// Zero-out the bloom mask.
-	output.bloom = float4(0, 0, 0, 0);
-	output.color = 0;
-	output.pos3D = 0;
+	output.bloom  = float4(0, 0, 0, 0);
+	output.color  = 0;
+	output.pos3D  = 0;
 	output.normal = 0; // Holograms are shadeless
 
 	// Fix UVs that are greater than 1 or negative.
@@ -203,13 +207,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (input.tex.y < 0.0) input.tex.y += 1.0;
 
 	//float4 bgColor = hologram(input.tex.xy);
+	float shadeless_alpha;
 	float2 distorted_uv;
 	float4 hudColor = uintColorToFloat4(getBGColor(0));
-	float4 bgColor = getVideo(input.tex.xy, distorted_uv, hudColor);
-	// Apply noise to the hologram
-	bgColor.rgb *= 2.0 * (0.5 + 0.5 * noise2(input.tex.xy));
+	float4 bgColor = getVideo(input.tex.xy, distorted_uv, hudColor, shadeless_alpha);
+	// Apply noise to the hologram and reduce the background color to make text
+	// easier to read
+	bgColor.rgb *= 0.25 * (0.5 + 0.5 * noise2(input.tex.xy));
 
 	float holo_alpha = bgColor.a;
+	//float holo_alpha = 1.0;
 
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
@@ -222,14 +229,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// edges -- we just need to kill all the glossiness.
 	output.ssaoMask = float4(PLASTIC_MAT, 0.0, 0.0, 0.0 /* coverAlpha */);
 
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
-	output.ssMask = float4(0.0, 0.0, 0.0, 0.0);
+	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
+	output.ssMask = float4(0.0, 0.0, 1.0, 0.0);
 
 	output.color      = bgColor;
-	output.bloom	  = 0.15 * bgColor;
+	output.bloom	  = 0.7 * bgColor;
 	output.bloom.a    = holo_alpha;
 	output.ssaoMask.a = holo_alpha;
-	output.ssMask.a   = holo_alpha;
+	output.ssMask.a   = shadeless_alpha;
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -246,7 +253,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
 	// dst uv coords
 	
-	float intensity = 1.0, text_alpha_override = 1.0, obj_alpha_override = 1.0;
+	float intensity = 1.0, text_alpha_override = 2.0, obj_alpha_override = 1.0;
 	float4 hud_texelColor = bgColor;
 
 	//[unroll] unroll or loop?
@@ -288,15 +295,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.color = float4(hud_texelColor.rgb, max(holo_alpha, hud_texelColor.a));
 	output.color = hud_texelColor;
 
-	// Black-noise fade in -- this part will be played when turning
-	// on the effect.
+	// Black-noise fade in/out -- this part will be played when turning the effect
+	// on and off.
 	const float fadeIn = twirl;
 	if (fadeIn < 1.0) {
 		const float size = 10.0 + 30.0 * fadeIn;
 		float speckle_noise = 3.0 * (noise(size * float3(input.tex, 20.0 * fadeIn)) - 0.5);
 		float4 nvideo = output.color * lerp(speckle_noise, 1.0, fadeIn);
 		output.color = lerp(0.0, nvideo, clamp(fadeIn * 3.0, 0.0, 1.0));
-		output.bloom = lerp(0.0, nvideo, clamp(fadeIn, 0.0, 1.0));
+		output.bloom = lerp(0.0, 2.0 * nvideo, clamp(fadeIn, 0.0, 1.0));
+		output.ssMask.a = min(output.ssMask.a, output.color.a);
 	}
 	//output.color = clamp(3.0 * (noise(30.0 * float3(input.tex, 20.0 * iTime)) - 0.5), 0.0, 1.0);
 	//output.bloom = 0.15 * output.color;

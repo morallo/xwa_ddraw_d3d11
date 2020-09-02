@@ -136,21 +136,22 @@ float3 blend_normals(float3 n1, float3 n2)
 
 PixelShaderOutput main(PixelShaderInput input)
 {
-	float2 input_uv_sub	 = input.uv * amplifyFactor;
-	float3 color		 = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal		 = texNormal.Sample(samplerNormal, input.uv);
-	float3 ssao			 = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
-	float3 ssaoMask		 = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask		 = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float  mask			 = ssaoMask.x;
-	float  gloss_mask	 = ssaoMask.y;
-	float  spec_int_mask = ssaoMask.z;
-	float  diff_int		 = 1.0;
+	float2 input_uv_sub	  = input.uv * amplifyFactor;
+	float3 color		  = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal		  = texNormal.Sample(samplerNormal, input.uv);
+	float3 ssao			  = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
+	float3 ssaoMask		  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask		  = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float  mask			  = ssaoMask.x;
+	float  gloss_mask	  = ssaoMask.y;
+	float  spec_int_mask  = ssaoMask.z;
+	float  diff_int		  = 1.0;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	float  shadeless	 = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	float  metallic		 = mask / METAL_MAT;
-	float  nm_int		 = ssMask.x;
-	float  spec_val		 = ssMask.y;
+	float  shadeless	  = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	float  metallic		  = mask / METAL_MAT;
+	float  nm_int		  = ssMask.x;
+	float  spec_val		  = ssMask.y;
+	float  shadeless_mask = ssMask.z;
 	float3 pos3D;
 
 	PixelShaderOutput output;
@@ -170,6 +171,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
+	shadeless = max(shadeless, shadeless_mask);
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast

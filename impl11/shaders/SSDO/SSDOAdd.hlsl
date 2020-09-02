@@ -427,32 +427,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.bent  = 0;
 
-	float2 input_uv_sub  = input.uv * amplifyFactor;
+	float2 input_uv_sub   = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
-	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float2 input_uv_sub2  = input.uv * amplifyFactor;
+	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
-	float  mask          = ssaoMask.x;
-	float  gloss_mask    = ssaoMask.y;
-	float  spec_int_mask = ssaoMask.z;
-	float  diff_int      = 1.0;
-	float  metallic      = mask / METAL_MAT;
-	float  nm_int_mask   = ssMask.x;
-	float  spec_val_mask = ssMask.y;
+	float  mask           = ssaoMask.x;
+	float  gloss_mask     = ssaoMask.y;
+	float  spec_int_mask  = ssaoMask.z;
+	float  diff_int       = 1.0;
+	float  metallic       = mask / METAL_MAT;
+	float  nm_int_mask    = ssMask.x;
+	float  spec_val_mask  = ssMask.y;
+	float  shadeless_mask = ssMask.z;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	//float  diffuse_difference = 1.0;
-	// ssMask.z is unused ATM
+	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	shadeless = max(shadeless, shadeless_mask);
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:

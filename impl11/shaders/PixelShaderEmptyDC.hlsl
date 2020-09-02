@@ -72,7 +72,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	//output.diffuse = input.color;
 
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, unused
+	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
 
 	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
