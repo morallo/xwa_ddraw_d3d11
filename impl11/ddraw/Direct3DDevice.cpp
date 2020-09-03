@@ -11,6 +11,8 @@
 
 /*
 TODO:
+	Hotkeys to adjust the aspect ratio for the SteamVR mirror window.
+
 	The speed effect doesn't work in the external camera anymore.
 
 	Sun flares are still not right in SBS mode.
@@ -587,11 +589,13 @@ DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 
+float g_fCoverTextureBrightness = 1.0f;
+float g_fDCBrightness = 1.0f;
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
-bool g_bHUDVisibleOnStartup = false;
+bool g_bHUDVisibleOnStartup = false, g_bNoisyHolograms = false;
 bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
@@ -726,8 +730,6 @@ float g_fAspectRatio = DEFAULT_ASPECT_RATIO;
 bool g_bZoomOut = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 bool g_bZoomOutInitialState = DEFAULT_ZOOM_OUT_INITIAL_STATE;
 float g_fBrightness = DEFAULT_BRIGHTNESS;
-float g_fCoverTextureBrightness = 1.0f;
-float g_fDCBrightness = 1.0f;
 float g_fGUIElemsScale = DEFAULT_GUI_SCALE; // Used to reduce the size of all the GUI elements
 int g_iFreePIESlot = DEFAULT_FREEPIE_SLOT;
 int g_iFreePIEControllerSlot = -1;
@@ -2596,7 +2598,10 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "hologram") == 0) {
 				g_DCElements[lastDCElemSelected].bHologram = (bool)fValue;
-				//log_debug("[DBG] [DC] %s is a Hologram", g_DCElements[lastDCElemSelected].name);
+			}
+			else if (_stricmp(param, "noisy_hologram") == 0) {
+				g_bNoisyHolograms = true;
+				log_debug("[DBG] noisy hologram");
 			}
 		}
 	}
@@ -6877,6 +6882,7 @@ HRESULT Direct3DDevice::Execute(
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
 	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
+	g_DCPSCBuffer.noisy_holo	= g_bNoisyHolograms;
 
 	char* step = "";
 
@@ -9245,6 +9251,8 @@ HRESULT Direct3DDevice::Execute(
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };
 						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;
+						g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
+						g_DCPSCBuffer.noisy_holo	= g_bNoisyHolograms;
 						// Restore the regular pixel shader (disable the PixelShaderDC)
 						//resources->InitPixelShader(lastPixelShader);
 					}

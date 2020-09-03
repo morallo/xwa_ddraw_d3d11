@@ -404,6 +404,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DC_common.h" />
     <ClInclude Include="HSV.h" />
     <ClInclude Include="material_defs.h" />
     <ClInclude Include="metric_common.h" />

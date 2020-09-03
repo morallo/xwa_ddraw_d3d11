@@ -13,6 +13,7 @@
 #include "PixelShaderTextureCommon.h"
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
+#include "DC_common.h"
 
 static const float HOLOGRAM_ALPHA = 0.9; // This is the max alpha of the hologram
 // This color should be specified by the current HUD color
@@ -50,19 +51,6 @@ struct PixelShaderOutput
 	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
 	float4 ssMask   : SV_TARGET5;
-};
-
-// DCPixelShaderCBuffer
-cbuffer ConstantBuffer : register(b1)
-{
-	float4 src[MAX_DC_COORDS_PER_TEXTURE];		  // HLSL packs each element in an array in its own 4-vector (16 bytes) slot, so .xy is src0 and .zw is src1
-	float4 dst[MAX_DC_COORDS_PER_TEXTURE];
-	uint4 bgColor[MAX_DC_COORDS_PER_TEXTURE / 4]; // Background colors to use for the dynamic cockpit, this divide by 4 is because HLSL packs each elem in a 4-vector,
-												  // So each elem here is actually 4 bgColors.
-
-	float ct_brightness;				  // Cover texture brightness. In 32-bit mode the cover textures have to be dimmed.
-	float dc_brightness;				  // DC element brightness
-	float unused2, unused3;
 };
 
 // Noise from https://www.shadertoy.com/view/4sfGzS
@@ -141,8 +129,12 @@ float4 hologram(float2 p, float4 bgColor, out float shadeless_alpha)
 	
 	// Apply scanline noise to the background
 	//float scans = saturate(3.5 + 5.0 * sin(25.0*iTime + p.y*250.0));
-	float scans = 0.9 + 0.1 * sin(25.0*iTime + p.y*250.0);
-	bgColor.rgb *= scans;
+	if (noisy_holo) {
+		float scans = 0.8 + 0.2 * sin(25.0*iTime + p.y*250.0);
+		//float scans = 0.9 + 0.1 * sin(25.0*iTime + p.y*250.0);
+		bgColor *= scans;
+		shadeless_alpha *= scans;
+	}
 
 	//float scans = 0.5 + 3.0 * sin(25.0*iTime + p.y*250.0);
 	//bgColor.rgb *= scans;
@@ -176,10 +168,11 @@ float stripes(vec2 uv)
 
 float4 getVideo(float2 uv, out float2 look, in float4 hudColor, out float shadeless_alpha)
 {
-#define SHAKE_AMOUNT 0.1
+//#define SHAKE_AMOUNT 0.1
+	float shake_amount = 0.1 + (noisy_holo * 0.2);
 	look = uv;
 	float window = 1.0 / (1.0 + 20.0*(look.y - mod(iTime / 4.0, 1.0))*(look.y - mod(iTime / 4.0, 1.0)));
-	look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
+	look.x = look.x + shake_amount * sin(look.y*10.0 + iTime) / 50.0 * onOff(4., 4., .3) * (1.0 + cos(iTime*80.))*window;
 	//look.x = look.x + SHAKE_AMOUNT * sin(look.y*10.0 + iTime) / 50.0 * onOff(1.0, 1.0, 0.1) * window;
 
 	//float vShift = 0.4*onOff(2.,3.,.9)*(sin(iTime)*sin(iTime*20.) + 
@@ -213,7 +206,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 bgColor = getVideo(input.tex.xy, distorted_uv, hudColor, shadeless_alpha);
 	// Apply noise to the hologram and reduce the background color to make text
 	// easier to read
-	bgColor.rgb *= 0.25 * (0.5 + 0.5 * noise2(input.tex.xy));
+	bgColor.rgb *= 0.2 * (0.5 + 0.5 * noise2(input.tex.xy));
 
 	float holo_alpha = bgColor.a;
 	//float holo_alpha = 1.0;
@@ -233,7 +226,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = float4(0.0, 0.0, 1.0, 0.0);
 
 	output.color      = bgColor;
-	output.bloom	  = 0.7 * bgColor;
+	output.bloom	  = 0.5 * bgColor;
 	output.bloom.a    = holo_alpha;
 	output.ssaoMask.a = holo_alpha;
 	output.ssMask.a   = shadeless_alpha;
@@ -282,7 +275,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (hud_alpha > 0.5) {
 				output.ssaoMask.r = SHADELESS_MAT;
 				output.ssaoMask.a = 1.0;
-				output.bloom = 0.75 * float4(hud_texelColor);
+				output.bloom = 0.7 * float4(hud_texelColor);
 			}
 			
 			// Add the background color to the dynamic cockpit display:

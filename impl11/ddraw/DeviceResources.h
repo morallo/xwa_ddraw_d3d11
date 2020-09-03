@@ -381,7 +381,8 @@ typedef struct DCPixelShaderCBStruct {
 	// 432 bytes thus far
 
 	float ct_brightness, dc_brightness;
-	float unused[2];
+	uint32_t noisy_holo; // If set to 1, the hologram shader will be noisy!
+	float unused;
 	// 448 bytes
 } DCPixelShaderCBuffer;
 
