@@ -2389,7 +2389,7 @@ bool UpdateXWAHackerFOV()
 	return true;
 }
 
-float SetCurrentShipFOV(float FOV)
+float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV)
 {
 	float FocalLength;
 	// Prevent nonsensical values:
@@ -2414,13 +2414,15 @@ float SetCurrentShipFOV(float FOV)
 		}
 	}
 
-	switch (g_CurrentFOVType) {
-	case XWAHACKER_FOV:
-		g_fCurrentShipFocalLength = FocalLength;
-		break;
-	case XWAHACKER_LARGE_FOV:
-		g_fCurrentShipLargeFocalLength = FocalLength;
-		break;
+	if (OverwriteCurrentShipFOV) {
+		switch (g_CurrentFOVType) {
+		case XWAHACKER_FOV:
+			g_fCurrentShipFocalLength = FocalLength;
+			break;
+		case XWAHACKER_LARGE_FOV:
+			g_fCurrentShipLargeFocalLength = FocalLength;
+			break;
+		}
 	}
 	return FocalLength;
 }
@@ -2573,7 +2575,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "xwahacker_fov") == 0) {
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOV: %0.3f", fValue);
-				g_fCurrentShipFocalLength = SetCurrentShipFOV(fValue);
+				g_fCurrentShipFocalLength = SetCurrentShipFOV(fValue, false);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV;
 				// Force the new FOV to be applied
@@ -2581,7 +2583,10 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "xwahacker_large_fov") == 0) {
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOV: %0.3f", fValue);
-				g_fCurrentShipLargeFocalLength = SetCurrentShipFOV(fValue);
+				// SetCurrentShipFOV can overwrite g_fCurrentShipFocalLength and g_fCurrentShipLargeFocalLength because
+				// we need that when increasing the FOV using hotkeys. However, we must not overwrite those values here
+				// because the current FOV at this point is XWAHACKER, so we end up writing the same value to both FOVs
+				g_fCurrentShipLargeFocalLength = SetCurrentShipFOV(fValue, false);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
 				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				// Force the new FOV to be applied

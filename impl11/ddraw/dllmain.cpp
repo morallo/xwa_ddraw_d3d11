@@ -122,7 +122,7 @@ WNDPROC OldWindowProc = 0;
 void ResetVRParams(); // Restores default values for the view params
 void SaveVRParams();
 void LoadVRParams();
-float SetCurrentShipFOV(float FOV);
+float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV = true);
 void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
