@@ -2462,6 +2462,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 	//}
 	//ClearDCMoveRegions();
 	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
+	g_bNoisyHolograms = false;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
