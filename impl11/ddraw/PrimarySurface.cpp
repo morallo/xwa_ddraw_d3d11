@@ -7663,7 +7663,7 @@ void ACRunAction(WORD *action) {
 	}
 
 	// Special internal action: these actions don't need to synthesize any input
-	if (action[0] = 0xFF) {
+	if (action[0] == 0xFF) {
 		switch (action[1]) {
 		case AC_HOLOGRAM_FAKE_VK_CODE:
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
