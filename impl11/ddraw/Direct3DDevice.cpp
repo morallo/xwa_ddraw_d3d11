@@ -595,7 +595,7 @@ int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
-bool g_bHUDVisibleOnStartup = false, g_bNoisyHolograms = false;
+bool g_bHUDVisibleOnStartup = false;
 bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
 int g_iHUDOffscreenCommandsRendered = 0;
@@ -2462,7 +2462,6 @@ bool LoadIndividualDCParams(char *sFileName) {
 	//}
 	//ClearDCMoveRegions();
 	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
-	g_bNoisyHolograms = false;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2503,6 +2502,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 					dc_elem.bActive = false;
 					dc_elem.bNameHasBeenTested = false;
 					dc_elem.bHologram = false;
+					dc_elem.bNoisyHolo = false;
 					//g_DCElements.push_back(dc_elem);
 					g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
@@ -2606,7 +2606,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				g_DCElements[lastDCElemSelected].bHologram = (bool)fValue;
 			}
 			else if (_stricmp(param, "noisy_hologram") == 0) {
-				g_bNoisyHolograms = true;
+				g_DCElements[lastDCElemSelected].bNoisyHolo = (bool)fValue;
 				log_debug("[DBG] noisy hologram");
 			}
 		}
@@ -6888,7 +6888,6 @@ HRESULT Direct3DDevice::Execute(
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
 	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
-	g_DCPSCBuffer.noisy_holo	= g_bNoisyHolograms;
 
 	char* step = "";
 
@@ -7297,7 +7296,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
-				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false, bIsHologram = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false, bIsHologram = false, bIsNoisyHolo = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -7305,6 +7304,7 @@ HRESULT Direct3DDevice::Execute(
 						int idx = lastTextureSelected->DCElementIndex;
 						if (idx >= 0 && idx < g_iNumDCElements) {
 							bIsHologram |= g_DCElements[idx].bHologram;
+							bIsNoisyHolo |= g_DCElements[idx].bNoisyHolo;
 						}
 					}
 
@@ -8773,6 +8773,7 @@ HRESULT Direct3DDevice::Execute(
 								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
 								g_DCPSCBuffer.src[numCoords] = uv_src;
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
+								g_DCPSCBuffer.noisy_holo = bIsNoisyHolo;
 								if (bWarheadLocked)
 									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
 								else
@@ -9258,7 +9259,6 @@ HRESULT Direct3DDevice::Execute(
 						g_DCPSCBuffer = { 0 };
 						g_DCPSCBuffer.ct_brightness = g_fCoverTextureBrightness;
 						g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
-						g_DCPSCBuffer.noisy_holo	= g_bNoisyHolograms;
 						// Restore the regular pixel shader (disable the PixelShaderDC)
 						//resources->InitPixelShader(lastPixelShader);
 					}

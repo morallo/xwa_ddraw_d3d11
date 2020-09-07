@@ -1132,6 +1132,7 @@ void DeviceResources::ResetDynamicCockpit() {
 				elem->bActive = false;
 				elem->bNameHasBeenTested = false;
 				elem->bHologram = false;
+				elem->bNoisyHolo = false;
 			}
 		}
 		// Reset the dynamic cockpit vector

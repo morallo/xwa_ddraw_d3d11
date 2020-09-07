@@ -447,7 +447,7 @@ typedef struct dc_element_struct {
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
 	//ID3D11ShaderResourceView *coverTexture = NULL;
-	bool bActive, bNameHasBeenTested, bHologram;
+	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo;
 } dc_element;
 
 typedef struct move_region_coords_struct {
