@@ -7662,6 +7662,12 @@ HRESULT Direct3DDevice::Execute(
 				 *************************************************************************/
 
 				if (!g_bAOEnabled && bIsLightTexture) {
+					// The EngineGlow texture is also used to render the smoke, so it will glow. I
+					// tried enabling the transparency when the engine glow is about to be rendered,
+					// but the smoke still doesn't look quite right when the effects are off -- I
+					// think transparency was already enabled, so that's why it didn't make any difference
+					//|| (bLastTextureSelectedNotNULL && lastTextureSelected->is_EngineGlow)) {
+
 					// We need to set the blend state properly for light textures when AO is disabled.
 					// Not sure why; but here you go: This fixes the black textures bug
 					EnableTransparency();
@@ -8078,7 +8084,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Avoid rendering explosions on the CMD if we're rendering edges.
-				// This didn't make much difference: the real problem is that the explosions and smoke isn't doing
+				// This didn't make much difference: the real problem is that the explosions and smoke aren't doing
 				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
 				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
