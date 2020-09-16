@@ -2389,7 +2389,14 @@ bool UpdateXWAHackerFOV()
 	return true;
 }
 
-float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV)
+/*
+ * bOverwriteCurrentShipFOV should be disabled when reading the DC file, so that
+ * we don't overwrite both xwahacker FOVs with the same value.
+ * bCompensateFOVfor1920x1080 should be true only when reading the DC file: compensating
+ * every time the FOV is adjusted has some adverse effects when the in-game resolution is
+ * lower than 1920x1080
+ */
+float SetCurrentShipFOV(float FOV, bool bOverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080)
 {
 	float FocalLength;
 	// Prevent nonsensical values:
@@ -2399,7 +2406,7 @@ float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV)
 	FOV = FOV * 3.141592f / 180.0f;
 	// This formula matches what Jeremy posted:
 	FocalLength = g_fCurInGameHeight / tan(FOV / 2.0f);
-	if (g_bCompensateFOVfor1920x1080) {
+	if (bCompensateFOVfor1920x1080) {
 		// Compute the focal length that would be applied in 1920x1080
 		float DFocalLength = 1080.0f / tan(FOV / 2.0f);
 		// Compute the real HFOV and desired HFOV:
@@ -2414,7 +2421,7 @@ float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV)
 		}
 	}
 
-	if (OverwriteCurrentShipFOV) {
+	if (bOverwriteCurrentShipFOV) {
 		switch (g_CurrentFOVType) {
 		case XWAHACKER_FOV:
 			g_fCurrentShipFocalLength = FocalLength;
@@ -2576,7 +2583,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "xwahacker_fov") == 0) {
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOV: %0.3f", fValue);
-				g_fCurrentShipFocalLength = SetCurrentShipFOV(fValue, false);
+				g_fCurrentShipFocalLength = SetCurrentShipFOV(fValue, false, g_bCompensateFOVfor1920x1080);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER FOCAL LENGTH: %0.3f", g_fCurrentShipFocalLength);
 				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV;
 				// Force the new FOV to be applied
@@ -2587,7 +2594,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 				// SetCurrentShipFOV can overwrite g_fCurrentShipFocalLength and g_fCurrentShipLargeFocalLength because
 				// we need that when increasing the FOV using hotkeys. However, we must not overwrite those values here
 				// because the current FOV at this point is XWAHACKER, so we end up writing the same value to both FOVs
-				g_fCurrentShipLargeFocalLength = SetCurrentShipFOV(fValue, false);
+				g_fCurrentShipLargeFocalLength = SetCurrentShipFOV(fValue, false, g_bCompensateFOVfor1920x1080);
 				log_debug("[DBG] [FOV] [DC] XWA HACKER LARGE FOCAL LENGTH: %0.3f", g_fCurrentShipLargeFocalLength);
 				g_CurrentFOVType = g_bEnableVR ? GLOBAL_FOV : XWAHACKER_FOV; // This is *NOT* an error, I want the default to be XWAHACKER_FOV
 				// Force the new FOV to be applied

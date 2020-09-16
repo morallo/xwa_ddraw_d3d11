@@ -122,7 +122,7 @@ WNDPROC OldWindowProc = 0;
 void ResetVRParams(); // Restores default values for the view params
 void SaveVRParams();
 void LoadVRParams();
-float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV = true);
+float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080);
 void ComputeHyperFOVParams();
 
 void IncreaseIPD(float Delta);
@@ -277,7 +277,7 @@ void IncreaseFOV(float delta)
 	*g_cachedFOVDist = *g_fRawFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)*g_fRawFOVDist;
 	log_debug("[DBG] [FOV] IncreaseFOV. fRawFOV: %0.6f", *g_fRawFOVDist);
-	SetCurrentShipFOV(2.0f * atan2(g_fCurInGameHeight, *g_fRawFOVDist) / 0.01745f);
+	SetCurrentShipFOV(2.0f * atan2(g_fCurInGameHeight, *g_fRawFOVDist) / 0.01745f, true, false);
 	// Force recomputation of the y center:
 	g_bYCenterHasBeenFixed = false;
 	ComputeHyperFOVParams();
