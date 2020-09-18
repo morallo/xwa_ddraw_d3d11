@@ -182,6 +182,8 @@ public:
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
 
+	short AddText(char * str, int font_size_index, short x, short y, uint32_t color);
+
 	void RenderText();
 
 	void RenderRadar();

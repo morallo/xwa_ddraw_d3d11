@@ -8852,8 +8852,15 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled)
 				this->RenderRadar();
 
-			if (g_config.Text2DRendererEnabled)
+			if (g_config.Text2DRendererEnabled) {
+				/*
+				short x = 250, y = 260;
+				x = AddText("Hello ", 0, x, y, 0x5555FF);
+				x = AddText("Weird ", 1, x, y, 0x5555FF);
+				x = AddText("World ", 2, x, y, 0x5555FF);
+				*/
 				this->RenderText();
+			}
 
 			// If we didn't render any GUI/HUD elements so far, then here's the place where we do some management
 			// of the state that is normally done in Execute():
@@ -10373,6 +10380,56 @@ ComPtr<IDWriteTextLayout> layouts[381];
 ComPtr<ID2D1SolidColorBrush> brushes[32];
 int brushColors[32] = {};
 boolean font_initialized = false;
+
+/*
+ * Adds the given text to the buffer that is used by RenderText to display messages.
+ * This function requires Jeremy's new Text Renderer to work.
+ * font_size_index must be an integer in the range 0..2
+ *		index 0: small
+ *		index 1: regular
+ *		index 2: smallest
+ * color is in 0xRRGGBB format.
+ * returns the x coordinate after the last char rendered
+ */
+short PrimarySurface::AddText(char *str, int font_size_index, short x, short y, uint32_t color) {
+	if (!font_initialized)
+		return x;
+
+	// There are 3 font sizes (see the fontSizes global definition): 12, 16, 10
+	int fontSize = fontSizes[font_size_index];
+	// In XwaDrawTextHook, the fontWidths are populated using DWRITE_TEXT_METRICS and other variables.
+	// Here we can just use the values computed by the hook.
+	// Otherwise we would need to do the following for every ASCII char:
+	/*
+		DWRITE_TEXT_METRICS textMetrics;
+		int layoutIndex = index * 256 + (int)character;
+		s_textLayouts[layoutIndex]->GetMetrics(&textMetrics);
+		w = (short)textMetrics.width;
+		h = (short)textMetrics.height;
+	*/
+	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
+	XwaText xwaText;
+
+	// Common attributes for all the chars in the string
+	xwaText.color = color;
+	xwaText.fontSize = fontSize;
+
+	for (int i = 0; str[i]; i++) {
+		char c = str[i];
+		//RenderCharHook(x, y, 0, fontSize, c, color);
+
+		// To speed things up a little bit, I'm not calling RenderCharHook here. Instead
+		// I'm inserting the text directly into g_xwa_text. However, the code below should
+		// follow RenderCharHook.
+		xwaText.positionX = x;
+		xwaText.positionY = y;
+		xwaText.textChar = c;
+		g_xwa_text.push_back(xwaText);
+
+		x += fontWidths[font_size_index][(int)c];
+	}
+	return x;
+}
 
 void PrimarySurface::RenderText()
 {

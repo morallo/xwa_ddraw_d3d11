@@ -37,7 +37,7 @@ void ComputeMetricsHook()
 			L"en-US",
 			&textFormat);
 
-		for (int i = 0; i < 256;i++)
+		for (int i = 0; i < 256; i++)
 		{
 			char t[2];
 			t[0] = (char)i;
