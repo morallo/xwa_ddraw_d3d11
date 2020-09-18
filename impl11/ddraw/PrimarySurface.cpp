@@ -8859,6 +8859,7 @@ HRESULT PrimarySurface::Flip(
 				x = AddText("Weird ", 1, x, y, 0x5555FF);
 				x = AddText("World ", 2, x, y, 0x5555FF);
 				*/
+				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
 				this->RenderText();
 			}
 
@@ -10382,14 +10383,34 @@ int brushColors[32] = {};
 boolean font_initialized = false;
 
 /*
- * Adds the given text to the buffer that is used by RenderText to display messages.
- * This function requires Jeremy's new Text Renderer to work.
- * font_size_index must be an integer in the range 0..2
- *		index 0: small
- *		index 1: regular
- *		index 2: smallest
- * color is in 0xRRGGBB format.
- * returns the x coordinate after the last char rendered
+  Computes the width of the given message. Use this function before adding messages to be
+  displayed.
+ */
+short PrimarySurface::ComputeMsgWidth(char *str, int font_size_index) {
+	int x = 0;
+	if (!font_initialized)
+		return x;
+
+	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
+	for (int i = 0; str[i]; i++)
+		x += fontWidths[font_size_index][(int)str[i]];
+	return x;
+}
+
+/*
+  Adds the given text to the buffer that is used by RenderText to display messages.
+  This function requires Jeremy's new Text Renderer to work.
+ 
+  font_size_index must be an integer in the range 0..2
+ 		index 0: small
+ 		index 1: regular
+ 		index 2: smallest
+ 
+  color is in 0xRRGGBB format.
+ 
+  x,y must be in in-game coordinates
+ 
+  returns the x coordinate after the last char rendered
  */
 short PrimarySurface::AddText(char *str, int font_size_index, short x, short y, uint32_t color) {
 	if (!font_initialized)
@@ -10429,6 +10450,16 @@ short PrimarySurface::AddText(char *str, int font_size_index, short x, short y, 
 		x += fontWidths[font_size_index][(int)c];
 	}
 	return x;
+}
+
+/*
+  Adds centered text at the given vertical position.
+  Returns the x coordinate where the next char can be placed
+ */
+short PrimarySurface::AddCenteredText(char *str, int font_size_index, short y, uint32_t color) {
+	short width = ComputeMsgWidth(str, font_size_index);
+	short x = (short)(g_fCurInGameWidth / 2.0f) - width / 2;
+	return AddText(str, font_size_index, x, y, color);
 }
 
 void PrimarySurface::RenderText()
