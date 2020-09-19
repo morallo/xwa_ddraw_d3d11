@@ -145,6 +145,9 @@ void IncreaseLensK2(float Delta);
 bool InitDirectSBS();
 bool ShutDownDirectSBS();
 
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
+void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...);
+
 // SteamVR
 #include <headers/openvr.h>
 extern bool g_bSteamVREnabled, g_bSteamVRInitialized, g_bUseSteamVR, g_bEnableSteamVR_QPC, g_bSteamVRMirrorWindowLeftEye;
@@ -637,6 +640,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'F':
 				g_config.FXAAEnabled = !g_config.FXAAEnabled;
+				if (g_config.FXAAEnabled)
+					DisplayTimedMessage(3, 0, "FXAA Enabled");
+				else
+					DisplayTimedMessage(3, 0, "FXAA Disabled");
 				return 0;
 			case 'X':
 				g_bDumpSSAOBuffers = true;
@@ -650,6 +657,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// DEBUG
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
+				if (g_bEnableIndirectSSDO)
+					DisplayTimedMessage(3, 0, "Indirect SSDO Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Indirect SSDO Disabled");
 				return 0;
 			case 'I':
 				g_bShadowEnable = !g_bShadowEnable;
@@ -665,6 +676,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'N':
 				// Toggle Normal Mapping
 				g_bFNEnable = !g_bFNEnable;
+				if (g_bFNEnable)
+					DisplayTimedMessage(3, 0, "Normal Mapping Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Normal Mapping Disabled");
 				return 0;
 			// Ctrl+Alt+H
 			case 'H':
@@ -694,6 +709,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case 'S':
 				SaveVRParams();
+				DisplayTimedMessage(3, 0, "VRParams.cfg Saved");
 				return 0;
 			//case 'T':
 			//	g_bToggleSkipDC = !g_bToggleSkipDC;
@@ -774,6 +790,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'H':
 				g_bEnableHeadLights = !g_bEnableHeadLights;
+				if (g_bEnableHeadLights)
+					DisplayTimedMessage(3, 0, "Headlights ON");
+				else
+					DisplayTimedMessage(3, 0, "Headlights OFF");
 				return 0;
 			// Ctrl+O
 			//case 'O':

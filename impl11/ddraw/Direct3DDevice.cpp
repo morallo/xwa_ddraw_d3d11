@@ -2275,15 +2275,18 @@ void CycleFOVSetting()
 		switch (g_CurrentFOVType) {
 		case GLOBAL_FOV:
 			g_CurrentFOVType = XWAHACKER_FOV;
-			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
+			DisplayTimedMessage(4, 0, "Current Craft FOV");
 			break;
 		case XWAHACKER_FOV:
 			g_CurrentFOVType = XWAHACKER_LARGE_FOV;
-			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
+			DisplayTimedMessage(4, 0, "Current Craft Large FOV");
 			break;
 		case XWAHACKER_LARGE_FOV:
 			g_CurrentFOVType = GLOBAL_FOV;
-			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
+			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
+			DisplayTimedMessage(4, 0, "Global FOV");
 			break;
 		}
 
@@ -2402,6 +2405,7 @@ float SetCurrentShipFOV(float FOV, bool bOverwriteCurrentShipFOV, bool bCompensa
 	// Prevent nonsensical values:
 	if (FOV < 15.0f) FOV = 15.0f;
 	if (FOV > 170.0f) FOV = 170.0f;
+	DisplayTimedMessageV(3, 1, "FOV: %0.1f", FOV);
 	// Convert to radians
 	FOV = FOV * 3.141592f / 180.0f;
 	// This formula matches what Jeremy posted:

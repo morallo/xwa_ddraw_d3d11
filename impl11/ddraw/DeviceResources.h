@@ -578,6 +578,53 @@ public:
 	}
 };
 
+// Text Rendering
+// Font indices that can be used with the PrimarySurface::AddText() methods (and others) below
+#define FONT_MEDIUM_IDX 0
+#define FONT_LARGE_IDX 1
+#define FONT_SMALL_IDX 2
+#define FONT_BLUE_COLOR 0x5555FF
+
+class TimedMessage {
+public:
+	time_t t_exp;
+	char msg[128];
+	short y;
+	short font_size_idx;
+	uint32_t color;
+
+	TimedMessage() {
+		this->msg[0] = 0;
+		this->y = 200;
+		this->color = FONT_BLUE_COLOR;
+		this->font_size_idx = FONT_LARGE_IDX;
+	}
+
+	inline bool IsExpired() {
+		return this->msg[0] == 0;
+	}
+
+	inline void SetMsg(char *msg, time_t seconds, short y, short font_size_idx, uint32_t color) {
+		strcpy_s(this->msg, 128, msg);
+		this->t_exp = time(NULL) + seconds;
+		this->y = y;
+		this->font_size_idx = font_size_idx;
+		this->color = color;
+	}
+
+	inline void Tick() {
+		time_t t = time(NULL);
+		if (t > this->t_exp)
+			this->msg[0] = 0;
+	}
+};
+const int MAX_TIMED_MESSAGES = 3;
+
+/*
+  Only rows 0..2 are available
+ */
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
+
 // S0x07D4FA0
 struct XwaGlobalLight
 {

@@ -78,6 +78,9 @@ void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 Matrix4 g_ReflRotX;
 
+// Text Rendering
+TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
+
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
 void DisplayBox(char *name, Box box);
@@ -8860,6 +8863,9 @@ HRESULT PrimarySurface::Flip(
 				x = AddText("World ", 2, x, y, 0x5555FF);
 				*/
 				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
+				// The following text gets captured as part of the missile count DC element:
+				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
+				this->RenderTimedMessages();
 				this->RenderText();
 			}
 
@@ -10412,7 +10418,7 @@ short PrimarySurface::ComputeMsgWidth(char *str, int font_size_index) {
  
   returns the x coordinate after the last char rendered
  */
-short PrimarySurface::AddText(char *str, int font_size_index, short x, short y, uint32_t color) {
+short PrimarySurface::DisplayText(char *str, int font_size_index, short x, short y, uint32_t color) {
 	if (!font_initialized)
 		return x;
 
@@ -10456,10 +10462,30 @@ short PrimarySurface::AddText(char *str, int font_size_index, short x, short y, 
   Adds centered text at the given vertical position.
   Returns the x coordinate where the next char can be placed
  */
-short PrimarySurface::AddCenteredText(char *str, int font_size_index, short y, uint32_t color) {
+short PrimarySurface::DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color) {
 	short width = ComputeMsgWidth(str, font_size_index);
 	short x = (short)(g_fCurInGameWidth / 2.0f) - width / 2;
-	return AddText(str, font_size_index, x, y, color);
+	return DisplayText(str, font_size_index, x, y, color);
+}
+
+/*
+  Adds a timed message in one of the 3 available slots, overwriting and reseting
+  the timer on whatever is in that slot. The hard-coded values are screen-height
+  relative and seem to work fine across different resolutions.
+ */
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg) {
+	short y_pos = (short)(g_fCurInGameHeight * (0.189f + 0.05f * row));
+	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
+}
+
+void PrimarySurface::RenderTimedMessages() {
+	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {
+		if (g_TimedMessages[i].IsExpired())
+			continue;
+		g_TimedMessages[i].Tick();
+		DisplayCenteredText(g_TimedMessages[i].msg, g_TimedMessages[i].font_size_idx,
+			g_TimedMessages[i].y, g_TimedMessages[i].color);
+	}
 }
 
 void PrimarySurface::RenderText()

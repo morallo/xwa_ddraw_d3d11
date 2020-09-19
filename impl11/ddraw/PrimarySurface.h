@@ -4,11 +4,6 @@
 
 #pragma once
 
-// Font indices that can be used with the PrimarySurface::AddText() methods (and others) below
-#define FONT_MEDIUM_IDX 0
-#define FONT_LARGE_IDX 1
-#define FONT_SMALL_IDX 2
-
 class BackbufferSurface;
 
 class Direct3DTexture;
@@ -188,8 +183,9 @@ public:
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
 
 	short ComputeMsgWidth(char *str, int font_size_index);
-	short AddText(char *str, int font_size_index, short x, short y, uint32_t color);
-	short AddCenteredText(char *str, int font_size_index, short y, uint32_t color);
+	short DisplayText(char *str, int font_size_index, short x, short y, uint32_t color);
+	short DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color);
+	void RenderTimedMessages();
 
 	void RenderText();
 
