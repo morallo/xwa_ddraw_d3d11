@@ -594,7 +594,8 @@ float g_fDCBrightness = 1.0f;
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
-bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
+bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bReRenderMissilesNCounterMeasures = false;
+bool g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
 bool g_bHUDVisibleOnStartup = false;
 bool g_bCompensateFOVfor1920x1080 = true;
 bool g_bDCWasClearedOnThisFrame = false;
@@ -2405,7 +2406,7 @@ float SetCurrentShipFOV(float FOV, bool bOverwriteCurrentShipFOV, bool bCompensa
 	// Prevent nonsensical values:
 	if (FOV < 15.0f) FOV = 15.0f;
 	if (FOV > 170.0f) FOV = 170.0f;
-	DisplayTimedMessageV(3, 1, "FOV: %0.1f", FOV);
+	//DisplayTimedMessageV(3, 1, "FOV: %0.1f", FOV);
 	// Convert to radians
 	FOV = FOV * 3.141592f / 180.0f;
 	// This formula matches what Jeremy posted:
@@ -7716,7 +7717,9 @@ HRESULT Direct3DDevice::Execute(
 					log_debug("[DBG] [DC] DC HUD Regions reset");
 				}
 
-				// Dynamic Cockpit: Capture the bounds for all the HUDs elements to use later in the Dynamic Cockpit
+				// **************************************************************
+				// Dynamic Cockpit: Capture the bounds for all the HUD elements
+				// **************************************************************
 				{
 					// Capture the bounds for the left sensor:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
@@ -8048,6 +8051,10 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
+
+							/*log_debug("[DBG] [DC] Missiles coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 							dcElemSrcBox->bComputed = true;
 						}
 					}
@@ -8080,10 +8087,17 @@ HRESULT Direct3DDevice::Execute(
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
-							// Get the limits for Number of Crafts
+							// Get the limits for Number of Crafts -- Countermeasures
+							// When I wrote this, I *thought* this was the number of ships; but (much) later I realized this
+							// is wrong: this is the number of countermeasures!
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
+
+							// DCElemSrcBox dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX]
+							/*log_debug("[DBG] [DC] Countermeasures coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 							dcElemSrcBox->bComputed = true;
 						}
 					}

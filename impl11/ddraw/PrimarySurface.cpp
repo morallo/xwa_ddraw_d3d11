@@ -116,9 +116,10 @@ extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern bool g_bDCApplyEraseRegionCommands;
+extern bool g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
 extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
+extern DCElemSrcBoxes g_DCElemSrcBoxes;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
@@ -8865,7 +8866,6 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
 				// The following text gets captured as part of the missile count DC element:
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
-				this->RenderTimedMessages();
 				this->RenderText();
 			}
 
@@ -10478,16 +10478,6 @@ void DisplayTimedMessage(uint32_t seconds, int row, char *msg) {
 	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
 }
 
-void PrimarySurface::RenderTimedMessages() {
-	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {
-		if (g_TimedMessages[i].IsExpired())
-			continue;
-		g_TimedMessages[i].Tick();
-		DisplayCenteredText(g_TimedMessages[i].msg, g_TimedMessages[i].font_size_idx,
-			g_TimedMessages[i].y, g_TimedMessages[i].color);
-	}
-}
-
 void PrimarySurface::RenderText()
 {
 	static DWORD s_displayWidth = 0;
@@ -10496,6 +10486,7 @@ void PrimarySurface::RenderText()
 	static ComPtr<IDWriteTextFormat> s_textFormats[3];
 	static ComPtr<IDWriteTextLayout> s_textLayouts[3 * 256];
 	static ComPtr<ID2D1SolidColorBrush> s_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_black_brush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -10571,6 +10562,8 @@ void PrimarySurface::RenderText()
 		}
 
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
+		//this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_black_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -10638,6 +10631,97 @@ void PrimarySurface::RenderText()
 	}
 
 	int size_index = 0;
+	for (const auto& xwaText : g_xwa_text)
+	{
+		if (xwaText.textChar == ' ')
+		{
+			continue;
+		}
+
+		IDWriteTextLayout* textLayout = nullptr;
+
+		for (int index = 0; index < 3; index++)
+		{
+			if (xwaText.fontSize == s_fontSizes[index])
+			{
+				int layoutIndex = index * 256 + (int)(unsigned char)xwaText.textChar;
+				textLayout = s_textLayouts[layoutIndex];
+				break;
+			}
+		}
+
+		if (!textLayout)
+		{
+			continue;
+		}
+
+		if (xwaText.color != brushColor)
+		{
+			brushColor = xwaText.color;
+			s_brush->SetColor(D2D1::ColorF(brushColor));
+		}
+
+		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
+		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+
+		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+			D2D1_POINT_2F{ x, y },
+			textLayout,
+			s_brush);
+	}
+
+	// Clear the text. We'll add extra text now and render it.
+	g_xwa_text.clear();
+	g_xwa_text.reserve(4096);
+
+	if (g_bReRenderMissilesNCounterMeasures) {
+		// The following will render a rectangle on the text buffer, which is then captured by DC. This can be used
+		// to clear text right here without using more shaders.
+		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
+		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+
+		// Clear the box for the missiles and countermeasures, and add new text to replace the
+		// one we're clearing here
+		D2D1_RECT_F rect;
+		DCElemSrcBox *dcElemSrcBox;
+		float fx, fy;
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+			DisplayText("XX-XX", FONT_MEDIUM_IDX, (short)fx, (short)fy, 0xFFFFFF);
+		}
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+			DisplayText("CC-CC", FONT_MEDIUM_IDX, (short)fx, (short)fy, 0xFFFFFF);
+		}
+	}
+
+	// Add the custom text that will be displayed
+	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {
+		if (g_TimedMessages[i].IsExpired())
+			continue;
+		g_TimedMessages[i].Tick();
+		DisplayCenteredText(g_TimedMessages[i].msg, g_TimedMessages[i].font_size_idx,
+			g_TimedMessages[i].y, g_TimedMessages[i].color);
+	}
+
+	// Render the additional text
+	size_index = 0;
 	for (const auto& xwaText : g_xwa_text)
 	{
 		if (xwaText.textChar == ' ')
