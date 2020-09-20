@@ -10675,6 +10675,27 @@ void PrimarySurface::RenderText()
 	g_xwa_text.reserve(4096);
 
 	if (g_bReRenderMissilesNCounterMeasures) {
+		// Gather the data we'll need to replace the missiles and countermeasures
+		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+		if (objectIndex < 0) goto out;
+		ObjectEntry *object = &((*objects)[objectIndex]);
+		if (object == NULL) goto out;
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto out;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance == NULL) goto out;
+
+		int countL = 0, countR = 0, countermeasures = 0;
+		countermeasures = craftInstance->CountermeasureAmount;
+		int warheadStartIdx = craftInstance->NumberOfLasers;
+		// If the secondary warheads are armed, then offset the warheadStartIdx accordingly:
+		if (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].primarySecondaryArmed)
+			warheadStartIdx += 2;
+		if (warheadStartIdx < 16)
+			countL = craftInstance->Hardpoints[warheadStartIdx++].Count;
+		if (warheadStartIdx < 16)
+			countR = craftInstance->Hardpoints[warheadStartIdx++].Count;
+
 		// The following will render a rectangle on the text buffer, which is then captured by DC. This can be used
 		// to clear text right here without using more shaders.
 		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
@@ -10685,6 +10706,7 @@ void PrimarySurface::RenderText()
 		D2D1_RECT_F rect;
 		DCElemSrcBox *dcElemSrcBox;
 		float fx, fy;
+		static short ofs = (short)(0.005f * g_fCurInGameHeight);
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
@@ -10692,10 +10714,13 @@ void PrimarySurface::RenderText()
 			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
 			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
 			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			
 			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
 				g_nonVRViewport.Width, g_nonVRViewport.Height,
 				rect.left, rect.top, &fx, &fy);
-			DisplayText("XX-XX", FONT_MEDIUM_IDX, (short)fx, (short)fy, 0xFFFFFF);
+			char buf[40];
+			sprintf_s(buf, 40, "%d %d", countL, countR);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 		}
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
@@ -10707,9 +10732,14 @@ void PrimarySurface::RenderText()
 			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
 				g_nonVRViewport.Width, g_nonVRViewport.Height,
 				rect.left, rect.top, &fx, &fy);
-			DisplayText("CC-CC", FONT_MEDIUM_IDX, (short)fx, (short)fy, 0xFFFFFF);
+
+			char buf[40];
+			sprintf_s(buf, 40, "%d", countermeasures);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 		}
 	}
+
+out:
 
 	// Add the custom text that will be displayed
 	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {

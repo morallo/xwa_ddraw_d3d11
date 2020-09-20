@@ -2474,6 +2474,8 @@ bool LoadIndividualDCParams(char *sFileName) {
 	//}
 	//ClearDCMoveRegions();
 	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
+	// Do not re-render Missiles/Counters from first principles by default:
+	g_bReRenderMissilesNCounterMeasures = false;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -2620,6 +2622,9 @@ bool LoadIndividualDCParams(char *sFileName) {
 			else if (_stricmp(param, "noisy_hologram") == 0) {
 				g_DCElements[lastDCElemSelected].bNoisyHolo = (bool)fValue;
 				log_debug("[DBG] noisy hologram");
+			}
+			else if (_stricmp(param, "fix_missles_countermeasures_text") == 0) {
+				g_bReRenderMissilesNCounterMeasures = (bool)fValue;
 			}
 		}
 	}
