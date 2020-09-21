@@ -8338,18 +8338,27 @@ HRESULT Direct3DDevice::Execute(
 
 				if (bIsXWAHangarShadow) {
 					// For hangar shadows we need to change the blending operation (it's set to force alpha = 1)
+					// EDIT (after a few months) I'm not sure the fix below works very well. This was paired with
+					// an alpha of 0.25 in PixelShaderSolid, but that caused overlapping shadows to look darker.
+					// I changed the blend op to min and max and that only caused shadows to go full black. I ended
+					// up disabling this block and using the original settings -- except I changed the color of the
+					// shadow to black (because otherwise it's rendered blue). See PixelShaderSolid.hlsl.
+					/*
 					D3D11_BLEND_DESC blendDesc{};
 					blendDesc.AlphaToCoverageEnable = FALSE;
 					blendDesc.IndependentBlendEnable = FALSE;
 					blendDesc.RenderTarget[0].BlendEnable = TRUE;
 					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
 					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+					//blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MIN;
 					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
 					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MIN;
 					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 					hr = resources->InitBlendState(nullptr, &blendDesc);
+					*/
+
 					//D3D11_BLEND_DESC desc = this->_renderStates->GetBlendDesc();
 					/*
 					log_debug("[DBG] ******************************");
