@@ -199,8 +199,7 @@ struct CraftInstance {
 	BYTE field_2CC; // enum PloEnum
 	WORD field_2CD;
 	BYTE EngineThrottles[16]; // Ofs 0x2CF db 16 dup(? )
-	//BYTE Hardpoints[224]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
-	CraftInstanceHardpoint Hardpoints[16];
+	CraftInstanceHardpoint Hardpoints[16]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
 	WORD ObjectTagID; // Ofs 0x3BF     dw ?
 	WORD RotGunAngles[2];
 	WORD RotBeamAngles[2];

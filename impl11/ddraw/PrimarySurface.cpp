@@ -10491,6 +10491,7 @@ void PrimarySurface::RenderText()
 	static UINT s_top;
 	static float s_scaleX;
 	static float s_scaleY;
+	static short s_rowSize = (short)(0.0185f * g_fCurInGameHeight);
 
 	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10674,7 +10675,9 @@ void PrimarySurface::RenderText()
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
 
-	if (g_bReRenderMissilesNCounterMeasures) {
+	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_bDCApplyEraseRegionCommands &&
+		!bExternalCamera) {
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 		if (objectIndex < 0) goto out;
@@ -10685,6 +10688,8 @@ void PrimarySurface::RenderText()
 		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 		if (craftInstance == NULL) goto out;
 
+		int speed = (int)(PlayerDataTable[*g_playerIndex].currentSpeed / 2.25f);
+		short throttle = (short)(100.0f * craftInstance->EngineThrottleInput / 65535.0f);
 		int countL = 0, countR = 0, countermeasures = 0;
 		countermeasures = craftInstance->CountermeasureAmount;
 		int warheadStartIdx = craftInstance->NumberOfLasers;
@@ -10701,12 +10706,13 @@ void PrimarySurface::RenderText()
 		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
 		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
 
-		// Clear the box for the missiles and countermeasures, and add new text to replace the
-		// one we're clearing here
+		// Clear the box for the missiles, countermeasures, speed & throttle, and add new 
+		// text to replace the ones we're clearing here
 		D2D1_RECT_F rect;
 		DCElemSrcBox *dcElemSrcBox;
 		float fx, fy;
 		static short ofs = (short)(0.005f * g_fCurInGameHeight);
+
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
@@ -10722,6 +10728,7 @@ void PrimarySurface::RenderText()
 			sprintf_s(buf, 40, "%d %d", countL, countR);
 			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 		}
+
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
@@ -10737,10 +10744,27 @@ void PrimarySurface::RenderText()
 			sprintf_s(buf, 40, "%d", countermeasures);
 			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 		}
+
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+			char buf[40];
+			sprintf_s(buf, 40, "SPD: %d", speed);
+			DisplayText(buf, FONT_LARGE_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
+			sprintf_s(buf, 40, "THR: %d%%", throttle);
+			DisplayText(buf, FONT_LARGE_IDX, (short)fx + ofs, (short)fy + ofs + s_rowSize, 0xFFFFFF);
+		}
 	}
 
 out:
-
 	// Add the custom text that will be displayed
 	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {
 		if (g_TimedMessages[i].IsExpired())
