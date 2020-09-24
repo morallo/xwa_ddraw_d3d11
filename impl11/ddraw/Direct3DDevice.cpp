@@ -9758,6 +9758,7 @@ void Direct3DDevice::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
 	// Read the IFF of the current target and use it to colorize the wireframe display
 	short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	// currentTargetIndex cannot be 0 or we'll crash!
 	if (currentTargetIndex > 0) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto nocolor;

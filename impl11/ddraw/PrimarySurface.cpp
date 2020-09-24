@@ -10680,7 +10680,9 @@ void PrimarySurface::RenderText()
 		!bExternalCamera) {
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-		if (objectIndex < 0) goto out;
+		// Looks like objectIndex cannot be 0 or we'll crash
+		//log_debug("[DBG] objectIndex: %d", objectIndex);
+		if (objectIndex <= 0) goto out;
 		ObjectEntry *object = &((*objects)[objectIndex]);
 		if (object == NULL) goto out;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
