@@ -109,7 +109,9 @@ const int B_WING_LASERS_DC_ELEM_SRC_IDX = 21;
 const int SIX_LASERS_BOTH_DC_ELEM_SRC_IDX = 22;
 const int SIX_LASERS_L_DC_ELEM_SRC_IDX = 23;
 const int SIX_LASERS_R_DC_ELEM_SRC_IDX = 24;
-const int MAX_DC_SRC_ELEMENTS = 25;
+const int SHIELDS_FRONT_DC_ELEM_SRC_IDX = 25;
+const int SHIELDS_BACK_DC_ELEM_SRC_IDX = 26;
+const int MAX_DC_SRC_ELEMENTS = 27;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char *name);

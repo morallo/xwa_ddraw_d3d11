@@ -349,6 +349,8 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_BOTH_SRC",		// 22
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
+	"SHIELDS_FRONT_SRC",		// 25
+	"SHIELDS_BACK_SRC"			// 26
 };
 
 int HUDRegionNameToIndex(char *name) {

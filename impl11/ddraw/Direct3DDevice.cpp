@@ -29,6 +29,45 @@ TODO:
 */
 
 /*
+
+HOW TO ADD NEW DC SOURCE ELEMENTS:
+
+LoadDCInternalCoordinates loads the source areas into g_DCElemSrcBoxes.
+g_DCElemSrcBoxes must be pre-populated.
+
+1. Add new constant indices in DeviceResources.h.
+   Look for MAX_DC_SRC_ELEMENTS and increase it. Then add the new *_DC_ELEM_SRC_IDX
+   constants above it.
+
+2. Add the new slots in Dynamic_Cockpit_Internal_Areas.cfg.
+   Select a suitable *_HUD_BOX_IDX entry, find the corresponding image in HUD.dat and use
+   a program like Photoshop to write down coordinates in this image. Then add an entry
+   in Dynamic_Cockpit_Internal_Areas.cfg with the coordinates you wish to capture.
+   Each entry looks like this:
+
+	source_def = width,height, x0,y0, x1,y1
+
+   Remember that you can use negative numbers.
+
+3. Add the code that captures the new slots in Direct3DDevice.cpp.
+   Find the HUD_BOX_IDX entry in the Execute() method. The code should look like
+   this:
+
+   if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
+   ...
+
+   Add the code to capture the new slot(s) in the case where it belongs. There
+   are plenty of examples in this area, just take a look at other cases.
+
+4. Go to g_DCElemSrcNames in DeviceResources.cpp and add the labels that will
+   be used for the new slots in the DC files. This is the text that cockpit
+   authors will use to load the element.
+
+   MAKE SURE YOU PLACE THE NEW LABELS ON THE SAME INDEX USED FOR THE *_DC_ELEM_SRC_IDX
+
+*/
+
+/*
 	The current HUD color is stored in these variables:
 
 	// V0x005B5318
@@ -1366,8 +1405,8 @@ DCElemSrcBoxes::DCElemSrcBoxes() {
 }
 
 /* 
- * Load dynamic_cockpit_global.cfg 
- * This function will not grow g_DCHUDBoxes and it expects it to be populated
+ * Load dynamic_cockpit_internal_areas.cfg 
+ * This function will not grow g_DCElemSrcBoxes and it expects it to be populated
  * already.
  */
 bool LoadDCInternalCoordinates() {
@@ -2576,7 +2615,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 					//	lastDCElemSelected);
 				}
 				else
-					log_debug("[DBG] [DC] WARNING: erase_region = %d IGNORED: Not enough g_DCHUDBoxes", slot);
+					log_debug("[DBG] [DC] WARNING: erase_region = %d IGNORED: Not enough g_DCElemSrcBoxes", slot);
 			}
 			else if (_stricmp(param, COVER_TEX_NAME_DCPARAM) == 0) {
 				if (lastDCElemSelected == -1) {
@@ -7849,6 +7888,18 @@ HRESULT Direct3DDevice::Execute(
 
 							// Get the limits for the shields:
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the front shields strength:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_FRONT_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the back shields strength:
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SHIELDS_BACK_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
