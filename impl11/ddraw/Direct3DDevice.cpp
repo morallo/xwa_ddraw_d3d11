@@ -47,7 +47,7 @@ g_DCElemSrcBoxes must be pre-populated.
 
 	source_def = width,height, x0,y0, x1,y1
 
-   Remember that you can use negative numbers.
+   Remember that you can use negative numbers for (x0,y0) and (x1,y1)
 
 3. Add the code that captures the new slots in Direct3DDevice.cpp.
    Find the HUD_BOX_IDX entry in the Execute() method. The code should look like
@@ -2556,6 +2556,7 @@ bool LoadIndividualDCParams(char *sFileName) {
 					dc_elem.bNameHasBeenTested = false;
 					dc_elem.bHologram = false;
 					dc_elem.bNoisyHolo = false;
+					dc_elem.bTransparent = false;
 					//g_DCElements.push_back(dc_elem);
 					g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
@@ -2664,6 +2665,9 @@ bool LoadIndividualDCParams(char *sFileName) {
 			}
 			else if (_stricmp(param, "fix_missles_countermeasures_text") == 0) {
 				g_bReRenderMissilesNCounterMeasures = (bool)fValue;
+			}
+			else if (_stricmp(param, "transparent") == 0) {
+				g_DCElements[lastDCElemSelected].bTransparent = (bool)fValue;
 			}
 		}
 	}
@@ -7352,7 +7356,8 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
-				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false, bIsHologram = false, bIsNoisyHolo = false;
+				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
+				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -7361,6 +7366,7 @@ HRESULT Direct3DDevice::Execute(
 						if (idx >= 0 && idx < g_iNumDCElements) {
 							bIsHologram |= g_DCElements[idx].bHologram;
 							bIsNoisyHolo |= g_DCElements[idx].bNoisyHolo;
+							bIsTransparent |= g_DCElements[idx].bTransparent;
 						}
 					}
 
@@ -8107,11 +8113,31 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
-
-							/*log_debug("[DBG] [DC] Missiles coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Text Line 1
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_1_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							/*
+							log_debug("[DBG] [DC] Text Line 1 coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+							*/
+
+							// Get the limits for Text Line 2
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_2_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							/*
+							log_debug("[DBG] [DC] Text Line 2 coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+							*/
 						}
 					}
 
@@ -8149,12 +8175,24 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for Text Line 3
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_3_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							/*
+							log_debug("[DBG] [DC] Text Line 3 coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+							*/
 
 							// DCElemSrcBox dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX]
 							/*log_debug("[DBG] [DC] Countermeasures coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
 								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
-							dcElemSrcBox->bComputed = true;
 						}
 					}
 				}
@@ -8870,6 +8908,7 @@ HRESULT Direct3DDevice::Execute(
 								g_DCPSCBuffer.src[numCoords] = uv_src;
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
 								g_DCPSCBuffer.noisy_holo = bIsNoisyHolo;
+								g_DCPSCBuffer.transparent = bIsTransparent;
 								if (bWarheadLocked)
 									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
 								else

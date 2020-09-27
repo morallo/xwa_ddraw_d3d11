@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Leo Reyes
+// Copyright (c) 2019, 2020 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
 // This shader should only be called for destination textures when DC is
 // enabled. For regular textures or when the Dynamic Cockpit is disabled,
@@ -213,5 +213,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.color = float4(diffuse * coverColor.xyz, coverColor.w);
 	if (bInHyperspace) output.color.a = 1.0;
+
+	// Text DC elements can be made to float inside the cockpit. In that case, we might want
+	// them to be transparent and this code achieves that.
+	if (transparent) {
+		float alpha = 4.0 * dot(0.333, output.color.rgb);
+		output.color.a    = alpha;
+		output.bloom      = 0;
+		output.pos3D      = 0;
+		output.normal     = 0;
+		output.ssaoMask.a = alpha;
+		output.ssMask.a   = alpha;
+	}
 	return output;
 }

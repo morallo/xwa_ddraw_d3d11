@@ -350,7 +350,10 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
 	"SHIELDS_FRONT_SRC",		// 25
-	"SHIELDS_BACK_SRC"			// 26
+	"SHIELDS_BACK_SRC",			// 26
+	"KW_TEXT_LINE_1_SRC",		// 27
+	"KW_TEXT_LINE_2_SRC",		// 28
+	"KW_TEXT_LINE_3_SRC",		// 29
 };
 
 int HUDRegionNameToIndex(char *name) {
@@ -1135,6 +1138,7 @@ void DeviceResources::ResetDynamicCockpit() {
 				elem->bNameHasBeenTested = false;
 				elem->bHologram = false;
 				elem->bNoisyHolo = false;
+				elem->bTransparent = false;
 			}
 		}
 		// Reset the dynamic cockpit vector
