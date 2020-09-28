@@ -299,17 +299,17 @@ struct MainVertex
 
 const char *DC_TARGET_COMP_SRC_RESNAME		= "dat,12000,1100,";
 const char *DC_LEFT_SENSOR_SRC_RESNAME		= "dat,12000,4500,";
-const char *DC_LEFT_SENSOR_2_SRC_RESNAME		= "dat,12000,300,";
+const char *DC_LEFT_SENSOR_2_SRC_RESNAME	= "dat,12000,300,";
 const char *DC_RIGHT_SENSOR_SRC_RESNAME		= "dat,12000,4600,";
 const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
 const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
-const char *DC_SOLID_MSG_SRC_RESNAME			= "dat,12000,100,";
+const char *DC_SOLID_MSG_SRC_RESNAME		= "dat,12000,100,";
 const char *DC_BORDER_MSG_SRC_RESNAME		= "dat,12000,200,";
-const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
+const char *DC_LASER_BOX_SRC_RESNAME		= "dat,12000,2300,";
 const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
 const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
 const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
-const char *DC_TOP_RIGHT_SRC_RESNAME			= "dat,12000,2800,";
+const char *DC_TOP_RIGHT_SRC_RESNAME		= "dat,12000,2800,";
 
 std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
@@ -320,7 +320,9 @@ std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_TEXT_BOX_REGION",		// 5
 	"RIGHT_TEXT_BOX_REGION",	// 6
 	"TOP_LEFT_REGION",			// 7
-	"TOP_RIGHT_REGION"			// 8
+	"TOP_RIGHT_REGION",			// 8
+	"TEXT_RADIOSYS_REGION",		// 9
+	"TEXT_CMD_REGION",			// 10
 };
 
 std::vector<const char *>g_DCElemSrcNames = {
@@ -351,9 +353,9 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_R_SRC",			// 24
 	"SHIELDS_FRONT_SRC",		// 25
 	"SHIELDS_BACK_SRC",			// 26
-	"KW_TEXT_LINE_1_SRC",		// 27
-	"KW_TEXT_LINE_2_SRC",		// 28
-	"KW_TEXT_LINE_3_SRC",		// 29
+	"TEXT_CMD_SRC",				// 27
+	"TEXT_TOP_SRC",				// 28
+	"TEXT_RADIOSYS_SRC",		// 29
 };
 
 int HUDRegionNameToIndex(char *name) {

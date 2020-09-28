@@ -65,6 +65,23 @@ g_DCElemSrcBoxes must be pre-populated.
 
    MAKE SURE YOU PLACE THE NEW LABELS ON THE SAME INDEX USED FOR THE *_DC_ELEM_SRC_IDX
 
+
+HOW TO ADD NEW ERASE REGION COMMANDS:
+
+1. Go to DeviceResources.h and add the new region indices.
+   Add new *_HUD_BOX_IDX indices and make sure MAX_HUD_BOXES has the total
+   number of boxes.
+
+2. Add the regions in Dynamic_Cockpit_areas.cfg. Make sure the indices match with the
+   constants added in step 1.
+
+3. Add the new region names in g_HUDRegionNames, in DeviceResources.cpp.
+   Make sure the indices match. These names will be used in DC files to erase the
+   new regions.
+
+4. Add the code that computes the erase_region in Direct3DDevice.cpp.
+   Look for the calls to ComputeCoordsFromUV()
+
 */
 
 /*
@@ -8084,9 +8101,9 @@ HRESULT Direct3DDevice::Execute(
 					// Capture the bounds for the top-left bracket:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
 					{
-						if (!g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX].bLimitsComputed)
+						if (!g_DCHUDRegions.boxes[TOP_LEFT_HUD_BOX_IDX].bLimitsComputed)
 						{
-							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_BOX_IDX];
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_LEFT_HUD_BOX_IDX];
 							DCElemSrcBox *dcElemSrcBox = NULL;
 							float minX, minY, maxX, maxY;
 							Box uv_minmax = { 0 };
@@ -8103,6 +8120,13 @@ HRESULT Direct3DDevice::Execute(
 							dcSrcBox->bLimitsComputed = true;
 							//log_debug("[DBG] [DC] Top Left Region captured");
 
+							// Compute and store the erase coordinates for the CMD HUD REGION
+							dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
+							dcSrcBox->coords = box;
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+
 							// Get the limits for Speed & Throttle
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
@@ -8116,7 +8140,7 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							// Get the limits for Text Line 1
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_1_DC_ELEM_SRC_IDX];
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
@@ -8128,7 +8152,7 @@ HRESULT Direct3DDevice::Execute(
 							*/
 
 							// Get the limits for Text Line 2
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_2_DC_ELEM_SRC_IDX];
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_TOP_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
@@ -8144,9 +8168,9 @@ HRESULT Direct3DDevice::Execute(
 					// Capture the bounds for the top-right bracket:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
 					{
-						if (!g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX].bLimitsComputed)
+						if (!g_DCHUDRegions.boxes[TOP_RIGHT_HUD_BOX_IDX].bLimitsComputed)
 						{
-							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_BOX_IDX];
+							DCHUDRegion *dcSrcBox = &g_DCHUDRegions.boxes[TOP_RIGHT_HUD_BOX_IDX];
 							DCElemSrcBox *dcElemSrcBox = NULL;
 							float minX, minY, maxX, maxY;
 							Box uv_minmax = { 0 };
@@ -8161,6 +8185,15 @@ HRESULT Direct3DDevice::Execute(
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
+
+							// Store the pixel coordinates
+							dcSrcBox = &g_DCHUDRegions.boxes[TEXT_RADIOSYS_BOX_IDX];
+							dcSrcBox->coords = box;
+							// Compute and store the erase coordinates for this HUD Box
+							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
+								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
+							dcSrcBox->bLimitsComputed = true;
+
 							//log_debug("[DBG] [DC] Top Right Region captured");
 
 							// Get the limits for Name & Time
@@ -8178,7 +8211,7 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							// Get the limits for Text Line 3
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_LINE_3_DC_ELEM_SRC_IDX];
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_RADIOSYS_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
@@ -8870,6 +8903,13 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fBracketStrength;
 				}
+
+				// Transparent textures are currently used with DC to render floating text. However, if the erase region
+				// commands are being ignored, then this will cause the text messages to be rendered twice. To avoid
+				// having duplicated messages, we're removing these textures here when the erase_region commmands are
+				// not being applied.
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bIsTransparent && !g_bDCApplyEraseRegionCommands)
+					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:
 				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)

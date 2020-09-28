@@ -47,9 +47,11 @@ const int BEAM_HUD_BOX_IDX			= 3;
 const int TARGET_HUD_BOX_IDX		= 4;
 const int LEFT_MSG_HUD_BOX_IDX		= 5;
 const int RIGHT_MSG_HUD_BOX_IDX		= 6;
-const int TOP_LEFT_BOX_IDX			= 7;
-const int TOP_RIGHT_BOX_IDX			= 8;
-const int MAX_HUD_BOXES				= 9;
+const int TOP_LEFT_HUD_BOX_IDX		= 7;
+const int TOP_RIGHT_HUD_BOX_IDX		= 8;
+const int TEXT_RADIOSYS_BOX_IDX		= 9;
+const int TEXT_CMD_HUD_BOX_IDX		= 10;
+const int MAX_HUD_BOXES				= 11;
 extern std::vector<const char *>g_HUDRegionNames;
 // Convert a string into a *_HUD_BOX_IDX constant
 int HUDRegionNameToIndex(char *name);
@@ -111,9 +113,9 @@ const int SIX_LASERS_L_DC_ELEM_SRC_IDX = 23;
 const int SIX_LASERS_R_DC_ELEM_SRC_IDX = 24;
 const int SHIELDS_FRONT_DC_ELEM_SRC_IDX = 25;
 const int SHIELDS_BACK_DC_ELEM_SRC_IDX = 26;
-const int KW_TEXT_LINE_1_DC_ELEM_SRC_IDX = 27;
-const int KW_TEXT_LINE_2_DC_ELEM_SRC_IDX = 28;
-const int KW_TEXT_LINE_3_DC_ELEM_SRC_IDX = 29;
+const int TEXT_CMD_DC_ELEM_SRC_IDX = 27;
+const int TEXT_TOP_DC_ELEM_SRC_IDX = 28;
+const int TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
 const int MAX_DC_SRC_ELEMENTS = 30;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
