@@ -1404,9 +1404,9 @@ bool LoadDCGlobalUVCoords(char *buf, Box *coords)
 }
 
 /*
- * Loads a "screen_def" line from the global coordinates file. These lines contain direct
- * uv coords relative to the in-game screen. These coords are converted to screen uv coords
- * and returned.
+ * Loads a "screen_def" or "erase_screen_def" line from the global coordinates file. These
+ * lines contain direct uv coords relative to the in-game screen. These coords are converted
+ * to screen uv coords and returned.
  */
 bool LoadDCScreenUVCoords(char *buf, Box *coords)
 {
@@ -1531,6 +1531,21 @@ bool LoadDCInternalCoordinates() {
 				}
 				Box box = { 0 };
 				if (LoadDCGlobalUVCoords(buf, &box)) {
+					g_DCHUDRegions.boxes[erase_slot].uv_erase_coords = box;
+					g_DCHUDRegions.boxes[erase_slot].bLimitsComputed = false; // Force a recompute of the limits
+				}
+				else
+					log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
+				//log_debug("[DBG] [DC] Region %d = [%s] loaded", erase_slot, g_HUDRegionNames[erase_slot]);
+				erase_slot++;
+			}
+			else if (_stricmp(param, "erase_screen_def") == 0) {
+				if (erase_slot >= g_DCHUDRegions.boxes.size()) {
+					log_debug("[DBG] [DC] Ignoring '%s' because slot: %d does not exist\n", erase_slot);
+					continue;
+				}
+				Box box = { 0 };
+				if (LoadDCScreenUVCoords(buf, &box)) {
 					g_DCHUDRegions.boxes[erase_slot].uv_erase_coords = box;
 					g_DCHUDRegions.boxes[erase_slot].bLimitsComputed = false; // Force a recompute of the limits
 				}
@@ -8116,7 +8131,6 @@ HRESULT Direct3DDevice::Execute(
 								y0 = dcElemSrcBox->uv_coords.y0;
 								x1 = dcElemSrcBox->uv_coords.x1;
 								y1 = dcElemSrcBox->uv_coords.y1;
-								log_debug("[DBG] [DC] RADIO src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
 								// These coords are relative to in-game resolution, we need to convert them to
 								// screen/desktop uv coords
 								x0 *= g_fCurInGameWidth;
@@ -8133,9 +8147,9 @@ HRESULT Direct3DDevice::Execute(
 								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
 								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
 								dcElemSrcBox->bComputed = true;
-								log_debug("[DBG] [DC] RADIO (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+								/*log_debug("[DBG] [DC] RADIO (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
 									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 
 
 								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_SYSTEM_DC_ELEM_SRC_IDX];
@@ -8143,7 +8157,6 @@ HRESULT Direct3DDevice::Execute(
 								y0 = dcElemSrcBox->uv_coords.y0;
 								x1 = dcElemSrcBox->uv_coords.x1;
 								y1 = dcElemSrcBox->uv_coords.y1;
-								log_debug("[DBG] [DC] SYSTEM src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
 								// These coords are relative to in-game resolution, we need to convert them to
 								// screen/desktop uv coords
 								x0 *= g_fCurInGameWidth;
@@ -8160,9 +8173,9 @@ HRESULT Direct3DDevice::Execute(
 								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
 								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
 								dcElemSrcBox->bComputed = true;
-								log_debug("[DBG] [DC] SYSTEM (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+								/*log_debug("[DBG] [DC] SYSTEM (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
 									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 
 
 								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
@@ -8170,7 +8183,6 @@ HRESULT Direct3DDevice::Execute(
 								y0 = dcElemSrcBox->uv_coords.y0;
 								x1 = dcElemSrcBox->uv_coords.x1;
 								y1 = dcElemSrcBox->uv_coords.y1;
-								log_debug("[DBG] [DC] CMD src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
 								// These coords are relative to in-game resolution, we need to convert them to
 								// screen/desktop uv coords
 								x0 *= g_fCurInGameWidth;
@@ -8187,9 +8199,64 @@ HRESULT Direct3DDevice::Execute(
 								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
 								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
 								dcElemSrcBox->bComputed = true;
-								log_debug("[DBG] [DC] CMD (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+								/*log_debug("[DBG] [DC] CMD (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
 									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
+
+								// *********************************************************
+								// Compute the coords for the "erase_screen_def" commands:
+								// *********************************************************
+								dcSrcBox = &g_DCHUDRegions.boxes[TEXT_RADIOSYS_HUD_BOX_IDX];
+								x0 = dcSrcBox->uv_erase_coords.x0;
+								y0 = dcSrcBox->uv_erase_coords.y0;
+								x1 = dcSrcBox->uv_erase_coords.x1;
+								y1 = dcSrcBox->uv_erase_coords.y1;
+								// These coords are relative to in-game resolution, we need to convert them to
+								// screen/desktop uv coords
+								x0 *= g_fCurInGameWidth;
+								y0 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+								dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
+								dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
+
+								x1 *= g_fCurInGameWidth;
+								y1 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+								dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
+								dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
+								dcSrcBox->bLimitsComputed = true;
+								/*log_debug("[DBG] [DC] RADIOSYS ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+									g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
+									g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);*/
+
+								dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
+								x0 = dcSrcBox->uv_erase_coords.x0;
+								y0 = dcSrcBox->uv_erase_coords.y0;
+								x1 = dcSrcBox->uv_erase_coords.x1;
+								y1 = dcSrcBox->uv_erase_coords.y1;
+								// These coords are relative to in-game resolution, we need to convert them to
+								// screen/desktop uv coords
+								x0 *= g_fCurInGameWidth;
+								y0 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+								dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
+								dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
+
+								x1 *= g_fCurInGameWidth;
+								y1 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+								dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
+								dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
+								dcSrcBox->bLimitsComputed = true;
+								/*
+								log_debug("[DBG] [DC] CMD ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+									g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
+									g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);
+								*/
 							}
 						}
 					}
@@ -8269,12 +8336,14 @@ HRESULT Direct3DDevice::Execute(
 							dcSrcBox->bLimitsComputed = true;
 							//log_debug("[DBG] [DC] Top Left Region captured");
 
+							/*
 							// Compute and store the erase coordinates for the CMD HUD REGION
 							dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
 							dcSrcBox->coords = box;
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
+							*/
 
 							// Get the limits for Speed & Throttle
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
@@ -8335,6 +8404,7 @@ HRESULT Direct3DDevice::Execute(
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
 
+							/*
 							// Store the pixel coordinates
 							dcSrcBox = &g_DCHUDRegions.boxes[TEXT_RADIOSYS_BOX_IDX];
 							dcSrcBox->coords = box;
@@ -8342,6 +8412,7 @@ HRESULT Direct3DDevice::Execute(
 							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
 								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
 							dcSrcBox->bLimitsComputed = true;
+							*/
 
 							//log_debug("[DBG] [DC] Top Right Region captured");
 

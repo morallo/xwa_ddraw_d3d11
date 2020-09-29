@@ -49,7 +49,7 @@ const int LEFT_MSG_HUD_BOX_IDX		= 5;
 const int RIGHT_MSG_HUD_BOX_IDX		= 6;
 const int TOP_LEFT_HUD_BOX_IDX		= 7;
 const int TOP_RIGHT_HUD_BOX_IDX		= 8;
-const int TEXT_RADIOSYS_BOX_IDX		= 9;
+const int TEXT_RADIOSYS_HUD_BOX_IDX	= 9;
 const int TEXT_CMD_HUD_BOX_IDX		= 10;
 const int MAX_HUD_BOXES				= 11;
 extern std::vector<const char *>g_HUDRegionNames;
