@@ -219,6 +219,8 @@ extern vr::IVRSystem *g_pHMD;
 extern vr::IVRCompositor *g_pVRCompositor;
 extern bool g_bSteamVREnabled, g_bUseSteamVR;
 
+bool LoadDCInternalCoordinates();
+
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
@@ -353,9 +355,12 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"SIX_LASERS_R_SRC",			// 24
 	"SHIELDS_FRONT_SRC",		// 25
 	"SHIELDS_BACK_SRC",			// 26
-	"TEXT_CMD_SRC",				// 27
-	"TEXT_TOP_SRC",				// 28
-	"TEXT_RADIOSYS_SRC",		// 29
+	"KW_TEXT_CMD_SRC",			// 27
+	"KW_TEXT_TOP_SRC",			// 28
+	"KW_TEXT_RADIOSYS_SRC",		// 29
+	"TEXT_RADIO_SRC",			// 30
+	"TEXT_SYSTEM_SRC",			// 31
+	"TEXT_CMD_SRC",				// 32
 };
 
 int HUDRegionNameToIndex(char *name) {
@@ -1150,6 +1155,7 @@ void DeviceResources::ResetDynamicCockpit() {
 			g_iNumDCElements = 0;
 		}
 	}
+	LoadDCInternalCoordinates();
 }
 
 /*

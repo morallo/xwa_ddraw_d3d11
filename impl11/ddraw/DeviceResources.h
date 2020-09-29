@@ -113,10 +113,13 @@ const int SIX_LASERS_L_DC_ELEM_SRC_IDX = 23;
 const int SIX_LASERS_R_DC_ELEM_SRC_IDX = 24;
 const int SHIELDS_FRONT_DC_ELEM_SRC_IDX = 25;
 const int SHIELDS_BACK_DC_ELEM_SRC_IDX = 26;
-const int TEXT_CMD_DC_ELEM_SRC_IDX = 27;
-const int TEXT_TOP_DC_ELEM_SRC_IDX = 28;
-const int TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
-const int MAX_DC_SRC_ELEMENTS = 30;
+const int KW_TEXT_CMD_DC_ELEM_SRC_IDX = 27;
+const int KW_TEXT_TOP_DC_ELEM_SRC_IDX = 28;
+const int KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
+const int TEXT_RADIO_DC_ELEM_SRC_IDX = 30;
+const int TEXT_SYSTEM_DC_ELEM_SRC_IDX = 31;
+const int TEXT_CMD_DC_ELEM_SRC_IDX = 32;
+const int MAX_DC_SRC_ELEMENTS = 33;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char *name);

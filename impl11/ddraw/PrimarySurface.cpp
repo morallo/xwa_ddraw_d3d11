@@ -10629,6 +10629,7 @@ void PrimarySurface::RenderText()
 			brushColors[brush_index] = -1;
 		}
 		font_initialized = true;
+		//log_debug("[DBG] s_scaleX: %0.3f, s_scaleY: %0.3f, min: %0.3f", s_scaleX, s_scaleY, min(s_scaleX, s_scaleY));
 	}
 
 	int size_index = 0;

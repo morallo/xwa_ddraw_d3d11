@@ -853,6 +853,8 @@ bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR = false);
+void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
+void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
 
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
@@ -1401,6 +1403,42 @@ bool LoadDCGlobalUVCoords(char *buf, Box *coords)
 	return true;
 }
 
+/*
+ * Loads a "screen_def" line from the global coordinates file. These lines contain direct
+ * uv coords relative to the in-game screen. These coords are converted to screen uv coords
+ * and returned.
+ */
+bool LoadDCScreenUVCoords(char *buf, Box *coords)
+{
+	float x0, y0, x1, y1;
+	int res = 0;
+	char *c = NULL;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f, %f",
+				&x0, &y0, &x1, &y1);
+			if (res < 4) {
+				log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", c);
+				return false;
+			}
+			else {
+				coords->x0 = x0;
+				coords->y0 = y0;
+				coords->x1 = x1;
+				coords->y1 = y1;
+			}
+		}
+		catch (...) {
+			log_debug("[DBG] [DC] Could not read uv coords from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
 DCHUDRegions::DCHUDRegions() {
 	Clear();
 	//log_debug("[DBG] [DC] Adding g_HUDRegionNames.size(): %d", g_HUDRegionNames.size());
@@ -1473,7 +1511,20 @@ bool LoadDCInternalCoordinates() {
 				else
 					log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
 				source_slot++;
-			} else if (_stricmp(param, "erase_def") == 0) {
+			}
+			else if (_stricmp(param, "screen_def") == 0) {
+				if (source_slot >= g_DCElemSrcBoxes.src_boxes.size()) {
+					log_debug("[DBG] [DC] Ignoring '%s' because slot: %d does not exist\n", source_slot);
+					continue;
+				}
+				Box box = { 0 };
+				if (LoadDCScreenUVCoords(buf, &box))
+					g_DCElemSrcBoxes.src_boxes[source_slot].uv_coords = box;
+				else
+					log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
+				source_slot++;
+			}
+			else if (_stricmp(param, "erase_def") == 0) {
 				if (erase_slot >= g_DCHUDRegions.boxes.size()) {
 					log_debug("[DBG] [DC] Ignoring '%s' because slot: %d does not exist\n", erase_slot);
 					continue;
@@ -8042,6 +8093,104 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							/*
+							// Get the limits for the CMD text
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							log_debug("[DBG] [DC] CMD Text coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+							*/
+
+							// Compute the limits for the screen_def areas -- these areas are not related to any single
+							// HUD element, but I put them here because the CMD is always shown, even in the hangar.
+							{
+								float x0, y0, x1, y1, sx, sy;
+
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_RADIO_DC_ELEM_SRC_IDX];
+								x0 = dcElemSrcBox->uv_coords.x0;
+								y0 = dcElemSrcBox->uv_coords.y0;
+								x1 = dcElemSrcBox->uv_coords.x1;
+								y1 = dcElemSrcBox->uv_coords.y1;
+								log_debug("[DBG] [DC] RADIO src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
+								// These coords are relative to in-game resolution, we need to convert them to
+								// screen/desktop uv coords
+								x0 *= g_fCurInGameWidth;
+								y0 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+								x1 *= g_fCurInGameWidth;
+								y1 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+								dcElemSrcBox->bComputed = true;
+								log_debug("[DBG] [DC] RADIO (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+
+
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_SYSTEM_DC_ELEM_SRC_IDX];
+								x0 = dcElemSrcBox->uv_coords.x0;
+								y0 = dcElemSrcBox->uv_coords.y0;
+								x1 = dcElemSrcBox->uv_coords.x1;
+								y1 = dcElemSrcBox->uv_coords.y1;
+								log_debug("[DBG] [DC] SYSTEM src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
+								// These coords are relative to in-game resolution, we need to convert them to
+								// screen/desktop uv coords
+								x0 *= g_fCurInGameWidth;
+								y0 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+								x1 *= g_fCurInGameWidth;
+								y1 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+								dcElemSrcBox->bComputed = true;
+								log_debug("[DBG] [DC] SYSTEM (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+
+
+								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
+								x0 = dcElemSrcBox->uv_coords.x0;
+								y0 = dcElemSrcBox->uv_coords.y0;
+								x1 = dcElemSrcBox->uv_coords.x1;
+								y1 = dcElemSrcBox->uv_coords.y1;
+								log_debug("[DBG] [DC] CMD src: (%0.5f, %0.5f)-(%0.5f, %0.5f)", x0, y0, x1, y1);
+								// These coords are relative to in-game resolution, we need to convert them to
+								// screen/desktop uv coords
+								x0 *= g_fCurInGameWidth;
+								y0 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+								x1 *= g_fCurInGameWidth;
+								y1 *= g_fCurInGameHeight;
+								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+								dcElemSrcBox->bComputed = true;
+								log_debug("[DBG] [DC] CMD (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
+							}
 						}
 					}
 
@@ -8139,20 +8288,20 @@ HRESULT Direct3DDevice::Execute(
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
-							// Get the limits for Text Line 1
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
+							// Get the limits for the CMD text
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_CMD_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
 							/*
-							log_debug("[DBG] [DC] Text Line 1 coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							log_debug("[DBG] [DC] CMD Text coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
 								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
 							*/
 
-							// Get the limits for Text Line 2
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_TOP_DC_ELEM_SRC_IDX];
+							// Get the limits for the top 2 rows of text (missiles, countermeasures, time, speed, throttle, etc)
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_TOP_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
@@ -8211,7 +8360,7 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							// Get the limits for Text Line 3
-							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_RADIOSYS_DC_ELEM_SRC_IDX];
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
