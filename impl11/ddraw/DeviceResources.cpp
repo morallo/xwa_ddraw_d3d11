@@ -1155,7 +1155,9 @@ void DeviceResources::ResetDynamicCockpit() {
 			g_iNumDCElements = 0;
 		}
 	}
-	LoadDCInternalCoordinates();
+	// The code that captures text lines seemed to need this, but looks like this is not
+	// necessary after all.
+	//LoadDCInternalCoordinates();
 }
 
 /*

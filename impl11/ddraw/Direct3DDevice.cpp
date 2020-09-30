@@ -7854,6 +7854,147 @@ HRESULT Direct3DDevice::Execute(
 				// Dynamic Cockpit: Capture the bounds for all the HUD elements
 				// **************************************************************
 				{
+					// Compute the limits for the "screen_def" and "erase_screen_def" areas -- these areas are
+					// not related to any single HUD element
+					if (g_bDCManualActivate && g_bDynCockpitEnabled) 
+					{
+						DCHUDRegion *dcSrcBox = NULL;
+						DCElemSrcBox *dcElemSrcBox = NULL;
+						float x0, y0, x1, y1, sx, sy;
+
+						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_RADIO_DC_ELEM_SRC_IDX];
+						x0 = dcElemSrcBox->uv_coords.x0;
+						y0 = dcElemSrcBox->uv_coords.y0;
+						x1 = dcElemSrcBox->uv_coords.x1;
+						y1 = dcElemSrcBox->uv_coords.y1;
+						// These coords are relative to in-game resolution, we need to convert them to
+						// screen/desktop uv coords
+						x0 *= g_fCurInGameWidth;
+						y0 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+						dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+						x1 *= g_fCurInGameWidth;
+						y1 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+						dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+						dcElemSrcBox->bComputed = true;
+						/*log_debug("[DBG] [DC] RADIO (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+							g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+							g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
+
+
+						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_SYSTEM_DC_ELEM_SRC_IDX];
+						x0 = dcElemSrcBox->uv_coords.x0;
+						y0 = dcElemSrcBox->uv_coords.y0;
+						x1 = dcElemSrcBox->uv_coords.x1;
+						y1 = dcElemSrcBox->uv_coords.y1;
+						// These coords are relative to in-game resolution, we need to convert them to
+						// screen/desktop uv coords
+						x0 *= g_fCurInGameWidth;
+						y0 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+						dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+						x1 *= g_fCurInGameWidth;
+						y1 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+						dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+						dcElemSrcBox->bComputed = true;
+						/*log_debug("[DBG] [DC] SYSTEM (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+							g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+							g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
+
+
+						dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
+						x0 = dcElemSrcBox->uv_coords.x0;
+						y0 = dcElemSrcBox->uv_coords.y0;
+						x1 = dcElemSrcBox->uv_coords.x1;
+						y1 = dcElemSrcBox->uv_coords.y1;
+						// These coords are relative to in-game resolution, we need to convert them to
+						// screen/desktop uv coords
+						x0 *= g_fCurInGameWidth;
+						y0 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+						dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
+
+						x1 *= g_fCurInGameWidth;
+						y1 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+						dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
+						dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
+						dcElemSrcBox->bComputed = true;
+						/*log_debug("[DBG] [DC] CMD (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+							g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
+							g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
+
+							// *********************************************************
+							// Compute the coords for the "erase_screen_def" commands:
+							// *********************************************************
+						dcSrcBox = &g_DCHUDRegions.boxes[TEXT_RADIOSYS_HUD_BOX_IDX];
+						x0 = dcSrcBox->uv_erase_coords.x0;
+						y0 = dcSrcBox->uv_erase_coords.y0;
+						x1 = dcSrcBox->uv_erase_coords.x1;
+						y1 = dcSrcBox->uv_erase_coords.y1;
+						// These coords are relative to in-game resolution, we need to convert them to
+						// screen/desktop uv coords
+						x0 *= g_fCurInGameWidth;
+						y0 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+						dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
+						dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
+
+						x1 *= g_fCurInGameWidth;
+						y1 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+						dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
+						dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
+						dcSrcBox->bLimitsComputed = true;
+						/*log_debug("[DBG] [DC] RADIOSYS ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+							g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
+							g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);*/
+
+						dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
+						x0 = dcSrcBox->uv_erase_coords.x0;
+						y0 = dcSrcBox->uv_erase_coords.y0;
+						x1 = dcSrcBox->uv_erase_coords.x1;
+						y1 = dcSrcBox->uv_erase_coords.y1;
+						// These coords are relative to in-game resolution, we need to convert them to
+						// screen/desktop uv coords
+						x0 *= g_fCurInGameWidth;
+						y0 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
+						dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
+						dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
+
+						x1 *= g_fCurInGameWidth;
+						y1 *= g_fCurInGameHeight;
+						InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+							(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
+						dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
+						dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
+						dcSrcBox->bLimitsComputed = true;
+						/*
+						log_debug("[DBG] [DC] CMD ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
+							g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
+							g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);
+						*/
+					}
+
 					// Capture the bounds for the left sensor:
 					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 					{
@@ -8120,144 +8261,6 @@ HRESULT Direct3DDevice::Execute(
 								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
 								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);
 							*/
-
-							// Compute the limits for the screen_def areas -- these areas are not related to any single
-							// HUD element, but I put them here because the CMD is always shown, even in the hangar.
-							{
-								float x0, y0, x1, y1, sx, sy;
-
-								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_RADIO_DC_ELEM_SRC_IDX];
-								x0 = dcElemSrcBox->uv_coords.x0;
-								y0 = dcElemSrcBox->uv_coords.y0;
-								x1 = dcElemSrcBox->uv_coords.x1;
-								y1 = dcElemSrcBox->uv_coords.y1;
-								// These coords are relative to in-game resolution, we need to convert them to
-								// screen/desktop uv coords
-								x0 *= g_fCurInGameWidth;
-								y0 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
-								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
-
-								x1 *= g_fCurInGameWidth;
-								y1 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
-								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
-								dcElemSrcBox->bComputed = true;
-								/*log_debug("[DBG] [DC] RADIO (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
-									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
-
-
-								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_SYSTEM_DC_ELEM_SRC_IDX];
-								x0 = dcElemSrcBox->uv_coords.x0;
-								y0 = dcElemSrcBox->uv_coords.y0;
-								x1 = dcElemSrcBox->uv_coords.x1;
-								y1 = dcElemSrcBox->uv_coords.y1;
-								// These coords are relative to in-game resolution, we need to convert them to
-								// screen/desktop uv coords
-								x0 *= g_fCurInGameWidth;
-								y0 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
-								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
-
-								x1 *= g_fCurInGameWidth;
-								y1 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
-								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
-								dcElemSrcBox->bComputed = true;
-								/*log_debug("[DBG] [DC] SYSTEM (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
-									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
-
-
-								dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TEXT_CMD_DC_ELEM_SRC_IDX];
-								x0 = dcElemSrcBox->uv_coords.x0;
-								y0 = dcElemSrcBox->uv_coords.y0;
-								x1 = dcElemSrcBox->uv_coords.x1;
-								y1 = dcElemSrcBox->uv_coords.y1;
-								// These coords are relative to in-game resolution, we need to convert them to
-								// screen/desktop uv coords
-								x0 *= g_fCurInGameWidth;
-								y0 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
-								dcElemSrcBox->coords.x0 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y0 = sy / g_fCurScreenHeight;
-
-								x1 *= g_fCurInGameWidth;
-								y1 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
-								dcElemSrcBox->coords.x1 = sx / g_fCurScreenWidth;
-								dcElemSrcBox->coords.y1 = sy / g_fCurScreenHeight;
-								dcElemSrcBox->bComputed = true;
-								/*log_debug("[DBG] [DC] CMD (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
-									g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
-									g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
-
-								// *********************************************************
-								// Compute the coords for the "erase_screen_def" commands:
-								// *********************************************************
-								dcSrcBox = &g_DCHUDRegions.boxes[TEXT_RADIOSYS_HUD_BOX_IDX];
-								x0 = dcSrcBox->uv_erase_coords.x0;
-								y0 = dcSrcBox->uv_erase_coords.y0;
-								x1 = dcSrcBox->uv_erase_coords.x1;
-								y1 = dcSrcBox->uv_erase_coords.y1;
-								// These coords are relative to in-game resolution, we need to convert them to
-								// screen/desktop uv coords
-								x0 *= g_fCurInGameWidth;
-								y0 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
-								dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
-								dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
-
-								x1 *= g_fCurInGameWidth;
-								y1 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
-								dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
-								dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
-								dcSrcBox->bLimitsComputed = true;
-								/*log_debug("[DBG] [DC] RADIOSYS ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
-									g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
-									g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);*/
-
-								dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
-								x0 = dcSrcBox->uv_erase_coords.x0;
-								y0 = dcSrcBox->uv_erase_coords.y0;
-								x1 = dcSrcBox->uv_erase_coords.x1;
-								y1 = dcSrcBox->uv_erase_coords.y1;
-								// These coords are relative to in-game resolution, we need to convert them to
-								// screen/desktop uv coords
-								x0 *= g_fCurInGameWidth;
-								y0 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x0, y0, &sx, &sy);
-								dcSrcBox->erase_coords.x0 = sx / g_fCurScreenWidth;
-								dcSrcBox->erase_coords.y0 = sy / g_fCurScreenHeight;
-
-								x1 *= g_fCurInGameWidth;
-								y1 *= g_fCurInGameHeight;
-								InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-									(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x1, y1, &sx, &sy);
-								dcSrcBox->erase_coords.x1 = sx / g_fCurScreenWidth;
-								dcSrcBox->erase_coords.y1 = sy / g_fCurScreenHeight;
-								dcSrcBox->bLimitsComputed = true;
-								/*
-								log_debug("[DBG] [DC] CMD ERASE (x0,y0)-(x1,y1): (%0.1f, %0.1f)-(%0.1f, %0.1f)",
-									g_fCurScreenWidth * dcSrcBox->erase_coords.x0, g_fCurScreenHeight * dcSrcBox->erase_coords.y0,
-									g_fCurScreenWidth * dcSrcBox->erase_coords.x1, g_fCurScreenHeight * dcSrcBox->erase_coords.y1);
-								*/
-							}
 						}
 					}
 
