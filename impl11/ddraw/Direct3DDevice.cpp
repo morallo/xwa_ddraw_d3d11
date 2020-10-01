@@ -8339,15 +8339,6 @@ HRESULT Direct3DDevice::Execute(
 							dcSrcBox->bLimitsComputed = true;
 							//log_debug("[DBG] [DC] Top Left Region captured");
 
-							/*
-							// Compute and store the erase coordinates for the CMD HUD REGION
-							dcSrcBox = &g_DCHUDRegions.boxes[TEXT_CMD_HUD_BOX_IDX];
-							dcSrcBox->coords = box;
-							ComputeCoordsFromUV(left, top, width, height, uv_minmax, box,
-								dcSrcBox->uv_erase_coords, &dcSrcBox->erase_coords);
-							dcSrcBox->bLimitsComputed = true;
-							*/
-
 							// Get the limits for Speed & Throttle
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,

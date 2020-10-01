@@ -10719,9 +10719,9 @@ void PrimarySurface::RenderText()
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
-			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
 			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
-			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
 			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
 			
 			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
@@ -10735,9 +10735,9 @@ void PrimarySurface::RenderText()
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
-			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
 			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
-			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
 			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
 			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
 				g_nonVRViewport.Width, g_nonVRViewport.Height,
@@ -10751,19 +10751,19 @@ void PrimarySurface::RenderText()
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
-			rect.top = g_fCurScreenWidth * dcElemSrcBox->coords.y0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
 			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
-			rect.bottom = g_fCurScreenWidth * dcElemSrcBox->coords.y1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
 			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
-
 			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
 				g_nonVRViewport.Width, g_nonVRViewport.Height,
 				rect.left, rect.top, &fx, &fy);
+
 			char buf[40];
 			sprintf_s(buf, 40, "SPD: %d", speed);
-			DisplayText(buf, FONT_LARGE_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 			sprintf_s(buf, 40, "THR: %d%%", throttle);
-			DisplayText(buf, FONT_LARGE_IDX, (short)fx + ofs, (short)fy + ofs + s_rowSize, 0xFFFFFF);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs + s_rowSize, 0xFFFFFF);
 		}
 	}
 
