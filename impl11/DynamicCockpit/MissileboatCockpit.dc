@@ -84,6 +84,7 @@ cover_texture = DynamicCockpit\missileboat-secondary-cmd.png
 cover_texture_size = 256,256
 uv_coords    = LEFT_SENSOR_SRC, -256,-256, 512,512; 0x0; 1; 1; 1; 0x002000; 0x200000
 
+; Numeric shield percentage
 [MissileboatCockpit.opt,TEX00092]
 cover_texture_size = 32,32
 uv_coords = SHIELDS_FRONT_SRC, 0,32, 32,16; 0x0
@@ -94,6 +95,49 @@ cover_texture_size = 2,2
 uv_coords = TEXT_CMD_SRC, -0.25,2, 2.25,0; 0x0
 erase_region = TEXT_CMD_REGION
 transparent = 1
+
+; uv_coords = SRC, x0,y0, x1,y1; bgColor; Intensity; TextEnable; ObjEnable; hgColor; whColor
+
+; The fields below are designed to be floating in front of the HUD. The texture
+; is made transparent by adding the "transparent = 1" setting. We only want to
+; display the text, that's why they end with 0x0; 1; 1; 0 (black background,
+; intensity = 1, text, no object.
+; These elements can also be placed on the cockpit just like a regular DC element
+[MissileboatCockpit.opt,ZZZCmdDist]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_DIST_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdSubComp]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_SUBCMP_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdName]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_NAME_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdShields]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_SHD_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdHull]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_HULL_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdCargo]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_CARGO_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
+[MissileboatCockpit.opt,ZZZCmdSys]
+cover_texture_size = 2,2
+uv_coords = TARGETED_OBJ_SYS_SRC, 0,2, 2,0; 0x0; 1; 1; 0
+transparent = 1
+
 
 fix_missles_countermeasures_text = 1
 

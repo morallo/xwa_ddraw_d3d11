@@ -361,6 +361,13 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"TEXT_RADIO_SRC",			// 30
 	"TEXT_SYSTEM_SRC",			// 31
 	"TEXT_CMD_SRC",				// 32
+	"TARGETED_OBJ_NAME_SRC",	// 33
+	"TARGETED_OBJ_SHD_SRC",		// 34
+	"TARGETED_OBJ_HULL_SRC",	// 35
+	"TARGETED_OBJ_CARGO_SRC",	// 36
+	"TARGETED_OBJ_SYS_SRC",		// 37
+	"TARGETED_OBJ_DIST_SRC",	// 38
+	"TARGETED_OBJ_SUBCMP_SRC",	// 39
 };
 
 int HUDRegionNameToIndex(char *name) {

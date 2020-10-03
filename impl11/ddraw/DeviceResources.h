@@ -119,7 +119,14 @@ const int KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
 const int TEXT_RADIO_DC_ELEM_SRC_IDX = 30;
 const int TEXT_SYSTEM_DC_ELEM_SRC_IDX = 31;
 const int TEXT_CMD_DC_ELEM_SRC_IDX = 32;
-const int MAX_DC_SRC_ELEMENTS = 33;
+const int TARGETED_OBJ_NAME_SRC_IDX = 33;
+const int TARGETED_OBJ_SHD_SRC_IDX = 34;
+const int TARGETED_OBJ_HULL_SRC_IDX = 35;
+const int TARGETED_OBJ_CARGO_SRC_IDX = 36;
+const int TARGETED_OBJ_SYS_SRC_IDX = 37;
+const int TARGETED_OBJ_DIST_SRC_IDX = 38;
+const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
+const int MAX_DC_SRC_ELEMENTS = 40;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char *name);
