@@ -47,3 +47,12 @@ LaserPointerCBuffer : register(b8)
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6
+
+// If this value is too high, then DX will fail when creating textures.
+// 2^9 = 512, that's probably the smallest dimension the desktop can be
+// (either width or height)
+#define MAX_MIP_LEVELS 9
+
+// Enable the following define and look at any sun to trigger the SunFlareShader.
+// That'll show mip-map level 5 -- it's a nice way to debug mip maps.
+//#define GENMIPMAPS_DEBUG

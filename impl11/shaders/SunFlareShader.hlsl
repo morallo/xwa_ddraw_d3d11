@@ -19,7 +19,20 @@
 
  // The background texture
 Texture2D    bgTex     : register(t0);
+
+#ifdef GENMIPMAPS_DEBUG
+// DEBUG section. This will enable mip maps in this shader
+// Use the following definition when mip maps are enabled:
+SamplerState bgSampler : register(s0) =
+	sampler_state {
+		Filter = MIN_MAG_MIP_LINEAR;
+		MaxLOD = MAX_MIP_LEVELS;
+		MinLOD = 0;
+	};
+#else
 SamplerState bgSampler : register(s0);
+#endif
+
 
 // The depth buffer: we'll use this as a mask since the sun should be at infinity
 Texture2D    depthTex     : register(t1);
@@ -305,7 +318,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (VRmode == 1)
 		output.color = float4(0, 0, 0, 1);
 	else
+#ifdef GENMIPMAPS_DEBUG
+		// DEBUG section. This will enable mip maps in this shader
+		output.color = bgTex.SampleLevel(bgSampler, input.uv, 5.0);
+#else
 		output.color = bgTex.Sample(bgSampler, input.uv);
+#endif
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))

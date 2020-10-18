@@ -1806,6 +1806,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.SampleDesc.Count = 1;
 			desc.SampleDesc.Quality = 0;
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+#ifdef GENMIPMAPS
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+			desc.MipLevels = MAX_MIP_LEVELS;
+#endif
 
 			// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
 			step = "offscreenBufferAsInput";
@@ -2144,7 +2149,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.SampleDesc.Count = 1;
 				desc.SampleDesc.Quality = 0;
 				desc.Format = AO_DEPTH_BUFFER_FORMAT;
+#ifdef GENMIPMAPS
+				desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+				desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+				desc.MipLevels = MAX_MIP_LEVELS;
+#else
 				desc.MipLevels = 1; // 4;
+#endif
 
 				step = "_depthBufAsInput";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInput);
@@ -2214,6 +2225,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
+
+#ifdef GENMIPMAPS
+			shaderResourceViewDesc.Texture2D.MipLevels = MAX_MIP_LEVELS;
+			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+#endif
 
 			// Create the shader resource view for offscreenBufferAsInput
 			step = "offscreenAsInputShaderResourceView";
@@ -2453,7 +2469,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// AO SRVs
 			if (g_bAOEnabled) {
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+#ifdef GENMIPMAPS
+				shaderResourceViewDesc.Texture2D.MipLevels = MAX_MIP_LEVELS; // 4;
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+#else
 				shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;
+#endif
 
 				step = "_depthBufSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInput,

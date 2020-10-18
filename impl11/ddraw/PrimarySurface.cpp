@@ -7421,6 +7421,13 @@ void PrimarySurface::RenderSunFlare()
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
+#ifdef GENMIPMAPS_DEBUG
+	// DEBUG
+	// An easy way to check if the mip maps are being generated is by calling GenerateMipMaps here and then sampling
+	// a higher level in the sun flare shader.
+	context->GenerateMips(resources->_offscreenAsInputShaderResourceView);
+#endif
+
 	// Render the Sun Flare
 	// output: _offscreenBufferPost, _offscreenBufferPostR
 	// The non-VR case produces a fully-finished image.
@@ -8983,6 +8990,12 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 				}
+
+#ifdef GENMIPMAPS
+				context->GenerateMips(resources->_depthBufSRV);
+				if (g_bUseSteamVR)
+					context->GenerateMips(resources->_depthBufSRV_R);
+#endif
 
 				// We need to set the blend state properly for SSAO
 				D3D11_BLEND_DESC blendDesc{};
