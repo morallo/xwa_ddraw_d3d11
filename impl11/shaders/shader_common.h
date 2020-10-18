@@ -1,3 +1,6 @@
+#ifndef SHADER_COMMON_H
+#define SHADER_COMMON_H
+
 /*
 Constant Buffer Registers
 
@@ -53,6 +56,13 @@ LaserPointerCBuffer : register(b8)
 // (either width or height)
 #define MAX_MIP_LEVELS 9
 
+// Labels defined at the C++ preprocessor level are not seen in shaders. Therefore,
+// we have to define them here so that both C++ files and HLSL files can see these
+// definitions.
+#define GENMIPMAPS
+
 // Enable the following define and look at any sun to trigger the SunFlareShader.
 // That'll show mip-map level 5 -- it's a nice way to debug mip maps.
 //#define GENMIPMAPS_DEBUG
+
+#endif
