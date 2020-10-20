@@ -26,8 +26,6 @@ Texture2D    bgTex     : register(t0);
 SamplerState bgSampler : register(s0) =
 	sampler_state {
 		Filter = MIN_MAG_MIP_LINEAR;
-		MaxLOD = MAX_MIP_LEVELS;
-		MinLOD = 0;
 	};
 #else
 SamplerState bgSampler : register(s0);

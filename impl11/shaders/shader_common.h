@@ -54,6 +54,8 @@ LaserPointerCBuffer : register(b8)
 // If this value is too high, then DX will fail when creating textures.
 // 2^9 = 512, that's probably the smallest dimension the desktop can be
 // (either width or height)
+// Or we can use 0 when creating the textures and -1 when creating the SRVs
+// that seems to work without specifying the maximum mip levels.
 #define MAX_MIP_LEVELS 9
 
 // Labels defined at the C++ preprocessor level are not seen in shaders. Therefore,

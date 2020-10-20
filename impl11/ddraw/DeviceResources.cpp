@@ -1809,7 +1809,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 #ifdef GENMIPMAPS
 			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 			desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-			desc.MipLevels = MAX_MIP_LEVELS;
+			desc.MipLevels = 0; // MAX_MIP_LEVELS
 #endif
 
 			// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
@@ -2152,7 +2152,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 #ifdef GENMIPMAPS
 				desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 				desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-				desc.MipLevels = MAX_MIP_LEVELS;
+				desc.MipLevels = 0; // MAX_MIP_LEVELS;
 #else
 				desc.MipLevels = 1; // 4;
 #endif
@@ -2227,7 +2227,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
 
 #ifdef GENMIPMAPS
-			shaderResourceViewDesc.Texture2D.MipLevels = MAX_MIP_LEVELS;
+			shaderResourceViewDesc.Texture2D.MipLevels = -1; // MAX_MIP_LEVELS
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 #endif
 
@@ -2470,7 +2470,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_bAOEnabled) {
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 #ifdef GENMIPMAPS
-				shaderResourceViewDesc.Texture2D.MipLevels = MAX_MIP_LEVELS; // 4;
+				shaderResourceViewDesc.Texture2D.MipLevels = -1; // MAX_MIP_LEVELS;
 				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 #else
 				shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;

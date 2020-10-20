@@ -15,8 +15,6 @@ Texture2D    texPos   : register(t0);
 SamplerState sampPos  : register(s0) = 
 	sampler_state {
 		Filter = MIN_MAG_MIP_LINEAR;
-		MaxLOD = MAX_MIP_LEVELS;
-		MinLOD = 0;
 	};
 
 // The normal buffer
@@ -147,8 +145,8 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	
 #ifdef GENMIPMAPS
 	//float miplevel = L / max_radius * MAX_MIP_LEVELS; // Don't know if this miplevel actually improves performance
-	//const float miplevel = cur_radius_sqr / max_radius_sqr * MAX_MIP_LEVELS; // Is this miplevel better than using L? (I think L was sqrt(cur_radius_sqr))
-	const float miplevel = sqrt(cur_radius_sqr) / sqrt(max_radius_sqr) * MAX_MIP_LEVELS;
+	const float miplevel = cur_radius_sqr / max_radius_sqr * MAX_MIP_LEVELS; // Is this miplevel better than using L? (I think L was sqrt(cur_radius_sqr))
+	//const float miplevel = sqrt(cur_radius_sqr) / sqrt(max_radius_sqr) * MAX_MIP_LEVELS;
 	//const float miplevel = 5.0;
 #else
 	const float miplevel = 0.0;
