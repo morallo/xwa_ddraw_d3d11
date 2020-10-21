@@ -534,16 +534,18 @@ typedef struct MaterialStruct {
 	bool  IsShadeless;
 	bool  NoBloom;
 	Vector3 Light;
+	Vector2 LightUVCoordPos;
 
 	MaterialStruct() {
-		Metallic    = g_DefaultGlobalMaterial.Metallic;
-		Intensity   = g_DefaultGlobalMaterial.Intensity;
-		Glossiness  = g_DefaultGlobalMaterial.Glossiness;
-		NMIntensity = g_DefaultGlobalMaterial.NMIntensity;
-		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
-		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
-		Light		= g_DefaultGlobalMaterial.Light;
-		NoBloom		= false;
+		Metallic		= g_DefaultGlobalMaterial.Metallic;
+		Intensity		= g_DefaultGlobalMaterial.Intensity;
+		Glossiness		= g_DefaultGlobalMaterial.Glossiness;
+		NMIntensity		= g_DefaultGlobalMaterial.NMIntensity;
+		SpecValue		= g_DefaultGlobalMaterial.SpecValue;
+		IsShadeless		= g_DefaultGlobalMaterial.IsShadeless;
+		Light			= g_DefaultGlobalMaterial.Light;
+		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		NoBloom			= false;
 	}
 } Material;
 

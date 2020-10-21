@@ -2147,6 +2147,34 @@ bool LoadLightColor(char *buf, Vector3 *Light)
 	return true;
 }
 
+/*
+ * Loads an UV coord row
+ */
+bool LoadUVCoord(char *buf, Vector2 *UVCoord)
+{
+	int res = 0;
+	char *c = NULL;
+	float x, y;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f", &x, &y);
+			if (res < 2) {
+				log_debug("[DBG] [MAT] Error (skipping), expected at least 2 elements in '%s'", c);
+			}
+			UVCoord->x = x;
+			UVCoord->y = y;
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT] Could not read 'x, y' from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
 void ReadMaterialLine(char *buf, Material *curMaterial) {
 	char param[256], svalue[256]; // texname[MAX_TEXNAME];
 	float fValue = 0.0f;
@@ -2188,6 +2216,11 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 		LoadLightColor(buf, &(curMaterial->Light));
 		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
 		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
+	}
+	else if (_stricmp(param, "light_uv_coord_pos") == 0) {
+		LoadUVCoord(buf, &(curMaterial->LightUVCoordPos));
+		//log_debug("[DBG] [MAT] LightUVCoordPos: %0.3f, %0.3f",
+		//	curMaterial->LightUVCoordPos.x, curMaterial->LightUVCoordPos.y);
 	}
 	else if (_stricmp(param, "NoBloom") == 0) {
 		curMaterial->NoBloom = (bool)fValue;
@@ -6706,13 +6739,13 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 	return bIntersection;
 }
 
-void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
+void Direct3DDevice::AddLaserLightsOld(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
 	UINT idx = curIndex;
-	float u,v;
 	Vector3 pos3D;
+	float u, v;
 
 	// XWA batch renders all lasers that share the same texture, so we may see several
 	// lasers when parsing this instruction. So, to detect each individual laser, we need
@@ -6720,11 +6753,11 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 	// tip of one individual laser and we add it to the current list.
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
+		
 		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
-		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -6734,7 +6767,6 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
-		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
@@ -6744,10 +6776,57 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		u = g_OrigVerts[index].tu;
 		v = g_OrigVerts[index].tv;
 		if (u > 0.9f && v > 0.9f)
-		//if (u < 0.1f && v < 0.1f)
 		{
 			backProject(index, &pos3D);
 			g_LaserList.insert(pos3D, texture->material.Light);
+		}
+
+		triangle++;
+	}
+}
+
+void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	Vector3 tempv0, tempv1, tempv2, P;
+	Vector2 v0, v1, v2;
+	Vector2 UV0, UV1, UV2, UV = texture->material.LightUVCoordPos;
+
+	// XWA batch renders all lasers that share the same texture, so we may see several
+	// lasers when parsing this instruction. To detect each individual laser, we need
+	// to look at the uv's and see if the current triangle contains the uv coord we're
+	// looking for (the default is (0.1, 0.9)). If the uv is contained, then we compute
+	// the 3D point using its barycentric coords and add it to the current list.
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy;
+		backProjectMetric(index, &tempv0);
+		if (g_bEnableVR) tempv0.y = -tempv0.y;
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy;
+		backProjectMetric(index, &tempv1);
+		if (g_bEnableVR) tempv1.y = -tempv1.y;
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy;
+		backProjectMetric(index, &tempv2);
+		if (g_bEnableVR) tempv2.y = -tempv2.y;
+		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
+
+		float u, v;
+		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
+			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			g_LaserList.insert(P, texture->material.Light);
 		}
 
 		triangle++;
