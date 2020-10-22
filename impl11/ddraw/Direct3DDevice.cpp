@@ -3526,7 +3526,7 @@ bool LoadSSAOParams() {
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
 	g_ShadingSys_PSBuffer.lightness_boost  = 2.0f;
 	g_ShadingSys_PSBuffer.sqr_attenuation  = 0.001f; // Smaller numbers fade less
-	g_ShadingSys_PSBuffer.laser_light_intensity = 3.0f;
+	g_ShadingSys_PSBuffer.laser_light_intensity = 6.0f;
 	g_bHDREnabled = false;
 	g_fHDRWhitePoint = 1.0f;
 	g_fHDRLightsMultiplier = 2.8f;
@@ -4030,7 +4030,11 @@ bool LoadSSAOParams() {
 				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
 			}
 			else if (_stricmp(param, "laser_light_intensity") == 0) {
-				g_ShadingSys_PSBuffer.laser_light_intensity = fValue;
+				// The way the laser light is attached to the laser texture has changed. I'm now using
+				// barycentric coords. I believe the old method may have attached two lights per laser
+				// so the new method now looks too dim. To compensate, we probably need to double the
+				// laser light intensity here.
+				g_ShadingSys_PSBuffer.laser_light_intensity = 2.0f * fValue;
 			}
 			else if (_stricmp(param, "headlights_pos") == 0) {
 				float x, y, z;
