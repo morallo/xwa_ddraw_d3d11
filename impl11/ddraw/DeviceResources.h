@@ -832,6 +832,7 @@ public:
 	//void CreateReticleVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
+	void CreateGrayNoiseTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 

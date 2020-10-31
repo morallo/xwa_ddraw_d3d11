@@ -1011,6 +1011,7 @@ for (GLuint i = 0; i < 64; ++i)
 	ssdoKernel.push_back(sample);
 }
 */
+
 void DeviceResources::CreateRandomVectorTexture() {
 	/*
 	const int NUM_SAMPLES = 64;
@@ -1092,6 +1093,69 @@ out:
 
 void DeviceResources::DeleteRandomVectorTexture() {
 	// TODO
+}
+
+void DeviceResources::CreateGrayNoiseTexture() {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	const int TEX_SIZE = 256;
+	const int NUM_SAMPLES = TEX_SIZE * TEX_SIZE;
+	uint8_t rawData[NUM_SAMPLES];
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	ComPtr<ID3D11Texture2D> texture = nullptr;
+	ComPtr<ID3D11ShaderResourceView> textureSRV = nullptr;
+
+	desc.Width = TEX_SIZE;
+	desc.Height = TEX_SIZE;
+	desc.Format = DXGI_FORMAT_R8_UINT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint8_t) * TEX_SIZE;
+	textureData.SysMemSlicePitch = 0;
+
+	for (int i = 0; i < NUM_SAMPLES; i++)
+	{
+		float sample = ((float)rand() / RAND_MAX);
+		rawData[i] = (uint8_t)(255 * sample);
+	}
+
+	HRESULT hr = device->CreateTexture2D(&desc, &textureData, &texture);
+	if (FAILED(hr)) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateTexture2D on gray noise texture, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+	hr = device->CreateShaderResourceView(texture, &shaderResourceViewDesc, &textureSRV);
+	if (FAILED(hr)) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateShaderResourceView on gray noiseB, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+out:
+	// DEBUG
+	//hr = DirectX::SaveDDSTextureToFile(context, texture, L"C:\\Temp\\_grayNoiseTex.dds");
+	//log_debug("[DBG] [NOISE] Dumped randomTex to file, hr: 0x%x", hr);
+	// DEBUG
+	if (texture != nullptr) texture->Release();
+	if (textureSRV != nullptr) textureSRV->Release();
 }
 
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
@@ -2582,6 +2646,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildPostProcVertexBuffer();
 		BuildSpeedVertexBuffer();
 		CreateRandomVectorTexture();
+		CreateGrayNoiseTexture();
 	}
 
 	/* RTVs */
