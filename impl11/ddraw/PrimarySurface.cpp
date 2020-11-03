@@ -11080,5 +11080,8 @@ void PrimarySurface::RenderBracket()
 	this->_deviceResources->_d2d1OffscreenRenderTarget->EndDraw();
 	this->_deviceResources->_d2d1OffscreenRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
+	// Need to set s_brush to NULL to avoid dangling references. Otherwise, we may get
+	// crashes when exiting.
+	s_brush = nullptr;
 	g_xwa_bracket.clear();
 }
