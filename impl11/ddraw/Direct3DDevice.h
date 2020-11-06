@@ -63,6 +63,8 @@ public:
 
 	void RestoreBlendState();
 
+	void RestoreSamplerState();
+
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
 	STDMETHOD(AddViewport)(THIS_ LPDIRECT3DVIEWPORT);

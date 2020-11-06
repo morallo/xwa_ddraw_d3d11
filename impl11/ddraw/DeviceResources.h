@@ -535,6 +535,10 @@ typedef struct MaterialStruct {
 	bool  NoBloom;
 	Vector3 Light;
 	Vector2 LightUVCoordPos;
+	bool  IsLava;
+	float LavaSpeed;
+	float LavaSize;
+	float LavaBloom;
 
 	MaterialStruct() {
 		Metallic		= g_DefaultGlobalMaterial.Metallic;
@@ -546,6 +550,10 @@ typedef struct MaterialStruct {
 		Light			= g_DefaultGlobalMaterial.Light;
 		LightUVCoordPos = Vector2(0.1f, 0.9f);
 		NoBloom			= false;
+		IsLava			= false;
+		LavaSpeed		= 1.0f;
+		LavaSize		= 1.0f;
+		LavaBloom		= 1.0f;
 	}
 } Material;
 
@@ -833,6 +841,7 @@ public:
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
 	void CreateGrayNoiseTexture();
+	void DeleteGrayNoiseTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -929,6 +938,8 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
+	// Generated/Procedural Textures
+	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -1016,6 +1027,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
+	// Generated/Procedural Textures SRVs
+	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -1066,6 +1079,8 @@ public:
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	ComPtr<ID3D11PixelShader> _starDebugPS;
+	ComPtr<ID3D11PixelShader> _lavaPS;
+	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

@@ -59,12 +59,13 @@
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
-#Include "../Debug/HeadLightsPS.h"
+#include "../Debug/HeadLightsPS.h"
 #include "../Debug/HeadLightsSSAOPS.h"
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
 #include "../Debug/EdgeDetector.h"
 #include "../Debug/StarDebug.h"
+#include "../Debug/LavaPixelShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -119,6 +120,7 @@
 #include "../Release/ShadowMapVS.h"
 #include "../Release/EdgeDetector.h"
 #include "../Release/StarDebug.h"
+#include "../Release/LavaPixelShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -395,6 +397,8 @@ DeviceResources::DeviceResources()
 	this->_backbufferSurface = nullptr;
 	this->_frontbufferSurface = nullptr;
 	this->_offscreenSurface = nullptr;
+	this->_grayNoiseTex = nullptr;
+	this->_grayNoiseSRV = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -1100,16 +1104,18 @@ void DeviceResources::CreateGrayNoiseTexture() {
 	auto& device = this->_d3dDevice;
 	const int TEX_SIZE = 256;
 	const int NUM_SAMPLES = TEX_SIZE * TEX_SIZE;
-	uint8_t rawData[NUM_SAMPLES];
+	float rawData[NUM_SAMPLES];
+	HRESULT hr;
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 	D3D11_SUBRESOURCE_DATA textureData = { 0 };
-	ComPtr<ID3D11Texture2D> texture = nullptr;
-	ComPtr<ID3D11ShaderResourceView> textureSRV = nullptr;
+	if (_grayNoiseTex != nullptr)
+		DeleteGrayNoiseTexture();
 
 	desc.Width = TEX_SIZE;
 	desc.Height = TEX_SIZE;
-	desc.Format = DXGI_FORMAT_R8_UINT;
+	//desc.Format = DXGI_FORMAT_R8_UINT;
+	desc.Format = DXGI_FORMAT_R32_FLOAT;
 	desc.MiscFlags = 0;
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
@@ -1124,17 +1130,16 @@ void DeviceResources::CreateGrayNoiseTexture() {
 	textureData.SysMemPitch = sizeof(uint8_t) * TEX_SIZE;
 	textureData.SysMemSlicePitch = 0;
 
-	for (int i = 0; i < NUM_SAMPLES; i++)
-	{
-		float sample = ((float)rand() / RAND_MAX);
-		rawData[i] = (uint8_t)(255 * sample);
+	for (int i = 0; i < NUM_SAMPLES; i++) {
+		//float sample = ((float)rand() / RAND_MAX);
+		//rawData[i] = (uint8_t)(255 * sample);
+		rawData[i] = ((float)rand() / RAND_MAX);
 	}
 
-	HRESULT hr = device->CreateTexture2D(&desc, &textureData, &texture);
-	if (FAILED(hr)) {
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_grayNoiseTex))) {
 		log_debug("[DBG] [NOISE] Failed when calling CreateTexture2D on gray noise texture, reason: 0x%x",
 			this->_d3dDevice->GetDeviceRemovedReason());
-		goto out;
+		return;
 	}
 
 	shaderResourceViewDesc.Format = desc.Format;
@@ -1142,20 +1147,49 @@ void DeviceResources::CreateGrayNoiseTexture() {
 	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 	shaderResourceViewDesc.Texture2D.MipLevels = 1;
 
-	hr = device->CreateShaderResourceView(texture, &shaderResourceViewDesc, &textureSRV);
-	if (FAILED(hr)) {
+	if (FAILED(hr = device->CreateShaderResourceView(_grayNoiseTex, &shaderResourceViewDesc, &_grayNoiseSRV))) {
 		log_debug("[DBG] [NOISE] Failed when calling CreateShaderResourceView on gray noiseB, reason: 0x%x",
 			this->_d3dDevice->GetDeviceRemovedReason());
-		goto out;
+		return;
 	}
 
-out:
+	D3D11_SAMPLER_DESC samplerDesc;
+	samplerDesc.Filter = this->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.MaxAnisotropy = this->_useAnisotropy ? this->GetMaxAnisotropy() : 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_repeatSamplerState))) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateSamplerState on gray noiseB, hr: 0x%x", hr);
+		return;
+	}
+
+//out:
 	// DEBUG
-	//hr = DirectX::SaveDDSTextureToFile(context, texture, L"C:\\Temp\\_grayNoiseTex.dds");
+	//hr = DirectX::SaveDDSTextureToFile(context, _grayNoiseTex, L"C:\\Temp\\_grayNoiseTex.dds");
 	//log_debug("[DBG] [NOISE] Dumped randomTex to file, hr: 0x%x", hr);
 	// DEBUG
-	if (texture != nullptr) texture->Release();
-	if (textureSRV != nullptr) textureSRV->Release();
+	//if (_grayNoiseTex != nullptr) _grayNoiseTex->Release();
+	//if (_grayNoiseSRV != nullptr) _grayNoiseSRV->Release();
+}
+
+void DeviceResources::DeleteGrayNoiseTexture()
+{
+	if (_grayNoiseSRV != nullptr) _grayNoiseSRV->Release();
+	if (_grayNoiseTex != nullptr) _grayNoiseTex->Release();
+	if (_repeatSamplerState != nullptr) _repeatSamplerState.Release();
+	_grayNoiseTex = nullptr;
+	_grayNoiseSRV = nullptr;
+	_repeatSamplerState = nullptr;
 }
 
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
@@ -3222,6 +3256,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3519,6 +3556,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

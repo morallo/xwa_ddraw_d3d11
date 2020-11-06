@@ -733,7 +733,7 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lightsf
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
-bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false;
+bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false, g_bProceduralLava = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
 bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
@@ -2238,6 +2238,19 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 	else if (_stricmp(param, "shadow_map_mult_z") == 0) {
 		g_ShadowMapping.shadow_map_mult_z = fValue;
 		log_debug("[DBG] [SHW] shadow_map_mult_z: %0.3f", fValue);
+	}
+	// Lava Settings
+	else if (_stricmp(param, "Lava") == 0) {
+		curMaterial->IsLava = (bool)fValue;
+	}
+	else if (_stricmp(param, "LavaSpeed") == 0) {
+		curMaterial->LavaSpeed = fValue;
+	}
+	else if (_stricmp(param, "LavaSize") == 0) {
+		curMaterial->LavaSize = fValue;
+	}
+	else if (_stricmp(param, "LavaBloom") == 0) {
+		curMaterial->LavaBloom = fValue;
 	}
 }
 
@@ -6987,6 +7000,12 @@ inline void Direct3DDevice::RestoreBlendState() {
 	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
 }
 
+inline void Direct3DDevice::RestoreSamplerState() {
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	context->PSSetSamplers(1, 1, resources->_mainSamplerState.GetAddressOf());
+}
+
 inline void UpdateDCHologramState() {
 	if (!g_bDCHologramsVisiblePrev && g_bDCHologramsVisible) {
 		g_fDCHologramFadeIn = 0.0f;
@@ -7087,7 +7106,7 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false, bModifiedSamplerState = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -8725,9 +8744,10 @@ HRESULT Direct3DDevice::Execute(
 				// We will be modifying the regular render state from this point on. The state and the Pixel/Vertex
 				// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 				// so that we can restore the state at the end of the draw call.
-				bModifiedShaders     = false;
-				bModifiedPixelShader = false;
-				bModifiedBlendState  = false;
+				bModifiedShaders      = false;
+				bModifiedPixelShader  = false;
+				bModifiedBlendState   = false;
+				bModifiedSamplerState = false;
 
 				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
 #ifdef DISABLED
@@ -8922,6 +8942,30 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 					// Set the constant buffer
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+				}
+
+				if (g_bProceduralLava && bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial && lastTextureSelected->material.IsLava)
+				{
+					static float iTime = 0.0f;
+					iTime += 0.0001f * lastTextureSelected->material.LavaSpeed;
+
+					bModifiedShaders = true;
+					bModifiedPixelShader = true;
+					bModifiedSamplerState = true;
+
+					g_ShadertoyBuffer.iTime = iTime;
+					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
+					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.LavaBloom;
+
+					resources->InitPixelShader(resources->_lavaPS);
+					// Set the noise texture and sampler state with wrap/repeat enabled.
+					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
+					// bModifiedSamplerState restores this sampler state at the end of this instruction.
+					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+
+					// Set the constant buffer
+					// TODO: Set the g_PSCBuffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
@@ -9778,6 +9822,11 @@ HRESULT Direct3DDevice::Execute(
 				if (bModifiedBlendState) {
 					RestoreBlendState();
 					bModifiedBlendState = false;
+				}
+
+				if (bModifiedSamplerState) {
+					RestoreSamplerState();
+					bModifiedSamplerState = false;
 				}
 
 				currentIndexLocation += 3 * instruction->wCount;
