@@ -2,7 +2,7 @@
 // by nimitz (twitter: @stormoid)
 // https://www.shadertoy.com/view/lslXRS
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
-// Contact the author for other licensing options
+// Tiling from https://www.shadertoy.com/view/Md2yWh by noby
 // Adapted to XWA by Leo Reyes
 
 #include "shader_common.h"
@@ -155,6 +155,31 @@ float flow_new(vec2 p)
 	return rz;
 }
 
+// Tiling code starts here:
+
+static float F_CONST = 0.5*(1.0 + sqrt(2.0));
+
+float lerpx(in vec2 uv, in float repeat) {
+	float v  = flow(uv + vec2(-repeat * 0.5, 0)) * uv.x / repeat;
+	      v += flow(uv + vec2( repeat * 0.5, 0)) * (repeat - uv.x) / repeat;
+	// overlaying non-correlated noise reduces variance around repetition edges
+	// factor f scales it back
+	return mix(v, F_CONST * pow(abs(v), F_CONST),
+			   4.0 * (uv.x / repeat) * (repeat - uv.x) / repeat);
+}
+
+float lerpy(in vec2 uv, in float repeat) {
+	float v  = lerpx(uv + vec2(0, -repeat * 0.5), repeat) * uv.y / repeat;
+	      v += lerpx(uv + vec2(0,  repeat * 0.5), repeat) * (repeat - uv.y) / repeat;
+	// same scaling in y dimension
+	return mix(v, F_CONST * pow(abs(v), F_CONST),
+		       4.0 * (uv.y / repeat) * (repeat - uv.y) / repeat);
+}
+
+float noisetile(in vec2 uv, in float repeat) {
+	return lerpy(uv, repeat);
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -193,18 +218,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	//vec2 p = fragCoord.xy / iResolution.xy - 0.5;
 	//p.x *= iResolution.x / iResolution.y;
 
-	vec2 p = input.tex.xy;
-
+	//vec2 p = input.tex.xy;
 	// Fix UVs that are greater than 1 or negative.
-	//vec2 p = frac(input.tex.xy);
-	//if (p.x < 0.0) p.x += 1.0;
-	//if (p.y < 0.0) p.y += 1.0;
-	//p = p - 0.5;
+	vec2 p = frac(input.tex.xy);
+	if (p.x < 0.0) p.x += 1.0;
+	if (p.y < 0.0) p.y += 1.0;
 
 	p *= 3.0 * LavaSize;
-	//output.color = vec4(flow(p), 0.0, 1.0);
+	float repeat = 2.0 + (LavaSize - 1.0);
+	float size = 1.0 + LavaSize;
 
-	float rz = 1.0 / flow(p);
+	//float rz = 1.0 / flow(p); // No tiling
+
+	// Tiling
+	p = mod(p * size, repeat);
+	float rz = 1.0 / noisetile(p, repeat);
+	// Tiling
+
 	vec3 col = vec3(0.2, 0.07, 0.01) * rz;
 	output.color = vec4(col, 1.0);
 	output.bloom = float4(col, BloomStrength * rz);

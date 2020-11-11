@@ -8948,7 +8948,7 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bProceduralLava && bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial && lastTextureSelected->material.IsLava)
 				{
 					static float iTime = 0.0f;
-					iTime += 0.0001f * lastTextureSelected->material.LavaSpeed;
+					iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
