@@ -539,6 +539,11 @@ typedef struct MaterialStruct {
 	float LavaSpeed;
 	float LavaSize;
 	float LavaBloom;
+	Vector3 LavaColor;
+	// DEBUG properties, remove later
+	//Vector3 LavaNormalMult;
+	//Vector3 LavaPosMult;
+	//bool LavaTranspose;
 
 	MaterialStruct() {
 		Metallic		= g_DefaultGlobalMaterial.Metallic;
@@ -554,6 +559,22 @@ typedef struct MaterialStruct {
 		LavaSpeed		= 1.0f;
 		LavaSize		= 1.0f;
 		LavaBloom		= 1.0f;
+
+		LavaColor.x		= 1.00f;
+		LavaColor.y		= 0.35f;
+		LavaColor.z		= 0.05f;
+
+		/*
+		// DEBUG properties, remove later
+		LavaNormalMult.x = 1.0f;
+		LavaNormalMult.y = 1.0f;
+		LavaNormalMult.z = 1.0f;
+
+		LavaPosMult.x = -1.0f;
+		LavaPosMult.y = -1.0f;
+		LavaPosMult.z = -1.0f;
+		LavaTranspose = true;
+		*/
 	}
 } Material;
 

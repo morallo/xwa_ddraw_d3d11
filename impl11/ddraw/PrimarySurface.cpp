@@ -214,8 +214,8 @@ extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableHeadLights;
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
-float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 1500.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
-float g_fHeadLightsAutoTurnOnThreshold = 0.1f;
+float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+bool g_bHeadLightsAutoTurnOn = true;
 
 // Bloom
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
@@ -332,8 +332,8 @@ void DumpGlobalLights()
 	//DumpXwaTransform("ViewTransform", ViewTransform);
 	//DumpXwaTransform("WorldTransform", WorldTransform);
 
-	//for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
-	int i = 0;
+	for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
+	//int i = 0;
 	{
 		log_debug("[DBG] ***************************");
 		//str << std::endl;
@@ -2625,6 +2625,17 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	Vector4 light;
 	int i;
 
+	if (g_bHeadLightsAutoTurnOn) {
+		if (*s_XwaGlobalLightsCount == 0) {
+			//log_debug("[DBG] AUTO Turning headlights ON");
+			g_bEnableHeadLights = true;
+		}
+		else {
+			//log_debug("[DBG] AUTO Turning headlights OFF");
+			g_bEnableHeadLights = false;
+		}
+	}
+
 	/*
 	if (g_bOverrideLightPos) {
 		for (int i = 0; i < 2; i++) {
@@ -2646,9 +2657,12 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	float maxIntensity = -1.0;
 	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, *s_XwaGlobalLightsCount);
 	float cur_ambient = g_ShadingSys_PSBuffer.ambient;
+	//if (*s_XwaGlobalLightsCount == 0)
+	//	log_debug("[DBG] NO GLOBAL LIGHTS!");
 	if (g_bDumpSSAOBuffers) {
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
+		DumpGlobalLights();
 	}
 
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
@@ -2734,15 +2748,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
 		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
-
-		/*
-		if (0.0f < maxIntensity && maxIntensity < g_fHeadLightsAutoTurnOnThreshold) {
-			if (!g_bEnableHeadLights)
-				log_debug("[DBG] Turning headlights ON. Max: %0.3f, Threshold: %0.3f, num lights: %d",
-					maxIntensity, g_fHeadLightsAutoTurnOnThreshold, maxLights);
-			g_bEnableHeadLights = true;
-		}
-		*/
 
 		// If the headlights are on, then replace the main light with the headlight
 		if (g_bEnableHeadLights) {

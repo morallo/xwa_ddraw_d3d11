@@ -22,6 +22,14 @@ SamplerState sampler0 : register(s0);
 Texture2D	 noiseTex  : register(t1);
 SamplerState noiseSamp : register(s1);
 
+#define LavaSize iResolution.x
+#define LavaBloom iResolution.y
+#define LavaColor SunColor[0]
+// DEBUG properties, remove later
+//#define LavaNormalMult SunColor[1]
+//#define LavaPosMult SunColor[2]
+//#define LavaTranspose bDisneyStyle
+
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -113,6 +121,126 @@ float flow(vec2 p)
 	return rz;
 }
 
+/*
+// From http://www.thetenthplanet.de/archives/1180
+mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv) { 
+	// get edge vectors of the pixel triangle
+	vec3 dp1 = dFdx( p ); 
+	vec3 dp2 = dFdy( p ); 
+	vec2 duv1 = dFdx( uv ); 
+	vec2 duv2 = dFdy( uv );   
+	
+	// solve the linear system
+	vec3 dp2perp = cross( dp2, N );
+	vec3 dp1perp = cross( N, dp1 );
+	vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+	vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+	
+	// construct a scale-invariant frame
+	float invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
+	return mat3( T * invmax, B * invmax, N );
+}
+
+vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord) {
+	// assume N, the interpolated vertex normal and
+	// V, the view vector (vertex to eye)
+	vec3 map = texture2D( mapBump, texcoord ).xyz;
+#ifdef WITH_NORMALMAP_UNSIGNED
+	map = map * 255./127. - 128./127.;
+#endif
+#ifdef WITH_NORMALMAP_2CHANNEL
+	map.z = sqrt( 1. - dot( map.xy, map.xy ) );
+#endif
+#ifdef WITH_NORMALMAP_GREEN_UP
+	map.y = -map.y;
+#endif
+	mat3 TBN = cotangent_frame( N, -V, texcoord ); // V is the view vector, but this is equivalent to the vertex pos
+	return normalize( TBN * map );
+}
+
+varying vec3 g_vertexnormal;
+varying vec3 g_viewvector; // camera pos - vertex pos
+varying vec2 g_texcoord;
+
+void main() {
+	vec3 N = normalize( g_vertexnormal );  
+#ifdef WITH_NORMALMAP
+	N = perturb_normal( N, g_viewvector, g_texcoord );
+#endif   // ...
+}
+
+// Parallax Mapping, from: https://www.gamedev.net/tutorials/_/technical/graphics-programming-and-theory/a-closer-look-at-parallax-occlusion-mapping-r3262/
+
+while ( nCurrSample < nNumSamples ) {
+	fCurrSampledHeight = NormalHeightMap.SampleGrad( LinearSampler, IN.texcoord + vCurrOffset, dx, dy ).a;
+
+	// The ray's height is fCurrRayHeight
+	// The sampled height is fCurrSampledHeight
+	// If the sampled height is higher than the ray, then the current point
+	// along the ray is below the height map, we need to find the intersection
+	// between the ray and the line made by the last two samples
+	if ( fCurrSampledHeight > fCurrRayHeight ) {
+		float delta1 = fCurrSampledHeight - fCurrRayHeight;
+		float delta2 = ( fCurrRayHeight + fStepSize ) - fLastSampledHeight;
+		float ratio = delta1/(delta1+delta2);
+		vCurrOffset = (ratio) * vLastOffset + (1.0-ratio) * vCurrOffset; // <-- Solution
+		nCurrSample = nNumSamples + 1; // <-- Exit
+	} else {
+		nCurrSample++; fCurrRayHeight -= fStepSize;
+		vLastOffset = vCurrOffset;
+		vCurrOffset += fStepSize * vMaxOffset;
+		fLastSampledHeight = fCurrSampledHeight;
+	}
+}
+
+
+float2 vFinalCoords = IN.texcoord + vCurrOffset;
+float4 vFinalNormal = NormalHeightMap.Sample( LinearSampler, vFinalCoords ); //.a;
+float4 vFinalColor = ColorMap.Sample( LinearSampler, vFinalCoords ); // Expand the final normal vector from [0,1] to [-1,1] range. vFinalNormal = vFinalNormal * 2.0f - 1.0f;
+
+*/
+
+// In the shadertoy lava example from https://www.shadertoy.com/view/wscfW7 the coord sys looks like this:
+// x+ = right
+// y+ = up
+// z+ = towards the camera/screen
+//
+// Normals:
+// x+ = right
+// y+ = up
+// z+ = towards the camera/screen
+//
+// In the shadertoy example, ro (ray's origin) is at [0,0,2]
+//
+// In XWA the coord sys looks like this:
+// x+ = right
+// y+ = up
+// z+ = --away from the camera--
+
+// In XWA the normals look like this:
+// x+ = right
+// y+ = up
+// z+ = towards the camera
+
+// From: http://www.thetenthplanet.de/archives/1180
+mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv, out vec3 T, out vec3 B) {
+	// get edge vectors of the pixel triangle
+	vec3 dp1 = ddx(p);
+	vec3 dp2 = ddy(p);
+	vec2 duv1 = ddx(uv);
+	vec2 duv2 = ddy(uv);
+
+	// solve the linear system
+	vec3 dp2perp = cross(dp2, N);
+	vec3 dp1perp = cross(N, dp1);
+	T = dp2perp * duv1.x + dp1perp * duv2.x;
+	B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+	// construct a scale-invariant frame
+	float invmax = rsqrt(max(dot(T, T), dot(B, B)));
+	return mat3(T * invmax, B * invmax, N);
+}
+
 float flow_new(vec2 p)
 {
 	float time = iTime * 0.1;
@@ -128,7 +256,7 @@ float flow_new(vec2 p)
 	for (float i = 1.0; i < 7.0; i++)
 	{
 		p += sc;
-		bp += sc.yx;
+		bp += 2.0 * sc.yx;
 
 		// displacement field
 		vec2 gr = gradn(i * p * 0.34);
@@ -156,7 +284,6 @@ float flow_new(vec2 p)
 }
 
 // Tiling code starts here:
-
 static float F_CONST = 0.5*(1.0 + sqrt(2.0));
 
 float lerpx(in vec2 uv, in float repeat) {
@@ -180,6 +307,89 @@ float noisetile(in vec2 uv, in float repeat) {
 	return lerpy(uv, repeat);
 }
 
+
+// Parallax Mapping. Algorithm from:
+// https://www.gamedev.net/tutorials/_/technical/graphics-programming-and-theory/a-closer-look-at-parallax-occlusion-mapping-r3262/
+// See a clean implementation here: https://www.shadertoy.com/view/wscfW7
+//
+// Input: 
+//		pos: 3D position.
+//		N: (normalized) normal.
+//		uv: The uv coord for this point.
+// Additional inputs unrelated to parallax mapping:
+//		repeat
+//
+// Returns: the final sample
+vec3 parallax(vec3 pos, vec3 N, vec2 uv, float repeat)
+{
+	const float fHeightMapScale = 3.5;
+	const float nMaxSamples = 100.0;
+	const float nMinSamples = 15.0;
+	vec3 T, B;
+
+	//vec3 FN = N.xyz * LavaNormalMult.xyz;
+	vec3 FN = N.xyz;
+	mat3 TBN = cotangent_frame(FN, -pos, uv, T, B);
+
+	//if (LavaTranspose)
+		TBN = transpose(TBN);
+
+	vec3 eye = mul(TBN, pos);
+	vec3 normal = mul(TBN, FN);
+
+	float fParallaxLimit = -length(eye.xy) / eye.z;
+	fParallaxLimit *= fHeightMapScale;
+
+	vec2 vOffsetDir = 0.075 * normalize(eye.xy);
+	//vec2 vOffsetDir = 0.01 * normalize(eye.xy);
+	vec2 vMaxOffset = vOffsetDir * fParallaxLimit;
+	float nNumSamples = mix(nMaxSamples, nMinSamples, dot(eye, normal));
+	float fStepSize = 1.0 / nNumSamples;
+
+	float fCurrRayHeight = 1.0;
+	vec2  vCurrOffset = 0.0;
+	vec2  vLastOffset = 0.0;
+	float fLastSampledHeight = 1.0;
+	float fCurrSampledHeight = 1.0;
+	float nCurrSample = 0.0;
+
+	while (nCurrSample < nNumSamples) {
+		//fCurrSampledHeight = noisetile(uv + vCurrOffset, repeat);
+		fCurrSampledHeight = flow(uv + vCurrOffset);
+		//fCurrSampledHeight = 0.05 / flow(uv + vCurrOffset);
+		//fCurrSampledHeight = dot(vec3(0.333), texture(iChannel0, uv + vCurrOffset).rgb);
+		//fCurrSampledHeight = NormalHeightMap.SampleGrad( LinearSampler, IN.texcoord + vCurrOffset, dx, dy ).a;
+
+		// The ray's height is fCurrRayHeight
+		// The sampled height is fCurrSampledHeight
+		// If the sampled height is higher than the ray, then the current point
+		// along the ray is below the height map, we need to find the intersection
+		// between the ray and the line made by the last two samples
+		if (fCurrSampledHeight > fCurrRayHeight) {
+			float delta1 = fCurrSampledHeight - fCurrRayHeight;
+			float delta2 = (fCurrRayHeight + fStepSize) - fLastSampledHeight;
+			float ratio = delta1 / (delta1 + delta2 + 0.001);
+			vCurrOffset = ratio * vLastOffset + (1.0 - ratio) * vCurrOffset; // <-- Solution
+			break;
+		}
+		else {
+			nCurrSample++;
+			fCurrRayHeight -= fStepSize;
+			vLastOffset = vCurrOffset;
+			vCurrOffset += fStepSize * vMaxOffset;
+			fLastSampledHeight = fCurrSampledHeight;
+		}
+	}
+	// return uv + vCurrOffset;
+	//return noisetile(frac(uv + vCurrOffset), repeat);
+	vec2 finaluv = uv + vCurrOffset;
+	if (any(finaluv) < 0.0)
+		return vec3(0, 0, 1);
+	if (any(finaluv) > 1.0)
+		return vec3(0, 1, 0);
+	return vec3(0.2, 0.07, 0.01) / flow(uv + vCurrOffset);
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -193,14 +403,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
-	// Here we're co-opting iResolution.x for the lava size
-#define LavaSize iResolution.x
-#define BloomStrength iResolution.y
 
-	// hook_normals code:
-	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
-	//N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	//N.z = -N.z;
+	// hook_normals code. In this shader we zero-out the normal in the output, because this is
+	// a shadeless effect. However, we *do* need the Normal in this shader to compute parallax
+	// mapping.
+	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	N.z = -N.z;
 
 	output.normal = 0; //  float4(N, SSAOAlpha);
 
@@ -232,12 +441,21 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Tiling
 	p = mod(p * size, repeat);
-	float rz = 1.0 / noisetile(p, repeat);
+	float rz = 0.2 / noisetile(p, repeat);
+	
+	//vec3 eye = vec3(0.0, 0.0, 0.0);
+	//vec3 pos = LavaPosMult.xyz * output.pos3D.xyz;
+	//vec3 eye_vec = normalize(eye - pos);
+	//float rz = 1.0 / parallax(eye_vec, N, p, repeat);
 	// Tiling
 
-	vec3 col = vec3(0.2, 0.07, 0.01) * rz;
+	vec3 col = LavaColor.xyz * rz;
 	output.color = vec4(col, 1.0);
-	output.bloom = float4(col, BloomStrength * rz);
+	// Make the bloom sharper:
+	rz *= rz;
+	rz *= rz;
+	output.bloom = LavaBloom * float4(col, rz);
+	//output.bloom = 0.0;
 	//float n = noise(input.tex.xy * 100.0);
 	//float n = noiseTex.Sample(noiseSamp, input.tex.xy).x;
 	//output.color = vec4(n, n, n, 1);

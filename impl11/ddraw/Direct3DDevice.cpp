@@ -11,6 +11,8 @@
 
 /*
 TODO:
+	[5128] [DBG] s_XwaGlobalLightsCount: 0 <-- When the reactor explodes.
+
 	Hotkeys to adjust the aspect ratio for the SteamVR mirror window.
 
 	The speed effect doesn't work in the external camera anymore.
@@ -847,7 +849,8 @@ bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
-extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos, g_fHeadLightsAutoTurnOnThreshold;
+extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
+extern bool g_bHeadLightsAutoTurnOn;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -2252,6 +2255,25 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 	else if (_stricmp(param, "LavaBloom") == 0) {
 		curMaterial->LavaBloom = fValue;
 	}
+	else if (_stricmp(param, "LavaColor") == 0) {
+		LoadLightColor(buf, &(curMaterial->LavaColor));
+	}
+
+	/*
+	else if (_stricmp(param, "LavaNormalMult") == 0) {
+		LoadLightColor(buf, &(curMaterial->LavaNormalMult));
+		log_debug("[DBG] [MAT] LavaNormalMult: %0.3f, %0.3f, %0.3f",
+			curMaterial->LavaNormalMult.x, curMaterial->LavaNormalMult.y, curMaterial->LavaNormalMult.z);
+	}
+	else if (_stricmp(param, "LavaPosMult") == 0) {
+		LoadLightColor(buf, &(curMaterial->LavaPosMult));
+		log_debug("[DBG] [MAT] LavaPosMult: %0.3f, %0.3f, %0.3f",
+			curMaterial->LavaPosMult.x, curMaterial->LavaPosMult.y, curMaterial->LavaPosMult.z);
+	}
+	else if (_stricmp(param, "LavaTranspose") == 0) {
+		curMaterial->LavaTranspose = (bool)fValue;
+	}
+	*/
 }
 
 /*
@@ -4067,14 +4089,16 @@ bool LoadSSAOParams() {
 				g_fHeadLightsAmbient = fValue;
 			}
 			else if (_stricmp(param, "headlights_distance") == 0) {
-				g_fHeadLightsDistance = fValue;
+				// Let's make the headlights a bit more powerful -- this helps in the core room in the DS2
+				// By multiplying by 3.33, we make the headlights good enough for the Death Star
+				g_fHeadLightsDistance = 3.33f * fValue; 
 			}
 			else if (_stricmp(param, "headlights_angle") == 0) {
 				g_fHeadLightsAngleCos = cos(0.01745f * fValue);
 			}
-			/*else if (_stricmp(param, "headlights_auto_turn_on_threshold") == 0) {
-				g_fHeadLightsAutoTurnOnThreshold = fValue;
-			}*/
+			else if (_stricmp(param, "headlights_auto_turn_on") == 0) {
+				g_bHeadLightsAutoTurnOn = (bool)fValue;
+			}
 			else if (_stricmp(param, "reload_materials_enabled") == 0) {
 				g_bReloadMaterialsEnabled = (bool)fValue;
 				log_debug("[DBG] [MAT] Material Reloading Enabled? %d", g_bReloadMaterialsEnabled);
@@ -8957,6 +8981,22 @@ HRESULT Direct3DDevice::Execute(
 					g_ShadertoyBuffer.iTime = iTime;
 					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.LavaBloom;
+					// SunColor[0] --> Color
+					g_ShadertoyBuffer.SunColor[0].x = lastTextureSelected->material.LavaColor.x;
+					g_ShadertoyBuffer.SunColor[0].y = lastTextureSelected->material.LavaColor.y;
+					g_ShadertoyBuffer.SunColor[0].z = lastTextureSelected->material.LavaColor.z;
+					/*
+					// SunColor[1] --> LavaNormalMult
+					g_ShadertoyBuffer.SunColor[1].x = lastTextureSelected->material.LavaNormalMult.x;
+					g_ShadertoyBuffer.SunColor[1].y = lastTextureSelected->material.LavaNormalMult.y;
+					g_ShadertoyBuffer.SunColor[1].z = lastTextureSelected->material.LavaNormalMult.z;
+					// SunColor[2] --> LavaPosMult
+					g_ShadertoyBuffer.SunColor[2].x = lastTextureSelected->material.LavaPosMult.x;
+					g_ShadertoyBuffer.SunColor[2].y = lastTextureSelected->material.LavaPosMult.y;
+					g_ShadertoyBuffer.SunColor[2].z = lastTextureSelected->material.LavaPosMult.z;
+
+					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.LavaTranspose;
+					*/
 
 					resources->InitPixelShader(resources->_lavaPS);
 					// Set the noise texture and sampler state with wrap/repeat enabled.
