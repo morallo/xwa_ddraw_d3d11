@@ -23,6 +23,9 @@ extern const char *DC_BEAM_BOX_SRC_RESNAME;
 extern const char *DC_TOP_LEFT_SRC_RESNAME;
 extern const char *DC_TOP_RIGHT_SRC_RESNAME;
 
+// Use the following with `const auto missionIndexLoaded = (int *)0x9F5E74;` to detect the DSII tunnel run mission.
+const int DEATH_STAR_MISSION_INDEX = 52;
+
 typedef struct Box_struct {
 	float x0, y0, x1, y1;
 } Box;
@@ -1101,6 +1104,7 @@ public:
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	ComPtr<ID3D11PixelShader> _starDebugPS;
 	ComPtr<ID3D11PixelShader> _lavaPS;
+	ComPtr<ID3D11PixelShader> _explosionPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;

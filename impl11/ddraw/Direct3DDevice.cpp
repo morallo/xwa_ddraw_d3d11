@@ -12,6 +12,7 @@
 /*
 TODO:
 	[5128] [DBG] s_XwaGlobalLightsCount: 0 <-- When the reactor explodes.
+	DSReactorCylinder is the glow around the reactor core in the Death Star.
 
 	Hotkeys to adjust the aspect ratio for the SteamVR mirror window.
 
@@ -7566,7 +7567,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
-				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false;
+				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -7598,6 +7599,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
 					bIsBlastMark = lastTextureSelected->is_BlastMark;
 					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
+					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -8818,7 +8820,9 @@ HRESULT Direct3DDevice::Execute(
 				// Only disable the diffuse component during regular flight. 
 				// The tech room is unchanged (the tech room makes g_bRendering = false)
 				// We should also avoid touching the GUI elements
-				if (g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer) {
+				// When the Death Star is destroyed s_XwaGlobalLightsCount becomes 0, we can use the original illumination in that case.
+				if (/* (*s_XwaGlobalLightsCount == 0) || */
+					(g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
@@ -8876,6 +8880,17 @@ HRESULT Direct3DDevice::Execute(
 					//EnableTransparency();
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
 				}
+
+				if (bIsDS2CoreExplosion) {
+					bModifiedShaders = true;
+					bModifiedPixelShader = true;
+					//g_PSCBuffer.special_control = SPECIAL_CONTROL_HIGHLIGHT;
+					resources->InitPixelShader(resources->_explosionPS);
+				}
+
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DS2_Energy_Field) {
+				//	log_debug("[DBG] RENDERING REACTOR ENERGY FIELD");
+				//}
 
 				// Capture the centroid of the current sun texture and store it.
 				// Sun Centroids appear to be around 50m away in metric 3D space
@@ -9024,7 +9039,8 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.brightness = g_fBrightness;
 				}
 
-				if (g_bIsSkyBox) {
+				// For some reason, the DS2 reactor core explosion is confused with the SkyBox... fun times!
+				if (g_bIsSkyBox && !bIsDS2CoreExplosion) {
 					bModifiedShaders = true;
 					// DEBUG: Get a sample of how the vertexbuffer for the skybox looks like
 					//DisplayCoords(instruction, currentIndexLocation);

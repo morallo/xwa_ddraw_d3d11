@@ -66,6 +66,7 @@
 #include "../Debug/EdgeDetector.h"
 #include "../Debug/StarDebug.h"
 #include "../Debug/LavaPixelShader.h"
+#include "../Debug/ExplosionShader.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -121,6 +122,7 @@
 #include "../Release/EdgeDetector.h"
 #include "../Release/StarDebug.h"
 #include "../Release/LavaPixelShader.h"
+#include "../Release/ExplosionShader.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3259,6 +3261,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3559,6 +3564,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

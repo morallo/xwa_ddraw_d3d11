@@ -49,6 +49,7 @@ auto g_hudScale = (float *)0x06002B8;
 extern int *s_XwaGlobalLightsCount;
 extern XwaGlobalLight* s_XwaGlobalLights;
 extern Matrix4 g_CurrentHeadingViewMatrix;
+const auto missionIndexLoaded = (int *)0x9F5E74;
 
 extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
 
@@ -2660,9 +2661,13 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	//if (*s_XwaGlobalLightsCount == 0)
 	//	log_debug("[DBG] NO GLOBAL LIGHTS!");
 	if (g_bDumpSSAOBuffers) {
+		if (missionIndexLoaded != nullptr)
+			log_debug("[DBG] Mission: %d", *missionIndexLoaded);
+		else
+			log_debug("[DBG] NULL mission index");
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
-		DumpGlobalLights();
+		//DumpGlobalLights();
 	}
 
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)

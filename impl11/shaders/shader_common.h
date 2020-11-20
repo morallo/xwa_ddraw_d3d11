@@ -2,6 +2,7 @@
 #define SHADER_COMMON_H
 
 /*
+
 Constant Buffer Registers
 
 PixelShaderCBuffer and several others : register(b0)
@@ -30,7 +31,7 @@ LaserPointerCBuffer : register(b8)
 // This is the limit, in meters, when the SSAO/SSDO effects are completely faded out
 #define INFINITY_Z1 20000
 // This is simply INFINITY_Z1 - INFINITY_Z0: It's used to fade the effect
-#define INFINITY_FADEOUT_RANGE 10000 // Used to be 5000 in release 1.1.2n
+#define INFINITY_FADEOUT_RANGE 10000 // Used to be 5000 in release 1.1.2
 
 // Dynamic Cockpit: Maximum Number of DC elements per texture
 #define MAX_DC_COORDS_PER_TEXTURE 12
@@ -47,6 +48,7 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_GLASS		2
 #define SPECIAL_CONTROL_BACKGROUND	3
 #define SPECIAL_CONTROL_SMOKE		4
+#define SPECIAL_CONTROL_HIGHLIGHT	5 // Used for debugging purposes (to highlight specific elements)
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

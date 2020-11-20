@@ -69,6 +69,7 @@
     <FxCompile Include="StarDebug.hlsl" />
     <FxCompile Include="PixelShaderDCHolo.hlsl" />
     <FxCompile Include="LavaPixelShader.hlsl" />
+    <FxCompile Include="ExplosionShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

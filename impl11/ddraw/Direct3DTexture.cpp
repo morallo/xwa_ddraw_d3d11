@@ -663,6 +663,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_GenericSSAOMasked = false;
 	this->is_Skydome = false;
 	this->is_SkydomeLight = false;
+	this->is_BlastMark = false;
+	this->is_DS2_Reactor_Explosion = false;
+	//this->is_DS2_Energy_Field = false;
 	this->ActiveCockpitIdx = -1;
 	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
@@ -845,6 +848,8 @@ void Direct3DTexture::TagTexture() {
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
 	
+	// DEBUG: Remove later!
+	//log_debug("[DBG] %s", surface->_name);
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -960,6 +965,10 @@ void Direct3DTexture::TagTexture() {
 			this->is_CockpitSpark = true;
 		if (strstr(surface->_name, "dat,5000,") != NULL)
 			this->is_Chaff = true;
+		if (strstr(surface->_name, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
+			this->is_DS2_Reactor_Explosion = true;
+		//if (strstr(surface->_name, "dat,17001,") != NULL) // DSII reactor core explosion animation textures
+		//	this->is_DS2_Energy_Field = true;
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1392,6 +1401,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
 	this->is_DAT = d3dTexture->is_DAT;
 	this->is_BlastMark = d3dTexture->is_BlastMark;
+	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
+	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
 	// g_AuxTextureVector will keep a list of references to textures that have associated materials.
