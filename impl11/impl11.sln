@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30717.126
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ddraw", "ddraw\ddraw.vcxproj", "{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -15,26 +15,47 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests", "tests\tests.vcxpro
 		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23} = {C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hook_CockpitLook", "..\..\Hook_XWACockpitLook\Hook_XWACockpitLook.vcxproj", "{B7D1532C-312D-4A20-97D7-E87D1A129FC4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
 		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Debug|Win32.ActiveCfg = Debug|Win32
 		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Debug|Win32.Build.0 = Debug|Win32
+		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Debug|x64.ActiveCfg = Debug|Win32
 		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Release|Win32.ActiveCfg = Release|Win32
 		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Release|Win32.Build.0 = Release|Win32
+		{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}.Release|x64.ActiveCfg = Release|Win32
 		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Debug|Win32.ActiveCfg = Debug|Win32
 		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Debug|Win32.Build.0 = Debug|Win32
+		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Debug|x64.ActiveCfg = Debug|Win32
 		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Release|Win32.ActiveCfg = Release|Win32
 		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Release|Win32.Build.0 = Release|Win32
+		{EBD25ABF-9127-4887-9BF2-C7D3880BF68B}.Release|x64.ActiveCfg = Release|Win32
 		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Debug|Win32.ActiveCfg = Debug|Win32
 		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Debug|Win32.Build.0 = Debug|Win32
+		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Debug|x64.ActiveCfg = Debug|Win32
 		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Release|Win32.ActiveCfg = Release|Win32
 		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Release|Win32.Build.0 = Release|Win32
+		{0F3CC45E-5B7D-49DF-88E2-044BDB7554A0}.Release|x64.ActiveCfg = Release|Win32
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Debug|Win32.Build.0 = Debug|Win32
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Debug|x64.ActiveCfg = Debug|x64
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Debug|x64.Build.0 = Debug|x64
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Release|Win32.ActiveCfg = Release|Win32
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Release|Win32.Build.0 = Release|Win32
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Release|x64.ActiveCfg = Release|x64
+		{B7D1532C-312D-4A20-97D7-E87D1A129FC4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C72371B3-0D54-40B3-8708-DF501B236972}
 	EndGlobalSection
 EndGlobal

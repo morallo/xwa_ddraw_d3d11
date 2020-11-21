@@ -18,6 +18,8 @@
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
 
+#include "../../Hook_XWACockpitLook/SteamVR.h"
+
 #define DBG_MAX_PRESENT_LOGS 0
 
 const float DEG2RAD = 3.141593f / 180.0f;
@@ -192,8 +194,11 @@ void ScreenCoordsToInGame(float left, float top, float width, float height, floa
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
 #include <headers/openvr.h>
+#if !defined(XWA_MATH_CONSTANTS)
+#define XWA_MATH_CONSTANTS 1
 const float PI = 3.141592f;
 const float RAD_TO_DEG = 180.0f / PI;
+#endif
 extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
 extern float g_fYawOffset, g_fPitchOffset;
 extern float g_fPosXMultiplier, g_fPosYMultiplier, g_fPosZMultiplier;
@@ -735,13 +740,18 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
 		//vr::TrackedDevicePose_t trackedDevicePose;
-		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
+		//vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
+		vr::TrackedDevicePose_t trackedDevicePose;
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);		
-		poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
+		GetLastSteamVRPose(&trackedDevicePose);
+		//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		vr::VRCompositor()->WaitGetPoses(NULL, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		//poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
+		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;
 		q = rotationToQuaternion(poseMatrix);
 		quatToEuler(q, yaw, pitch, roll);
 
