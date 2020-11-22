@@ -1,0 +1,5 @@
+[Default]
+Metallic   = 0.5
+Intensity  = 0.25
+Glossiness = 0.04
+Ambient    = 0.3

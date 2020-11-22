@@ -95,7 +95,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
+	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
 	// DEBUG
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);

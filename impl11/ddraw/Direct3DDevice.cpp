@@ -9104,6 +9104,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
 					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
 					g_PSCBuffer.fSpecVal	 = lastTextureSelected->material.SpecValue;
+					g_PSCBuffer.fAmbient	 = lastTextureSelected->material.Ambient;
 
 					if (lastTextureSelected->material.AlphaToBloom) {
 						bModifiedPixelShader = true;
@@ -9117,7 +9118,6 @@ HRESULT Direct3DDevice::Execute(
 					if (lastTextureSelected->material.AlphaIsntGlass && !bIsLightTexture) {
 						bModifiedPixelShader = true;
 						bModifiedShaders = true;
-						g_PSCBuffer.fAmbient = lastTextureSelected->material.Ambient;
 						resources->InitPixelShader(resources->_noGlassPS);
 					}
 				}
