@@ -385,7 +385,7 @@ typedef struct PixelShaderCBStruct {
 
 	float fSpecVal, fDisableDiffuse;
 	uint32_t special_control;
-	float ps_unused2;
+	float fAmbient;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -541,8 +541,12 @@ typedef struct MaterialStruct {
 	bool  IsLava;
 	float LavaSpeed;
 	float LavaSize;
-	float LavaBloom;
+	float EffectBloom;
 	Vector3 LavaColor;
+	bool AlphaToBloom;
+	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
+	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
+	float Ambient;
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -561,11 +565,16 @@ typedef struct MaterialStruct {
 		IsLava			= false;
 		LavaSpeed		= 1.0f;
 		LavaSize		= 1.0f;
-		LavaBloom		= 1.0f;
+		EffectBloom		= 1.0f;
 
 		LavaColor.x		= 1.00f;
 		LavaColor.y		= 0.35f;
 		LavaColor.z		= 0.05f;
+
+		AlphaToBloom	= false;
+		NoColorAlpha	= false;
+		AlphaIsntGlass	= false;
+		Ambient			= 0.0f;
 
 		/*
 		// DEBUG properties, remove later
@@ -1105,6 +1114,8 @@ public:
 	ComPtr<ID3D11PixelShader> _starDebugPS;
 	ComPtr<ID3D11PixelShader> _lavaPS;
 	ComPtr<ID3D11PixelShader> _explosionPS;
+	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
+	ComPtr<ID3D11PixelShader> _noGlassPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;

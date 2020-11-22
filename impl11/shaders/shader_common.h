@@ -49,6 +49,7 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_BACKGROUND	3
 #define SPECIAL_CONTROL_SMOKE		4
 #define SPECIAL_CONTROL_HIGHLIGHT	5 // Used for debugging purposes (to highlight specific elements)
+#define SPECIAL_CONTROL_NO_COLOR_ALPHA 6 // When this is set, the alpha value for the color output is forced to 0
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

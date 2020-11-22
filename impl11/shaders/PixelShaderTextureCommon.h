@@ -25,7 +25,7 @@ cbuffer ConstantBuffer : register(b0)
 
 	float fSpecVal, fDisableDiffuse;
 	uint special_control;
-	uint ps_unused2;
+	float fAmbient;				// Only used in PixelShaderNoGlass and implemented as a "soft-shadeless" setting
 	// 80 bytes
 };
 

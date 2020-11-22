@@ -112,21 +112,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	/*
-	if (special_control == SPECIAL_CONTROL_HIGHLIGHT) {
-		output.color = float4(texelColor.rgb, alpha);
-		output.bloom = output.color;
-		// ssaoMask.r: Material
-		// ssaoMask.g: Glossiness
-		// ssaoMask.b: Specular Intensity
-		output.ssaoMask = float4(SHADELESS_MAT, 0.0, 0.0, alpha);
-		// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-		output.ssMask = float4(0.0, 0.0, 1.0, alpha);
-		output.normal = 0.0;
-		return output;
-	}
-	*/
-
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;

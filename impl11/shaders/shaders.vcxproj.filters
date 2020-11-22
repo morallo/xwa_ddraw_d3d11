@@ -70,6 +70,8 @@
     <FxCompile Include="PixelShaderDCHolo.hlsl" />
     <FxCompile Include="LavaPixelShader.hlsl" />
     <FxCompile Include="ExplosionShader.hlsl" />
+    <FxCompile Include="AlphaToBloomPS.hlsl" />
+    <FxCompile Include="PixelShaderNoGlass.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

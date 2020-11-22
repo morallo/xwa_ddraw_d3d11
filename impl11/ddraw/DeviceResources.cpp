@@ -67,6 +67,8 @@
 #include "../Debug/StarDebug.h"
 #include "../Debug/LavaPixelShader.h"
 #include "../Debug/ExplosionShader.h"
+#include "../Debug/AlphaToBloomPS.h"
+#include "../Debug/PixelShaderNoGlass.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -123,6 +125,8 @@
 #include "../Release/StarDebug.h"
 #include "../Release/LavaPixelShader.h"
 #include "../Release/ExplosionShader.h"
+#include "../Release/AlphaToBloomPS.h"
+#include "../Release/PixelShaderNoGlass.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3264,6 +3268,12 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AlphaToBloomPS, sizeof(g_AlphaToBloomPS), nullptr, &_alphaToBloomPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3567,6 +3577,12 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AlphaToBloomPS, sizeof(g_AlphaToBloomPS), nullptr, &_alphaToBloomPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {

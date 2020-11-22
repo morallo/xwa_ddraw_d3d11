@@ -2253,11 +2253,30 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 	else if (_stricmp(param, "LavaSize") == 0) {
 		curMaterial->LavaSize = fValue;
 	}
-	else if (_stricmp(param, "LavaBloom") == 0) {
-		curMaterial->LavaBloom = fValue;
+	else if (_stricmp(param, "EffectBloom") == 0) {
+		// Used for specific effects where specifying bloom is difficult, like the Lava
+		// and the AlphaToBloom shaders.
+		curMaterial->EffectBloom = fValue;
 	}
 	else if (_stricmp(param, "LavaColor") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaColor));
+	}
+	else if (_stricmp(param, "AlphaToBloom") == 0) {
+		// Uses the color alpha to apply bloom. Can be used to force surfaces to glow
+		// when they don't have an illumination texture.
+		curMaterial->AlphaToBloom = (bool)fValue;
+	}
+	else if (_stricmp(param, "NoColorAlpha") == 0) {
+		// Forces color alpha to 0. Only takes effect when AlphaToBloom is set.
+		curMaterial->NoColorAlpha = (bool)fValue;
+	}
+	else if (_stricmp(param, "AlphaIsntGlass") == 0) {
+		// When set, semi-transparent areas aren't converted to glass
+		curMaterial->AlphaIsntGlass = (bool)fValue;
+	}
+	else if (_stricmp(param, "Ambient") == 0) {
+		// Additional ambient component. Only used in PixelShaderNoGlass
+		curMaterial->Ambient = fValue;
 	}
 
 	/*
@@ -8995,7 +9014,7 @@ HRESULT Direct3DDevice::Execute(
 
 					g_ShadertoyBuffer.iTime = iTime;
 					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
-					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.LavaBloom;
+					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
 					// SunColor[0] --> Color
 					g_ShadertoyBuffer.SunColor[0].x = lastTextureSelected->material.LavaColor.x;
 					g_ShadertoyBuffer.SunColor[0].y = lastTextureSelected->material.LavaColor.y;
@@ -9085,6 +9104,22 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
 					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
 					g_PSCBuffer.fSpecVal	 = lastTextureSelected->material.SpecValue;
+
+					if (lastTextureSelected->material.AlphaToBloom) {
+						bModifiedPixelShader = true;
+						bModifiedShaders = true;
+						resources->InitPixelShader(resources->_alphaToBloomPS);
+						if (lastTextureSelected->material.NoColorAlpha)
+							g_PSCBuffer.special_control = SPECIAL_CONTROL_NO_COLOR_ALPHA;
+						g_PSCBuffer.fBloomStrength = lastTextureSelected->material.EffectBloom;
+					}
+
+					if (lastTextureSelected->material.AlphaIsntGlass && !bIsLightTexture) {
+						bModifiedPixelShader = true;
+						bModifiedShaders = true;
+						g_PSCBuffer.fAmbient = lastTextureSelected->material.Ambient;
+						resources->InitPixelShader(resources->_noGlassPS);
+					}
 				}
 
 				// Apply the SSAO mask/Special materials, like lasers and HUD
