@@ -597,6 +597,9 @@ int g_iPresentCounter = 0, g_iNonZBufferCounter = 0, g_iSkipNonZBufferDrawIdx = 
 float g_fZBracketOverride = 65530.0f; // 65535 is probably the maximum Z value in XWA
 bool g_bResetDC = false;
 
+// DS2 Effects
+int g_iReactorExplosionCount = 0;
+
 /*********************************************************/
 // HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
@@ -8901,10 +8904,29 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsDS2CoreExplosion) {
+					g_iReactorExplosionCount++;
+					// The reactor's core explosion is rendered 4 times per frame. We only need one now:
+					if (g_iReactorExplosionCount > 1)
+						goto out;
+
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
-					//g_PSCBuffer.special_control = SPECIAL_CONTROL_HIGHLIGHT;
+					bModifiedSamplerState = true;
 					resources->InitPixelShader(resources->_explosionPS);
+					// Set the noise texture and sampler state with wrap/repeat enabled.
+					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
+					// bModifiedSamplerState restores this sampler state at the end of this instruction.
+					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+
+					static float iTime = 0.0f;
+					iTime += 0.05f;
+					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
+
+					g_ShadertoyBuffer.iTime = iTime;
+					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
+					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
+					// Set the constant buffer
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DS2_Energy_Field) {
@@ -9039,7 +9061,7 @@ HRESULT Direct3DDevice::Execute(
 					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
 
 					// Set the constant buffer
-					// TODO: Set the g_PSCBuffer
+					// TODO (?): Set the g_PSCBuffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 

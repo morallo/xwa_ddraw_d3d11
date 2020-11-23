@@ -186,7 +186,8 @@ extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern int g_WindowWidth, g_WindowHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
-
+// DS2 Effects
+extern int g_iReactorExplosionCount;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
@@ -9620,6 +9621,7 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+				g_iReactorExplosionCount = 0;
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
