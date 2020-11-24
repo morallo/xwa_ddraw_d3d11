@@ -8913,12 +8913,15 @@ HRESULT Direct3DDevice::Execute(
 						goto out;
 
 					static float iTime = 0.0f;
+					iTime += 0.05f;
+					/*
 					static float ExplosionFrameCounter = 0.0f;
 					float selector = ExplosionFrameCounter / 3.0f;
 					if (selector > 1.0f) selector = 1.0f;
+					// A scale of 4.0 is small, a scale of 2.0 is normal and 1.0 is large:
 					float ExplosionScale = lerp(4.0f, 2.0f, selector);
-					iTime += 0.05f;
 					ExplosionFrameCounter += 1.0f;
+					*/
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
@@ -8928,14 +8931,12 @@ HRESULT Direct3DDevice::Execute(
 					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
 					// bModifiedSamplerState restores this sampler state at the end of this instruction.
 					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
-
 					
-					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
-
 					g_ShadertoyBuffer.iTime = iTime;
 					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
-					g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
+					//g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
+					//g_ShadertoyBuffer.twirl = 2.0f; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
