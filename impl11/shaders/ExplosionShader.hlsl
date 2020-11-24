@@ -19,6 +19,7 @@
 #include "ShadertoyCBuffer.h"
 
 #define pi 3.14159265
+#define ExplosionScale twirl
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -115,8 +116,8 @@ float SpiralNoiseC(vec3 p)
 		p.xz += vec2(p.z, -p.x) * nudge;
 		p.xz *= normalizer;
 		// increase the frequency
-		//iter *= 1.733733;
-		iter *= 1.83;
+		iter *= 1.733733;
+		//iter *= 1.83;
 	}
 	return n;
 }
@@ -124,24 +125,20 @@ float SpiralNoiseC(vec3 p)
 float VolumetricExplosion(vec3 p)
 {
 	float final = Sphere(p, 4.);
-	//#ifdef LOW_QUALITY
 	final += noise(p*12.5)*.2;
-	//#else
-	//final += fbm(p*50.);
-	//#endif
 
-	//final += SpiralNoiseC(p.zxy*0.4132+333.)*3.0; //1.25;
-	final += SpiralNoiseC(p.zxy*0.4132 + 333.0 + vec3(1.5*iTime, 0, 0))*3.0; //1.25;
-
+	// Add a displacement on the Z-axis to keep the explosion "moving":
+	final += SpiralNoiseC(p.zxy*0.4132 + 333.0 + vec3(1.5*iTime, 0, 0))*3.0;
 	return final;
 }
 
 float map(vec3 p)
 {
-	// This is where we can rotate the point
+	// This is where we can rotate p to look at the explosion from other angles:
 	//R(p.xz, iMouse.x*0.008*pi+iTime*0.1);
 
-	return VolumetricExplosion(p / 0.5) * 0.5; // scale
+	//return VolumetricExplosion(p / 0.5) * 0.5; // scale
+	return VolumetricExplosion(p * ExplosionScale) * 0.5;
 }
 //--------------------------------------------------------------
 
@@ -178,25 +175,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	float  alpha = texelColor.a;
+	float  alpha = 0;
 	float  value = dot(0.333, texelColor.rgb);
-
-	/*
-	output.color = float4(texelColor.rgb, alpha);
-	value *= value;
-	output.bloom = value * output.color;
-
-	// ssaoMask.r: Material
-	// ssaoMask.g: Glossiness
-	// ssaoMask.b: Specular Intensity
-	output.ssaoMask = float4(SHADELESS_MAT, 0.0, 0.0, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(0.0, 0.0, 1.0, alpha);
-	output.normal = 0.0;
-	output.pos3D = 0; // float4(P, SSAOAlpha);
-	*/
-
-	alpha = 0;
 
 	vec2 uv = input.tex.xy;
 	// ro: ray origin
@@ -215,18 +195,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	vec4 sum = 0.0;
 	float min_dist = 0.0, max_dist = 0.0;
 
-	if (RaySphereIntersect(ro, rd, min_dist, max_dist))
-	{
+	if (RaySphereIntersect(ro, rd, min_dist, max_dist)) {
 		t = min_dist * step(t, min_dist);
 
 		// raymarch loop
-		for (int i = 0; i < 60; i++)
-		{
-
+		for (int i = 0; i < 60; i++) {
 			vec3 pos = ro + t * rd;
 
 			// Loop break conditions.
-			if (td > 0.9 || d<0.12*t || t>10. || sum.a > 0.99 || t > max_dist)
+			if (td > 0.9 || d < 0.12 * t || t > 10.0 || sum.a > 0.99 || t > max_dist)
 				break;
 
 			// evaluate distance function
@@ -243,10 +220,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			// the color of light 
 			vec3 lightColor = vec3(1.0, 0.5, 0.25);
 
-			sum.rgb += (lightColor / exp(lDist*lDist*lDist*.08) / 30.); // bloom
+			sum.rgb += (lightColor / exp(lDist * lDist * lDist * 0.08) / 30.0); // bloom
 
-			if (d < h)
-			{
+			if (d < h) {
 				// compute local density 
 				ld = h - d;
 
@@ -271,18 +247,18 @@ PixelShaderOutput main(PixelShaderInput input)
 
 			td += 1.0 / 70.0;
 
-			// trying to optimize step size
+			// try to optimize step size
 			t += max(d*0.25, 0.01);
 		}
 
 		// simple scattering
-		sum *= 1. / exp(ld * 0.2) * 0.8;
+		sum *= 1.0 / exp(ld * 0.2) * 0.8;
 
 		sum = clamp(sum, 0.0, 1.0);
-		sum.xyz = sum.xyz*sum.xyz*(3.0 - 2.0*sum.xyz);
+		sum.xyz = sum.xyz*sum.xyz*(3.0 - 2.0 * sum.xyz);
 	}
 
-	alpha = dot(0.333, sum.xyz);
+	alpha = 2.0 * dot(0.333, sum.xyz);
 	output.color = vec4(sum.xyz, alpha);
 	output.bloom = alpha * output.color;
 	output.ssaoMask = float4(0.0, 0.0, 0.0, alpha);

@@ -2264,6 +2264,9 @@ void ReadMaterialLine(char *buf, Material *curMaterial) {
 	else if (_stricmp(param, "LavaColor") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaColor));
 	}
+	else if (_stricmp(param, "LavaTiling") == 0) {
+		curMaterial->LavaTiling = (bool)fValue;
+	}
 	else if (_stricmp(param, "AlphaToBloom") == 0) {
 		// Uses the color alpha to apply bloom. Can be used to force surfaces to glow
 		// when they don't have an illumination texture.
@@ -8909,6 +8912,14 @@ HRESULT Direct3DDevice::Execute(
 					if (g_iReactorExplosionCount > 1)
 						goto out;
 
+					static float iTime = 0.0f;
+					static float ExplosionFrameCounter = 0.0f;
+					float selector = ExplosionFrameCounter / 3.0f;
+					if (selector > 1.0f) selector = 1.0f;
+					float ExplosionScale = lerp(4.0f, 2.0f, selector);
+					iTime += 0.05f;
+					ExplosionFrameCounter += 1.0f;
+
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
 					bModifiedSamplerState = true;
@@ -8918,13 +8929,13 @@ HRESULT Direct3DDevice::Execute(
 					// bModifiedSamplerState restores this sampler state at the end of this instruction.
 					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
 
-					static float iTime = 0.0f;
-					iTime += 0.05f;
+					
 					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
 
 					g_ShadertoyBuffer.iTime = iTime;
 					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
+					g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
@@ -9035,6 +9046,7 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedSamplerState = true;
 
 					g_ShadertoyBuffer.iTime = iTime;
+					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.LavaTiling;
 					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
 					// SunColor[0] --> Color

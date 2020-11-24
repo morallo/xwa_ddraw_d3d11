@@ -543,6 +543,7 @@ typedef struct MaterialStruct {
 	float LavaSize;
 	float EffectBloom;
 	Vector3 LavaColor;
+	bool LavaTiling;
 	bool AlphaToBloom;
 	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
 	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
@@ -566,6 +567,7 @@ typedef struct MaterialStruct {
 		LavaSpeed		= 1.0f;
 		LavaSize		= 1.0f;
 		EffectBloom		= 1.0f;
+		LavaTiling		= true;
 
 		LavaColor.x		= 1.00f;
 		LavaColor.y		= 0.35f;

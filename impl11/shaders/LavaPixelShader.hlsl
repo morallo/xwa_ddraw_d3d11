@@ -25,6 +25,7 @@ SamplerState noiseSamp : register(s1);
 #define LavaSize iResolution.x
 #define LavaBloom iResolution.y
 #define LavaColor SunColor[0]
+#define LavaTiling bDisneyStyle
 // DEBUG properties, remove later
 //#define LavaNormalMult SunColor[1]
 //#define LavaPosMult SunColor[2]
@@ -89,19 +90,22 @@ float flow(vec2 p)
 		bp += sc.yx;
 
 		// primary flow speed
-		p += time * 0.6;
+		p += time * 0.3;
 		//p += time * 6.0;
 
 		// secondary flow speed (speed of the perceived flow)
-		bp += time * 1.9;
+		//bp += time * 1.9;
+		bp += time * 1.1;
 
 		// displacement field (try changing time multiplier)
 		vec2 gr = gradn(i * p * 0.34 + time * 1.0);
 
 		// rotation of the displacement field
 		//gr *= makem2(time*6. - (0.05*p.x + 0.03*p.y)*40.);
-		gr = mul(m, gr);
+		gr = gradn(i * p * 0.34);
 
+		gr = mul(m, gr);
+		
 		// displace the system
 		p += gr * 0.5;
 
@@ -436,25 +440,30 @@ PixelShaderOutput main(PixelShaderInput input)
 	p *= 3.0 * LavaSize;
 	float repeat = 2.0 + (LavaSize - 1.0);
 	float size = 1.0 + LavaSize;
+	float rz = 0.0;
+	if (LavaTiling) {
+		p = mod(p * size, repeat);
+		rz = 0.2 / noisetile(p, repeat);
 
-	//float rz = 1.0 / flow(p); // No tiling
+		//vec3 eye = vec3(0.0, 0.0, 0.0);
+		//vec3 pos = LavaPosMult.xyz * output.pos3D.xyz;
+		//vec3 eye_vec = normalize(eye - pos);
+		//float rz = 1.0 / parallax(eye_vec, N, p, repeat);
+	}
+	else {
+		p = input.tex.xy;
+		p *= 3.0 * LavaSize;
 
-	// Tiling
-	p = mod(p * size, repeat);
-	float rz = 0.2 / noisetile(p, repeat);
-	
-	//vec3 eye = vec3(0.0, 0.0, 0.0);
-	//vec3 pos = LavaPosMult.xyz * output.pos3D.xyz;
-	//vec3 eye_vec = normalize(eye - pos);
-	//float rz = 1.0 / parallax(eye_vec, N, p, repeat);
-	// Tiling
+		rz = 0.2 / flow(p);
+	}
 
 	vec3 col = LavaColor.xyz * rz;
 	output.color = vec4(col, 1.0);
 	// Make the bloom sharper:
 	rz *= rz;
 	rz *= rz;
-	output.bloom = LavaBloom * float4(col, rz);
+	rz = clamp(rz, 0.0, 1.0);
+	output.bloom = LavaBloom * rz * float4(col, rz);
 	//output.bloom = 0.0;
 	//float n = noise(input.tex.xy * 100.0);
 	//float n = noiseTex.Sample(noiseSamp, input.tex.xy).x;
