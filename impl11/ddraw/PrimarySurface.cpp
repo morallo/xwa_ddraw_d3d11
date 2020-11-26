@@ -739,19 +739,25 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		//vr::TrackedDevicePose_t trackedDevicePose;
-		//vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
+		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::TrackedDevicePose_t trackedDevicePose;
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		GetLastSteamVRPose(&trackedDevicePose);
+		if (g_bRendering3D) {
+			//Get the last tracking pose obtained by CockpitLook and used to render the frame in the .exe
+			GetLastSteamVRPose(&trackedDevicePose);
+			vr::VRCompositor()->WaitGetPoses(NULL, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		}
+		else {
+			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
+			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+		}
 		//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-		vr::VRCompositor()->WaitGetPoses(NULL, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-		//poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
-		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;
+
+		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
 		q = rotationToQuaternion(poseMatrix);
 		quatToEuler(q, yaw, pitch, roll);
 
