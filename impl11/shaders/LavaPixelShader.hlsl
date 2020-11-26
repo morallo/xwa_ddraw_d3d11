@@ -402,6 +402,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	vec2 p;
+
 	// Zero-out the bloom mask.
 	output.bloom = 0;
 	output.color = texelColor;
@@ -427,21 +429,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, 1.0, alpha);
 
-	//vec2 fragCoord = input.tex.xy * iResolution.xy;
-	//vec2 p = fragCoord.xy / iResolution.xy - 0.5;
-	//p.x *= iResolution.x / iResolution.y;
-
-	//vec2 p = input.tex.xy;
-	// Fix UVs that are greater than 1 or negative.
-	vec2 p = frac(input.tex.xy);
-	if (p.x < 0.0) p.x += 1.0;
-	if (p.y < 0.0) p.y += 1.0;
-
-	p *= 3.0 * LavaSize;
 	float repeat = 2.0 + (LavaSize - 1.0);
 	float size = 1.0 + LavaSize;
 	float rz = 0.0;
 	if (LavaTiling) {
+		// Fix UVs that are greater than 1 or negative.
+		p = frac(input.tex.xy);
+		if (p.x < 0.0) p.x += 1.0;
+		if (p.y < 0.0) p.y += 1.0;
+
 		p = mod(p * size, repeat);
 		rz = 0.2 / noisetile(p, repeat);
 
@@ -453,7 +449,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	else {
 		p = input.tex.xy;
 		p *= 3.0 * LavaSize;
-
 		rz = 0.2 / flow(p);
 	}
 

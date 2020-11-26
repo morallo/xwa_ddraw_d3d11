@@ -19,7 +19,7 @@
 #include "ShadertoyCBuffer.h"
 
 #define pi 3.14159265
-#define ExplosionScale twirl
+//#define ExplosionScale twirl
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -137,8 +137,8 @@ float map(vec3 p)
 	// This is where we can rotate p to look at the explosion from other angles:
 	//R(p.xz, iMouse.x*0.008*pi+iTime*0.1);
 
-	//return VolumetricExplosion(p / 0.5) * 0.5; // scale
-	return VolumetricExplosion(p * ExplosionScale) * 0.5;
+	return VolumetricExplosion(p / 0.5) * 0.5; // scale
+	//return VolumetricExplosion(p * ExplosionScale) * 0.5;
 }
 //--------------------------------------------------------------
 

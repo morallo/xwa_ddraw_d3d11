@@ -17,6 +17,7 @@
 
 #include "XWAObject.h"
 
+extern LARGE_INTEGER g_PC_Frequency;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
@@ -1285,6 +1286,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	case DLL_PROCESS_ATTACH:
 		log_debug("[DBG] **********************");
 		log_debug("[DBG] Initializing VR ddraw.dll");
+		QueryPerformanceFrequency(&g_PC_Frequency);
 		// Initialize the libraries needed to dump DirectX Textures
 		CoInitialize(NULL);
 		// Load vrparams.cfg if present

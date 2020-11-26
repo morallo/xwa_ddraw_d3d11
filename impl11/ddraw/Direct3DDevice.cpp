@@ -308,6 +308,8 @@ float s_XwaHudScale = 1.0f;
 
 FILE *g_HackFile = NULL;
 
+LARGE_INTEGER g_PC_Frequency;
+
 int *s_XwaGlobalLightsCount = (int*)0x00782848;
 XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
 
@@ -9039,8 +9041,20 @@ HRESULT Direct3DDevice::Execute(
 
 				if (g_bProceduralLava && bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial && lastTextureSelected->material.IsLava)
 				{
+					// lastT is not properly initialized on the very first frame; but nothing much seems
+					// to happen. So: ignoring for now.
+					static LARGE_INTEGER curT, lastT, elapsed_us;
+					QueryPerformanceCounter(&curT);
+					elapsed_us.QuadPart = curT.QuadPart - lastT.QuadPart;
+					elapsed_us.QuadPart *= 1000000;
+					elapsed_us.QuadPart /= g_PC_Frequency.QuadPart;
+
+					float elapsed_s = ((float)elapsed_us.QuadPart / 1000000.0f);
+					//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
 					static float iTime = 0.0f;
-					iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
+					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
+					iTime += elapsed_s * lastTextureSelected->material.LavaSpeed;
+					lastT = curT;
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
