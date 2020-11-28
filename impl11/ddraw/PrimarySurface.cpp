@@ -18,7 +18,7 @@
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
 
-#include "../../Hook_XWACockpitLook/SteamVR.h"
+#include "../Hook_XWACockpitLook/SteamVR.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
