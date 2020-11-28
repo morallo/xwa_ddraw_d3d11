@@ -28,12 +28,13 @@ Config::Config()
 
 	this->XInputTriggerAsThrottle = 0;
 	this->InvertYAxis = false;
+	this->InvertThrottle = false;
 	this->MouseSensitivity = 0.5f;
 	this->KbdSensitivity = 1.0f;
 
 	this->Concourse3DScale = 0.6f;
 
-	this->ProcessAffinityCore = 2;
+	this->ProcessAffinityCore = 0;
 
 	this->D3dHookExists = false;
 
@@ -47,7 +48,6 @@ Config::Config()
 	this->SwapJoystickXZAxes = false;
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
-	this->ExternalHUDEnabled = false;
 	this->TriangleTextEnabled = true;
 	this->TrianglePointerEnabled = true;
 	this->SimplifiedTrianglePointer = false;
@@ -55,6 +55,7 @@ Config::Config()
 	this->Radar2DRendererEnabled = true;
 	this->Text2DAntiAlias = true;
 	this->Geometry2DAntiAlias = true;
+	this->MusicSyncFix = false;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -145,6 +146,10 @@ Config::Config()
 			{
 				this->SwapJoystickXZAxes = (bool)stoi(value);
 			}
+			else if (name == "InvertThrottle")
+			{
+				this->InvertThrottle = (bool)stoi(value);
+			}
 			else if (name == "MouseSensitivity")
 			{
 				this->MouseSensitivity = stof(value);
@@ -177,10 +182,6 @@ Config::Config()
 			{
 				this->StayInHyperspace = (bool)stoi(value);
 			}
-			else if (name == "ExternalHUDEnabled")
-			{
-				this->ExternalHUDEnabled = (bool)stoi(value);
-			}
 			else if (name == "TriangleTextEnabled")
 			{
 				this->TriangleTextEnabled = (bool)stoi(value);
@@ -209,6 +210,10 @@ Config::Config()
 			{
 				this->Geometry2DAntiAlias = (bool)stoi(value);
 			}
+			else if (name == "MusicSyncFix")
+			{
+				this->MusicSyncFix = (bool)stoi(value);
+			}
 		}
 	}
 
@@ -227,6 +232,7 @@ Config::Config()
 	if (this->ProcessAffinityCore > 0)
 	{
 		HANDLE process = GetCurrentProcess();
+		//HANDLE process = GetCurrentThread();
 
 		DWORD_PTR processAffinityMask;
 		DWORD_PTR systemAffinityMask;
@@ -252,6 +258,7 @@ Config::Config()
 			}
 
 			SetProcessAffinityMask(process, processAffinityMask);
+			//SetThreadAffinityMask(process, processAffinityMask);
 		}
 	}
 

@@ -10,13 +10,15 @@
 Texture2D    colorTex     : register(t0);
 SamplerState colorSampler : register(s0);
 
-// The effects (trails) buffer up to this point
+// The effects (trails, additional geometry, etc) buffer up to this point
 Texture2D    effectTex     : register(t1);
 SamplerState effectSampler : register(s1);
 
+/*
 // The pos3D buffer
 Texture2D    posTex     : register(t2);
 SamplerState posSampler : register(s2);
+*/
 
 struct PixelShaderInput
 {
@@ -35,14 +37,9 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float4 texColor = colorTex.Sample(colorSampler, input.uv);
 	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
-	//float3 pos3D = posTex.Sample(posSampler, input.uv).xyz;
 
 	// Initialize the result:
 	output.color = texColor;
-
-	// Early exit: avoid adding speed trails inside the cockpit
-	//if (pos3D.z < 60.0)
-	//	return output;
 
 	output.color.rgb = lerp(texColor.rgb, effectColor.rgb, effectColor.a);
 	output.color.a = 1.0;

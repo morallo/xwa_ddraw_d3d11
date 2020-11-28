@@ -77,8 +77,9 @@ RECT* rectStandard3 = (RECT *)0x6031A8;
 const auto battleSelectScrollMovement = (int *)0x78317C;
 const auto loadScrnTotalMissionsListed = (int *)0x7830BC;
 const auto localPlayerIndex = (int *)0x8C1CC8;
-ObjectEntry* objects = *(ObjectEntry **)0x7B33C4;
+ObjectEntry **objects = (ObjectEntry **)0x7B33C4;
 PlayerDataEntry* PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
+CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
 const auto localPlayerConnectedAs = (int *)0xABD7B4;
 const auto flightGroupInfo = (int *)0x783194;
 const auto battleSelectMissionScrollIndex = (int *)0x783174;
@@ -134,6 +135,12 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto mouseLookInverted = (__int8*)0x771298;
 const auto mouseLookResetPosition = (int*)0x9E962C;
+const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
+auto g_hudScale = (DWORD*)0x06002B8;
+
+const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
+const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
+const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 
 // Alt, Control and Shift key states:
 const auto s_XwaIsControlKeyPressed = (int *)0x006343DC;

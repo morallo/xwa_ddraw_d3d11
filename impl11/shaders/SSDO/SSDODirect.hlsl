@@ -12,7 +12,10 @@
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
-SamplerState sampPos  : register(s0);
+SamplerState sampPos  : register(s0) = 
+	sampler_state {
+		Filter = MIN_MAG_MIP_LINEAR;
+	};
 
 // The normal buffer
 Texture2D    texNorm   : register(t1);
@@ -43,7 +46,7 @@ struct PixelShaderOutput
 	//float4 emission    : SV_TARGET2; // Emission Mask
 };
 
-inline float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
@@ -70,10 +73,10 @@ float3 get_normal_from_color(float2 uv, float2 offset)
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
 
 	// Depth samples
-	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
+	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
+	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
+	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
 
 	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
@@ -140,11 +143,16 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 		return output;
 	const float2 uv_diff = sample_uv - input_uv;
 	
-	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
-	//const float miplevel = cur_radius_sqr / max_radius_sqr * 4; // Is this miplevel better than using L?
+#ifdef GENMIPMAPS
+	//float miplevel = L / max_radius * MAX_MIP_LEVELS; // Don't know if this miplevel actually improves performance
+	const float miplevel = cur_radius_sqr / max_radius_sqr * MAX_MIP_LEVELS; // Is this miplevel better than using L? (I think L was sqrt(cur_radius_sqr))
+	//const float miplevel = sqrt(cur_radius_sqr) / sqrt(max_radius_sqr) * MAX_MIP_LEVELS;
+	//const float miplevel = 5.0;
+#else
 	const float miplevel = 0.0;
+#endif
 
-	float3 occluder = getPositionFG(sample_uv, miplevel);
+	float3 occluder = getPosition(sample_uv, miplevel);
 	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, sample_uv, 0).xyz;
 	float  occ_material = occ_mask.x;
 
@@ -347,8 +355,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	ColNorm ssdo_aux;
-	float3 p = getPositionFG(input.uv, 0);
-	//float3 P2 = getPositionBG(input.uv, 0);
+	float3 p = getPosition(input.uv, 0);
 	float3 Normal = getNormal(input.uv, 0);
 	//Normal.z = -Normal.z;
 	float3 SSAO_Normal = float3(Normal.xy, -Normal.z); // For SSAO we need to flip the Z component because the code expects a different coord system

@@ -37,7 +37,7 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	float4 bloom	    : SV_TARGET1;
+	float4 bloom	: SV_TARGET1;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works

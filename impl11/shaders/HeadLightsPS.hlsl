@@ -77,7 +77,7 @@ struct PixelShaderOutput
 	float4 bent  : SV_TARGET2;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
@@ -100,10 +100,10 @@ float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensi
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
 
 	// Depth samples
-	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
+	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
+	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
+	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
 
 	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
@@ -143,30 +143,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.bent = 0;
 
-	float2 input_uv_sub	 = input.uv * amplifyFactor;
+	float2 input_uv_sub	  = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
-	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color		 = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal		 = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo			 = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd		 = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float2 input_uv_sub2  = input.uv * amplifyFactor;
+	float3 color		  = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal		  = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo			  = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd		  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask		 = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask		 = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask		  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask		  = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
-	float  mask			 = ssaoMask.x;
-	float  gloss_mask	 = ssaoMask.y;
-	float  spec_int_mask = ssaoMask.z;
-	float  diff_int		 = 1.0;
-	float  metallic		 = mask / METAL_MAT;
-	float  nm_int_mask	 = ssMask.x;
-	float  spec_val_mask = ssMask.y;
+	float  mask			  = ssaoMask.x;
+	float  gloss_mask	  = ssaoMask.y;
+	float  spec_int_mask  = ssaoMask.z;
+	float  diff_int		  = 1.0;
+	float  metallic		  = mask / METAL_MAT;
+	float  nm_int_mask	  = ssMask.x;
+	float  spec_val_mask  = ssMask.y;
+	float  shadeless_mask = ssMask.z;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	// An area is "shadeless" if it's GLASS_MAT or above
 	float  shadeless = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	shadeless = max(shadeless, shadeless_mask);
 	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
@@ -256,6 +258,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
+	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
+	float exponent = max(global_glossiness * gloss_mask, 0.05);
+	float spec_bloom_int = global_spec_bloom_intensity;
+	if (GLASS_LO <= mask && mask < GLASS_HI) {
+		exponent *= 2.0;
+		spec_bloom_int *= 3.0; // Make the glass bloom more
+	}
+
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	float contactShadow = 1.0;
@@ -314,13 +324,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//const float3 H = normalize(L + eye_vec);
 		//spec = max(dot(N, H), 0.0);
 
-		 // We can't have exponent == 0 or we'll see a lot of shading artifacts:
-		float exponent = max(global_glossiness * gloss_mask, 0.05);
-		float spec_bloom_int = global_spec_bloom_intensity;
-		if (GLASS_LO <= mask && mask < GLASS_HI) {
-			exponent *= 2.0;
-			spec_bloom_int *= 3.0; // Make the glass bloom more
-		}
 		//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
 		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
@@ -385,6 +388,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
+	// Reinhard tone mapping:
+	if (HDREnabled) tmp_color = tmp_color / (HDR_white_point + tmp_color);
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	return output;
 }

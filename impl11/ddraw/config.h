@@ -21,6 +21,7 @@ public:
 	bool SwapJoystickXZAxes;
 	int XInputTriggerAsThrottle;
 	bool InvertYAxis;
+	bool InvertThrottle;
 	float MouseSensitivity;
 	float KbdSensitivity;
 
@@ -39,7 +40,6 @@ public:
 
 	bool FXAAEnabled;
 	bool StayInHyperspace;
-	bool ExternalHUDEnabled;
 	bool TriangleTextEnabled;
 	bool TrianglePointerEnabled;
 	bool SimplifiedTrianglePointer;
@@ -48,6 +48,7 @@ public:
 	bool Radar2DRendererEnabled;
 	bool Text2DAntiAlias;
 	bool Geometry2DAntiAlias;
+	bool MusicSyncFix;
 };
 
 extern Config g_config;

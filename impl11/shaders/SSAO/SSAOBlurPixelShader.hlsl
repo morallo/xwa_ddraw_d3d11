@@ -8,21 +8,13 @@
 Texture2D SSAOTex : register(t0);
 SamplerState SSAOSampler : register(s0);
 
-// The FG Depth Buffer
+// The Depth/Position Buffer
 Texture2D DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
-// The BG Depth Buffer
-Texture2D DepthTex2 : register(t2);
-SamplerState DepthSampler2 : register(s2);
-
 // The Normal Buffer
-Texture2D NormalTex : register(t3);
-SamplerState NormalSampler : register(s3);
-
-// The Bent Normals
-Texture2D BentTex : register(t4);
-SamplerState BentSampler : register(s4);
+Texture2D NormalTex : register(t2);
+SamplerState NormalSampler : register(s2);
 
 struct BlurData {
 	float3 pos;
@@ -71,21 +63,14 @@ PixelShaderOutput main(PixelShaderInput input) {
 		float2(-1.5, 0.5), float2( 1.5, -0.5), float2( 0.5, 1.5), float2(-0.5, -1.5),
 		float2(-1.5, 2.5), float2( 1.5, -2.5), float2( 2.5, 1.5), float2(-2.5, -1.5),
 	};
+
 	float2 cur_offset, cur_offset_scaled;
 	float2 pixelSize = float2(pixelSizeX, pixelSizeY);
 	float2 input_uv_scaled = input.uv * amplifyFactor;
 	float  blurweight = 0, tap_weight;
-	BlurData center, tap;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
-	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
-	float3 Q = DepthTex2.Sample(DepthSampler2, input.uv).xyz;
-	float3 tapFG, tapBG;
-	bool FGFlag = true;
-	center.pos = P;
-	if (Q.z < P.z) {
-		FGFlag = false;
-		center.pos = Q;
-	}
+	BlurData center, tap;
+	center.pos = DepthTex.Sample(DepthSampler, input.uv).xyz;
 
 	PixelShaderOutput output;
 	output.ssao = float4(0, 0, 0, 1);
@@ -100,17 +85,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 	{
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
-		tap_ssao = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		if (FGFlag)
-			tap.pos = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
-		else
-			tap.pos = DepthTex2.Sample(DepthSampler2, input.uv + cur_offset).xyz;
+		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
 		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
-
 		tap_weight = compute_spatial_tap_weight(center, tap);
 
 		blurweight += tap_weight;
-		ssao_sum += tap_ssao * tap_weight;
+		ssao_sum   += tap_ssao * tap_weight;
 		ssao_sum_noweight += tap_ssao;
 	}
 

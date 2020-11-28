@@ -61,11 +61,18 @@ class Direct3DTexture : public IDirect3DTexture
 public:
 	// Set to true once this texture has been tagged/classified.
 	bool is_Tagged;
-	// The CRC of the texture
-	//uint32_t crc;
+	// We don't know if the current cockpit has custom reticles until we see the name of the cockpit.
+	// However, the game loads HUD.dat before the cockpit resources. So, the custom reticles are
+	// already loaded by the time we see the cockpit name. To allow us a second chance at tagging
+	// custom reticles, we use this counter. Essentially any dat,12000,51XX, (or greater) resources
+	// have to be tagged at least two times to allow them to be recognized as custom reticles.
+	// The field below helps us tag these resources multiple times to recognize custom reticles.
+	uint8_t TagCount;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
-	// This flag is set during resource Load, by comparing its CRC with the set of known CRCs.
+	// This flag is set during resource Load
 	bool is_Reticle;
+	// This flag is true only for the HUD textures that serve as crosshairs.
+	bool is_ReticleCenter;
 	// This flag is set whenever the target can be fired upon (12000,600 or ... how do I detect this when a custom reticle is used?)
 	bool is_HighlightedReticle;
 	// This flag is set to true if this texture is the triangle pointer
@@ -88,6 +95,8 @@ public:
 	bool is_EngineGlow;
 	// True if this is an Explosion texture
 	bool is_Explosion;
+	// True if this is smoke coming from an explosion
+	bool is_Smoke;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
 	// True if this texture is a gunner texture
@@ -129,6 +138,10 @@ public:
 	bool is_DAT;
 	// True if this is a blast mark
 	bool is_BlastMark;
+	// True if this is a reactor-core explosion texture
+	bool is_DS2_Reactor_Explosion;
+	// True if this is the energy field surrounding the reactor core.
+	//bool is_DS2_Energy_Field;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 
@@ -162,10 +175,12 @@ public:
 	// **** Back-pointer to the light texture
 	Direct3DTexture *lightTexture;
 
+	
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
 	int GetWidth();
 	int GetHeight();
+	bool LoadShadowOBJ(char * sFileName);
 	void TagTexture();
 
 	virtual ~Direct3DTexture();

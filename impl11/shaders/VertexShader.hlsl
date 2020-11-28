@@ -97,7 +97,7 @@ PixelShaderInput main(VertexShaderInput input)
 		temp.z = z_override;
 
 	// The back-projection into 3D is now very simple:
-	float3 P = float3(temp.z * temp.xy, temp.z);
+	float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST, temp.z);
 	// Write the reconstructed 3D into the output so that it gets interpolated:
 	output.pos3D = float4(P, 1);
 

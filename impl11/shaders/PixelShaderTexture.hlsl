@@ -56,6 +56,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	// DEBUG
+	//output.normal = 0;
+	//output.ssaoMask = 0;
+	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	//return output;
+	// DEBUG
+
+	// DEBUG
 		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
 		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
 		//output.ssMask = 0;
@@ -87,13 +94,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.g: Glossiness
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, unused
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
+	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
+	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
 	// DEBUG
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	//return output;
 	// DEBUG
+
+	if (special_control == SPECIAL_CONTROL_SMOKE)
+	{
+		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+		const float a   = 0.1 * alpha;
+		output.color    = float4(texelColor.rgb, a);
+		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
+		output.ssMask   = float4(fNMIntensity, fSpecVal, 0.0, a);
+		return output;
+	}
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
@@ -166,7 +183,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
-	// the hue
+	// the hue. The engine glow is also used to render smoke, so that's why the smoke
+	// glows.
 	if (bIsEngineGlow) {
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
@@ -204,64 +222,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-
-	// hook_normals code:
-	/*
-	if (input.normal.w > 0.0) {
-		// DEBUG
-		//output.color.xyz = input.normal.xyz;
-		// X+ is to the right: the light comes from the right
-		//output.color.xyz = input.normal.xxx;
-		// Y+ is down: the light comes from below
-		//output.color.xyz = input.normal.yyy;
-		// Z+ is away from the camera: the light comes from far away (behind the objects in the tech room)
-		//output.color.xyz = input.normal.zzz;
-		//output.color.w = alpha;
-		//return output;
-		// DEBUG
-
-		float3 L = normalize(light_dir);
-
-		// Gamma
-		texelColor.xyz = pow(clamp(texelColor.xyz, 0.0, 1.0), 2.2);
-
-		// diffuse component
-		float diffuse = clamp(dot(N, L), 0.0, 1.0);
-		diffuse *= diffuse_intensity;
-		// specular component
-		float3 eye = float3(0.0, 0.0, 0.0);
-		//float3 spec_col = texelColor.xyz;
-		float3 spec_col = clamp(1.5 * texelColor.xyz, 0.0, 1.0);
-		//float3 spec_col = 0.35;
-		float3 eye_vec  = normalize(eye - P);
-		float3 refl_vec = normalize(reflect(-L, N));
-		float  spec     = clamp(dot(eye_vec, refl_vec), 0.0, 1.0);
-		float  exponent = 10.0;
-		if (alpha < 0.95) { // Transparent polygons --> glass
-			exponent = 128.0;
-			spec_col = 1.0;
-		}
-		spec = pow(spec, exponent);
-		if (alpha < 0.95) alpha += 2.0 * spec; // Make specular reflections on glass more visible
-		
-		//output.color = float4((ambient_col + diffuse) * texelColor.xyz + spec_col * spec, texelColor.w);
-		//output.color = float4((ambient_col + diffuse) * texelColor.xyz, texelColor.w);
-		output.color = float4((ambient + diffuse) * texelColor.xyz + spec * spec_col, alpha);
-		//output.color.xyz = N * 0.5 + 0.5;
-
-		// Gamma
-		output.color.xyz = pow(clamp(output.color.xyz, 0.0, 1.0), 0.45);
-
-		output.color.xyz *= brightness;
-	} 
-	else
-	{
-		// Objects without normals don't need to go gamma correction, we would exp(color, 2.2)
-		// only to do exp(color, 0.45), so no need to do that as it will cancel itself out.
-		output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-		//output.color = float4(input.tex, 0, texelColor.w);
-	}
-	*/
-
+	
+	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
+	//	output.color.r += 0.7;
 	return output;
 }

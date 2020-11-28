@@ -23,6 +23,9 @@ extern const char *DC_BEAM_BOX_SRC_RESNAME;
 extern const char *DC_TOP_LEFT_SRC_RESNAME;
 extern const char *DC_TOP_RIGHT_SRC_RESNAME;
 
+// Use the following with `const auto missionIndexLoaded = (int *)0x9F5E74;` to detect the DSII tunnel run mission.
+const int DEATH_STAR_MISSION_INDEX = 52;
+
 typedef struct Box_struct {
 	float x0, y0, x1, y1;
 } Box;
@@ -40,16 +43,18 @@ typedef struct float4_struct {
 } float4;
 
 // Region names. Used in the erase_region and move_region commands
-const int LEFT_RADAR_HUD_BOX_IDX		= 0;
+const int LEFT_RADAR_HUD_BOX_IDX	= 0;
 const int RIGHT_RADAR_HUD_BOX_IDX	= 1;
 const int SHIELDS_HUD_BOX_IDX		= 2;
 const int BEAM_HUD_BOX_IDX			= 3;
-const int TARGET_HUD_BOX_IDX			= 4;
+const int TARGET_HUD_BOX_IDX		= 4;
 const int LEFT_MSG_HUD_BOX_IDX		= 5;
 const int RIGHT_MSG_HUD_BOX_IDX		= 6;
-const int TOP_LEFT_BOX_IDX			= 7;
-const int TOP_RIGHT_BOX_IDX			= 8;
-const int MAX_HUD_BOXES				= 9;
+const int TOP_LEFT_HUD_BOX_IDX		= 7;
+const int TOP_RIGHT_HUD_BOX_IDX		= 8;
+const int TEXT_RADIOSYS_HUD_BOX_IDX	= 9;
+const int TEXT_CMD_HUD_BOX_IDX		= 10;
+const int MAX_HUD_BOXES				= 11;
 extern std::vector<const char *>g_HUDRegionNames;
 // Convert a string into a *_HUD_BOX_IDX constant
 int HUDRegionNameToIndex(char *name);
@@ -109,7 +114,22 @@ const int B_WING_LASERS_DC_ELEM_SRC_IDX = 21;
 const int SIX_LASERS_BOTH_DC_ELEM_SRC_IDX = 22;
 const int SIX_LASERS_L_DC_ELEM_SRC_IDX = 23;
 const int SIX_LASERS_R_DC_ELEM_SRC_IDX = 24;
-const int MAX_DC_SRC_ELEMENTS = 25;
+const int SHIELDS_FRONT_DC_ELEM_SRC_IDX = 25;
+const int SHIELDS_BACK_DC_ELEM_SRC_IDX = 26;
+const int KW_TEXT_CMD_DC_ELEM_SRC_IDX = 27;
+const int KW_TEXT_TOP_DC_ELEM_SRC_IDX = 28;
+const int KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
+const int TEXT_RADIO_DC_ELEM_SRC_IDX = 30;
+const int TEXT_SYSTEM_DC_ELEM_SRC_IDX = 31;
+const int TEXT_CMD_DC_ELEM_SRC_IDX = 32;
+const int TARGETED_OBJ_NAME_SRC_IDX = 33;
+const int TARGETED_OBJ_SHD_SRC_IDX = 34;
+const int TARGETED_OBJ_HULL_SRC_IDX = 35;
+const int TARGETED_OBJ_CARGO_SRC_IDX = 36;
+const int TARGETED_OBJ_SYS_SRC_IDX = 37;
+const int TARGETED_OBJ_DIST_SRC_IDX = 38;
+const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
+const int MAX_DC_SRC_ELEMENTS = 40;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char *name);
@@ -169,7 +189,7 @@ typedef struct HeadPosStruct {
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
 	float scale, aspectRatio, parallax, brightness;
-	float use_3D, unused0, unused1, unused2;
+	float use_3D, inv_scale, unused1, unused2;
 } MainShadersCBuffer;
 
 typedef struct BarrelPixelShaderCBStruct {
@@ -222,7 +242,7 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 64 bytes
 	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ambient, amplifyFactor2;
+	float far_sample_radius, nm_intensity_far, ssao_unused0, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -257,7 +277,8 @@ typedef struct ShadertoyCBStruct {
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;
-	float flare_intensity, st_unused0, st_unused1;
+	float flare_intensity;
+	float preserveAspectRatioComp[2]; // Used to compensate for the distortion introduced when PreserveAspectRatio = 0 in DDraw.cfg
 	// 144 bytes
 	//float SunX, SunY, SunZ, flare_intensity;
 	float4 SunCoords[MAX_SUN_FLARES];
@@ -285,7 +306,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	float cursor_radius, unused[2];
+	float cursor_radius, lp_aspect_ratio[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 
@@ -293,9 +314,11 @@ typedef struct LaserPointerCBStruct {
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	// 16 bytes
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
+	float aspect_ratio;
+	uint32_t apply_uv_comp;
+	float z_override, sz_override;
 	// 32 bytes
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
+	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 48 bytes
 	//float vsunused0, vsunused1, vsunused2, vsunused3;
 	// 64 bytes
@@ -331,10 +354,12 @@ typedef struct PSShadingSystemCBStruct {
 	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
 	// 8 * 16 = 128
 	// 592 bytes
-	float ambient, headlights_angle_cos, ss_unused1, ss_unused2;
+	float ambient, headlights_angle_cos, HDR_white_point;
+	uint32_t HDREnabled;
 	// 608 bytes
 } PSShadingSystemCB;
 
+// See PixelShaderTextureCommon.h for an explanation of these settings
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
@@ -345,7 +370,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t ps_unused1; // Formerly this was bIsSun
+	uint32_t ps_unused1;
 	// 32 bytes
 
 	float fBloomStrength;
@@ -359,8 +384,8 @@ typedef struct PixelShaderCBStruct {
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint32_t debug;
-	float ps_unused2;
+	uint32_t special_control;
+	float fAmbient;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -376,9 +401,48 @@ typedef struct DCPixelShaderCBStruct {
 	// 432 bytes thus far
 
 	float ct_brightness, dc_brightness;
-	float unused[2];
+	uint32_t noisy_holo; // If set to 1, the hologram shader will be noisy!
+	float transparent; // If set to 1, the background will be transparent
 	// 448 bytes
 } DCPixelShaderCBuffer;
+
+// Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
+typedef struct ShadowMapVertexShaderMatrixCBStruct {
+	Matrix4 Camera;
+	Matrix4 lightWorldMatrix[MAX_XWA_LIGHTS];
+	// 128 bytes
+
+	uint32_t sm_enabled, sm_debug;
+	float sm_light_size, sm_blocker_radius;
+
+	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
+
+	Vector3 POV;
+	float sm_resolution;
+
+	int light_index;
+	float sm_FOVscale, sm_y_center, sm_z_factor;
+
+	uint32_t sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
+
+	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
+	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
+	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
+} ShadowMapVertexShaderMatrixCB;
+
+// Holds the current 3D reconstruction constants, register b6
+typedef struct MetricReconstructionCBStruct {
+	float mr_aspect_ratio;   // Same as sm_aspect_ratio (g_fCurInGameAspectRatio), remove sm_* later
+	float mr_FOVscale;       // Same as sm_FOVscale NOT the same as g_ShadertoyBuffer.FOVscale
+	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
+	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
+
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_debug_value;
+
+	//float mr_vr_aspect_ratio_comp[2]; // This is used with shaders that work with the postproc vertexbuf, like the reticle shader
+	float mr_vr_aspect_ratio, mr_unused0;
+	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD
+} MetricReconstructionCB;
 
 typedef struct uv_coords_src_dst_struct {
 	int src_slot[MAX_DC_COORDS_PER_TEXTURE]; // This src slot references one of the pre-defined DC internal areas
@@ -403,7 +467,7 @@ typedef struct dc_element_struct {
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
 	//ID3D11ShaderResourceView *coverTexture = NULL;
-	bool bActive, bNameHasBeenTested;
+	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
 } dc_element;
 
 typedef struct move_region_coords_struct {
@@ -416,6 +480,7 @@ typedef struct move_region_coords_struct {
 #define MAX_AC_COORDS_PER_TEXTURE 64
 #define MAX_AC_TEXTURES_PER_COCKPIT 16
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
+#define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
 	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
@@ -460,7 +525,6 @@ typedef enum {
 } TrackerType;
 
 struct MaterialStruct;
-
 extern struct MaterialStruct g_DefaultGlobalMaterial;
 
 // Materials
@@ -470,17 +534,61 @@ typedef struct MaterialStruct {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
-	bool IsShadeless;
+	bool  IsShadeless;
+	bool  NoBloom;
 	Vector3 Light;
+	Vector2 LightUVCoordPos;
+	bool  IsLava;
+	float LavaSpeed;
+	float LavaSize;
+	float EffectBloom;
+	Vector3 LavaColor;
+	bool LavaTiling;
+	bool AlphaToBloom;
+	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
+	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
+	float Ambient;
+	// DEBUG properties, remove later
+	//Vector3 LavaNormalMult;
+	//Vector3 LavaPosMult;
+	//bool LavaTranspose;
 
 	MaterialStruct() {
-		Metallic    = g_DefaultGlobalMaterial.Metallic;
-		Intensity   = g_DefaultGlobalMaterial.Intensity;
-		Glossiness  = g_DefaultGlobalMaterial.Glossiness;
-		NMIntensity = g_DefaultGlobalMaterial.NMIntensity;
-		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
-		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
-		Light		= g_DefaultGlobalMaterial.Light;
+		Metallic		= g_DefaultGlobalMaterial.Metallic;
+		Intensity		= g_DefaultGlobalMaterial.Intensity;
+		Glossiness		= g_DefaultGlobalMaterial.Glossiness;
+		NMIntensity		= g_DefaultGlobalMaterial.NMIntensity;
+		SpecValue		= g_DefaultGlobalMaterial.SpecValue;
+		IsShadeless		= g_DefaultGlobalMaterial.IsShadeless;
+		Light			= g_DefaultGlobalMaterial.Light;
+		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		NoBloom			= false;
+		IsLava			= false;
+		LavaSpeed		= 1.0f;
+		LavaSize		= 1.0f;
+		EffectBloom		= 1.0f;
+		LavaTiling		= true;
+
+		LavaColor.x		= 1.00f;
+		LavaColor.y		= 0.35f;
+		LavaColor.z		= 0.05f;
+
+		AlphaToBloom	= false;
+		NoColorAlpha	= false;
+		AlphaIsntGlass	= false;
+		Ambient			= 0.0f;
+
+		/*
+		// DEBUG properties, remove later
+		LavaNormalMult.x = 1.0f;
+		LavaNormalMult.y = 1.0f;
+		LavaNormalMult.z = 1.0f;
+
+		LavaPosMult.x = -1.0f;
+		LavaPosMult.y = -1.0f;
+		LavaPosMult.z = -1.0f;
+		LavaTranspose = true;
+		*/
 	}
 } Material;
 
@@ -500,7 +608,7 @@ typedef enum {
 	XWAHACKER_FOV,
 	XWAHACKER_LARGE_FOV
 } FOVtype;
-extern FOVtype g_CurrentFOV;
+extern FOVtype g_CurrentFOVType;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -514,18 +622,70 @@ typedef struct AuxTextureDataStruct {
 } AuxTextureData;
 */
 
-/*
-class XWALightInfoStruct {
+// For shadow mapping, maybe we'd like to distinguish between sun-lights and
+// planet/background-lights. We'll use this struct to tag lights and fade
+// those lights which aren't suns
+class XWALightInfo {
 public:
-	bool Tested, IsSun;
+	bool bTagged, bIsSun;
 
 public:
-	XWALightInfoStruct() {
-		Tested = false;
-		IsSun = false;
+	XWALightInfo() {
+		this->Reset();
+	}
+
+	void Reset() {
+		this->bTagged = false;
+		this->bIsSun = true;
 	}
 };
-*/
+
+// Text Rendering
+// Font indices that can be used with the PrimarySurface::AddText() methods (and others) below
+#define FONT_MEDIUM_IDX 0
+#define FONT_LARGE_IDX 1
+#define FONT_SMALL_IDX 2
+#define FONT_BLUE_COLOR 0x5555FF
+
+class TimedMessage {
+public:
+	time_t t_exp;
+	char msg[128];
+	short y;
+	short font_size_idx;
+	uint32_t color;
+
+	TimedMessage() {
+		this->msg[0] = 0;
+		this->y = 200;
+		this->color = FONT_BLUE_COLOR;
+		this->font_size_idx = FONT_LARGE_IDX;
+	}
+
+	inline bool IsExpired() {
+		return this->msg[0] == 0;
+	}
+
+	inline void SetMsg(char *msg, time_t seconds, short y, short font_size_idx, uint32_t color) {
+		strcpy_s(this->msg, 128, msg);
+		this->t_exp = time(NULL) + seconds;
+		this->y = y;
+		this->font_size_idx = font_size_idx;
+		this->color = color;
+	}
+
+	inline void Tick() {
+		time_t t = time(NULL);
+		if (t > this->t_exp)
+			this->msg[0] = 0;
+	}
+};
+const int MAX_TIMED_MESSAGES = 3;
+
+/*
+  Only rows 0..2 are available
+ */
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
 
 // S0x07D4FA0
 struct XwaGlobalLight
@@ -581,6 +741,85 @@ public:
 #define MAX_SPEED_PARTICLES 256
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
+#define SHADOW_MAP_SIZE 1024
+
+class ShadowMappingData {
+public:
+	bool bEnabled;
+	bool bAnisotropicMapScale;
+	bool bAllLightsTagged;
+	bool bMultipleSuns;
+	bool bUseShadowOBJ; // This should be set to true when the Shadow OBJ is loaded
+	bool bOBJrange_override;
+	float fOBJrange_override_value;
+	int ShadowMapSize;
+	D3D11_VIEWPORT ViewPort;
+	int NumVertices, NumIndices; // This should be set when the Shadow OBJ is loaded
+	float black_level;
+	float POV_XY_FACTOR;
+	float POV_Z_FACTOR;
+	float FOVDistScale;
+	float sw_pcf_bias;
+	float hw_pcf_bias;
+	//float XWA_LIGHT_Y_CONV_SCALE;
+	float shadow_map_mult_x;
+	float shadow_map_mult_y;
+	float shadow_map_mult_z;
+
+	int DepthBias;
+	float DepthBiasClamp;
+	float SlopeScaledDepthBias;
+
+	ShadowMappingData() {
+		this->bEnabled = false;
+		this->bAnisotropicMapScale = true;
+		this->bAllLightsTagged = false;
+		this->bMultipleSuns = false;
+		this->bUseShadowOBJ = false;
+		this->NumVertices = 0;
+		this->NumIndices = 0;
+		this->ShadowMapSize   = SHADOW_MAP_SIZE;
+		// Initialize the Viewport
+		this->ViewPort.TopLeftX = 0.0f;
+		this->ViewPort.TopLeftY = 0.0f;
+		this->ViewPort.Height   = (float)this->ShadowMapSize;
+		this->ViewPort.Width    = (float)this->ShadowMapSize;
+		this->ViewPort.MinDepth = D3D11_MIN_DEPTH;
+		this->ViewPort.MaxDepth = D3D11_MAX_DEPTH;
+		this->black_level = 0.2f;
+		this->POV_XY_FACTOR = 24.974f;
+		this->POV_Z_FACTOR = 25.0f;
+		this->bAnisotropicMapScale = true;
+		this->bOBJrange_override = false;
+		this->fOBJrange_override_value = 5.0f;
+		//this->FOVDistScale = 624.525f;
+		this->FOVDistScale = 620.0f; // This one seems a bit better
+		this->sw_pcf_bias = -0.03f;
+		this->hw_pcf_bias = -0.03f;
+		// The following scale factor is used when tagging lights (associating XWA lights
+		// with sun textures). I don't have a good explanation for this value; but
+		// it's used to compensate the Y coordinate so that the light and the centroid of
+		// the sun texture line up better. I'll investigate this in detail later.
+		//this->XWA_LIGHT_Y_CONV_SCALE = -62.5f;
+
+		this->shadow_map_mult_x =  1.0f;
+		this->shadow_map_mult_y =  1.0f;
+		this->shadow_map_mult_z = -1.0f;
+
+		this->DepthBias = 0;
+		this->DepthBiasClamp = 0.0f;
+		this->SlopeScaledDepthBias = 0.0f;
+	}
+
+	void SetSize(int Width, int Height) {
+		this->ShadowMapSize = Width;
+		this->ViewPort.Width = (float)ShadowMapSize;
+		this->ViewPort.Height = (float)ShadowMapSize;
+	}
+};
+
+extern ShadowMappingData g_ShadowMapping;
+
 class DeviceResources
 {
 public:
@@ -610,23 +849,34 @@ public:
 	void InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer);
 	void InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
-	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness);
+	void InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, float inv_scale = 1.0f);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);
 	void InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer *psConstants);
 	void InitPSConstantBufferDC(ID3D11Buffer** buffer, const DCPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
-
 	void InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants);
+	// Shadow Mapping CBs
+	void InitVSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *vsCBuffer);
+	void InitPSConstantBufferShadowMap(ID3D11Buffer **buffer, const ShadowMapVertexShaderMatrixCB *psCBuffer);
+	// Metric Reconstruction CBs
+	void InitVSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *vsCBuffer);
+	void InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *psCBuffer);
 
-	void BuildHUDVertexBuffer(UINT width, UINT height);
-	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void BuildHUDVertexBuffer(float width, float height);
+	void BuildHyperspaceVertexBuffer(float width, float height);
 	void BuildPostProcVertexBuffer();
-	void InitSpeedParticlesVB(UINT width, UINT height);
-	void BuildSpeedVertexBuffer(UINT width, UINT height);
+	void InitSpeedParticlesVB();
+	void BuildSpeedVertexBuffer();
+	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
+	//void FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/);
+	//void CreateReticleVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
+	void CreateGrayNoiseTexture();
+	void DeleteGrayNoiseTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -669,6 +919,8 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
 	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text
 	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders
+	ComPtr<ID3D11Texture2D> _ReticleBufMSAA;			   // "RTV" to render the HUD in VR mode
+	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from DCTextMSAA for use in shaders
 	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
@@ -696,10 +948,10 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
 	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _depthBuf2;
-	ComPtr<ID3D11Texture2D> _depthBuf2R;
-	ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
-	ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
+	//ComPtr<ID3D11Texture2D> _depthBuf2;
+	//ComPtr<ID3D11Texture2D> _depthBuf2R;
+	//ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
+	//ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
 	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
@@ -715,10 +967,14 @@ public:
 	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // No MSAA
 	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	
 	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
-	ComPtr<ID3D11Texture2D> _ssMask;			 // No MSAA
+	ComPtr<ID3D11Texture2D> _ssMask;		 // No MSAA
 	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
-	//ComPtr<ID3D11Texture2D> _ssEmissionMask;	  // No MSAA, Screen-Space emission mask
-	//ComPtr<ID3D11Texture2D> _ssEmissionMaskR; // No MSAA, Screen-Space emission mask
+	// Shadow Mapping
+	ComPtr<ID3D11Texture2D> _shadowMap;
+	ComPtr<ID3D11Texture2D> _shadowMapArray;
+	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
+	// Generated/Procedural Textures
+	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -730,6 +986,7 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitAsInputBG; // RTV that writes to _offscreenBufferAsInputDynCockpitBG directly
 	ComPtr<ID3D11RenderTargetView> _DCTextRTV;
 	ComPtr<ID3D11RenderTargetView> _DCTextAsInputRTV;
+	ComPtr<ID3D11RenderTargetView> _ReticleRTV;
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
@@ -749,8 +1006,8 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2;
+	//ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf2R;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBentBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAO;
@@ -762,8 +1019,6 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMask;
-	//ComPtr<ID3D11RenderTargetView> _renderTargetViewEmissionMaskR;
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -772,6 +1027,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
 	ComPtr<ID3D11ShaderResourceView> _DCTextSRV;						// SRV for the HUD text
+	ComPtr<ID3D11ShaderResourceView> _ReticleSRV;						// SRV for the HUD text
 	// Shadertoy
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
@@ -789,8 +1045,8 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
-	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
-	ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
+	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
+	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
 	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf
@@ -802,13 +1058,19 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssaoMaskSRV_R;  // SRV for ssaoMaskR
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV;      // SRV for ssMask
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
-	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV;    // SRV for ssEmissionMask
-	//ComPtr<ID3D11ShaderResourceView> _ssEmissionMaskSRV_R;  // SRV for ssEmissionMaskR
+	// Shadow Mapping
+	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
+	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
+	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
+	// Generated/Procedural Textures SRVs
+	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
+	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
+	//ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
 	ComPtr<IDWriteFactory> _dwriteFactory;
@@ -823,7 +1085,7 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey00;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
-	ComPtr<ID3D11PixelShader> _basicPixelShader;
+	ComPtr<ID3D11PixelShader> _steamVRMirrorPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
@@ -850,11 +1112,22 @@ public:
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
+	ComPtr<ID3D11PixelShader> _starDebugPS;
+	ComPtr<ID3D11PixelShader> _lavaPS;
+	ComPtr<ID3D11PixelShader> _explosionPS;
+	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
+	ComPtr<ID3D11PixelShader> _noGlassPS;
+	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
 	ComPtr<ID3D11PixelShader> _addGeomPS;
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
+
+	ComPtr<ID3D11PixelShader> _shadowMapPS;
+	ComPtr<ID3D11SamplerState> _shadowPCFSamplerState;
+
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
@@ -873,14 +1146,17 @@ public:
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
+	ComPtr<ID3D11VertexShader> _shadowMapVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderDCHolo;
 	ComPtr<ID3D11PixelShader> _pixelShaderEmptyDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
+	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
 	ComPtr<ID3D11Buffer> _VSMatrixBuffer;
 	ComPtr<ID3D11Buffer> _shadingSysBuffer;
@@ -892,12 +1168,19 @@ public:
 	ComPtr<ID3D11Buffer> _hyperspaceConstantBuffer;
 	ComPtr<ID3D11Buffer> _laserPointerConstantBuffer;
 	ComPtr<ID3D11Buffer> _mainShadersConstantBuffer;
-	
+	ComPtr<ID3D11Buffer> _shadowMappingVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _shadowMappingPSConstantBuffer;
+	ComPtr<ID3D11Buffer> _metricRecVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _metricRecPSConstantBuffer;
+
 	ComPtr<ID3D11Buffer> _postProcessVertBuffer;
 	ComPtr<ID3D11Buffer> _HUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _clearHUDVertexBuffer;
 	ComPtr<ID3D11Buffer> _hyperspaceVertexBuffer;
 	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
+	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
+	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
+	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:

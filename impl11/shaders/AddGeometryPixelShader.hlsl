@@ -23,7 +23,7 @@ struct PixelShaderOutput
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	//output.color = float4(0.0, 0.0, 0.0, 1.0);
-	output.color = input.color;
+	output.color = float4(1.0, 1.0, 0.0, 1.0);
+	//output.color = input.color;
 	return output;
 }

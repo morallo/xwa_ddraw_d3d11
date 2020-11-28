@@ -34,7 +34,6 @@
     <FxCompile Include="PixelShaderDC.hlsl" />
     <FxCompile Include="PixelShaderHUD.hlsl" />
     <FxCompile Include="BloomBufferAddPS.hlsl" />
-    <FxCompile Include="BasicPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
@@ -55,7 +54,6 @@
     <FxCompile Include="SunFlareShader.hlsl" />
     <FxCompile Include="SunShader.hlsl" />
     <FxCompile Include="SunFlareCompose.hlsl" />
-    <FxCompile Include="SpeedEffect.hlsl" />
     <FxCompile Include="SpeedEffectCompose.hlsl" />
     <FxCompile Include="SpeedEffectVertexShader.hlsl" />
     <FxCompile Include="AddGeometryVertexShader.hlsl" />
@@ -63,6 +61,17 @@
     <FxCompile Include="AddGeometryComposePixelShader.hlsl" />
     <FxCompile Include="HeadLightsPS.hlsl" />
     <FxCompile Include="HeadLightsSSAOPS.hlsl" />
+    <FxCompile Include="ShadowMapPS.hlsl" />
+    <FxCompile Include="ShadowMapVS.hlsl" />
+    <FxCompile Include="EdgeDetector.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
+    <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
+    <FxCompile Include="StarDebug.hlsl" />
+    <FxCompile Include="PixelShaderDCHolo.hlsl" />
+    <FxCompile Include="LavaPixelShader.hlsl" />
+    <FxCompile Include="ExplosionShader.hlsl" />
+    <FxCompile Include="AlphaToBloomPS.hlsl" />
+    <FxCompile Include="PixelShaderNoGlass.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -92,6 +101,18 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="ShadertoyCBuffer.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="shadow_mapping_common.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="metric_common.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexShaderCBuffer.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="DC_common.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

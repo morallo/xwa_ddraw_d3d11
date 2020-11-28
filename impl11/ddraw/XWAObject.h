@@ -3,12 +3,216 @@
 #include <windows.h>
 #include "XWATypes.h"
 
+#pragma pack(push, 1)
+
 struct MobileObjectEntry;
 struct ProjectileInstance;
-struct CraftInstance;
 struct RotationMatrix3D;
 
-#pragma pack(push, 1)
+struct CraftInstanceHardpoint {
+	WORD ProjectileType;
+	BYTE WeaponType; // 0 no weapon, 1 lasers, 2 ion, 3 warheads (any type of warheads)
+	BYTE LaserIndex;
+	BYTE Energy;
+	BYTE Count; // Number of warheads
+	WORD TurretCooldown;
+	BYTE MeshID;
+	BYTE HardpointID;
+	WORD TurretTargetIndex;
+	WORD TurretTargetSearchCooldown;
+};
+static_assert(sizeof(CraftInstanceHardpoint) == 0xE, "size of CraftInstance must be 0xE");
+
+struct CraftInstance {
+	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
+	DWORD NumberInFG;
+	WORD CraftType; // enum CraftTypeEnum
+	DWORD LeaderCraftIndex;
+	BYTE VirtualCraftPointerSet;
+	BYTE CraftState; // enum CraftState
+	BYTE RemovedFromPlay;
+	WORD AiSkill;
+	WORD field_F; // Ofs 0x0F
+	WORD unknown2;
+	DWORD IsUnderBeamEffect[5];
+	BYTE SfoilsState; // Ofs 0x27
+	BYTE XwaAIData_m00;
+	BYTE meshStates[20]; // Ofs 0x29
+	BYTE waypointLoopsCompleted[20]; // 0x3D
+	BYTE XwaAIData_m29;
+	BYTE currentFlightPln;
+	BYTE startingFlightPlan;
+	BYTE currentTargetWaypoint;
+	BYTE savedAwaitingOrder;
+	DWORD CycleTime;
+	DWORD CycleTimer; // Ofs 0x5A
+	WORD RandomSeed;
+	WORD TargetObjectIndex;
+	WORD TargetObjectTagID;
+	WORD XwaAIData_m3C;
+	BYTE XwaAIData_m3E;
+	DWORD TargetWaypointPositionX; // Ofs 0x67
+	DWORD TargetWaypointPositionY;
+	DWORD TargetWaypointPositionZ;
+	DWORD angleDistanceToWaypoint;
+	DWORD XwaAIData_m4F;
+	WORD playerAttackOrderTargetIndex;
+	BYTE XwaAIData_m55; // Ofs 0x7D
+	WORD DesiredPitch;
+	WORD DesiredRoll;
+	WORD DesiredYaw;
+	BYTE currentManr;
+	BYTE specialTimerOrState;
+	DWORD TimerToAttack;
+	DWORD TimerToFlyWP;
+	WORD PickedUpObjectIndex;
+	WORD field_90;
+	WORD field_92;
+	WORD field_94;
+	WORD field_96;
+	WORD field_98;
+	WORD field_9A;
+	WORD ThreatenedByIndex; // Ofs 0x9C
+	WORD field_9E;
+	WORD field_A0;
+	WORD field_A2;
+	BYTE field_A4;
+	BYTE field_A5;
+	BYTE field_A6;
+	BYTE field_A7;
+	BYTE field_A8;
+	BYTE field_A9;
+	BYTE field_AA;
+	BYTE field_AB;
+	BYTE DoneBoardedCount;
+	BYTE BeingBoarded;
+	BYTE DoneDockingCount;
+	BYTE IsDocking;
+	WORD ObjectTagID2;
+	WORD field_B2; // Ofs 0xB2
+	DWORD field_B4;
+	DWORD field_B8;
+	DWORD field_BC;
+	DWORD field_C0;
+	WORD TopSpeedMPH;
+	WORD SpeedPercentage;
+	BYTE RotationRelatedUnk1;
+	BYTE RotationRelatedUnk2;
+	WORD PitchRate;
+	WORD PitchPercentage;
+	BYTE PitchState;
+	BYTE RotationRelatedUnk3;
+	WORD PitchMaxPercentage;
+	WORD RollRate;
+	WORD RollPercentage;
+	BYTE RollState;
+	WORD RollMaxPercentage;
+	WORD YawRate; // Ofs 0xD9
+	WORD YawPercentage;
+	BYTE YawState;
+	WORD YawMaxPercentage;
+	BYTE FormationType;
+	BYTE FormationSpacing;
+	BYTE SpecialCraft;
+	BYTE field_E3;
+	DWORD DriftXPos;
+	DWORD DriftYPos;
+	DWORD DriftZPos;
+	WORD EngineThrottleInput; // Ofs 0xF0
+	WORD PercentOfActiveEngines;
+	WORD MissionSetSpeed;
+	WORD EngineSLAMInput;
+	DWORD HullDamageReceived;
+	DWORD CriticalDamageThreshold;
+	DWORD HullStrength;
+	WORD SystemStrength;
+	DWORD field_106;
+	BYTE field_10A;
+	DWORD TotalDmgReceived;
+	DWORD TotalDmgToPlayer;
+	DWORD TotalDmgFromCollisions;
+	DWORD TotalDmgFromTurrets;
+	DWORD TotalDmgFromMines;
+	DWORD field_11F[8]; // Ofs 0x11F dd 8 dup(? ) 
+	BYTE field_13F[8];
+	DWORD field_147[8];
+	DWORD field_167[6];
+	WORD InitialCockpitInstruments;
+	WORD CockpitInstrumentStatus;
+	WORD InitialSubsystems;
+	WORD SubsystemStatus;
+	WORD MagTimeRemaining;
+	BYTE field_189;
+	BYTE field_18A;
+	BYTE CapturedBy;
+	BYTE AttackedByTeam[10];
+	BYTE InspectedByTeam[10];
+	BYTE CargoIndex;
+	BYTE field_1A1;
+	DWORD ShieldPointsFront; // // Ofs 0x1A2 dd 2 dup(? )
+	DWORD ShieldPointsBack;
+	BYTE ElsShields;
+	BYTE ShieldDirection;
+	BYTE NumberOfLaserSets;
+	BYTE ElsLasers;
+	BYTE NumberOfLasers;
+	BYTE ConvergenceMode; // db ? ; enum LaserConvergenceMode
+	WORD LaserType[3];
+	BYTE LaserLinkStatus[3];
+	BYTE field_1B9[3];
+	BYTE LaserNextHardpoint[3];
+	WORD LaserCooldown[3];
+	DWORD LaserLastFireAttempt[3];
+	BYTE NumWarheadLauncherGroups; // Ofs 0x1D1
+	WORD WarheadType[2];
+	BYTE WarheadNextHardpoint[2];
+	WORD WarheadCooldown[2];
+	WORD LockTime;
+	BYTE BeamType;
+	BYTE ElsBeam;
+	WORD BeamEnergy;
+	BYTE BeamActive;
+	WORD BeamActive2;
+	BYTE field_1E5; // Ofs 0x1E5
+	BYTE field_1E6;
+	BYTE CountermeasureType;
+	BYTE CountermeasureAmount;
+	WORD ChaffLifespan;
+	WORD FlareLifespan;
+	WORD PrimaryLasersFired;
+	WORD PrimaryLasersHit;
+	WORD SecondaryLasersFired;
+	WORD SecondaryLasersHit;
+	BYTE WarheadsFired;
+	BYTE WarheadsHit;
+	BYTE SysRepairPriority[11]; // Ofs 0x1F7 db 11 dup(? )
+	WORD SysRepairPercent[11];
+	WORD SysRepairTimeRemaining[11];
+	BYTE MeshState[50];
+	BYTE MeshRotationAngles[50];
+	BYTE MeshHP[50];
+	WORD field_2C4; // Ofs 0x2C4       dw ?
+	WORD PlayerIndex;
+	WORD field_2C8;
+	BYTE field_2CA;
+	BYTE field_2CB; // enum PloEnum
+	BYTE field_2CC; // enum PloEnum
+	WORD field_2CD;
+	BYTE EngineThrottles[16]; // Ofs 0x2CF db 16 dup(? )
+	CraftInstanceHardpoint Hardpoints[16]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
+	WORD ObjectTagID; // Ofs 0x3BF     dw ?
+	WORD RotGunAngles[2];
+	WORD RotBeamAngles[2];
+	DWORD field_3C9[2];
+	DWORD field_3D1[2];
+	char Cargo[16]; // Ofs 0x3D9 string(C)
+	DWORD field_3E9;
+	DWORD field_3ED;
+	DWORD field_3F1;
+	DWORD pObject; // offset
+};
+
+static_assert(sizeof(CraftInstance) == 0x3F9, "size of ObjectEntry must be 39");
 
 struct RotationMatrix3D
 {
@@ -26,7 +230,7 @@ struct RotationMatrix3D
 struct ObjectEntry
 {
 	__int16 objectID;
-	__int16 objectSpecies;
+	__int16 objectSpecies; // Type enum ObjectTypeEnum
 	char objectGenus;
 	char FGIndex;
 	char region;
@@ -53,7 +257,7 @@ struct MobileObjectEntry
 	DWORD lastUpdateTime;
 	DWORD PosXDelta;
 	DWORD PosYDelta;
-	int PosZDelta;
+	DWORD PosZDelta;
 	char collisionChecksActive;
 	int collisionCheckTimers[16];
 	__int16 collisionCheckObjectIndex[16];
@@ -116,6 +320,7 @@ struct MobileObjectEntry
 
 static_assert(sizeof(MobileObjectEntry) == 229, "size of MobileObjectEntry must be 229");
 
+// The current target object index is stored as a word value at offset 0x25 in the player table. A value of 0xffff (-1) means that there is no target.
 struct PlayerDataEntry
 {
 	int objectIndex;
@@ -139,7 +344,10 @@ struct PlayerDataEntry
 	int timeInHyperspace;
 	char allowTargetBox;
 	char warheadLockState;
-	__int16 currentTargetIndex;
+	// This is the index of the currently-targeted object, a value of -1 means no target
+	// Use this index on this table:
+	// ObjectEntry* objects = (ObjectEntry **)0x7B33C4;
+	__int16 currentTargetIndex; 
 	char targetTimeTargetedSeconds;
 	char targetTimeTargetedMinutes;
 	__int16 lastTargetIndex;
@@ -147,8 +355,13 @@ struct PlayerDataEntry
 	__int16 craftMemory2;
 	__int16 craftMemory3;
 	__int16 craftMemory4;
-	char primarySecondaryArmed;
-	char warheadArmed;
+	char primarySecondaryArmed; // 0 if primary weapon armed, 1 if secondary weapon (lasers or warheads) armed
+	char warheadArmed; // 0 if warheads are not armed, 1 if any warhead group is armed
+	// primarySec,   warHead,	Meaning:
+	//		0			0		Lasers Armed
+	//		1			0		Ion Cannons Armed
+	//		0			1		Primary Warheads Armed
+	//		1			1		Secondary Warheads Armed
 	__int16 componentTargetIndex;
 	__int16 field_37;
 	__int16 engineWashCraftIndex;
@@ -442,24 +655,9 @@ struct PlayerDataEntry
 	__int16 gunnerTurretActive;
 	__int16 numberOfGunnerHardpoints;
 	char currentGunnerHardpointActive;
-	char field_21E;
-	char field_21F;
-	char field_220;
-	char field_221;
-	char field_222;
-	char field_223;
-	char field_224;
-	char field_225;
-	char field_226;
-	char field_227;
-	char field_228;
-	char field_229;
-	char field_22A;
-	char field_22B;
-	char field_22C;
-	char field_22D;
-	char field_22E;
-	char field_22F;
+	short gunnerTurretF[3]; // offset 0x021e - 0x223
+	short gunnerTurretR[3]; // offset 0x0224 - 0x229
+	short gunnerTurretU[3]; // offset 0x022a - 0x22f
 	int score;
 	int promoPoints;
 	int worsePromoPoints;
@@ -837,40 +1035,40 @@ struct PlayerDataEntry
 	char field_B11;
 	char field_B12;
 	char field_B13;
-	char chatString[49];
-	char chatStringTerminator;
-	char chatStringCharCount;
-	char multiChatMode;
-	int cameraX;
-	int cameraY;
-	int cameraZ;
-	int cameraFG;
-	int RelatedToMap;
-	__int16 pitch;
-	__int16 yaw;
-	__int16 roll;
-	__int16 cameraRoll;
-	__int16 cameraPitch;
-	__int16 cameraYaw;
+	char chatString[49];	   // 0xb14
+	char chatStringTerminator; // 0xb45
+	char chatStringCharCount;  // 0xb46
+	char multiChatMode;		   // 0xb47
+	int cameraX;			   // 0xb48
+	int cameraY;			   // 0xb4c
+	int cameraZ;			   // 0xb50
+	int cameraFG;			   // 0xb54
+	int RelatedToMap;		   // 0xb58
+	__int16 pitch;			   // 0xb5c
+	__int16 yaw;			   // 0xb5e
+	__int16 roll;			   // 0xb60
+	__int16 cameraRoll;		   // 0xb62
+	__int16 cameraPitch;	   // 0xb64
+	__int16 cameraYaw;		   // 0xb66
 	
-	int cockpitXReference;
-	int cockpitYReference;
-	int cockpitZReference;
+	int cockpitXReference;     // 0xb68
+	int cockpitYReference;	   // 0xb6c
+	int cockpitZReference;     // 0xb70
 
-	__int16 cockpitPitchReference;
-	__int16 cockpitYawReference;
-	__int16 cockpitRollReference;
+	__int16 cockpitPitchReference; // 0xb74
+	__int16 cockpitYawReference;   // 0xb76
+	__int16 cockpitRollReference;  // 0xb78
 
 	char field_B7A;
 	char field_B7B;
-	char viewMode1;
-	char viewMode2;
-	char field_B7E[7];
-	__int16 mapMode;
-	__int16 _RelatedToCamera_;
-	__int16 externalCamera;
-	int externalCameraDistance;
-	__int16 field_B8F;
+	char viewMode1;				// 0xb7c
+	char viewMode2;				// 0xb7d
+	char field_B7E[7];		    // 0xb7e
+	__int16 mapMode;		    // 0xb85
+	__int16 _RelatedToCamera_;  // 0xb87
+	__int16 externalCamera;     // 0xb89
+	int externalCameraDistance; // 0xb8b
+	__int16 FlyByCameraTime;    // Starts at 0 when Alt-J is pressed and goes all the way to ~1175 before being reset to 0
 	char field_B91;
 	char field_B92;
 	char field_B93;
@@ -904,10 +1102,90 @@ struct PlayerDataEntry
 
 static_assert(sizeof(PlayerDataEntry) == 3023, "size of PlayerDataEntry must be 3023");
 
+struct CraftDefinitionEntry {
+	void *pCraftShortName;
+	void *pCraftName;
+	WORD Score;
+	WORD PromoPointWorth;
+	BYTE HasHyperdrive;
+	BYTE LaserConvergenceType;
+	BYTE HasShields;
+	DWORD ShieldHitPoints; // Ofs: 0000000F
+	BYTE HitsToEvade;
+	BYTE field_14;
+	DWORD HullHitpoints;
+	DWORD CriticalDmgThreshold;
+	WORD SystemHitpoints;
+	BYTE EngineThrottle; // Ofs: 0x1f
+	WORD TopSpeedMPH;
+	WORD Acceleration;
+	WORD Deceleration;
+	WORD YawRate;
+	WORD RollingYawPercentage;
+	WORD RollRate;
+	WORD PitchRate;
+	WORD DeathRotationSpeed;
+	WORD DriftSpeed; // Ofs: 0x30
+	char CockpitFileName[256]; // Ofs: 0x32
+	WORD LaserObjectType[3]; // Ofs 0x132
+	BYTE LaserStartingHardpoint[3];
+	BYTE LaserEndingHardpoint[3];
+	BYTE LaserNumOfCannons[3];
+	BYTE LaserGroupType[3]; // Ofs: 0x141
+	DWORD LaserRange[3];
+	WORD LaserFireRatio[3];
+	WORD WarheadObjectType[2]; // Ofs: 0x156
+	BYTE WahreadStartingHardpoint[2];
+	BYTE WarheadEndingHardpoint[2];
+	BYTE WarheadAccumulators[2];
+	BYTE WarheadCapacity[2]; // Ofs: 0x160
+	BYTE /* CraftDefHardpoints */ HardPoints[128]; // Ofs: 0x162
+	DWORD Engines[16];
+	BYTE EngineMeshIDs[16];
+	BYTE EnginesCount; // Ofs: 0x232
+	BYTE CountermeasuresCount;
+	DWORD field_234;
+	WORD CockpitPosY; // POV Y, Ofs: 0x238
+	WORD CockpitPosZ; // POV Z
+	WORD CockpitPosX; // POV X
+	WORD TurretPositionY[2]; // Ofs 0x23E
+	WORD TurretPositionZ[2];
+	WORD TurretPositionX[2];
+	WORD TurretOrientationX[2];
+	WORD TurretOrientationY[2];
+	WORD TurretOPTModelID[2]; // Ofs: 0x252
+	WORD TurretArcX[2]; // Ofs: 0x256
+	WORD TurretArcY[2];
+	DWORD DockPositionY;
+	DWORD DockFromSmallPositionZ;
+	DWORD DockFromBigPositionZ;
+	DWORD DockToSmallPositionZ;
+	DWORD DockToBigPositionZ; // Ofs: 0x26E
+	DWORD InsideHangarX;
+	DWORD InsideHangarZ;
+	DWORD InsideHangarY;
+	DWORD OutsideHangarX;
+	DWORD OutsideHangarZ;
+	DWORD OutsideHangarY;
+	WORD SizeScale; // Ofs: 0x28A
+	WORD SizeX;
+	WORD SizeZ;
+	WORD SizeY;
+	WORD NumOfDockingPoints; // Ofs: 0x292
+	BYTE DockingPoints[108]; // Ofs: 294 Vector3Int[9]
+	DWORD AccStartPositionX;
+	DWORD AccStartPositionZ;
+	DWORD AccStartPositionY;
+	DWORD AccEndPositionX;
+	DWORD AccEndPositionZ;
+	DWORD AccEndPositionY;
+	BYTE NumOfFloatHardpoints;
+	BYTE NumOfAccEndPoints;
+	BYTE AccEndPoints[96]; // Ofs: 0x31A Vector3Int[8];
+	BYTE NumOfJammingPoints;
+	BYTE JammingPoints[96]; // Ofs: 0x37b, VectorInt[8];
+};
+
+static_assert(sizeof(CraftDefinitionEntry) == 0x3DB, "size of CraftDefinition must be 0x3DB");
+
 #pragma pack(pop)
-
-
-
-
-
-

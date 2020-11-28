@@ -11,14 +11,11 @@
 #include "..\HSV.h"
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
+#include "..\shadow_mapping_common.h"
 
  // The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
-
-// The bloom mask buffer
-//Texture2D texBloom : register(t1);
-//SamplerState samplerBloom : register(s1);
 
 // The SSDO Direct buffer
 Texture2D texSSDO : register(t1);
@@ -48,9 +45,9 @@ SamplerState samplerBent : register(s6);
 Texture2D texSSMask : register(t7);
 SamplerState samplerSSMask : register(s7);
 
-// The Emission Mask buffer
-//Texture2D texEmissionMask : register(t8);
-//SamplerState samplerEmissionMask : register(s8);
+// The Shadow Map buffer
+Texture2DArray<float> texShadowMap : register(t8);
+SamplerComparisonState cmpSampler : register(s8);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -81,7 +78,65 @@ struct PixelShaderOutput
 	float4 bent  : SV_TARGET2;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+// From: https://www.shadertoy.com/view/MdfXWr
+float3 ff_filmic_gamma3(float3 linearc) {
+	float3 x = max(0.0, linearc - 0.004);
+	return (x*(x*6.2 + 0.5)) / (x*(x*6.2 + 1.7) + 0.06);
+}
+
+// From: https://www.shadertoy.com/view/wl2SDt
+float3 ACESFilm(float3 x)
+{
+	float a = 2.51;
+	float b = 0.03;
+	float c = 2.43;
+	float d = 0.59;
+	float e = 0.14;
+	return (x*(a*x + b)) / (x*(c*x + d) + e);
+}
+
+// From: https://64.github.io/tonemapping/
+float3 ACES_approx(float3 v)
+{
+	v *= 0.6f;
+	float a = 2.51f;
+	float b = 0.03f;
+	float c = 2.43f;
+	float d = 0.59f;
+	float e = 0.14f;
+	return clamp((v*(a*v + b)) / (v*(c*v + d) + e), 0.0f, 1.0f);
+}
+
+// From: https://64.github.io/tonemapping/
+float3 uncharted2_tonemap_partial(float3 x)
+{
+	float A = 0.15f;
+	float B = 0.50f;
+	float C = 0.10f;
+	float D = 0.20f;
+	float E = 0.02f;
+	float F = 0.30f;
+	return ((x*(A*x + C * B) + D * E) / (x*(A*x + B) + D * F)) - E / F;
+}
+
+float3 uncharted2_filmic(float3 v)
+{
+	float exposure_bias = 2.0f;
+	float3 curr = uncharted2_tonemap_partial(v * exposure_bias);
+
+	float3 W = 11.2f;
+	float3 white_scale = 1.0 / uncharted2_tonemap_partial(W);
+	return curr * white_scale;
+}
+
+// From https://64.github.io/tonemapping/
+inline float3 reinhard_extended(float3 v, float max_white)
+{
+	float3 numerator = v * (1.0f + (v / (max_white * max_white)));
+	return numerator / (1.0f + v);
+}
+
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
@@ -104,10 +159,10 @@ float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensi
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
 
 	// Depth samples
-	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
+	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
+	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
+	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
 
 	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
@@ -231,6 +286,140 @@ float3 shadow_factor(in float3 P, float max_dist_sqr) {
 }
 */
 
+// From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
+/*
+ * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
+ */
+inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize, float radius)
+{
+	float shadow = 0.0f;
+	float2 sm_pos = Q.xy;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	float2 grad = frac(sm_pos * resolution + 0.5);
+	// We assume that Q.z has already been bias-compensated
+	float samples = 0.0;
+	float2 ofs = 0.0;
+
+	ofs.y = -radius;
+	for (int i = -filterSize; i <= filterSize; i++)
+	{
+		ofs.x = -radius;
+		for (int j = -filterSize; j <= filterSize; j++)
+		{
+			float4 tmp = texShadowMap.Gather(sampPos, //samplerShadowMap,
+				float3(sm_pos + ofs, idx));
+			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
+			// so if a dpeth value is *lower* than Q.z it's an occluder
+			tmp.x = tmp.x < Q.z ? 0.0f : 1.0f;
+			tmp.y = tmp.y < Q.z ? 0.0f : 1.0f;
+			tmp.z = tmp.z < Q.z ? 0.0f : 1.0f;
+			tmp.w = tmp.w < Q.z ? 0.0f : 1.0f;
+			shadow += lerp(lerp(tmp.w, tmp.z, grad.x), lerp(tmp.x, tmp.y, grad.x), grad.y);
+			samples++;
+			ofs.x += radius;
+		}
+		ofs.y += radius;
+	}
+
+	return shadow / samples;
+}
+
+/*
+ * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
+ */
+inline float ShadowMapPCF_HW(float idx, float3 Q, int filterSize, float radius)
+{
+	float shadow = 0.0f;
+	float2 sm_pos = Q.xy;
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	sm_pos = lerp(0, 1, sm_pos * float2(0.5, -0.5) + 0.5);
+	// We assume that Q.z has already been bias-compensated
+	float Z = MetricZToDepth(idx, Q.z);
+	float samples = 0.0;
+	float2 ofs = 0.0;
+
+	ofs.y = -radius;
+	for (int i = -filterSize; i <= filterSize; i++) {
+		ofs.x = -radius;
+		for (int j = -filterSize; j <= filterSize; j++)
+		{
+			shadow += saturate(texShadowMap.SampleCmpLevelZero(cmpSampler,
+				float3(sm_pos + ofs, idx),
+				Z));
+			samples++;
+			ofs.x += radius;
+		}
+		ofs.y += radius;
+	}
+
+	return shadow / samples;
+}
+
+// From http://developer.download.nvidia.com/whitepapers/2008/PCSS_Integration.pdf
+inline float PenumbraSize(float zReceiver, float zBlocker)
+{
+	return (zReceiver - zBlocker) / zBlocker;
+}
+
+#ifdef DISABLED
+inline void FindBlocker(float idx, float3 Q, out float d_blocker, out float samples) 
+{
+	d_blocker = 0.0;
+	samples = 0.0;
+
+	// Convert to texture coords: this maps -1..1 to 0..1:
+	float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+	float z = MetricZToDepth(idx, Q.z/* + sm_bias*/);
+	float2 ofs = 0;
+
+	ofs.y = -sm_blocker_radius;
+	for (int i = -1; i <= 1; i++) 
+	{
+		ofs.x = -sm_blocker_radius;
+		for (int j = -1; j <= 1; j++)
+		{
+			float sm_Z = texShadowMap.SampleLevel(sampPos, //samplerShadowMap,
+				float3(sm_pos + ofs, idx), 0).x;
+			// Convert the depth-stencil coord (0..1) to metric Z and compare
+			if (sm_Z < z) // This sample is a blocker
+			{
+				d_blocker += sm_Z;
+				samples++;
+			}
+			ofs.x += sm_blocker_radius;
+		}
+		ofs.y += sm_blocker_radius;
+	}
+
+	if (samples > 0.0) {
+		d_blocker /= samples;
+		d_blocker = DepthToMetricZ(idx, d_blocker);
+	}
+}
+
+inline float PCSS(float idx, float3 Q)
+{
+	float samples, zBlocker; // Metric Z
+	// Step 1: Blocker search
+	FindBlocker(idx, Q, zBlocker, samples);
+	if (samples < 1.0)
+		return 1.0;
+
+	// Step 2: Penumbra size
+	float penumbraRatio = clamp(PenumbraSize(Q.z, zBlocker), 0.0, 5.0);
+	//float filterRadiusUV = sm_light_size * penumbraRatio / sm_pcss_samples; // / MetricZToDepth(Q.z);
+	float filterRadiusUV = sm_pcss_radius * sm_light_size * penumbraRatio;
+	float radius = sm_pcss_radius + filterRadiusUV;
+	float filter_samples = sm_pcss_samples + penumbraRatio / 2.0;
+
+	// Step 3: Filtering
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, filterRadiusUV);
+	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z/* + sm_bias*/)), sm_resolution, filter_samples, radius);
+	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
+}
+#endif
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -238,32 +427,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0;
 	output.bent  = 0;
 
-	float2 input_uv_sub  = input.uv * amplifyFactor;
+	float2 input_uv_sub   = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
-	float2 input_uv_sub2 = input.uv * amplifyFactor;
-	float3 color         = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		 = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo          = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd       = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float2 input_uv_sub2  = input.uv * amplifyFactor;
+	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
-	float  mask          = ssaoMask.x;
-	float  gloss_mask    = ssaoMask.y;
-	float  spec_int_mask = ssaoMask.z;
-	float  diff_int      = 1.0;
-	float  metallic      = mask / METAL_MAT;
-	float  nm_int_mask   = ssMask.x;
-	float  spec_val_mask = ssMask.y;
+	float  mask           = ssaoMask.x;
+	float  gloss_mask     = ssaoMask.y;
+	float  spec_int_mask  = ssaoMask.z;
+	float  diff_int       = 1.0;
+	float  metallic       = mask / METAL_MAT;
+	float  nm_int_mask    = ssMask.x;
+	float  spec_val_mask  = ssMask.y;
+	float  shadeless_mask = ssMask.z;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
 	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless     = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	//float  diffuse_difference = 1.0;
-	// ssMask.z is unused ATM
+	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	shadeless = max(shadeless, shadeless_mask);
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
@@ -311,7 +500,90 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
-	// Compute shadows
+	// Compute shadows through shadow mapping
+	float total_shadow_factor = 1.0;
+	//float idx = 1.0;
+	if (sm_enabled)
+	{
+		//float3 P_bias = P + sm_bias * N;
+		[loop]
+		for (uint i = 0; i < LightCount; i++) 
+		{
+			float shadow_factor = 1.0;
+			float black_level = get_black_level(i);
+			// Skip lights that won't project black-enough shadows:
+			if (black_level > 0.95)
+				continue;
+			//float black_level = sm_black_level;
+			// Apply the same transform we applied to the geometry when computing the shadow map:
+			//float3 Q_bias = mul(lightWorldMatrix[i], float4(P_bias, 1.0)).xyz;
+			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
+			//Q.z = Q_bias.z;
+
+			// shadow_factor: 1 -- No shadow
+			// shadow_factor: 0 -- Full shadow
+			/*
+			if (sm_PCSS_enabled == 1) {
+				// PCSS
+				shadow_factor = PCSS(i, Q);
+			}
+			else {
+				if (sm_debug) {
+					// Convert to texture coords: this maps -1..1 to 0..1:
+					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+					// Sample the shadow map and compare
+					float sm_Z = texShadowMap.SampleLevel(sampPos, // samplerShadowMap, 
+						float3(sm_pos, i), 0).x;
+					// Early exit: red color for points "at infinity"
+					if (sm_Z > 0.98) {
+						output.color = float4(1, 0, 0, 1);
+						return output;
+					}
+					// Now convert the depth-stencil coord (0..1) to metric Z:
+					//sm_Z = (sm_Z - 0.5) * OBJrange;
+					sm_Z = DepthToMetricZ(i, sm_Z);
+					// sm_Z is now in metric space, we can compare it with P.z
+					//shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
+					shadow_factor = sm_Z > Q.z ? 1.0 : 0.0;
+				}
+				else {
+					// PCF
+					if (sm_hardware_pcf)
+						shadow_factor = ShadowMapPCF_HW(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_pcss_samples, sm_pcss_radius);
+					else
+					*/
+						shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
+
+					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(Q.xy, i), MetricZToDepth(i, Q.z + sm_bias));
+					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, Q.xy, MetricZToDepth(1, Q.z + sm_bias));
+					/*
+					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
+					shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(sm_pos, i), MetricZToDepth(i, Q.z + sm_bias));
+					shadow_factor = saturate(shadow_factor);
+					*/
+					//output.color = float4(shadow_factor, shadow_factor, shadow_factor, 1.0);
+					//return output;
+				/*}
+			}*/
+			// Limit how black the shadows can be to a minimum of black_level
+			shadow_factor = max(shadow_factor, black_level);
+
+			// DEBUG
+			/*
+			if (sm_debug == 1 && shadow_factor < 0.5)
+			{
+				output.color = float4(0.2, 0.2, 0.5, 1.0);
+				return output;
+			}
+			*/
+			// DEBUG
+
+			// Accumulate this light's shadow factor with the total shadow factor
+			total_shadow_factor *= shadow_factor;
+		}
+	}
+
+	// Compute ray-traced shadows
 	//float3 SSAO_Normal = float3(N.xy, -N.z);
 	// SSAO version:
 	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
@@ -336,7 +608,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		N = blend_normals(N, FakeNormal);
 	}
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
-
+	
+	// ************************************************************************************************
+	// MATERIAL PROPERTIES
 	// Specular color
 	float3 spec_col = 1.0;
 	float3 HSV = RGBtoHSV(color);
@@ -351,10 +625,21 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
+	// Glossy exponent
+	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
+	float exponent = max(global_glossiness * gloss_mask, 0.05);
+	float spec_bloom_int = global_spec_bloom_intensity;
+	if (GLASS_LO <= mask && mask < GLASS_HI) {
+		exponent *= 2.0;
+		spec_bloom_int *= 3.0; // Make the glass bloom more
+	}
+	//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
+	//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
+	// ************************************************************************************************
+
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
-	float contactShadow = 1.0;
-	float diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
+	float contactShadow = 1.0, diffuse = 0.0, bentDiff = 0.0, smoothDiff = 0.0, spec = 0.0;
 	float debug_spec = 0.0;
 	uint i;
 
@@ -404,7 +689,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			diffuse = max(dot(N, L), 0.0);
 		*/
 		diffuse = max(dot(N, L), 0.0);
-		diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
+		//diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
+		diffuse = total_shadow_factor * ssdo.x * diff_int * diffuse + ambient;
 
 		// Default case
 		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
@@ -418,8 +704,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			ssdoInd = 0.0;
 		}
 		*/
-		// Avoid harsh transitions
-		diffuse = lerp(diffuse, 1.0, shadeless);
+
+		// Avoid harsh transitions:
+		// shadeless surfaces should still receive some amount of shadows
+		diffuse = lerp(diffuse, min(total_shadow_factor + 0.5, 1.0), shadeless);
 		contactShadow = lerp(contactShadow, 1.0, shadeless);
 		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 
@@ -432,20 +720,12 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		//const float3 H = normalize(L + eye_vec);
 		//spec = max(dot(N, H), 0.0);
-
-		 // We can't have exponent == 0 or we'll see a lot of shading artifacts:
-		float exponent = max(global_glossiness * gloss_mask, 0.05);
-		float spec_bloom_int = global_spec_bloom_intensity;
-		if (GLASS_LO <= mask && mask < GLASS_HI) {
-			exponent *= 2.0;
-			spec_bloom_int *= 3.0; // Make the glass bloom more
-		}
-		//float spec_bloom = ssdo.y * spec_int * spec_bloom_int * pow(spec, exponent * bloom_glossiness_mult);
-		//spec = ssdo.y * LightInt * spec_int * pow(spec, exponent);
+		
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
-		spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+		//spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+		spec = contactShadow * total_shadow_factor * debug_spec;
 
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
@@ -462,7 +742,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 			//emissionMask);
-		tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		
 	}
 	output.bloom = tmp_bloom;
 
@@ -504,6 +786,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
+	// Reinhard tone mapping:
+	if (HDREnabled) {
+		//float I = dot(tmp_color, 0.333);
+		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+		//tmp_color = ff_filmic_gamma3(tmp_color);
+		
+		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
+		//tmp_color = ACES_approx(tmp_color);
+
+		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		//tmp_color = uncharted2_filmic(tmp_color);
+		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
+	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	
 

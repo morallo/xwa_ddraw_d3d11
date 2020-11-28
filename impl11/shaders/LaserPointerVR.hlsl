@@ -4,8 +4,9 @@
  */
 #include "ShaderToyDefs.h"
 
- // LaserPointerCBuffer
-cbuffer ConstantBuffer : register(b7)
+// LaserPointerCBuffer. This CB shares the same slot as the ShadertoyCBuffer, but
+// it's using different fields.
+cbuffer ConstantBuffer : register(b8)
 {
 	int TriggerState; // 1 = Pressed, 0 = Released
 	float FOVScale;
@@ -26,7 +27,7 @@ cbuffer ConstantBuffer : register(b7)
 	// 96 bytes
 	bool bDebugMode;
 	float cursor_radius;
-	float unusedA1, unusedA2;
+	float2 lp_aspect_ratio;
 	// 112 bytes
 };
 
@@ -35,9 +36,16 @@ cbuffer ConstantBuffer : register(b7)
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
 
+/*
 float sdCircle(in vec2 p, in vec2 center, float radius)
 {
 	return length(p - center) - radius;
+}
+*/
+
+float sdCircle(in vec2 p, float radius)
+{
+	return length(p) - radius;
 }
 
 /*
@@ -49,7 +57,8 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b)
 }
 */
 
-/*
+#undef LASER_VR_DEBUG
+#ifdef LASER_VR_DEBUG
 float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 {
 	vec2 e0 = p1 - p0, e1 = p2 - p1, e2 = p0 - p2;
@@ -68,7 +77,7 @@ float debug_map(in vec2 p)
 {
 	return sdTriangle(p, v0, v1, v2);
 }
-*/
+#endif
 
 //=====================================================
 
@@ -157,11 +166,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	if (bIntersection) 
 	{
-		d = sdCircle(p, intersection, cursor_radius);
+		d = sdCircle(lp_aspect_ratio * (p - intersection), cursor_radius);
 		v += smoothstep(0.0015, 0.0, abs(d));
 		// Add a second ring if we're hovering on an active element
 		if (bHoveringOnActiveElem) {
-			//d = sdCircle(p, intersection, cursor_radius + 0.005);
+			//d = sdCircle(p - intersection, cursor_radius + 0.005);
 			v += smoothstep(0.0015, 0.0, abs(d - 0.005));
 		}
 	}
@@ -177,9 +186,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float3 pointer_col = bIntersection ? dotcol : 0.7;
 	col = lerp(bgColor, pointer_col, v);
 
+#ifdef DEBUG
 	// Draw the triangle uv-color-coded
-	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
-	//	col = lerp(col, float3(uv, 0.0), 0.5);
+	if (bDebugMode && bIntersection && debug_map(p) < 0.001)
+		col = lerp(col, float3(uv, 0.0), 0.5);
+#endif
 
 	output.color = vec4(col, 1.0);
 	return output;

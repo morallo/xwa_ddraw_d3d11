@@ -81,3 +81,5 @@ void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWO
 
 void log_debug(const char *format, ...);
 void log_file(const char *format, ...);
+char* stristr(const char* str1, const char* str2);
+void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...);

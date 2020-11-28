@@ -1,15 +1,9 @@
 // Copyright (c) 2020 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
 // This shader is used to render the speed effect particles
+#include "VertexShaderCBuffer.h"
 #include "ShadertoyCBuffer.h"
-
-// VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-};
+#include "metric_common.h"
 
 // VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)
@@ -58,6 +52,10 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 	else 
 	{
+		// VR PATH
+		// TODO: After enabling the AddGeomShader in VR, it looks like I *may* have to come back
+		// to this effect and adjust the reconstruction as well.
+		// I need to check that this effect works well regardless of in-game resolution and FOV.
 		/*
 		output.pos = mul(projEyeMatrix, float4(input.pos.xyz, 1.0));
 		output.pos.xyz /= output.pos.w;
@@ -65,7 +63,6 @@ PixelShaderInput main(VertexShaderInput input)
 		// Apply FOVscale and y_center
 		//output.pos.xy = FOVscale * output.pos.xy + float2(0.0, y_center);
 		*/
-
 		
 		// In VR mode, it's better to fade the particles out towards the edges of the screen.
 		// Since the particles are in 2D, it's easy to compute the fade-out factor
@@ -76,10 +73,18 @@ PixelShaderInput main(VertexShaderInput input)
 		how to apply FOVscale and y_center properly in 3D; but the answer should be
 		below now: it's just a matter of massaging the formulae.
 		*/
-		// Back-project into 3D. In this case, the w component has the original Z value.
-		float3 temp = input.pos.xyw;
-		temp.x *= aspect_ratio;
-		float3 P = float3(temp.z * temp.xy, temp.z);
+		// Back-project into 3D. In this case, the w component has the original Metric Z value.
+		float3 P, temp = input.pos.xyw;
+		float tempz = temp.z / mr_cur_metric_scale;
+		float FOVscaleZ = mr_FOVscale / tempz;
+
+		//P.x = temp.z * temp.x * aspect_ratio / mr_FOVscale;
+		//P.y = temp.z * (temp.y - y_center) / mr_FOVscale;
+		P.x = temp.x / FOVscaleZ * mr_aspect_ratio;
+		P.y = temp.y / FOVscaleZ - tempz * mr_y_center / mr_FOVscale;
+		P.xy *= mr_cur_metric_scale;
+		P.z = temp.z;
+
 		// Project again
 		P.z = -P.z;
 		output.pos = mul(projEyeMatrix, float4(P, 1.0));

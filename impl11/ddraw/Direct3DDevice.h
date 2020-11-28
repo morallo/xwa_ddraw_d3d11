@@ -42,15 +42,28 @@ public:
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
 
-	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid);
+	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid, Vector2 *Centroid2D);
+
+	bool ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 * Centroid);
 
 	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
 
+	void AddLaserLightsOld(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
 	void AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
+
+	void EnableTransparency();
+
+	void EnableHoloTransparency();
+
+	void SaveBlendState();
+
+	void RestoreBlendState();
+
+	void RestoreSamplerState();
 
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
@@ -74,6 +87,8 @@ public:
 
 	STDMETHOD(DeleteMatrix)(THIS_ D3DMATRIXHANDLE);
 
+	void RenderEdgeDetector();
+
 	STDMETHOD(BeginScene)(THIS);
 
 	STDMETHOD(EndScene)(THIS);
@@ -89,4 +104,5 @@ public:
 	DWORD _maxExecuteBufferSize;
 	ComPtr<ID3D11Buffer> _vertexBuffer;
 	ComPtr<ID3D11Buffer> _indexBuffer;
+	D3D11_BLEND_DESC m_SavedBlendDesc;
 };

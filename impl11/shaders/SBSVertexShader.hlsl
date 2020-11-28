@@ -1,16 +1,9 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
+#include "VertexShaderCBuffer.h"
 #include "shader_common.h"
-
-// VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform, metric_mult;
-	//float post_proj_scale, vsunused0, vsunused1, vsunused2;
-};
+#include "metric_common.h"
 
 // VertexShaderMatrixCB
 cbuffer ConstantBuffer : register(b1)
@@ -30,20 +23,20 @@ struct VertexShaderInput
 
 struct PixelShaderInput
 {
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
-	float4 pos3D  : COLOR1;
-	float4 normal : NORMAL; // hook_normals.dll populates this field
+	float4 pos      : SV_POSITION;
+	float4 color    : COLOR0;
+	float2 tex      : TEXCOORD0;
+	float4 pos3D    : COLOR1;
+	float4 normal   : NORMAL; // hook_normals.dll populates this field
 };
 
 PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 	float sz = input.pos.z;
-	//float pz = 1.0 - sz;
 	float w = 1.0 / input.pos.w;
 
+	/*
 	float3 temp = input.pos.xyz;
 	// Normalize into the -0.5..0.5 range
 	temp.xy *= vpScale.xy;
@@ -56,19 +49,50 @@ PixelShaderInput main(VertexShaderInput input)
 	temp.xy *= vpScale.w * vpScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * metric_mult * w; // METRIC_SCALE_FACTOR was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
+	*/
+
+	float3 temp = float3(input.pos.xy, w);
+	temp.z *= mr_FOVscale * mr_z_metric_mult;
+	// temp.z is now metric 3D minus mr_cur_metric_scale
+
 	// Override the depth of this element if z_override is set
 	if (mult_z_override > -0.1)
-		temp.z *= mult_z_override;
+		temp.z *= mult_z_override / mr_cur_metric_scale;
 	if (z_override > -0.1)
-		temp.z = z_override;
+		temp.z = z_override / mr_cur_metric_scale;
+
+	float FOVscaleZ = mr_FOVscale / temp.z;
+
+	// Normalize into the 0.0..1.0 range
+	temp.xy *= float2(2.0 * vpScale.x, -2.0 * vpScale.y);
+	temp.xy += float2(-1.0, 1.0);
+	// temp.xy is now in the range [-1..1]
+
+	temp.xy = temp.xy / FOVscaleZ * float2(mr_aspect_ratio, 1.0);
+	temp.y -= temp.z * mr_y_center / mr_FOVscale;
+	// temp.xyz is now "straight" 3D up to a scale factor
+
+	temp *= mr_cur_metric_scale;
+	// temp.xyz is now fully-metric 3D.
+
+	if (apply_uv_comp)
+		temp.xy *= mv_vr_vertexbuf_aspect_ratio_comp;
+	temp.xy *= scale_override; // Scale GUI objects around the screen center, like the triangle pointer
+	//if (metric_z_override > -1.0f)
+	//	temp.z = metric_z_override;
 
 	// The back-projection into 3D is now very simple:
-	float3 P = float3(temp.z * temp.xy, temp.z);
-	// Write the reconstructed 3D into the output so that it gets interpolated:
-	output.pos3D = float4(P.x, -P.y, P.z, 1);
-	// Adjust the coordinate system for SteamVR:
-	P.yz = -P.yz;
+	//float3 P = float3(temp.z * temp.xy / DEFAULT_FOCAL_DIST_VR, temp.z);
+	float3 P = temp;
 
+	// Write the reconstructed 3D into the output so that it gets interpolated:
+	//output.pos3D = float4(P.x, -P.y, P.z, 1);
+	output.pos3D = float4(P, 1);
+
+	// Adjust the coordinate system for SteamVR:
+	//P.yz = -P.yz;
+	P.z = -P.z;
+	
 	// Apply head position and project 3D --> 2D
 	if (bPreventTransform < 0.5f) {
 		if (bFullTransform < 0.5f)
@@ -76,6 +100,7 @@ PixelShaderInput main(VertexShaderInput input)
 		else
 			output.pos = mul(fullViewMatrix, float4(P, 1));
 	} else {
+		// bPreventTransform == true
 		// The HUD should not be transformed so that it's possible to aim properly
 		// This case is specifically to keep the aiming HUD centered so that it can still be used
 		// to aim the lasers. Here, we ignore all translations to keep the HUD in the right spot.
@@ -122,7 +147,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos.z = sz_override;
 
 	output.color  = input.color.zyxw;
-	output.tex	  = input.tex;
 	output.normal = input.specular;
+	output.tex    = input.tex;
 	return output;
 }

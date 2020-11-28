@@ -13,6 +13,7 @@
 
 #define mod(x, y) (x % y)
 
+#define mat2 float2x2
 #define mat3 float3x3
 
 #define PI 3.14159265

@@ -36,7 +36,7 @@ struct PixelShaderOutput
 	float4 ssao        : SV_TARGET0;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
@@ -55,7 +55,7 @@ inline float3 doSSDOIndirect_ok(in float2 sample_uv, in float3 P, in float3 Norm
 		any(sample_uv.xy > p1))
 		return 0;
 
-	float3 occluder = getPositionFG(sample_uv, 0);
+	float3 occluder = getPosition(sample_uv, 0);
 	if (occluder.z >= INFINITY_Z1) return 0;
 
 	//float miplevel = cur_radius / max_radius * 4;
@@ -105,7 +105,7 @@ inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 
 	//float miplevel = cur_radius_sqr / max_radius_sqr * 4;
 	const float miplevel = 0;
-	float3 occluder = getPositionFG(sample_uv, miplevel);
+	float3 occluder = getPosition(sample_uv, miplevel);
 	if (occluder.z >= INFINITY_Z1) return 0;
 
 	
@@ -183,7 +183,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.ssao = 0;
 
-	const float3 p       = getPositionFG(input.uv, 0);
+	const float3 p       = getPosition(input.uv, 0);
 	// Early exit: do not compute SSAO for objects at infinity
 	if (p.z > INFINITY_Z1) return output;
 	const float3 Normal  = normalize(getNormal(input.uv, 0));
@@ -256,8 +256,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssao = debug ? float4(0, 0, 0, 1) : 1;
 	output.bentNormal = float4(0, 0, 0, 1);
 
-	float3 P1 = getPositionFG(input.uv);
-	float3 P2 = getPositionBG(input.uv);
+	float3 P1 = getPosition(input.uv);
 	float3 n = getNormal(input.uv);
 	float3 bentNormal = 0;
 	//float3 bentNormal = bentNormalInit * n; // Initialize the bentNormal with the normal
@@ -301,7 +300,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		//ao += doAmbientOcclusion(FGFlag, input.uv, sample_uv, max_radius, p, n, bentNormal);
-		float3 sample_pos = FGFlag ? getPositionFG(sample_uv) : getPositionBG(sample_uv);
+		float3 sample_pos = getPosition(sample_uv);
 		float3 center_to_sample = sample_pos - p;
 		float  dist = length(center_to_sample);
 		float3 center_to_sample_normalized = center_to_sample / dist;

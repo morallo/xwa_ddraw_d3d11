@@ -16,6 +16,8 @@
 
 using namespace Gdiplus;
 
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
+
 void toupper(char *string)
 {
 	int i = 0;
@@ -729,6 +731,19 @@ void log_debug(const char *format, ...)
 	va_end(args);
 }
 
+void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...)
+{
+	char buf[128];
+
+	va_list args;
+	va_start(args, format);
+
+	vsprintf_s(buf, 128, format, args);
+	DisplayTimedMessage(seconds, row, buf);
+
+	va_end(args);
+}
+
 void log_file(const char *format, ...)
 {
 	char buf[256];
@@ -754,4 +769,47 @@ void log_file(const char *format, ...)
 	fflush(file);
 
 	va_end(args);
+}
+
+// From: https://stackoverflow.com/questions/27303062/strstr-function-like-that-ignores-upper-or-lower-case
+char* stristr(const char* str1, const char* str2)
+{
+	const char* p1 = str1;
+	const char* p2 = str2;
+	const char* r = *p2 == 0 ? str1 : 0;
+
+	while (*p1 != 0 && *p2 != 0)
+	{
+		if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2))
+		{
+			if (r == 0)
+			{
+				r = p1;
+			}
+
+			p2++;
+		}
+		else
+		{
+			p2 = str2;
+			if (r != 0)
+			{
+				p1 = r + 1;
+			}
+
+			if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2))
+			{
+				r = p1;
+				p2++;
+			}
+			else
+			{
+				r = 0;
+			}
+		}
+
+		p1++;
+	}
+
+	return *p2 == 0 ? (char*)r : 0;
 }

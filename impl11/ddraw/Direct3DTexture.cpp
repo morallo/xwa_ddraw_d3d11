@@ -9,11 +9,16 @@
 #include "TextureSurface.h"
 #include "MipmapSurface.h"
 #include <comdef.h>
+//#include <shlwapi.h>
 
 #include <ScreenGrab.h>
 #include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
+
+extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+extern float SHADOW_OBJ_SCALE;
+extern std::vector<Vector4> g_OBJLimits;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
@@ -61,6 +66,13 @@ std::vector<char *> Reticle_ResNames = {
 	"dat,12000,2200,", // 0xc33a94b3, // Warhead top indicator, right.
 };
 
+std::vector<char *> ReticleCenter_ResNames = {
+	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
+	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
+};
+
+std::vector<char *> CustomReticleCenter_ResNames;
+
 std::vector<char *> Text_ResNames = {
 	"dat,16000,"
 };
@@ -98,18 +110,25 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,2004,",
 	"dat,2005,",
 	"dat,2006,",
-	// Animations
+	// Animations (electricity)
 	"dat,2007,",
 	"dat,2008,",
 	"dat,3005,",
-	"dat,3006,",
 	//"dat,3051,", // Hyperspace!
+	
+	// Sparks
+	"dat,3000,",
+	"dat,3001,",
+	"dat,3002,",
+	// 3006-3500: Explosions
+	"dat,3006,",
 	"dat,3055,",
 	"dat,3100,",
 	"dat,3200,",
 	"dat,3300,",
 	"dat,3400,",
 	"dat,3500,",
+	
 	// Backdrops
 	/*"dat,9001,",
 	"dat,9002,",
@@ -127,6 +146,12 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,22003,",
 	"dat,22005,",
 	//"dat,22007,", // Cockpit sparks
+};
+
+// Smoke from explosions:
+std::vector<char *> Smoke_ResNames = {
+	"dat,3003,",
+	"dat,3004,",
 };
 
 std::vector<char *> Sparks_ResNames = {
@@ -217,6 +242,12 @@ void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
 void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName);
 
+// SHADOW MAPPING;
+extern ShadowMappingData g_ShadowMapping;
+
+// METRIC RECONSTRUCTION:
+extern bool g_bYCenterHasBeenFixed;
+
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
 		if (x == crc)
@@ -226,14 +257,14 @@ bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 
 bool isInVector(char *name, std::vector<char *> &vector) {
 	for (char *x : vector)
-		if (strstr(name, x) != NULL)
+		if (stristr(name, x) != NULL)
 			return true;
 	return false;
 }
 
 int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 	for (int i = 0; i < num_elems; i++) {
-		if (strstr(name, dc_elements[i].name) != NULL)
+		if (stristr(name, dc_elements[i].name) != NULL)
 			return i;
 	}
 	return -1;
@@ -241,7 +272,7 @@ int isInVector(char *name, dc_element *dc_elements, int num_elems) {
 
 int isInVector(char *name, ac_element *ac_elements, int num_elems) {
 	for (int i = 0; i < num_elems; i++) {
-		if (strstr(name, ac_elements[i].name) != NULL)
+		if (stristr(name, ac_elements[i].name) != NULL)
 			return i;
 	}
 	return -1;
@@ -335,6 +366,211 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 */
 #endif
 
+/*
+ Converts an index number as specified in the custom reticle files to a slot index
+ as stored in HUD.dat.
+*/
+int ReticleIndexToHUDSlot(int ReticleIndex) {
+	// I hate this stupid numbering system
+	// The reticles start at 5151
+	// Every 14 slots, the group number will increase
+	// Every 100th slot, the group number will *also* increase, because, hey, why the hell not?
+	// This leads to this very stupid and complex algorithm:
+	int sub_slot = (ReticleIndex - 51) / 14;
+	int super_slot = (ReticleIndex / 100);
+	int slot_mod = (ReticleIndex % 100);
+	int slot = 5100 + 100 * sub_slot + 100 * super_slot + slot_mod;
+	log_debug("[DBG] [RET] index: %d, sub_slot: %d, super_slot: %d, slot_mod: %d slot: %d",
+		ReticleIndex, sub_slot, super_slot, slot_mod, slot);
+	return slot;
+}
+
+/*
+ Converts an index number as specified in the custom reticle files to a HUD resname
+ in the form "dat,12000,<slot>,"
+*/
+void ReticleIndexToHUDresname(int ReticleIndex, char *out_str, int out_str_len) {
+	int slot = ReticleIndexToHUDSlot(ReticleIndex);
+	sprintf_s(out_str, out_str_len, "dat,12000,%d,", slot);
+}
+
+void ClearCustomReticleCenterResNames() {
+	for (char *res : CustomReticleCenter_ResNames) {
+		if (res != NULL) {
+			delete[] res;
+			res = NULL;
+		}
+	}
+	CustomReticleCenter_ResNames.clear();
+}
+
+bool LoadReticleTXTFile(char *sFileName) {
+	log_debug("[DBG] [RET] Loading Reticle Text file...");
+	FILE *file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [RET] Could not load %s", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [RET] Error %d when loading %s", error, sFileName);
+		return false;
+	}
+
+	// The reticle file exists, let's parse it
+	char buf[160], param[80], svalue[80], *ResName;
+	int param_read_count = 0;
+	int iValue = 0;
+
+	ClearCustomReticleCenterResNames();
+	while (fgets(buf, 160, file) != NULL) {
+		// Skip comments and blank lines
+		if (buf[0] == ';')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
+			iValue = atoi(svalue);
+			if (_stricmp(param, "Reticle_5") == 0) {
+				log_debug("[DBG] [RET] Reticle_5: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomReticleCenter_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
+			}
+			else if (_stricmp(param, "Reticle_7") == 0) {
+				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomReticleCenter_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
+			}
+		}
+	}
+	fclose(file);
+	return true;
+}
+
+void LoadCustomReticle(char *sCurrentCockpit) {
+	char sFileName[80], sCurrent[80];
+	int len;
+	ClearCustomReticleCenterResNames();
+
+	strcpy_s(sCurrent, sCurrentCockpit);
+	len = strlen(sCurrent);
+	// Remove the "Cockpit" from the name:
+	sCurrent[len - 7] = 0;
+	// Look in the Reticle.txt file
+	snprintf(sFileName, 80, "./FlightModels/%sReticle.txt", sCurrent);
+	log_debug("[DBG] [RET] Loading file: %s", sFileName);
+	if (LoadReticleTXTFile(sFileName))
+		return;
+
+	log_debug("[DBG] [RET] Could not load %s, searching the INI file for custom reticles", sFileName);
+
+	// Look in the INI file
+	snprintf(sFileName, 80, "./FlightModels/%s.ini", sCurrent);
+	log_debug("[DBG] [RET] Loading file: %s", sFileName);
+	if (!LoadReticleTXTFile(sFileName)) {
+		log_debug("[DBG] [RET] Could not load %s. No custom reticles for this cockpit", sFileName);
+	}
+}
+
+bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
+	FILE *file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [SHW] Could not load file %s", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [SHW] Error %d when loading %s", error, sFileName);
+		return false;
+	}
+
+	std::vector<D3DTLVERTEX> vertices;
+	std::vector<WORD> indices;
+	float minx = 100000.0f, miny = 100000.0f, minz = 100000.0f;
+	float maxx = -100000.0f, maxy = -100000.0f, maxz = -100000.0f;
+	float rangex, rangey, rangez;
+
+	char line[256];
+	while (!feof(file)) {
+		fgets(line, 256, file);
+		if (line[0] == 'v') {
+			D3DTLVERTEX v;
+			float x, y, z;
+			sscanf_s(line, "v %f %f %f", &x, &y, &z);
+			// g_ShadowMapping.shadow_map_mult_x/y/z are supposed to be either 1 or -1
+			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE;
+			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE;
+			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE;
+
+			v.sx = x;
+			v.sy = y;
+			v.sz = z;
+
+			vertices.push_back(v);
+			if (x < minx) minx = x; 
+			if (y < miny) miny = y; 
+			if (z < minz) minz = z; 
+			
+			if (x > maxx) maxx = x;
+			if (y > maxy) maxy = y;
+			if (z > maxz) maxz = z;
+		}
+		else if (line[0] == 'f') {
+			int i, j, k;
+			sscanf_s(line, "f %d %d %d", &i, &j, &k);
+			indices.push_back((WORD)(i - 1));
+			indices.push_back((WORD)(j - 1));
+			indices.push_back((WORD)(k - 1));
+		}
+	}
+	fclose(file);
+	
+	rangex = maxx - minx;
+	rangey = maxy - miny;
+	rangez = maxz - minz;
+	//g_ShadowMapVSCBuffer.OBJrange = max(max(rangex, rangey), rangez);
+
+	log_debug("[DBG] [SHW] Loaded %d vertices, %d faces.",
+		vertices.size(), indices.size() / 3);
+	log_debug("[DBG] [SHW] min,max: [%0.3f, %0.3f], [%0.3f, %0.3f], [%0.3f, %0.3f]",
+		minx, maxx, miny, maxy, minz, maxz);
+	log_debug("[DBG] [SHW] range-x,y,z: %0.3f, %0.3f, %0.3f",
+		rangex, rangey, rangez);
+
+	g_ShadowMapping.bUseShadowOBJ = true;
+	log_debug("[DBG] [SHW] Shadow Map OBJ loaded, enabling shadow mapping");
+	this->_deviceResources->CreateShadowVertexIndexBuffers(vertices.data(), indices.data(), vertices.size(), indices.size());
+	vertices.clear();
+	indices.clear();
+
+	g_OBJLimits.clear();
+	// Build a box with the limits. This box can be transformed later to find the 2D limits
+	// of the shadow map
+	g_OBJLimits.push_back(Vector4(minx, miny, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, miny, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, maxy, minz, 1.0f));
+	g_OBJLimits.push_back(Vector4(minx, maxy, minz, 1.0f));
+
+	g_OBJLimits.push_back(Vector4(minx, miny, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, miny, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(maxx, maxy, maxz, 1.0f));
+	g_OBJLimits.push_back(Vector4(minx, maxy, maxz, 1.0f));
+	return true;
+}
+
 char* convertFormat(char* src, DWORD width, DWORD height, DXGI_FORMAT format)
 {
 	int length = width * height;
@@ -394,7 +630,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
 	this->is_Tagged = false;
+	this->TagCount = 3;
 	this->is_Reticle = false;
+	this->is_ReticleCenter = false;
 	this->is_HighlightedReticle = false;
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
@@ -406,6 +644,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
 	this->is_Explosion = false;
+	this->is_Smoke = false;
 	this->is_CockpitTex = false;
 	this->is_GunnerTex = false;
 	this->is_Exterior = false;
@@ -424,6 +663,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_GenericSSAOMasked = false;
 	this->is_Skydome = false;
 	this->is_SkydomeLight = false;
+	this->is_BlastMark = false;
+	this->is_DS2_Reactor_Explosion = false;
+	//this->is_DS2_Energy_Field = false;
 	this->ActiveCockpitIdx = -1;
 	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
@@ -606,6 +848,8 @@ void Direct3DTexture::TagTexture() {
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
 	
+	// DEBUG: Remove later!
+	//log_debug("[DBG] %s", surface->_name);
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -629,12 +873,23 @@ void Direct3DTexture::TagTexture() {
 
 		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
 			this->is_TrianglePointer = true;
-		else if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+		if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		else if (isInVector(surface->_name, Reticle_ResNames))
-			this->is_Reticle = true;
-		else if (isInVector(surface->_name, Text_ResNames))
+		if (isInVector(surface->_name, Reticle_ResNames))
+			this->is_Reticle = true; // Standard Reticle from Reticle_ResNames
+		if (isInVector(surface->_name, Text_ResNames))
 			this->is_Text = true;
+		if (isInVector(surface->_name, ReticleCenter_ResNames)) {
+			this->is_ReticleCenter = true; // Standard Reticle Center
+			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_name);
+		}
+		if (isInVector(surface->_name, CustomReticleCenter_ResNames)) {
+			this->is_ReticleCenter = true; // Custom Reticle Center
+			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_name);
+			// Stop tagging this texture
+			this->is_Tagged = true;
+			this->TagCount = 0;
+		}
 
 		/*
 		 * TODO: For custom reticles, I would need to load the list of reticles from either the
@@ -660,6 +915,8 @@ void Direct3DTexture::TagTexture() {
 		// Catch the explosions and mark them
 		if (isInVector(surface->_name, Explosions_ResNames))
 			this->is_Explosion = true;
+		if (isInVector(surface->_name, Smoke_ResNames))
+			this->is_Smoke = true;
 		// Catch the lens flare and mark it
 		if (isInVector(surface->_name, LensFlare_ResNames))
 			this->is_LensFlare = true;
@@ -681,8 +938,17 @@ void Direct3DTexture::TagTexture() {
 			// Check if this DAT image is a custom reticle
 			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
 				if (GroupId == 12000 && ImageId > 5000) {
-					this->is_Reticle = true;
+					this->is_Reticle = true; // Custom Reticle
 					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
+					// This candidate may be a custom reticle center, let's tag it a few more times so that
+					// we can see the current cockpit name and check this texture to see if it's a custom
+					// reticle center
+					if (this->TagCount > 0) {
+						this->is_Tagged = false;
+						this->TagCount--;
+					}
+					//else
+					//	log_debug("[DBG] [RET] %s will not be tagged anymore", surface->_name);
 				}
 			}
 		}
@@ -699,52 +965,56 @@ void Direct3DTexture::TagTexture() {
 			this->is_CockpitSpark = true;
 		if (strstr(surface->_name, "dat,5000,") != NULL)
 			this->is_Chaff = true;
+		if (strstr(surface->_name, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
+			this->is_DS2_Reactor_Explosion = true;
+		//if (strstr(surface->_name, "dat,17001,") != NULL) // DSII reactor core explosion animation textures
+		//	this->is_DS2_Energy_Field = true;
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-			if (strstr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 				this->is_DC_TargetCompSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((strstr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
-				(strstr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_LeftSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((strstr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
-				(strstr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_RightSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
 				this->is_DC_ShieldsSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_SolidMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_BorderMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_LaserBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_IonBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_BeamBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopLeftSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (strstr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopRightSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
@@ -769,7 +1039,7 @@ void Direct3DTexture::TagTexture() {
 				g_OPTnames.push_back(OPTname);
 				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
 				//log_debug("[DBG] [MAT] Loading file %s...", sFileName);
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
 			}
 		}
 		else if (strstr(surface->_name, "dat,") != NULL) {
@@ -777,7 +1047,7 @@ void Direct3DTexture::TagTexture() {
 			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
 			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
 			if (sFileName[0] != 0)
-				LoadIndividualMATParams(OPTname.name, sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
 		}
 	}
 
@@ -841,7 +1111,10 @@ void Direct3DTexture::TagTexture() {
 				}
 
 				bool bCockpitNameChanged = !(strcmp(g_sCurrentCockpit, CockpitName) == 0);
-				if (bCockpitNameChanged) {
+				if (bCockpitNameChanged) 
+				{
+					// Force the recomputation of y_center for the next cockpit
+					g_bYCenterHasBeenFixed = false;
 					// The cockpit name has changed, update it and reset DC
 					resources->ResetDynamicCockpit(); // Resetting DC will erase the cockpit name
 					strncpy_s(g_sCurrentCockpit, 128, CockpitName, 128);
@@ -859,6 +1132,19 @@ void Direct3DTexture::TagTexture() {
 						CockpitNameToACParamsFile(g_sCurrentCockpit, sFileName, 80);
 						if (!LoadIndividualACParams(sFileName))
 							log_debug("[DBG] [AC] WARNING: Could not load AC params");
+					}
+					// Load the cockpit Shadow geometry
+					if (g_ShadowMapping.bEnabled) {
+						char sFileName[80];
+						snprintf(sFileName, 80, "./ShadowMapping/%s.obj", g_sCurrentCockpit);
+						log_debug("[DBG] [SHW] Loading file: %s", sFileName);
+						// Disable shadow mapping, if we can load a Shadow Map OBJ, then it will be re-enabled again.
+						g_ShadowMapping.bUseShadowOBJ = false;
+						LoadShadowOBJ(sFileName);
+					}
+					// Load the reticle definition file
+					{
+						LoadCustomReticle(g_sCurrentCockpit);
 					}
 				}
 					
@@ -977,7 +1263,6 @@ void Direct3DTexture::TagTexture() {
 						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
 						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
 							&(resources->dc_coverTexture[idx]));
-							//&coverTexture);
 						if (FAILED(res)) {
 							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
 							//	g_DCElements[idx].coverTextureName, res);
@@ -1081,7 +1366,9 @@ HRESULT Direct3DTexture::Load(
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
 	// settings from the input texture to this level.
 	this->is_Tagged = d3dTexture->is_Tagged;
+	this->TagCount = d3dTexture->TagCount;
 	this->is_Reticle = d3dTexture->is_Reticle;
+	this->is_ReticleCenter = d3dTexture->is_ReticleCenter;
 	this->is_HighlightedReticle = d3dTexture->is_HighlightedReticle;
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
@@ -1093,6 +1380,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Explosion = d3dTexture->is_Explosion;
+	this->is_Smoke = d3dTexture->is_Smoke;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
 	this->is_GunnerTex = d3dTexture->is_GunnerTex;
 	this->is_Exterior = d3dTexture->is_Exterior;
@@ -1113,6 +1401,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_SkydomeLight = d3dTexture->is_SkydomeLight;
 	this->is_DAT = d3dTexture->is_DAT;
 	this->is_BlastMark = d3dTexture->is_BlastMark;
+	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
+	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
 	// g_AuxTextureVector will keep a list of references to textures that have associated materials.

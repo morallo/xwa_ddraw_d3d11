@@ -12,6 +12,7 @@
 #include "shading_system.h"
 #include "SSAOPSConstantBuffer.h"
 
+
  // The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
@@ -20,25 +21,29 @@ SamplerState sampColor : register(s0);
 Texture2D texSSAO : register(t1);
 SamplerState samplerSSAO : register(s1);
 
+// s2/t2: 
+// indirect SSDO buffer
+
 // The SSAO mask
-Texture2D texSSAOMask : register(t2);
-SamplerState samplerSSAOMask : register(s2);
+Texture2D texSSAOMask : register(t3);
+SamplerState samplerSSAOMask : register(s3);
 
-// The Normals buffer
-Texture2D texNormal : register(t3);
-SamplerState samplerNormal : register(s3);
 
-// The Foreground 3D position buffer (linear X,Y,Z)
+// The position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t4);
 SamplerState sampPos  : register(s4);
 
-// The Background 3D position buffer (linear X,Y,Z)
-Texture2D    texPos2  : register(t5);
-SamplerState sampPos2 : register(s5);
+// The Normals buffer
+Texture2D texNormal : register(t5);
+SamplerState samplerNormal : register(s5);
+
+// s6/t6: 
+// Bent Normals buffer
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
+Texture2D texSSMask : register(t7);
+SamplerState samplerSSMask : register(s7);
+
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -73,15 +78,11 @@ struct PixelShaderOutput
 	float4 bloom : SV_TARGET1;
 };
 
-float3 getPositionFG(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
-}
-
-float3 getPositionBG(in float2 uv, in float level) {
-	return texPos2.SampleLevel(sampPos2, uv, level).xyz;
 }
 
 /*
@@ -100,10 +101,10 @@ float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
 
 	// Depth samples
-	float dpx = getPositionFG(uv + offset_swiz.xz, 0).z;
-	float dmx = getPositionFG(uv - offset_swiz.xz, 0).z;
-	float dpy = getPositionFG(uv + offset_swiz.zy, 0).z;
-	float dmy = getPositionFG(uv - offset_swiz.zy, 0).z;
+	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
+	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
+	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
+	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
 
 	// Depth differences in the x and y axes
 	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
@@ -135,21 +136,22 @@ float3 blend_normals(float3 n1, float3 n2)
 
 PixelShaderOutput main(PixelShaderInput input)
 {
-	float2 input_uv_sub	 = input.uv * amplifyFactor;
-	float3 color		 = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal		 = texNormal.Sample(samplerNormal, input.uv);
-	float3 ssao			 = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
-	float3 ssaoMask		 = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask		 = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float  mask			 = ssaoMask.x;
-	float  gloss_mask	 = ssaoMask.y;
-	float  spec_int_mask = ssaoMask.z;
-	float  diff_int		 = 1.0;
+	float2 input_uv_sub	  = input.uv * amplifyFactor;
+	float3 color		  = texColor.Sample(sampColor, input.uv).xyz;
+	float4 Normal		  = texNormal.Sample(samplerNormal, input.uv);
+	float3 ssao			  = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
+	float3 ssaoMask		  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask		  = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float  mask			  = ssaoMask.x;
+	float  gloss_mask	  = ssaoMask.y;
+	float  spec_int_mask  = ssaoMask.z;
+	float  diff_int		  = 1.0;
 	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	float  shadeless	 = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	float  metallic		 = mask / METAL_MAT;
-	float  nm_int		 = ssMask.x;
-	float  spec_val		 = ssMask.y;
+	float  shadeless	  = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
+	float  metallic		  = mask / METAL_MAT;
+	float  nm_int		  = ssMask.x;
+	float  spec_val		  = ssMask.y;
+	float  shadeless_mask = ssMask.z;
 	float3 pos3D;
 
 	PixelShaderOutput output;
@@ -169,6 +171,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
+	shadeless = max(shadeless, shadeless_mask);
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
@@ -185,17 +188,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Toggle the SSAO component for debugging purposes:
 	ssao = lerp(ssao, 1.0, sso_disable);
 
-	bool FGFlag;
-	float3 P1 = getPositionFG(input.uv, 0);
-	float3 P2 = getPositionBG(input.uv, 0);
-	if (P1.z < P2.z) {
-		pos3D = P1;
-		FGFlag = true;
-	}
-	else {
-		pos3D = P2;
-		FGFlag = false;
-	}
+	pos3D = getPosition(input.uv, 0);
 
 	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
 	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
@@ -247,6 +240,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		spec_col = HSVtoRGB(HSV);
 	}
 
+	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
+	float exponent = max(global_glossiness * gloss_mask, 0.05);
+	float spec_bloom_int = global_spec_bloom_intensity;
+	if (GLASS_LO <= mask && mask < GLASS_HI) {
+		exponent *= 2.0;
+		spec_bloom_int *= 3.0; // Make the glass bloom more
+	}
+
 	float3 tmp_color = 0.0;
 	float4 tmp_bloom = 0.0;
 	float3 headLightDir = LightVector[0].xyz; // The direction of the headlights is encoded in the first light vector
@@ -289,13 +290,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float3 halfwayDir = normalize(L + viewDir);
 		//float spec = max(dot(N, halfwayDir), 0.0);
 
-		// We can't have exponent == 0 or we'll see a lot of shading artifacts:
-		float exponent = max(global_glossiness * gloss_mask, 0.05);
-		float spec_bloom_int = global_spec_bloom_intensity;
-		if (GLASS_LO <= mask && mask < GLASS_HI) {
-			exponent *= 2.0;
-			spec_bloom_int *= 3.0; // Make the glass bloom more
-		}
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		spec = LightIntensity * spec_int_mask * pow(spec, exponent);
 
@@ -343,6 +337,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	tmp_color += laser_light_intensity * laser_light_sum;
 
+	// Reinhard tone mapping:
+	if (HDREnabled) tmp_color = tmp_color / (HDR_white_point + tmp_color);
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	return output;
 }

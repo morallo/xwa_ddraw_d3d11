@@ -11,6 +11,9 @@ class Direct3DTexture;
 void InitHeadingMatrix();
 Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
 Matrix4 GetCurrentHeadingViewMatrix();
+void UpdateViewMatrix();
+void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
+void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
@@ -83,11 +86,15 @@ public:
 
 	//Matrix4 GetCurrentHeadingViewMatrix();
 
-	void GetCockpitViewMatrix(Matrix4 * result, bool invert);
+	//void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
 	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
-	void GetCraftViewMatrix(Matrix4 *result);
+	//void GetGunnerTurretViewMatrix(Matrix4 * result);
+
+	void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
+
+	//void GetCraftViewMatrix(Matrix4 *result);
 
 	void RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
@@ -95,13 +102,25 @@ public:
 
 	void RenderFXAA();
 
+	void RenderStarDebug();
+
 	void RenderExternalHUD();
 
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
 
 	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);
 
+	Matrix4 ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4 *CockpitMatrix);
+
 	void RenderAdditionalGeometry();
+
+	Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
+
+	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
+
+	void TagXWALights();
+
+	void RenderShadowMapOBJ();
 
 	void RenderSpeedEffect();
 
@@ -111,11 +130,7 @@ public:
 
 	void RenderSunFlare();
 
-	void ACRunAction(WORD * action);
-
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
-
-	void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
@@ -166,6 +181,10 @@ public:
 	STDMETHOD(UpdateOverlayDisplay)(THIS_ DWORD);
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
+
+	short ComputeMsgWidth(char *str, int font_size_index);
+	short DisplayText(char *str, int font_size_index, short x, short y, uint32_t color);
+	short DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color);
 
 	void RenderText();
 
