@@ -100,16 +100,8 @@ std::vector<char *> GUI_ResNames = {
 	"dat,12000,4400,", // 0x75082e5e, // (128x128) Right Tractor Beam Display (master branch)
 };
 
-// List of common roots for the explosion names
-std::vector<char *> Explosions_ResNames = {
-	// Explosions
-	"dat,2000,",
-	"dat,2001,",
-	"dat,2002,",
-	"dat,2003,",
-	"dat,2004,",
-	"dat,2005,",
-	"dat,2006,",
+// List of common roots for the electricity names
+std::vector<char *> Electricity_ResNames = {
 	// Animations (electricity)
 	"dat,2007,",
 	"dat,2008,",
@@ -120,15 +112,7 @@ std::vector<char *> Explosions_ResNames = {
 	"dat,3000,",
 	"dat,3001,",
 	"dat,3002,",
-	// 3006-3500: Explosions
-	"dat,3006,",
-	"dat,3055,",
-	"dat,3100,",
-	"dat,3200,",
-	"dat,3300,",
-	"dat,3400,",
-	"dat,3500,",
-	
+
 	// Backdrops
 	/*"dat,9001,",
 	"dat,9002,",
@@ -148,10 +132,30 @@ std::vector<char *> Explosions_ResNames = {
 	//"dat,22007,", // Cockpit sparks
 };
 
+// List of common roots for the Explosion names
+std::vector<char *> Explosion_ResNames = {
+	// Explosions (these are all animated)
+	"dat,2000,",
+	"dat,2001,",
+	"dat,2002,",
+	"dat,2003,",
+	"dat,2004,",
+	"dat,2005,",
+	"dat,2006,",
+};
+
 // Smoke from explosions:
 std::vector<char *> Smoke_ResNames = {
 	"dat,3003,",
 	"dat,3004,",
+	// The following used to be tagged as explosions, but they look like smoke
+	"dat,3006,",
+	"dat,3055,",
+	"dat,3100,",
+	"dat,3200,",
+	"dat,3300,",
+	"dat,3400,",
+	"dat,3500,",
 };
 
 std::vector<char *> Sparks_ResNames = {
@@ -643,6 +647,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_TurboLaser = false;
 	this->is_LightTexture = false;
 	this->is_EngineGlow = false;
+	this->is_Electricity = false;
 	this->is_Explosion = false;
 	this->is_Smoke = false;
 	this->is_CockpitTex = false;
@@ -912,8 +917,11 @@ void Direct3DTexture::TagTexture() {
 		// Catch the flat light effect
 		if (strstr(surface->_name, "dat,1000,2") != NULL)
 			this->is_FlatLightEffect = true;
-		// Catch the explosions and mark them
-		if (isInVector(surface->_name, Explosions_ResNames))
+		// Catch the electricity textures and mark them
+		if (isInVector(surface->_name, Electricity_ResNames))
+			this->is_Electricity = true;
+		// Catch the explosion textures and mark them
+		if (isInVector(surface->_name, Explosion_ResNames))
 			this->is_Explosion = true;
 		if (isInVector(surface->_name, Smoke_ResNames))
 			this->is_Smoke = true;
@@ -1379,6 +1387,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_TurboLaser = d3dTexture->is_TurboLaser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
+	this->is_Electricity = d3dTexture->is_Electricity;
 	this->is_Explosion = d3dTexture->is_Explosion;
 	this->is_Smoke = d3dTexture->is_Smoke;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;

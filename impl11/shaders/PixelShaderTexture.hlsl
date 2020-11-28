@@ -112,6 +112,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
+	/*
+	if (special_control == SPECIAL_CONTROL_EXPLOSION)
+	{
+		output.color = float4(0, 1, 0, alpha);
+		output.bloom = output.color;
+		return output;
+	}
+	*/
+
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
 		output.pos3D.a = 0;

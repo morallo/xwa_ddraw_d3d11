@@ -7596,6 +7596,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
+				bool bIsElectricity = false, bIsExplosion = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
 					{
@@ -7627,6 +7628,8 @@ HRESULT Direct3DDevice::Execute(
 					bIsBlastMark = lastTextureSelected->is_BlastMark;
 					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
 					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
+					bIsElectricity = lastTextureSelected->is_Electricity;
+					bIsExplosion = lastTextureSelected->is_Explosion;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -8633,7 +8636,7 @@ HRESULT Direct3DDevice::Execute(
 				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
 				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Electricity || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
 					goto out;
 				}
 				*/
@@ -8943,6 +8946,15 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
+				/*
+				// Just for debugging: let's see if we can really recognize explosions
+				if (bIsExplosion)
+				{
+					bModifiedShaders = true;
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_EXPLOSION;
+				}
+				*/
+
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DS2_Energy_Field) {
 				//	log_debug("[DBG] RENDERING REACTOR ENERGY FIELD");
 				//}
@@ -9177,7 +9189,8 @@ HRESULT Direct3DDevice::Execute(
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
-						lastTextureSelected->is_Explosion || lastTextureSelected->is_Smoke)
+						lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion ||
+						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
@@ -9349,7 +9362,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
 						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
 					}
-					else if (lastTextureSelected->is_Explosion)
+					else if (lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;

@@ -93,6 +93,8 @@ public:
 	bool is_LightTexture;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
+	// True if this is an Electricity (Sparks or Electric Arcs) texture
+	bool is_Electricity;
 	// True if this is an Explosion texture
 	bool is_Explosion;
 	// True if this is smoke coming from an explosion
