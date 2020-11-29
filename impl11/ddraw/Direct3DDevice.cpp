@@ -10,6 +10,14 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+Jeremy: In the player struct, it seems there are 12 unused bytes at offset 0x0B9 and 6 unused
+		bytes at offset 0x0E2.
+
+ 0x0B9 byte unk0B9[12];
+ 0x0E2 byte unk0E2[6];
+*/
+
+/*
 TODO:
 	[5128] [DBG] s_XwaGlobalLightsCount: 0 <-- When the reactor explodes.
 	DSReactorCylinder is the glow around the reactor core in the Death Star.
@@ -305,6 +313,9 @@ float s_XwaHudScale = 1.0f;
 #include "..\shaders\shader_common.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
+
+#include "SharedMem.h"
+SharedData *g_pSharedData = NULL;
 
 FILE *g_HackFile = NULL;
 
@@ -7084,6 +7095,15 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+	/*
+	// DEBUG: This will print the message that the CockpitLook hook has set.
+	if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
+		// Here we're using g_pSharedData->pDataPtr to access the shared data, but
+		// we can also save pDataPtr to a global variable and use that instead.
+		log_debug("[DBG] msg: %s", (char *)g_pSharedData->pDataPtr);
+	}
+	*/
+
 /*
 	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
@@ -7596,6 +7616,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
+				bool bIsElectricity = false, bIsExplosion = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
 					{
@@ -7627,6 +7648,8 @@ HRESULT Direct3DDevice::Execute(
 					bIsBlastMark = lastTextureSelected->is_BlastMark;
 					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
 					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
+					bIsElectricity = lastTextureSelected->is_Electricity;
+					bIsExplosion = lastTextureSelected->is_Explosion;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -8633,7 +8656,7 @@ HRESULT Direct3DDevice::Execute(
 				// correct alpha blending, so we see the square edges overlapping even without an edge detector.
 				/*
 				if (g_bEdgeDetectorEnabled && g_bTargetCompDrawn && bLastTextureSelectedNotNULL &&
-					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
+					(lastTextureSelected->is_Explosion || lastTextureSelected->is_Electricity || lastTextureSelected->is_Spark || lastTextureSelected->is_Smoke)) {
 					goto out;
 				}
 				*/
@@ -8943,6 +8966,15 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
+				/*
+				// Just for debugging: let's see if we can really recognize explosions
+				if (bIsExplosion)
+				{
+					bModifiedShaders = true;
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_EXPLOSION;
+				}
+				*/
+
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DS2_Energy_Field) {
 				//	log_debug("[DBG] RENDERING REACTOR ENERGY FIELD");
 				//}
@@ -9177,7 +9209,8 @@ HRESULT Direct3DDevice::Execute(
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
-						lastTextureSelected->is_Explosion || lastTextureSelected->is_Smoke)
+						lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion ||
+						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
@@ -9349,7 +9382,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
 						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
 					}
-					else if (lastTextureSelected->is_Explosion)
+					else if (lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
