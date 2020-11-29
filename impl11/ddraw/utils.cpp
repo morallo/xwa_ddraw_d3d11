@@ -16,6 +16,8 @@
 
 using namespace Gdiplus;
 
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
+
 void toupper(char *string)
 {
 	int i = 0;
@@ -725,6 +727,19 @@ void log_debug(const char *format, ...)
 
 	vsprintf_s(buf, 256, format, args);
 	OutputDebugString(buf);
+
+	va_end(args);
+}
+
+void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...)
+{
+	char buf[128];
+
+	va_list args;
+	va_start(args, format);
+
+	vsprintf_s(buf, 128, format, args);
+	DisplayTimedMessage(seconds, row, buf);
 
 	va_end(args);
 }

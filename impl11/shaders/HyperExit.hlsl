@@ -232,6 +232,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float t = max(0.0, getTime()) / t2;
 	t = 1.0 - t; // Reverse time because now this effect expects "regular" forward time
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	p *= preserveAspectRatioComp;
 	p += vec2(0, y_center); // In XWA the aiming HUD is not at the screen's center
 
 	float p_len = length(p);

@@ -95,6 +95,8 @@ public:
 	bool is_EngineGlow;
 	// True if this is an Explosion texture
 	bool is_Explosion;
+	// True if this is smoke coming from an explosion
+	bool is_Smoke;
 	// True if this texture is a cockpit texture (used with Bloom to tone down the effect inside the cockpit)
 	bool is_CockpitTex;
 	// True if this texture is a gunner texture
@@ -136,6 +138,10 @@ public:
 	bool is_DAT;
 	// True if this is a blast mark
 	bool is_BlastMark;
+	// True if this is a reactor-core explosion texture
+	bool is_DS2_Reactor_Explosion;
+	// True if this is the energy field surrounding the reactor core.
+	//bool is_DS2_Energy_Field;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 

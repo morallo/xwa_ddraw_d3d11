@@ -12,7 +12,10 @@
 
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
-SamplerState sampPos  : register(s0);
+SamplerState sampPos  : register(s0) = 
+	sampler_state {
+		Filter = MIN_MAG_MIP_LINEAR;
+	};
 
 // The normal buffer
 Texture2D    texNorm   : register(t1);
@@ -140,9 +143,14 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 		return output;
 	const float2 uv_diff = sample_uv - input_uv;
 	
-	//float miplevel = L / max_radius * 3; // Don't know if this miplevel actually improves performance
-	//const float miplevel = cur_radius_sqr / max_radius_sqr * 4; // Is this miplevel better than using L?
+#ifdef GENMIPMAPS
+	//float miplevel = L / max_radius * MAX_MIP_LEVELS; // Don't know if this miplevel actually improves performance
+	const float miplevel = cur_radius_sqr / max_radius_sqr * MAX_MIP_LEVELS; // Is this miplevel better than using L? (I think L was sqrt(cur_radius_sqr))
+	//const float miplevel = sqrt(cur_radius_sqr) / sqrt(max_radius_sqr) * MAX_MIP_LEVELS;
+	//const float miplevel = 5.0;
+#else
 	const float miplevel = 0.0;
+#endif
 
 	float3 occluder = getPosition(sample_uv, miplevel);
 	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, sample_uv, 0).xyz;

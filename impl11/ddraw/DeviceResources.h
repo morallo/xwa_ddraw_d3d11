@@ -23,6 +23,9 @@ extern const char *DC_BEAM_BOX_SRC_RESNAME;
 extern const char *DC_TOP_LEFT_SRC_RESNAME;
 extern const char *DC_TOP_RIGHT_SRC_RESNAME;
 
+// Use the following with `const auto missionIndexLoaded = (int *)0x9F5E74;` to detect the DSII tunnel run mission.
+const int DEATH_STAR_MISSION_INDEX = 52;
+
 typedef struct Box_struct {
 	float x0, y0, x1, y1;
 } Box;
@@ -47,9 +50,11 @@ const int BEAM_HUD_BOX_IDX			= 3;
 const int TARGET_HUD_BOX_IDX		= 4;
 const int LEFT_MSG_HUD_BOX_IDX		= 5;
 const int RIGHT_MSG_HUD_BOX_IDX		= 6;
-const int TOP_LEFT_BOX_IDX			= 7;
-const int TOP_RIGHT_BOX_IDX			= 8;
-const int MAX_HUD_BOXES				= 9;
+const int TOP_LEFT_HUD_BOX_IDX		= 7;
+const int TOP_RIGHT_HUD_BOX_IDX		= 8;
+const int TEXT_RADIOSYS_HUD_BOX_IDX	= 9;
+const int TEXT_CMD_HUD_BOX_IDX		= 10;
+const int MAX_HUD_BOXES				= 11;
 extern std::vector<const char *>g_HUDRegionNames;
 // Convert a string into a *_HUD_BOX_IDX constant
 int HUDRegionNameToIndex(char *name);
@@ -109,7 +114,22 @@ const int B_WING_LASERS_DC_ELEM_SRC_IDX = 21;
 const int SIX_LASERS_BOTH_DC_ELEM_SRC_IDX = 22;
 const int SIX_LASERS_L_DC_ELEM_SRC_IDX = 23;
 const int SIX_LASERS_R_DC_ELEM_SRC_IDX = 24;
-const int MAX_DC_SRC_ELEMENTS = 25;
+const int SHIELDS_FRONT_DC_ELEM_SRC_IDX = 25;
+const int SHIELDS_BACK_DC_ELEM_SRC_IDX = 26;
+const int KW_TEXT_CMD_DC_ELEM_SRC_IDX = 27;
+const int KW_TEXT_TOP_DC_ELEM_SRC_IDX = 28;
+const int KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX = 29;
+const int TEXT_RADIO_DC_ELEM_SRC_IDX = 30;
+const int TEXT_SYSTEM_DC_ELEM_SRC_IDX = 31;
+const int TEXT_CMD_DC_ELEM_SRC_IDX = 32;
+const int TARGETED_OBJ_NAME_SRC_IDX = 33;
+const int TARGETED_OBJ_SHD_SRC_IDX = 34;
+const int TARGETED_OBJ_HULL_SRC_IDX = 35;
+const int TARGETED_OBJ_CARGO_SRC_IDX = 36;
+const int TARGETED_OBJ_SYS_SRC_IDX = 37;
+const int TARGETED_OBJ_DIST_SRC_IDX = 38;
+const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
+const int MAX_DC_SRC_ELEMENTS = 40;
 extern std::vector<const char *>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char *name);
@@ -286,7 +306,7 @@ typedef struct LaserPointerCBStruct {
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
-	float cursor_radius, unused[2];
+	float cursor_radius, lp_aspect_ratio[2];
 	// 112 bytes
 } LaserPointerCBuffer;
 
@@ -294,7 +314,9 @@ typedef struct LaserPointerCBStruct {
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	// 16 bytes
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
+	float aspect_ratio;
+	uint32_t apply_uv_comp;
+	float z_override, sz_override;
 	// 32 bytes
 	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 48 bytes
@@ -363,7 +385,7 @@ typedef struct PixelShaderCBStruct {
 
 	float fSpecVal, fDisableDiffuse;
 	uint32_t special_control;
-	float ps_unused2;
+	float fAmbient;
 	// 80 bytes
 } PixelShaderCBuffer;
 
@@ -379,7 +401,8 @@ typedef struct DCPixelShaderCBStruct {
 	// 432 bytes thus far
 
 	float ct_brightness, dc_brightness;
-	float unused[2];
+	uint32_t noisy_holo; // If set to 1, the hologram shader will be noisy!
+	float transparent; // If set to 1, the background will be transparent
 	// 448 bytes
 } DCPixelShaderCBuffer;
 
@@ -409,12 +432,16 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
-	float mr_aspect_ratio;   // Same as sm_aspect_ratio, remove sm_* later
-	float mr_FOVscale;       // Same as sm_FOVscale... same as g_ShadertoyBuffer.FOVscale
-	float mr_y_center;       // Same as sm_y_center... same as g_ShadertoyBuffer.y_center
+	float mr_aspect_ratio;   // Same as sm_aspect_ratio (g_fCurInGameAspectRatio), remove sm_* later
+	float mr_FOVscale;       // Same as sm_FOVscale NOT the same as g_ShadertoyBuffer.FOVscale
+	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
 	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
 
-	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_unused[2];
+	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_debug_value;
+
+	//float mr_vr_aspect_ratio_comp[2]; // This is used with shaders that work with the postproc vertexbuf, like the reticle shader
+	float mr_vr_aspect_ratio, mr_unused0;
+	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD
 } MetricReconstructionCB;
 
 typedef struct uv_coords_src_dst_struct {
@@ -440,7 +467,7 @@ typedef struct dc_element_struct {
 	char coverTextureName[MAX_TEXTURE_NAME];
 	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
 	//ID3D11ShaderResourceView *coverTexture = NULL;
-	bool bActive, bNameHasBeenTested;
+	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
 } dc_element;
 
 typedef struct move_region_coords_struct {
@@ -453,6 +480,7 @@ typedef struct move_region_coords_struct {
 #define MAX_AC_COORDS_PER_TEXTURE 64
 #define MAX_AC_TEXTURES_PER_COCKPIT 16
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
+#define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
 	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
@@ -509,16 +537,58 @@ typedef struct MaterialStruct {
 	bool  IsShadeless;
 	bool  NoBloom;
 	Vector3 Light;
+	Vector2 LightUVCoordPos;
+	bool  IsLava;
+	float LavaSpeed;
+	float LavaSize;
+	float EffectBloom;
+	Vector3 LavaColor;
+	bool LavaTiling;
+	bool AlphaToBloom;
+	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
+	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
+	float Ambient;
+	// DEBUG properties, remove later
+	//Vector3 LavaNormalMult;
+	//Vector3 LavaPosMult;
+	//bool LavaTranspose;
 
 	MaterialStruct() {
-		Metallic    = g_DefaultGlobalMaterial.Metallic;
-		Intensity   = g_DefaultGlobalMaterial.Intensity;
-		Glossiness  = g_DefaultGlobalMaterial.Glossiness;
-		NMIntensity = g_DefaultGlobalMaterial.NMIntensity;
-		SpecValue   = g_DefaultGlobalMaterial.SpecValue;
-		IsShadeless = g_DefaultGlobalMaterial.IsShadeless;
-		Light		= g_DefaultGlobalMaterial.Light;
-		NoBloom		= false;
+		Metallic		= g_DefaultGlobalMaterial.Metallic;
+		Intensity		= g_DefaultGlobalMaterial.Intensity;
+		Glossiness		= g_DefaultGlobalMaterial.Glossiness;
+		NMIntensity		= g_DefaultGlobalMaterial.NMIntensity;
+		SpecValue		= g_DefaultGlobalMaterial.SpecValue;
+		IsShadeless		= g_DefaultGlobalMaterial.IsShadeless;
+		Light			= g_DefaultGlobalMaterial.Light;
+		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		NoBloom			= false;
+		IsLava			= false;
+		LavaSpeed		= 1.0f;
+		LavaSize		= 1.0f;
+		EffectBloom		= 1.0f;
+		LavaTiling		= true;
+
+		LavaColor.x		= 1.00f;
+		LavaColor.y		= 0.35f;
+		LavaColor.z		= 0.05f;
+
+		AlphaToBloom	= false;
+		NoColorAlpha	= false;
+		AlphaIsntGlass	= false;
+		Ambient			= 0.0f;
+
+		/*
+		// DEBUG properties, remove later
+		LavaNormalMult.x = 1.0f;
+		LavaNormalMult.y = 1.0f;
+		LavaNormalMult.z = 1.0f;
+
+		LavaPosMult.x = -1.0f;
+		LavaPosMult.y = -1.0f;
+		LavaPosMult.z = -1.0f;
+		LavaTranspose = true;
+		*/
 	}
 } Material;
 
@@ -538,7 +608,7 @@ typedef enum {
 	XWAHACKER_FOV,
 	XWAHACKER_LARGE_FOV
 } FOVtype;
-extern FOVtype g_CurrentFOV;
+extern FOVtype g_CurrentFOVType;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -569,6 +639,53 @@ public:
 		this->bIsSun = true;
 	}
 };
+
+// Text Rendering
+// Font indices that can be used with the PrimarySurface::AddText() methods (and others) below
+#define FONT_MEDIUM_IDX 0
+#define FONT_LARGE_IDX 1
+#define FONT_SMALL_IDX 2
+#define FONT_BLUE_COLOR 0x5555FF
+
+class TimedMessage {
+public:
+	time_t t_exp;
+	char msg[128];
+	short y;
+	short font_size_idx;
+	uint32_t color;
+
+	TimedMessage() {
+		this->msg[0] = 0;
+		this->y = 200;
+		this->color = FONT_BLUE_COLOR;
+		this->font_size_idx = FONT_LARGE_IDX;
+	}
+
+	inline bool IsExpired() {
+		return this->msg[0] == 0;
+	}
+
+	inline void SetMsg(char *msg, time_t seconds, short y, short font_size_idx, uint32_t color) {
+		strcpy_s(this->msg, 128, msg);
+		this->t_exp = time(NULL) + seconds;
+		this->y = y;
+		this->font_size_idx = font_size_idx;
+		this->color = color;
+	}
+
+	inline void Tick() {
+		time_t t = time(NULL);
+		if (t > this->t_exp)
+			this->msg[0] = 0;
+	}
+};
+const int MAX_TIMED_MESSAGES = 3;
+
+/*
+  Only rows 0..2 are available
+ */
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
 
 // S0x07D4FA0
 struct XwaGlobalLight
@@ -748,16 +865,18 @@ public:
 	void InitVSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *vsCBuffer);
 	void InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const MetricReconstructionCB *psCBuffer);
 
-	void BuildHUDVertexBuffer(UINT width, UINT height);
-	void BuildHyperspaceVertexBuffer(UINT width, UINT height);
+	void BuildHUDVertexBuffer(float width, float height);
+	void BuildHyperspaceVertexBuffer(float width, float height);
 	void BuildPostProcVertexBuffer();
-	void InitSpeedParticlesVB(UINT width, UINT height);
-	void BuildSpeedVertexBuffer(UINT width, UINT height);
+	void InitSpeedParticlesVB();
+	void BuildSpeedVertexBuffer();
 	void CreateShadowVertexIndexBuffers(D3DTLVERTEX *vertices, WORD *indices, UINT numVertices, UINT numIndices);
 	//void FillReticleVertexBuffer(float width, float height /*float sz, float rhw*/);
 	//void CreateReticleVertexBuffer();
 	void CreateRandomVectorTexture();
 	void DeleteRandomVectorTexture();
+	void CreateGrayNoiseTexture();
+	void DeleteGrayNoiseTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -854,6 +973,8 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
+	// Generated/Procedural Textures
+	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -941,6 +1062,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
+	// Generated/Procedural Textures SRVs
+	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -990,6 +1113,12 @@ public:
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
+	ComPtr<ID3D11PixelShader> _starDebugPS;
+	ComPtr<ID3D11PixelShader> _lavaPS;
+	ComPtr<ID3D11PixelShader> _explosionPS;
+	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
+	ComPtr<ID3D11PixelShader> _noGlassPS;
+	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
@@ -1021,6 +1150,7 @@ public:
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
+	ComPtr<ID3D11PixelShader> _pixelShaderDCHolo;
 	ComPtr<ID3D11PixelShader> _pixelShaderEmptyDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;

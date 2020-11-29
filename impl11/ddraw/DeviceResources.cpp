@@ -1,4 +1,4 @@
-// Copyright (c) 2014 Jérémy Ansel
+ï»¿// Copyright (c) 2014 Jï¿½rï¿½my Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -25,6 +25,7 @@
 #include "../Debug/SBSVertexShader.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
+#include "../Debug/PixelShaderDCHolo.h"
 #include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
 #include "../Debug/PixelShaderSolid.h"
@@ -58,11 +59,16 @@
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
-#Include "../Debug/HeadLightsPS.h"
+#include "../Debug/HeadLightsPS.h"
 #include "../Debug/HeadLightsSSAOPS.h"
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
 #include "../Debug/EdgeDetector.h"
+#include "../Debug/StarDebug.h"
+#include "../Debug/LavaPixelShader.h"
+#include "../Debug/ExplosionShader.h"
+#include "../Debug/AlphaToBloomPS.h"
+#include "../Debug/PixelShaderNoGlass.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -77,6 +83,7 @@
 #include "../Release/SBSVertexShader.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
+#include "../Release/PixelShaderDCHolo.h"
 #include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
 #include "../Release/PixelShaderSolid.h"
@@ -115,6 +122,11 @@
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
 #include "../Release/EdgeDetector.h"
+#include "../Release/StarDebug.h"
+#include "../Release/LavaPixelShader.h"
+#include "../Release/ExplosionShader.h"
+#include "../Release/AlphaToBloomPS.h"
+#include "../Release/PixelShaderNoGlass.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -134,6 +146,7 @@ extern MainShadersCBuffer g_MSCBuffer;
 extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
 extern bool g_bRendering3D, g_bDumpDebug, g_bOverrideAspectRatio, g_bCustomFOVApplied, g_bTargetCompDrawn;
+extern bool g_bPrevPlayerInHangar;
 extern int g_iPresentCounter;
 int g_iDraw2DCounter = 0;
 extern bool g_bEnableVR, g_bForceViewportChange;
@@ -146,7 +159,7 @@ extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern float g_fCurrentShipFocalLength;
-extern bool g_bExecuteBufferLock;
+extern bool g_bExecuteBufferLock, g_bDCApplyEraseRegionCommands, g_bHUDVisibleOnStartup;
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
@@ -205,6 +218,8 @@ extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
+
+bool LoadDCInternalCoordinates();
 
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
@@ -286,17 +301,17 @@ struct MainVertex
 
 const char *DC_TARGET_COMP_SRC_RESNAME		= "dat,12000,1100,";
 const char *DC_LEFT_SENSOR_SRC_RESNAME		= "dat,12000,4500,";
-const char *DC_LEFT_SENSOR_2_SRC_RESNAME		= "dat,12000,300,";
+const char *DC_LEFT_SENSOR_2_SRC_RESNAME	= "dat,12000,300,";
 const char *DC_RIGHT_SENSOR_SRC_RESNAME		= "dat,12000,4600,";
 const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
 const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
-const char *DC_SOLID_MSG_SRC_RESNAME			= "dat,12000,100,";
+const char *DC_SOLID_MSG_SRC_RESNAME		= "dat,12000,100,";
 const char *DC_BORDER_MSG_SRC_RESNAME		= "dat,12000,200,";
-const char *DC_LASER_BOX_SRC_RESNAME			= "dat,12000,2300,";
+const char *DC_LASER_BOX_SRC_RESNAME		= "dat,12000,2300,";
 const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
 const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
 const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
-const char *DC_TOP_RIGHT_SRC_RESNAME			= "dat,12000,2800,";
+const char *DC_TOP_RIGHT_SRC_RESNAME		= "dat,12000,2800,";
 
 std::vector<const char *>g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
@@ -305,9 +320,11 @@ std::vector<const char *>g_HUDRegionNames = {
 	"BEAM_REGION",				// 3
 	"TARGET_AND_LASERS_REGION",	// 4
 	"LEFT_TEXT_BOX_REGION",		// 5
-	"RIGHT_TEXT_BOX_REGION",		// 6
+	"RIGHT_TEXT_BOX_REGION",	// 6
 	"TOP_LEFT_REGION",			// 7
-	"TOP_RIGHT_REGION"			// 8
+	"TOP_RIGHT_REGION",			// 8
+	"TEXT_RADIOSYS_REGION",		// 9
+	"TEXT_CMD_REGION",			// 10
 };
 
 std::vector<const char *>g_DCElemSrcNames = {
@@ -316,26 +333,41 @@ std::vector<const char *>g_DCElemSrcNames = {
 	"LASER_RECHARGE_SRC",		// 2
 	"SHIELD_RECHARGE_SRC",		// 3
 	"ENGINE_POWER_SRC",			// 4
-	"BEAM_RECHARGE_SRC",			// 5
+	"BEAM_RECHARGE_SRC",		// 5
 	"SHIELDS_SRC",				// 6
-	"BEAM_LEVEL_SRC"	,			// 7
+	"BEAM_LEVEL_SRC"	,		// 7
 	"TARGETING_COMPUTER_SRC",	// 8
 	"QUAD_LASERS_LEFT_SRC",		// 9
-	"QUAD_LASERS_RIGHT_SRC",		// 10
-	"LEFT_TEXT_BOX_SRC",			// 11
+	"QUAD_LASERS_RIGHT_SRC",	// 10
+	"LEFT_TEXT_BOX_SRC",		// 11
 	"RIGHT_TEXT_BOX_SRC",		// 12
 	"SPEED_THROTTLE_SRC",		// 13
 	"MISSILES_SRC",				// 14
-	"NAME_TIME_SRC",				// 15
-	"NUM_SHIPS_SRC",				// 16
+	"NAME_TIME_SRC",			// 15
+	"NUM_SHIPS_SRC",			// 16
 	"QUAD_LASERS_BOTH_SRC",		// 17
-	"DUAL_LASERS_L_SRC",			// 18
-	"DUAL_LASERS_R_SRC",			// 19
+	"DUAL_LASERS_L_SRC",		// 18
+	"DUAL_LASERS_R_SRC",		// 19
 	"DUAL_LASERS_BOTH_SRC",		// 20
-	"B_WING_LASERS_SRC",			// 21
+	"B_WING_LASERS_SRC",		// 21
 	"SIX_LASERS_BOTH_SRC",		// 22
 	"SIX_LASERS_L_SRC",			// 23
 	"SIX_LASERS_R_SRC",			// 24
+	"SHIELDS_FRONT_SRC",		// 25
+	"SHIELDS_BACK_SRC",			// 26
+	"KW_TEXT_CMD_SRC",			// 27
+	"KW_TEXT_TOP_SRC",			// 28
+	"KW_TEXT_RADIOSYS_SRC",		// 29
+	"TEXT_RADIO_SRC",			// 30
+	"TEXT_SYSTEM_SRC",			// 31
+	"TEXT_CMD_SRC",				// 32
+	"TARGETED_OBJ_NAME_SRC",	// 33
+	"TARGETED_OBJ_SHD_SRC",		// 34
+	"TARGETED_OBJ_HULL_SRC",	// 35
+	"TARGETED_OBJ_CARGO_SRC",	// 36
+	"TARGETED_OBJ_SYS_SRC",		// 37
+	"TARGETED_OBJ_DIST_SRC",	// 38
+	"TARGETED_OBJ_SUBCMP_SRC",	// 39
 };
 
 int HUDRegionNameToIndex(char *name) {
@@ -363,6 +395,8 @@ DeviceResources::DeviceResources()
 	this->_backbufferSurface = nullptr;
 	this->_frontbufferSurface = nullptr;
 	this->_offscreenSurface = nullptr;
+	this->_grayNoiseTex = nullptr;
+	this->_grayNoiseSRV = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -507,7 +541,7 @@ HRESULT DeviceResources::Initialize()
 	return hr;
 }
 
-void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
+void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
@@ -525,7 +559,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[0].tv  = 0;
 	HUDVertices[0].color = color;
 
-	HUDVertices[1].sx = (float)width;
+	HUDVertices[1].sx = width;
 	HUDVertices[1].sy = 0;
 	HUDVertices[1].sz  = sz_depth;
 	HUDVertices[1].rhw = rhw_depth;
@@ -533,16 +567,16 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[1].tv  = 0;
 	HUDVertices[1].color = color;
 	
-	HUDVertices[2].sx = (float)width;
-	HUDVertices[2].sy = (float)height;
+	HUDVertices[2].sx = width;
+	HUDVertices[2].sy = height;
 	HUDVertices[2].sz  = sz_depth;
 	HUDVertices[2].rhw = rhw_depth;
 	HUDVertices[2].tu  = 1;
 	HUDVertices[2].tv  = 1;
 	HUDVertices[2].color = color;
 	
-	HUDVertices[3].sx = (float)width;
-	HUDVertices[3].sy = (float)height;
+	HUDVertices[3].sx = width;
+	HUDVertices[3].sy = height;
 	HUDVertices[3].sz  = sz_depth;
 	HUDVertices[3].rhw = rhw_depth;
 	HUDVertices[3].tu  = 1;
@@ -550,7 +584,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	HUDVertices[3].color = color;
 	
 	HUDVertices[4].sx = 0;
-	HUDVertices[4].sy = (float)height;
+	HUDVertices[4].sy = height;
 	HUDVertices[4].sz  = sz_depth;
 	HUDVertices[4].rhw = rhw_depth;
 	HUDVertices[4].tu  = 0;
@@ -606,7 +640,7 @@ void DeviceResources::BuildHUDVertexBuffer(UINT width, UINT height) {
 	this->_bHUDVerticesReady = true;
 }
 
-void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
+void DeviceResources::BuildHyperspaceVertexBuffer(float width, float height) {
 	HRESULT hr;
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
@@ -626,7 +660,7 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[0].tv  = 0;
 	HyperVertices[0].color = color;
 
-	HyperVertices[1].sx  = (float)width;
+	HyperVertices[1].sx  = width;
 	HyperVertices[1].sy  = 0;
 	HyperVertices[1].sz  = sz_depth;
 	HyperVertices[1].rhw = rhw_depth;
@@ -634,16 +668,16 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[1].tv  = 0;
 	HyperVertices[1].color = color;
 
-	HyperVertices[2].sx  = (float)width;
-	HyperVertices[2].sy  = (float)height;
+	HyperVertices[2].sx  = width;
+	HyperVertices[2].sy  = height;
 	HyperVertices[2].sz  = sz_depth;
 	HyperVertices[2].rhw = rhw_depth;
 	HyperVertices[2].tu  = 1;
 	HyperVertices[2].tv  = 1;
 	HyperVertices[2].color = color;
 
-	HyperVertices[3].sx  = (float)width;
-	HyperVertices[3].sy  = (float)height;
+	HyperVertices[3].sx  = width;
+	HyperVertices[3].sy  = height;
 	HyperVertices[3].sz  = sz_depth;
 	HyperVertices[3].rhw = rhw_depth;
 	HyperVertices[3].tu  = 1;
@@ -651,7 +685,7 @@ void DeviceResources::BuildHyperspaceVertexBuffer(UINT width, UINT height) {
 	HyperVertices[3].color = color;
 
 	HyperVertices[4].sx  = 0;
-	HyperVertices[4].sy  = (float)height;
+	HyperVertices[4].sy  = height;
 	HyperVertices[4].sz  = sz_depth;
 	HyperVertices[4].rhw = rhw_depth;
 	HyperVertices[4].tu  = 0;
@@ -732,7 +766,7 @@ void DeviceResources::BuildPostProcVertexBuffer()
 	}
 }
 
-void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
+void DeviceResources::InitSpeedParticlesVB()
 {
 	// The values for rhw_depth and sz_depth were taken from the skybox
 	for (int i = 0; i < MAX_SPEED_PARTICLES; i++) {
@@ -753,7 +787,7 @@ void DeviceResources::InitSpeedParticlesVB(UINT width, UINT height)
 	}
 }
 
-void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height) 
+void DeviceResources::BuildSpeedVertexBuffer() 
 {
 	HRESULT hr;
 	auto &device = this->_d3dDevice;
@@ -773,7 +807,7 @@ void DeviceResources::BuildSpeedVertexBuffer(UINT width, UINT height)
 	vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 0;
 	vertexBufferDesc.MiscFlags = 0;
 
-	InitSpeedParticlesVB(width, height);
+	InitSpeedParticlesVB();
 
 	//D3D11_SUBRESOURCE_DATA vertexBufferData;
 	//ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
@@ -979,6 +1013,7 @@ for (GLuint i = 0; i < 64; ++i)
 	ssdoKernel.push_back(sample);
 }
 */
+
 void DeviceResources::CreateRandomVectorTexture() {
 	/*
 	const int NUM_SAMPLES = 64;
@@ -1062,6 +1097,99 @@ void DeviceResources::DeleteRandomVectorTexture() {
 	// TODO
 }
 
+void DeviceResources::CreateGrayNoiseTexture() {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	const int TEX_SIZE = 256;
+	const int NUM_SAMPLES = TEX_SIZE * TEX_SIZE;
+	float rawData[NUM_SAMPLES];
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	if (_grayNoiseTex != nullptr)
+		DeleteGrayNoiseTexture();
+
+	desc.Width = TEX_SIZE;
+	desc.Height = TEX_SIZE;
+	//desc.Format = DXGI_FORMAT_R8_UINT;
+	desc.Format = DXGI_FORMAT_R32_FLOAT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint8_t) * TEX_SIZE;
+	textureData.SysMemSlicePitch = 0;
+
+	for (int i = 0; i < NUM_SAMPLES; i++) {
+		//float sample = ((float)rand() / RAND_MAX);
+		//rawData[i] = (uint8_t)(255 * sample);
+		rawData[i] = ((float)rand() / RAND_MAX);
+	}
+
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_grayNoiseTex))) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateTexture2D on gray noise texture, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		return;
+	}
+
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+	if (FAILED(hr = device->CreateShaderResourceView(_grayNoiseTex, &shaderResourceViewDesc, &_grayNoiseSRV))) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateShaderResourceView on gray noiseB, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		return;
+	}
+
+	D3D11_SAMPLER_DESC samplerDesc;
+	samplerDesc.Filter = this->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.MaxAnisotropy = this->_useAnisotropy ? this->GetMaxAnisotropy() : 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_repeatSamplerState))) {
+		log_debug("[DBG] [NOISE] Failed when calling CreateSamplerState on gray noiseB, hr: 0x%x", hr);
+		return;
+	}
+
+//out:
+	// DEBUG
+	//hr = DirectX::SaveDDSTextureToFile(context, _grayNoiseTex, L"C:\\Temp\\_grayNoiseTex.dds");
+	//log_debug("[DBG] [NOISE] Dumped randomTex to file, hr: 0x%x", hr);
+	// DEBUG
+	//if (_grayNoiseTex != nullptr) _grayNoiseTex->Release();
+	//if (_grayNoiseSRV != nullptr) _grayNoiseSRV->Release();
+}
+
+void DeviceResources::DeleteGrayNoiseTexture()
+{
+	if (_grayNoiseSRV != nullptr) _grayNoiseSRV->Release();
+	if (_grayNoiseTex != nullptr) _grayNoiseTex->Release();
+	if (_repeatSamplerState != nullptr) _repeatSamplerState.Release();
+	_grayNoiseTex = nullptr;
+	_grayNoiseSRV = nullptr;
+	_repeatSamplerState = nullptr;
+}
+
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
 		if (this->dc_coverTexture[i] != nullptr) {
@@ -1118,6 +1246,9 @@ void DeviceResources::ResetDynamicCockpit() {
 				}
 				elem->bActive = false;
 				elem->bNameHasBeenTested = false;
+				elem->bHologram = false;
+				elem->bNoisyHolo = false;
+				elem->bTransparent = false;
 			}
 		}
 		// Reset the dynamic cockpit vector
@@ -1127,6 +1258,9 @@ void DeviceResources::ResetDynamicCockpit() {
 			g_iNumDCElements = 0;
 		}
 	}
+	// The code that captures text lines seemed to need this, but looks like this is not
+	// necessary after all.
+	//LoadDCInternalCoordinates();
 }
 
 /*
@@ -1183,6 +1317,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 	// Reset the present counter
 	g_iPresentCounter = 0;
+	g_bPrevPlayerInHangar = false;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
 	// Force the recomputation of y_center for the next cockpit
@@ -1192,6 +1327,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_b3DSunPresent = false;
 	g_b3DSkydomePresent = false;
 	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
+	g_bDCApplyEraseRegionCommands = !g_bHUDVisibleOnStartup;
 	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSkydomePresent");
 
 	g_TextureVector.clear();
@@ -1766,6 +1902,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.SampleDesc.Count = 1;
 			desc.SampleDesc.Quality = 0;
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+#ifdef GENMIPMAPS
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+			desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+			desc.MipLevels = 0; // MAX_MIP_LEVELS
+#endif
 
 			// offscreenBufferAsInput must not have MSAA enabled since it will be used as input for the barrel shader.
 			step = "offscreenBufferAsInput";
@@ -2104,7 +2245,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.SampleDesc.Count = 1;
 				desc.SampleDesc.Quality = 0;
 				desc.Format = AO_DEPTH_BUFFER_FORMAT;
+#ifdef GENMIPMAPS
+				desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+				desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+				desc.MipLevels = 0; // MAX_MIP_LEVELS;
+#else
 				desc.MipLevels = 1; // 4;
+#endif
 
 				step = "_depthBufAsInput";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInput);
@@ -2174,6 +2321,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
+
+#ifdef GENMIPMAPS
+			shaderResourceViewDesc.Texture2D.MipLevels = -1; // MAX_MIP_LEVELS
+			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+#endif
 
 			// Create the shader resource view for offscreenBufferAsInput
 			step = "offscreenAsInputShaderResourceView";
@@ -2413,7 +2565,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// AO SRVs
 			if (g_bAOEnabled) {
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+#ifdef GENMIPMAPS
+				shaderResourceViewDesc.Texture2D.MipLevels = -1; // MAX_MIP_LEVELS;
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+#else
 				shaderResourceViewDesc.Texture2D.MipLevels = 1; // 4;
+#endif
 
 				step = "_depthBufSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInput,
@@ -2507,15 +2664,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	// Build the vertex buffers
 	if (SUCCEEDED(hr))
 	{
-		BuildHUDVertexBuffer(_displayWidth, _displayHeight);
-		BuildHyperspaceVertexBuffer(_displayWidth, _displayHeight);
-		BuildPostProcVertexBuffer();
-		BuildSpeedVertexBuffer(_displayWidth, _displayHeight);
-		//CreateReticleVertexBuffer();
-		CreateRandomVectorTexture();
+		float W = (float )_displayWidth, H = (float )_displayHeight;
+		if (g_bUseSteamVR) {
+			W /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
+			H /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
+		}
 		g_fCurInGameWidth = (float)_displayWidth;
 		g_fCurInGameHeight = (float)_displayHeight;
 		g_fCurInGameAspectRatio = g_fCurInGameWidth / g_fCurInGameHeight;
+
+		BuildHUDVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		BuildHyperspaceVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		BuildPostProcVertexBuffer();
+		BuildSpeedVertexBuffer();
+		CreateRandomVectorTexture();
+		CreateGrayNoiseTexture();
 	}
 
 	/* RTVs */
@@ -3088,6 +3251,21 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AlphaToBloomPS, sizeof(g_AlphaToBloomPS), nullptr, &_alphaToBloomPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3293,6 +3471,9 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
 			return hr;
 
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDCHolo, sizeof(g_PixelShaderDCHolo), nullptr, &_pixelShaderDCHolo)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderEmptyDC, sizeof(g_PixelShaderEmptyDC), nullptr, &_pixelShaderEmptyDC)))
 			return hr;
 	}
@@ -3379,6 +3560,21 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_StarDebug, sizeof(g_StarDebug), nullptr, &_starDebugPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LavaPixelShader, sizeof(g_LavaPixelShader), nullptr, &_lavaPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExplosionShader, sizeof(g_ExplosionShader), nullptr, &_explosionPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AlphaToBloomPS, sizeof(g_AlphaToBloomPS), nullptr, &_alphaToBloomPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
@@ -3518,8 +3714,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(MetricReconstructionCB) == 32, "sizeof(MetricReconstructionCB) must be 32");
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(MetricReconstructionCB) == 48, "sizeof(MetricReconstructionCB) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_metricRecPSConstantBuffer)))
@@ -3972,7 +4168,7 @@ void DeviceResources::InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, c
 	static int sizeof_constants = sizeof(ShadertoyCBuffer);
 
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
-	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
+	this->_d3dDeviceContext->PSSetConstantBuffers(8, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelShaderCBuffer* psConstants)

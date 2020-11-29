@@ -19,6 +19,7 @@ SamplerState subCMDSampler : register(s1);
 
 //static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
 
+#ifdef DISABLED
 // Noise from https://www.shadertoy.com/view/4sfGzS
 float hash(vec3 p)  // replace this by something better
 {
@@ -42,6 +43,7 @@ float noise(in vec3 x)
 			mix(hash(i + vec3(0, 1, 1)),
 				hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
+#endif
 
 struct PixelShaderInput
 {
@@ -91,7 +93,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float2 start = -incr, startInGame = -incrInGame;
 
 	// Avoid computing Sobel close to the edge of the viewport
-	if (any(uv < p0 + 6.0 * incr) || any(uv > p1 - 6.0 * incr))
+	// twirl = 0 shuts down the CMD if the target has been destroyed.
+	if (any(uv < p0 + 6.0 * incr) || any(uv > p1 - 6.0 * incr) || twirl < 0.5)
 		return output;
 
 	float c[9];
@@ -108,12 +111,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 			//float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
 			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
 			col.rgb = col.a * col.rgb;
+#ifdef DISABLED
+			// This block renders noise, but it doesn't look that good.
 			if (twirl > 0.0) {
 				float3 n = 2.0 * noise(64.0 * float3(uv + ofs, iTime));
 				col = lerp(col, float4(n, 1.0), twirl);
-				//col.rgb = 2.0 * noise(64.0 * float3(uv + ofs, iTime));
-				//col.a = 1.0;
 			}
+#endif
 			// Approx Luminance formula:
 			//c[3 * i + j] = 0.33 * col.r + 0.5 * col.g + 0.16 * col.b + 1.0 * col.a; // Add alpha here to make a hard edge around the objects
 			c[3 * i + j] = dot(LuminanceDot.rgb, contrast * col.rgb);

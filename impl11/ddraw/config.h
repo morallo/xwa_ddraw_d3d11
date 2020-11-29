@@ -21,6 +21,7 @@ public:
 	bool SwapJoystickXZAxes;
 	int XInputTriggerAsThrottle;
 	bool InvertYAxis;
+	bool InvertThrottle;
 	float MouseSensitivity;
 	float KbdSensitivity;
 

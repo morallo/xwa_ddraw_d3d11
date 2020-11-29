@@ -15,18 +15,23 @@ uint32_t g_steamVRWidth = 0, g_steamVRHeight = 0; // The resolution recommended 
 bool g_bSteamVREnabled = false; // The user sets this flag to true to request support for SteamVR.
 bool g_bSteamVRInitialized = false; // The system will set this flag after SteamVR has been initialized
 bool g_bUseSteamVR = false; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
-bool g_bEnableSteamVR_QPC;
 const bool DEFAULT_INTERLEAVED_REPROJECTION = false;
 const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bSteamVRDistortionEnabled = true;
+bool g_bSteamVRYawPitchRollFromMouseLook = false;
+bool g_bResetHeadCenter = true; // Reset the head center on startup
 vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
+Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
+Matrix4 g_projLeft, g_projRight;
+Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 void* g_pSurface = NULL;
 
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 
 float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
+float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 
 bool InitSteamVR()
 {
@@ -81,6 +86,7 @@ bool InitSteamVR()
 	}
 	log_debug("[DBG] SteamVR Compositor Initialized");
 
+	g_pVRCompositor->SetTrackingSpace(vr::TrackingUniverseSeated);
 	g_pVRCompositor->ForceInterleavedReprojectionOn(g_bInterleavedReprojection);
 	log_debug("[DBG] InterleavedReprojection: %d", g_bInterleavedReprojection);
 
@@ -343,15 +349,15 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		vr::TrackedDevicePose_t trackedDevicePose;
+		//vr::TrackedDevicePose_t trackedDevicePose;
+		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseSeated, 0.029f, &trackedDevicePose, 1);
-
-		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
-		q = rotationToQuaternion(trackedDevicePose.mDeviceToAbsoluteTracking);
+		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
+		q = rotationToQuaternion(poseMatrix);
 		quatToEuler(q, yaw, pitch, roll);
 
 		*x = poseMatrix.m[0][3];

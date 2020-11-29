@@ -45,6 +45,8 @@ PixelShaderInput main(VertexShaderInput input)
 			scale * input.pos.y,
 			-(30.0 + parallax), // The Concourse is placed 30m away: enough space for the Tech Library
 			1);
+		// Apply the current view matrix
+		P = mul(fullViewMatrix, P);
 		// Project to 2D
 		output.pos = mul(projEyeMatrix, P);
 	} else { // Use this for the original 2D version of the game:

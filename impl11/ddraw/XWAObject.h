@@ -9,6 +9,20 @@ struct MobileObjectEntry;
 struct ProjectileInstance;
 struct RotationMatrix3D;
 
+struct CraftInstanceHardpoint {
+	WORD ProjectileType;
+	BYTE WeaponType; // 0 no weapon, 1 lasers, 2 ion, 3 warheads (any type of warheads)
+	BYTE LaserIndex;
+	BYTE Energy;
+	BYTE Count; // Number of warheads
+	WORD TurretCooldown;
+	BYTE MeshID;
+	BYTE HardpointID;
+	WORD TurretTargetIndex;
+	WORD TurretTargetSearchCooldown;
+};
+static_assert(sizeof(CraftInstanceHardpoint) == 0xE, "size of CraftInstance must be 0xE");
+
 struct CraftInstance {
 	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
 	DWORD NumberInFG;
@@ -185,7 +199,7 @@ struct CraftInstance {
 	BYTE field_2CC; // enum PloEnum
 	WORD field_2CD;
 	BYTE EngineThrottles[16]; // Ofs 0x2CF db 16 dup(? )
-	BYTE Hardpoints[224]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
+	CraftInstanceHardpoint Hardpoints[16]; // Ofs 0x2DF CraftInstanceHardpoints 16 dup(? )
 	WORD ObjectTagID; // Ofs 0x3BF     dw ?
 	WORD RotGunAngles[2];
 	WORD RotBeamAngles[2];
@@ -199,23 +213,6 @@ struct CraftInstance {
 };
 
 static_assert(sizeof(CraftInstance) == 0x3F9, "size of ObjectEntry must be 39");
-
-/*
-00000000 CraftInstanceHardpoints struc ; (sizeof=0xE, mappedto_294)
-00000000                                         ; XREF: FF005D0F/o
-00000000                                         ; Craft/r ...
-00000000 ProjectileType  dw ?
-00000002 WeaponType      db ?
-00000003 LaserIndex      db ?
-00000004 Energy          db ?
-00000005 Count           db ?
-00000006 TurretCooldown  dw ?
-00000008 MeshID          db ?
-00000009 HardpointID     db ?
-0000000A TurretTargetIndex dw ?
-0000000C TurretTargetSearchCooldown dw ?
-0000000E CraftInstanceHardpoints ends
-*/
 
 struct RotationMatrix3D
 {
@@ -358,8 +355,13 @@ struct PlayerDataEntry
 	__int16 craftMemory2;
 	__int16 craftMemory3;
 	__int16 craftMemory4;
-	char primarySecondaryArmed;
-	char warheadArmed;
+	char primarySecondaryArmed; // 0 if primary weapon armed, 1 if secondary weapon (lasers or warheads) armed
+	char warheadArmed; // 0 if warheads are not armed, 1 if any warhead group is armed
+	// primarySec,   warHead,	Meaning:
+	//		0			0		Lasers Armed
+	//		1			0		Ion Cannons Armed
+	//		0			1		Primary Warheads Armed
+	//		1			1		Secondary Warheads Armed
 	__int16 componentTargetIndex;
 	__int16 field_37;
 	__int16 engineWashCraftIndex;
@@ -1066,7 +1068,7 @@ struct PlayerDataEntry
 	__int16 _RelatedToCamera_;  // 0xb87
 	__int16 externalCamera;     // 0xb89
 	int externalCameraDistance; // 0xb8b
-	__int16 field_B8F;
+	__int16 FlyByCameraTime;    // Starts at 0 when Alt-J is pressed and goes all the way to ~1175 before being reset to 0
 	char field_B91;
 	char field_B92;
 	char field_B93;

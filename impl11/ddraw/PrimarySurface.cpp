@@ -1,4 +1,4 @@
-// Copyright (c) 2014 Jérémy Ansel
+ï»¿// Copyright (c) 2014 Jï¿½rï¿½my Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -34,6 +34,7 @@ const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 extern uint32_t *g_playerInHangar;
+bool g_bPrevPlayerInHangar = false;
 #define GENERIC_POV_SCALE 44.0f
 // These values match MXvTED exactly:
 const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
@@ -49,8 +50,12 @@ auto g_hudScale = (float *)0x06002B8;
 extern int *s_XwaGlobalLightsCount;
 extern XwaGlobalLight* s_XwaGlobalLights;
 extern Matrix4 g_CurrentHeadingViewMatrix;
+const auto missionIndexLoaded = (int *)0x9F5E74;
 
-extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled;
+extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
+
+extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
+extern TrackerType g_TrackerType;
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -74,6 +79,9 @@ bool LoadFocalLength();
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 Matrix4 g_ReflRotX;
+
+// Text Rendering
+TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
@@ -110,9 +118,10 @@ extern int g_iNumDCElements;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern bool g_bDCIgnoreEraseCommands, g_bToggleEraseCommandsOnCockpitDisplayed;
-extern bool g_bEdgeEffectApplied;
+extern bool g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
+extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
+extern DCElemSrcBoxes g_DCElemSrcBoxes;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
@@ -164,6 +173,7 @@ extern std::vector<Vector4> g_OBJLimits;
 bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
+extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
 extern int g_iNumSunCentroids;
 
 extern VertexShaderCBuffer g_VSCBuffer;
@@ -177,7 +187,8 @@ extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
 extern int g_WindowWidth, g_WindowHeight;
 extern D3D11_VIEWPORT g_nonVRViewport;
 
-
+// DS2 Effects
+extern int g_iReactorExplosionCount;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
@@ -190,17 +201,21 @@ extern float g_fMinPositionX, g_fMaxPositionX;
 extern float g_fMinPositionY, g_fMaxPositionY;
 extern float g_fMinPositionZ, g_fMaxPositionZ;
 extern float g_fFrameTimeRemaining;
+extern float g_fSteamVRMirrorWindow3DScale, g_fSteamVRMirrorWindowAspectRatio;
 extern Vector3 g_headCenter;
-extern bool g_bReshadeEnabled;
-extern int g_iFreePIESlot;
+extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
+extern vr::IVRSystem *g_pHMD;
+extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
+extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
+bool g_bTogglePostPresentHandoff = false, g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableHeadLights;
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
-float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 1500.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
-float g_fHeadLightsAutoTurnOnThreshold = 0.1f;
+float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+bool g_bHeadLightsAutoTurnOn = true;
 
 // Bloom
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
@@ -315,8 +330,8 @@ void DumpGlobalLights()
 	//DumpXwaTransform("ViewTransform", ViewTransform);
 	//DumpXwaTransform("WorldTransform", WorldTransform);
 
-	//for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
-	int i = 0;
+	for (int i = 0; i < *s_XwaGlobalLightsCount; i++)
+	//int i = 0;
 	{
 		log_debug("[DBG] ***************************");
 		//str << std::endl;
@@ -464,6 +479,37 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 }
 */
 
+void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
+	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
+	bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
+	bool RightKey = (GetAsyncKeyState(VK_RIGHT) & 0x8000) == 0x8000;
+	bool UpKey = (GetAsyncKeyState(VK_UP) & 0x8000) == 0x8000;
+	bool DownKey = (GetAsyncKeyState(VK_DOWN) & 0x8000) == 0x8000;
+
+	if (LeftKey)
+		fake_yaw -= 1.0f;
+	if (RightKey)
+		fake_yaw += 1.0f;
+
+	if (UpKey)
+		fake_pitch += 1.0f;
+	if (DownKey)
+		fake_pitch -= 1.0f;
+
+	*yaw = fake_yaw;
+	*pitch = fake_pitch;
+	*roll = fake_roll;
+}
+
+/*
+ * Returns the current yaw, pitch in PlayerDataTable in degrees
+ */
+void GetFakeYawPitchRollFromMouseLook(float *yaw, float *pitch, float *roll) {
+	*yaw   = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw   / 65536.0f * 360.0f;
+	*pitch =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+	*roll  =  0.0f;
+}
+
 struct MainVertex
 {
 	float pos[2];
@@ -569,21 +615,22 @@ void ComputeHyperFOVParams() {
 			g_bYCenterHasBeenFixed = true;
 		}
 		else
-			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED TO COMPUTE Y_CENTER. WILL RETRY.");
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED COMPUTE Y_CENTER. WILL RETRY. Frame: %d", g_iPresentCounter);
 		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
 		// come back to this path on the next frame where a reticle is visible.
 	}
 	
 	if (!g_bYCenterHasBeenFixed) {
-		// Provide a default value if we couldn't compute y_center
+		// Provide a default value if we couldn't compute y_center:
 		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 0.0f; // I can't do this because the cockpits look wrong in the hangar. They look skewed
 	}
 	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
 
 	// Compute the aspect-ratio fix factors
 	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
 	if (g_bUseSteamVR)
-		g_fWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+		g_fWindowAspectRatio = max(1.0f, (float)g_steamVRWidth / (float)g_steamVRHeight);
 	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
 	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
 	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
@@ -592,9 +639,7 @@ void ComputeHyperFOVParams() {
 	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
 
 	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
-		y_center_raw, FOVscale_raw,
-		g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio,
-		bFixFactors, comp_factor);
+		y_center_raw, FOVscale_raw, g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors, comp_factor);
 
 	// Compute the compensated FOV and y_center:
 	g_fFOVscale = comp_factor * FOVscale_raw;
@@ -655,11 +700,46 @@ void ComputeHyperFOVParams() {
 	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
+		}
+		else {
+			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
+			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
+			// we need to trust that the user will set the current desktop resolution to the HMD's 
+			// resolution. So let's use the desktop's resolution to compensate for aspect ratio in
+			// SBS mode:
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_WindowHeight / (float)g_WindowWidth;
+		}
+	}
+
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			if (g_config.AspectRatioPreserved) {
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			}
+		}
+		else {
+			// DirectSBS path
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+		}
+	}
+
 	// We just modified the Metric Reconstruction parameters, let's reapply them
 	g_bMetricParamsNeedReapply = true;
 
-	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f",
-		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV);
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, mr_aspect_ratio: %0.3f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV, 
+		g_MetricRecCBuffer.mr_aspect_ratio, g_iPresentCounter);
 
 	// DEBUG
 	//static bool bFirstTime = true;
@@ -1385,10 +1465,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
 	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
 	// use it as input in the shader
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-		0, BACKBUFFER_FORMAT);
-	//context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-	//	0, BACKBUFFER_FORMAT);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, BACKBUFFER_FORMAT);
+	}
+	else {
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
+			0, BACKBUFFER_FORMAT);
+	}
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -1436,8 +1520,11 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	
 	float aspect_ratio = 1.0f;
 	if (g_bRendering3D) {
-		// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
-		aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		if (g_fSteamVRMirrorWindowAspectRatio > 0.01f)
+			aspect_ratio = g_fSteamVRMirrorWindowAspectRatio;
+		else
+			// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
+			aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
 		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
 		/*
 		if (!g_config.AspectRatioPreserved) {
@@ -1461,7 +1548,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? 0.7f : 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
@@ -1470,8 +1557,12 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
-	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
-	//resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	if (g_bSteamVRMirrorWindowLeftEye) {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	}
+	else {
+		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	}
 	context->DrawIndexed(6, 0, 0);
 
 #ifdef DBG_VR
@@ -1897,10 +1988,7 @@ void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR c
 int PrimarySurface::ClearHUDRegions() {
 	D3D11_VIEWPORT viewport = { 0 };
 	int num_regions_erased = 0;
-	// Ignore the "erase_region" commands if the global toggle is set:
-	if (g_bDCIgnoreEraseCommands)
-		return num_regions_erased;
-
+	
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
 	viewport.Width    = (float )_deviceResources->_backbufferWidth;
@@ -1970,7 +2058,7 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.z_override        = -1.0f;
 	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override   = -1.0f;
-	g_VSCBuffer.cockpit_threshold = -1.0f;
+	g_VSCBuffer.apply_uv_comp     =  g_bEnableVR;
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform    =  0.0f;
 	if (g_bEnableVR) {
@@ -1988,7 +2076,7 @@ void PrimarySurface::DrawHUDVertices() {
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.scale_override    = 1.0f;
+	g_VSCBuffer.scale_override	  = g_fGUIElemsScale;
 
 	g_PSCBuffer.brightness		  = 1.0f;
 	g_PSCBuffer.bUseCoverTexture  = 0;
@@ -2352,6 +2440,17 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	Vector4 light;
 	int i;
 
+	if (g_bHeadLightsAutoTurnOn) {
+		if (*s_XwaGlobalLightsCount == 0) {
+			//log_debug("[DBG] AUTO Turning headlights ON");
+			g_bEnableHeadLights = true;
+		}
+		else {
+			//log_debug("[DBG] AUTO Turning headlights OFF");
+			g_bEnableHeadLights = false;
+		}
+	}
+
 	/*
 	if (g_bOverrideLightPos) {
 		for (int i = 0; i < 2; i++) {
@@ -2373,9 +2472,16 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	float maxIntensity = -1.0;
 	int maxIdx = -1, maxLights = min(MAX_XWA_LIGHTS, *s_XwaGlobalLightsCount);
 	float cur_ambient = g_ShadingSys_PSBuffer.ambient;
+	//if (*s_XwaGlobalLightsCount == 0)
+	//	log_debug("[DBG] NO GLOBAL LIGHTS!");
 	if (g_bDumpSSAOBuffers) {
+		if (missionIndexLoaded != nullptr)
+			log_debug("[DBG] Mission: %d", *missionIndexLoaded);
+		else
+			log_debug("[DBG] NULL mission index");
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
+		//DumpGlobalLights();
 	}
 
 	if (g_HyperspacePhaseFSM != HS_HYPER_TUNNEL_ST)
@@ -2461,15 +2567,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
 		g_ShadingSys_PSBuffer.MainLight.z = g_ShadingSys_PSBuffer.LightVector[maxIdx].z;
 		g_ShadingSys_PSBuffer.MainColor   = g_ShadingSys_PSBuffer.LightColor[maxIdx];
-
-		/*
-		if (0.0f < maxIntensity && maxIntensity < g_fHeadLightsAutoTurnOnThreshold) {
-			if (!g_bEnableHeadLights)
-				log_debug("[DBG] Turning headlights ON. Max: %0.3f, Threshold: %0.3f, num lights: %d",
-					maxIntensity, g_fHeadLightsAutoTurnOnThreshold, maxLights);
-			g_bEnableHeadLights = true;
-		}
-		*/
 
 		// If the headlights are on, then replace the main light with the headlight
 		if (g_bEnableHeadLights) {
@@ -4370,10 +4467,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 
 	//#ifdef HYPER_OVERRIDE
-		//iTime += 0.1f;
-		//if (iTime > 2.0f) iTime = 0.0f;
-	if (g_bHyperDebugMode)
-		iTime = g_fHyperTimeOverride;
+		
+	if (g_bHyperDebugMode) {
+		//iTime = g_fHyperTimeOverride;
+
+		static float TimeOverride = 0.0f;
+		TimeOverride += 0.01f;
+		if (TimeOverride > 2.0f) TimeOverride = 0.0f;
+		iTime = TimeOverride;
+	}
 	//#endif
 
 	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
@@ -4426,10 +4528,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
-	if (g_bEnableVR) {
+	/*if (g_bEnableVR) {
 		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
 			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-	}
+	}*/
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	//const int CAPTURE_FRAME = 75; // Hyper-entry
@@ -4461,7 +4563,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bUseSteamVR)
@@ -4497,7 +4599,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->InitVertexShader(resources->_vertexShader);
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -4561,7 +4662,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       = false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR) 
@@ -4576,7 +4677,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		}
 		//g_VSCBuffer.viewportScale[3] = 1.0f;
 		//g_VSCBuffer.viewportScale[3] = g_fGlobalScale;
-		//g_VSCBuffer.post_proj_scale = g_fPostProjScale;
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
@@ -4901,6 +5001,261 @@ void PrimarySurface::RenderFXAA()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+void PrimarySurface::RenderStarDebug()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	//g_ShadertoyBuffer.iTime = 0;
+	//g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+
+	// DEBUG: Display the light at index i:
+	int i = 1;
+	Vector4 xwaLight = Vector4(
+		s_XwaGlobalLights[i].PositionX / 32768.0f,
+		s_XwaGlobalLights[i].PositionY / 32768.0f,
+		s_XwaGlobalLights[i].PositionZ / 32768.0f,
+		0.0f);
+	// Convert the XWA light direction into viewspace coordinates:
+	Vector4 light = g_CurrentHeadingViewMatrix * xwaLight;
+
+	Vector3 L(light.x, light.y, light.z);
+	L *= 65536.0f;
+	Vector3 p = projectMetric(L, g_viewMatrix, g_FullProjMatrixLeft);
+	//log_debug("[DBG] p: %0.3f, %0.3f", p.x, p.y);
+	g_ShadingSys_PSBuffer.MainLight.x = p.x;
+	g_ShadingSys_PSBuffer.MainLight.y = g_bEnableVR ? -p.y : p.y;
+	g_ShadingSys_PSBuffer.MainLight.z = light.z;
+	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
+
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPixelShader(resources->_starDebugPS);
+
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
+	// Render the star centroid
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio = g_fAspectRatio;
+		g_VSCBuffer.z_override = -1.0f;
+		g_VSCBuffer.sz_override = -1.0f;
+		g_VSCBuffer.mult_z_override = -1.0f;
+		g_VSCBuffer.apply_uv_comp = false;
+		g_VSCBuffer.bPreventTransform = 0.0f;
+		g_VSCBuffer.bFullTransform = 0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] = 2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// These are the same settings we used previously when rendering the HUD during a draw() call.
+		// We use these settings to place the HUD at different depths
+		g_VSCBuffer.z_override = g_fHUDDepth;
+		// The Aiming HUD is now visible in external view using the exterior hook, let's put it at
+		// infinity
+		if (bExternalView)
+			g_VSCBuffer.z_override = 65536.0f;
+		if (g_bFloatingAimingHUD)
+			g_VSCBuffer.bPreventTransform = 1.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		//resources->FillReticleVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader);
+		else
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[2] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_ReticleSRV.Get(),
+		};
+		context->PSSetShaderResources(0, 2, srvs);
+		context->Draw(6, 0);
+
+		// Render the right image
+		if (g_bEnableVR) {
+			// VIEWPORT-RIGHT
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				viewport.Width = (float)resources->_backbufferWidth;
+				viewport.TopLeftX = 0.0f;
+			}
+			else {
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+				viewport.TopLeftX = (float)viewport.Width;
+			}
+			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.TopLeftY = 0.0f;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			resources->InitViewport(&viewport);
+			// Set the right projection matrix
+			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+			if (g_bUseSteamVR) {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_ReticleSRV.Get(),
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+			}
+			else {
+				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_ReticleSRV.Get(),
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+			}
+			context->Draw(6, 0);
+		}
+
+		if (!g_bEnableVR)
+			goto out;
+
+		// Second render: If VR mode is enabled, then compose the previous render with the offscreen buffer
+		{
+			// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
+			viewport.TopLeftX = 0.0f;
+			viewport.TopLeftY = 0.0f;
+			viewport.Width = g_fCurScreenWidth;
+			viewport.Height = g_fCurScreenHeight;
+			viewport.MaxDepth = D3D11_MAX_DEPTH;
+			viewport.MinDepth = D3D11_MIN_DEPTH;
+			resources->InitViewport(&viewport);
+
+			// Reset the vertex shader to regular 2D post-process
+			// Set the Vertex Shader Constant buffers
+			resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+				0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+			// Set/Create the VertexBuffer and set the topology, etc
+			UINT stride = sizeof(MainVertex), offset = 0;
+			resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+			resources->InitInputLayout(resources->_mainInputLayout);
+			resources->InitVertexShader(resources->_mainVertexShader);
+
+			// Reset the UV limits for this shader
+			GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+			g_ShadertoyBuffer.x0 = x0;
+			g_ShadertoyBuffer.y0 = y0;
+			g_ShadertoyBuffer.x1 = x1;
+			g_ShadertoyBuffer.y1 = y1;
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+			g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+			resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+			resources->InitPixelShader(resources->_addGeomComposePS);
+
+			// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
+			// to _shadertoyBuf to use it now:
+			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR)
+				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+
+			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+			ID3D11RenderTargetView *rtvs[1] = {
+				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
+			};
+			context->OMSetRenderTargets(1, rtvs, NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[2] = {
+				resources->_offscreenAsInputShaderResourceView.Get(), // The current render
+				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
+			};
+			context->PSSetShaderResources(0, 2, srvs);
+			context->Draw(6, 0);
+
+			// TODO: Post-process the right image in SteamVR
+			if (g_bUseSteamVR) {
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+				ID3D11RenderTargetView *rtvs[1] = {
+					resources->_renderTargetViewPostR.Get(),
+				};
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				// Set the SRVs:
+				ID3D11ShaderResourceView *srvs[2] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
+					resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
+				};
+				context->PSSetShaderResources(0, 2, srvs);
+				context->Draw(6, 0);
+			}
+		}
+	}
+
+out:
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore previous rendertarget, etc
+	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+}
+
 /*
  * The large FOV needed for VR causes the reticle to become huge as well. This shader is being reused
  * to resize the reticle to a more reasonable size in VR. It may also help in reducing the distortion
@@ -4925,6 +5280,12 @@ void PrimarySurface::RenderExternalHUD()
 	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
+
+	// DEBUG
+	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
+	//resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	//resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
+	// DEBUG
 
 	//float sz, rhw;
 	//ZToDepthRHW(g_fHUDDepth, &sz, &rhw);
@@ -5052,7 +5413,7 @@ void PrimarySurface::RenderExternalHUD()
 		g_VSCBuffer.z_override        = -1.0f;
 		g_VSCBuffer.sz_override       = -1.0f;
 		g_VSCBuffer.mult_z_override   = -1.0f;
-		g_VSCBuffer.cockpit_threshold = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bEnableVR)
@@ -5419,6 +5780,15 @@ void PrimarySurface::RenderSpeedEffect()
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderScaleFactor;
 
+	/*
+	viewMode1 and viewMode2 both become 18 in external view and 0 in cockpit view.
+	They don't change when fly-by camera is active
+	log_debug("[DBG] RelatedToCamera: %d, viewMode1: %d viewMode2: %d",
+		PlayerDataTable[*g_playerIndex]._RelatedToCamera_,
+		PlayerDataTable[*g_playerIndex].viewMode1,
+		PlayerDataTable[*g_playerIndex].viewMode2);
+	*/
+
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
@@ -5557,7 +5927,7 @@ void PrimarySurface::RenderSpeedEffect()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -5995,7 +6365,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		if (g_bEnableVR)
 		{
@@ -6736,7 +7106,7 @@ void PrimarySurface::RenderShadowMapOBJ()
 void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v) {
 	/*
 	 * The following circus happens because the vertex buffer we're using to render the flare
-	 * is at ~21km away. We want it there, so that it's at "infinity". So we need to trace a ray
+	 * is at ~22km away. We want it there, so that it's at "infinity". So we need to trace a ray
 	 * from the camera through the Centroid and then extend that until it intersects the vertex
 	 * buffer at that depth. Then we compute the UV coords of the intersection and use that for
 	 * the shader. This should avoid visual artifacts in SteamVR because we're using an actual 3D
@@ -6818,6 +7188,9 @@ void PrimarySurface::RenderSunFlare()
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	if (g_bEnableVR) {
 		float u, v;
+		if (bDirectSBS)
+			g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth / 2.0f;
+
 		// This is a first step towards having multiple flares; but more work is needed
 		// because flares are blocked depending on stuff that lies in front of them, so
 		// we can't render all flares on the same go. It has to be done one by one, eye
@@ -6828,16 +7201,34 @@ void PrimarySurface::RenderSunFlare()
 			Centroid.x = g_ShadertoyBuffer.SunCoords[i].x;
 			Centroid.y = g_ShadertoyBuffer.SunCoords[i].y;
 			Centroid.z = g_ShadertoyBuffer.SunCoords[i].z;
-			// To keep the TagXwaLights working in non-VR space even when VR is enabled,
+			// To keep TagXwaLights() working in non-VR space even when VR is enabled,
 			// the centroid is always stored in the nonVR coord sys. For VR, we need to 
 			// flip the Y coord:
 			if (g_bEnableVR) Centroid.y = -Centroid.y;
+			/*
 			ProjectCentroidToPostProc(Centroid, &u, &v);
+			*/
+			
+			// The Sun Centroid is in in-game coords, convert to the range [-1..1]:
+			u = (g_SunCentroids2D[i].x / g_fCurInGameWidth - 0.5f) * 2.0f;
+			v = (g_SunCentroids2D[i].y / g_fCurInGameHeight - 0.5f) * 2.0f;
+			if (bDirectSBS) {
+				v *= g_fCurScreenHeight / (g_fCurScreenWidth / 2.0f);
+			}
+			else {
+				// SteamVR mode
+				if (g_steamVRWidth < g_steamVRHeight)
+					v *= (float)g_steamVRHeight / (float)g_steamVRWidth;
+				else
+					u *= (float)g_steamVRWidth / (float)g_steamVRHeight;
+			}
+
 			// Overwrite the centroid with the new 2D coordinates for the left/right images.
 			// In VR mode, these UVs are *the same* for both eyes because they are defined
 			// with respect to distant the hyperspace VB. This is *not* a bug.
 			g_ShadertoyBuffer.SunCoords[i].x = u;
 			g_ShadertoyBuffer.SunCoords[i].y = v;
+
 			// Also project the centroid to 2D directly -- we'll need that during the compose pass
 			// to mask the flare. In VR mode, projectToInGameCoordsMetric produces post-proc
 			// coords, not in-game coords
@@ -6853,6 +7244,13 @@ void PrimarySurface::RenderSunFlare()
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+
+#ifdef GENMIPMAPS_DEBUG
+	// DEBUG
+	// An easy way to check if the mip maps are being generated is by calling GenerateMipMaps here and then sampling
+	// a higher level in the sun flare shader.
+	context->GenerateMips(resources->_offscreenAsInputShaderResourceView);
+#endif
 
 	// Render the Sun Flare
 	// output: _offscreenBufferPost, _offscreenBufferPostR
@@ -6884,7 +7282,7 @@ void PrimarySurface::RenderSunFlare()
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.cockpit_threshold	= -1.0f;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
 		if (g_bEnableVR)
@@ -6976,13 +7374,11 @@ void PrimarySurface::RenderSunFlare()
 		}
 	}
 	
-	/*
 	if (g_bDumpSSAOBuffers) {
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPost-1.png");
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
 		if (g_bUseSteamVR)
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_offscreenBufferPostR-1.png");
+			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlareR.png");
 	}
-	*/
 
 	// Post-process: compose the flare on top of the offscreen buffers
 	if (g_bEnableVR)
@@ -7085,7 +7481,7 @@ void DisplayACAction(WORD *scanCodes);
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void PrimarySurface::ACRunAction(WORD *action) {
+void ACRunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -7098,6 +7494,16 @@ void PrimarySurface::ACRunAction(WORD *action) {
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
+		return;
+	}
+
+	// Special internal action: these actions don't need to synthesize any input
+	if (action[0] == 0xFF) {
+		switch (action[1]) {
+		case AC_HOLOGRAM_FAKE_VK_CODE:
+			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		}
 		return;
 	}
 
@@ -7180,6 +7586,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
 	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
+	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
+	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
+	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
 	// Detect triggers:
 	if (g_bACLastTriggerState && !g_bACTriggerState)
 		g_bACActionTriggered = true;
@@ -7466,7 +7875,7 @@ out:
 */
 }
 
-void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
+void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
 	static uint32_t lastButtonsPressed = 0x0;
 	WORD events[6];
 
@@ -7528,7 +7937,175 @@ void PrimarySurface::ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint3
 	lastButtonsPressed = buttonsPressed;
 }
 
+/*
+ * Compute the current view matrices from SteamVR or FreePIE and store them in
+ * g_VSMatrixCB.viewMat, and g_VSMatrixCB.fullViewMat = rotMatrixFull.
+ * This function also updates the laser pointer (this is mostly "TO-DO" at the moment)
+ */
+void UpdateViewMatrix()
+{
+	float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+	float x = 0.0f, y = 0.0f, z = 0.0f;
+	static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
 
+	// Enable roll (formerly this was 6dof)
+	if (g_bUseSteamVR) {
+		Matrix3 rotMatrix;
+
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
+		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
+		roll  *= RAD_TO_DEG * g_fRollMultiplier;
+
+		// DEBUG
+		if (g_bSteamVRYawPitchRollFromMouseLook)
+			GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
+		// DEBUG
+
+		yaw   += g_fYawOffset;
+		pitch += g_fPitchOffset;
+
+		// Compute the full rotation
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+		// Transform the absolute head position into a relative position. This is
+		// needed because the game will apply the yaw/pitch on its own. So, we need
+		// to undo the yaw/pitch transformation by computing the inverse of the
+		// rotation matrix. Fortunately, rotation matrices can be inverted with a
+		// simple transpose.
+		rotMatrix.invert();
+
+		g_viewMatrix.identity();
+		g_viewMatrix.rotateZ(roll);
+		
+		// viewMat is not a full transform matrix: it's only RotZ
+		// because the cockpit hook already applies the yaw/pitch rotation
+		g_VSMatrixCB.viewMat = g_viewMatrix;
+		g_VSMatrixCB.fullViewMat = rotMatrixFull;
+	}
+	else 
+	{
+		// non-VR and DirectSBS modes, read the roll and position from FreePIE
+		//static Vector4 headCenterPos(0, 0, 0, 0);
+
+		// Read yaw/pitch/roll from FreePIE
+		if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+			if (g_bResetHeadCenter) {
+				home_yaw   = g_FreePIEData.yaw;
+				home_pitch = g_FreePIEData.pitch;
+				home_roll  = g_FreePIEData.roll;
+				g_bResetHeadCenter = false;
+			}
+			yaw   =  (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
+			pitch = -(g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+			roll  =  (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
+
+		}
+
+		if (g_bYawPitchFromMouseOverride) {
+			// If FreePIE could not be read, then get the yaw/pitch from the mouse:
+			yaw   =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
+			pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
+		}
+
+		if (g_bEnableVR) {
+			// If we're rendering 2D, then the PlayerDataTable camera will not be updated by the mouse hook,
+			// so we need to use the yaw,pitch,roll coming from FreePIE. But if we're doing 3D rendering, then
+			// the hook should've updated the cockpit/external camera and we can read it here:
+			if (g_bRendering3D && !g_playerInHangar) {
+				if (PlayerDataTable[*g_playerIndex].externalCamera) {
+					yaw   = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
+				}
+				else {
+					yaw   = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
+					pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
+				}
+			}
+
+			// Compute the rotation matrices with the current yaw, pitch, roll:
+			Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+			rotMatrixFull.identity();
+			rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
+			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
+			rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
+
+			// For the fixed GUI, yaw has to be like this:
+			rotMatrixFull.rotateY(yaw);
+			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
+			rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
+			// Can we avoid computing the matrix inverse?
+			rotMatrixYaw.invert();
+
+			g_viewMatrix.identity();
+			g_viewMatrix.rotateZ(roll);
+			//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
+
+			// viewMat is not a full transform matrix: it's only RotZ + Translation
+			// because the cockpit hook already applies the yaw/pitch rotation
+			g_VSMatrixCB.viewMat = g_viewMatrix;
+			g_VSMatrixCB.fullViewMat = rotMatrixFull;
+		}
+	}
+
+	if (g_bResetHeadCenter)
+		g_bResetHeadCenter = false;
+
+	// At this point, yaw, pitch, roll contain the data read from either SteamVR or FreePIE.
+	// We can use these values to apply head tracking to the hangar.
+	// The reason we have to do this here is because the hangar does not activate the regular
+	// mouse look hook.
+	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR) && *g_playerInHangar) {
+		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+		
+		// For the DirectSBS mode we need to invert the yaw:
+		if (g_TrackerType == TRACKER_FREEPIE)
+			yaw = -yaw;
+
+		if (bExternalCamera) {
+			PlayerDataTable[*g_playerIndex].cameraYaw = -(short )((yaw / 360.0f) * 65535.0f);
+			PlayerDataTable[*g_playerIndex].cameraPitch = (short)((pitch / 360.0f) * 65535.0f);
+		}
+		else {
+			PlayerDataTable[*g_playerIndex].cockpitCameraYaw = -(short)((yaw / 360.0f) * 65535.0f);
+			PlayerDataTable[*g_playerIndex].cockpitCameraPitch = (short)((pitch / 360.0f) * 65535.0f);
+		}
+	}
+
+	/*
+	// Read the controller's position from FreePIE
+	if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
+		if (g_bResetHeadCenter && !g_bOriginFromHMD) {
+			headCenterPos[0] = g_FreePIEData.x;
+			headCenterPos[1] = g_FreePIEData.y;
+			headCenterPos[2] = g_FreePIEData.z;
+		}
+		g_contOriginWorldSpace.x = g_FreePIEData.x - headCenterPos.x;
+		g_contOriginWorldSpace.y = g_FreePIEData.y - headCenterPos.y;
+		g_contOriginWorldSpace.z = g_FreePIEData.z - headCenterPos.z;
+		g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
+		if (g_bFreePIEControllerButtonDataAvailable) {
+			uint32_t buttonsPressed = *((uint32_t*)&(g_FreePIEData.yaw));
+			uint32_t axis0 = *((uint32_t*)&g_FreePIEData.pitch);
+			uint32_t axis1 = *((uint32_t*)&g_FreePIEData.roll);
+			ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
+			//g_bACTriggerState = buttonsPressed != 0x0;
+		}
+	}
+	*/
+
+	// Update the laser pointer position.
+	g_contOriginViewSpace = g_contOriginWorldSpace;
+	g_contDirViewSpace = g_contDirWorldSpace;
+	// In VR mode, the y-axis of the laser pointer is flipped with respect to the non-VR path:
+	if (g_bEnableVR)
+		g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
+}
 
 HRESULT PrimarySurface::Flip(
 	LPDIRECTDRAWSURFACE lpDDSurfaceTargetOverride,
@@ -7612,7 +8189,7 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
-			bool bInTechRoom = (g_iDrawCounter > 0);
+			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
 			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
@@ -7620,8 +8197,7 @@ HRESULT PrimarySurface::Flip(
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.
 			// This is only needed in VR mode:
-			if (g_bEnableVR && bInTechRoom)
-			//if (g_bEnableVR && bFirstTime)
+			if (g_bEnableVR && g_bInTechRoom)
 			{
 				//float y_center_temp = g_MetricRecCBuffer.mr_y_center;
 				*g_fRawFOVDist = 256.0f;
@@ -7646,6 +8222,59 @@ HRESULT PrimarySurface::Flip(
 				//g_MetricRecCBuffer.mr_y_center = y_center_temp;
 				//log_debug("[DBG] Initializing 2D Metric Params");
 			}
+
+			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
+			// on the next frame
+			UpdateViewMatrix(); // VR in TechRoom
+#ifdef DISABLED
+			//if (g_bEnableVR)
+			{
+				float yaw, pitch, roll, x,y,z;
+				Matrix3 rotMatrix;
+
+				if (g_bUseSteamVR) {
+					GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+					// We need to multiply the yaw and pitch in SteamVR mode to invert the rotation
+					yaw   *= RAD_TO_DEG * g_fYawMultiplier * -1.0f;
+					pitch *= RAD_TO_DEG * g_fPitchMultiplier * -1.0f;
+					roll  *= RAD_TO_DEG * g_fRollMultiplier;
+					yaw   += g_fYawOffset;
+					pitch += g_fPitchOffset;
+				}
+				else {
+					// DirectSBS case
+					static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
+					// Read yaw/pitch/roll from FreePIE
+					if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
+						if (g_bResetHeadCenter) {
+							home_yaw   = g_FreePIEData.yaw;
+							home_pitch = g_FreePIEData.pitch;
+							home_roll  = g_FreePIEData.roll;
+							g_bResetHeadCenter = false;
+						}
+						yaw   = (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
+						pitch = (g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+						roll  = (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
+					}
+				}
+
+				// DEBUG
+				/*
+				GetFakeYawPitchRollFromKeyboard(&yaw, &pitch, &roll);
+				*/
+				// DEBUG
+
+				// Compute the full rotation
+				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+				rotMatrixFull.identity();
+				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(g_f2DYawMul * yaw);
+				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(g_f2DPitchMul * pitch);
+				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(g_f2DRollMul * roll);
+				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+				g_VSMatrixCB.fullViewMat = rotMatrixFull;
+			}
+#endif
 
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
 			{
@@ -7891,6 +8520,7 @@ HRESULT PrimarySurface::Flip(
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
 						else {
+							// Non-VR path
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 						}
 					}
@@ -7910,32 +8540,13 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					if (g_bRendering3D) {
-						// We're about to switch from 3D to 2D rendering --> This means we're in the Tech Library (?)
-						// Let's clear the render target for the next iteration or we'll get multiple images during
-						// the animation
-						auto &context = this->_deviceResources->_d3dDeviceContext;
-						float bgColor[4] = { 0, 0, 0, 0 };
-						context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-						if (g_bUseSteamVR) {
-							context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-							context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-						}
-						//log_debug("[DBG] In Tech Library, external cam: %d", PlayerDataTable[*g_playerIndex].externalCamera);
-					}
 
-					if (g_bUseSteamVR) {					
+					if (g_bUseSteamVR) {
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-						if (g_bSteamVRDistortionEnabled) {
-							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-						}
-						else {
-							error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-							error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-						}
+						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
 					
 					g_bRendering3D = false;
@@ -7976,10 +8587,25 @@ HRESULT PrimarySurface::Flip(
 					}
 
 					if (g_bUseSteamVR) {
-						g_pVRCompositor->PostPresentHandoff();
-						WaitGetPoses();
-					}		
+						if (g_bTogglePostPresentHandoff)
+							g_pVRCompositor->PostPresentHandoff();
+					}
 				}
+
+				// Clear the RTVs for the next frame
+				{
+					// We're about to switch from 3D to 2D rendering.
+					// Let's clear the render target for the next iteration or we'll get multiple images during
+					// the animation
+					auto &context = this->_deviceResources->_d3dDeviceContext;
+					float bgColor[4] = { 0, 0, 0, 0 };
+					context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+					if (g_bUseSteamVR) {
+						context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
+						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
+					}
+				}
+
 			}
 			else
 			{
@@ -8010,6 +8636,7 @@ HRESULT PrimarySurface::Flip(
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 		const bool bMapOFF = PlayerDataTable[*g_playerIndex].mapState == 0;
 		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].cameraFG;
+		int FlyByCameraTime = PlayerDataTable[*g_playerIndex].FlyByCameraTime;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
@@ -8017,9 +8644,23 @@ HRESULT PrimarySurface::Flip(
 		//PlayerDataTable[*g_playerIndex].cameraPitch += 15 * *mouseLook_Y;
 		//yaw += 600;
 		//log_debug("[DBG] roll: %0.3f", PlayerDataTable[*g_playerIndex].roll / 32768.0f * 180.0f);
-		// This looks like it's always 0:
-		//log_debug("[DBG] els Lasers: %d, Shields: %d, Beam: %d",
-		//	PlayerDataTable[*g_playerIndex].elsLasers, PlayerDataTable[*g_playerIndex].elsShields, PlayerDataTable[*g_playerIndex].elsBeam);
+		/*
+		if (*g_playerInHangar) 
+		{
+			static int yaw = 0;
+			yaw += 256;
+			log_debug("[DBG] yaw: %0.3f", (float)yaw / 65536.0f);
+			if (bExternalCamera) {
+				PlayerDataTable[*g_playerIndex].cameraYaw = yaw;
+			}
+			else {
+				PlayerDataTable[*g_playerIndex].cockpitCameraYaw = yaw;
+			}
+
+			if (yaw > 65535)
+				yaw -= 65535;
+		}
+		*/
 
 		if (this->_deviceResources->_swapChain)
 		{
@@ -8046,8 +8687,18 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled)
 				this->RenderRadar();
 
-			if (g_config.Text2DRendererEnabled)
+			if (g_config.Text2DRendererEnabled) {
+				/*
+				short x = 250, y = 260;
+				x = AddText("Hello ", 0, x, y, 0x5555FF);
+				x = AddText("Weird ", 1, x, y, 0x5555FF);
+				x = AddText("World ", 2, x, y, 0x5555FF);
+				*/
+				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
+				// The following text gets captured as part of the missile count DC element:
+				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
 				this->RenderText();
+			}
 
 			// If we didn't render any GUI/HUD elements so far, then here's the place where we do some management
 			// of the state that is normally done in Execute():
@@ -8163,6 +8814,12 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 				}
+
+#ifdef GENMIPMAPS
+				context->GenerateMips(resources->_depthBufSRV);
+				if (g_bUseSteamVR)
+					context->GenerateMips(resources->_depthBufSRV_R);
+#endif
 
 				// We need to set the blend state properly for SSAO
 				D3D11_BLEND_DESC blendDesc{};
@@ -8360,10 +9017,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 				this->RenderBracket();
 
-//#if EXTERNAL_HUD
-			// Draw the external HUD on top of everything else
-			// ORIGINAL
-			//if (PlayerDataTable[*g_playerIndex].externalCamera && g_config.ExternalHUDEnabled) 
+			// Draw the reticle on top of everything else
 			if (g_bExternalHUDEnabled || g_bEnableVR)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
@@ -8394,14 +9048,43 @@ HRESULT PrimarySurface::Flip(
 				RenderExternalHUD();
 			}
 
-//#endif
+			if (g_bStarDebugEnabled)
+			{
+				// We need to set the blend state properly for Bloom, or else we might get
+				// different results when brackets are rendered because they alter the 
+				// blend state
+				D3D11_BLEND_DESC blendDesc{};
+				blendDesc.AlphaToCoverageEnable = FALSE;
+				blendDesc.IndependentBlendEnable = FALSE;
+				blendDesc.RenderTarget[0].BlendEnable = TRUE;
+				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+				hr = resources->InitBlendState(nullptr, &blendDesc);
+
+				// Temporarily disable ZWrite: we won't need it to display Bloom
+				D3D11_DEPTH_STENCIL_DESC desc;
+				ComPtr<ID3D11DepthStencilState> depthState;
+				desc.DepthEnable = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+
+				RenderStarDebug();
+			}
 
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
 			// on the first frame (sometimes it can happen and it's quite visible/ugly)
 			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && bMapOFF &&
 				(!bExternalCamera || (bExternalCamera && *g_playerIndex == cameraObjIdx)) &&
-				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST))
+				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) &&
+				FlyByCameraTime == 0)
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
@@ -8588,10 +9271,8 @@ HRESULT PrimarySurface::Flip(
 			//if (true)
 			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
-				// Ignore DC erase commands if the cockpit is hidden
-				if (g_bToggleEraseCommandsOnCockpitDisplayed) g_bDCIgnoreEraseCommands = !bCockpitDisplayed;
 				// If we're not in external view, then clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled && !bExternalCamera)
+				if (g_bDynCockpitEnabled && g_bDCApplyEraseRegionCommands && !bExternalCamera)
 					ClearHUDRegions();
 
 				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file
@@ -8606,6 +9287,7 @@ HRESULT PrimarySurface::Flip(
 				// So, we're going to call DrawHUDVertices to set the state; but skip the Draw() calls if all
 				// HUD regions were erased
 				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
+
 				DrawHUDVertices();
 			}
 
@@ -8752,6 +9434,18 @@ HRESULT PrimarySurface::Flip(
 				g_bEdgeEffectApplied = false;
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
+				g_iReactorExplosionCount = 0;
+
+				// Reset the frame counter if we just exited the hangar
+				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
+					g_iPresentCounter = 0;
+					log_debug("[DBG] EXITED HANGAR");
+				}
+				g_bPrevPlayerInHangar = *g_playerInHangar;
+				// Force recomputation of y_center at the beginning of each match, or after exiting the hangar
+				if (g_iPresentCounter == 5)
+					g_bYCenterHasBeenFixed = false;
+
 				if (g_bTriggerReticleCapture) {
 					//DisplayBox("Reticle Limits: ", g_ReticleCenterLimits);
 					log_debug("Reticle Centroid: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y);
@@ -8800,10 +9494,10 @@ HRESULT PrimarySurface::Flip(
 			if (!g_bCustomFOVApplied) {
 				log_debug("[DBG] [FOV] [Flip] Applying Custom FOV.");
 
-				switch (g_CurrentFOV) {
+				switch (g_CurrentFOVType) {
 				case GLOBAL_FOV:
 					// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-					log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+					log_debug("[DBG] [FOV] [Flip] GLOBAL_FOV Loading Focal_Length.cfg");
 					if (!LoadFocalLength()) {
 						if (g_bEnableVR) {
 							// We couldn't load the custom FOV and we're running in VR mode, let's apply
@@ -8824,24 +9518,24 @@ HRESULT PrimarySurface::Flip(
 				case XWAHACKER_FOV:
 					// If the current ship's DC file has a focal length, apply it:
 					if (g_fCurrentShipFocalLength > 0.0f) {
-						log_debug("[DBG] [FOV] [Flip] Applying DC REGULAR Focal Length: %0.3f", g_fCurrentShipFocalLength);
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_FOV Applying DC REGULAR Focal Length: %0.3f", g_fCurrentShipFocalLength);
 						ApplyFocalLength(g_fCurrentShipFocalLength);
 					}
 					else {
 						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_FOV Loading Focal_Length.cfg");
 						LoadFocalLength();
 					}
 					break;
 				case XWAHACKER_LARGE_FOV:
 					// If the current ship's DC file has a focal length, apply it:
 					if (g_fCurrentShipLargeFocalLength > 0.0f) {
-						log_debug("[DBG] [FOV] [Flip] Applying DC LARGE Focal Length: %0.3f", g_fCurrentShipLargeFocalLength);
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_LARGE_FOV Applying DC LARGE Focal Length: %0.3f", g_fCurrentShipLargeFocalLength);
 						ApplyFocalLength(g_fCurrentShipLargeFocalLength);
 					}
 					else {
 						// Loads Focal_Length.cfg and applies the FOV using ApplyFocalLength()
-						log_debug("[DBG] [FOV] [Flip] Loading Focal_Length.cfg");
+						log_debug("[DBG] [FOV] [Flip] XWAHACKER_LARGE_FOV Loading Focal_Length.cfg");
 						LoadFocalLength();
 					}
 					break;
@@ -8918,292 +9612,8 @@ HRESULT PrimarySurface::Flip(
 				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
 			*/
-			
-			// Enable roll (formerly this was 6dof)
-			if (g_bUseSteamVR) {
-				float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
-				float x = 0.0f, y = 0.0f, z = 0.0f;
-				Matrix3 rotMatrix;
-				//Vector3 pos;
-				//static Vector4 headCenter(0, 0, 0, 0);
-				//Vector3 headPos;
-				//Vector3 headPosFromKeyboard(g_HeadPos.x, g_HeadPos.y, g_HeadPos.z);
 
-				GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
-				yaw   *= RAD_TO_DEG * g_fYawMultiplier;
-				pitch *= RAD_TO_DEG * g_fPitchMultiplier;
-				roll  *= RAD_TO_DEG * g_fRollMultiplier;
-				yaw   += g_fYawOffset;
-				pitch += g_fPitchOffset;
-
-				// HACK ALERT: I'm reading the positional tracking data from FreePIE when
-				// running SteamVR because setting up the PSMoveServiceSteamVRBridge is kind
-				// of... tricky; and I'm not going to bother right now since PSMoveService
-				// already works very well for me.
-				// Read the positional data from FreePIE if the right flag is set
-				/*
-				if (g_bSteamVRPosFromFreePIE) {
-					ReadFreePIE(g_iFreePIESlot);
-					if (g_bResetHeadCenter) {
-						headCenter[0] = g_FreePIEData.x;
-						headCenter[1] = g_FreePIEData.y;
-						headCenter[2] = g_FreePIEData.z;
-						g_bResetHeadCenter = false;
-					}
-					x = g_FreePIEData.x - headCenter[0];
-					y = g_FreePIEData.y - headCenter[1];
-					z = g_FreePIEData.z - headCenter[2];
-				}
-				pos.set(x, y, z);
-				headPos = -pos;
-				*/
-
-				// Compute the full rotation
-				Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-				rotMatrixFull.identity();
-				rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-				rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-				rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-				rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-				//rotMatrixFull.invert();
-
-				// Adding headPosFromKeyboard is only to allow the keys to move the cockpit.
-				// g_HeadPos can be removed once positional tracking has been fixed... or 
-				// maybe we can leave it there to test things
-				/*
-				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0];
-				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-				// Limits clamping
-				if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-				if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-				if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-				*/
-
-				// Transform the absolute head position into a relative position. This is
-				// needed because the game will apply the yaw/pitch on its own. So, we need
-				// to undo the yaw/pitch transformation by computing the inverse of the
-				// rotation matrix. Fortunately, rotation matrices can be inverted with a
-				// simple transpose.
-				rotMatrix.invert();
-				//headPos = rotMatrix * headPos;
-
-				g_viewMatrix.identity();
-				g_viewMatrix.rotateZ(roll);
-				/*
-				g_viewMatrix[12] = headPos[0]; 
-				g_viewMatrix[13] = headPos[1];
-				g_viewMatrix[14] = headPos[2];
-				rotMatrixFull[12] = headPos[0];
-				rotMatrixFull[13] = headPos[1];
-				rotMatrixFull[14] = headPos[2];
-				*/
-				// viewMat is not a full transform matrix: it's only RotZ
-				// because the cockpit hook already applies the yaw/pitch rotation
-				g_VSMatrixCB.viewMat = g_viewMatrix;
-				g_VSMatrixCB.fullViewMat = rotMatrixFull;
-			}
-			else // non-VR and DirectSBS modes, read the roll and position from FreePIE
-			{ 
-				//float pitch, yaw, roll, pitchSign = -1.0f;
-				float yaw = 0.0f, pitch = 0.0f, roll = g_fFakeRoll;
-				static Vector4 headCenterPos(0, 0, 0, 0);
-				Vector4 headPos(0,0,0,1);
-				//Vector3 headPosFromKeyboard(-g_HeadPos.x, g_HeadPos.y, -g_HeadPos.z);
-				
-				/*
-				if (g_bResetHeadCenter) {
-					g_HeadPos = { 0 };
-					g_HeadPosAnim = { 0 };
-				}
-				*/
-
-				// Read yaw/pitch/roll
-				if (g_iFreePIESlot > -1 && ReadFreePIE(g_iFreePIESlot)) {
-					if (g_bResetHeadCenter && g_bOriginFromHMD) {
-						headCenterPos.x = g_FreePIEData.x;
-						headCenterPos.y = g_FreePIEData.y;
-						headCenterPos.z = g_FreePIEData.z;
-					}
-					Vector4 pos(g_FreePIEData.x, g_FreePIEData.y, g_FreePIEData.z, 1.0f);
-					headPos = (pos - headCenterPos);
-					roll   += g_FreePIEData.roll  * g_fRollMultiplier; // roll is initialized to g_fFakeRoll, so that's why we add here
-				}
-				else
-					headPos.set(0, 0, 0, 1);
-
-				if (g_iFreePIEControllerSlot > -1 && ReadFreePIE(g_iFreePIEControllerSlot)) {
-					if (g_bResetHeadCenter && !g_bOriginFromHMD) {
-						headCenterPos[0] = g_FreePIEData.x;
-						headCenterPos[1] = g_FreePIEData.y;
-						headCenterPos[2] = g_FreePIEData.z;
-					}
-					g_contOriginWorldSpace.x =  g_FreePIEData.x - headCenterPos.x;
-					g_contOriginWorldSpace.y =  g_FreePIEData.y - headCenterPos.y;
-					g_contOriginWorldSpace.z =  g_FreePIEData.z - headCenterPos.z;
-					g_contOriginWorldSpace.z = -g_contOriginWorldSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-					if (g_bFreePIEControllerButtonDataAvailable) {
-						uint32_t buttonsPressed = *((uint32_t *)&(g_FreePIEData.yaw));
-						uint32_t axis0 = *((uint32_t *)&g_FreePIEData.pitch);
-						uint32_t axis1 = *((uint32_t *)&g_FreePIEData.roll);
-						ProcessFreePIEGamePad(axis0, axis1, buttonsPressed);
-						//g_bACTriggerState = buttonsPressed != 0x0;
-					}
-				}
-				
-				// This section is AC-related -- compensate the cursor's position with the current view
-				// matrix
-				if (g_bCompensateHMDRotation) {
-					// Compensate for cockpit camera rotation and compute g_contOriginViewSpace
-					Matrix4 cockpitView, cockpitViewDir;
-					//GetCockpitViewMatrix(&cockpitView);
-					yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-					pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-
-					Matrix4 rotMatrixYaw, rotMatrixPitch; // , rotMatrixRoll;
-					rotMatrixYaw.identity(); rotMatrixYaw.rotateY(yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					//rotMatrixRoll.identity(); rotMatrixRoll.rotateZ(roll);
-					// I'm not sure the cockpit roll should be applied to the controller's 3D position...
-					cockpitView = /* rotMatrixRoll * */ rotMatrixPitch * rotMatrixYaw;
-
-					switch (g_iLaserDirSelector) 
-					{
-					case 1:
-						cockpitViewDir = cockpitView; // Laser Pointer looks in the same direction as the HMD; but rotates twice as fast
-						break;
-					case 2:
-						cockpitViewDir = cockpitView;
-						cockpitViewDir.invert(); // Laser Pointer direction tends to stay looking forward; but tends to follow the HMD
-						// I think it only follows the HMD because I don't know the actual focal length
-						break;
-					case 3:
-					default:
-						// Follows the HMD's direction keeping the intersection on the same spot.
-						cockpitViewDir.identity();
-						break;
-					}
-					
-					//cockpitViewDir.invert();
-					//cockpitViewDir.identity(); // This will change the direction to match the HMD's orientation
-					Vector4 temp = Vector4(g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, -g_contOriginWorldSpace.z, 1.0f);
-					
-					temp = cockpitView * temp;
-
-					if (g_bCompensateHMDPosition) {
-						g_contOriginViewSpace.x = temp.x - headPos.x;
-						g_contOriginViewSpace.y = temp.y - headPos.y;
-						g_contOriginViewSpace.z = temp.z - headPos.z;
-					}
-					else {
-						g_contOriginViewSpace.x = temp.x;
-						g_contOriginViewSpace.y = temp.y;
-						g_contOriginViewSpace.z = temp.z;
-					}
-
-					g_contOriginViewSpace.z = -g_contOriginViewSpace.z; // The z-axis is inverted w.r.t. the FreePIE tracker
-
-					temp.x = g_contDirWorldSpace.x;
-					temp.y = g_contDirWorldSpace.y;
-					temp.z = g_contDirWorldSpace.z;
-					temp.w = 0.0f;
-					g_contDirViewSpace = cockpitViewDir * temp;
-				}
-				else {
-					g_contOriginViewSpace = g_contOriginWorldSpace;
-					g_contDirViewSpace = g_contDirWorldSpace;
-				}
-				
-				if (g_bYawPitchFromMouseOverride) {
-					// If FreePIE could not be read, then get the yaw/pitch from the mouse:
-					yaw   =  (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 32768.0f * 180.0f;
-					pitch = -(float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 32768.0f * 180.0f;
-				}
-
-				if (g_bResetHeadCenter)
-					g_bResetHeadCenter = false;
-
-				/*
-				headPos[0] = headPos[0] * g_fPosXMultiplier + headPosFromKeyboard[0]; 
-				//headPos[0] = headPos[0] * g_fPosXMultiplier; // HACK to enable roll-with-keyboard
-				headPos[1] = headPos[1] * g_fPosYMultiplier + headPosFromKeyboard[1];
-				headPos[2] = headPos[2] * g_fPosZMultiplier + headPosFromKeyboard[2];
-
-				// Limits clamping
-				if (headPos[0] < g_fMinPositionX) headPos[0] = g_fMinPositionX;
-				if (headPos[1] < g_fMinPositionY) headPos[1] = g_fMinPositionY;
-				if (headPos[2] < g_fMinPositionZ) headPos[2] = g_fMinPositionZ;
-
-				if (headPos[0] > g_fMaxPositionX) headPos[0] = g_fMaxPositionX;
-				if (headPos[1] > g_fMaxPositionY) headPos[1] = g_fMaxPositionY;
-				if (headPos[2] > g_fMaxPositionZ) headPos[2] = g_fMaxPositionZ;
-				*/
-
-				if (g_bEnableVR) {
-					if (PlayerDataTable[*g_playerIndex].externalCamera) {
-						yaw = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
-						pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;
-					}
-					else {
-						yaw = (float)PlayerDataTable[*g_playerIndex].cockpitCameraYaw / 65536.0f * 360.0f;
-						pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 360.0f;
-					}
-					Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-					rotMatrixFull.identity();
-					//rotMatrixYaw.identity(); rotMatrixYaw.rotateY(g_FreePIEData.yaw);
-					rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-					rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-					rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-
-					// For the fixed GUI, yaw has to be like this:
-					rotMatrixFull.rotateY(yaw);
-					rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
-					// But the matrix to compensate for the translation uses -yaw:
-					rotMatrixYaw = rotMatrixPitch * rotMatrixYaw;
-					// Can we avoid computing the matrix inverse?
-					rotMatrixYaw.invert();
-					//headPos = rotMatrixYaw * headPos;
-
-					g_viewMatrix.identity();
-					g_viewMatrix.rotateZ(roll);
-					//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
-					// HACK WARNING: Instead of adding the translation to the matrices, let's alter the cockpit reference
-					// instead. The world won't be affected; but the cockpit will and we'll prevent clipping geometry, so
-					// we won't see the "edges" of the cockpit when we lean. That should be a nice tradeoff.
-					// 
-					/*
-					g_viewMatrix[12] = headPos[0];
-					g_viewMatrix[13] = headPos[1];
-					g_viewMatrix[14] = headPos[2];
-					rotMatrixFull[12] = headPos[0];
-					rotMatrixFull[13] = headPos[1];
-					rotMatrixFull[14] = headPos[2];
-					*/
-					/* // This effect is now being applied in the cockpit look hook
-					// Map the translation from global coordinates to heading coords
-					Vector4 Rs, Us, Fs;
-					Matrix4 HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, true);
-					headPos[3] = 0.0f;
-					headPos = HeadingMatrix * headPos;
-					if (*numberOfPlayersInGame == 1) {
-						PlayerDataTable[*g_playerIndex].cockpitXReference = (int)(g_fCockpitReferenceScale * headPos[0]);
-						PlayerDataTable[*g_playerIndex].cockpitYReference = (int)(g_fCockpitReferenceScale * headPos[1]);
-						PlayerDataTable[*g_playerIndex].cockpitZReference = (int)(g_fCockpitReferenceScale * headPos[2]);
-					}
-					// END OF HACK
-					*/
-
-					// viewMat is not a full transform matrix: it's only RotZ + Translation
-					// because the cockpit hook already applies the yaw/pitch rotation
-					g_VSMatrixCB.viewMat = g_viewMatrix;
-					g_VSMatrixCB.fullViewMat = rotMatrixFull;
-				}
-			}
+			//CalculateViewMatrix();
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
@@ -9225,24 +9635,12 @@ HRESULT PrimarySurface::Flip(
 				vr::Texture_t leftEyeTexture;
 				vr::Texture_t rightEyeTexture;
 
-				if (g_bDisableBarrelEffect) {
-					leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-				}
-				else {
-					leftEyeTexture = { this->_deviceResources->_offscreenBufferPost.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-					rightEyeTexture = { this->_deviceResources->_offscreenBufferPostR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-				}
+				leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+				rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 
-				if (g_bSteamVRDistortionEnabled) {
-					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
-				}
-				else {
-					error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-					error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture, 0, vr::EVRSubmitFlags::Submit_LensDistortionAlreadyApplied);
-				}
-				//g_pVRCompositor->PostPresentHandoff();
+				//log_debug("[DBG] Submit 3D");
+				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
+				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 			}
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
@@ -9262,6 +9660,10 @@ HRESULT PrimarySurface::Flip(
 					g_HyperspacePhaseFSM = HS_INIT_ST;
 				}
 			}
+			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
+			// the Holdo bug (but more changes may be needed).
+			if (*g_playerInHangar)
+				g_HyperspacePhaseFSM = HS_INIT_ST;
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
@@ -9282,6 +9684,9 @@ HRESULT PrimarySurface::Flip(
 			bool bEnableVSync = g_config.VSyncEnabled;
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
+			// If SteamVR is on, we do NOT want to do VSync with the monitor as well: that'll kill the performance.
+			if (g_bUseSteamVR)
+				bEnableVSync = false;
 			//log_debug("[DBG] ******************* PRESENT 3D");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
@@ -9294,16 +9699,9 @@ HRESULT PrimarySurface::Flip(
 				messageShown = true;
 				hr = DDERR_SURFACELOST;
 			}
-			if (g_bUseSteamVR) {
-				//g_pVRCompositor->PostPresentHandoff();
-
-				//g_pHMD->GetTimeSinceLastVsync(&seconds, &frame);
-				//if (seconds > 0.008)
-
-				//float timeRemaining = g_pVRCompositor->GetFrameTimeRemaining();
-				//log_debug("[DBG] Time remaining: %0.3f", timeRemaining);
-				//if (timeRemaining < g_fFrameTimeRemaining) WaitGetPoses();
-				//WaitGetPoses();
+			// We may still need the PostPresentHandoff here...
+			if (g_bUseSteamVR && g_bTogglePostPresentHandoff) {
+				g_pVRCompositor->PostPresentHandoff();
 			}
 		}
 		else
@@ -9818,113 +10216,444 @@ HRESULT PrimarySurface::UpdateOverlayZOrder(
 	return DDERR_UNSUPPORTED;
 }
 
+ComPtr<IDWriteTextFormat> textFormats[3];
+int fontSizes[] = { 12, 16, 10 };
+D2D1_POINT_2F origin;
+IDWriteFactory* pDWriteFactory_;
+ID2D1Factory* pD2DFactory_;
+ComPtr<IDWriteTextLayout> layouts[381];
+ComPtr<ID2D1SolidColorBrush> brushes[32];
+int brushColors[32] = {};
+boolean font_initialized = false;
+
+/*
+  Computes the width of the given message. Use this function before adding messages to be
+  displayed.
+ */
+short PrimarySurface::ComputeMsgWidth(char *str, int font_size_index) {
+	int x = 0;
+	if (!font_initialized)
+		return x;
+
+	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
+	for (int i = 0; str[i]; i++)
+		x += fontWidths[font_size_index][(int)str[i]];
+	return x;
+}
+
+/*
+  Adds the given text to the buffer that is used by RenderText to display messages.
+  This function requires Jeremy's new Text Renderer to work.
+ 
+  font_size_index must be an integer in the range 0..2
+ 		index 0: small
+ 		index 1: regular
+ 		index 2: smallest
+ 
+  color is in 0xRRGGBB format.
+ 
+  x,y must be in in-game coordinates
+ 
+  returns the x coordinate after the last char rendered
+ */
+short PrimarySurface::DisplayText(char *str, int font_size_index, short x, short y, uint32_t color) {
+	if (!font_initialized)
+		return x;
+
+	// There are 3 font sizes (see the fontSizes global definition): 12, 16, 10
+	int fontSize = fontSizes[font_size_index];
+	// In XwaDrawTextHook, the fontWidths are populated using DWRITE_TEXT_METRICS and other variables.
+	// Here we can just use the values computed by the hook.
+	// Otherwise we would need to do the following for every ASCII char:
+	/*
+		DWRITE_TEXT_METRICS textMetrics;
+		int layoutIndex = index * 256 + (int)character;
+		s_textLayouts[layoutIndex]->GetMetrics(&textMetrics);
+		w = (short)textMetrics.width;
+		h = (short)textMetrics.height;
+	*/
+	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
+	XwaText xwaText;
+
+	// Common attributes for all the chars in the string
+	xwaText.color = color;
+	xwaText.fontSize = fontSize;
+
+	for (int i = 0; str[i]; i++) {
+		char c = str[i];
+		//RenderCharHook(x, y, 0, fontSize, c, color);
+
+		// To speed things up a little bit, I'm not calling RenderCharHook here. Instead
+		// I'm inserting the text directly into g_xwa_text. However, the code below should
+		// follow RenderCharHook.
+		xwaText.positionX = x;
+		xwaText.positionY = y;
+		xwaText.textChar = c;
+		g_xwa_text.push_back(xwaText);
+
+		x += fontWidths[font_size_index][(int)c];
+	}
+	return x;
+}
+
+/*
+  Adds centered text at the given vertical position.
+  Returns the x coordinate where the next char can be placed
+ */
+short PrimarySurface::DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color) {
+	short width = ComputeMsgWidth(str, font_size_index);
+	short x = (short)(g_fCurInGameWidth / 2.0f) - width / 2;
+	return DisplayText(str, font_size_index, x, y, color);
+}
+
+/*
+  Adds a timed message in one of the 3 available slots, overwriting and reseting
+  the timer on whatever is in that slot. The hard-coded values are screen-height
+  relative and seem to work fine across different resolutions.
+ */
+void DisplayTimedMessage(uint32_t seconds, int row, char *msg) {
+	short y_pos = (short)(g_fCurInGameHeight * (0.189f + 0.05f * row));
+	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
+}
+
 void PrimarySurface::RenderText()
 {
-	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
-	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+	static DWORD s_displayWidth = 0;
+	static DWORD s_displayHeight = 0;
+	static int s_fontSizes[3] = { 12, 16, 10 };
+	static ComPtr<IDWriteTextFormat> s_textFormats[3];
+	static ComPtr<IDWriteTextLayout> s_textLayouts[3 * 256];
+	static ComPtr<ID2D1SolidColorBrush> s_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_black_brush;
+	static UINT s_left;
+	static UINT s_top;
+	static float s_scaleX;
+	static float s_scaleY;
+	static short s_rowSize = (short)(0.0185f * g_fCurInGameHeight);
 
-	UINT w;
-	UINT h;
-
-	if (g_config.AspectRatioPreserved)
+	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
-		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		s_displayWidth = this->_deviceResources->_displayWidth;
+		s_displayHeight = this->_deviceResources->_displayHeight;
+
+		UINT w;
+		UINT h;
+
+		if (g_config.AspectRatioPreserved)
 		{
-			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
-			h = this->_deviceResources->_backbufferHeight;
+			if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+			{
+				w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+				h = this->_deviceResources->_backbufferHeight;
+			}
+			else
+			{
+				w = this->_deviceResources->_backbufferWidth;
+				h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			}
 		}
 		else
 		{
 			w = this->_deviceResources->_backbufferWidth;
-			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
-		}
-	}
-	else
-	{
-		w = this->_deviceResources->_backbufferWidth;
-		h = this->_deviceResources->_backbufferHeight;
-	}
-
-	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
-	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
-
-	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
-	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
-
-	ComPtr<IDWriteTextFormat> textFormats[3];
-	int fontSizes[] = { 12, 16, 10 };
-
-	for (int index = 0; index < 3; index++)
-	{
-		this->_deviceResources->_dwriteFactory->CreateTextFormat(
-			g_config.TextFontFamily.c_str(),
-			nullptr,
-			DWRITE_FONT_WEIGHT_NORMAL,
-			DWRITE_FONT_STYLE_NORMAL,
-			DWRITE_FONT_STRETCH_NORMAL,
-			(float)fontSizes[index] * min(scaleX, scaleY),
-			L"en-US",
-			&textFormats[index]);
-	}
-
-	ComPtr<ID2D1SolidColorBrush> brush;
-	unsigned int brushColor = 0;
-
-	IDWriteTextFormat* textFormat = nullptr;
-	int fontSize = 0;
-
-	for (const auto& xwaText : g_xwa_text)
-	{
-		if (xwaText.color != brushColor)
-		{
-			brushColor = xwaText.color;
-			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			h = this->_deviceResources->_backbufferHeight;
 		}
 
-		if (xwaText.fontSize != fontSize)
-		{
-			fontSize = xwaText.fontSize;
+		s_left = (this->_deviceResources->_backbufferWidth - w) / 2;
+		s_top = (this->_deviceResources->_backbufferHeight - h) / 2;
 
-			for (int index = 0; index < 3; index++)
+		s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+		s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+		for (int index = 0; index < 3; index++)
+		{
+			this->_deviceResources->_dwriteFactory->CreateTextFormat(
+				g_config.TextFontFamily.c_str(),
+				nullptr,
+				DWRITE_FONT_WEIGHT_NORMAL,
+				DWRITE_FONT_STYLE_NORMAL,
+				DWRITE_FONT_STRETCH_NORMAL,
+				(float)s_fontSizes[index] * min(s_scaleX, s_scaleY),
+				L"en-US",
+				&s_textFormats[index]);
+
+			for (int c = 33; c < 256; c++)
 			{
-				if (fontSize == fontSizes[index])
+				char t[2];
+				t[0] = (char)c;
+				t[1] = 0;
+
+				std::wstring wtext = string_towstring(t);
+
+				if (wtext.empty())
 				{
-					textFormat = textFormats[index];
-					break;
+					continue;
 				}
+
+				int layoutIndex = index * 256 + c;
+				this->_deviceResources->_dwriteFactory->CreateTextLayout(
+					wtext.c_str(),
+					wtext.length(),
+					s_textFormats[index],
+					(FLOAT)this->_deviceResources->_backbufferWidth,
+					(FLOAT)this->_deviceResources->_backbufferHeight,
+					&s_textLayouts[layoutIndex]);
 			}
 		}
 
-		if (!brush)
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
+		//this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_black_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
+	}
+
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+
+	unsigned int brushColor = 0;
+	s_brush->SetColor(D2D1::ColorF(brushColor));
+
+	IDWriteTextLayout* layout = nullptr;
+
+	if (!font_initialized)
+	{
+		for (int index = 0; index < 3; index++)
+		{
+			this->_deviceResources->_dwriteFactory->CreateTextFormat(
+				g_config.TextFontFamily.c_str(),
+				nullptr,
+				DWRITE_FONT_WEIGHT_NORMAL,
+				DWRITE_FONT_STYLE_NORMAL,
+				DWRITE_FONT_STRETCH_NORMAL,
+				(float)fontSizes[index] * min(s_scaleX, s_scaleY),
+				L"en-US",
+				&textFormats[index]);
+		}
+
+		D2D1CreateFactory(
+			D2D1_FACTORY_TYPE_SINGLE_THREADED,
+			&pD2DFactory_
+		);
+
+		DWriteCreateFactory(
+			DWRITE_FACTORY_TYPE_SHARED,
+			__uuidof(IDWriteFactory),
+			reinterpret_cast<IUnknown**>(&pDWriteFactory_)
+		);
+
+		origin = D2D1::Point2F(
+			static_cast<FLOAT>(0),
+			static_cast<FLOAT>(0)
+		);
+
+		for (int size_index = 0; size_index < 3; size_index++)
+		{
+			for (int char_index = 0; char_index < 127; char_index++)
+			{
+				char tm[2];
+				tm[0] = char_index;
+				tm[1] = 0;
+				std::wstring ttext = string_towstring(tm);
+				pDWriteFactory_->CreateTextLayout(
+					ttext.c_str(),     
+					ttext.length(),  
+					textFormats[size_index],
+					fontSizes[size_index] * s_scaleX,
+					fontSizes[size_index] * s_scaleY,
+					&layouts[size_index * 127 + char_index]
+				);
+			}
+		}
+		for (int brush_index = 0; brush_index < 32; brush_index++)
+		{
+			brushColors[brush_index] = -1;
+		}
+		font_initialized = true;
+		//log_debug("[DBG] s_scaleX: %0.3f, s_scaleY: %0.3f, min: %0.3f", s_scaleX, s_scaleY, min(s_scaleX, s_scaleY));
+	}
+
+	int size_index = 0;
+	for (const auto& xwaText : g_xwa_text)
+	{
+		if (xwaText.textChar == ' ')
 		{
 			continue;
 		}
 
-		if (!textFormat)
+		IDWriteTextLayout* textLayout = nullptr;
+
+		for (int index = 0; index < 3; index++)
+		{
+			if (xwaText.fontSize == s_fontSizes[index])
+			{
+				int layoutIndex = index * 256 + (int)(unsigned char)xwaText.textChar;
+				textLayout = s_textLayouts[layoutIndex];
+				break;
+			}
+		}
+
+		if (!textLayout)
 		{
 			continue;
 		}
 
-		char t[2];
-		t[0] = xwaText.textChar;
-		t[1] = 0;
+		if (xwaText.color != brushColor)
+		{
+			brushColor = xwaText.color;
+			s_brush->SetColor(D2D1::ColorF(brushColor));
+		}
 
-		std::wstring wtext = string_towstring(t);
+		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
+		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
 
-		if (wtext.empty())
+		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+			D2D1_POINT_2F{ x, y },
+			textLayout,
+			s_brush);
+	}
+
+	// Clear the text. We'll add extra text now and render it.
+	g_xwa_text.clear();
+	g_xwa_text.reserve(4096);
+
+	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_bDCApplyEraseRegionCommands &&
+		!bExternalCamera) {
+		// Gather the data we'll need to replace the missiles and countermeasures
+		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+		// Looks like objectIndex cannot be 0 or we'll crash
+		//log_debug("[DBG] objectIndex: %d", objectIndex);
+		if (objectIndex <= 0) goto out;
+		ObjectEntry *object = &((*objects)[objectIndex]);
+		if (object == NULL) goto out;
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) goto out;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		if (craftInstance == NULL) goto out;
+
+		int speed = (int)(PlayerDataTable[*g_playerIndex].currentSpeed / 2.25f);
+		short throttle = (short)(100.0f * craftInstance->EngineThrottleInput / 65535.0f);
+		int countL = 0, countR = 0, countermeasures = 0;
+		countermeasures = craftInstance->CountermeasureAmount;
+		int warheadStartIdx = craftInstance->NumberOfLasers;
+		// If the secondary warheads are armed, then offset the warheadStartIdx accordingly:
+		if (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].primarySecondaryArmed)
+			warheadStartIdx += 2;
+		if (warheadStartIdx < 16)
+			countL = craftInstance->Hardpoints[warheadStartIdx++].Count;
+		if (warheadStartIdx < 16)
+			countR = craftInstance->Hardpoints[warheadStartIdx++].Count;
+
+		// The following will render a rectangle on the text buffer, which is then captured by DC. This can be used
+		// to clear text right here without using more shaders.
+		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
+		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+
+		// Clear the box for the missiles, countermeasures, speed & throttle, and add new 
+		// text to replace the ones we're clearing here
+		D2D1_RECT_F rect;
+		DCElemSrcBox *dcElemSrcBox;
+		float fx, fy;
+		static short ofs = (short)(0.005f * g_fCurInGameHeight);
+
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+			char buf[40];
+			sprintf_s(buf, 40, "%d %d", countL, countR);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
+		}
+
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[NUM_CRAFTS_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+
+			char buf[40];
+			sprintf_s(buf, 40, "%d", countermeasures);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
+		}
+
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[SPEED_N_THROTTLE_DC_ELEM_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				rect.left, rect.top, &fx, &fy);
+
+			char buf[40];
+			sprintf_s(buf, 40, "SPD: %d", speed);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
+			sprintf_s(buf, 40, "THR: %d%%", throttle);
+			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs + s_rowSize, 0xFFFFFF);
+		}
+	}
+
+out:
+	// Add the custom text that will be displayed
+	for (int i = 0; i < MAX_TIMED_MESSAGES; i++) {
+		if (g_TimedMessages[i].IsExpired())
+			continue;
+		g_TimedMessages[i].Tick();
+		DisplayCenteredText(g_TimedMessages[i].msg, g_TimedMessages[i].font_size_idx,
+			g_TimedMessages[i].y, g_TimedMessages[i].color);
+	}
+
+	// Render the additional text
+	size_index = 0;
+	for (const auto& xwaText : g_xwa_text)
+	{
+		if (xwaText.textChar == ' ')
 		{
 			continue;
 		}
 
-		float x = (float)left + (float)xwaText.positionX * scaleX;
-		float y = (float)top + (float)xwaText.positionY * scaleY;
+		IDWriteTextLayout* textLayout = nullptr;
 
-		this->_deviceResources->_d2d1RenderTarget->DrawTextA(
-			wtext.c_str(),
-			wtext.length(),
-			textFormat,
-			D2D1::RectF(x, y, (float)this->_deviceResources->_backbufferWidth, (float)this->_deviceResources->_backbufferHeight),
-			brush);
+		for (int index = 0; index < 3; index++)
+		{
+			if (xwaText.fontSize == s_fontSizes[index])
+			{
+				int layoutIndex = index * 256 + (int)(unsigned char)xwaText.textChar;
+				textLayout = s_textLayouts[layoutIndex];
+				break;
+			}
+		}
+
+		if (!textLayout)
+		{
+			continue;
+		}
+
+		if (xwaText.color != brushColor)
+		{
+			brushColor = xwaText.color;
+			s_brush->SetColor(D2D1::ColorF(brushColor));
+		}
+
+		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
+		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+
+		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+			D2D1_POINT_2F{ x, y },
+			textLayout,
+			s_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
@@ -9936,40 +10665,55 @@ void PrimarySurface::RenderText()
 
 void PrimarySurface::RenderRadar()
 {
-	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
-	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+	static DWORD s_displayWidth = 0;
+	static DWORD s_displayHeight = 0;
+	static ComPtr<ID2D1SolidColorBrush> s_brush;
+	static UINT s_left;
+	static UINT s_top;
+	static float s_scaleX;
+	static float s_scaleY;
 
-	UINT w;
-	UINT h;
-
-	if (g_config.AspectRatioPreserved)
+	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
-		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+		s_displayWidth = this->_deviceResources->_displayWidth;
+		s_displayHeight = this->_deviceResources->_displayHeight;
+
+		UINT w;
+		UINT h;
+
+		if (g_config.AspectRatioPreserved)
 		{
-			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
-			h = this->_deviceResources->_backbufferHeight;
+			if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+			{
+				w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+				h = this->_deviceResources->_backbufferHeight;
+			}
+			else
+			{
+				w = this->_deviceResources->_backbufferWidth;
+				h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			}
 		}
 		else
 		{
 			w = this->_deviceResources->_backbufferWidth;
-			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			h = this->_deviceResources->_backbufferHeight;
 		}
+
+		s_left = (this->_deviceResources->_backbufferWidth - w) / 2;
+		s_top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+		s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+		s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
 	}
-	else
-	{
-		w = this->_deviceResources->_backbufferWidth;
-		h = this->_deviceResources->_backbufferHeight;
-	}
 
-	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
-	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
 
-	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
-	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
-
-	ComPtr<ID2D1SolidColorBrush> brush;
 	unsigned int brushColor = 0;
-	this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+	s_brush->SetColor(D2D1::ColorF(brushColor));
 
 	for (const auto& xwaRadar : g_xwa_radar)
 	{
@@ -9996,29 +10740,29 @@ void PrimarySurface::RenderRadar()
 		if (esi != brushColor)
 		{
 			brushColor = esi;
-			this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			s_brush->SetColor(D2D1::ColorF(brushColor));
 		}
 
-		float x = left + (float)xwaRadar.positionX * scaleX;
-		float y = top + (float)xwaRadar.positionY * scaleY;
+		float x = s_left + (float)xwaRadar.positionX * s_scaleX;
+		float y = s_top + (float)xwaRadar.positionY * s_scaleY;
 
-		float deltaX = 2.0f * scaleX;
-		float deltaY = 2.0f * scaleY;
+		float deltaX = 2.0f * s_scaleX;
+		float deltaY = 2.0f * s_scaleY;
 
-		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), brush);
+		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), s_brush);
 	}
 
 	if (g_xwa_radar_selected_positionX != -1 && g_xwa_radar_selected_positionY != -1)
 	{
-		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Yellow), &brush);
+		s_brush->SetColor(D2D1::ColorF(D2D1::ColorF::Yellow));
 
-		float x = left + (float)g_xwa_radar_selected_positionX * scaleX;
-		float y = top + (float)g_xwa_radar_selected_positionY * scaleY;
+		float x = s_left + (float)g_xwa_radar_selected_positionX * s_scaleX;
+		float y = s_top + (float)g_xwa_radar_selected_positionY * s_scaleY;
 
-		float deltaX = 4.0f * scaleX;
-		float deltaY = 4.0f * scaleY;
+		float deltaX = 4.0f * s_scaleX;
+		float deltaY = 4.0f * s_scaleY;
 
-		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), brush);
+		this->_deviceResources->_d2d1RenderTarget->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), deltaX, deltaY), s_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
@@ -10031,44 +10775,62 @@ void PrimarySurface::RenderRadar()
 
 void PrimarySurface::RenderBracket()
 {
+	static DWORD s_displayWidth = 0;
+	static DWORD s_displayHeight = 0;
+	// It's probably not necessary to have two brushes, but I don't think it hurts either and
+	// I'm doing this just in case brushes can't be shared between different RTVs
+	static ComPtr<ID2D1SolidColorBrush> s_brushOffscreen, s_brushDC, s_brush;
+	static UINT s_left;
+	static UINT s_top;
+	static float s_scaleX;
+	static float s_scaleY;
+
+	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
+	{
+		s_displayWidth = this->_deviceResources->_displayWidth;
+		s_displayHeight = this->_deviceResources->_displayHeight;
+
+		UINT w;
+		UINT h;
+
+		if (g_config.AspectRatioPreserved)
+		{
+			if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+			{
+				w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+				h = this->_deviceResources->_backbufferHeight;
+			}
+			else
+			{
+				w = this->_deviceResources->_backbufferWidth;
+				h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			}
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+
+		s_left = (this->_deviceResources->_backbufferWidth - w) / 2;
+		s_top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+		s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+		s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+		this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushOffscreen);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushDC);
+	}
+
 	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1OffscreenRenderTarget->BeginDraw();
 
 	this->_deviceResources->_d2d1DCRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1DCRenderTarget->BeginDraw();
 
-	UINT w;
-	UINT h;
-
-	if (g_config.AspectRatioPreserved)
-	{
-		if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
-		{
-			w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
-			h = this->_deviceResources->_backbufferHeight;
-		}
-		else
-		{
-			w = this->_deviceResources->_backbufferWidth;
-			h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
-		}
-	}
-	else
-	{
-		w = this->_deviceResources->_backbufferWidth;
-		h = this->_deviceResources->_backbufferHeight;
-	}
-
-	UINT left = (this->_deviceResources->_backbufferWidth - w) / 2;
-	UINT top = (this->_deviceResources->_backbufferHeight - h) / 2;
-
-	float scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
-	float scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
-
-	ComPtr<ID2D1SolidColorBrush> brush;
 	unsigned int brushColor = 0;
-	this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
-	this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+	s_brushOffscreen->SetColor(D2D1::ColorF(brushColor));
+	s_brushDC->SetColor(D2D1::ColorF(brushColor));
 
 	for (const auto& xwaBracket : g_xwa_bracket)
 	{
@@ -10095,44 +10857,45 @@ void PrimarySurface::RenderBracket()
 		if (esi != brushColor)
 		{
 			brushColor = esi;
-			this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
-			this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(brushColor), &brush);
+			s_brushOffscreen->SetColor(D2D1::ColorF(brushColor));
+			s_brushDC->SetColor(D2D1::ColorF(brushColor));
 		}
 
-		float posX = left + (float)xwaBracket.positionX * scaleX;
-		float posY = top + (float)xwaBracket.positionY * scaleY;
-		float posW = (float)xwaBracket.width * scaleX;
-		float posH = (float)xwaBracket.height * scaleY;
+		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
+		float posY = s_top + (float)xwaBracket.positionY * s_scaleY;
+		float posW = (float)xwaBracket.width * s_scaleX;
+		float posH = (float)xwaBracket.height * s_scaleY;
 		float posSide = 0.125;
 
-		float strokeWidth = 2.0f * min(scaleX, scaleY);
+		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
 
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
 		// Select the DC RTV if this bracket was classified as belonging to
 		// the Dynamic Cockpit display
 		ID2D1RenderTarget *rtv = xwaBracket.DC ? this->_deviceResources->_d2d1DCRenderTarget : this->_deviceResources->_d2d1OffscreenRenderTarget;
+		s_brush = xwaBracket.DC ? s_brushDC : s_brushOffscreen;
 
 		if (fill)
 		{
-			rtv->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), brush);
+			rtv->FillRectangle(D2D1::RectF(posX, posY, posX + posW, posY + posH), s_brush);
 		}
 		else
 		{
 			// top left
-			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW * posSide, posY), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX, posY + posH * posSide), s_brush, strokeWidth);
 
 			// top right
-			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY), D2D1::Point2F(posX + posW, posY), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX + posW, posY + posH * posSide), s_brush, strokeWidth);
 
 			// bottom left
-			rtv->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH - posH * posSide), D2D1::Point2F(posX, posY + posH), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX, posY + posH), D2D1::Point2F(posX + posW * posSide, posY + posH), s_brush, strokeWidth);
 
 			// bottom right
-			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
-			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
+			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 		}
 	}
 
@@ -10142,5 +10905,8 @@ void PrimarySurface::RenderBracket()
 	this->_deviceResources->_d2d1OffscreenRenderTarget->EndDraw();
 	this->_deviceResources->_d2d1OffscreenRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
+	// Need to set s_brush to NULL to avoid dangling references. Otherwise, we may get
+	// crashes when exiting.
+	s_brush = nullptr;
 	g_xwa_bracket.clear();
 }

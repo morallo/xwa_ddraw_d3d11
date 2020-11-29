@@ -15,10 +15,22 @@
 #include "shading_system.h"
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
+#include "metric_common.h"
 
  // The background texture
 Texture2D    bgTex     : register(t0);
+
+#ifdef GENMIPMAPS_DEBUG
+// DEBUG section. This will enable mip maps in this shader
+// Use the following definition when mip maps are enabled:
+SamplerState bgSampler : register(s0) =
+	sampler_state {
+		Filter = MIN_MAG_MIP_LINEAR;
+	};
+#else
 SamplerState bgSampler : register(s0);
+#endif
+
 
 // The depth buffer: we'll use this as a mask since the sun should be at infinity
 Texture2D    depthTex     : register(t1);
@@ -280,10 +292,19 @@ vec3 cc(vec3 color, float factor, float factor2) // color modifier
 }
 */
 
-float sdCircle(in vec2 p, in vec2 center, float radius)
+float sdCircle(in vec2 p, float radius)
 {
-	return length(p - center) - radius;
+	return length(p) - radius;
 }
+
+/*
+float sdLine(in vec2 p, in vec2 a, in vec2 b)
+{
+	vec2 pa = p - a, ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+*/
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
@@ -295,16 +316,27 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (VRmode == 1)
 		output.color = float4(0, 0, 0, 1);
 	else
+#ifdef GENMIPMAPS_DEBUG
+		// DEBUG section. This will enable mip maps in this shader
+		output.color = bgTex.SampleLevel(bgSampler, input.uv, 5.0);
+#else
 		output.color = bgTex.Sample(bgSampler, input.uv);
+#endif
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
 
+	// Notice how in this shader we don't care about FOVscale or y_center. That's because
+	// it's using in-game UV coords
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	//p += vec2(0, y_center); // Use this for light vectors, In XWA the aiming HUD is not at the screen's center in cockpit view
 	//vec3 v = vec3(p.x, -p.y, -FOVscale); // Use this for light vectors
-	vec3 v = vec3(p, -FOVscale);
+	
+	//p *= preserveAspectRatioComp;
+	//vec3 v = vec3(p, -FOVscale);
+	//vec3 v = float3(p, 0);
+
 	//v = mul(viewMat, vec4(v, 0.0)).xyz;
 	//vec3 v = vec3(p, 0.0);
 	//vec2 sunPos = (vec2(SunXL, SunYL) - 0.5) * 2.0;
@@ -324,8 +356,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 		sunPos3D = depthTex.Sample(depthSampler, SunCoords[0].xy / iResolution.xy).xyz;
 	}
 	else {
-		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose
-		sunPos = SunCoords[0].xy;	   // 2D coord pass-through
+		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose. The reason is that the
+		// SunCoords are still 2D, but they are in-game UV coords, not post-proc UV coords, so they
+		// can't be used to sample the depth buffer here.
+		sunPos = SunCoords[0].xy; // 2D coord pass-through
 		sunPos3D.z = INFINITY_Z + 500; // Compute the right depth value later, in SunFlareCompose
 	}
 
@@ -333,75 +367,29 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	output.color.rgb += flare_intensity * lensflare(v.xy, sunPos, 0);
-	return output;
+	
+#undef FLARE_DEBUG
+#ifndef FLARE_DEBUG
+	// The aspect_ratio_comp factor was added for the DirectSBS mode, but while it fixes the aspect
+	// ratio of the flares, it might mess up the position of the centroid.
+	//const float2 aspect_ratio_comp = float2(1.0, mr_vr_aspect_ratio);
+	//output.color.rgb += flare_intensity * lensflare(aspect_ratio_comp * p.xy, aspect_ratio_comp * sunPos, 0);
+	output.color.rgb += flare_intensity * lensflare(p.xy, sunPos, 0);
+#else
+	// DEBUG: Draw a reticle instead of the flare: it should appear on top of the sun
+	const float2 aspect_ratio_comp = float2(1.0, mr_vr_aspect_ratio);
+	float3 col = float3(0.1, 1.0, 0.1); // Marker color
+	//float2 aspect_ratio = VRmode != 0 ? float2(iResolution.y / iResolution.x, iResolution.x / iResolution.y) : 1.0;
+	//d = sdCircle(aspect_ratio * (p.xy - sunPos), 0.05);
+	//d = sdCircle(float2(mr_debug_value, 1.0) * (p.xy - sunPos), 0.05);
 
-	/*
-	// DEBUG
-	float3 col;
-	// Draw a reticle on top of the Sun:
-	col = float3(1.0, 0.0, 0.0); // Reticle color
-	d = sdCircle(v.xy, sunPos, scale * cursor_radius);
-	dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
-	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
-	dm = clamp(dm, 0.0, 1.0);
-	col *= dm;
-	output.color.rgb = lerp(output.color.rgb, col, dm);
-	return output;
-	*/
-
-	/*
-	// Display the associated light
-	col = float3(0.0, 0.0, 1.0);
-	p += vec2(0, y_center);
-	float2 light = LightPos; // *iResolution; // Convert normalized post-proc coords (0..1) to desktop-coords
-	light = (2.0 * light - iResolution.xy) / min(iResolution.x, iResolution.y);
-	d = sdCircle(p, light, scale * cursor_radius);
-	dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
-	dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
-	dm = clamp(dm, 0.0, 1.0);
+	//d = sdCircle((p.xy - sunPos), 0.05);
+	d = sdCircle(aspect_ratio_comp * (p.xy - sunPos), 0.05);
+	dm = smoothstep(thickness * 0.5, 0.0, abs(d)); // Outer ring
+	dm += smoothstep(thickness * 0.5, 0.0, abs(d + 0.5 * scale * (cursor_radius - 0.001))); // Center dot
 	col *= dm;
 	output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	return output;
-	*/
+#endif
 
-	// Display each light in the system
-	/*
-	p += vec2(0, y_center);
-	[loop]
-	for (uint i = 0; i < LightCount; i++)
-	{
-		if (LightVector[i].z > 0.0)
-			continue; // Skip lights behind the camera
-		col = float3(0.0, 1.0, 0.0); // Reticle color
-		vec2 sunPos = -2.35 * vec2(-LightVector[i].x, LightVector[i].y);
-		v = vec3(p, -FOVscale);
-		//v = mul(viewMat, vec4(v, 0.0)).xyz;
-
-		d = sdCircle(v.xy, sunPos, scale * cursor_radius);
-		dm = smoothstep(thickness, 0.0, abs(d)); // Outer ring
-		dm += smoothstep(thickness, 0.0, abs(d + scale * (cursor_radius - 0.001))); // Center dot
-		dm = clamp(dm, 0.0, 1.0);
-		col *= dm;
-		output.color.rgb = lerp(output.color.rgb, col, 0.8 * dm);
-	}
-	*/
-	// DEBUG
-
-	/*
-	vec3 light_color = vec3(0.3, 0.3, 1.0);
-	// sunPos = 0.0;
-	sunPos = (2.0 * vec2(SunX, SunY) - iResolution.xy) / min(iResolution.x, iResolution.y);
-	vec2 dcenter = v.xy - sunPos;
-	const float V_2 = dot(dcenter, dcenter);
-	//const float disk = saturate(pow(0.01 / V_2, 1.8));
-	const float disk = exp(-V_2 * 15.0);
-
-	float flare = lensflare(v.xy, sunPos, 0.5 * sun_intensity, 0.0);
-	flare = flare * flare + disk;
-	color = light_color * flare;
-	output.color.rgb = lerp(output.color.rgb, color, 0.8 * flare * sun_intensity);
-	*/
-	
 	return output;
 }

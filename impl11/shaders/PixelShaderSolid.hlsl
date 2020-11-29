@@ -30,7 +30,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	bool IsShadow   = special_control == SPECIAL_CONTROL_XWA_SHADOW;
 
-	output.color	= IsShadow ? float4(0,0,0,0.25) : input.color;
+	// Using an alpha of 0.25 for the shadow causes overlapping shadows to show, which isn't great
+	// since shadows don't behave that way.
+	//output.color	= IsShadow ? float4(0,0,0, 0.25) : input.color;
+	output.color    = IsShadow ? float4(0, 0, 0, input.color.a) : input.color;
 	output.bloom	= IsShadow ? 0.0 : float4(fBloomStrength * input.color.rgb, fBloomStrength);
 	output.pos3D	= 0;
 	output.normal	= 0;

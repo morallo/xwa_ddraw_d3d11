@@ -94,13 +94,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.g: Glossiness
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, unused
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
+	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
+	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
 	// DEBUG
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	//return output;
 	// DEBUG
+
+	if (special_control == SPECIAL_CONTROL_SMOKE)
+	{
+		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+		const float a   = 0.1 * alpha;
+		output.color    = float4(texelColor.rgb, a);
+		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
+		output.ssMask   = float4(fNMIntensity, fSpecVal, 0.0, a);
+		return output;
+	}
 
 	// Process lasers (make them brighter in 32-bit mode)
 	if (bIsLaser) {
@@ -173,7 +183,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
-	// the hue
+	// the hue. The engine glow is also used to render smoke, so that's why the smoke
+	// glows.
 	if (bIsEngineGlow) {
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
@@ -211,7 +222,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-
+	
 	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;
 	return output;
