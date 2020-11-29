@@ -10,6 +10,14 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+Jeremy: In the player struct, it seems there are 12 unused bytes at offset 0x0B9 and 6 unused
+		bytes at offset 0x0E2.
+
+ 0x0B9 byte unk0B9[12];
+ 0x0E2 byte unk0E2[6];
+*/
+
+/*
 TODO:
 	[5128] [DBG] s_XwaGlobalLightsCount: 0 <-- When the reactor explodes.
 	DSReactorCylinder is the glow around the reactor core in the Death Star.
@@ -305,6 +313,9 @@ float s_XwaHudScale = 1.0f;
 #include "..\shaders\shader_common.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
+
+#include "SharedMem.h"
+SharedData *g_pSharedData = NULL;
 
 FILE *g_HackFile = NULL;
 
@@ -7084,6 +7095,15 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+	/*
+	// DEBUG: This will print the message that the CockpitLook hook has set.
+	if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
+		// Here we're using g_pSharedData->pDataPtr to access the shared data, but
+		// we can also save pDataPtr to a global variable and use that instead.
+		log_debug("[DBG] msg: %s", (char *)g_pSharedData->pDataPtr);
+	}
+	*/
+
 /*
 	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
