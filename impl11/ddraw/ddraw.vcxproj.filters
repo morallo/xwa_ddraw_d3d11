@@ -102,6 +102,9 @@
     <ClCompile Include="XwaDrawBracketHook.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
+    <ClCompile Include="SharedMem.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
     <ClCompile Include="SteamVR.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
@@ -213,6 +216,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="XwaDrawBracketHook.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SharedMem.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="DirectSBS.h">

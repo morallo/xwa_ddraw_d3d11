@@ -17,6 +17,11 @@
 
 #include "XWAObject.h"
 
+#include "SharedMem.h"
+extern SharedData *g_pSharedData;
+// ddraw is loaded after the hooks, so here we open an existing shared memory handle:
+SharedMem g_SharedMem(false);
+
 extern LARGE_INTEGER g_PC_Frequency;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
@@ -1269,6 +1274,12 @@ out:
 	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
 }
 
+void InitSharedMem() {
+	g_pSharedData = (SharedData *)g_SharedMem.GetMemoryPtr();
+	if (g_pSharedData == NULL)
+		log_debug("[DBG] Could not load shared data ptr");
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -1295,6 +1306,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		}
 		g_fDefaultFOVDist = *g_fRawFOVDist;
 		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
+
+		InitSharedMem();
 		
 		if (IsXwaExe())
 		{
