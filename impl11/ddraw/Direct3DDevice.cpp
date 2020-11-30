@@ -10431,8 +10431,10 @@ void Direct3DDevice::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
 	// Read the IFF of the current target and use it to colorize the wireframe display
 	short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
-	// currentTargetIndex cannot be 0 or we'll crash!
-	if (currentTargetIndex > 0) {
+	// I think I remember that when currentTargetIndex is 0, the game crashed; but Jeremy
+	// just told me that currentTargetIndex can be 0 (it's -1 when no target is selected).
+	// So, updating changing this code to allow target 0:
+	if (currentTargetIndex >= 0) {
 		ObjectEntry *object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto nocolor;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
