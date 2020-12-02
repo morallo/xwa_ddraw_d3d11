@@ -25,6 +25,15 @@ extern bool g_bResetHeadCenter; // Reset the head center on startup
 extern float g_fVR_FOV;
 extern float g_fIPD;
 extern float g_fHalfIPD;
+// Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInTechRoom;
 
 void EvaluateIPD(float NewIPD);
 void IncreaseIPD(float Delta);
+
+typedef enum {
+	TRACKER_NONE,
+	TRACKER_FREEPIE,
+	TRACKER_STEAMVR,
+	TRACKER_TRACKIR
+} TrackerType;

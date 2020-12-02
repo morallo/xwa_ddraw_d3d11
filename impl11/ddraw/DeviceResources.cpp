@@ -133,6 +133,9 @@
 #include <headers/openvr.h>
 #include <vector>
 #include "SteamVR.h"
+#include "globals.h"
+#include "VRConfig.h"
+#include "shadow_mapping.h"
 
 void InitOPTnames();
 void ClearOPTnames();
@@ -185,8 +188,6 @@ extern bool g_bShadowMappingEnabled;
 extern MetricReconstructionCB g_MetricRecCBuffer;
 extern bool g_bYCenterHasBeenFixed;
 
-bool InitSteamVR();
-bool LoadFocalLength();
 void ResetXWALightInfo();
 
 /* The different types of Constant Buffers used in the Vertex Shader: */
@@ -208,18 +209,10 @@ typedef enum {
 } PSConstantBufferType;
 PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
-extern bool g_bDynCockpitEnabled;
-extern bool g_bAOEnabled;
-
 FILE *g_DebugFile = NULL;
 
 extern std::vector<ColorLightPair> g_TextureVector;
 extern std::vector<Direct3DTexture *> g_AuxTextureVector;
-
-extern SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
-extern bool g_b3DSunPresent, g_b3DSkydomePresent;
-
-bool LoadDCInternalCoordinates();
 
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);

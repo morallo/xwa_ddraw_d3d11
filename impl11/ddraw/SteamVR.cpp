@@ -688,3 +688,70 @@ bool HandleVRInput()
 	return bRet;
 }
 */
+
+void TestPimax() {
+	vr::HmdMatrix34_t eyeLeft;
+	eyeLeft.m[0][0] = 0.984808f; eyeLeft.m[0][1] = 0.000000f, eyeLeft.m[0][2] = 0.173648f; eyeLeft.m[0][3] = -0.033236f;
+	eyeLeft.m[1][0] = 0.000000f; eyeLeft.m[1][1] = 1.000000f; eyeLeft.m[1][2] = 0.000000f; eyeLeft.m[1][3] = 0.000000f;
+	eyeLeft.m[2][0] = -0.173648f; eyeLeft.m[2][1] = 0.000000f; eyeLeft.m[2][2] = 0.984808f; eyeLeft.m[2][3] = 0.000000f;
+
+	vr::HmdMatrix34_t eyeRight;
+	eyeRight.m[0][0] = 0.984808f; eyeRight.m[0][1] = 0.000000f, eyeRight.m[0][2] = -0.173648f; eyeRight.m[0][3] = 0.033236f;
+	eyeRight.m[1][0] = 0.000000f; eyeRight.m[1][1] = 1.000000f; eyeRight.m[1][2] = 0.000000f; eyeRight.m[1][3] = 0.000000f;
+	eyeRight.m[2][0] = 0.173648f; eyeRight.m[2][1] = 0.000000f; eyeRight.m[2][2] = 0.984808f; eyeRight.m[2][3] = 0.000000f;
+
+	g_EyeMatrixLeftInv = HmdMatrix34toMatrix4(eyeLeft);
+	g_EyeMatrixRightInv = HmdMatrix34toMatrix4(eyeRight);
+	g_EyeMatrixLeftInv.invertGeneral();
+	g_EyeMatrixRightInv.invertGeneral();
+
+	vr::HmdMatrix44_t projLeft;
+	projLeft.m[0][0] = 0.647594f; projLeft.m[0][1] = 0.000000f; projLeft.m[0][2] = -0.128239f; projLeft.m[0][3] = 0.000000f;
+	projLeft.m[1][0] = 0.000000f; projLeft.m[1][1] = 0.787500f; projLeft.m[1][2] = 0.000000f; projLeft.m[1][3] = 0.000000f;
+	projLeft.m[2][0] = 0.000000f; projLeft.m[2][1] = 0.000000f; projLeft.m[2][2] = -1.010101f; projLeft.m[2][3] = -0.505050f;
+	projLeft.m[3][0] = 0.000000f; projLeft.m[3][1] = 0.000000f; projLeft.m[3][2] = -1.000000f; projLeft.m[3][3] = 0.000000f;
+
+	vr::HmdMatrix44_t projRight;
+	projRight.m[0][0] = 0.647594f; projRight.m[0][1] = 0.000000f; projRight.m[0][2] = 0.128239f; projRight.m[0][3] = 0.000000f;
+	projRight.m[1][0] = 0.000000f; projRight.m[1][1] = 0.787500f; projRight.m[1][2] = 0.000000f; projRight.m[1][3] = 0.000000f;
+	projRight.m[2][0] = 0.000000f; projRight.m[2][1] = 0.000000f; projRight.m[2][2] = -1.010101f; projRight.m[2][3] = -0.505050f;
+	projRight.m[3][0] = 0.000000f; projRight.m[3][1] = 0.000000f; projRight.m[3][2] = -1.000000f; projRight.m[3][3] = 0.000000f;
+
+	g_projLeft = HmdMatrix44toMatrix4(projLeft);
+	g_projRight = HmdMatrix44toMatrix4(projRight);
+}
+
+void Test2DMesh() {
+	/*
+	MainVertex vertices[4] =
+	{
+		MainVertex(-1, -1, 0, 1),
+		MainVertex(1, -1, 1, 1),
+		MainVertex(1,  1, 1, 0),
+		MainVertex(-1,  1, 0, 0),
+	};
+	*/
+	Matrix4 fullMatrixLeft = g_FullProjMatrixLeft;
+	//fullMatrixLeft.invertGeneral();
+	Vector4 P, Q;
+
+	P.set(-12, -12, -30, 0);
+	Q = fullMatrixLeft * P;
+	Q = Q / Q[3];
+	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
+
+	P.set(12, -12, -30, 0);
+	Q = fullMatrixLeft * P;
+	Q = Q / Q[3];
+	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
+
+	P.set(-12, 12, -30, 0);
+	Q = fullMatrixLeft * P;
+	Q = Q / Q[3];
+	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
+
+	P.set(12, 12, -30, 0);
+	Q = fullMatrixLeft * P;
+	Q = Q / Q[3];
+	log_debug("[DBG] (%0.3f, %0.3f) --> (%0.3f, %0.3f)", P[0], P[1], Q[0], Q[1]);
+}

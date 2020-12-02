@@ -14,6 +14,11 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
+#include "utils.h"
+#include "globals.h"
+#include "VRConfig.h"
+#include "SteamVR.h"
+#include "DirectSBS.h"
 
 #include "XWAObject.h"
 
@@ -63,12 +68,8 @@ void IncreaseNoDrawAfterHUD(int Delta);
 #endif
 
 // Debug functions
-void log_debug(const char *format, ...);
-void DumpGlobalLights();
-
-typedef struct float4_struct {
-	float x, y, z, w;
-} float4;
+//void log_debug(const char *format, ...);
+//void DumpGlobalLights();
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -86,16 +87,6 @@ void PrintVector(const Vector4 &Vector) {
 	log_debug("[DBG] Vector: %0.3f, %0.3f, %0.3f",
 		Vector.x, Vector.y, Vector.z);
 }
-
-extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized, g_bClearHUDBuffers, g_bDCManualActivate, g_bGlobalDebugFlag;
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
-extern Vector4 g_LightVector[2];
-extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
-
-extern bool g_bHDREnabled, g_bEdgeDetectorEnabled;
-extern float g_fHDRWhitePoint;
 
 extern bool bFreePIEAlreadyInitialized, g_bDCApplyEraseRegionCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
 void ShutdownFreePIE();
@@ -124,10 +115,7 @@ extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bSh
 HWND g_ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
-// User-facing functions
-void ResetVRParams(); // Restores default values for the view params
-void SaveVRParams();
-void LoadVRParams();
+
 float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080);
 void ComputeHyperFOVParams();
 
@@ -142,21 +130,13 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
-void ApplyFocalLength(float focal_length);
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
 void IncreaseLensK2(float Delta);
 
-bool InitDirectSBS();
-bool ShutDownDirectSBS();
-
 void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
 void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...);
-
-// SteamVR
-#include "SteamVR.h"
-
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
@@ -165,98 +145,6 @@ void IncreaseReticleScale(float delta) {
 	if (g_fReticleScale > 5.0f)
 		g_fReticleScale = 5.0f;
 	log_debug("[DBG] g_fReticleScale: %0.3f", g_fReticleScale);
-}
-
-/*
- * Save the current FOV and metric multiplier to an external file
- */
-void SaveFocalLength() {
-	FILE *file;
-	int error = 0;
-
-	try {
-		error = fopen_s(&file, "./FocalLength.cfg", "wt");
-	}
-	catch (...) {
-		log_debug("[DBG] [FOV] Could not save FocalLength.cfg");
-	}
-
-	if (error != 0) {
-		log_debug("[DBG] [FOV] Error %d when saving FocalLength.cfg", error);
-		return;
-	}
-
-	//fprintf(file, "; The focal length is measured in pixels. This parameter can be modified without\n");
-	//fprintf(file, "; VR, so, technically, it's not a 'VRParam'\n");
-	// Let's not write the focal length in pixels anymore. It doesn't make any sense to
-	// anyone and it's only useful internally. We'll continue to read it, but let's start
-	// using something sensible
-	//fprintf(file, "focal_length = %0.6f\n", *g_fRawFOVDist);
-	// Save the *real* vert FOV
-	fprintf(file, "; The FOV is measured in degrees. This is the actual vertical FOV.\n");
-	if (!g_bEnableVR) {
-		fprintf(file, "; This FOV is used when the game is in non-VR mode.\n");
-		fprintf(file, "real_FOV = %0.3f\n", ComputeRealVertFOV());
-	}
-	else {
-		fprintf(file, "; This FOV is used only when the game is in VR mode.\n");
-		fprintf(file, "VR_FOV = %0.3f\n", ComputeRealVertFOV());
-	}
-	fclose(file);
-}
-
-bool LoadFocalLength() {
-	log_debug("[DBG] [FOV] Loading FocalLength...");
-	FILE *file;
-	int error = 0;
-	bool bApplied = false;
-
-	try {
-		error = fopen_s(&file, "./FocalLength.cfg", "rt");
-	}
-	catch (...) {
-		log_debug("[DBG] [FOV] Could not load FocalLength.cfg");
-	}
-
-	if (error != 0) {
-		log_debug("[DBG] [FOV] Error %d when loading FocalLength.cfg", error);
-		return bApplied;
-	}
-
-	char buf[160], param[80], svalue[80];
-	int param_read_count = 0;
-	float fValue = 0.0f;
-
-	while (fgets(buf, 160, file) != NULL) {
-		// Skip comments and blank lines
-		if (buf[0] == ';' || buf[0] == '#')
-			continue;
-		if (strlen(buf) == 0)
-			continue;
-
-		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			fValue = (float)atof(svalue);
-			if (_stricmp(param, "focal_length") == 0) {
-				ApplyFocalLength(fValue);
-				log_debug("[DBG] [FOV] Applied FOV: %0.3f", fValue);
-				bApplied = true;
-			}
-			else if (_stricmp(param, "real_FOV") == 0 && !g_bEnableVR) {
-				float RawFocalLength = RealVertFOVToRawFocalLength(fValue);
-				ApplyFocalLength(RawFocalLength);
-				log_debug("[DBG] [FOV] Applied Real FOV: %0.3f", RawFocalLength);
-				bApplied = true;
-			}
-			else if (_stricmp(param, "VR_FOV") == 0 && g_bEnableVR) {
-				float RawFocalLength = RealVertFOVToRawFocalLength(fValue);
-				ApplyFocalLength(RawFocalLength);
-				log_debug("[DBG] [FOV] Applied VR FOV: %0.3f", RawFocalLength);
-				bApplied = true;
-			}
-		}
-	}
-	fclose(file);
-	return bApplied;
 }
 
 void ApplyFocalLength(float focal_length)

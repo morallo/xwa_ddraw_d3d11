@@ -46,16 +46,10 @@ const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
 const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
 auto g_hudScale = (float *)0x06002B8;
+const auto missionIndexLoaded = (int*)0x9F5E74;
 
-extern int *s_XwaGlobalLightsCount;
-extern XwaGlobalLight* s_XwaGlobalLights;
-extern Matrix4 g_CurrentHeadingViewMatrix;
-const auto missionIndexLoaded = (int *)0x9F5E74;
-
-extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
-
-extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
-extern TrackerType g_TrackerType;
+// Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInTechRoom;
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -97,116 +91,13 @@ bool rayTriangleIntersect(
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
 
-extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
-extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
-extern int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
-extern float g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
-extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
-extern float g_fHyperTimeOverride; // DEBUG, remove later
-extern int g_iHyperStateOverride; // DEBUG, remove later
-extern bool g_bHyperDebugMode; // DEBUG -- needed to fine-tune the effect, won't be able to remove until I figure out an automatic way to setup the effect
-extern bool g_bHyperspaceFirstFrame; // Set to true on the first frame of hyperspace, reset to false at the end of each frame
-extern bool g_bClearedAuxBuffer, g_bExecuteBufferLock;
-extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
-extern int g_iHyperExitPostFrames;
-bool g_bKeybExitHyperspace = false;
-extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 
-// DYNAMIC COCKPIT
-extern dc_element g_DCElements[];
-extern int g_iNumDCElements;
-extern DCHUDRegions g_DCHUDRegions;
-extern move_region_coords g_DCMoveRegions;
-extern char g_sCurrentCockpit[128];
-extern bool g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
-extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
-extern float g_fReticleScale;
-extern DCElemSrcBoxes g_DCElemSrcBoxes;
-//float g_fReticleOfsX = 0.0f;
-//float g_fReticleOfsY = 0.0f;
-//extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
-//extern float g_fXWAScale;
-
-extern Vector2 g_TriangleCentroid;
-extern float g_fTrianglePointerDist;
-
-// ACTIVE COCKPIT
-extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
-extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFreePIEControllerButtonDataAvailable;
-extern Vector4 g_contOriginWorldSpace, g_contOriginViewSpace, g_contDirWorldSpace, g_contDirViewSpace;
-extern Vector3 g_LaserPointer3DIntersection;
-extern float g_fBestIntersectionDistance, g_fLaserPointerLength;
-extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
-extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
-extern int g_iBestIntersTexIdx;
-extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iNumACElements, g_iLaserDirSelector;
-
-// DEBUG vars
-extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
-extern bool g_bDumpLaserPointerDebugInfo;
-extern Vector3 g_LPdebugPoint;
-extern float g_fLPdebugPointOffset, g_fDebugYCenter;
-// DEBUG vars
-
-extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;
-extern bool g_bIsTrianglePointer, g_bLastTrianglePointer, g_bFixedGUI, g_bFloatingAimingHUD;
-extern bool g_bYawPitchFromMouseOverride, g_bIsSkyBox, g_bPrevIsSkyBox, g_bSkyBoxJustFinished;
-extern bool g_bIsPlayerObject, g_bPrevIsPlayerObject, g_bSwitchedToGUI;
-extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted;
-
-// SPEED SHADER EFFECT
-extern bool g_bHyperspaceTunnelLastFrame, g_bHyperspaceLastFrame;
-extern bool g_bEnableSpeedShader, g_bEnableAdditionalGeometry;
-extern float g_fSpeedShaderScaleFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
-extern float g_fCockpitTranslationScale;
-extern int g_iSpeedShaderMaxParticles;
-Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
-D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
-
-// SHADOW MAPPING
-extern ShadowMappingData g_ShadowMapping;
-extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraMatrix, g_bShadowMapEnablePCSS;
-extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
-extern float SHADOW_OBJ_SCALE, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
-extern std::vector<Vector4> g_OBJLimits;
-bool g_bShadowMapHardwarePCF = false;
-extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
-extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
-extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
-extern int g_iNumSunCentroids;
-
-extern VertexShaderCBuffer g_VSCBuffer;
-extern PixelShaderCBuffer g_PSCBuffer;
-extern DCPixelShaderCBuffer g_DCPSCBuffer;
-extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
-extern MetricReconstructionCB g_MetricRecCBuffer;
-extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
-extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurInGameAspectRatio, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fMetricMult;
-extern int g_WindowWidth, g_WindowHeight;
-extern D3D11_VIEWPORT g_nonVRViewport;
-
-// DS2 Effects
-extern int g_iReactorExplosionCount;
 
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR=false);
 
-extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
-extern float g_fYawOffset, g_fPitchOffset;
-extern float g_fPosXMultiplier, g_fPosYMultiplier, g_fPosZMultiplier;
-extern float g_fMinPositionX, g_fMaxPositionX;
-extern float g_fMinPositionY, g_fMaxPositionY;
-extern float g_fMinPositionZ, g_fMaxPositionZ;
-extern float g_fFrameTimeRemaining;
-extern float g_fSteamVRMirrorWindow3DScale, g_fSteamVRMirrorWindowAspectRatio;
-extern Vector3 g_headCenter;
-extern bool g_bResetHeadCenter, g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
-extern vr::IVRSystem *g_pHMD;
-extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
-extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
+
 bool g_bTogglePostPresentHandoff = false, g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
 
 // LASER LIGHTS
@@ -218,8 +109,6 @@ float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLigh
 bool g_bHeadLightsAutoTurnOn = true;
 
 // Bloom
-extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
-extern BloomConfig g_BloomConfig;
 float g_fBloomLayerMult[8] = {
 	1.000f, // 0
 	1.025f, // 1
@@ -247,15 +136,6 @@ int g_iBloomPasses[8] = {
 //extern FILE *colorFile, *lightFile;
 
 // SSAO
-extern SSAOTypeEnum g_SSAO_Type;
-extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
-extern int g_iSSDODebug, g_iSSAOBlurPasses;
-extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bShadowEnable;
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
-extern Vector4 g_LightVector[2];
-extern Vector4 g_LightColor[2];
-extern float g_fViewYawSign, g_fViewPitchSign;
 float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 
 // V0x00782848
@@ -521,18 +401,9 @@ struct MainVertex
 	}
 };
 
-// Barrel Effect
-BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
-extern float g_fLensK1, g_fLensK2, g_fLensK3;
-
 // Main Pixel Shader constant buffer
 MainShadersCBuffer			g_MSCBuffer;
-// Constant Buffers
-BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
-PSShadingSystemCB			g_ShadingSys_PSBuffer;
-extern ShadertoyCBuffer		g_ShadertoyBuffer;
-extern LaserPointerCBuffer	g_LaserPointerBuffer;
+
 extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_b3DSunPresent, g_b3DSkydomePresent;
 extern float g_fBloomAmplifyFactor, g_fHangarAmbient, g_fGlobalAmbient;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;

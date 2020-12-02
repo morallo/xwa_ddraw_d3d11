@@ -6,10 +6,15 @@
 #include "DirectSBS.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"
+#include "effects.h"
 
 #define PSVR_VERT_FOV 106.53f
 float g_fVR_FOV = PSVR_VERT_FOV;
 bool g_bDirectSBSInitialized = false;
+
+// Barrel Effect
+BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
+extern float g_fLensK1, g_fLensK2, g_fLensK3;
 
 bool InitDirectSBS()
 {

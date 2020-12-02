@@ -10,6 +10,7 @@
 #include "MipmapSurface.h"
 #include <comdef.h>
 //#include <shlwapi.h>
+#include "shadow_mapping.h"
 
 #include <ScreenGrab.h>
 #include <WICTextureLoader.h>
@@ -245,9 +246,6 @@ std::vector<OPTNameType> g_OPTnames;
 void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
 void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName);
-
-// SHADOW MAPPING;
-extern ShadowMappingData g_ShadowMapping;
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
