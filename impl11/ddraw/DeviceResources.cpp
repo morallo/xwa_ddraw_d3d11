@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 J�r�my Ansel
+﻿// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -136,11 +136,11 @@
 #include "globals.h"
 #include "VRConfig.h"
 #include "shadow_mapping.h"
+#include "materials.h"
+#include "dynamic_cockpit.h"
+#include "active_cockpit.h"
 
-void InitOPTnames();
-void ClearOPTnames();
-void InitCraftMaterials();
-void ClearCraftMaterials();
+
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 
 bool g_bWndProcReplaced = false;

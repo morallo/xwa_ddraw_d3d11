@@ -6,6 +6,8 @@
 #include "commonVR.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
+#include "materials.h"
+#include "Direct3DTexture.h"
 
 //***************************
 // Configuration globals
@@ -21,19 +23,50 @@ TrackerType g_TrackerType = TRACKER_NONE;
 float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
 
+float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
+float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
+
 // Bloom
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
 BloomConfig g_BloomConfig = { 1 };
 
+float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1] = {
+	1.000f, // 0
+	1.025f, // 1
+	1.030f, // 2
+	1.035f, // 3
+	1.045f, // 4
+	1.055f, // 5
+	1.070f, // 6
+	1.100f, // 7
+};
+float g_fBloomSpread[MAX_BLOOM_PASSES + 1] = {
+	2.0f, // 0
+	3.0f, // 1
+	4.0f, // 2
+	4.0f, // 3
+	4.0f, // 4
+	4.0f, // 5
+	4.0f, // 6
+	4.0f, // 7
+};
+int g_iBloomPasses[MAX_BLOOM_PASSES + 1] = {
+	1, 1, 1, 1, 1, 1, 1, 1
+};
+
+//extern FILE *colorFile, *lightFile;
+
 // SSAO
+float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
 PSShadingSystemCB	  g_ShadingSys_PSBuffer;
 SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
-bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE, g_bDisableDiffuse = false;
+bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
+bool g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f;
@@ -60,10 +93,6 @@ Vector4 g_LightColor[2], g_TempLightColor[2];
 // the white point to go down... but not by much in either direction.
 float g_fHDRLightsMultiplier = 2.0f, g_fHDRWhitePoint = 1.0f;
 bool g_bHDREnabled = false;
-
-bool g_bDumpOBJEnabled = false;
-FILE* g_DumpOBJFile = NULL;
-int g_iDumpOBJFaceIdx = 0, g_iDumpOBJIdx = 1;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -2005,3 +2034,248 @@ bool LoadHyperParams() {
 
 	return true;
 }
+
+bool LoadDefaultGlobalMaterial() {
+	FILE* file;
+	int error = 0, line = 0;
+	char buf[256];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	// Failsafe: populate with constant defaults:
+	g_DefaultGlobalMaterial.Metallic = DEFAULT_METALLIC;
+	g_DefaultGlobalMaterial.Intensity = DEFAULT_SPEC_INT;
+	g_DefaultGlobalMaterial.Glossiness = DEFAULT_GLOSSINESS;
+	g_DefaultGlobalMaterial.NMIntensity = DEFAULT_NM_INT;
+	g_DefaultGlobalMaterial.SpecValue = DEFAULT_SPEC_VALUE;
+	g_DefaultGlobalMaterial.IsShadeless = false;
+	g_DefaultGlobalMaterial.Light.set(0.0f, 0.0f, 0.0f);
+
+	try {
+		error = fopen_s(&file, "./Materials/DefaultGlobalMaterial.mat", "rt");
+	}
+	catch (...) {
+		//log_debug("[DBG] [MAT] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		//log_debug("[DBG] [MAT] Error %d when loading [%s]", error, sFileName);
+		return false;
+	}
+	log_debug("[DBG] [MAT] Loading DefaultGlobalMaterial.mat");
+
+	// Now, try to load the global materials file
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		ReadMaterialLine(buf, &g_DefaultGlobalMaterial);
+	}
+	fclose(file);
+	return true;
+}
+
+void ReloadMaterials()
+{
+	char* surface_name;
+	char texname[MAX_TEXNAME];
+	bool bIsDat;
+	OPTNameType OPTname;
+
+	if (!g_bReloadMaterialsEnabled) {
+		log_debug("[DBG] [MAT] Material Reloading is not enabled");
+		return;
+	}
+
+	log_debug("[DBG] [MAT] Reloading materials.");
+	ClearCraftMaterials();
+	ClearOPTnames();
+
+	for (Direct3DTexture* texture : g_AuxTextureVector) {
+		OPTname.name[0] = 0;
+		surface_name = texture->_surface->_name;
+		bIsDat = false;
+		//bIsDat = strstr(surface_name, "dat,") != NULL;
+
+		// Capture the OPT/DAT name and load the material file
+		char* start = strstr(surface_name, "\\");
+		char* end = strstr(surface_name, ".opt");
+		char sFileName[180];
+		if (start != NULL && end != NULL) {
+			start += 1; // Skip the backslash
+			int size = end - start;
+			strncpy_s(OPTname.name, MAX_OPT_NAME, start, size);
+			if (!isInVector(OPTname.name, g_OPTnames)) {
+				//log_debug("[DBG] [MAT] OPT Name Captured: '%s'", OPTname.name);
+				// Add the name to the list of OPTnames so that we don't try to process it again
+				g_OPTnames.push_back(OPTname);
+				OPTNameToMATParamsFile(OPTname.name, sFileName, 180);
+				log_debug("[DBG] [MAT] [OPT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
+			}
+		}
+		else if (strstr(surface_name, "dat,") != NULL) {
+			bIsDat = true;
+			// For DAT images, OPTname.name is the full DAT name:
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface_name, strlen(surface_name));
+			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			if (sFileName[0] != 0) {
+				log_debug("[DBG] [MAT] [DAT] Reloading file %s...", sFileName);
+				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
+			}
+		}
+
+		int craftIdx = FindCraftMaterial(OPTname.name);
+		//log_debug("[DBG] [MAT] craftIdx: %d", craftIdx);
+		if (bIsDat)
+			texname[0] = 0; // Retrieve the default material
+		else
+		{
+			//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
+			char* start = strstr(surface_name, ".opt");
+			// Skip the ".opt," part
+			start += 5;
+			// Find the next comma
+			char* end = strstr(start, ",");
+			int size = end - start;
+			strncpy_s(texname, MAX_TEXNAME, start, size);
+		}
+		//log_debug("[DBG] [MAT] Looking for material for %s", texname);
+		//bool Debug = strstr(surface_name, "CalamariLulsa") != NULL || bIsDat;
+		texture->material = FindMaterial(craftIdx, texname, false);
+		//if (Debug)
+		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
+		texture->bHasMaterial = true;
+	}
+}
+
+void ToggleCockpitPZHack() {
+	g_bCockpitPZHackEnabled = !g_bCockpitPZHackEnabled;
+	//log_debug("[DBG] CockpitHackEnabled: %d", g_bCockpitPZHackEnabled);
+	if (!g_bCockpitPZHackEnabled)
+		g_fCockpitPZThreshold = 2.0f;
+	else
+		g_fCockpitPZThreshold = g_fBackupCockpitPZThreshold;
+}
+
+void ToggleZoomOutMode() {
+	g_bZoomOut = !g_bZoomOut;
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
+}
+
+void IncreaseZOverride(float Delta) {
+	g_fZBracketOverride += Delta;
+	//log_debug("[DBG] g_fZOverride: %f", g_fZOverride);
+}
+
+void IncreaseZoomOutScale(float Delta) {
+	g_fGlobalScaleZoomOut += Delta;
+	if (g_fGlobalScaleZoomOut < 0.2f)
+		g_fGlobalScaleZoomOut = 0.2f;
+
+	// Apply this change by modifying the global scale:
+	g_fGUIElemsScale = g_bZoomOut ? g_fGlobalScaleZoomOut : DEFAULT_GUI_SCALE;
+
+	g_fConcourseScale += Delta;
+	if (g_fConcourseScale < 0.2f)
+		g_fConcourseScale = 0.2f;
+}
+
+void IncreaseHUDParallax(float Delta) {
+	g_fHUDDepth += Delta;
+	log_debug("[DBG] HUD parallax: %f", g_fHUDDepth);
+}
+
+void IncreaseFloatingGUIParallax(float Delta) {
+	g_fFloatingGUIDepth += Delta;
+	log_debug("[DBG] GUI parallax: %f", g_fFloatingGUIDepth);
+}
+
+void IncreaseTextParallax(float Delta) {
+	g_fTextDepth += Delta;
+	log_debug("[DBG] Text parallax: %f", g_fTextDepth);
+}
+
+void IncreaseCockpitThreshold(float Delta) {
+	g_fCockpitPZThreshold += Delta;
+	g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold;
+	log_debug("[DBG] New cockpit threshold: %f", g_fCockpitPZThreshold);
+}
+
+void IncreaseGUIThreshold(float Delta) {
+	g_fGUIElemPZThreshold += Delta;
+	//log_debug("[DBG] New GUI threshold: %f", GUI_elem_pz_threshold);
+}
+
+void IncreaseScreenScale(float Delta) {
+	g_fGlobalScale += Delta;
+	if (g_fGlobalScale < 0.2f)
+		g_fGlobalScale = 0.2f;
+	log_debug("[DBG] New g_fGlobalScale: %0.3f", g_fGlobalScale);
+}
+
+/*
+void IncreasePostProjScale(float Delta) {
+	g_fPostProjScale += Delta;
+	if (g_fPostProjScale < 0.2f)
+		g_fPostProjScale = 0.2f;
+	log_debug("[DBG] New g_fPostProjScale: %0.3ff", g_fPostProjScale);
+}
+*/
+
+/*
+void IncreaseFocalDist(float Delta) {
+	g_fFocalDist += Delta;
+	if (g_fFocalDist < 0.01f)
+		g_fFocalDist = 0.01f;
+	log_debug("[DBG] g_fFocalDist: %f", g_fFocalDist);
+}
+*/
+
+void IncreaseLensK1(float Delta) {
+	g_fLensK1 += Delta;
+	log_debug("[DBG] New k1: %f", g_fLensK1);
+}
+
+void IncreaseLensK2(float Delta) {
+	g_fLensK2 += Delta;
+	log_debug("[DBG] New k2: %f", g_fLensK2);
+}
+
+#ifdef DBG_VR
+
+void IncreaseNoDrawBeforeIndex(int Delta) {
+	g_iNoDrawBeforeIndex += Delta;
+	log_debug("[DBG] NoDraw BeforeIdx, AfterIdx: %d, %d", g_iNoDrawBeforeIndex, g_iNoDrawAfterIndex);
+}
+
+void IncreaseNoDrawAfterIndex(int Delta) {
+	g_iNoDrawAfterIndex += Delta;
+	log_debug("[DBG] NoDraw BeforeIdx, AfterIdx: %d, %d", g_iNoDrawBeforeIndex, g_iNoDrawAfterIndex);
+}
+
+void IncreaseNoExecIndices(int DeltaBefore, int DeltaAfter) {
+	g_iNoExecBeforeIndex += DeltaBefore;
+	g_iNoExecAfterIndex += DeltaAfter;
+	if (g_iNoExecBeforeIndex < -1)
+		g_iNoExecBeforeIndex = -1;
+
+	log_debug("[DBG] NoExec BeforeIdx, AfterIdx: %d, %d", g_iNoExecBeforeIndex, g_iNoExecAfterIndex);
+}
+
+void IncreaseSkipNonZBufferDrawIdx(int Delta) {
+	g_iSkipNonZBufferDrawIdx += Delta;
+	log_debug("[DBG] New g_iSkipNonZBufferDrawIdx: %d", g_iSkipNonZBufferDrawIdx);
+}
+
+void IncreaseNoDrawAfterHUD(int Delta) {
+	g_iNoDrawAfterHUD += Delta;
+	log_debug("[DBG] NoDrawAfterHUD: %d", g_iNoDrawAfterHUD);
+}
+
+#endif
+
+
+//void IncreaseSkyBoxIndex(int Delta) {
+//	g_iSkyBoxExecIndex += Delta;
+//	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
+//}
+

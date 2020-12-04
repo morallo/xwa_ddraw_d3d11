@@ -1,10 +1,39 @@
 #pragma once
 
+#include "common.h"
 #include "Matrices.h"
 #include <vector>
 #include "../shaders/shader_common.h"
 
 #define SHADOW_MAP_SIZE 1024
+
+// Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
+typedef struct ShadowMapVertexShaderMatrixCBStruct {
+	Matrix4 Camera;
+	Matrix4 lightWorldMatrix[MAX_XWA_LIGHTS];
+	// 128 bytes
+
+	uint32_t sm_enabled, sm_debug;
+	float sm_light_size, sm_blocker_radius;
+
+	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
+
+	Vector3 POV;
+	float sm_resolution;
+
+	int light_index;
+	float sm_FOVscale, sm_y_center, sm_z_factor;
+
+	uint32_t sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
+
+	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
+	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
+	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
+} ShadowMapVertexShaderMatrixCB;
+
+extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
+extern float SHADOW_OBJ_SCALE;
+extern std::vector<Vector4> g_OBJLimits;
 
 class ShadowMappingData {
 public:
@@ -109,3 +138,5 @@ extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
 extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
 extern int g_iNumSunCentroids;
+
+bool LoadShadowOBJ(char* sFileName);

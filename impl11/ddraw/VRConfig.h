@@ -23,7 +23,11 @@ const float DEFAULT_CONCOURSE_SCALE = 12.0f;
 const float DEFAULT_CONCOURSE_ASPECT_RATIO = 1.33f; // Default for non-SteamVR
 const float DEFAULT_GLOBAL_SCALE = 1.0f;
 const float DEFAULT_GUI_SCALE = 0.7f;
-/*
+
+const float GAME_SCALE_FACTOR = 60.0f; // Estimated empirically
+const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
+
+										 /*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
 const float DEFAULT_LENS_K3 = 0.0f;
@@ -155,7 +159,12 @@ extern int g_iFreePIEControllerSlot ;
 extern bool g_bFixedGUI ;
 //extern float g_fXWAScale ; // This is the scale value as computed during Execute()
 
-extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1], g_fBloomSpread[MAX_BLOOM_PASSES + 1];
+extern float g_fSSAOAlphaOfs;
+extern bool g_bDisableDiffuse;
+extern bool g_bProceduralLava;
+
+extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1];
+extern float g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 extern bool g_bDynCockpitEnabled;
@@ -170,9 +179,32 @@ void LoadCockpitLookParams();
 bool LoadGeneric3DCoords(char* buf, float* x, float* y, float* z);
 bool LoadGeneric4DCoords(char* buf, float* x, float* y, float* z, float* w);
 
-
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 bool LoadFocalLength();
+
+bool LoadDCParams();
+bool LoadACParams();
+bool LoadBloomParams();
+bool LoadSSAOParams();
+bool LoadHyperParams();
+bool LoadDefaultGlobalMaterial();
+void ReloadMaterials();
+
+
+#ifdef DBG_VR
+extern bool g_bDo3DCapture, g_bStart3DCapture;
+extern bool g_bCapture2DOffscreenBuffer = false;
+extern bool g_bDumpDebug = false;
+//extern bool g_bDumpSpecificTex;
+//extern int g_iDumpSpecificTexIdx;
+void IncreaseCockpitThreshold(float Delta);
+void IncreaseNoDrawBeforeIndex(int Delta);
+void IncreaseNoDrawAfterIndex(int Delta);
+//void IncreaseNoExecIndices(int DeltaBefore, int DeltaAfter);
+//void IncreaseZOverride(float Delta);
+void IncreaseSkipNonZBufferDrawIdx(int Delta);
+void IncreaseNoDrawAfterHUD(int Delta);
+#endif
 
 

@@ -11,15 +11,14 @@
 #include <comdef.h>
 //#include <shlwapi.h>
 #include "shadow_mapping.h"
+#include "materials.h"
+#include "reticle.h"
 
 #include <ScreenGrab.h>
 #include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
-
-extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
-extern float SHADOW_OBJ_SCALE;
-extern std::vector<Vector4> g_OBJLimits;
+#include "globals.h"
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
@@ -33,46 +32,7 @@ std::vector<ColorLightPair> g_TextureVector;
  */
 std::vector<Direct3DTexture *> g_AuxTextureVector;
 
-/*
-hook_reticle mapping:
-Reticle_5 = 5
-Reticle_6 = 6
-Reticle_7 = 7
-Reticle_8 = 8
-Reticle_9 = 9
-Reticle_10 = 10
-Reticle_15 = 15
-Reticle_16 = 16
-Reticle_17 = 17
-Reticle_18 = 18
-Reticle_19 = 19
-Reticle_20 = 20
-Reticle_21 = 21
-Reticle_22 = 22
-*/
-std::vector<char *> Reticle_ResNames = {
-	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
-	"dat,12000,600,",  // 0x0793c7d6, // Semi circles that indicate target is ready to be fired upon.
-	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
-	"dat,12000,800,",  // 0x756c8f81, // Warhead semi-circles that indicate lock is being acquired.
-	"dat,12000,900,",  // 0x6acc3e3a, // Green dot for next laser available.
-	"dat,12000,1000,", // 0x19f6f5a2, // Next laser available to fire.
-	"dat,12000,1500,", // 0x1c5e0b86, // Laser warning indicator, left.
-	"dat,12000,1600,", // 0xc54d8171, // Laser warning indicator, mid-left.
-	"dat,12000,1700,", // 0xf4388255, // Laser warning indicator, mid-right.
-	"dat,12000,1800,", // 0xee802582, // Laser warning indicator, right.
-	"dat,12000,1900,", // 0x671e8041, // Warhead top indicator, left.
-	"dat,12000,2000,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
-	"dat,12000,2100,", // 0x6cd5d81f, // Warhead top indicator, mid-left,right
-	"dat,12000,2200,", // 0xc33a94b3, // Warhead top indicator, right.
-};
 
-std::vector<char *> ReticleCenter_ResNames = {
-	"dat,12000,500,",  // 0xdcb8e4f4, // Main Laser reticle.
-	"dat,12000,700,",  // 0xa4870ab3, // Main Warhead reticle.
-};
-
-std::vector<char *> CustomReticleCenter_ResNames;
 
 std::vector<char *> Text_ResNames = {
 	"dat,16000,"
@@ -217,39 +177,6 @@ std::vector<char *> Trails_ResNames = {
 	"dat,21025,",
 };
 
-bool GetGroupIdImageIdFromDATName(char *DATName, int *GroupId, int *ImageId);
-
-// DYNAMIC COCKPIT
-// g_DCElements is used when loading textures to load the cover texture.
-extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
-extern int g_iNumDCElements;
-extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
-extern char g_sCurrentCockpit[128];
-extern DCHUDRegions g_DCHUDRegions;
-bool LoadIndividualDCParams(char *sFileName);
-void CockpitNameToDCParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
-
-// ACTIVE COCKPIT
-extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iNumACElements;
-extern bool g_bActiveCockpitEnabled;
-bool LoadIndividualACParams(char *sFileName);
-void CockpitNameToACParamsFile(char *CockpitName, char *sFileName, int iFileNameSize);
-
-extern bool g_b3DSunPresent, g_b3DSkydomePresent;
-
-// MATERIALS
-// Contains all the materials for all the OPTs currently loaded
-std::vector<CraftMaterials> g_Materials;
-// List of all the OPTs seen so far
-std::vector<OPTNameType> g_OPTnames;
-void OPTNameToMATParamsFile(char *OPTName, char *sFileName, int iFileNameSize);
-void DATNameToMATParamsFile(char *DATName, char *sFileName, int iFileNameSize);
-bool LoadIndividualMATParams(char *OPTname, char *sFileName);
-
-// METRIC RECONSTRUCTION:
-extern bool g_bYCenterHasBeenFixed;
-
 bool isInVector(uint32_t crc, std::vector<uint32_t> &vector) {
 	for (uint32_t x : vector)
 		if (x == crc)
@@ -287,75 +214,6 @@ bool isInVector(char *OPTname, std::vector<OPTNameType> &vector) {
 	return false;
 }
 
-/*
-void InitCachedMaterials() {
-	for (int i = 0; i < MAX_CACHED_MATERIALS; i++)
-		g_CachedMaterials[i].texname[0] = 0;
-	g_iFirstCachedMaterial = g_iLastCachedMaterial = 0;
-}
-*/
-
-void InitOPTnames() {
-	ClearOPTnames();
-}
-
-void ClearOPTnames() {
-	g_OPTnames.clear();
-}
-
-void InitCraftMaterials() {
-	ClearCraftMaterials();
-	//log_debug("[DBG] [MAT] g_Materials initialized (cleared)");
-}
-
-void ClearCraftMaterials() {
-	for (uint32_t i = 0; i < g_Materials.size(); i++) {
-		// Release the materials for each craft
-		g_Materials[i].MaterialList.clear();
-	}
-	// Release the global materials
-	g_Materials.clear();
-	//log_debug("[DBG] [MAT] g_Materials cleared");
-}
-
-/*
-Find the index where the materials for the specific OPT is loaded, or return -1 if the 
-OPT isn't loaded yet.
-*/
-int FindCraftMaterial(char *OPTname) {
-	for (uint32_t i = 0; i < g_Materials.size(); i++) {
-		if (_stricmp(OPTname, g_Materials[i].OPTname) == 0)
-			return i;
-	}
-	return -1;
-}
-
-/*
-Find the material in the specified CraftIndex of g_Materials that corresponds to
-TexName. Returns the default material if it wasn't found or if TexName is null/empty
-*/
-Material FindMaterial(int CraftIndex, char *TexName, bool debug=false) {
-	CraftMaterials *craftMats = &(g_Materials[CraftIndex]);
-	// Slot should always be present and it should be the default craft material
-	Material defMat = craftMats->MaterialList[0].material;
-	if (TexName == NULL || TexName[0] == 0)
-		return defMat;
-	for (uint32_t i = 1; i < craftMats->MaterialList.size(); i++) {
-		if (_stricmp(TexName, craftMats->MaterialList[i].texname) == 0) {
-			defMat = craftMats->MaterialList[i].material;
-			if (debug)
-				log_debug("[DBG] [MAT] Material %s found: M:%0.3f, I:%0.3f, G:%0.3f", 
-					TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
-			return defMat;
-		}
-	}
-
-	if (debug)
-		log_debug("[DBG] [MAT] Material %s not found, returning default: M:%0.3f, I:%0.3f, G:%0.3f", 
-			TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
-	return defMat;
-}
-
 #ifdef DBG_VR
 /*
 void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int index) {
@@ -368,123 +226,8 @@ void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int inde
 */
 #endif
 
-/*
- Converts an index number as specified in the custom reticle files to a slot index
- as stored in HUD.dat.
-*/
-int ReticleIndexToHUDSlot(int ReticleIndex) {
-	// I hate this stupid numbering system
-	// The reticles start at 5151
-	// Every 14 slots, the group number will increase
-	// Every 100th slot, the group number will *also* increase, because, hey, why the hell not?
-	// This leads to this very stupid and complex algorithm:
-	int sub_slot = (ReticleIndex - 51) / 14;
-	int super_slot = (ReticleIndex / 100);
-	int slot_mod = (ReticleIndex % 100);
-	int slot = 5100 + 100 * sub_slot + 100 * super_slot + slot_mod;
-	log_debug("[DBG] [RET] index: %d, sub_slot: %d, super_slot: %d, slot_mod: %d slot: %d",
-		ReticleIndex, sub_slot, super_slot, slot_mod, slot);
-	return slot;
-}
-
-/*
- Converts an index number as specified in the custom reticle files to a HUD resname
- in the form "dat,12000,<slot>,"
-*/
-void ReticleIndexToHUDresname(int ReticleIndex, char *out_str, int out_str_len) {
-	int slot = ReticleIndexToHUDSlot(ReticleIndex);
-	sprintf_s(out_str, out_str_len, "dat,12000,%d,", slot);
-}
-
-void ClearCustomReticleCenterResNames() {
-	for (char *res : CustomReticleCenter_ResNames) {
-		if (res != NULL) {
-			delete[] res;
-			res = NULL;
-		}
-	}
-	CustomReticleCenter_ResNames.clear();
-}
-
-bool LoadReticleTXTFile(char *sFileName) {
-	log_debug("[DBG] [RET] Loading Reticle Text file...");
-	FILE *file;
-	int error = 0;
-
-	try {
-		error = fopen_s(&file, sFileName, "rt");
-	}
-	catch (...) {
-		log_debug("[DBG] [RET] Could not load %s", sFileName);
-	}
-
-	if (error != 0) {
-		log_debug("[DBG] [RET] Error %d when loading %s", error, sFileName);
-		return false;
-	}
-
-	// The reticle file exists, let's parse it
-	char buf[160], param[80], svalue[80], *ResName;
-	int param_read_count = 0;
-	int iValue = 0;
-
-	ClearCustomReticleCenterResNames();
-	while (fgets(buf, 160, file) != NULL) {
-		// Skip comments and blank lines
-		if (buf[0] == ';')
-			continue;
-		if (strlen(buf) == 0)
-			continue;
-
-		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
-			iValue = atoi(svalue);
-			if (_stricmp(param, "Reticle_5") == 0) {
-				log_debug("[DBG] [RET] Reticle_5: %d", iValue);
-				ResName = new char[80];
-				ReticleIndexToHUDresname(iValue, ResName, 80);
-				CustomReticleCenter_ResNames.push_back(ResName);
-				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
-			}
-			else if (_stricmp(param, "Reticle_7") == 0) {
-				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
-				ResName = new char[80];
-				ReticleIndexToHUDresname(iValue, ResName, 80);
-				CustomReticleCenter_ResNames.push_back(ResName);
-				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
-			}
-		}
-	}
-	fclose(file);
-	return true;
-}
-
-void LoadCustomReticle(char *sCurrentCockpit) {
-	char sFileName[80], sCurrent[80];
-	int len;
-	ClearCustomReticleCenterResNames();
-
-	strcpy_s(sCurrent, sCurrentCockpit);
-	len = strlen(sCurrent);
-	// Remove the "Cockpit" from the name:
-	sCurrent[len - 7] = 0;
-	// Look in the Reticle.txt file
-	snprintf(sFileName, 80, "./FlightModels/%sReticle.txt", sCurrent);
-	log_debug("[DBG] [RET] Loading file: %s", sFileName);
-	if (LoadReticleTXTFile(sFileName))
-		return;
-
-	log_debug("[DBG] [RET] Could not load %s, searching the INI file for custom reticles", sFileName);
-
-	// Look in the INI file
-	snprintf(sFileName, 80, "./FlightModels/%s.ini", sCurrent);
-	log_debug("[DBG] [RET] Loading file: %s", sFileName);
-	if (!LoadReticleTXTFile(sFileName)) {
-		log_debug("[DBG] [RET] Could not load %s. No custom reticles for this cockpit", sFileName);
-	}
-}
-
-bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
-	FILE *file;
+bool Direct3DTexture::LoadShadowOBJ(char* sFileName) {
+	FILE* file;
 	int error = 0;
 
 	try {
@@ -522,10 +265,10 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 			v.sz = z;
 
 			vertices.push_back(v);
-			if (x < minx) minx = x; 
-			if (y < miny) miny = y; 
-			if (z < minz) minz = z; 
-			
+			if (x < minx) minx = x;
+			if (y < miny) miny = y;
+			if (z < minz) minz = z;
+
 			if (x > maxx) maxx = x;
 			if (y > maxy) maxy = y;
 			if (z > maxz) maxz = z;
@@ -539,7 +282,7 @@ bool Direct3DTexture::LoadShadowOBJ(char *sFileName) {
 		}
 	}
 	fclose(file);
-	
+
 	rangex = maxx - minx;
 	rangey = maxy - miny;
 	rangez = maxz - minz;

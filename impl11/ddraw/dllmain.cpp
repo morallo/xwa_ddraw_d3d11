@@ -30,18 +30,9 @@ SharedMem g_SharedMem(false);
 extern LARGE_INTEGER g_PC_Frequency;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
-extern uint32_t *g_rawFOVDist; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
-extern float *g_fRawFOVDist; // FOV dist(float), same value as above
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 auto mouseLook = (__int8*)0x77129C;
-extern float *g_hudScale;
-extern float g_fCurInGameHeight;
 
-extern float g_fDefaultFOVDist;
-extern float g_fDebugFOVscale, g_fDebugYCenter;
-extern float g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fReticleScale;
-extern bool g_bYCenterHasBeenFixed;
-extern bool g_bTogglePostPresentHandoff;
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
 
@@ -49,27 +40,6 @@ extern int g_KeySet;
 //extern float g_fMetricMult, 
 extern float g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
-
-#ifdef DBG_VR
-extern bool g_bFixSkyBox, g_bSkipGUI, g_bSkipText, g_bSkipSkyBox;
-extern bool g_bDo3DCapture, g_bStart3DCapture;
-bool g_bCapture2DOffscreenBuffer = false;
-bool g_bDumpDebug = false;
-
-//extern bool g_bDumpSpecificTex;
-//extern int g_iDumpSpecificTexIdx;
-void IncreaseCockpitThreshold(float Delta);
-void IncreaseNoDrawBeforeIndex(int Delta);
-void IncreaseNoDrawAfterIndex(int Delta);
-//void IncreaseNoExecIndices(int DeltaBefore, int DeltaAfter);
-//void IncreaseZOverride(float Delta);
-void IncreaseSkipNonZBufferDrawIdx(int Delta);
-void IncreaseNoDrawAfterHUD(int Delta);
-#endif
-
-// Debug functions
-//void log_debug(const char *format, ...);
-//void DumpGlobalLights();
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -96,10 +66,6 @@ enum HyperspacePhaseEnum;
 extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 
-// DEBUG
-extern bool g_bKeybExitHyperspace;
-extern bool g_bFXAAEnabled;
-
 // ACTIVE COCKPIT
 extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
@@ -115,8 +81,6 @@ extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bSh
 HWND g_ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
-
-float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080);
 void ComputeHyperFOVParams();
 
 void IncreaseScreenScale(float Delta); // Changes overall zoom

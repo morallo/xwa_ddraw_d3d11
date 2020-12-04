@@ -10,6 +10,7 @@
 #include "effects.h"
 #include "dynamic_cockpit.h"
 #include "active_cockpit.h"
+#include "common.h"
 
 enum RenderMainColorKeyType
 {
@@ -61,73 +62,7 @@ typedef struct MetricReconstructionCBStruct {
 
 // General types and globals
 
-struct MaterialStruct;
-extern struct MaterialStruct g_DefaultGlobalMaterial;
 
-// Materials
-typedef struct MaterialStruct {
-	float Metallic;
-	float Intensity;
-	float Glossiness;
-	float NMIntensity;
-	float SpecValue;
-	bool  IsShadeless;
-	bool  NoBloom;
-	Vector3 Light;
-	Vector2 LightUVCoordPos;
-	bool  IsLava;
-	float LavaSpeed;
-	float LavaSize;
-	float EffectBloom;
-	Vector3 LavaColor;
-	bool LavaTiling;
-	bool AlphaToBloom;
-	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
-	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
-	float Ambient;
-	// DEBUG properties, remove later
-	//Vector3 LavaNormalMult;
-	//Vector3 LavaPosMult;
-	//bool LavaTranspose;
-
-	MaterialStruct() {
-		Metallic		= g_DefaultGlobalMaterial.Metallic;
-		Intensity		= g_DefaultGlobalMaterial.Intensity;
-		Glossiness		= g_DefaultGlobalMaterial.Glossiness;
-		NMIntensity		= g_DefaultGlobalMaterial.NMIntensity;
-		SpecValue		= g_DefaultGlobalMaterial.SpecValue;
-		IsShadeless		= g_DefaultGlobalMaterial.IsShadeless;
-		Light			= g_DefaultGlobalMaterial.Light;
-		LightUVCoordPos = Vector2(0.1f, 0.9f);
-		NoBloom			= false;
-		IsLava			= false;
-		LavaSpeed		= 1.0f;
-		LavaSize		= 1.0f;
-		EffectBloom		= 1.0f;
-		LavaTiling		= true;
-
-		LavaColor.x		= 1.00f;
-		LavaColor.y		= 0.35f;
-		LavaColor.z		= 0.05f;
-
-		AlphaToBloom	= false;
-		NoColorAlpha	= false;
-		AlphaIsntGlass	= false;
-		Ambient			= 0.0f;
-
-		/*
-		// DEBUG properties, remove later
-		LavaNormalMult.x = 1.0f;
-		LavaNormalMult.y = 1.0f;
-		LavaNormalMult.z = 1.0f;
-
-		LavaPosMult.x = -1.0f;
-		LavaPosMult.y = -1.0f;
-		LavaPosMult.z = -1.0f;
-		LavaTranspose = true;
-		*/
-	}
-} Material;
 
 // Color-Light links
 class Direct3DTexture;
@@ -623,7 +558,8 @@ public:
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:
-	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
+	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[40];
+	//ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

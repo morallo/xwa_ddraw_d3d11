@@ -4,6 +4,7 @@
 #include "../shaders/material_defs.h"
 #include "../shaders/shader_common.h"
 #include <vector>
+#include "DeviceResources.h"
 
 typedef struct Box_struct {
 	float x0, y0, x1, y1;
@@ -241,29 +242,7 @@ typedef struct DCPixelShaderCBStruct {
 	// 448 bytes
 } DCPixelShaderCBuffer;
 
-// Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
-typedef struct ShadowMapVertexShaderMatrixCBStruct {
-	Matrix4 Camera;
-	Matrix4 lightWorldMatrix[MAX_XWA_LIGHTS];
-	// 128 bytes
 
-	uint32_t sm_enabled, sm_debug;
-	float sm_light_size, sm_blocker_radius;
-
-	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
-
-	Vector3 POV;
-	float sm_resolution;
-
-	int light_index;
-	float sm_FOVscale, sm_y_center, sm_z_factor;
-
-	uint32_t sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
-
-	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
-	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
-	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
-} ShadowMapVertexShaderMatrixCB;
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
@@ -288,3 +267,10 @@ extern LaserPointerCBuffer	g_LaserPointerBuffer;
 
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 
+// LASER LIGHTS
+extern SmallestK g_LaserList;
+extern bool g_bEnableLaserLights, g_bEnableHeadLights;
+Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
+Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
+float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+bool g_bHeadLightsAutoTurnOn = true;

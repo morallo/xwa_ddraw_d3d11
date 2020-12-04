@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 J�r�my Ansel
+﻿// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -6,6 +6,7 @@
 #include <wincodec.h>
 
 #include "common.h"
+#include "globals.h"
 #include "DeviceResources.h"
 #include "PrimarySurface.h"
 #include "BackbufferSurface.h"
@@ -14,28 +15,30 @@
 #include "Matrices.h"
 #include "Direct3DTexture.h"
 //#include "XWAFramework.h"
+#include "shadow_mapping.h"
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
 #include "commonVR.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
+#include "reticle.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include <vector>
 
-#include "XWAObject.h"
+//#include "XWAObject.h"
+#include "XWAFramework.h"
+#include "VRConfig.h"
+
+/*
 extern PlayerDataEntry* PlayerDataTable;
 ObjectEntry **objects = (ObjectEntry **)0x7B33C4;
 CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
-extern uint32_t* g_playerIndex;
 const auto mouseLook_Y = (int*)0x9E9624;
 const auto mouseLook_X = (int*)0x9E9620;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
-extern uint32_t *g_playerInHangar;
-bool g_bPrevPlayerInHangar = false;
-#define GENERIC_POV_SCALE 44.0f
 // These values match MXvTED exactly:
 const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
 const short *g_POV_Z0 = (short *)(0x5BB480 + 0x23A);
@@ -44,10 +47,15 @@ const short *g_POV_X0 = (short *)(0x5BB480 + 0x23C);
 const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
 const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
 const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
-const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
-auto g_hudScale = (float *)0x06002B8;
+//const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
+const auto g_hudScale = (float *)0x06002B8;
 const auto missionIndexLoaded = (int*)0x9F5E74;
+*/
 
+extern uint32_t* g_playerIndex;
+extern uint32_t* g_playerInHangar;
+bool g_bPrevPlayerInHangar = false;
+#define GENERIC_POV_SCALE 44.0f
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
 
@@ -55,19 +63,7 @@ extern bool g_bInTechRoom;
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
 When the value is different of 0xFFFF, the player craft is in a hangar.
 */
-extern uint32_t *g_rawFOVDist; /* = (uint32_t *)0x91AB6C*/ // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
-extern float *g_fRawFOVDist; /*= (float *)0x8B94CC;*/ // FOV dist(float), same value as above
-extern float *g_cachedFOVDist; /*= (float *)0x8B94BC;*/ // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
 
-extern float g_fYCenter, g_fFOVscale;
-extern Vector2 g_ReticleCentroid;
-extern Box g_ReticleCenterLimits;
-extern bool g_bTriggerReticleCapture, g_bYCenterHasBeenFixed;
-
-extern float *g_fRawFOVDist, g_fCurrentShipFocalLength, g_fCurrentShipLargeFocalLength, g_fVR_FOV;
-extern float g_fDebugFOVscale, g_fDebugYCenter;
-extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
-extern float g_fRealHorzFOV, g_fRealVertFOV;
 bool g_bMetricParamsNeedReapply = false;
 bool LoadFocalLength();
 void ApplyFocalLength(float focal_length);
@@ -99,44 +95,6 @@ void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool 
 
 
 bool g_bTogglePostPresentHandoff = false, g_bInTechRoom = false, g_bSteamVRMirrorWindowLeftEye = true;
-
-// LASER LIGHTS
-extern SmallestK g_LaserList;
-extern bool g_bEnableLaserLights, g_bEnableHeadLights;
-Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
-Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
-float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
-bool g_bHeadLightsAutoTurnOn = true;
-
-// Bloom
-float g_fBloomLayerMult[8] = {
-	1.000f, // 0
-	1.025f, // 1
-	1.030f, // 2
-	1.035f, // 3
-	1.045f, // 4
-	1.055f, // 5
-	1.070f, // 6
-	1.100f, // 7
-};
-float g_fBloomSpread[8] = {
-	2.0f, // 0
-	3.0f, // 1
-	4.0f, // 2
-	4.0f, // 3
-	4.0f, // 4
-	4.0f, // 5
-	4.0f, // 6
-	4.0f, // 7
-};
-int g_iBloomPasses[8] = {
-	1, 1, 1, 1, 1, 1, 1, 1
-};
-
-//extern FILE *colorFile, *lightFile;
-
-// SSAO
-float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 
 // V0x00782848
 DWORD *XwaGlobalLightsCount = (DWORD *)0x00782848;
@@ -7345,8 +7303,6 @@ void PrimarySurface::RenderSunFlare()
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
-
-void DisplayACAction(WORD *scanCodes);
 
 /*
  * Executes the action defined by "action" as per the Active Cockpit

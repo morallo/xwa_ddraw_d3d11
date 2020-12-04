@@ -1,4 +1,6 @@
 #pragma once
+#include <vector>
+#include "effects.h"
 
 // DYNAMIC COCKPIT
 
@@ -205,5 +207,19 @@ extern DCElemSrcBoxes g_DCElemSrcBoxes;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
-
+// DYNAMIC COCKPIT
+// g_DCElements is used when loading textures to load the cover texture.
+extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
+extern int g_iNumDCElements;
+extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
+extern char g_sCurrentCockpit[128];
+extern DCHUDRegions g_DCHUDRegions;
+bool LoadIndividualDCParams(char* sFileName);
+bool LoadDCCoverTextureSize(char* buf, float* width, float* height);
+static void ClearDCMoveRegions();
+bool LoadDCMoveRegion(char* buf);
+void CockpitNameToDCParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
 bool LoadDCInternalCoordinates();
+float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080);
+bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coords);
+int ReadNameFromLine(char* buf, char* name);
