@@ -8,6 +8,7 @@
 #include "DirectSBS.h"
 #include "materials.h"
 #include "Direct3DTexture.h"
+#include "TextureSurface.h"
 
 //***************************
 // Configuration globals

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "common.h"
+#include "DeviceResources.h"
+
 class MipmapSurface;
 class Direct3DTexture;
 

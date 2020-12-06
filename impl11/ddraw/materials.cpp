@@ -50,6 +50,36 @@ bool LoadUVCoord(char* buf, Vector2* UVCoord)
 	return true;
 }
 
+/*
+ * Loads a Light color row
+ */
+bool LoadLightColor(char* buf, Vector3* Light)
+{
+	int res = 0;
+	char* c = NULL;
+	float r, g, b;
+
+	c = strchr(buf, '=');
+	if (c != NULL) {
+		c += 1;
+		try {
+			res = sscanf_s(c, "%f, %f, %f", &r, &g, &b);
+			if (res < 3) {
+				log_debug("[DBG] [MAT] Error (skipping), expected at least 3 elements in '%s'", c);
+			}
+			Light->x = r;
+			Light->y = g;
+			Light->z = b;
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT] Could not read 'r, g, b' from: %s", buf);
+			return false;
+		}
+	}
+	return true;
+}
+
+
 void ReadMaterialLine(char* buf, Material* curMaterial) {
 	char param[256], svalue[256]; // texname[MAX_TEXNAME];
 	float fValue = 0.0f;
@@ -389,34 +419,6 @@ void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize) {
 	snprintf(sFileName, iFileNameSize, "Materials\\dat-%d-%d.mat", GroupId, ImageId);
 }
 
-/*
- * Loads a Light color row
- */
-bool LoadLightColor(char* buf, Vector3* Light)
-{
-	int res = 0;
-	char* c = NULL;
-	float r, g, b;
-
-	c = strchr(buf, '=');
-	if (c != NULL) {
-		c += 1;
-		try {
-			res = sscanf_s(c, "%f, %f, %f", &r, &g, &b);
-			if (res < 3) {
-				log_debug("[DBG] [MAT] Error (skipping), expected at least 3 elements in '%s'", c);
-			}
-			Light->x = r;
-			Light->y = g;
-			Light->z = b;
-		}
-		catch (...) {
-			log_debug("[DBG] [MAT] Could not read 'r, g, b' from: %s", buf);
-			return false;
-		}
-	}
-	return true;
-}
 
 /*
 void InitCachedMaterials() {
@@ -465,7 +467,7 @@ int FindCraftMaterial(char* OPTname) {
 Find the material in the specified CraftIndex of g_Materials that corresponds to
 TexName. Returns the default material if it wasn't found or if TexName is null/empty
 */
-Material FindMaterial(int CraftIndex, char* TexName, bool debug = false) {
+Material FindMaterial(int CraftIndex, char* TexName, bool debug) {
 	CraftMaterials* craftMats = &(g_Materials[CraftIndex]);
 	// Slot should always be present and it should be the default craft material
 	Material defMat = craftMats->MaterialList[0].material;

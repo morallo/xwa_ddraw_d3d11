@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include "Vectors.h"
+#include "dynamic_cockpit.h"
 
 extern float g_fYCenter, g_fFOVscale;
 extern Vector2 g_ReticleCentroid;

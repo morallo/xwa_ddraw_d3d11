@@ -7,10 +7,8 @@
 #include "../shaders/material_defs.h"
 #include "../shaders/shader_common.h"
 #include <vector>
-#include "effects.h"
-#include "dynamic_cockpit.h"
-#include "active_cockpit.h"
 #include "common.h"
+#include "effects.h"
 
 enum RenderMainColorKeyType
 {
@@ -42,45 +40,6 @@ typedef struct HeadPosStruct {
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 
-
-
-// Holds the current 3D reconstruction constants, register b6
-typedef struct MetricReconstructionCBStruct {
-	float mr_aspect_ratio;   // Same as sm_aspect_ratio (g_fCurInGameAspectRatio), remove sm_* later
-	float mr_FOVscale;       // Same as sm_FOVscale NOT the same as g_ShadertoyBuffer.FOVscale
-	float mr_y_center;       // Same as sm_y_center NOT the same as g_ShadertoyBuffer.y_center
-	float mr_z_metric_mult;  // Probably NOT the same as sm_z_factor
-
-	float mr_cur_metric_scale, mr_shadow_OBJ_scale, mr_screen_aspect_ratio, mr_debug_value;
-
-	//float mr_vr_aspect_ratio_comp[2]; // This is used with shaders that work with the postproc vertexbuf, like the reticle shader
-	float mr_vr_aspect_ratio, mr_unused0;
-	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD
-} MetricReconstructionCB;
-
-
-
-// General types and globals
-
-
-
-// Color-Light links
-class Direct3DTexture;
-typedef struct ColorLightPairStruct {
-	Direct3DTexture *color, *light;
-
-	ColorLightPairStruct(Direct3DTexture *color) {
-		this->color = color;
-		this->light = NULL;
-	}
-} ColorLightPair;
-
-typedef enum {
-	GLOBAL_FOV,
-	XWAHACKER_FOV,
-	XWAHACKER_LARGE_FOV
-} FOVtype;
-extern FOVtype g_CurrentFOVType;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -140,59 +99,6 @@ const int MAX_TIMED_MESSAGES = 3;
   Only rows 0..2 are available
  */
 void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
-
-// S0x07D4FA0
-struct XwaGlobalLight
-{
-	/* 0x0000 */ int PositionX;
-	/* 0x0004 */ int PositionY;
-	/* 0x0008 */ int PositionZ;
-	/* 0x000C */ float DirectionX;
-	/* 0x0010 */ float DirectionY;
-	/* 0x0014 */ float DirectionZ;
-	/* 0x0018 */ float Intensity;
-	/* 0x001C */ float XwaGlobalLight_m1C;
-	/* 0x0020 */ float ColorR;
-	/* 0x0024 */ float ColorB;
-	/* 0x0028 */ float ColorG;
-	/* 0x002C */ float BlendStartIntensity;
-	/* 0x0030 */ float BlendStartColor1C;
-	/* 0x0034 */ float BlendStartColorR;
-	/* 0x0038 */ float BlendStartColorB;
-	/* 0x003C */ float BlendStartColorG;
-	/* 0x0040 */ float BlendEndIntensity;
-	/* 0x0044 */ float BlendEndColor1C;
-	/* 0x0048 */ float BlendEndColorR;
-	/* 0x004C */ float BlendEndColorB;
-	/* 0x0050 */ float BlendEndColorG;
-};
-
-#define MAX_HEAP_ELEMS 32
-class VectorColor {
-public:
-	Vector3 P;
-	Vector3 col;
-};
-
-class SmallestK {
-public:
-	// Insert-sort-like algorithm to keep the k smallest elements from a constant flow
-	VectorColor _elems[MAX_CB_POINT_LIGHTS];
-	int _size;
-
-public:
-	SmallestK() {
-		clear();
-	}
-
-	inline void clear() {
-		_size = 0;
-	}
-
-	void insert(Vector3 P, Vector3 col);
-};
-
-
 
 class DeviceResources
 {

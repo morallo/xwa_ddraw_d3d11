@@ -19,10 +19,10 @@
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
+#include "effects.h"
 #include "commonVR.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
-#include "reticle.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 

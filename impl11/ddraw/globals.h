@@ -4,7 +4,6 @@
 #include "effects.h"
 #include "active_cockpit.h"
 #include "dynamic_cockpit.h"
-#include "DeviceResources.h"
 #include "shadow_mapping.h"
 
 // METRIC RECONSTRUCTION:

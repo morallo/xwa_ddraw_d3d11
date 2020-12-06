@@ -139,4 +139,6 @@ extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
 extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];
 extern int g_iNumSunCentroids;
 
-bool LoadShadowOBJ(char* sFileName);
+// SHADOW MAPPING
+extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDepthTrans, g_fShadowMapScale;
+extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bShadowMapHardwarePCF;

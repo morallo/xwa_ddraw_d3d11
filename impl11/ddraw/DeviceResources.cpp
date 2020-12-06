@@ -135,10 +135,7 @@
 #include "SteamVR.h"
 #include "globals.h"
 #include "VRConfig.h"
-#include "shadow_mapping.h"
-#include "materials.h"
-#include "dynamic_cockpit.h"
-#include "active_cockpit.h"
+#include "effects.h"
 
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
@@ -290,96 +287,6 @@ struct MainVertex
 		this->tex[1] = v;
 	}
 };
-
-
-const char *DC_TARGET_COMP_SRC_RESNAME		= "dat,12000,1100,";
-const char *DC_LEFT_SENSOR_SRC_RESNAME		= "dat,12000,4500,";
-const char *DC_LEFT_SENSOR_2_SRC_RESNAME	= "dat,12000,300,";
-const char *DC_RIGHT_SENSOR_SRC_RESNAME		= "dat,12000,4600,";
-const char *DC_RIGHT_SENSOR_2_SRC_RESNAME	= "dat,12000,400,";
-const char *DC_SHIELDS_SRC_RESNAME			= "dat,12000,4300,";
-const char *DC_SOLID_MSG_SRC_RESNAME		= "dat,12000,100,";
-const char *DC_BORDER_MSG_SRC_RESNAME		= "dat,12000,200,";
-const char *DC_LASER_BOX_SRC_RESNAME		= "dat,12000,2300,";
-const char *DC_ION_BOX_SRC_RESNAME			= "dat,12000,2500,";
-const char *DC_BEAM_BOX_SRC_RESNAME			= "dat,12000,4400,";
-const char *DC_TOP_LEFT_SRC_RESNAME			= "dat,12000,2700,";
-const char *DC_TOP_RIGHT_SRC_RESNAME		= "dat,12000,2800,";
-
-std::vector<const char *>g_HUDRegionNames = {
-	"LEFT_SENSOR_REGION",		// 0
-	"RIGHT_SENSOR_REGION",		// 1
-	"SHIELDS_REGION",			// 2
-	"BEAM_REGION",				// 3
-	"TARGET_AND_LASERS_REGION",	// 4
-	"LEFT_TEXT_BOX_REGION",		// 5
-	"RIGHT_TEXT_BOX_REGION",	// 6
-	"TOP_LEFT_REGION",			// 7
-	"TOP_RIGHT_REGION",			// 8
-	"TEXT_RADIOSYS_REGION",		// 9
-	"TEXT_CMD_REGION",			// 10
-};
-
-std::vector<const char *>g_DCElemSrcNames = {
-	"LEFT_SENSOR_SRC",			// 0
-	"RIGHT_SENSOR_SRC",			// 1
-	"LASER_RECHARGE_SRC",		// 2
-	"SHIELD_RECHARGE_SRC",		// 3
-	"ENGINE_POWER_SRC",			// 4
-	"BEAM_RECHARGE_SRC",		// 5
-	"SHIELDS_SRC",				// 6
-	"BEAM_LEVEL_SRC"	,		// 7
-	"TARGETING_COMPUTER_SRC",	// 8
-	"QUAD_LASERS_LEFT_SRC",		// 9
-	"QUAD_LASERS_RIGHT_SRC",	// 10
-	"LEFT_TEXT_BOX_SRC",		// 11
-	"RIGHT_TEXT_BOX_SRC",		// 12
-	"SPEED_THROTTLE_SRC",		// 13
-	"MISSILES_SRC",				// 14
-	"NAME_TIME_SRC",			// 15
-	"NUM_SHIPS_SRC",			// 16
-	"QUAD_LASERS_BOTH_SRC",		// 17
-	"DUAL_LASERS_L_SRC",		// 18
-	"DUAL_LASERS_R_SRC",		// 19
-	"DUAL_LASERS_BOTH_SRC",		// 20
-	"B_WING_LASERS_SRC",		// 21
-	"SIX_LASERS_BOTH_SRC",		// 22
-	"SIX_LASERS_L_SRC",			// 23
-	"SIX_LASERS_R_SRC",			// 24
-	"SHIELDS_FRONT_SRC",		// 25
-	"SHIELDS_BACK_SRC",			// 26
-	"KW_TEXT_CMD_SRC",			// 27
-	"KW_TEXT_TOP_SRC",			// 28
-	"KW_TEXT_RADIOSYS_SRC",		// 29
-	"TEXT_RADIO_SRC",			// 30
-	"TEXT_SYSTEM_SRC",			// 31
-	"TEXT_CMD_SRC",				// 32
-	"TARGETED_OBJ_NAME_SRC",	// 33
-	"TARGETED_OBJ_SHD_SRC",		// 34
-	"TARGETED_OBJ_HULL_SRC",	// 35
-	"TARGETED_OBJ_CARGO_SRC",	// 36
-	"TARGETED_OBJ_SYS_SRC",		// 37
-	"TARGETED_OBJ_DIST_SRC",	// 38
-	"TARGETED_OBJ_SUBCMP_SRC",	// 39
-};
-
-int HUDRegionNameToIndex(char *name) {
-	if (name == NULL || name[0] == '\0')
-		return -1;
-	for (int i = 0; i < (int )g_HUDRegionNames.size(); i++)
-		if (_stricmp(name, g_HUDRegionNames[i]) == 0)
-			return i;
-	return -1;
-}
-
-int DCSrcElemNameToIndex(char *name) {
-	if (name == NULL || name[0] == '\0')
-		return -1;
-	for (int i = 0; i < (int )g_DCElemSrcNames.size(); i++)
-		if (_stricmp(name, g_DCElemSrcNames[i]) == 0)
-			return i;
-	return -1;
-}
 
 DeviceResources::DeviceResources()
 {

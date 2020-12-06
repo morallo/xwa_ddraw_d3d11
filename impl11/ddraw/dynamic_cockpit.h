@@ -1,8 +1,12 @@
 #pragma once
 #include <vector>
-#include "effects.h"
+#include "..\shaders\shader_common.h"
+#include "effects_common.h"
 
 // DYNAMIC COCKPIT
+typedef struct Box_struct {
+	float x0, y0, x1, y1;
+} Box;
 
 // Also found in the Floating_GUI_RESNAME list:
 extern const char* DC_TARGET_COMP_SRC_RESNAME;
@@ -68,7 +72,7 @@ typedef struct uv_coords_struct {
 	int numCoords;
 } uv_coords;
 
-const int MAX_TEXTURE_NAME = 128;
+//extern const int MAX_TEXTURE_NAME = 128; //Defined in TextureSurface.h
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
 	int erase_slots[MAX_DC_COORDS_PER_TEXTURE];
@@ -161,6 +165,8 @@ extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
 
+
+
 class DCElemSrcBox {
 public:
 	Box uv_coords;
@@ -216,10 +222,11 @@ extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
 bool LoadIndividualDCParams(char* sFileName);
 bool LoadDCCoverTextureSize(char* buf, float* width, float* height);
-static void ClearDCMoveRegions();
+void ClearDCMoveRegions();
 bool LoadDCMoveRegion(char* buf);
 void CockpitNameToDCParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
 bool LoadDCInternalCoordinates();
 float SetCurrentShipFOV(float FOV, bool OverwriteCurrentShipFOV, bool bCompensateFOVfor1920x1080);
 bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coords);
 int ReadNameFromLine(char* buf, char* name);
+int isInVector(char* name, dc_element* dc_elements, int num_elems);

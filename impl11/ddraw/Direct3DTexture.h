@@ -5,6 +5,7 @@
 #pragma once
 
 #include "materials.h"
+#include "DeviceResources.h"
 
 class TextureSurface;
 
@@ -166,8 +167,3 @@ public:
 
 	ComPtr<ID3D11ShaderResourceView> _textureView;
 };
-
-bool isInVector(uint32_t crc, std::vector<uint32_t>& vector);
-int isInVector(char* name, dc_element* dc_elements, int num_elems);
-int isInVector(char* name, ac_element* ac_elements, int num_elems);
-bool isInVector(char* OPTname, std::vector<OPTNameType>& vector);

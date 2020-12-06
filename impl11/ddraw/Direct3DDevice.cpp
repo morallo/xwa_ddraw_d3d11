@@ -306,9 +306,7 @@ float s_XwaHudScale = 1.0f;
 //#include <assert.h>
 
 #include "effects.h"
-#include "shadow_mapping.h"
-#include "dynamic_cockpit.h"
-#include "active_cockpit.h"
+#include "globals.h"
 #include "commonVR.h"
 #include "FreePIE.h"
 #include "SteamVR.h"
@@ -325,44 +323,12 @@ float s_XwaHudScale = 1.0f;
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include "SharedMem.h"
+#include "XWAFramework.h"
 SharedData *g_pSharedData = NULL;
 
 FILE *g_HackFile = NULL;
 
 LARGE_INTEGER g_PC_Frequency;
-
-int *s_XwaGlobalLightsCount = (int*)0x00782848;
-XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
-extern ObjectEntry **objects;
-PlayerDataEntry *PlayerDataTable = (PlayerDataEntry *)0x8B94E0;
-uint32_t *g_playerInHangar = (uint32_t *)0x09C6E40;
-uint32_t *g_playerIndex = (uint32_t *)0x8C1CC8;
-const auto numberOfPlayersInGame = (int*)0x910DEC;
-// The current HUD color
-uint32_t *g_XwaFlightHudColor = (uint32_t *)0x005B5318;
-// The current HUD border color
-uint32_t *g_XwaFlightHudBorderColor = (uint32_t *)0x005B531C;
-
-const float DEG2RAD = 3.141593f / 180.0f;
-FOVtype g_CurrentFOVType = GLOBAL_FOV;
-FOVtype g_CurrentFOV = GLOBAL_FOV;
-
-// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
-// FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
-// and by computing the angle between the lights and the current forward point.
-// Data provided by keiranhalcyon7:
-uint32_t *g_rawFOVDist = (uint32_t *)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
-float *g_fRawFOVDist   = (float *)0x8B94CC; // FOV dist(float), same value as above
-float *g_cachedFOVDist = (float *)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
-float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
-// Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
-float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
-Vector2 g_ReticleCentroid(-1.0f, -1.0f);
-bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
-
-float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
-float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
 
 float RealVertFOVToRawFocalLength(float real_FOV);
 
@@ -459,7 +425,6 @@ int g_iHyperStateOverride = HS_HYPER_ENTER_ST;
 //int g_iHyperStateOverride = HS_POST_HYPER_EXIT_ST;
 // DEBUG
 
-extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 //void InitHeadingMatrix();
 //Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
@@ -543,24 +508,6 @@ void ResetXWALightInfo()
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++) {
 		g_XWALightInfo[i].Reset();
 		g_ShadowMapVSCBuffer.sm_black_levels[i] = g_ShadowMapping.black_level;
-	}
-}
-
-void SmallestK::insert(Vector3 P, Vector3 col) {
-	int i = _size - 1;
-	while (i >= 0 && P.z < _elems[i].P.z) {
-		// Copy the i-th element to the (i+1)-th index to make space at i
-		if (i + 1 < MAX_CB_POINT_LIGHTS)
-			_elems[i + 1] = _elems[i];
-		i--;
-	}
-
-	// Insert at i + 1 (if possible) and we're done
-	if (i + 1 < MAX_CB_POINT_LIGHTS) {
-		_elems[i + 1].P = P;
-		_elems[i + 1].col = col;
-		if (_size < MAX_CB_POINT_LIGHTS)
-			_size++;
 	}
 }
 

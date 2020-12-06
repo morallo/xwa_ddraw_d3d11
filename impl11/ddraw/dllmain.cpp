@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 J�r�my Ansel
+﻿// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -19,6 +19,7 @@
 #include "VRConfig.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
+#include "effects.h"
 
 #include "XWAObject.h"
 
@@ -73,10 +74,6 @@ extern float g_fLPdebugPointOffset;
 extern bool g_bDumpLaserPointerDebugInfo;
 
 extern Vector3 g_LaserPointDebug;
-
-// SHADOW MAPPING
-extern float g_fShadowMapAngleY, g_fShadowMapAngleX, g_fShadowMapDepthTrans, g_fShadowMapScale;
-extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMapEnablePCSS, g_bShadowMapHardwarePCF;
 
 HWND g_ThisWindow = 0;
 WNDPROC OldWindowProc = 0;

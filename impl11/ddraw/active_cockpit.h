@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "effects_common.h"
 #include "dynamic_cockpit.h"
 #include <wincodec.h>
 
@@ -52,3 +53,4 @@ bool LoadIndividualACParams(char* sFileName);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
 void TranslateACAction(WORD* scanCodes, char* action);
 void DisplayACAction(WORD* scanCodes);
+int isInVector(char* name, ac_element* ac_elements, int num_elems);

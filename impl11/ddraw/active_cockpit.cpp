@@ -368,3 +368,11 @@ bool LoadIndividualACParams(char* sFileName) {
 	fclose(file);
 	return true;
 }
+
+int isInVector(char* name, ac_element* ac_elements, int num_elems) {
+	for (int i = 0; i < num_elems; i++) {
+		if (stristr(name, ac_elements[i].name) != NULL)
+			return i;
+	}
+	return -1;
+}

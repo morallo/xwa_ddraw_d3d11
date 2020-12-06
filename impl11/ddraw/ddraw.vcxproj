@@ -122,6 +122,7 @@
     <ClCompile Include="DirectSBS.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="dynamic_cockpit.cpp" />
+    <ClCompile Include="effects.cpp" />
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
@@ -162,6 +163,7 @@
     <ClInclude Include="DirectSBS.h" />
     <ClInclude Include="dynamic_cockpit.h" />
     <ClInclude Include="effects.h" />
+    <ClInclude Include="effects_common.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
