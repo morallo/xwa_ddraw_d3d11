@@ -255,7 +255,7 @@ bool LoadIndividualDCParams(char* sFileName) {
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
 	float cover_tex_width = 1, cover_tex_height = 1;
-	const float DEG2RAD = 3.141593f / 180.0f;
+	//const float DEG2RAD = 3.141593f / 180.0f;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");

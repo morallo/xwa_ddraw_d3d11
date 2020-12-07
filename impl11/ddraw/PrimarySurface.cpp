@@ -23,16 +23,23 @@
 #include "commonVR.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
+#include "VRConfig.h"
 
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include <vector>
 
-//#include "XWAObject.h"
-#include "XWAFramework.h"
-#include "VRConfig.h"
-
 /*
+//#include "XWAObject.h"
+//#include "XWAFramework.h"
+//Use forward declaration because XWAFramework.h is not safe to include multiple times.
+extern const float* g_POV_X;
+extern const float* g_POV_Y;
+extern const float* g_POV_Z;
+extern const auto missionIndexLoaded;
+extern CraftDefinitionEntry* CraftDefinitionTable;// 32 Entries
+*/
+
 extern PlayerDataEntry* PlayerDataTable;
 ObjectEntry **objects = (ObjectEntry **)0x7B33C4;
 CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
@@ -50,7 +57,7 @@ const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
 //const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
 const auto g_hudScale = (float *)0x06002B8;
 const auto missionIndexLoaded = (int*)0x9F5E74;
-*/
+
 
 extern uint32_t* g_playerIndex;
 extern uint32_t* g_playerInHangar;

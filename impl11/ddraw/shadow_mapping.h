@@ -133,7 +133,6 @@ extern bool g_bShadowMapEnable, g_bShadowMapDebug, g_bShadowMappingInvertCameraM
 extern float g_fShadowMapScale, g_fShadowMapAngleX, g_fShadowMapAngleY, g_fShadowMapDepthTrans;
 extern float SHADOW_OBJ_SCALE, SHADOW_OBJ_SCALE_Y, SHADOW_OBJ_SCALE_Z;
 extern std::vector<Vector4> g_OBJLimits;
-bool g_bShadowMapHardwarePCF = false;
 extern XWALightInfo g_XWALightInfo[MAX_XWA_LIGHTS];
 extern Vector3 g_SunCentroids[MAX_XWA_LIGHTS];
 extern Vector2 g_SunCentroids2D[MAX_XWA_LIGHTS];

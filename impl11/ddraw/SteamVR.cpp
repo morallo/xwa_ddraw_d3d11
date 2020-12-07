@@ -20,11 +20,11 @@ const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;
 bool g_bSteamVRDistortionEnabled = true;
 bool g_bSteamVRYawPitchRollFromMouseLook = false;
-bool g_bResetHeadCenter = true; // Reset the head center on startup
-vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
-Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
-Matrix4 g_projLeft, g_projRight;
-Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
+//bool g_bResetHeadCenter = true; // Reset the head center on startup
+//vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
+//Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
+//Matrix4 g_projLeft, g_projRight;
+//Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 void* g_pSurface = NULL;
 
 //float g_fMetricMult = DEFAULT_METRIC_MULT, 

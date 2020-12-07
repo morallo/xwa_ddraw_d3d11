@@ -4,6 +4,14 @@
 #include "../shaders/material_defs.h"
 #include "../shaders/shader_common.h"
 
+
+#ifndef EFFECTS_CONST
+#define EFFECTS_CONST
+const int MAX_TEXTURE_NAME = 128;
+const float PI = 3.141593f;
+const float DEG2RAD = PI / 180.0f;
+#endif
+
 // General types and globals
 
 typedef struct uvfloat4_struct {
@@ -313,6 +321,3 @@ typedef enum {
 
 extern FOVtype g_CurrentFOVType;
 extern FOVtype g_CurrentFOV;
-
-const int MAX_TEXTURE_NAME = 128;
-const float DEG2RAD = 3.141593f / 180.0f;

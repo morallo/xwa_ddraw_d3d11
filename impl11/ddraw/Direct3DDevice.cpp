@@ -323,8 +323,12 @@ float s_XwaHudScale = 1.0f;
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include "SharedMem.h"
-#include "XWAFramework.h"
 SharedData *g_pSharedData = NULL;
+
+//#include "XWAFramework.h"
+// XWAFramework.h is not safe to include multiple times yet.
+// Use forward declaration for now.
+const auto numberOfPlayersInGame = (int*)0x910DEC;
 
 FILE *g_HackFile = NULL;
 

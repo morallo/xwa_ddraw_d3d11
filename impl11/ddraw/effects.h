@@ -75,10 +75,10 @@ extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 // LASER LIGHTS
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableHeadLights;
-Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
-Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
-float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
-bool g_bHeadLightsAutoTurnOn = true;
+extern Vector3 g_LaserPointDebug;
+extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
+extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
+extern bool g_bHeadLightsAutoTurnOn;
 
 bool isInVector(uint32_t crc, std::vector<uint32_t>& vector);
 bool isInVector(char* name, std::vector<char*>& vector);

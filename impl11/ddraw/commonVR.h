@@ -6,14 +6,15 @@
 #include "utils.h"
 #include "config.h"
 #include "commonVR.h"
-#include "SteamVR.h"
+//#include "SteamVR.h"
+#include "effects_common.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"
 #include "Vectors.h"
 #include "Matrices.h"
 
-extern const float PI;
-extern const float DEG2RAD;
+//extern const float PI;
+//extern const float DEG2RAD;
 extern const float RAD_TO_DEG;
 extern const float DEFAULT_IPD; // Ignored in SteamVR mode.
 extern const float IPD_SCALE_FACTOR;

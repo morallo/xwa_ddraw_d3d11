@@ -1,7 +1,7 @@
 #include "effects.h"
 #include "common.h"
 #include "XWAObject.h"
-#include "XWAFramework.h"
+//#include "XWAFramework.h"
 
 std::vector<ColorLightPair> g_TextureVector;
 /*
@@ -183,6 +183,11 @@ bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
+
+Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
+Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
+float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
+bool g_bHeadLightsAutoTurnOn = true;
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;

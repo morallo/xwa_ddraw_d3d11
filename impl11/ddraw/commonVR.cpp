@@ -1,10 +1,9 @@
 #include "commonVR.h"
+#include "effects_common.h"
 
-const float PI = 3.141592f;
-const float DEG2RAD = 3.141593f / 180.0f;
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float IPD_SCALE_FACTOR = 100.0f; // Transform centimeters to meters (IPD = 6.5 becomes 0.065)
-const float RAD_TO_DEG = 180.0f / PI;
+const float RAD_TO_DEG = 180.0f / 3.141593f;
 float g_fIPD = DEFAULT_IPD / IPD_SCALE_FACTOR;
 float g_fHalfIPD = g_fIPD / 2.0f;
 

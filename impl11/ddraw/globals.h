@@ -195,8 +195,8 @@ extern bool g_bEnableSpeedShader, g_bEnableAdditionalGeometry;
 extern float g_fSpeedShaderScaleFactor, g_fSpeedShaderParticleSize, g_fSpeedShaderMaxIntensity, g_fSpeedShaderTrailSize, g_fSpeedShaderParticleRange;
 extern float g_fCockpitTranslationScale;
 extern int g_iSpeedShaderMaxParticles;
-Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0);
-D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
+//Vector4 g_prevFs(0, 0, 0, 0), g_prevUs(0, 0, 0, 0); //Not used
+extern D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 extern VertexShaderCBuffer g_VSCBuffer;
 extern PixelShaderCBuffer g_PSCBuffer;
