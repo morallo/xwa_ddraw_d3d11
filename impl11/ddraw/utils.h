@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE.txt
 
 #pragma once
+#include "common.h"
 
 void toupper(char *string);
 

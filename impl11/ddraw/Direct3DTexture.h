@@ -4,57 +4,10 @@
 
 #pragma once
 
+#include "materials.h"
+#include "DeviceResources.h"
+
 class TextureSurface;
-
-constexpr auto MAX_CACHED_MATERIALS = 32;
-constexpr auto MAX_TEXNAME = 40;
-constexpr auto MAX_OPT_NAME = 80;
-
-typedef struct TexnameStruct {
-	char name[MAX_TEXNAME];
-} TexnameType;
-
-/* 
- Individual entry in the craft material definition file (*.mat). Maintains a copy
- of one entry of the form:
-
- [TEX000##]
- Metallic   = X
- Reflection = Y
- Glossiness = Z
-
-*/
-typedef struct MaterialTexDefStruct {
-	Material material;
-	char texname[MAX_TEXNAME];
-} MaterialTexDef;
-
-/*
- Contains all the entries from a *.mat file for a single craft, along with the
- OPT name for this craft
-*/
-typedef struct CraftMaterialsStruct {
-	std::vector<MaterialTexDef> MaterialList;
-	char OPTname[MAX_OPT_NAME];
-} CraftMaterials;
-
-typedef struct OPTNameStruct {
-	char name[MAX_OPT_NAME];
-} OPTNameType;
-
-/*
- Contains all the materials for all the OPTs currently loaded
-*/
-extern std::vector<CraftMaterials> g_Materials;
-// List of all the OPTs seen so far
-extern std::vector<OPTNameType> g_OPTnames;
-
-void InitOPTnames();
-void ClearOPTnames();
-void InitCraftMaterials();
-void ClearCraftMaterials();
-int FindCraftMaterial(char *OPTname);
-Material FindMaterial(int CraftIndex, char *TexName, bool debug);
 
 class Direct3DTexture : public IDirect3DTexture
 {
@@ -176,13 +129,12 @@ public:
 
 	// **** Back-pointer to the light texture
 	Direct3DTexture *lightTexture;
-
-	
+		
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
 	int GetWidth();
 	int GetHeight();
-	bool LoadShadowOBJ(char * sFileName);
+	bool LoadShadowOBJ(char* sFileName);
 	void TagTexture();
 
 	virtual ~Direct3DTexture();

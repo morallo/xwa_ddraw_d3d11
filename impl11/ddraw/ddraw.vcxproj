@@ -93,6 +93,9 @@
       <UACUIAccess>true</UACUIAccess>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command />
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ddraw.cfg">
@@ -102,7 +105,9 @@
     <None Include="ddraw.def" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="active_cockpit.cpp" />
     <ClCompile Include="BackbufferSurface.cpp" />
+    <ClCompile Include="commonVR.cpp" />
     <ClCompile Include="config.cpp" />
     <ClCompile Include="ddraw.cpp" />
     <ClCompile Include="DepthSurface.cpp" />
@@ -114,26 +119,36 @@
     <ClCompile Include="Direct3DViewport.cpp" />
     <ClCompile Include="DirectDraw.cpp" />
     <ClCompile Include="DirectDraw2.cpp" />
+    <ClCompile Include="DirectSBS.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="dynamic_cockpit.cpp" />
+    <ClCompile Include="effects.cpp" />
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
     <ClCompile Include="joystick.cpp" />
     <ClCompile Include="logger.cpp" />
+    <ClCompile Include="materials.cpp" />
     <ClCompile Include="Matrices.cpp" />
     <ClCompile Include="MipmapSurface.cpp" />
     <ClCompile Include="OffscreenSurface.cpp" />
     <ClCompile Include="PrimarySurface.cpp" />
+    <ClCompile Include="reticle.cpp" />
+    <ClCompile Include="shadow_mapping.cpp" />
     <ClCompile Include="SharedMem.cpp" />
+    <ClCompile Include="SteamVR.cpp" />
     <ClCompile Include="TextureSurface.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="VRConfig.cpp" />
     <ClCompile Include="XwaDrawBracketHook.cpp" />
     <ClCompile Include="XwaDrawRadarHook.cpp" />
     <ClCompile Include="XwaDrawTextHook.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="active_cockpit.h" />
     <ClInclude Include="BackbufferSurface.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="commonVR.h" />
     <ClInclude Include="ComPtr.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="DepthSurface.h" />
@@ -145,21 +160,31 @@
     <ClInclude Include="Direct3DViewport.h" />
     <ClInclude Include="DirectDraw.h" />
     <ClInclude Include="DirectDraw2.h" />
+    <ClInclude Include="DirectSBS.h" />
+    <ClInclude Include="dynamic_cockpit.h" />
+    <ClInclude Include="effects.h" />
+    <ClInclude Include="effects_common.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
+    <ClInclude Include="globals.h" />
     <ClInclude Include="joystick.h" />
     <ClInclude Include="logger.h" />
+    <ClInclude Include="materials.h" />
     <ClInclude Include="Matrices.h" />
     <ClInclude Include="MipmapSurface.h" />
     <ClInclude Include="OffscreenSurface.h" />
     <ClInclude Include="PrimarySurface.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="reticle.h" />
+    <ClInclude Include="shadow_mapping.h" />
     <ClInclude Include="SharedMem.h" />
+    <ClInclude Include="SteamVR.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TextureSurface.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="Vectors.h" />
+    <ClInclude Include="VRConfig.h" />
     <ClInclude Include="XWAEnums.h" />
     <ClInclude Include="XWAFramework.h" />
     <ClInclude Include="XWAObject.h" />

@@ -1,0 +1,131 @@
+#pragma once
+
+#include "Matrices.h"
+#include "../shaders/material_defs.h"
+#include "../shaders/shader_common.h"
+#include <vector>
+
+constexpr auto MAX_CACHED_MATERIALS = 32;
+constexpr auto MAX_TEXNAME = 40;
+constexpr auto MAX_OPT_NAME = 80;
+
+// Materials
+typedef struct MaterialStruct {
+	float Metallic;
+	float Intensity;
+	float Glossiness;
+	float NMIntensity;
+	float SpecValue;
+	bool  IsShadeless;
+	bool  NoBloom;
+	Vector3 Light;
+	Vector2 LightUVCoordPos;
+	bool  IsLava;
+	float LavaSpeed;
+	float LavaSize;
+	float EffectBloom;
+	Vector3 LavaColor;
+	bool LavaTiling;
+	bool AlphaToBloom;
+	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
+	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
+	float Ambient;
+	// DEBUG properties, remove later
+	//Vector3 LavaNormalMult;
+	//Vector3 LavaPosMult;
+	//bool LavaTranspose;
+
+	MaterialStruct() {
+		Metallic = DEFAULT_METALLIC;
+		Intensity = DEFAULT_SPEC_INT;
+		Glossiness = DEFAULT_GLOSSINESS;
+		NMIntensity = DEFAULT_NM_INT;
+		SpecValue = DEFAULT_SPEC_VALUE;
+		IsShadeless = false;
+		Light = Vector3(0.0f, 0.0f, 0.0f);
+		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		NoBloom = false;
+		IsLava = false;
+		LavaSpeed = 1.0f;
+		LavaSize = 1.0f;
+		EffectBloom = 1.0f;
+		LavaTiling = true;
+
+		LavaColor.x = 1.00f;
+		LavaColor.y = 0.35f;
+		LavaColor.z = 0.05f;
+
+		AlphaToBloom = false;
+		NoColorAlpha = false;
+		AlphaIsntGlass = false;
+		Ambient = 0.0f;
+
+		/*
+		// DEBUG properties, remove later
+		LavaNormalMult.x = 1.0f;
+		LavaNormalMult.y = 1.0f;
+		LavaNormalMult.z = 1.0f;
+
+		LavaPosMult.x = -1.0f;
+		LavaPosMult.y = -1.0f;
+		LavaPosMult.z = -1.0f;
+		LavaTranspose = true;
+		*/
+	}
+} Material;
+
+/*
+ Individual entry in the craft material definition file (*.mat). Maintains a copy
+ of one entry of the form:
+
+ [TEX000##]
+ Metallic   = X
+ Reflection = Y
+ Glossiness = Z
+
+*/
+typedef struct MaterialTexDefStruct {
+	Material material;
+	char texname[MAX_TEXNAME];
+} MaterialTexDef;
+
+/*
+ Contains all the entries from a *.mat file for a single craft, along with the
+ OPT name for this craft
+*/
+typedef struct CraftMaterialsStruct {
+	std::vector<MaterialTexDef> MaterialList;
+	char OPTname[MAX_OPT_NAME];
+} CraftMaterials;
+
+typedef struct OPTNameStruct {
+	char name[MAX_OPT_NAME];
+} OPTNameType;
+
+typedef struct TexnameStruct {
+	char name[MAX_TEXNAME];
+} TexnameType;
+
+/*
+ Contains all the materials for all the OPTs currently loaded
+*/
+extern std::vector<CraftMaterials> g_Materials;
+// List of all the OPTs seen so far
+extern std::vector<OPTNameType> g_OPTnames;
+
+void InitOPTnames();
+void ClearOPTnames();
+void InitCraftMaterials();
+void ClearCraftMaterials();
+
+void OPTNameToMATParamsFile(char* OPTName, char* sFileName, int iFileNameSize);
+void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize);
+void ReadMaterialLine(char* buf, Material* curMaterial);
+bool LoadIndividualMATParams(char* OPTname, char* sFileName);
+bool GetGroupIdImageIdFromDATName(char* DATName, int* GroupId, int* ImageId);
+void InitOPTnames();
+void ClearOPTnames();
+void InitCraftMaterials();
+void ClearCraftMaterials();
+int FindCraftMaterial(char* OPTname);
+Material FindMaterial(int CraftIndex, char* TexName, bool debug = false);

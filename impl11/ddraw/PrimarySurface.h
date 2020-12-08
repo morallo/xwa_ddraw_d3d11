@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "effects_common.h"
+
 class BackbufferSurface;
 
 class Direct3DTexture;
