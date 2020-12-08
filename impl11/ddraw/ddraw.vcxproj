@@ -196,11 +196,6 @@
   <ItemGroup>
     <ResourceCompile Include="ddraw.rc" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Hook_XWACockpitLook\Hook_XWACockpitLook.vcxproj">
-      <Project>{b7d1532c-312d-4a20-97d7-e87d1a129fc4}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
