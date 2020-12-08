@@ -3,6 +3,13 @@
 #include "XWAObject.h"
 //#include "XWAFramework.h"
 
+// Main Pixel Shader constant buffer
+MainShadersCBuffer			g_MSCBuffer;
+// Constant Buffers
+BloomPixelShaderCBuffer		g_BloomPSCBuffer;
+PSShadingSystemCB	  g_ShadingSys_PSBuffer;
+SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+
 std::vector<ColorLightPair> g_TextureVector;
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -188,6 +195,8 @@ Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
 float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 bool g_bHeadLightsAutoTurnOn = true;
+
+D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;

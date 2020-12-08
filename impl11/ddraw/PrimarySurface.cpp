@@ -65,6 +65,7 @@ bool g_bPrevPlayerInHangar = false;
 #define GENERIC_POV_SCALE 44.0f
 // Set to true in PrimarySurface Present 2D (Flip)
 extern bool g_bInTechRoom;
+bool g_bKeybExitHyperspace = true;
 
 /*
 dword& s_V0x09C6E38 = *(dword*)0x009C6E38;
@@ -365,9 +366,6 @@ struct MainVertex
 		tex[0] = tx; tex[1] = ty;
 	}
 };
-
-// Main Pixel Shader constant buffer
-MainShadersCBuffer			g_MSCBuffer;
 
 extern bool g_bBloomEnabled, g_bAOEnabled, g_bApplyXWALightsIntensity, g_bProceduralSuns, g_b3DSunPresent, g_b3DSkydomePresent;
 extern float g_fBloomAmplifyFactor, g_fHangarAmbient, g_fGlobalAmbient;

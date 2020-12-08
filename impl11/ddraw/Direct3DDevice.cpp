@@ -328,6 +328,7 @@ SharedData *g_pSharedData = NULL;
 //#include "XWAFramework.h"
 // XWAFramework.h is not safe to include multiple times yet.
 // Use forward declaration for now.
+PlayerDataEntry* PlayerDataTable = (PlayerDataEntry*)0x8B94E0;
 const auto numberOfPlayersInGame = (int*)0x910DEC;
 
 FILE *g_HackFile = NULL;

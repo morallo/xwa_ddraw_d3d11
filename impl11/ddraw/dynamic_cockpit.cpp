@@ -152,7 +152,8 @@ bool LoadDCCoverTextureSize(char* buf, float* width, float* height)
 /*
  * Clears all the move_region commands
  */
-static inline void ClearDCMoveRegions() {
+//static inline void ClearDCMoveRegions() {
+void ClearDCMoveRegions() {
 	g_DCMoveRegions.numCoords = 0;
 }
 

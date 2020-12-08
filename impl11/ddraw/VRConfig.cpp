@@ -155,6 +155,12 @@ float g_fDebugYCenter = 0.0f;
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
 
+// METRIC 3D RECONSTRUCTION
+// The following values were determined by comparing the back-projected 3D reconstructed
+// with ddraw against the OBJ exported from the OPT. The values were tweaked until a
+// proper match was found.
+float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
+
 // Bloom
 bool g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 bool g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
@@ -189,8 +195,6 @@ int g_iBloomPasses[MAX_BLOOM_PASSES + 1] = {
 // SSAO
 float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
-PSShadingSystemCB	  g_ShadingSys_PSBuffer;
-SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
 float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
@@ -273,6 +277,9 @@ float g_fMinPositionX = DEFAULT_MIN_POS_X, g_fMaxPositionX = DEFAULT_MAX_POS_X;
 float g_fMinPositionY = DEFAULT_MIN_POS_Y, g_fMaxPositionY = DEFAULT_MAX_POS_Y;
 float g_fMinPositionZ = DEFAULT_MIN_POS_Z, g_fMaxPositionZ = DEFAULT_MAX_POS_Z;
 bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
+
+float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
+
 
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {

@@ -13,7 +13,11 @@ float g_fShadowMapAngleY = 0.0f, g_fShadowMapAngleX = 0.0f, g_fShadowMapDepthTra
 // projection formulas in the regular path.
 float SHADOW_OBJ_SCALE = 1.64f; // TODO: These scale params should be in g_ShadowMapping
 
-bool g_bShadowMapDebug = false, g_bShadowMappingInvertCameraMatrix = false, g_bShadowMapEnablePCSS = false, g_bShadowMapEnable = false;
+bool g_bShadowMapDebug = false;
+bool g_bShadowMappingInvertCameraMatrix = false;
+bool g_bShadowMapEnablePCSS = false;
+bool g_bShadowMapEnable = false;
+bool g_bShadowMapHardwarePCF = false;
 std::vector<Vector4> g_OBJLimits; // Box limits of the OBJ loaded. This is used to compute the Z range of the shadow map
 
 Vector3 g_SunCentroids[MAX_XWA_LIGHTS]; // Stores all the sun centroids seen in this frame in in-game coords

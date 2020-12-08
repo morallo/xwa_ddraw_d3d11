@@ -8,18 +8,12 @@ float g_fIPD = DEFAULT_IPD / IPD_SCALE_FACTOR;
 float g_fHalfIPD = g_fIPD / 2.0f;
 
 Matrix4 g_projLeft, g_projRight;
+vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
 Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 
 Vector3 g_headCenter; // The head's center: this value should be re-calibrated whenever we set the headset
 bool g_bResetHeadCenter = true; // Reset the head center on startup
-
-// METRIC 3D RECONSTRUCTION
-// The following values were determined by comparing the back-projected 3D reconstructed
-// with ddraw against the OBJ exported from the OPT. The values were tweaked until a
-// proper match was found.
-float g_fOBJ_Z_MetricMult = 44.72f, g_fOBJGlobalMetricMult = 1.432f, g_fOBJCurMetricScale;
-
 
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
