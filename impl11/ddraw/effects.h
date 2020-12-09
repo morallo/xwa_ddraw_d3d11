@@ -2,15 +2,13 @@
 
 #include <vector>
 #include "common.h"
-#include "XWAObject.h"
+#include "XWAFramework.h"
 #include "effects_common.h"
 #include "dynamic_cockpit.h"
 #include "active_cockpit.h"
 #include "shadow_mapping.h"
 #include "reticle.h"
 #include "materials.h"
-
-
 
 // SSAO Type
 typedef enum {
@@ -32,14 +30,14 @@ enum HyperspacePhaseEnum {
 };
 const int MAX_POST_HYPER_EXIT_FRAMES = 10; // I had 20 here up to version 1.1.1. Making this smaller makes the zoom faster
 
-extern ObjectEntry** objects;
-extern PlayerDataEntry* PlayerDataTable;
-extern uint32_t* g_playerInHangar;
-extern uint32_t* g_playerIndex;
-// The current HUD color
-extern uint32_t* g_XwaFlightHudColor;
-// The current HUD border color
-extern uint32_t* g_XwaFlightHudBorderColor;
+// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
+// FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
+// and by computing the angle between the lights and the current forward point.
+// Data provided by keiranhalcyon7:
+inline uint32_t* g_rawFOVDist = (uint32_t*)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
+inline float* g_fRawFOVDist = (float*)0x8B94CC; // FOV dist(float), same value as above
+inline float* g_cachedFOVDist = (float*)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
+inline float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 
 extern std::vector<char*> Text_ResNames;
 extern std::vector<char*> Floating_GUI_ResNames;

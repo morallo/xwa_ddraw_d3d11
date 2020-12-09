@@ -1,7 +1,6 @@
 #include "effects.h"
 #include "common.h"
-#include "XWAObject.h"
-//#include "XWAFramework.h"
+#include "XWAFramework.h"
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer			g_MSCBuffer;
@@ -162,27 +161,9 @@ std::vector<char*> Trails_ResNames = {
 	"dat,21025,",
 };
 
-int* s_XwaGlobalLightsCount = (int*)0x00782848;
-XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
-
-uint32_t* g_playerInHangar = (uint32_t*)0x09C6E40;
-uint32_t* g_playerIndex = (uint32_t*)0x8C1CC8;
-// The current HUD color
-uint32_t* g_XwaFlightHudColor = (uint32_t*)0x005B5318;
-// The current HUD border color
-uint32_t* g_XwaFlightHudBorderColor = (uint32_t*)0x005B531C;
-
 FOVtype g_CurrentFOVType = GLOBAL_FOV;
 FOVtype g_CurrentFOV = GLOBAL_FOV;
 
-// xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
-// FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
-// and by computing the angle between the lights and the current forward point.
-// Data provided by keiranhalcyon7:
-uint32_t* g_rawFOVDist = (uint32_t*)0x91AB6C; // raw FOV dist(dword int), copy of one of the six values hard-coded with the resolution slots, which are what xwahacker edits
-float* g_fRawFOVDist = (float*)0x8B94CC; // FOV dist(float), same value as above
-float* g_cachedFOVDist = (float*)0x8B94BC; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
-float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);

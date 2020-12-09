@@ -14,8 +14,7 @@
 #include "FreePIE.h"
 #include "Matrices.h"
 #include "Direct3DTexture.h"
-//#include "XWAFramework.h"
-#include "shadow_mapping.h"
+#include "XWAFramework.h"
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
@@ -28,36 +27,6 @@
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include <vector>
-
-/*
-//#include "XWAObject.h"
-//#include "XWAFramework.h"
-//Use forward declaration because XWAFramework.h is not safe to include multiple times.
-extern const float* g_POV_X;
-extern const float* g_POV_Y;
-extern const float* g_POV_Z;
-extern const auto missionIndexLoaded;
-extern CraftDefinitionEntry* CraftDefinitionTable;// 32 Entries
-*/
-
-extern PlayerDataEntry* PlayerDataTable;
-ObjectEntry **objects = (ObjectEntry **)0x7B33C4;
-CraftDefinitionEntry *CraftDefinitionTable = (CraftDefinitionEntry *)0x005BB480; // 32 Entries
-const auto mouseLook_Y = (int*)0x9E9624;
-const auto mouseLook_X = (int*)0x9E9620;
-const auto numberOfPlayersInGame = (int*)0x910DEC;
-// These values match MXvTED exactly:
-const short *g_POV_Y0 = (short *)(0x5BB480 + 0x238);
-const short *g_POV_Z0 = (short *)(0x5BB480 + 0x23A);
-const short *g_POV_X0 = (short *)(0x5BB480 + 0x23C);
-// Floating-point version of the POV (plus Y is inverted):
-const float *g_POV_X = (float *)(0x8B94E0 + 0x20D);
-const float *g_POV_Y = (float *)(0x8B94E0 + 0x211);
-const float *g_POV_Z = (float *)(0x8B94E0 + 0x215);
-//const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
-const auto g_hudScale = (float *)0x06002B8;
-const auto missionIndexLoaded = (int*)0x9F5E74;
-
 
 extern uint32_t* g_playerIndex;
 extern uint32_t* g_playerInHangar;
@@ -4332,7 +4301,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	int iShakeY = (int)(fShakeAmplitude * fShakeY);
 	int iShakeZ = (int)(fShakeAmplitude * fShakeZ);
 
-	if (*numberOfPlayersInGame == 1 && !g_bCockpitInertiaEnabled) 
+	if (*xwa::numberOfPlayersInGame == 1 && !g_bCockpitInertiaEnabled) 
 	{
 		PlayerDataTable[*g_playerIndex].cockpitXReference = iShakeX;
 		PlayerDataTable[*g_playerIndex].cockpitYReference = iShakeY;
