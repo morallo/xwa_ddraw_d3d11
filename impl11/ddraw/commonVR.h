@@ -5,8 +5,8 @@
 #include "common.h"
 #include "utils.h"
 #include "config.h"
-#include "commonVR.h"
-//#include "SteamVR.h"
+#include "SteamVR.h"
+#include "DirectSBS.h"
 #include "effects_common.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"

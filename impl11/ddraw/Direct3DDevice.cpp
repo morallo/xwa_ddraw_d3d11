@@ -325,11 +325,7 @@ float s_XwaHudScale = 1.0f;
 #include "SharedMem.h"
 SharedData *g_pSharedData = NULL;
 
-//#include "XWAFramework.h"
-// XWAFramework.h is not safe to include multiple times yet.
-// Use forward declaration for now.
-PlayerDataEntry* PlayerDataTable = (PlayerDataEntry*)0x8B94E0;
-const auto numberOfPlayersInGame = (int*)0x910DEC;
+#include "XWAFramework.h"
 
 FILE *g_HackFile = NULL;
 

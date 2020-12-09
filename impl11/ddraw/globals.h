@@ -224,8 +224,6 @@ extern std::vector<Direct3DTexture*> g_AuxTextureVector;
 // DS2 Effects
 extern int g_iReactorExplosionCount;
 
-extern int* s_XwaGlobalLightsCount;
-extern XwaGlobalLight* s_XwaGlobalLights;
 extern Matrix4 g_CurrentHeadingViewMatrix;
 
 extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;

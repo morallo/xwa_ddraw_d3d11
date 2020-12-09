@@ -15,15 +15,14 @@
 #include "Matrices.h"
 #include "config.h"
 #include "utils.h"
-#include "globals.h"
-#include "VRConfig.h"
-#include "SteamVR.h"
-#include "DirectSBS.h"
 #include "effects.h"
-
-#include "XWAObject.h"
+#include "VRConfig.h"
+#include "globals.h"
+#include "commonVR.h"
+#include "XWAFramework.h"
 
 #include "SharedMem.h"
+
 extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:
 SharedMem g_SharedMem(false);
@@ -32,7 +31,6 @@ extern LARGE_INTEGER g_PC_Frequency;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
-auto mouseLook = (__int8*)0x77129C;
 
 // Current window width and height
 int g_WindowWidth, g_WindowHeight;
