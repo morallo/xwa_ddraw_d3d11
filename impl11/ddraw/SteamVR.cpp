@@ -307,6 +307,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// Here we're using g_pSharedData->pDataPtr to access the shared data, but
 			// we can also save pDataPtr to a global variable and use that instead.
 			trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
+			g_pSharedData->bDataReady = false;
 			vr::VRCompositor()->WaitGetPoses(NULL, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			//log_debug("[DBG] Using trackedDevidePose from CockpitLook");
 		}
