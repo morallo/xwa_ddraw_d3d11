@@ -302,31 +302,35 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
+		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+
 		if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
 			//Get the last tracking pose obtained by CockpitLook and used to render the frame in the .exe
-			// Here we're using g_pSharedData->pDataPtr to access the shared data, but
-			// we can also save pDataPtr to a global variable and use that instead.
 			trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
 			g_pSharedData->bDataReady = false;
-			vr::VRCompositor()->WaitGetPoses(NULL, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			//log_debug("[DBG] Using trackedDevidePose from CockpitLook");
 		}
 		else {
 			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
-			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses");
 		}
 		//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
-		poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
-		q = rotationToQuaternion(poseMatrix);
-		quatToEuler(q, yaw, pitch, roll);
+		if (trackedDevicePose.bPoseIsValid)
+		{
+			poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
+			q = rotationToQuaternion(poseMatrix);
+			quatToEuler(q, yaw, pitch, roll);
 
-		*x = poseMatrix.m[0][3];
-		*y = poseMatrix.m[1][3];
-		*z = poseMatrix.m[2][3];
-		*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+			*x = poseMatrix.m[0][3];
+			*y = poseMatrix.m[1][3];
+			*z = poseMatrix.m[2][3];
+			*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+		}
+		else {
+			//log_debug("[DBG] HMD pose not valid");
+		}
 	}
 }
 
