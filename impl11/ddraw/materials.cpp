@@ -182,6 +182,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// Additional ambient component. Only used in PixelShaderNoGlass
 		curMaterial->Ambient = fValue;
 	}
+	else if (_stricmp(param, "TotalFrames") == 0) {
+		curMaterial->TotalFrames = (int)fValue;
+	}
 
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
@@ -203,7 +206,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 /*
  * Load the material parameters for an individual OPT or DAT
  */
-bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
+bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
 	// of TexnameType
 	// https://stackoverflow.com/questions/21829451/push-back-on-a-vector-of-array-of-char
@@ -222,7 +225,7 @@ bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
 		return false;
 	}
 
-	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
+	if (verbose) log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
 	char buf[256], param[256], svalue[256]; // texname[MAX_TEXNAME];
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
@@ -233,12 +236,12 @@ bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
 	int craftIdx = FindCraftMaterial(OPTname);
 	if (craftIdx < 0) {
 		// New Craft Material
-		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
+		if (verbose) log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
 		//craftIdx = g_Materials.size();
 	}
 	else {
 		// Existing Craft Material, clear it
-		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		if (verbose) log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
 		g_Materials[craftIdx].MaterialList.clear();
 	}
 	CraftMaterials craftMat;
@@ -404,10 +407,15 @@ bool GetGroupIdImageIdFromDATName(char* DATName, int* GroupId, int* ImageId) {
 }
 
 /*
- * Convert a DAT name into a MAT params file of the form:
- * Materials\dat-<GroupId>-<ImageId>.mat
+ * Convert a DAT name into two MAT params files of the form:
+ *
+ * sFileName:		Materials\dat-<GroupId>-<ImageId>.mat
+ * sFileNameShort:	Materials\dat-<GroupId>.mat
+ *
+ * Both sFileName and sFileNameShort must have iFileNameSize bytes to store the string.
+ * sFileNameShort can be used to load mat files for animations, like explosions.
  */
-void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize) {
+void DATNameToMATParamsFile(char *DATName, char *sFileName, char *sFileNameShort, int iFileNameSize) {
 	int GroupId, ImageId;
 	// Get the GroupId and ImageId from the DATName, nullify sFileName if we can't extract
 	// the data from the name
@@ -417,6 +425,7 @@ void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize) {
 	}
 	// Build the material filename for the DAT texture:
 	snprintf(sFileName, iFileNameSize, "Materials\\dat-%d-%d.mat", GroupId, ImageId);
+	snprintf(sFileNameShort, iFileNameSize, "Materials\\dat-%d.mat", GroupId);
 }
 
 

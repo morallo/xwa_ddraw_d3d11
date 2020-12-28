@@ -4368,11 +4368,16 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				/*
-				// Just for debugging: let's see if we can really recognize explosions
+				// DEBUG: Display data about explosions
 				if (bIsExplosion)
 				{
-					bModifiedShaders = true;
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_EXPLOSION;
+					//bModifiedShaders = true;
+					//g_PSCBuffer.special_control = SPECIAL_CONTROL_EXPLOSION;
+					int GroupId = 0, ImageId = 0;
+					GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_name, &GroupId, &ImageId);
+					float time = (float)ImageId / (float)lastTextureSelected->material.TotalFrames;
+					log_debug("[DBG] Explosion Id: %d, Frame: %d, TotalFrames: %d, Time: %0.3f",
+						GroupId, ImageId, lastTextureSelected->material.TotalFrames, time);
 				}
 				*/
 
