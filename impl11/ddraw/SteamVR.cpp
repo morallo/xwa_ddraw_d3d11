@@ -305,9 +305,11 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
 		if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-			//Get the last tracking pose obtained by CockpitLook and used to render the frame in the .exe
+			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
+			// current frame in xwingaliance.exe.
+			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
+			// bDataReady is true, but I don't think there's a huge advantage to doing that.
 			trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
-			g_pSharedData->bDataReady = false;
 			//log_debug("[DBG] Using trackedDevidePose from CockpitLook");
 		}
 		else {

@@ -2504,14 +2504,6 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-	/*
-	// DEBUG: This will print the message that the CockpitLook hook has set.
-	if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-		// Here we're using g_pSharedData->pDataPtr to access the shared data, but
-		// we can also save pDataPtr to a global variable and use that instead.
-		log_debug("[DBG] msg: %s", (char *)g_pSharedData->pDataPtr);
-	}
-	*/
 
 /*
 	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
