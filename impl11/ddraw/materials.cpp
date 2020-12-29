@@ -191,8 +191,11 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 	else if (_stricmp(param, "ExplosionSpeed") == 0) {
 		curMaterial->ExplosionSpeed = fValue;
 	}
-	else if (_stricmp(param, "ExplosionAlphaBlend") == 0) {
-		curMaterial->ExplosionAlphaBlend = (int)fValue;
+	else if (_stricmp(param, "ExplosionBlendMode") == 0) {
+		// 0: No Blending, use the original texture
+		// 1: Blend with the original texture
+		// 2: Replace original texture with procedural explosion
+		curMaterial->ExplosionBlendMode = (int)fValue;
 	}
 
 	/*

@@ -4371,7 +4371,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Render the procedural explosions
-				if (bIsExplosion && bHasMaterial)
+				if (bIsExplosion && bHasMaterial && lastTextureSelected->material.ExplosionBlendMode > 0)
 				{
 					static float iTime = 0.0f;
 					//iTime += 0.05f;
@@ -4404,9 +4404,12 @@ HRESULT Direct3DDevice::Execute(
 					//	GroupId, ImageId, lastTextureSelected->material.TotalFrames, ExplosionTime);
 					//log_debug("[DBG] Explosion Id: %d", GroupId);
 
-					// TODO: Add an option to disable procedural explosions
 					g_ShadertoyBuffer.iTime = iTime;
-					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionAlphaBlend; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
+					// ExplosionBlendMode:
+					// 0: Original texture, 
+					// 1: Blend with procedural explosion, 
+					// 2: Use procedural explosions only
+					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
 					g_ShadertoyBuffer.tunnel_speed = lerp(4, -1, ExplosionTime); // ExplosionTime: 4..-1 The animation is performed by iTime in VolumetricExplosion()
 					//g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale; // ExplosionScale: 2.0 is the normal size, 4.0 is small, 1.0 is big.
