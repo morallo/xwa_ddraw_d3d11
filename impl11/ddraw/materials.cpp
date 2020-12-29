@@ -186,7 +186,19 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		curMaterial->TotalFrames = (int)fValue;
 	}
 	else if (_stricmp(param, "ExplosionScale") == 0) {
-		curMaterial->ExplosionScale = fValue;
+		// The user-facing explosion scale must be translated into the scale that the
+		// ExplosionShader users. For some reason (the code isn't mine) the scale in
+		// the shader works like this:
+		// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
+		// So the formula is:
+		// ExplosionScale = 4.0 / UserExplosionScale
+		// Because:
+		// 4.0 / UserExplosionScale yields:
+		// 4.0 / 1.0 -> 4 = small
+		// 4.0 / 2.0 -> 2 = medium
+		// 4.0 / 4.0 -> 1 = big
+		float UserExplosionScale = max(0.5f, fValue); // Disallow values smaller than 0.5
+		curMaterial->ExplosionScale = 4.0f / UserExplosionScale;
 	}
 	else if (_stricmp(param, "ExplosionSpeed") == 0) {
 		curMaterial->ExplosionSpeed = fValue;

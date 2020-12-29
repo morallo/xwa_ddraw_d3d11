@@ -4399,6 +4399,10 @@ HRESULT Direct3DDevice::Execute(
 						GroupId = lastTextureSelected->material.GroupId;
 						ImageId = lastTextureSelected->material.ImageId;
 					}
+					// TODO: The following time will increase in steps, but I'm not sure it's possible to do a smooth
+					// increase because there's no way to uniquely identify two different explosions on the same frame.
+					// The same GroupId can appear mutiple times on the screen belonging to different crafts and they
+					// may even be at different stages of the animation.
 					float ExplosionTime = min(1.0f, (float)ImageId / (float)lastTextureSelected->material.TotalFrames);
 					//log_debug("[DBG] Explosion Id: %d, Frame: %d, TotalFrames: %d, Time: %0.3f",
 					//	GroupId, ImageId, lastTextureSelected->material.TotalFrames, ExplosionTime);
@@ -4411,8 +4415,9 @@ HRESULT Direct3DDevice::Execute(
 					// 2: Use procedural explosions only
 					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
 					g_ShadertoyBuffer.tunnel_speed = lerp(4, -1, ExplosionTime); // ExplosionTime: 4..-1 The animation is performed by iTime in VolumetricExplosion()
-					//g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
-					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale; // ExplosionScale: 2.0 is the normal size, 4.0 is small, 1.0 is big.
+					// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
+					// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function
+					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale;
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
