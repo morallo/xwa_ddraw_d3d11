@@ -185,6 +185,15 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 	else if (_stricmp(param, "TotalFrames") == 0) {
 		curMaterial->TotalFrames = (int)fValue;
 	}
+	else if (_stricmp(param, "ExplosionScale") == 0) {
+		curMaterial->ExplosionScale = fValue;
+	}
+	else if (_stricmp(param, "ExplosionSpeed") == 0) {
+		curMaterial->ExplosionSpeed = fValue;
+	}
+	else if (_stricmp(param, "ExplosionAlphaBlend") == 0) {
+		curMaterial->ExplosionAlphaBlend = (int)fValue;
+	}
 
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
