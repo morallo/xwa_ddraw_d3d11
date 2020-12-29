@@ -3065,7 +3065,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					bIsLaser = lastTextureSelected->is_Laser;
+					bIsLaser = lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
 					bIsReticle = lastTextureSelected->is_Reticle;
@@ -4843,7 +4843,7 @@ HRESULT Direct3DDevice::Execute(
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser) {
+					if (bIsLaser) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_Laser ?
 							g_BloomConfig.fLasersStrength : g_BloomConfig.fTurboLasersStrength;
