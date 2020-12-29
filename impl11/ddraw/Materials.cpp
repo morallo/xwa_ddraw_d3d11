@@ -1,8 +1,8 @@
-#include "materials.h"
+#include "Materials.h"
 #include "utils.h"
 #include <string.h>
 #include "Vectors.h"
-#include "shadow_mapping.h"
+#include "ShadowMapping.h"
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;

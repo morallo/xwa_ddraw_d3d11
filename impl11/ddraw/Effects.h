@@ -4,11 +4,11 @@
 #include "common.h"
 #include "XWAFramework.h"
 #include "effects_common.h"
-#include "dynamic_cockpit.h"
-#include "active_cockpit.h"
-#include "shadow_mapping.h"
-#include "reticle.h"
-#include "materials.h"
+#include "DynamicCockpit.h"
+#include "ActiveCockpit.h"
+#include "ShadowMapping.h"
+#include "Reticle.h"
+#include "Materials.h"
 
 // SSAO Type
 typedef enum {

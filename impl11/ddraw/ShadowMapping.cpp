@@ -1,5 +1,5 @@
 #include "common.h"
-#include "shadow_mapping.h"
+#include "ShadowMapping.h"
 #include "utils.h"
 
 /*********************************************************/

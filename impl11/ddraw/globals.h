@@ -1,10 +1,10 @@
 #pragma once
 
 #include "commonVR.h"
-#include "effects.h"
-#include "active_cockpit.h"
-#include "dynamic_cockpit.h"
-#include "shadow_mapping.h"
+#include "Effects.h"
+#include "ActiveCockpit.h"
+#include "DynamicCockpit.h"
+#include "ShadowMapping.h"
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;

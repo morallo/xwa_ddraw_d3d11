@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "Vectors.h"
-#include "dynamic_cockpit.h"
+#include "DynamicCockpit.h"
 
 extern float g_fYCenter, g_fFOVscale;
 extern Vector2 g_ReticleCentroid;

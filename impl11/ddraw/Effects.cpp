@@ -1,4 +1,4 @@
-#include "effects.h"
+#include "Effects.h"
 #include "common.h"
 #include "XWAFramework.h"
 
@@ -6,8 +6,8 @@
 MainShadersCBuffer			g_MSCBuffer;
 // Constant Buffers
 BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-PSShadingSystemCB	  g_ShadingSys_PSBuffer;
-SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+PSShadingSystemCB			g_ShadingSys_PSBuffer;
+SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 
 std::vector<ColorLightPair> g_TextureVector;
 /*

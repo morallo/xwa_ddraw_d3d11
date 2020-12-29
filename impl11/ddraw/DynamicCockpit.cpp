@@ -1,4 +1,4 @@
-#include "dynamic_cockpit.h"
+#include "DynamicCockpit.h"
 
 #include "common.h"
 #include "globals.h"
