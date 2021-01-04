@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 #include "..\shaders\shader_common.h"
-#include "effects_common.h"
+#include "EffectsCommon.h"
 
 // DYNAMIC COCKPIT
 typedef struct Box_struct {

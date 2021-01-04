@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "effects_common.h"
+#include "EffectsCommon.h"
 #include "DynamicCockpit.h"
 #include <wincodec.h>
 

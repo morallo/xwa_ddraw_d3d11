@@ -266,7 +266,7 @@
     <ClInclude Include="reticle.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
-    <ClInclude Include="effects_common.h">
+    <ClInclude Include="EffectsCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="ActiveCockpit.h">

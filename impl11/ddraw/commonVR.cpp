@@ -1,5 +1,5 @@
 #include "commonVR.h"
-#include "effects_common.h"
+#include "EffectsCommon.h"
 
 const float DEFAULT_IPD = 6.5f; // Ignored in SteamVR mode.
 const float IPD_SCALE_FACTOR = 100.0f; // Transform centimeters to meters (IPD = 6.5 becomes 0.065)

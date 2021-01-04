@@ -3,7 +3,7 @@
 #include <vector>
 #include "common.h"
 #include "XWAFramework.h"
-#include "effects_common.h"
+#include "EffectsCommon.h"
 #include "DynamicCockpit.h"
 #include "ActiveCockpit.h"
 #include "ShadowMapping.h"

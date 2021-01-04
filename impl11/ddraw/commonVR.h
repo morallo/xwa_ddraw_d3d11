@@ -2,13 +2,13 @@
 
 #include <Windows.h>
 #include <stdio.h>
+#include <headers/openvr.h>
 #include "common.h"
 #include "utils.h"
 #include "config.h"
 #include "SteamVR.h"
 #include "DirectSBS.h"
-#include "effects_common.h"
-#include <headers/openvr.h>
+#include "EffectsCommon.h"
 #include "FreePIE.h"
 #include "Vectors.h"
 #include "Matrices.h"

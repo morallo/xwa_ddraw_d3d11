@@ -162,7 +162,7 @@
     <ClInclude Include="DirectSBS.h" />
     <ClInclude Include="DynamicCockpit.h" />
     <ClInclude Include="Effects.h" />
-    <ClInclude Include="effects_common.h" />
+    <ClInclude Include="EffectsCommon.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
