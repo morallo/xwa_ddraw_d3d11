@@ -54,7 +54,7 @@ typedef struct MaterialStruct {
 		SpecValue = DEFAULT_SPEC_VALUE;
 		IsShadeless = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
-		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		LightUVCoordPos = Vector2(0.1f, 0.5f);
 		NoBloom = false;
 		IsLava = false;
 		LavaSpeed = 1.0f;

@@ -1535,8 +1535,6 @@ bool LoadSSAOParams() {
 		if (!g_XWALightInfo[i].bTagged)
 			g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
 
-	g_bDumpOBJEnabled = false;
-
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}

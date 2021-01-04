@@ -335,6 +335,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// add everything up
 		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}
+	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;
 
 	// Reinhard tone mapping:

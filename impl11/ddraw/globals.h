@@ -172,15 +172,15 @@ extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
 extern float g_fLPdebugPointOffset, g_fDebugYCenter;
+
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
  * into 3D space.
  * After dumping solid polygons, I realized the back-project code skews the Y axis... considerably.
  */
-
 extern bool g_bDumpOBJEnabled;
-extern FILE* g_DumpOBJFile;
-extern int g_iDumpOBJFaceIdx, g_iDumpOBJIdx;
+//extern FILE* g_DumpOBJFile;
+//extern int g_iDumpOBJFaceIdx, g_iDumpOBJIdx;
 // DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;

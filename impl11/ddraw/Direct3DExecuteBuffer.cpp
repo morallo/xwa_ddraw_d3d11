@@ -178,7 +178,7 @@ HRESULT Direct3DExecuteBuffer::Lock(
 		D3D11_MAPPED_SUBRESOURCE indexMap;
 		this->_deviceResources->_d3dDeviceContext->Map(this->_d3dDevice->_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indexMap);
 
-		// Here, we'll telling XWA to put the vertex data in vertexMap.pData
+		// Here, we're telling XWA to put the vertex data in vertexMap.pData
 		lpDesc->dwCaps = (DWORD)vertexMap.pData;
 		lpDesc->dwFlags = (DWORD)indexMap.pData;
 		g_OrigVerts = (D3DTLVERTEX *)vertexMap.pData;
