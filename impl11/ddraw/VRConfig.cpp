@@ -2108,7 +2108,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
 	g_ShadertoyBuffer.bDisneyStyle = 1;
-	g_ShadertoyBuffer.tunnel_speed = 5.0f;
+	g_ShadertoyBuffer.tunnel_speed = 5.5f;
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
@@ -2145,7 +2145,7 @@ bool LoadHyperParams() {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
-				g_ShadertoyBuffer.tunnel_speed = fValue;
+				g_fHyperspaceTunnelSpeed = fValue;
 			}
 			else if (_stricmp(param, "twirl") == 0) {
 				g_ShadertoyBuffer.twirl = fValue;

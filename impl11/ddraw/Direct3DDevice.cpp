@@ -367,8 +367,6 @@ SharedData *g_pSharedData = NULL;
 
 FILE *g_HackFile = NULL;
 
-LARGE_INTEGER g_PC_Frequency;
-
 float RealVertFOVToRawFocalLength(float real_FOV);
 
 void GetCraftViewMatrix(Matrix4 *result);
@@ -443,11 +441,15 @@ bool g_bResetDC = false;
 int g_iReactorExplosionCount = 0;
 
 /*********************************************************/
+// High Resolution Timers
+HiResTimer g_HiResTimer;
+
+/*********************************************************/
 // HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
-float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
+float g_fHyperspaceTunnelSpeed = 5.5f, g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
@@ -2539,6 +2541,22 @@ HRESULT Direct3DDevice::Execute(
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
+	// Query the performance counters. This will let us render animations at a consistent speed.
+	// The way this works is by computing the current time (curT) and then substracting the previous
+	// time (lastT) from it. Then lastT gets curT. The elapsed time, in seconds is placed in
+	// g_HiResTimer.elapsed_s.
+	// lastT is not properly initialized on the very first frame; but nothing much seems
+	// to happen. So: ignoring for now.
+	// I copied this from the procedural lava shader below... but for some reason this doesn't work.
+	// ... maybe I have to put this in BeginScene() instead
+	QueryPerformanceCounter(&(g_HiResTimer.curT));
+	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.lastT.QuadPart;
+	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
+	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
+	g_HiResTimer.elapsed_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	g_HiResTimer.lastT = g_HiResTimer.curT;
+	//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
+
 	if (g_bDumpSSAOBuffers)
 	{
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
@@ -4413,8 +4431,7 @@ HRESULT Direct3DDevice::Execute(
 					// 1: Blend with procedural explosion, 
 					// 2: Use procedural explosions only
 					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
-					//g_ShadertoyBuffer.tunnel_speed = lerp(4, -1, ExplosionTime); // ExplosionTime: 4..-1 The animation is performed by iTime in VolumetricExplosion()
-					g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 4..-1 The animation is performed by iTime in VolumetricExplosion()
+					g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 3..-1 The animation is performed by iTime in VolumetricExplosion()
 					// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
 					// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function
 					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale;
@@ -4522,12 +4539,11 @@ HRESULT Direct3DDevice::Execute(
 					QueryPerformanceCounter(&curT);
 					elapsed_us.QuadPart = curT.QuadPart - lastT.QuadPart;
 					elapsed_us.QuadPart *= 1000000;
-					elapsed_us.QuadPart /= g_PC_Frequency.QuadPart;
+					elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
 
 					float elapsed_s = ((float)elapsed_us.QuadPart / 1000000.0f);
 					//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
 					static float iTime = 0.0f;
-					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
 					iTime += elapsed_s * lastTextureSelected->material.LavaSpeed;
 					lastT = curT;
 

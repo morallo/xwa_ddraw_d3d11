@@ -4325,6 +4325,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
+	g_ShadertoyBuffer.tunnel_speed = g_fHyperspaceTunnelSpeed;
 	g_ShadertoyBuffer.srand = g_fHyperspaceRand;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;

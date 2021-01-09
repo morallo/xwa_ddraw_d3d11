@@ -27,7 +27,7 @@ extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:
 SharedMem g_SharedMem(false);
 
-extern LARGE_INTEGER g_PC_Frequency;
+extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
@@ -1132,7 +1132,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	case DLL_PROCESS_ATTACH:
 		log_debug("[DBG] **********************");
 		log_debug("[DBG] Initializing VR ddraw.dll");
-		QueryPerformanceFrequency(&g_PC_Frequency);
+		QueryPerformanceFrequency(&(g_HiResTimer.PC_Frequency));
 		// Initialize the libraries needed to dump DirectX Textures
 		CoInitialize(NULL);
 		// Load vrparams.cfg if present

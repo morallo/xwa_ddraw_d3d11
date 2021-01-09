@@ -70,6 +70,14 @@ extern int g_iPresentCounter, g_iNonZBufferCounter, g_iSkipNonZBufferDrawIdx;
 extern float g_fZBracketOverride; // 65535 is probably the maximum Z value in XWA
 extern bool g_bResetDC;
 
+// Performance Counters and Timing
+class HiResTimer {
+public:
+	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us;
+	float elapsed_s;
+};
+extern HiResTimer g_HiResTimer;
+
 // DS2 Effects
 extern int g_iReactorExplosionCount;
 
@@ -90,10 +98,11 @@ extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 
 
+// HYPERSPACE
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 extern int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
-extern float g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
+extern float g_fHyperspaceTunnelSpeed, g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
 extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
