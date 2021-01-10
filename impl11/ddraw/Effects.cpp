@@ -1,6 +1,7 @@
 #include "Effects.h"
 #include "common.h"
 #include "XWAFramework.h"
+#include "globals.h"
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer			g_MSCBuffer;
@@ -216,4 +217,44 @@ bool isInVector(char* OPTname, std::vector<OPTNameType>& vector) {
 		if (_stricmp(OPTname, x.name) == 0) // We need to avoid substrings because OPTs can be "Awing", "AwingExterior", "AwingCockpit"
 			return true;
 	return false;
+}
+
+
+void HiResTimer::ResetGlobalTime() {
+	QueryPerformanceCounter(&(g_HiResTimer.start_time));
+}
+
+// Returns the seconds since the last time this function was called
+float HiResTimer::GetElapsedTimeSinceLastCall() {
+	// Query the performance counters. This will let us render animations at a consistent speed.
+	// The way this works is by computing the current time (curT) and then substracting the previous
+	// time (lastT) from it. Then lastT gets curT. The elapsed time, in seconds is placed in
+	// g_HiResTimer.elapsed_s.
+	// lastT is not properly initialized on the very first frame; but nothing much seems
+	// to happen. So: ignoring for now.
+	QueryPerformanceCounter(&(g_HiResTimer.curT));
+	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.lastT.QuadPart;
+	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
+	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
+	g_HiResTimer.elapsed_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	g_HiResTimer.lastT = g_HiResTimer.curT;
+	//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", g_HiResTimer.elapsed_us.QuadPart, g_HiResTimer.elapsed_s);
+	//float FPS = 1.0f / g_HiResTimer.elapsed_s;
+	//char buf[40];
+	//sprintf_s(buf, 40, "%0.1f", FPS);
+	//DisplayTimedMessage(1, 0, buf);
+	return g_HiResTimer.elapsed_s;
+}
+
+// Get the time since the last time ResetGlobalTime was called
+float HiResTimer::GetCurrentTime() {
+	// Query the performance counters. This will let us render animations at a consistent speed.
+	// The way this works is by computing the current time (curT) and then substracting the start
+	// time from it.
+	QueryPerformanceCounter(&(g_HiResTimer.curT));
+	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.start_time.QuadPart;
+	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
+	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
+	g_HiResTimer.global_time_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	return g_HiResTimer.global_time_s;
 }

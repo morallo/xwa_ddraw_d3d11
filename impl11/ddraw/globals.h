@@ -73,8 +73,12 @@ extern bool g_bResetDC;
 // Performance Counters and Timing
 class HiResTimer {
 public:
-	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us;
-	float elapsed_s;
+	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us, start_time;
+	float global_time_s, elapsed_s;
+
+	void ResetGlobalTime();
+	float GetElapsedTimeSinceLastCall();
+	float GetCurrentTime();
 };
 extern HiResTimer g_HiResTimer;
 

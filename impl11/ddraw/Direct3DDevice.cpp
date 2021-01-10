@@ -10,7 +10,12 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+Jeremy: Enable film recording in melee missions (PPG/Yard)
+At offset 100AF8, replace 0F8586010000 with 909090909090.
+*/
 
+/*
+How to get the current throttle setting:
 Jeremy: @blue_max An unsigned short at offset 0x00F0 in the XwaCraft struct.
 
 In function L00473D00:
@@ -42,7 +47,6 @@ void UpdateHUDText()
 			edi *= 2;
 		}
 	}
-
 */
 
 /*
@@ -2541,22 +2545,6 @@ HRESULT Direct3DDevice::Execute(
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	// Query the performance counters. This will let us render animations at a consistent speed.
-	// The way this works is by computing the current time (curT) and then substracting the previous
-	// time (lastT) from it. Then lastT gets curT. The elapsed time, in seconds is placed in
-	// g_HiResTimer.elapsed_s.
-	// lastT is not properly initialized on the very first frame; but nothing much seems
-	// to happen. So: ignoring for now.
-	// I copied this from the procedural lava shader below... but for some reason this doesn't work.
-	// ... maybe I have to put this in BeginScene() instead
-	QueryPerformanceCounter(&(g_HiResTimer.curT));
-	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.lastT.QuadPart;
-	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
-	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
-	g_HiResTimer.elapsed_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
-	g_HiResTimer.lastT = g_HiResTimer.curT;
-	//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
-
 	if (g_bDumpSSAOBuffers)
 	{
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
@@ -4533,19 +4521,8 @@ HRESULT Direct3DDevice::Execute(
 
 				if (g_bProceduralLava && bLastTextureSelectedNotNULL && bHasMaterial && lastTextureSelected->material.IsLava)
 				{
-					// lastT is not properly initialized on the very first frame; but nothing much seems
-					// to happen. So: ignoring for now.
-					static LARGE_INTEGER curT, lastT, elapsed_us;
-					QueryPerformanceCounter(&curT);
-					elapsed_us.QuadPart = curT.QuadPart - lastT.QuadPart;
-					elapsed_us.QuadPart *= 1000000;
-					elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
-
-					float elapsed_s = ((float)elapsed_us.QuadPart / 1000000.0f);
-					//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
 					static float iTime = 0.0f;
-					iTime += elapsed_s * lastTextureSelected->material.LavaSpeed;
-					lastT = curT;
+					iTime = g_HiResTimer.global_time_s * lastTextureSelected->material.LavaSpeed;
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
@@ -6066,6 +6043,10 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ExecuteIndexCount = 0;
 	g_ExecuteStateCount = 0;
 	g_ExecuteTriangleCount = 0;
+
+	// Update the hi-res timer
+	g_HiResTimer.GetCurrentTime();
+
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	UpdateDCHologramState();
 
