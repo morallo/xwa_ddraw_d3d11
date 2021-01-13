@@ -72,15 +72,12 @@ typedef struct uv_coords_struct {
 	int numCoords;
 } uv_coords;
 
-//extern const int MAX_TEXTURE_NAME = 128; //Defined in TextureSurface.h
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
 	int erase_slots[MAX_DC_COORDS_PER_TEXTURE];
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
-	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
 } dc_element;
 
@@ -164,8 +161,6 @@ const int MAX_DC_SRC_ELEMENTS = 40;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
-
-
 
 class DCElemSrcBox {
 public:

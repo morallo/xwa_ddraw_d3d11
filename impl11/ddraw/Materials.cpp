@@ -79,6 +79,104 @@ bool LoadLightColor(char* buf, Vector3* Light)
 	return true;
 }
 
+#define SKIP_WHITESPACES(s) {\
+	while (*s != 0 && *s == ' ') s++;\
+	if (*s == 0) return false;\
+}
+
+/*
+ Load a texture sequence line of the form:
+
+ illum_sequence = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
+*/
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
+	int res = 0;
+	char *s = NULL, *t = NULL, texname[80];
+	float seconds, intensity;
+	
+	//log_debug("[DBG] [MAT] Reading texture sequence");
+	s = strchr(buf, '=');
+	if (s == NULL) return false;
+
+	// Skip the equals sign:
+	s += 1;
+	
+	while (*s != 0) 
+	{
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		// Parse the texture name
+		try {
+			res = sscanf_s(s, "%s", texname, 80);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading texname in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read texname in '%s'", s);
+			return false;
+		}
+
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+
+		// Parse the next field
+		t = s;
+		while (*t != 0 && *t != ',')
+			t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		try {
+			res = sscanf_s(s, "%f", &seconds);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading seconds in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read seconds in '%s'", s);
+			return false;
+		}
+
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+
+		// Parse the next field
+		t = s;
+		while (*t != 0 && *t != ',')
+			t++;
+		try {
+			res = sscanf_s(s, "%f", &intensity);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading intensity in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read intensity in '%s'", s);
+			return false;
+		}
+
+		// We just finished reading one texture in the sequence, let's skip to the next one
+		// if possible
+		//log_debug("[DBG] [MAT] [<%s>,%0.3f,%0.3f]", texname, seconds, intensity);
+		//material.tex_sequence.push_back(tex_seq_elem)
+		TexSeqElem tex_seq_elem;
+		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
+		tex_seq_elem.seconds = seconds;
+		tex_seq_elem.intensity = intensity;
+		// This is probably where we should load the texture and put it in ExtraTextures and then
+		// and an index to reference it...
+		tex_sequence.push_back(tex_seq_elem);
+
+		// If we reached the end of the string, we're done
+		if (*t == 0) break;
+		// Else, we need to parse the next texture...
+		// Skip the current char (which should be a comma) and repeat
+		s = t; s += 1;
+	}
+	//log_debug("[DBG] [MAT] Texture sequence done");
+	return true;
+}
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
 	char param[256], svalue[256]; // texname[MAX_TEXNAME];
@@ -209,7 +307,23 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// 2: Replace original texture with procedural explosion
 		curMaterial->ExplosionBlendMode = (int)fValue;
 	}
-
+	else if (_stricmp(param, "illum_sequence") == 0) {
+		//std::vector<TexSeqElem> tex_sequence;
+		// Clear the current LightMapSequence and release the associated textures in the DeviceResources...
+		curMaterial->LightMapSequence.clear();
+		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
+		//       later...
+		LoadTextureSequence(buf, curMaterial->LightMapSequence);
+		if (curMaterial->LightMapSequence.size() > 0) {
+			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
+			for each (TexSeqElem t in curMaterial->LightMapSequence) {
+				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
+			}
+			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
+		}
+		else
+			log_debug("[DBG] [MAT] No elements in animation sequence");
+	}
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));

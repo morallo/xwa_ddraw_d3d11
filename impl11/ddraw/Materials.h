@@ -8,6 +8,18 @@
 constexpr auto MAX_CACHED_MATERIALS = 32;
 constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
+constexpr auto MAX_TEX_SEQ_NAME = 80;
+
+typedef struct TexSeqElemStruct {
+	int ExtraTextureIndex;
+	char texname[MAX_TEX_SEQ_NAME];
+	float seconds, intensity;
+
+	TexSeqElemStruct() {
+		ExtraTextureIndex = -1;
+		texname[0] = 0;
+	}
+} TexSeqElem;
 
 // Materials
 typedef struct MaterialStruct {
@@ -41,6 +53,9 @@ typedef struct MaterialStruct {
 	bool DATGroupImageIdParsed;
 	int GroupId;
 	int ImageId;
+
+	std::vector<TexSeqElemStruct> LightMapSequence;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -80,6 +95,7 @@ typedef struct MaterialStruct {
 		GroupId = 0;
 		ImageId = 0;
 
+		LightMapSequence.clear();
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;

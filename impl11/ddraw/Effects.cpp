@@ -219,7 +219,9 @@ bool isInVector(char* OPTname, std::vector<OPTNameType>& vector) {
 	return false;
 }
 
-
+// ***************************************************************
+// HiResTimer
+// ***************************************************************
 void HiResTimer::ResetGlobalTime() {
 	QueryPerformanceCounter(&(g_HiResTimer.start_time));
 }

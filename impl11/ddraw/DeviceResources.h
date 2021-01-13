@@ -464,8 +464,19 @@ public:
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:
-	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[40];
-	//ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
+	// The line below had a hard-coded max of 40. I think it should be 
+	// MAX_DC_SRC_ELEMENTS instead... but if something explodes in DC, it
+	// might be because of this.
+	// I think it was just dumb luck that I put the "40" in there and didn't
+	// overflow it when I added more slots.
+	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
+
+	// Extra textures. For now, these textures will be used to do animations.
+	// We'll simply put the animation textures here, one after the other, no
+	// matter where they come from. The materials should have pointers/indices
+	// into this vector and it should be cleared every time a new mission
+	// is loaded (or just piggy-back where we clear the material properties)
+	std::vector<ComPtr<ID3D11ShaderResourceView>> g_ExtraTextures;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;
