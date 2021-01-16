@@ -889,6 +889,45 @@ void Direct3DTexture::TagTexture() {
 				// This texture has a material associated with it, let's save it in the aux list:
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
+				// If this material has an animated light map, let's load the textures now
+				if (this->material.AnimatedTexControlIndex > -1 && this->is_LightTexture) {
+					AnimatedTexControl *atc = &(g_AnimatedMaterials[this->material.AnimatedTexControlIndex]);
+					for (uint32_t i = 0; i < atc->LightMapSequence.size(); i++) {
+						TexSeqElem tex_seq_elem = atc->LightMapSequence[i];
+						char texname[MAX_TEX_SEQ_NAME + 20];
+						//ID3D11ShaderResourceView *texSRV = NULL;
+						wchar_t wTexName[MAX_TEX_SEQ_NAME];
+						size_t len = 0;
+
+						// Avoid loading more textures if _extraTextures is full
+						if (resources->_numExtraTextures >= MAX_EXTRA_TEXTURES)
+							continue;
+
+						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
+						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
+						log_debug("[DBG] [MAT] Loading ANIMATED texture: %s in mat: 0x%x, index: %d",
+							texname, atc, this->material.AnimatedTexControlIndex);
+						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
+						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
+						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
+						// Will have to come back to this later.
+						// Maybe I need to use the equivalent 
+						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+							&(resources->_extraTextures[resources->_numExtraTextures]));
+						if (FAILED(res)) {
+							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
+						}
+						else {
+							//texSRV->AddRef();
+							//resources->_extraTextures.push_back(texSRV);
+							resources->_numExtraTextures++;
+							atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
+							//log_debug("[DBG] [MAT] Added animated texture in slot: %d",
+							//	this->material.LightMapSequence[i].ExtraTextureIndex);
+						}
+
+					}
+				}
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",

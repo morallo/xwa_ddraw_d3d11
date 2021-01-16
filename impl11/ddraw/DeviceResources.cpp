@@ -335,6 +335,10 @@ DeviceResources::DeviceResources()
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
+
+	for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
+		this->_extraTextures[i] = nullptr;
+	this->_numExtraTextures = 0;
 }
 
 HRESULT DeviceResources::Initialize()
@@ -1187,6 +1191,20 @@ void DeviceResources::ResetActiveCockpit() {
 	}
 }
 
+void DeviceResources::ResetExtraTextures() {
+	for (int i = 0; i < MAX_EXTRA_TEXTURES; i++) {
+		if (this->_extraTextures[i] != nullptr) {
+			this->_extraTextures[i]->Release();
+			this->_extraTextures[i] = nullptr;
+		}
+	}
+	this->_numExtraTextures = 0;
+	// Clear any references to the animated materials as well:
+	for (AnimatedTexControl atc : g_AnimatedMaterials)
+		atc.LightMapSequence.clear();
+	g_AnimatedMaterials.clear();
+}
+
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 {
 	/*
@@ -1235,6 +1253,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	DeleteRandomVectorTexture();
 	ResetXWALightInfo();
 	g_HiResTimer.ResetGlobalTime();
+	this->ResetExtraTextures();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
 	this->_depthStencilL.Release();

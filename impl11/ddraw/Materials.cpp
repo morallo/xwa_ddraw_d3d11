@@ -1,8 +1,10 @@
+#include "globals.h"
 #include "Materials.h"
 #include "utils.h"
 #include <string.h>
 #include "Vectors.h"
 #include "ShadowMapping.h"
+#include "DeviceResources.h"
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -11,6 +13,9 @@ Material g_DefaultGlobalMaterial;
  Contains all the materials for all the OPTs currently loaded
 */
 std::vector<CraftMaterials> g_Materials;
+// List of all the animated materials used in the current mission.
+// This is used to update the timers on these materials.
+std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 
@@ -164,8 +169,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
 		tex_seq_elem.seconds = seconds;
 		tex_seq_elem.intensity = intensity;
-		// This is probably where we should load the texture and put it in ExtraTextures and then
-		// and an index to reference it...
+		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+		tex_seq_elem.ExtraTextureIndex = -1;
 		tex_sequence.push_back(tex_seq_elem);
 
 		// If we reached the end of the string, we're done
@@ -179,7 +184,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
-	char param[256], svalue[256]; // texname[MAX_TEXNAME];
+	char param[256], svalue[512];
 	float fValue = 0.0f;
 
 	// Skip comments and blank lines
@@ -189,7 +194,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		return;
 
 	// Read the parameter
-	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
 		fValue = (float)atof(svalue);
 	}
 
@@ -308,15 +313,19 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		curMaterial->ExplosionBlendMode = (int)fValue;
 	}
 	else if (_stricmp(param, "illum_sequence") == 0) {
+		AnimatedTexControl atc;
 		//std::vector<TexSeqElem> tex_sequence;
 		// Clear the current LightMapSequence and release the associated textures in the DeviceResources...
-		curMaterial->LightMapSequence.clear();
+		atc.LightMapSequence.clear();
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
-		LoadTextureSequence(buf, curMaterial->LightMapSequence);
-		if (curMaterial->LightMapSequence.size() > 0) {
+		LoadTextureSequence(buf, atc.LightMapSequence);
+		if (atc.LightMapSequence.size() > 0) {
+			// Add a reference to this material on the list of animated materials
+			g_AnimatedMaterials.push_back(atc);
+			curMaterial->AnimatedTexControlIndex = g_AnimatedMaterials.size() - 1;
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
-			for each (TexSeqElem t in curMaterial->LightMapSequence) {
+			for each (TexSeqElem t in atc.LightMapSequence) {
 				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
 			}
 			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
@@ -634,4 +643,30 @@ Material FindMaterial(int CraftIndex, char* TexName, bool debug) {
 		log_debug("[DBG] [MAT] Material %s not found, returning default: M:%0.3f, I:%0.3f, G:%0.3f",
 			TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	return defMat;
+}
+
+void AnimatedTexControl::AnimateLightMap() {
+	int num_frames = this->LightMapSequence.size();
+	if (num_frames == 0) return;
+
+	int idx = this->LightMapAnimIdx;
+	float time = this->LightMapTimeLeft - g_HiResTimer.elapsed_s;
+	if (time < 0.0f) {
+		time += 1.0f; // TODO: Use the time specified in the material
+		idx = (idx + 1) % num_frames;
+	}
+	this->LightMapAnimIdx = idx;
+	this->LightMapTimeLeft = time;
+}
+
+void AnimateMaterials() {
+	// I can't use a shorthand loop like the following:
+	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
+	// because that'll create local copies of each element in the std::vector in atc.
+	// In other words, the iterator is a local copy of each element in g_AnimatedMaterials,
+	// which doesn't work, because we need to modify the source element
+	for (uint32_t i = 0; i < g_AnimatedMaterials.size(); i++) {
+		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
+		atc->AnimateLightMap();
+	}
 }

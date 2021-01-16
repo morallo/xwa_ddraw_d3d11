@@ -10,6 +10,8 @@ constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 constexpr auto MAX_TEX_SEQ_NAME = 80;
 
+// Used to store the information related to animated light maps that
+// is loaded from .mat files:
 typedef struct TexSeqElemStruct {
 	int ExtraTextureIndex;
 	char texname[MAX_TEX_SEQ_NAME];
@@ -20,6 +22,22 @@ typedef struct TexSeqElemStruct {
 		texname[0] = 0;
 	}
 } TexSeqElem;
+
+typedef struct AnimatedTexControlStruct {
+	std::vector<TexSeqElemStruct> LightMapSequence;
+	int LightMapAnimIdx;
+	float LightMapTimeLeft;
+
+	AnimatedTexControlStruct() {
+		LightMapSequence.clear();
+		LightMapAnimIdx = 0;
+		LightMapTimeLeft = 1.0f;
+	}
+
+	// Updates the timer/index on the current animated material. Only call this function
+	// if the current material has an animation.
+	void AnimateLightMap();
+} AnimatedTexControl;
 
 // Materials
 typedef struct MaterialStruct {
@@ -54,7 +72,7 @@ typedef struct MaterialStruct {
 	int GroupId;
 	int ImageId;
 
-	std::vector<TexSeqElemStruct> LightMapSequence;
+	int AnimatedTexControlIndex;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -95,7 +113,8 @@ typedef struct MaterialStruct {
 		GroupId = 0;
 		ImageId = 0;
 
-		LightMapSequence.clear();
+		AnimatedTexControlIndex = -1;
+
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -108,6 +127,7 @@ typedef struct MaterialStruct {
 		LavaTranspose = true;
 		*/
 	}
+
 } Material;
 
 /*
@@ -146,6 +166,13 @@ typedef struct TexnameStruct {
  Contains all the materials for all the OPTs currently loaded
 */
 extern std::vector<CraftMaterials> g_Materials;
+// List of all materials with animated textures. OPTs may re-use the same
+// texture several times in different areas. If this texture has an animation,
+// then the animation will be rendered multiple times on the screen. In order
+// to update the timer on these animations exactly *once* per frame, we need a
+// way to iterate over them at the end of the frame to update their timers.
+// This list is used to update the timers on animated materials once per frame.
+extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
 
@@ -165,3 +192,5 @@ void InitCraftMaterials();
 void ClearCraftMaterials();
 int FindCraftMaterial(char* OPTname);
 Material FindMaterial(int CraftIndex, char* TexName, bool debug = false);
+// Iterate over all the g_AnimatedMaterials and update their timers
+void AnimateMaterials();

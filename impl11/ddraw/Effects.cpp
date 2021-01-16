@@ -224,8 +224,11 @@ bool isInVector(char* OPTname, std::vector<OPTNameType>& vector) {
 // ***************************************************************
 void HiResTimer::ResetGlobalTime() {
 	QueryPerformanceCounter(&(g_HiResTimer.start_time));
+	g_HiResTimer.global_time_s = 0.0f;
+	g_HiResTimer.last_time_s = 0.0f;
 }
 
+/*
 // Returns the seconds since the last time this function was called
 float HiResTimer::GetElapsedTimeSinceLastCall() {
 	// Query the performance counters. This will let us render animations at a consistent speed.
@@ -247,9 +250,11 @@ float HiResTimer::GetElapsedTimeSinceLastCall() {
 	//DisplayTimedMessage(1, 0, buf);
 	return g_HiResTimer.elapsed_s;
 }
+*/
 
-// Get the time since the last time ResetGlobalTime was called
-float HiResTimer::GetCurrentTime() {
+// Get the time since the last time ResetGlobalTime was called, also computes the time elapsed since
+// this function was called.
+float HiResTimer::GetElapsedTime() {
 	// Query the performance counters. This will let us render animations at a consistent speed.
 	// The way this works is by computing the current time (curT) and then substracting the start
 	// time from it.
@@ -258,5 +263,7 @@ float HiResTimer::GetCurrentTime() {
 	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
 	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
 	g_HiResTimer.global_time_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	g_HiResTimer.elapsed_s = g_HiResTimer.global_time_s - g_HiResTimer.last_time_s;
+	g_HiResTimer.last_time_s = g_HiResTimer.global_time_s;
 	return g_HiResTimer.global_time_s;
 }

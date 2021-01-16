@@ -4637,6 +4637,35 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedShaders = true;
 						resources->InitPixelShader(resources->_noGlassPS);
 					}
+
+					// Animated Light Maps
+					if (bIsLightTexture && lastTextureSelected->material.AnimatedTexControlIndex > -1) {
+						//static std::vector<int> DumpedIndices;
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[lastTextureSelected->material.AnimatedTexControlIndex]);
+						int idx = atc->LightMapAnimIdx;
+						
+						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
+						int extraTexIdx = atc->LightMapSequence[idx].ExtraTextureIndex;
+						/*
+						// DEBUG
+						bool bInVector = false;
+						for each (int index in DumpedIndices)
+							if (index == extraTexIdx) {
+								bInVector = true;
+								break;
+							}
+						if (!bInVector) {
+							wchar_t filename[80];
+							ID3D11Resource *res = NULL;
+							resources->_extraTextures[extraTexIdx]->GetResource(&res);
+							swprintf_s(filename, 80, L"c:\\temp\\_extraTex-%d.png", extraTexIdx);
+							DirectX::SaveWICTextureToFile(context, res, GUID_ContainerFormatPng, filename);
+							DumpedIndices.push_back(extraTexIdx);
+							log_debug("[DBG] Dumped extraTex %d", extraTexIdx);
+						}
+						*/
+						resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx].Get());
+					}
 				}
 
 				// Apply the SSAO mask/Special materials, like lasers and HUD
@@ -4809,7 +4838,7 @@ HRESULT Direct3DDevice::Execute(
 					else if (bIsLightTexture) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
-							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
+							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength; // TODO: Add Animated Light Map bloom intensity settings here
 						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 					}
 					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
@@ -6045,10 +6074,11 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ExecuteTriangleCount = 0;
 
 	// Update the hi-res timer
-	g_HiResTimer.GetCurrentTime();
+	g_HiResTimer.GetElapsedTime();
 
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	UpdateDCHologramState();
+	AnimateMaterials();
 
 	if (!this->_deviceResources->_renderTargetView)
 	{

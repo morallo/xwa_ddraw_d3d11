@@ -60,6 +60,8 @@ typedef struct AuxTextureDataStruct {
 #define FONT_SMALL_IDX 2
 #define FONT_BLUE_COLOR 0x5555FF
 
+const int MAX_EXTRA_TEXTURES = 40;
+
 class TimedMessage {
 public:
 	time_t t_exp;
@@ -163,6 +165,8 @@ public:
 	void ResetDynamicCockpit();
 
 	void ResetActiveCockpit();
+
+	void ResetExtraTextures();
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -476,7 +480,9 @@ public:
 	// matter where they come from. The materials should have pointers/indices
 	// into this vector and it should be cleared every time a new mission
 	// is loaded (or just piggy-back where we clear the material properties)
-	std::vector<ComPtr<ID3D11ShaderResourceView>> g_ExtraTextures;
+	//std::vector<ComPtr<ID3D11ShaderResourceView>> _extraTextures;
+	ComPtr<ID3D11ShaderResourceView> _extraTextures[MAX_EXTRA_TEXTURES];
+	int _numExtraTextures;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;
