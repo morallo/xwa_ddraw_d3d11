@@ -27,11 +27,13 @@ typedef struct AnimatedTexControlStruct {
 	std::vector<TexSeqElemStruct> LightMapSequence;
 	int LightMapAnimIdx;
 	float LightMapTimeLeft;
+	bool IsRandom;
 
 	AnimatedTexControlStruct() {
 		LightMapSequence.clear();
 		LightMapAnimIdx = 0;
 		LightMapTimeLeft = 1.0f;
+		IsRandom = false;
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function

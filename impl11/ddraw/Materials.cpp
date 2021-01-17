@@ -92,7 +92,7 @@ bool LoadLightColor(char* buf, Vector3* Light)
 /*
  Load a texture sequence line of the form:
 
- illum_sequence = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
+ lightmap_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 */
 bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 	int res = 0;
@@ -312,26 +312,28 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// 2: Replace original texture with procedural explosion
 		curMaterial->ExplosionBlendMode = (int)fValue;
 	}
-	else if (_stricmp(param, "illum_sequence") == 0) {
+	else if (_stricmp(param, "lightmap_seq") == 0 ||
+			 _stricmp(param, "lightmap_rand") == 0) {
 		AnimatedTexControl atc;
-		//std::vector<TexSeqElem> tex_sequence;
+		atc.IsRandom = _stricmp(param, "lightmap_rand") == 0;
 		// Clear the current LightMapSequence and release the associated textures in the DeviceResources...
-		atc.LightMapSequence.clear();
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
+		atc.LightMapSequence.clear();
 		LoadTextureSequence(buf, atc.LightMapSequence);
 		if (atc.LightMapSequence.size() > 0) {
+			// Initialize the timer for this animation
+			atc.LightMapAnimIdx = 0; 
+			atc.LightMapTimeLeft = atc.LightMapSequence[0].seconds;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
 			curMaterial->AnimatedTexControlIndex = g_AnimatedMaterials.size() - 1;
-			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
+			/*log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
 			for each (TexSeqElem t in atc.LightMapSequence) {
 				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
 			}
-			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
+			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");*/
 		}
-		else
-			log_debug("[DBG] [MAT] No elements in animation sequence");
 	}
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
@@ -652,8 +654,13 @@ void AnimatedTexControl::AnimateLightMap() {
 	int idx = this->LightMapAnimIdx;
 	float time = this->LightMapTimeLeft - g_HiResTimer.elapsed_s;
 	if (time < 0.0f) {
-		time += 1.0f; // TODO: Use the time specified in the material
-		idx = (idx + 1) % num_frames;
+		if (this->IsRandom)
+			idx = rand() % num_frames;
+		else
+			idx = (idx + 1) % num_frames;
+		// time += 1.0f;
+		// Use the time specified in the sequence for the next index
+		time += this->LightMapSequence[idx].seconds;
 	}
 	this->LightMapAnimIdx = idx;
 	this->LightMapTimeLeft = time;

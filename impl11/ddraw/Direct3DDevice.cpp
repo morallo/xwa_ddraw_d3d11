@@ -4837,8 +4837,15 @@ HRESULT Direct3DDevice::Execute(
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
 					else if (bIsLightTexture) {
 						bModifiedShaders = true;
+						int anim_idx = lastTextureSelected->material.AnimatedTexControlIndex;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
-							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength; // TODO: Add Animated Light Map bloom intensity settings here
+							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
+						// If this is an animated light map, then use the right intensity setting
+						// TODO: Make the following code more efficient
+						if (anim_idx > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
+							g_PSCBuffer.fBloomStrength = atc->LightMapSequence[atc->LightMapAnimIdx].intensity;
+						}
 						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 					}
 					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
