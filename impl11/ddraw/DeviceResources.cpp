@@ -336,9 +336,10 @@ DeviceResources::DeviceResources()
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
 
-	for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
-		this->_extraTextures[i] = nullptr;
-	this->_numExtraTextures = 0;
+	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
+	//	this->_extraTextures[i] = nullptr;
+	//this->_numExtraTextures = 0;
+	_extraTextures.clear();
 }
 
 HRESULT DeviceResources::Initialize()
@@ -1192,13 +1193,21 @@ void DeviceResources::ResetActiveCockpit() {
 }
 
 void DeviceResources::ResetExtraTextures() {
-	for (int i = 0; i < MAX_EXTRA_TEXTURES; i++) {
-		if (this->_extraTextures[i] != nullptr) {
-			this->_extraTextures[i]->Release();
-			this->_extraTextures[i] = nullptr;
+	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++) {
+	//	if (this->_extraTextures[i] != nullptr) {
+	//		this->_extraTextures[i]->Release();
+	//		this->_extraTextures[i] = nullptr;
+	//	}
+	//}
+	//this->_numExtraTextures = 0;
+
+	for (uint32_t i = 0; i < _extraTextures.size(); i++)
+		if (_extraTextures[i] != nullptr) {
+			_extraTextures[i]->Release();
+			_extraTextures[i] = nullptr;
 		}
-	}
-	this->_numExtraTextures = 0;
+	_extraTextures.clear();
+
 	// Clear any references to the animated materials as well:
 	for (AnimatedTexControl atc : g_AnimatedMaterials)
 		atc.LightMapSequence.clear();

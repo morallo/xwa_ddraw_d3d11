@@ -60,7 +60,8 @@ typedef struct AuxTextureDataStruct {
 #define FONT_SMALL_IDX 2
 #define FONT_BLUE_COLOR 0x5555FF
 
-const int MAX_EXTRA_TEXTURES = 40;
+// Use this when using a static array for _extraTextures:
+//const int MAX_EXTRA_TEXTURES = 40;
 
 class TimedMessage {
 public:
@@ -481,8 +482,11 @@ public:
 	// into this vector and it should be cleared every time a new mission
 	// is loaded (or just piggy-back where we clear the material properties)
 	//std::vector<ComPtr<ID3D11ShaderResourceView>> _extraTextures;
-	ComPtr<ID3D11ShaderResourceView> _extraTextures[MAX_EXTRA_TEXTURES];
-	int _numExtraTextures;
+	std::vector<ID3D11ShaderResourceView *> _extraTextures;
+
+	//ComPtr<ID3D11ShaderResourceView> _extraTextures[MAX_EXTRA_TEXTURES];
+	//int _numExtraTextures;
+	//std::vector<CComPtr(ID3D11ShaderResourceView)> _extraTextures;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;
