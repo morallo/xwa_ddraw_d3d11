@@ -486,7 +486,6 @@ public:
 
 	//ComPtr<ID3D11ShaderResourceView> _extraTextures[MAX_EXTRA_TEXTURES];
 	//int _numExtraTextures;
-	//std::vector<CComPtr(ID3D11ShaderResourceView)> _extraTextures;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

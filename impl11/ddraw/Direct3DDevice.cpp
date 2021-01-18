@@ -4664,8 +4664,6 @@ HRESULT Direct3DDevice::Execute(
 							log_debug("[DBG] Dumped extraTex %d", extraTexIdx);
 						}
 						*/
-						// Use the following when using an array of ComPtr<ID3D11ShaderResourceView>:
-						//resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx].Get());
 						// Use the following when using std::vector<ID3D11ShaderResourceView*>:
 						resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
 					}

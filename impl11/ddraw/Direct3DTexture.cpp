@@ -918,10 +918,16 @@ void Direct3DTexture::TagTexture() {
 							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
 						}
 						else {
-							//texSRV->AddRef();
+							// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
 							resources->_extraTextures.push_back(texSRV);
-							atc->LightMapSequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
 
+							//texSRV->AddRef(); // Without this line, funny things happen
+							//ComPtr<ID3D11ShaderResourceView> p = texSRV;
+							//p->AddRef();
+							//resources->_extraTextures.push_back(p);
+							
+							atc->LightMapSequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+							
 							//resources->_numExtraTextures++;
 							//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
 							//log_debug("[DBG] [MAT] Added animated texture in slot: %d",
