@@ -916,6 +916,7 @@ void Direct3DTexture::TagTexture() {
 						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
 						if (FAILED(res)) {
 							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
+							atc->LightMapSequence[i].ExtraTextureIndex = -1;
 						}
 						else {
 							// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
