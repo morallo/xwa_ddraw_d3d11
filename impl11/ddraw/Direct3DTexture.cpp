@@ -905,8 +905,8 @@ void Direct3DTexture::TagTexture() {
 
 						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
 						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
-						log_debug("[DBG] [MAT] Loading ANIMATED texture: %s in mat: 0x%x, index: %d",
-							texname, atc, this->material.AnimatedTexControlIndex);
+						log_debug("[DBG] [MAT] Loading ANIMATED texture: %s for ATC index: %d",
+							texname, this->material.AnimatedTexControlIndex);
 						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
 						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
 						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.

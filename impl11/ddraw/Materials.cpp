@@ -320,19 +320,28 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
 		atc.LightMapSequence.clear();
-		LoadTextureSequence(buf, atc.LightMapSequence);
+		log_debug("[DBG] [MAT] Loading Animated LightMap data for [%s]", buf);
+		if (!LoadTextureSequence(buf, atc.LightMapSequence))
+			log_debug("[DBG] [MAT] Error loading animated LightMap data for [%s], syntax error?", buf);
 		if (atc.LightMapSequence.size() > 0) {
+			log_debug("[DBG] [MAT] LightMapSequence.size() = %d for LightMap [%s]", atc.LightMapSequence.size(), buf);
 			// Initialize the timer for this animation
 			atc.LightMapAnimIdx = 0; 
 			atc.LightMapTimeLeft = atc.LightMapSequence[0].seconds;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
 			curMaterial->AnimatedTexControlIndex = g_AnimatedMaterials.size() - 1;
-			/*log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
+
+			/*
+			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
 			for each (TexSeqElem t in atc.LightMapSequence) {
 				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
 			}
-			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");*/
+			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
+			*/
+		}
+		else {
+			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
 		}
 	}
 	/*

@@ -25,8 +25,8 @@ typedef struct TexSeqElemStruct {
 
 typedef struct AnimatedTexControlStruct {
 	std::vector<TexSeqElemStruct> LightMapSequence;
-	int LightMapAnimIdx;
-	float LightMapTimeLeft;
+	int LightMapAnimIdx; // This is the current index in the LightMapSequence, it can increase monotonically, or it can be random.
+	float LightMapTimeLeft; // Time left for the current index in the sequence.
 	bool IsRandom;
 
 	AnimatedTexControlStruct() {
