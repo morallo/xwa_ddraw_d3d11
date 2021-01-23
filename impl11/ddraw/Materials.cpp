@@ -314,6 +314,8 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 	}
 	else if (_stricmp(param, "lightmap_seq") == 0 ||
 			 _stricmp(param, "lightmap_rand") == 0) {
+		// TOOD: Add support for multiline sequences
+		// TODO: Fix the alpha issues with side-loaded animations (remove the artifacts around the edges)
 		AnimatedTexControl atc;
 		atc.IsRandom = _stricmp(param, "lightmap_rand") == 0;
 		// Clear the current LightMapSequence and release the associated textures in the DeviceResources...

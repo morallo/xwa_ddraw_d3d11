@@ -82,62 +82,6 @@ TODO:
 */
 
 /*
-
-HOW TO ADD NEW DC SOURCE ELEMENTS:
-
-LoadDCInternalCoordinates loads the source areas into g_DCElemSrcBoxes.
-g_DCElemSrcBoxes must be pre-populated.
-
-1. Add new constant indices in DeviceResources.h.
-   Look for MAX_DC_SRC_ELEMENTS and increase it. Then add the new *_DC_ELEM_SRC_IDX
-   constants above it.
-
-2. Add the new slots in Dynamic_Cockpit_Internal_Areas.cfg.
-   Select a suitable *_HUD_BOX_IDX entry, find the corresponding image in HUD.dat and use
-   a program like Photoshop to write down coordinates in this image. Then add an entry
-   in Dynamic_Cockpit_Internal_Areas.cfg with the coordinates you wish to capture.
-   Each entry looks like this:
-
-	source_def = width,height, x0,y0, x1,y1
-
-   Remember that you can use negative numbers for (x0,y0) and (x1,y1)
-
-3. Add the code that captures the new slots in Direct3DDevice.cpp.
-   Find the HUD_BOX_IDX entry in the Execute() method. The code should look like
-   this:
-
-   if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
-   ...
-
-   Add the code to capture the new slot(s) in the case where it belongs. There
-   are plenty of examples in this area, just take a look at other cases.
-
-4. Go to g_DCElemSrcNames in DeviceResources.cpp and add the labels that will
-   be used for the new slots in the DC files. This is the text that cockpit
-   authors will use to load the element.
-
-   MAKE SURE YOU PLACE THE NEW LABELS ON THE SAME INDEX USED FOR THE *_DC_ELEM_SRC_IDX
-
-
-HOW TO ADD NEW ERASE REGION COMMANDS:
-
-1. Go to DeviceResources.h and add the new region indices.
-   Add new *_HUD_BOX_IDX indices and make sure MAX_HUD_BOXES has the total
-   number of boxes.
-
-2. Add the regions in Dynamic_Cockpit_areas.cfg. Make sure the indices match with the
-   constants added in step 1.
-
-3. Add the new region names in g_HUDRegionNames, in DeviceResources.cpp.
-   Make sure the indices match. These names will be used in DC files to erase the
-   new regions.
-
-4. Add the code that computes the erase_region in Direct3DDevice.cpp.
-   Look for the calls to ComputeCoordsFromUV()
-
-*/
-
-/*
 	The current HUD color is stored in these variables:
 
 	// V0x005B5318
@@ -3870,6 +3814,11 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
 						}
 					}
 
@@ -4056,6 +4005,12 @@ HRESULT Direct3DDevice::Execute(
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
+					goto out;
+
+				// Skip rendering the laser/ion energy levels and brackets if we're rendering them
+				// from first principles.
+				if (g_bRenderLaserIonEnergyLevels && bLastTextureSelectedNotNULL &&
+					lastTextureSelected->is_LaserIonEnergy)
 					goto out;
 
 				// Avoid rendering explosions on the CMD if we're rendering edges.

@@ -10127,6 +10127,7 @@ void PrimarySurface::RenderText()
 	static ComPtr<IDWriteTextLayout> s_textLayouts[3 * 256];
 	static ComPtr<ID2D1SolidColorBrush> s_brush;
 	static ComPtr<ID2D1SolidColorBrush> s_black_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_green_brush, s_blue_brush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -10203,8 +10204,9 @@ void PrimarySurface::RenderText()
 		}
 
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
-		//this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_black_brush);
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x00FF00, 0.1f), &s_green_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF, 0.35f), &s_blue_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -10349,6 +10351,11 @@ void PrimarySurface::RenderText()
 		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
 		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
 
+		// The following can be used to draw laser energy bars to the DC buffer: it gets captured
+		// in the CMD. Coords are in the backbuffer frame (desktop resolution).
+		//D2D1_RECT_F rectR = D2D1::RectF(1200.0f,1100.0f, 1800.0f,1600.0f);
+		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rectR, s_red_brush);
+
 		// Clear the box for the missiles, countermeasures, speed & throttle, and add new 
 		// text to replace the ones we're clearing here
 		D2D1_RECT_F rect;
@@ -10404,6 +10411,69 @@ void PrimarySurface::RenderText()
 			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs, 0xFFFFFF);
 			sprintf_s(buf, 40, "THR: %d%%", throttle);
 			DisplayText(buf, FONT_MEDIUM_IDX, (short)fx + ofs, (short)fy + ofs + s_rowSize, 0xFFFFFF);
+		}
+	}
+
+	if (g_bRenderLaserIonEnergyLevels) {
+		D2D1_RECT_F rect;
+		DCElemSrcBox *dcElemSrcBox;
+
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			// Gather the data we'll need to replace the missiles and countermeasures
+			int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+			// Looks like objectIndex cannot be 0 or we'll crash
+			//log_debug("[DBG] objectIndex: %d", objectIndex);
+			if (objectIndex <= 0) goto out;
+			ObjectEntry *object = &((*objects)[objectIndex]);
+			if (object == NULL) goto out;
+			MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+			if (mobileObject == NULL) goto out;
+			CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+			if (craftInstance == NULL) goto out;
+
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			float H = rect.bottom - rect.top, W = rect.right - rect.left;
+			float BarW = W * 0.46f, BarH = H / 4.0f;
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_green_brush);
+			//log_debug("[DBG] W, H: %0.3f, %0.3f, BarW,H: %0.3f, %0.3f", W, H, BarW, BarH);
+
+			int LaserIdx = 0;
+			for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
+				BYTE WeaponType = craftInstance->Hardpoints[i].WeaponType;
+				if (WeaponType == 1 || WeaponType == 2) {
+					// Render the laser and ion energy bars
+					//float Energy = (float)craftInstance->Hardpoints[i].Energy / 127.0f;
+					// The game displays 12 energy bars 6 bars stacked on top of each other.
+					// 127 / 12 = 10.58, so we divide by 10.58 and see how many bars we should
+					// display:
+					float Energy = trunc((float)(craftInstance->Hardpoints[i].Energy) / 10.58f);
+					float Energy0 = Energy > 6.0f ? 1.0f : Energy / 6.0f;
+					float Energy1 = Energy > 6.0f ? (Energy - 6.0f) / 6.0f : 0.0f;
+					D2D1_RECT_F bar;
+					bar.left = (LaserIdx & 0x1) == 0x0 ? rect.left : rect.right - BarW;
+					//bar.right = bar.left + Energy * BarW;
+					
+					bar.bottom = rect.bottom - (LaserIdx >> 1) * BarH;
+					bar.top = bar.bottom - BarH * 0.8f;
+					//log_debug("[DBG] %d, (%0.3f,%0.3f)-(%0.3f,%0.3f)",
+					//	LaserIdx, bar.left, bar.top, bar.right, bar.bottom);
+
+					// First bar
+					bar.right = bar.left + Energy0 * BarW;
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_blue_brush);
+					// Second bar
+					if (Energy > 6.0f) {
+						bar.right = bar.left + Energy1 * BarW;
+						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_blue_brush);
+					}
+					LaserIdx++;
+				}
+			}
+
 		}
 	}
 

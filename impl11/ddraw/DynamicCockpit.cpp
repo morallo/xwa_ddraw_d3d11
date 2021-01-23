@@ -28,6 +28,7 @@ float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
+bool g_bRenderLaserIonEnergyLevels = true;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
@@ -49,7 +50,7 @@ const char* DC_BEAM_BOX_SRC_RESNAME = "dat,12000,4400,";
 const char* DC_TOP_LEFT_SRC_RESNAME = "dat,12000,2700,";
 const char* DC_TOP_RIGHT_SRC_RESNAME = "dat,12000,2800,";
 
-std::vector<const char*>g_HUDRegionNames = {
+std::vector<const char*> g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
 	"RIGHT_SENSOR_REGION",		// 1
 	"SHIELDS_REGION",			// 2
@@ -63,7 +64,7 @@ std::vector<const char*>g_HUDRegionNames = {
 	"TEXT_CMD_REGION",			// 10
 };
 
-std::vector<const char*>g_DCElemSrcNames = {
+std::vector<const char*> g_DCElemSrcNames = {
 	"LEFT_SENSOR_SRC",			// 0
 	"RIGHT_SENSOR_SRC",			// 1
 	"LASER_RECHARGE_SRC",		// 2
@@ -104,6 +105,7 @@ std::vector<const char*>g_DCElemSrcNames = {
 	"TARGETED_OBJ_SYS_SRC",		// 37
 	"TARGETED_OBJ_DIST_SRC",	// 38
 	"TARGETED_OBJ_SUBCMP_SRC",	// 39
+	"EIGHT_LASERS_BOTH",		// 40
 };
 
 int HUDRegionNameToIndex(char* name) {

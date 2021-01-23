@@ -23,6 +23,13 @@ std::vector<char*> Text_ResNames = {
 	"dat,16000,"
 };
 
+std::vector<char*> LaserIonEnergy_ResNames = {
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
+};
+
 std::vector<char*> Floating_GUI_ResNames = {
 	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.

@@ -41,6 +41,7 @@ inline float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 
 extern std::vector<char*> Text_ResNames;
 extern std::vector<char*> Floating_GUI_ResNames;
+extern std::vector<char*> LaserIonEnergy_ResNames;
 // List of regular GUI elements (this is not an exhaustive list). It's mostly used to detect when
 // the game has started rendering the GUI
 extern std::vector<char*> GUI_ResNames;
@@ -62,11 +63,11 @@ extern std::vector<char*> Trails_ResNames;
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 // Constant Buffers
-extern BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-extern SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
-extern PSShadingSystemCB			g_ShadingSys_PSBuffer;
-extern ShadertoyCBuffer		g_ShadertoyBuffer;
-extern LaserPointerCBuffer	g_LaserPointerBuffer;
+extern BloomPixelShaderCBuffer	g_BloomPSCBuffer;
+extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
+extern PSShadingSystemCB		g_ShadingSys_PSBuffer;
+extern ShadertoyCBuffer			g_ShadertoyBuffer;
+extern LaserPointerCBuffer		g_LaserPointerBuffer;
 
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 
