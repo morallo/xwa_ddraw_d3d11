@@ -106,7 +106,7 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"TARGETED_OBJ_SYS_SRC",		// 37
 	"TARGETED_OBJ_DIST_SRC",	// 38
 	"TARGETED_OBJ_SUBCMP_SRC",	// 39
-	"EIGHT_LASERS_BOTH",		// 40
+	"EIGHT_LASERS_BOTH_SRC",	// 40
 };
 
 int HUDRegionNameToIndex(char* name) {

@@ -192,6 +192,8 @@ public:
 
 	void RenderBracket();
 
+	void RenderLaserIonLevels();
+
 	ULONG _refCount;
 
 	DeviceResources* _deviceResources;
