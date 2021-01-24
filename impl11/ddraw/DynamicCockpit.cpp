@@ -29,6 +29,7 @@ float4 g_DCTargetingIFFColors[6];
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 bool g_bRenderLaserIonEnergyLevels = true;
+D2D1::ColorF g_DCLaserColor(0xFF0000, 0.35f), g_DCIonColor(0x0000FF, 0.35f);
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
@@ -437,6 +438,27 @@ bool LoadIndividualDCParams(char* sFileName) {
 			}
 			else if (_stricmp(param, "transparent") == 0) {
 				g_DCElements[lastDCElemSelected].bTransparent = (bool)fValue;
+			}
+			else if (_stricmp(param, "render_laser_ions") == 0) {
+				g_bRenderLaserIonEnergyLevels = (bool)fValue;
+			}
+			else if (_stricmp(param, "laser_energy_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCLaserColor.r = x;
+					g_DCLaserColor.g = y;
+					g_DCLaserColor.b = z;
+					g_DCLaserColor.a = 0.35f;
+				}
+			}
+			else if (_stricmp(param, "ion_energy_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCIonColor.r = x;
+					g_DCIonColor.g = y;
+					g_DCIonColor.b = z;
+					g_DCIonColor.a = 0.35f;
+				}
 			}
 		}
 	}

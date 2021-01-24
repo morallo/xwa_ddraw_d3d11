@@ -10127,7 +10127,7 @@ void PrimarySurface::RenderText()
 	static ComPtr<IDWriteTextLayout> s_textLayouts[3 * 256];
 	static ComPtr<ID2D1SolidColorBrush> s_brush;
 	static ComPtr<ID2D1SolidColorBrush> s_black_brush;
-	static ComPtr<ID2D1SolidColorBrush> s_green_brush, s_blue_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_gray_brush, s_energy_brush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -10205,8 +10205,8 @@ void PrimarySurface::RenderText()
 
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
-		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x00FF00, 0.1f), &s_green_brush);
-		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF, 0.35f), &s_blue_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x101010, 1.0f), &s_gray_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 0.35f), &s_energy_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -10438,8 +10438,9 @@ void PrimarySurface::RenderText()
 			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
 			float H = rect.bottom - rect.top, W = rect.right - rect.left;
 			float BarW = W * 0.46f, BarH = H / 4.0f;
-			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_green_brush);
+			//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_green_brush);
 			//log_debug("[DBG] W, H: %0.3f, %0.3f, BarW,H: %0.3f, %0.3f", W, H, BarW, BarH);
+			s_energy_brush->SetColor(g_DCLaserColor);
 
 			int LaserIdx = 0;
 			for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
@@ -10462,13 +10463,22 @@ void PrimarySurface::RenderText()
 					//log_debug("[DBG] %d, (%0.3f,%0.3f)-(%0.3f,%0.3f)",
 					//	LaserIdx, bar.left, bar.top, bar.right, bar.bottom);
 
+					// Background
+					bar.right = bar.left + BarW;
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_gray_brush);
+					//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_gray_brush);
+
+					if (WeaponType == 1)
+						s_energy_brush->SetColor(g_DCLaserColor);
+					else
+						s_energy_brush->SetColor(g_DCIonColor);
 					// First bar
 					bar.right = bar.left + Energy0 * BarW;
-					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_blue_brush);
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_energy_brush);
 					// Second bar
 					if (Energy > 6.0f) {
 						bar.right = bar.left + Energy1 * BarW;
-						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_blue_brush);
+						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_energy_brush);
 					}
 					LaserIdx++;
 				}

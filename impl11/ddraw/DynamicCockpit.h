@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include "D2D1.h"
 #include "..\shaders\shader_common.h"
 #include "EffectsCommon.h"
 
@@ -260,6 +261,7 @@ extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
+extern D2D1::ColorF g_DCLaserColor, g_DCIonColor;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
