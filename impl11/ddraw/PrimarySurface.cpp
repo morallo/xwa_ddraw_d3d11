@@ -8486,12 +8486,12 @@ HRESULT PrimarySurface::Flip(
 
 			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
 			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
-			if (g_config.Radar2DRendererEnabled)
+			if (g_config.Radar2DRendererEnabled) {
 				this->RenderRadar();
-
-			if (g_bRenderLaserIonEnergyLevels)
-				this->RenderLaserIonLevels();
-
+				if (g_bRenderLaserIonEnergyLevels || g_bRenderThrottle)
+					this->RenderSynthDCElems();
+			}
+			
 			if (g_config.Text2DRendererEnabled) {
 				/*
 				short x = 250, y = 260;
@@ -10320,7 +10320,8 @@ void PrimarySurface::RenderText()
 
 	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_bDCApplyEraseRegionCommands &&
-		!bExternalCamera) {
+		!bExternalCamera) 
+	{
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 		//log_debug("[DBG] objectIndex: %d", objectIndex);
@@ -10719,11 +10720,17 @@ void PrimarySurface::RenderBracket()
 	g_xwa_bracket.clear();
 }
 
-void PrimarySurface::RenderLaserIonLevels()
+/*
+ * Renders synthetic DC elements, like the Laser and Ion energy levels and the Throttle-as-a-bar
+ */
+void PrimarySurface::RenderSynthDCElems()
 {
 	static DWORD s_displayWidth = 0;
 	static DWORD s_displayHeight = 0;
-	static ComPtr<ID2D1SolidColorBrush> s_gray_brush, s_energy_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_gray_brush, s_content_brush;
+	D2D1_RECT_F rect;
+	DCElemSrcBox *dcElemSrcBox;
+	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 	//static UINT s_left;
 	//static UINT s_top;
 	//static float s_scaleX;
@@ -10763,29 +10770,25 @@ void PrimarySurface::RenderLaserIonLevels()
 		//s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
 
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x101010, 1.0f), &s_gray_brush);
-		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 0.35f), &s_energy_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 0.35f), &s_content_brush);
 	}
 
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
 
-	if (g_bRenderLaserIonEnergyLevels) {
-		D2D1_RECT_F rect;
-		DCElemSrcBox *dcElemSrcBox;
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex <= 0) goto out;
+	ObjectEntry *object = &((*objects)[objectIndex]);
+	if (object == NULL) goto out;
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	if (mobileObject == NULL) goto out;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) goto out;
 
+	if (g_bRenderLaserIonEnergyLevels) {
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
-			// Gather the data we'll need to replace the missiles and countermeasures
-			int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-			//log_debug("[DBG] objectIndex: %d", objectIndex);
-			if (objectIndex <= 0) goto out;
-			ObjectEntry *object = &((*objects)[objectIndex]);
-			if (object == NULL) goto out;
-			MobileObjectEntry *mobileObject = object->MobileObjectPtr;
-			if (mobileObject == NULL) goto out;
-			CraftInstance *craftInstance = mobileObject->craftInstancePtr;
-			if (craftInstance == NULL) goto out;
-
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
 			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
 			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
@@ -10794,7 +10797,7 @@ void PrimarySurface::RenderLaserIonLevels()
 			float BarW = W * 0.46f, BarH = H / 4.0f;
 			// Fill the whole background for this element
 			//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_green_brush);
-			s_energy_brush->SetColor(g_DCLaserColor);
+			s_content_brush->SetColor(g_DCLaserColor);
 
 			int LaserIdx = 0;
 			for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
@@ -10820,21 +10823,46 @@ void PrimarySurface::RenderLaserIonLevels()
 					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_gray_brush);
 
 					if (WeaponType == 1)
-						s_energy_brush->SetColor(g_DCLaserColor);
+						s_content_brush->SetColor(g_DCLaserColor);
 					else
-						s_energy_brush->SetColor(g_DCIonColor);
+						s_content_brush->SetColor(g_DCIonColor);
 					// First bar
 					bar.right = bar.left + Energy0 * BarW;
-					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_energy_brush);
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
 					// Second bar
 					if (Energy > 6.0f) {
 						bar.right = bar.left + Energy1 * BarW;
-						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_energy_brush);
+						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
 					}
 					LaserIdx++;
 				}
 			}
 
+		}
+	}
+
+	if (g_bDynCockpitEnabled && g_bRenderThrottle&& g_bDCApplyEraseRegionCommands &&
+		!bExternalCamera) 
+	{
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			float H = rect.bottom - rect.top, W = rect.right - rect.left;
+
+			s_content_brush->SetColor(g_DCThrottleColor);
+			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
+			D2D1_RECT_F bar;
+			bar.left = rect.left; bar.right = rect.right;
+			bar.bottom = rect.bottom;
+			bar.top = rect.bottom - throttle * H;
+
+			// Background
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_gray_brush);
+			// Throttle
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
 		}
 	}
 

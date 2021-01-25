@@ -3662,6 +3662,12 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the throttle bar (as rendered by first principles)
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
 						}
 					}
 

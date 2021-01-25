@@ -28,8 +28,8 @@ float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
-bool g_bRenderLaserIonEnergyLevels = true;
-D2D1::ColorF g_DCLaserColor(0xFF0000, 0.35f), g_DCIonColor(0x0000FF, 0.35f);
+bool g_bRenderLaserIonEnergyLevels = false, g_bRenderThrottle = false;
+D2D1::ColorF g_DCLaserColor(0xFF0000, 0.35f), g_DCIonColor(0x0000FF, 0.35f), g_DCThrottleColor(0x0000FF, 1.0f);
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
@@ -107,6 +107,7 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"TARGETED_OBJ_DIST_SRC",	// 38
 	"TARGETED_OBJ_SUBCMP_SRC",	// 39
 	"EIGHT_LASERS_BOTH_SRC",	// 40
+	"THROTTLE_BAR_SRC",			// 41
 };
 
 int HUDRegionNameToIndex(char* name) {
@@ -458,6 +459,18 @@ bool LoadIndividualDCParams(char* sFileName) {
 					g_DCIonColor.g = y;
 					g_DCIonColor.b = z;
 					g_DCIonColor.a = 0.35f;
+				}
+			}
+			else if (_stricmp(param, "render_throttle") == 0) {
+				g_bRenderThrottle = (bool)fValue;
+			}
+			else if (_stricmp(param, "throttle_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCThrottleColor.r = x;
+					g_DCThrottleColor.g = y;
+					g_DCThrottleColor.b = z;
+					g_DCThrottleColor.a = 1.0f;
 				}
 			}
 		}

@@ -1127,6 +1127,7 @@ void DeviceResources::ResetDynamicCockpit() {
 	// Force the recomputation of y_center for the next cockpit
 	g_bYCenterHasBeenFixed = false;
 	g_bRenderLaserIonEnergyLevels = false;
+	g_bRenderThrottle = false;
 	if (g_bDynCockpitEnabled && g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
 	{
 		ResetActiveCockpit();

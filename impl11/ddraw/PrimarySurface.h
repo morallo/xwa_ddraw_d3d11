@@ -192,7 +192,7 @@ public:
 
 	void RenderBracket();
 
-	void RenderLaserIonLevels();
+	void RenderSynthDCElems();
 
 	ULONG _refCount;
 

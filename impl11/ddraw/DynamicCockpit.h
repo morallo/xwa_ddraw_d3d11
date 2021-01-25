@@ -215,7 +215,8 @@ const int TARGETED_OBJ_SYS_SRC_IDX = 37;
 const int TARGETED_OBJ_DIST_SRC_IDX = 38;
 const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
 const int EIGHT_LASERS_BOTH_SRC_IDX = 40;
-const int MAX_DC_SRC_ELEMENTS = 41;
+const int THROTTLE_BAR_DC_SRC_IDX = 41;
+const int MAX_DC_SRC_ELEMENTS = 42;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
@@ -261,7 +262,8 @@ extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
 extern float g_fReticleScale;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
-extern D2D1::ColorF g_DCLaserColor, g_DCIonColor;
+extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
+extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
