@@ -286,6 +286,10 @@ bool LoadIndividualDCParams(char* sFileName) {
 	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
 	// Do not re-render Missiles/Counters from first principles by default:
 	g_bReRenderMissilesNCounterMeasures = false;
+	// Do not render laser/ion energy levels by default:
+	g_bRenderLaserIonEnergyLevels = false;
+	// Do not render the throttle bar by default:
+	g_bRenderThrottle = false;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -629,7 +633,7 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 {
 	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer;
+	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer, bloomOn;
 	int res = 0, idx = coords->numCoords;
 	char* substr = NULL;
 	char slot_name[50];
@@ -658,7 +662,9 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 		obj_layer = 1;
 		text_layer = 1;
 		intensity = 1.0f;
-		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */;
+		bloomOn = 0;
+		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */ |
+					(0x00); /* Bit 4 enables Bloom */
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -679,7 +685,16 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &obj_layer, &hColor, &wColor);
+		// uv_coords = SRC, x0, y0, x1, y1; bgColor; Intensity; TextEnable; ObjEnable; hgColor; whColor; bloomOn
+		// TextEnable -- Only show the text layer
+		// ObjEnable -- Only show the object
+		// hgColor -- Highlight Color: this is the color used when the aiming reticle is highlighted
+		// whColor -- Warhead Lock Color: this is the color used warhead lock is solid
+		// bloomOn -- Enable bloom in the DC element. Activated by brightness
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x; %d",
+						&x0, &y0, &x1, &y1, &uColor, // 5 elements
+						&intensity, &text_layer, &obj_layer, // 8 elements
+						&hColor, &wColor, &bloomOn); // 11 elements
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -716,7 +731,7 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 				if (obj_layer)
 					uBitField |= 0x08;
 				else
-					uBitField &= 0xF7;
+					uBitField &= 0xF7; // Turn off bit 3
 			}
 			// Process the highlight color
 			if (res < 9)
@@ -728,10 +743,18 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 			{
 				wColor = uColor;
 			}
+			// Process the bloom enable/disable
+			if (res >= 11) {
+				// bit 4 enables bloom
+				if (bloomOn)
+					uBitField |= 0x10;
+				else
+					uBitField &= 0xE7; // Turn off bit 4
+			}
 			// Store the regular and highlight colors
 			coords->uBGColor[idx] = uColor | (uBitField << 24);
-			coords->uHGColor[idx] = hColor | (uBitField << 24);
-			coords->uWHColor[idx] = wColor | (uBitField << 24);
+			coords->uHGColor[idx] = hColor | (uBitField << 24); // The alpha channel in hColor is not used
+			coords->uWHColor[idx] = wColor | (uBitField << 24); // The alpha channel in wColor is not used
 			coords->numCoords++;
 			//log_debug("[DBG] uColor: 0x%x, hColor: 0x%x, [%s]",
 			//	coords->uBGColor[idx], coords->uHGColor[idx], buf);
