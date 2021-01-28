@@ -4294,10 +4294,15 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
+					//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
 					bModifiedShaders = true;
 					//EnableTransparency();
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
 				}
+
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Spark) {
+				//	log_debug("[DBG] Spark: %s", lastTextureSelected->_surface->_name);
+				//}
 
 				if (bIsDS2CoreExplosion) {
 					g_iReactorExplosionCount++;
