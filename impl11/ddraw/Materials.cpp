@@ -664,7 +664,11 @@ void AnimatedTexControl::AnimateLightMap() {
 
 	int idx = this->LightMapAnimIdx;
 	float time = this->LightMapTimeLeft - g_HiResTimer.elapsed_s;
-	if (time < 0.0f) {
+	// If the 3D display is paused for an extended period of time (for instance, if
+	// the user presses ESC to display the menu for several seconds), then the animation
+	// will have to advance for several seconds as well, so we need the "while" below
+	// to advance the animation accordingly.
+	while (time < 0.0f) {
 		if (this->IsRandom)
 			idx = rand() % num_frames;
 		else

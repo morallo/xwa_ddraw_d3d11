@@ -686,8 +686,8 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 		// Parse the rest of the parameters
 		substr += len + 1;
 		// uv_coords = SRC, x0, y0, x1, y1; bgColor; Intensity; TextEnable; ObjEnable; hgColor; whColor; bloomOn
-		// TextEnable -- Only show the text layer
-		// ObjEnable -- Only show the object
+		// TextEnable -- Display the text layer -- you'll need to enable this for the synthetic DC elems.
+		// ObjEnable -- Display the object layer
 		// hgColor -- Highlight Color: this is the color used when the aiming reticle is highlighted
 		// whColor -- Warhead Lock Color: this is the color used warhead lock is solid
 		// bloomOn -- Enable bloom in the DC element. Activated by brightness
