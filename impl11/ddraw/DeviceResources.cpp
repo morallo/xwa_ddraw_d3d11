@@ -69,6 +69,7 @@
 #include "../Debug/ExplosionShader.h"
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
+#include "../Debug/PixelShaderAnimLightMap.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -127,6 +128,7 @@
 #include "../Release/ExplosionShader.h"
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
+#include "../Release/PixelShaderAnimLightMap.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3396,6 +3398,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimLightMap, sizeof(g_PixelShaderAnimLightMap), nullptr, &_pixelShaderAnimLightMap)))
 		return hr;
 
 	if (g_bDynCockpitEnabled) {

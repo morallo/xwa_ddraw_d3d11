@@ -4606,6 +4606,8 @@ HRESULT Direct3DDevice::Execute(
 
 					// Animated Light Maps
 					if (bIsLightTexture && lastTextureSelected->material.AnimatedTexControlIndex > -1) {
+						bModifiedPixelShader = true;
+						resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
 						//static std::vector<int> DumpedIndices;
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[lastTextureSelected->material.AnimatedTexControlIndex]);
 						int idx = atc->LightMapAnimIdx;
