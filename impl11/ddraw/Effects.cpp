@@ -23,6 +23,13 @@ std::vector<char*> Text_ResNames = {
 	"dat,16000,"
 };
 
+std::vector<char*> LaserIonEnergy_ResNames = {
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
+};
+
 std::vector<char*> Floating_GUI_ResNames = {
 	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
@@ -50,8 +57,8 @@ std::vector<char*> GUI_ResNames = {
 std::vector<char*> Electricity_ResNames = {
 	// Animations (electricity)
 	"dat,2007,",
-	"dat,2008,",
-	"dat,3005,",
+	"dat,2008,", // <-- I think this is the hit effect of ions on disabled targets
+	"dat,3005,", // <-- I think this is displayed when a target has been disabled
 	//"dat,3051,", // Hyperspace!
 
 	// Sparks
@@ -76,6 +83,8 @@ std::vector<char*> Electricity_ResNames = {
 	"dat,22003,",
 	"dat,22005,",
 	//"dat,22007,", // Cockpit sparks
+
+	"dat,3055,", // Electricity -- Animations.dat
 };
 
 // List of common roots for the Explosion names
@@ -92,24 +101,23 @@ std::vector<char*> Explosion_ResNames = {
 
 // Smoke from explosions:
 std::vector<char*> Smoke_ResNames = {
-	"dat,3003,",
-	"dat,3004,",
+	"dat,3003,", // Sparks.dat <-- Smoke when hitting a target
+	"dat,3004,", // Sparks.dat <-- Smoke when hitting a target
 	// The following used to be tagged as explosions, but they look like smoke
-	"dat,3006,",
-	"dat,3055,",
-	"dat,3100,",
-	"dat,3200,",
-	"dat,3300,",
-	"dat,3400,",
-	"dat,3500,",
+	// Animations.dat
+	"dat,3006,", // Single-frame smoke?
 };
 
 std::vector<char*> Sparks_ResNames = {
 	"dat,3000,",
 	"dat,3001,",
 	"dat,3002,",
-	"dat,3003,",
-	"dat,3004,",
+	
+	"dat,3100,", // <-- This is the hit effect for ions
+	"dat,3200,", // <-- This is the hit effect for red lasers
+	"dat,3300,", // <-- This is the hit effect for green lasers
+	"dat,3400,",
+	"dat,3500,",
 };
 
 // List of Lens Flare effects

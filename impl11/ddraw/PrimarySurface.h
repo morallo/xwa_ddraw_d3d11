@@ -192,6 +192,8 @@ public:
 
 	void RenderBracket();
 
+	void RenderSynthDCElems();
+
 	ULONG _refCount;
 
 	DeviceResources* _deviceResources;

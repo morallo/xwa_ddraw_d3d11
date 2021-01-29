@@ -45,7 +45,7 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
-float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override) {
+float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override, out bool dc_bloom) {
 	float4 result = float4(
 		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
 		((color >>  8) & 0xFF) / 255.0,  // G 0x00FF00
@@ -54,11 +54,14 @@ float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_o
 	// The alpha component encodes more information:
 	// bits 0-1: an integer in the range 0..3 that specifies the intensity. intensity = bits[0..1] + 1
 	// bit 2: Enable/Disable text layer (on/off switch)
+	// bit 3: OBJ alpha override
+	// bit 4: Enable bloom in DC elements
 	//intensity = ((color >> 24) & 0xFF) / 64.0;
 	uint temp = (color >> 24) & 0xFF;
-	intensity = (temp & 0x03) + 1.0;
-	text_alpha_override = (float )((temp & 0x04) >> 2);
-	obj_alpha_override = (float)((temp & 0x08) >> 3);
+	intensity			= (temp & 0x03) + 1.0;
+	text_alpha_override = (float)((temp & 0x04) >> 2);
+	obj_alpha_override  = (float)((temp & 0x08) >> 3);
+	dc_bloom			= (bool)((temp & 0x10) >> 4);
 	return result;
 }
 
@@ -131,14 +134,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (input.tex.x < 0.0) input.tex.x += 1.0;
 	if (input.tex.y < 0.0) input.tex.y += 1.0;
 	float intensity, text_alpha_override = 1.0, obj_alpha_override = 1.0;
-	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override);
+	bool dc_bloom = false;
+	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override, dc_bloom);
 	//[unroll] unroll or loop?
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
 		float2 delta = dst[i].zw - dst[i].xy;
 		float2 s = (input.tex - dst[i].xy) / delta;
 		float2 dyn_uv = lerp(src[i].xy, src[i].zw, s);
-		float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override, obj_alpha_override);
+		float4 bgColor = uintColorToFloat4(getBGColor(i), intensity, text_alpha_override, obj_alpha_override, dc_bloom);
 
 		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
@@ -187,7 +191,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas?
 			output.ssaoMask.b  = 0.15; // Low spec intensity
 		}
-		// Display the dynamic cockpit texture only where the texture cover is transparent:
+		// Display the dynamic cockpit element only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
 		// that's what the brightness setting below is for:
 		coverColor = lerp(hud_texelColor, brightness * coverColor, coverAlpha);
@@ -211,6 +215,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
 	}
+	
+	if (dc_bloom) {
+		float3 HSV = RGBtoHSV(coverColor.xyz);
+		if (HSV.z >= 0.8) {
+			diffuse = 1.0;
+			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
+			output.ssaoMask.r = SHADELESS_MAT;
+			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
+			output.ssaoMask.b = 0.15; // Low spec intensity
+		}
+	}
+
 	output.color = float4(diffuse * coverColor.xyz, coverColor.w);
 	if (bInHyperspace) output.color.a = 1.0;
 

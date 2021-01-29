@@ -1,6 +1,6 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
-// Extended for VR by Leo Reyes, 2019
+// Extended for VR by Leo Reyes, 2019, 2020, 2021
 
 #include "common.h"
 #include "../shaders/material_defs.h"
@@ -189,6 +189,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
 	this->is_Floating_GUI = false;
+	this->is_LaserIonEnergy = false;
 	this->is_GUI = false;
 	this->is_TargetingComp = false;
 	this->is_Laser = false;
@@ -456,6 +457,8 @@ void Direct3DTexture::TagTexture() {
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
+		if (isInVector(surface->_name, LaserIonEnergy_ResNames))
+			this->is_LaserIonEnergy = true;
 		if (isInVector(surface->_name, GUI_ResNames))
 			this->is_GUI = true;
 
@@ -986,6 +989,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
 	this->is_Floating_GUI = d3dTexture->is_Floating_GUI;
+	this->is_LaserIonEnergy = d3dTexture->is_LaserIonEnergy;
 	this->is_GUI = d3dTexture->is_GUI;
 	this->is_TargetingComp = d3dTexture->is_TargetingComp;
 	this->is_Laser = d3dTexture->is_Laser;
