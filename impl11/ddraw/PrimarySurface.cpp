@@ -8486,8 +8486,10 @@ HRESULT PrimarySurface::Flip(
 
 			//this->RenderBracket(); // Don't render the bracket yet, wait until all the shading has been applied
 			// We can render the enhanced radar and text now; because they will go to DCTextBuf -- not directly to the screen
-			if (g_config.Radar2DRendererEnabled) {
+			if (g_config.Radar2DRendererEnabled)
 				this->RenderRadar();
+
+			if (g_config.Text2DRendererEnabled) {
 				if (g_bRenderLaserIonEnergyLevels || g_bRenderThrottle)
 					this->RenderSynthDCElems();
 			}
@@ -10325,7 +10327,7 @@ void PrimarySurface::RenderText()
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 		//log_debug("[DBG] objectIndex: %d", objectIndex);
-		if (objectIndex <= 0) goto out;
+		if (objectIndex < 0) goto out;
 		ObjectEntry *object = &((*objects)[objectIndex]);
 		if (object == NULL) goto out;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
@@ -10778,7 +10780,7 @@ void PrimarySurface::RenderSynthDCElems()
 
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-	if (objectIndex <= 0) goto out;
+	if (objectIndex < 0) goto out;
 	ObjectEntry *object = &((*objects)[objectIndex]);
 	if (object == NULL) goto out;
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
