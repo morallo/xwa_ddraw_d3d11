@@ -893,10 +893,10 @@ void Direct3DTexture::TagTexture() {
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
-				if (this->material.AnimatedTexControlIndex > -1 && this->is_LightTexture) {
-					AnimatedTexControl *atc = &(g_AnimatedMaterials[this->material.AnimatedTexControlIndex]);
-					for (uint32_t i = 0; i < atc->LightMapSequence.size(); i++) {
-						TexSeqElem tex_seq_elem = atc->LightMapSequence[i];
+				if (this->material.LightMapATCIndex > -1 && this->is_LightTexture) {
+					AnimatedTexControl *atc = &(g_AnimatedMaterials[this->material.LightMapATCIndex]);
+					for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
+						TexSeqElem tex_seq_elem = atc->Sequence[i];
 						char texname[MAX_TEX_SEQ_NAME + 20];
 						ID3D11ShaderResourceView *texSRV = nullptr;
 						wchar_t wTexName[MAX_TEX_SEQ_NAME];
@@ -909,7 +909,7 @@ void Direct3DTexture::TagTexture() {
 						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
 						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
 						log_debug("[DBG] [MAT] Loading ANIMATED texture: %s for ATC index: %d",
-							texname, this->material.AnimatedTexControlIndex);
+							texname, this->material.LightMapATCIndex);
 						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
 						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
 						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
@@ -919,7 +919,7 @@ void Direct3DTexture::TagTexture() {
 						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
 						if (FAILED(res)) {
 							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
-							atc->LightMapSequence[i].ExtraTextureIndex = -1;
+							atc->Sequence[i].ExtraTextureIndex = -1;
 						}
 						else {
 							// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
@@ -930,7 +930,7 @@ void Direct3DTexture::TagTexture() {
 							//p->AddRef();
 							//resources->_extraTextures.push_back(p);
 							
-							atc->LightMapSequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+							atc->Sequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
 							
 							//resources->_numExtraTextures++;
 							//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;

@@ -4605,15 +4605,15 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Animated Light Maps
-					if (bIsLightTexture && lastTextureSelected->material.AnimatedTexControlIndex > -1) {
+					if (bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) {
 						bModifiedPixelShader = true;
 						resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
 						//static std::vector<int> DumpedIndices;
-						AnimatedTexControl *atc = &(g_AnimatedMaterials[lastTextureSelected->material.AnimatedTexControlIndex]);
-						int idx = atc->LightMapAnimIdx;
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[lastTextureSelected->material.LightMapATCIndex]);
+						int idx = atc->AnimIdx;
 						
 						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
-						int extraTexIdx = atc->LightMapSequence[idx].ExtraTextureIndex;
+						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
 						/*
 						// DEBUG
 						bool bInVector = false;
@@ -4807,14 +4807,14 @@ HRESULT Direct3DDevice::Execute(
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
 					else if (bIsLightTexture) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.AnimatedTexControlIndex;
+						int anim_idx = lastTextureSelected->material.LightMapATCIndex;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
 							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
 						// If this is an animated light map, then use the right intensity setting
 						// TODO: Make the following code more efficient
 						if (anim_idx > -1) {
 							AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
-							g_PSCBuffer.fBloomStrength = atc->LightMapSequence[atc->LightMapAnimIdx].intensity;
+							g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
 						}
 						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 					}

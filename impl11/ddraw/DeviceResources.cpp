@@ -1214,7 +1214,7 @@ void DeviceResources::ResetExtraTextures() {
 
 	// Clear any references to the animated materials as well:
 	for (AnimatedTexControl atc : g_AnimatedMaterials)
-		atc.LightMapSequence.clear();
+		atc.Sequence.clear();
 	g_AnimatedMaterials.clear();
 }
 
