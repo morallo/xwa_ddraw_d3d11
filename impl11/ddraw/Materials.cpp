@@ -90,15 +90,12 @@ bool LoadLightColor(char* buf, Vector3* Light)
 }
 
 /*
- If ParseIntensity is set, load a texture sequence line of the form:
+ Load a texture sequence line of the form:
 
- lightmap_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
+ lightmap_seq|rand|anim_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
- Otherwise, parse a texture sequence of the form:
-
- anim_seq|rand = <TexName1>,<seconds1>, <TexName2>,<seconds2>, ...
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, bool ParseIntensity=true) {
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 	int res = 0;
 	char *s = NULL, *t = NULL, texname[80];
 	float seconds, intensity = 1.0f;
@@ -137,8 +134,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, bool 
 		t = s;
 		while (*t != 0 && *t != ',')
 			t++;
-		// If we reached the end of the string, that's an error if we're parsing the intensity as well
-		if (ParseIntensity && *t == 0)
+		// If we reached the end of the string, that's an error
+		if (*t == 0)
 			return false;
 		try {
 			res = sscanf_s(s, "%f", &seconds);
@@ -149,23 +146,21 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, bool 
 			return false;
 		}
 
-		if (ParseIntensity) {
-			// Skip the comma
-			s = t; s += 1;
-			SKIP_WHITESPACES(s);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
 
-			// Parse the intensity
-			t = s;
-			while (*t != 0 && *t != ',')
-				t++;
-			try {
-				res = sscanf_s(s, "%f", &intensity);
-				if (res < 1) log_debug("[DBG] [MAT] Error reading intensity in '%s'", s);
-			}
-			catch (...) {
-				log_debug("[DBG] [MAT} Could not read intensity in '%s'", s);
-				return false;
-			}
+		// Parse the intensity
+		t = s;
+		while (*t != 0 && *t != ',')
+			t++;
+		try {
+			res = sscanf_s(s, "%f", &intensity);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading intensity in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read intensity in '%s'", s);
+			return false;
 		}
 
 		// We just finished reading one texture in the sequence, let's skip to the next one
@@ -175,7 +170,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, bool 
 		TexSeqElem tex_seq_elem;
 		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
 		tex_seq_elem.seconds = seconds;
-		tex_seq_elem.intensity = intensity; // The intensity field is ignored for texture animations
+		tex_seq_elem.intensity = intensity;
 		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 		tex_seq_elem.ExtraTextureIndex = -1;
 		tex_sequence.push_back(tex_seq_elem);
@@ -320,62 +315,32 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		curMaterial->ExplosionBlendMode = (int)fValue;
 	}
 	else if (_stricmp(param, "lightmap_seq") == 0 ||
-			 _stricmp(param, "lightmap_rand") == 0) {
+			 _stricmp(param, "lightmap_rand") == 0 ||
+			 _stricmp(param, "anim_seq") == 0 ||
+			 _stricmp(param, "anim_rand") == 0) {
 		// TOOD: Add support for multiline sequences
 		// TODO: Fix the alpha issues with side-loaded animations (remove the artifacts around the edges)
 		AnimatedTexControl atc;
-		atc.IsRandom = _stricmp(param, "lightmap_rand") == 0;
-		atc.IsLightMap = true;
+		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
+		atc.IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
 		atc.Sequence.clear();
-		log_debug("[DBG] [MAT] Loading Animated LightMap data for [%s]", buf);
+		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
 		if (!LoadTextureSequence(buf, atc.Sequence))
-			log_debug("[DBG] [MAT] Error loading animated LightMap data for [%s], syntax error?", buf);
+			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
-			log_debug("[DBG] [MAT] Sequence.size() = %d for LightMap [%s]", atc.Sequence.size(), buf);
+			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
 			// Initialize the timer for this animation
 			atc.AnimIdx = 0; 
 			atc.TimeLeft = atc.Sequence[0].seconds;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
-
-			/*
-			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
-			for each (TexSeqElem t in atc.LightMapSequence) {
-				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
-			}
-			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
-			*/
-		}
-		else {
-			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
-		}
-	}
-	else if (_stricmp(param, "anim_seq") == 0 ||
-		_stricmp(param, "anim_rand") == 0) {
-		// TOOD: Add support for multiline sequences
-		// TODO: Fix the alpha issues with side-loaded animations (remove the artifacts around the edges)
-		AnimatedTexControl atc;
-		atc.IsRandom = _stricmp(param, "anim_rand") == 0;
-		atc.IsLightMap = false;
-		// Clear the current Sequence and release the associated textures in the DeviceResources...
-		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
-		//       later...
-		atc.Sequence.clear();
-		log_debug("[DBG] [MAT] Loading Animated Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence, false))
-			log_debug("[DBG] [MAT] Error loading animated Texture data for [%s], syntax error?", buf);
-		if (atc.Sequence.size() > 0) {
-			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
-			// Initialize the timer for this animation
-			atc.AnimIdx = 0;
-			atc.TimeLeft = atc.Sequence[0].seconds;
-			// Add a reference to this material on the list of animated materials
-			g_AnimatedMaterials.push_back(atc);
-			curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+			if (atc.IsLightMap)
+				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
+			else
+				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
 
 			/*
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
