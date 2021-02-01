@@ -4604,18 +4604,39 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitPixelShader(resources->_noGlassPS);
 					}
 
-					// Animated Light Maps
-					if (bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) {
-						bModifiedPixelShader = true;
-						resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
-						//static std::vector<int> DumpedIndices;
-						AnimatedTexControl *atc = &(g_AnimatedMaterials[lastTextureSelected->material.LightMapATCIndex]);
+#ifdef DISABLED
+					// This block was moved after the DynamicCockpit texture replacement, so that we can
+					// animate cover textures!
+					// Animated Light Maps/Textures
+					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1))
+					{
+						//log_debug("[DBG] %s, LightMapATCIndex: %d, TextureATCIndex: %d", lastTextureSelected->_surface->_name,
+						//	lastTextureSelected->material.LightMapATCIndex, lastTextureSelected->material.TextureATCIndex);
+
+						//int ATCIndex = bIsLightTexture ?
+						//	lastTextureSelected->material.LightMapATCIndex : lastTextureSelected->material.TextureATCIndex;
+
+						// The entry condition into this block makes it impossible for ATCIndex to end up with a -1:
+						// One of LightMapATCIndex or TextureATCIndex must be > -1
+						int ATCIndex = -1;
+						if (bIsLightTexture) {
+							bModifiedPixelShader = true;
+							resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
+							ATCIndex = lastTextureSelected->material.LightMapATCIndex;
+						} else
+							ATCIndex = lastTextureSelected->material.TextureATCIndex;
+
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
 						int idx = atc->AnimIdx;
-						
+						//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
+
 						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
 						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+
 						/*
 						// DEBUG
+						static std::vector<int> DumpedIndices;
 						bool bInVector = false;
 						for each (int index in DumpedIndices)
 							if (index == extraTexIdx) {
@@ -4631,12 +4652,17 @@ HRESULT Direct3DDevice::Execute(
 							DumpedIndices.push_back(extraTexIdx);
 							log_debug("[DBG] Dumped extraTex %d", extraTexIdx);
 						}
+						// DEBUG
 						*/
-						if (extraTexIdx > -1)
+
+						if (extraTexIdx > -1) {
 							// Use the following when using std::vector<ID3D11ShaderResourceView*>:
 							resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
+						}
 					}
+#endif
 				}
+				
 
 				// Apply the SSAO mask/Special materials, like lasers and HUD
 				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
@@ -4993,6 +5019,62 @@ HRESULT Direct3DDevice::Execute(
 					}*/
 				}
 
+				// Animated Light Maps/Textures
+				if (bHasMaterial) {
+					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1))
+					{
+						//log_debug("[DBG] %s, LightMapATCIndex: %d, TextureATCIndex: %d", lastTextureSelected->_surface->_name,
+						//	lastTextureSelected->material.LightMapATCIndex, lastTextureSelected->material.TextureATCIndex);
+
+						//int ATCIndex = bIsLightTexture ?
+						//	lastTextureSelected->material.LightMapATCIndex : lastTextureSelected->material.TextureATCIndex;
+
+						// The entry condition into this block makes it impossible for ATCIndex to end up with a -1:
+						// One of LightMapATCIndex or TextureATCIndex must be > -1
+						int ATCIndex = -1;
+						if (bIsLightTexture) {
+							bModifiedPixelShader = true;
+							resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
+							ATCIndex = lastTextureSelected->material.LightMapATCIndex;
+						}
+						else
+							ATCIndex = lastTextureSelected->material.TextureATCIndex;
+
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+						int idx = atc->AnimIdx;
+						//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
+
+						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
+						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+
+						/*
+						// DEBUG
+						static std::vector<int> DumpedIndices;
+						bool bInVector = false;
+						for each (int index in DumpedIndices)
+							if (index == extraTexIdx) {
+								bInVector = true;
+								break;
+							}
+						if (!bInVector) {
+							wchar_t filename[80];
+							ID3D11Resource *res = NULL;
+							resources->_extraTextures[extraTexIdx]->GetResource(&res);
+							swprintf_s(filename, 80, L"c:\\temp\\_extraTex-%d.png", extraTexIdx);
+							DirectX::SaveWICTextureToFile(context, res, GUID_ContainerFormatPng, filename);
+							DumpedIndices.push_back(extraTexIdx);
+							log_debug("[DBG] Dumped extraTex %d", extraTexIdx);
+						}
+						// DEBUG
+						*/
+
+						if (extraTexIdx > -1) {
+							// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+							resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
+						}
+					}
+				}
 				// Count the number of *actual* DC commands sent to the GPU:
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;

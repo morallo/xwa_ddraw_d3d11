@@ -893,8 +893,10 @@ void Direct3DTexture::TagTexture() {
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
-				if (this->material.LightMapATCIndex > -1 && this->is_LightTexture) {
-					AnimatedTexControl *atc = &(g_AnimatedMaterials[this->material.LightMapATCIndex]);
+				if ((this->material.LightMapATCIndex > -1 && this->is_LightTexture) ||
+					(this->material.TextureATCIndex > -1 && !this->is_LightTexture)) {
+					int ATCIndex = this->is_LightTexture ? this->material.LightMapATCIndex : this->material.TextureATCIndex;
+					AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
 					for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
 						TexSeqElem tex_seq_elem = atc->Sequence[i];
 						char texname[MAX_TEX_SEQ_NAME + 20];
@@ -902,14 +904,10 @@ void Direct3DTexture::TagTexture() {
 						wchar_t wTexName[MAX_TEX_SEQ_NAME];
 						size_t len = 0;
 
-						// Avoid loading more textures if _extraTextures is full
-						//if (resources->_numExtraTextures >= MAX_EXTRA_TEXTURES)
-						//	continue;
-
 						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
 						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
-						log_debug("[DBG] [MAT] Loading ANIMATED texture: %s for ATC index: %d",
-							texname, this->material.LightMapATCIndex);
+						log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
+							this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
 						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
 						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
 						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
