@@ -3,12 +3,12 @@
 #include <vector>
 #include "common.h"
 #include "XWAFramework.h"
-#include "effects_common.h"
-#include "dynamic_cockpit.h"
-#include "active_cockpit.h"
-#include "shadow_mapping.h"
-#include "reticle.h"
-#include "materials.h"
+#include "EffectsCommon.h"
+#include "DynamicCockpit.h"
+#include "ActiveCockpit.h"
+#include "ShadowMapping.h"
+#include "Reticle.h"
+#include "Materials.h"
 
 // SSAO Type
 typedef enum {
@@ -41,6 +41,7 @@ inline float g_fDefaultFOVDist = 1280.0f; // Original FOV dist
 
 extern std::vector<char*> Text_ResNames;
 extern std::vector<char*> Floating_GUI_ResNames;
+extern std::vector<char*> LaserIonEnergy_ResNames;
 // List of regular GUI elements (this is not an exhaustive list). It's mostly used to detect when
 // the game has started rendering the GUI
 extern std::vector<char*> GUI_ResNames;

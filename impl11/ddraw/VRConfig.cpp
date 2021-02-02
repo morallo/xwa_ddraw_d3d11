@@ -1728,8 +1728,6 @@ bool LoadSSAOParams() {
 		if (!g_XWALightInfo[i].bTagged)
 			g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
 
-	g_bDumpOBJEnabled = false;
-
 	try {
 		error = fopen_s(&file, "./ssao.cfg", "rt");
 	}
@@ -2303,7 +2301,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
 	g_ShadertoyBuffer.bDisneyStyle = 1;
-	g_ShadertoyBuffer.tunnel_speed = 5.0f;
+	g_ShadertoyBuffer.tunnel_speed = 5.5f;
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
@@ -2340,7 +2338,7 @@ bool LoadHyperParams() {
 				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
-				g_ShadertoyBuffer.tunnel_speed = fValue;
+				g_fHyperspaceTunnelSpeed = fValue;
 			}
 			else if (_stricmp(param, "twirl") == 0) {
 				g_ShadertoyBuffer.twirl = fValue;
@@ -2427,7 +2425,7 @@ void ReloadMaterials()
 		// Capture the OPT/DAT name and load the material file
 		char* start = strstr(surface_name, "\\");
 		char* end = strstr(surface_name, ".opt");
-		char sFileName[180];
+		char sFileName[180], sFileNameShort[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
 			int size = end - start;
@@ -2445,10 +2443,15 @@ void ReloadMaterials()
 			bIsDat = true;
 			// For DAT images, OPTname.name is the full DAT name:
 			strncpy_s(OPTname.name, MAX_OPT_NAME, surface_name, strlen(surface_name));
-			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
+			DATNameToMATParamsFile(OPTname.name, sFileName, sFileNameShort, 180);
 			if (sFileName[0] != 0) {
 				log_debug("[DBG] [MAT] [DAT] Reloading file %s...", sFileName);
-				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
+				// Reload a regular DAT material file:
+				if (!LoadIndividualMATParams(OPTname.name, sFileName)) {
+					// If the above failed, try reloading the animated mat file:
+					if (sFileNameShort[0] != 0)
+						LoadIndividualMATParams(OPTname.name, sFileNameShort, false);
+				}
 			}
 		}
 

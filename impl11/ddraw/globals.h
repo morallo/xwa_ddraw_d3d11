@@ -1,10 +1,10 @@
 #pragma once
 
 #include "commonVR.h"
-#include "effects.h"
-#include "active_cockpit.h"
-#include "dynamic_cockpit.h"
-#include "shadow_mapping.h"
+#include "Effects.h"
+#include "ActiveCockpit.h"
+#include "DynamicCockpit.h"
+#include "ShadowMapping.h"
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
@@ -62,6 +62,18 @@ extern int g_iPresentCounter, g_iNonZBufferCounter, g_iSkipNonZBufferDrawIdx;
 extern float g_fZBracketOverride; // 65535 is probably the maximum Z value in XWA
 extern bool g_bResetDC;
 
+// Performance Counters and Timing
+class HiResTimer {
+public:
+	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us, start_time;
+	float global_time_s, elapsed_s, last_time_s;
+
+	void ResetGlobalTime();
+	//float GetElapsedTimeSinceLastCall();
+	float GetElapsedTime();
+};
+extern HiResTimer g_HiResTimer;
+
 // DS2 Effects
 extern int g_iReactorExplosionCount;
 
@@ -69,10 +81,11 @@ extern int g_iReactorExplosionCount;
 
 
 
+// HYPERSPACE
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 extern int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
-extern float g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
+extern float g_fHyperspaceTunnelSpeed, g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
 extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later
@@ -108,15 +121,15 @@ extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
 extern float g_fLPdebugPointOffset, g_fDebugYCenter;
+
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
  * into 3D space.
  * After dumping solid polygons, I realized the back-project code skews the Y axis... considerably.
  */
-
 extern bool g_bDumpOBJEnabled;
-extern FILE* g_DumpOBJFile;
-extern int g_iDumpOBJFaceIdx, g_iDumpOBJIdx;
+//extern FILE* g_DumpOBJFile;
+//extern int g_iDumpOBJFaceIdx, g_iDumpOBJIdx;
 // DEBUG vars
 
 extern int g_iNaturalConcourseAnimations, g_iHUDOffscreenCommandsRendered;

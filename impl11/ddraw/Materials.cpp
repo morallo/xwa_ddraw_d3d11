@@ -1,8 +1,14 @@
-#include "materials.h"
+#include "globals.h"
+#include "Materials.h"
 #include "utils.h"
 #include <string.h>
+#include <string>
+#include <filesystem>
 #include "Vectors.h"
-#include "shadow_mapping.h"
+#include "ShadowMapping.h"
+#include "DeviceResources.h"
+
+namespace fs = std::filesystem;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -11,6 +17,9 @@ Material g_DefaultGlobalMaterial;
  Contains all the materials for all the OPTs currently loaded
 */
 std::vector<CraftMaterials> g_Materials;
+// List of all the animated materials used in the current mission.
+// This is used to update the timers on these materials.
+std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 
@@ -79,9 +88,187 @@ bool LoadLightColor(char* buf, Vector3* Light)
 	return true;
 }
 
+void ListFilesInDir(char *path)
+{
+	std::string s_path = std::string("Animations\\") + std::string(path);
+	log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+	for (const auto & entry : fs::directory_iterator(s_path)) {
+		// Surely there's a better way to get the filename...
+		log_debug("[DBG] file: %s", entry.path().filename().string().c_str());
+	}
+}
+
+#define SKIP_WHITESPACES(s) {\
+	while (*s != 0 && *s == ' ') s++;\
+	if (*s == 0) return false;\
+}
+
+/*
+ Load a texture sequence line of the form:
+
+ lightmap_seq|rand|anim_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
+
+*/
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
+	int res = 0;
+	char *s = NULL, *t = NULL, texname[80];
+	float seconds, intensity = 1.0f;
+	
+	//log_debug("[DBG] [MAT] Reading texture sequence");
+	s = strchr(buf, '=');
+	if (s == NULL) return false;
+
+	// Skip the equals sign:
+	s += 1;
+	
+	while (*s != 0) 
+	{
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		// Parse the texture name
+		try {
+			res = sscanf_s(s, "%s", texname, 80);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading texname in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read texname in '%s'", s);
+			return false;
+		}
+
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+
+		// Parse the seconds
+		t = s;
+		while (*t != 0 && *t != ',')
+			t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0)
+			return false;
+		try {
+			res = sscanf_s(s, "%f", &seconds);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading seconds in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read seconds in '%s'", s);
+			return false;
+		}
+
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+
+		// Parse the intensity
+		t = s;
+		while (*t != 0 && *t != ',')
+			t++;
+		try {
+			res = sscanf_s(s, "%f", &intensity);
+			if (res < 1) log_debug("[DBG] [MAT] Error reading intensity in '%s'", s);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT} Could not read intensity in '%s'", s);
+			return false;
+		}
+
+		// We just finished reading one texture in the sequence, let's skip to the next one
+		// if possible
+		//log_debug("[DBG] [MAT] [<%s>,%0.3f,%0.3f]", texname, seconds, intensity);
+		//material.tex_sequence.push_back(tex_seq_elem)
+		TexSeqElem tex_seq_elem;
+		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
+		tex_seq_elem.seconds = seconds;
+		tex_seq_elem.intensity = intensity;
+		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+		tex_seq_elem.ExtraTextureIndex = -1;
+		tex_sequence.push_back(tex_seq_elem);
+
+		// If we reached the end of the string, we're done
+		if (*t == 0) break;
+		// Else, we need to parse the next texture...
+		// Skip the current char (which should be a comma) and repeat
+		s = t; s += 1;
+	}
+	//log_debug("[DBG] [MAT] Texture sequence done");
+	return true;
+}
+
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is_lightmap, int *black_to_alpha) {
+	int res = 0;
+	char *s = NULL, *t = NULL, path[256];
+	float fps = 30.0f, intensity = 0.0f;
+	*is_lightmap = 0, *black_to_alpha = 1;
+
+	//log_debug("[DBG] [MAT] Reading texture sequence");
+	s = strchr(buf, '=');
+	if (s == NULL) return false;
+
+	// Skip the equals sign:
+	s += 1;
+
+	// Skip to the next comma
+	t = s;
+	while (*t != 0 && *t != ',') t++;
+	// If we reached the end of the string, that's an error
+	if (*t == 0) return false;
+	// End this string on the comma so that we can parse a string
+	*t = 0;
+	// Parse the texture name
+	try {
+		res = sscanf_s(s, "%s", path, 256);
+		if (res < 1) log_debug("[DBG] [MAT] Error reading path in '%s'", s);
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT} Could not read path in '%s'", s);
+		return false;
+	}
+
+	// Skip the comma
+	s = t; s += 1;
+	SKIP_WHITESPACES(s);
+
+	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
+	try {
+		res = sscanf_s(s, "%f, %d, %f, %d", &fps, is_lightmap, &intensity, black_to_alpha);
+		if (res < 4) {
+			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
+		}
+		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d", fps, *is_lightmap, intensity, *black_to_alpha);
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
+		return false;
+	}
+
+	// We just finished reading the path where a frame sequence is stored
+	// Now we need to load all the frames in that path into a tex_seq_elem
+	TexSeqElem tex_seq_elem;
+	std::string s_path = std::string("Animations\\") + std::string(path);
+	//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+	for (const auto & entry : fs::directory_iterator(s_path)) {
+		// Surely there's a better way to get the filename...
+		std::string filename = std::string(path) + "\\" + entry.path().filename().string();
+		//log_debug("[DBG] file: %s", filename.c_str());
+
+		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
+		tex_seq_elem.seconds = 1.0f / fps;
+		tex_seq_elem.intensity = intensity;
+		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+		tex_seq_elem.ExtraTextureIndex = -1;
+		tex_sequence.push_back(tex_seq_elem);
+	}
+
+	return true;
+}
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
-	char param[256], svalue[256]; // texname[MAX_TEXNAME];
+	char param[256], svalue[512];
 	float fValue = 0.0f;
 
 	// Skip comments and blank lines
@@ -91,7 +278,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		return;
 
 	// Read the parameter
-	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
 		fValue = (float)atof(svalue);
 	}
 
@@ -182,7 +369,101 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// Additional ambient component. Only used in PixelShaderNoGlass
 		curMaterial->Ambient = fValue;
 	}
+	else if (_stricmp(param, "TotalFrames") == 0) {
+		curMaterial->TotalFrames = (int)fValue;
+	}
+	else if (_stricmp(param, "ExplosionScale") == 0) {
+		// The user-facing explosion scale must be translated into the scale that the
+		// ExplosionShader users. For some reason (the code isn't mine) the scale in
+		// the shader works like this:
+		// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
+		// So the formula is:
+		// ExplosionScale = 4.0 / UserExplosionScale
+		// Because:
+		// 4.0 / UserExplosionScale yields:
+		// 4.0 / 1.0 -> 4 = small
+		// 4.0 / 2.0 -> 2 = medium
+		// 4.0 / 4.0 -> 1 = big
+		float UserExplosionScale = max(0.5f, fValue); // Disallow values smaller than 0.5
+		curMaterial->ExplosionScale = 4.0f / UserExplosionScale;
+	}
+	else if (_stricmp(param, "ExplosionSpeed") == 0) {
+		curMaterial->ExplosionSpeed = fValue;
+	}
+	else if (_stricmp(param, "ExplosionBlendMode") == 0) {
+		// 0: No Blending, use the original texture
+		// 1: Blend with the original texture
+		// 2: Replace original texture with procedural explosion
+		curMaterial->ExplosionBlendMode = (int)fValue;
+	}
+	else if (_stricmp(param, "lightmap_seq") == 0 ||
+			 _stricmp(param, "lightmap_rand") == 0 ||
+			 _stricmp(param, "anim_seq") == 0 ||
+			 _stricmp(param, "anim_rand") == 0) {
+		// TOOD: Add support for multiline sequences
+		AnimatedTexControl atc;
+		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
+		bool IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
+		atc.BlackToAlpha = false;
+		// Clear the current Sequence and release the associated textures in the DeviceResources...
+		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
+		//       later...
+		atc.Sequence.clear();
+		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
+		if (!LoadTextureSequence(buf, atc.Sequence))
+			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
+		if (atc.Sequence.size() > 0) {
+			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
+			// Initialize the timer for this animation
+			atc.AnimIdx = 0; 
+			atc.TimeLeft = atc.Sequence[0].seconds;
+			// Add a reference to this material on the list of animated materials
+			g_AnimatedMaterials.push_back(atc);
+			if (IsLightMap)
+				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
+			else
+				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
 
+			/*
+			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
+			for each (TexSeqElem t in atc.LightMapSequence) {
+				log_debug("[DBG] [MAT] <%s>, %0.3f, %0.3f", t.texname, t.seconds, t.intensity);
+			}
+			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
+			*/
+		}
+		else {
+			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
+		}
+	}
+	else if (_stricmp(param, "frame_seq") == 0) {
+		AnimatedTexControl atc;
+		int is_lightmap, black_to_alpha;
+		atc.IsRandom = 0;
+		// Clear the current Sequence and release the associated textures in the DeviceResources...
+		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
+		//       later...
+		atc.Sequence.clear();
+		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
+		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &black_to_alpha))
+			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
+		if (atc.Sequence.size() > 0) {
+			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
+			// Initialize the timer for this animation
+			atc.AnimIdx = 0;
+			atc.TimeLeft = atc.Sequence[0].seconds;
+			atc.BlackToAlpha = (bool)black_to_alpha;
+			// Add a reference to this material on the list of animated materials
+			g_AnimatedMaterials.push_back(atc);
+			if (is_lightmap)
+				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
+			else
+				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+		}
+		else {
+			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
+		}
+	}
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));
@@ -203,7 +484,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 /*
  * Load the material parameters for an individual OPT or DAT
  */
-bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
+bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
 	// of TexnameType
 	// https://stackoverflow.com/questions/21829451/push-back-on-a-vector-of-array-of-char
@@ -222,7 +503,7 @@ bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
 		return false;
 	}
 
-	log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
+	if (verbose) log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
 	char buf[256], param[256], svalue[256]; // texname[MAX_TEXNAME];
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
@@ -233,12 +514,12 @@ bool LoadIndividualMATParams(char* OPTname, char* sFileName) {
 	int craftIdx = FindCraftMaterial(OPTname);
 	if (craftIdx < 0) {
 		// New Craft Material
-		log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
+		if (verbose) log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
 		//craftIdx = g_Materials.size();
 	}
 	else {
 		// Existing Craft Material, clear it
-		log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
+		if (verbose) log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
 		g_Materials[craftIdx].MaterialList.clear();
 	}
 	CraftMaterials craftMat;
@@ -404,10 +685,15 @@ bool GetGroupIdImageIdFromDATName(char* DATName, int* GroupId, int* ImageId) {
 }
 
 /*
- * Convert a DAT name into a MAT params file of the form:
- * Materials\dat-<GroupId>-<ImageId>.mat
+ * Convert a DAT name into two MAT params files of the form:
+ *
+ * sFileName:		Materials\dat-<GroupId>-<ImageId>.mat
+ * sFileNameShort:	Materials\dat-<GroupId>.mat
+ *
+ * Both sFileName and sFileNameShort must have iFileNameSize bytes to store the string.
+ * sFileNameShort can be used to load mat files for animations, like explosions.
  */
-void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize) {
+void DATNameToMATParamsFile(char *DATName, char *sFileName, char *sFileNameShort, int iFileNameSize) {
 	int GroupId, ImageId;
 	// Get the GroupId and ImageId from the DATName, nullify sFileName if we can't extract
 	// the data from the name
@@ -417,6 +703,7 @@ void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize) {
 	}
 	// Build the material filename for the DAT texture:
 	snprintf(sFileName, iFileNameSize, "Materials\\dat-%d-%d.mat", GroupId, ImageId);
+	snprintf(sFileNameShort, iFileNameSize, "Materials\\dat-%d.mat", GroupId);
 }
 
 
@@ -487,4 +774,39 @@ Material FindMaterial(int CraftIndex, char* TexName, bool debug) {
 		log_debug("[DBG] [MAT] Material %s not found, returning default: M:%0.3f, I:%0.3f, G:%0.3f",
 			TexName, defMat.Metallic, defMat.Intensity, defMat.Glossiness);
 	return defMat;
+}
+
+void AnimatedTexControl::Animate() {
+	int num_frames = this->Sequence.size();
+	if (num_frames == 0) return;
+
+	int idx = this->AnimIdx;
+	float time = this->TimeLeft - g_HiResTimer.elapsed_s;
+	// If the 3D display is paused for an extended period of time (for instance, if
+	// the user presses ESC to display the menu for several seconds), then the animation
+	// will have to advance for several seconds as well, so we need the "while" below
+	// to advance the animation accordingly.
+	while (time < 0.0f) {
+		if (this->IsRandom)
+			idx = rand() % num_frames;
+		else
+			idx = (idx + 1) % num_frames;
+		// time += 1.0f;
+		// Use the time specified in the sequence for the next index
+		time += this->Sequence[idx].seconds;
+	}
+	this->AnimIdx = idx;
+	this->TimeLeft = time;
+}
+
+void AnimateMaterials() {
+	// I can't use a shorthand loop like the following:
+	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
+	// because that'll create local copies of each element in the std::vector in atc.
+	// In other words, the iterator is a local copy of each element in g_AnimatedMaterials,
+	// which doesn't work, because we need to modify the source element
+	for (uint32_t i = 0; i < g_AnimatedMaterials.size(); i++) {
+		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
+		atc->Animate();
+	}
 }

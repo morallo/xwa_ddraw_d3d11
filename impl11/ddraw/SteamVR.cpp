@@ -6,6 +6,7 @@
 #include "SteamVR.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"
+#include "SharedMem.h"
 
 vr::IVRSystem* g_pHMD = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
@@ -34,6 +35,8 @@ float g_fFrameTimeRemaining = 0.005f;
 int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
+
+extern SharedData* g_pSharedData;
 
 bool InitSteamVR()
 {
@@ -295,21 +298,43 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		//vr::TrackedDevicePose_t trackedDevicePose;
+		vr::TrackedDevicePose_t trackedDevicePose;
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
 		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-		poseMatrix = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking; // This matrix contains all positional and rotational data.
-		q = rotationToQuaternion(poseMatrix);
-		quatToEuler(q, yaw, pitch, roll);
 
-		*x = poseMatrix.m[0][3];
-		*y = poseMatrix.m[1][3];
-		*z = poseMatrix.m[2][3];
-		*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+		if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
+			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
+			// current frame in xwingaliance.exe.
+			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
+			// bDataReady is true, but I don't think there's a huge advantage to doing that.
+			trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
+			//log_debug("[DBG] Using trackedDevidePose from CockpitLook");
+		}
+		else {
+			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
+			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses");
+		}
+		//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+
+		if (trackedDevicePose.bPoseIsValid)
+		{
+			poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
+			q = rotationToQuaternion(poseMatrix);
+			quatToEuler(q, yaw, pitch, roll);
+
+			*x = poseMatrix.m[0][3];
+			*y = poseMatrix.m[1][3];
+			*z = poseMatrix.m[2][3];
+			*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+		}
+		else {
+			//log_debug("[DBG] HMD pose not valid");
+		}
 	}
 }
 

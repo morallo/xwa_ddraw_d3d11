@@ -4031,6 +4031,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
+	g_ShadertoyBuffer.tunnel_speed = g_fHyperspaceTunnelSpeed;
 	g_ShadertoyBuffer.srand = g_fHyperspaceRand;
 	g_ShadertoyBuffer.iTime = iTime;
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
@@ -8126,6 +8127,11 @@ HRESULT PrimarySurface::Flip(
 				this->RenderRadar();
 
 			if (g_config.Text2DRendererEnabled) {
+				if (g_bRenderLaserIonEnergyLevels || g_bRenderThrottle)
+					this->RenderSynthDCElems();
+			}
+			
+			if (g_config.Text2DRendererEnabled) {
 				/*
 				short x = 250, y = 260;
 				x = AddText("Hello ", 0, x, y, 0x5555FF);
@@ -9839,7 +9845,6 @@ void PrimarySurface::RenderText()
 		}
 
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
-		//this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_black_brush);
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
 	}
 
@@ -9954,12 +9959,12 @@ void PrimarySurface::RenderText()
 
 	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_bDCApplyEraseRegionCommands &&
-		!bExternalCamera) {
+		!bExternalCamera) 
+	{
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-		// Looks like objectIndex cannot be 0 or we'll crash
 		//log_debug("[DBG] objectIndex: %d", objectIndex);
-		if (objectIndex <= 0) goto out;
+		if (objectIndex < 0) goto out;
 		ObjectEntry *object = &((*objects)[objectIndex]);
 		if (object == NULL) goto out;
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
@@ -9984,6 +9989,11 @@ void PrimarySurface::RenderText()
 		// to clear text right here without using more shaders.
 		//D2D1_RECT_F rect = D2D1::RectF(0.0f, 100.0f, 1500.0f, 800.0f);
 		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+
+		// The following can be used to draw laser energy bars to the DC buffer: it gets captured
+		// in the CMD. Coords are in the backbuffer frame (desktop resolution).
+		//D2D1_RECT_F rectR = D2D1::RectF(1200.0f,1100.0f, 1800.0f,1600.0f);
+		//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rectR, s_red_brush);
 
 		// Clear the box for the missiles, countermeasures, speed & throttle, and add new 
 		// text to replace the ones we're clearing here
@@ -10347,4 +10357,155 @@ void PrimarySurface::RenderBracket()
 	// crashes when exiting.
 	s_brush = nullptr;
 	g_xwa_bracket.clear();
+}
+
+/*
+ * Renders synthetic DC elements, like the Laser and Ion energy levels and the Throttle-as-a-bar
+ */
+void PrimarySurface::RenderSynthDCElems()
+{
+	static DWORD s_displayWidth = 0;
+	static DWORD s_displayHeight = 0;
+	static ComPtr<ID2D1SolidColorBrush> s_gray_brush, s_content_brush;
+	D2D1_RECT_F rect;
+	DCElemSrcBox *dcElemSrcBox;
+	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
+	//static UINT s_left;
+	//static UINT s_top;
+	//static float s_scaleX;
+	//static float s_scaleY;
+
+	if (this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
+	{
+		s_displayWidth = this->_deviceResources->_displayWidth;
+		s_displayHeight = this->_deviceResources->_displayHeight;
+
+		UINT w;
+		UINT h;
+
+		if (g_config.AspectRatioPreserved)
+		{
+			if (this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth <= this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight)
+			{
+				w = this->_deviceResources->_backbufferHeight * this->_deviceResources->_displayWidth / this->_deviceResources->_displayHeight;
+				h = this->_deviceResources->_backbufferHeight;
+			}
+			else
+			{
+				w = this->_deviceResources->_backbufferWidth;
+				h = this->_deviceResources->_backbufferWidth * this->_deviceResources->_displayHeight / this->_deviceResources->_displayWidth;
+			}
+		}
+		else
+		{
+			w = this->_deviceResources->_backbufferWidth;
+			h = this->_deviceResources->_backbufferHeight;
+		}
+
+		//s_left = (this->_deviceResources->_backbufferWidth - w) / 2;
+		//s_top = (this->_deviceResources->_backbufferHeight - h) / 2;
+
+		//s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
+		//s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
+
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x101010, 1.0f), &s_gray_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 0.35f), &s_content_brush);
+	}
+
+	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) goto out;
+	ObjectEntry *object = &((*objects)[objectIndex]);
+	if (object == NULL) goto out;
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	if (mobileObject == NULL) goto out;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) goto out;
+
+	if (g_bRenderLaserIonEnergyLevels) {
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			float H = rect.bottom - rect.top, W = rect.right - rect.left;
+			float BarW = W * 0.46f, BarH = H / 4.0f;
+			// Fill the whole background for this element
+			//this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_green_brush);
+			s_content_brush->SetColor(g_DCLaserColor);
+
+			int LaserIdx = 0;
+			for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
+				BYTE WeaponType = craftInstance->Hardpoints[i].WeaponType;
+				if (WeaponType == 1 || WeaponType == 2) {
+					// Render the laser and ion energy bars
+					//float Energy = (float)craftInstance->Hardpoints[i].Energy / 127.0f;
+					// The game displays 12 energy bars 6 bars stacked on top of each other.
+					// 127 / 12 = 10.58, so we divide by 10.58 and see how many bars we should
+					// display:
+					float Energy = trunc((float)(craftInstance->Hardpoints[i].Energy) / 10.58f);
+					float Energy0 = Energy > 6.0f ? 1.0f : Energy / 6.0f;
+					float Energy1 = Energy > 6.0f ? (Energy - 6.0f) / 6.0f : 0.0f;
+					D2D1_RECT_F bar;
+					bar.left = (LaserIdx & 0x1) == 0x0 ? rect.left : rect.right - BarW;
+					//bar.right = bar.left + Energy * BarW;
+
+					bar.bottom = rect.bottom - (LaserIdx >> 1) * BarH;
+					bar.top = bar.bottom - BarH * 0.8f;
+
+					// Background
+					bar.right = bar.left + BarW;
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_gray_brush);
+
+					if (WeaponType == 1)
+						s_content_brush->SetColor(g_DCLaserColor);
+					else
+						s_content_brush->SetColor(g_DCIonColor);
+					// First bar
+					bar.right = bar.left + Energy0 * BarW;
+					this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
+					// Second bar
+					if (Energy > 6.0f) {
+						bar.right = bar.left + Energy1 * BarW;
+						this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
+					}
+					LaserIdx++;
+				}
+			}
+
+		}
+	}
+
+	if (g_bDynCockpitEnabled && g_bRenderThrottle&& g_bDCApplyEraseRegionCommands &&
+		!bExternalCamera) 
+	{
+		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
+		if (dcElemSrcBox->bComputed) {
+			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
+			rect.top = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+			rect.right = g_fCurScreenWidth * dcElemSrcBox->coords.x1;
+			rect.bottom = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+			float H = rect.bottom - rect.top, W = rect.right - rect.left;
+
+			s_content_brush->SetColor(g_DCThrottleColor);
+			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
+			D2D1_RECT_F bar;
+			bar.left = rect.left; bar.right = rect.right;
+			bar.bottom = rect.bottom;
+			bar.top = rect.bottom - throttle * H;
+
+			// Background
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_gray_brush);
+			// Throttle
+			this->_deviceResources->_d2d1RenderTarget->FillRectangle(&bar, s_content_brush);
+		}
+	}
+
+out:
+	this->_deviceResources->_d2d1RenderTarget->EndDraw();
+	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 }

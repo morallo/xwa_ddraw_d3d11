@@ -10,6 +10,48 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+Jeremy: Enable film recording in melee missions (PPG/Yard)
+At offset 100AF8, replace 0F8586010000 with 909090909090.
+*/
+
+/*
+How to get the current throttle setting:
+Jeremy: @blue_max An unsigned short at offset 0x00F0 in the XwaCraft struct.
+
+In function L00473D00:
+// L00473D00
+void UpdateHUDText()
+
+	Ptr<XwaCraft> ebp20 = 0;
+
+	int eax0 = s_XwaPlayers[s_XwaCurrentPlayerId].ObjectIndex;
+
+	if (eax0 != 0xFFFF)
+	{
+		Ptr<XwaMobileObject> eax1 = s_XwaObjects[eax0].pMobileObject;
+
+		if( eax1 != 0 )
+		{
+			ebp20 = eax1->pCraft;
+		}
+	}
+
+...
+
+	if ((ebp20->XwaCraft_m181 & 64) != 0)
+	{
+		unsigned short edi = ebp20->PresetThrottle / 0x28F;
+
+		if( ebp20->IsSlamEnabled != 0 )
+		{
+			edi *= 2;
+		}
+	}
+*/
+
+/*
+HOW TO SHARE DATA BETWEEN HOOKS:
+
 Jeremy: In the player struct, it seems there are 12 unused bytes at offset 0x0B9 and 6 unused
 		bytes at offset 0x0E2.
 
@@ -37,62 +79,6 @@ TODO:
 
 	Automatic Eye Adaptation
 	Tonemapping/Whiteout in HDR mode
-*/
-
-/*
-
-HOW TO ADD NEW DC SOURCE ELEMENTS:
-
-LoadDCInternalCoordinates loads the source areas into g_DCElemSrcBoxes.
-g_DCElemSrcBoxes must be pre-populated.
-
-1. Add new constant indices in DeviceResources.h.
-   Look for MAX_DC_SRC_ELEMENTS and increase it. Then add the new *_DC_ELEM_SRC_IDX
-   constants above it.
-
-2. Add the new slots in Dynamic_Cockpit_Internal_Areas.cfg.
-   Select a suitable *_HUD_BOX_IDX entry, find the corresponding image in HUD.dat and use
-   a program like Photoshop to write down coordinates in this image. Then add an entry
-   in Dynamic_Cockpit_Internal_Areas.cfg with the coordinates you wish to capture.
-   Each entry looks like this:
-
-	source_def = width,height, x0,y0, x1,y1
-
-   Remember that you can use negative numbers for (x0,y0) and (x1,y1)
-
-3. Add the code that captures the new slots in Direct3DDevice.cpp.
-   Find the HUD_BOX_IDX entry in the Execute() method. The code should look like
-   this:
-
-   if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
-   ...
-
-   Add the code to capture the new slot(s) in the case where it belongs. There
-   are plenty of examples in this area, just take a look at other cases.
-
-4. Go to g_DCElemSrcNames in DeviceResources.cpp and add the labels that will
-   be used for the new slots in the DC files. This is the text that cockpit
-   authors will use to load the element.
-
-   MAKE SURE YOU PLACE THE NEW LABELS ON THE SAME INDEX USED FOR THE *_DC_ELEM_SRC_IDX
-
-
-HOW TO ADD NEW ERASE REGION COMMANDS:
-
-1. Go to DeviceResources.h and add the new region indices.
-   Add new *_HUD_BOX_IDX indices and make sure MAX_HUD_BOXES has the total
-   number of boxes.
-
-2. Add the regions in Dynamic_Cockpit_areas.cfg. Make sure the indices match with the
-   constants added in step 1.
-
-3. Add the new region names in g_HUDRegionNames, in DeviceResources.cpp.
-   Make sure the indices match. These names will be used in DC files to erase the
-   new regions.
-
-4. Add the code that computes the erase_region in Direct3DDevice.cpp.
-   Look for the calls to ComputeCoordsFromUV()
-
 */
 
 /*
@@ -329,14 +315,12 @@ SharedData *g_pSharedData = NULL;
 
 FILE *g_HackFile = NULL;
 
-LARGE_INTEGER g_PC_Frequency;
-
 float RealVertFOVToRawFocalLength(float real_FOV);
 
 void GetCraftViewMatrix(Matrix4 *result);
 
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
-inline void backProjectMetric(WORD index, Vector3 *P);
+inline void backProjectMetric(UINT index, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 
@@ -405,11 +389,15 @@ bool g_bResetDC = false;
 int g_iReactorExplosionCount = 0;
 
 /*********************************************************/
+// High Resolution Timers
+HiResTimer g_HiResTimer;
+
+/*********************************************************/
 // HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
-float g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
+float g_fHyperspaceTunnelSpeed = 5.5f, g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f, g_fHyperspaceRand = 0.0f;
 float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
@@ -1126,7 +1114,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -1139,7 +1127,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		}
 
 		//index = triangle->v2;
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -1152,7 +1140,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		}
 
 		//index = triangle->v3;
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		u  = g_OrigVerts[index].tu; v  = g_OrigVerts[index].tv;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -1407,7 +1395,7 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 
 // Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
 // into OBJ METRIC 3D
-inline void backProjectMetric(WORD index, Vector3 *P) {
+inline void backProjectMetric(UINT index, Vector3 *P) {
 	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
 }
 
@@ -1650,12 +1638,6 @@ inline void backProject(float sx, float sy, float rhw, Vector3 *P) {
 	}
 }
 
-// Back-project a 2D vertex (specified in in-game coords) stored in g_OrigVerts 
-// into 3D, just like we do in the VertexShader or SBS VertexShader:
-inline void backProject(WORD index, Vector3 *P) {
-	backProject(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
-}
-
 // The return values sx,sy are the screen coords (in in-game coords). Use them for debug purposes only
 Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */)
 {
@@ -1816,16 +1798,20 @@ Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEye
  */
 
 bool g_bDumpOBJEnabled = false;
-FILE* g_DumpOBJFile = NULL;
-int g_iDumpOBJFaceIdx = 0, g_iDumpOBJIdx = 1;
+FILE *g_DumpOBJFile = NULL, *g_DumpLaserFile = NULL;
+int g_iOBJFileIdx = 0;
+int g_iDumpOBJIdx = 1, g_iDumpLaserOBJIdx = 1;
 
-void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
+void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
 	UINT idx = curIndex;
 	Vector3 tempv0, tempv1, tempv2;
+	//Vector2 v0, v1, v2;
+	//float w0, w1, w2;
 	std::vector<int> indices;
+	int FaceIdx = 1;
 
 	if (file == NULL) {
 		log_debug("[DBG] Cannot dump vertices, NULL file ptr");
@@ -1833,28 +1819,34 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 	}
 
 	// Start a new object
-	fprintf(file, "o obj_%d\n", g_iDumpOBJIdx);
+	fprintf(file, "o obj_%d\n", OBJIdx);
 	indices.clear();
-	for (WORD i = 0; i < instruction->wCount; i++)
+	for (uint32_t i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
+		//v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy; w0 = 1.0f / g_OrigVerts[index].rhw;
 		backProjectMetric(index, &tempv0);
+		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v0.x, v0.y, w0);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
+		//v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy; w1 = 1.0f / g_OrigVerts[index].rhw;
 		backProjectMetric(index, &tempv1);
+		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v1.x, v1.y, w1);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
+		//v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy; w2 = 1.0f / g_OrigVerts[index].rhw;
 		backProjectMetric(index, &tempv2);
+		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v2.x, v2.y, w2);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
 
-		triangle++;
+		if (!g_config.D3dHookExists) triangle++;
 
-		indices.push_back(g_iDumpOBJFaceIdx++);
-		indices.push_back(g_iDumpOBJFaceIdx++);
-		indices.push_back(g_iDumpOBJFaceIdx++);
+		indices.push_back(FaceIdx++);
+		indices.push_back(FaceIdx++);
+		indices.push_back(FaceIdx++);
 	}
 	fprintf(file, "\n");
 
@@ -1865,7 +1857,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex)
 	}
 	fprintf(file, "\n");
 
-	g_iDumpOBJIdx++;
+	OBJIdx++;
 }
 
 // From: https://blackpawn.com/texts/pointinpoly/default.html
@@ -1930,21 +1922,21 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
 		v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv0);
 		if (g_bEnableVR) tempv0.y = -tempv0.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
 		v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv1);
 		if (g_bEnableVR) tempv1.y = -tempv1.y;
 		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
 		v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv2);
@@ -1974,7 +1966,7 @@ bool Direct3DDevice::ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex
 			return true;
 		}
 		
-		triangle++;
+		if (!g_config.D3dHookExists) triangle++;
 	}
 
 	return false;
@@ -1997,15 +1989,15 @@ bool Direct3DDevice::ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curInd
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
 		tempv0.x = g_OrigVerts[index].sx; tempv0.y = g_OrigVerts[index].sy;
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
 		tempv1.x = g_OrigVerts[index].sx; tempv1.y = g_OrigVerts[index].sy;
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
 		tempv2.x = g_OrigVerts[index].sx; tempv2.y = g_OrigVerts[index].sy;
 
@@ -2020,7 +2012,7 @@ bool Direct3DDevice::ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curInd
 			return true;
 		}
 
-		triangle++;
+		if (!g_config.D3dHookExists) triangle++;
 	}
 	return false;
 }
@@ -2059,7 +2051,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv0);
@@ -2077,7 +2069,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv1);
@@ -2095,7 +2087,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 				q.x, q.y, 1.0f/q.z /*, dx, dy */);
 		}
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
 		backProjectMetric(index, &tempv2);
@@ -2150,58 +2142,12 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
 				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
 		}*/
-		triangle++;
+		if (!g_config.D3dHookExists) triangle++;
 	}
 
 	if (debug)
 		log_debug("[DBG] END Geom");
 	return bIntersection;
-}
-
-void Direct3DDevice::AddLaserLightsOld(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
-{
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	uint32_t index;
-	UINT idx = curIndex;
-	Vector3 pos3D;
-	float u, v;
-
-	// XWA batch renders all lasers that share the same texture, so we may see several
-	// lasers when parsing this instruction. So, to detect each individual laser, we need
-	// to look at the uv's: if the current uv is close to (1,1), then we know that's the
-	// tip of one individual laser and we add it to the current list.
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
-		u = g_OrigVerts[index].tu;
-		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
-		{
-			backProject(index, &pos3D);
-			g_LaserList.insert(pos3D, texture->material.Light);
-		}
-
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
-		u = g_OrigVerts[index].tu;
-		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
-		{
-			backProject(index, &pos3D);
-			g_LaserList.insert(pos3D, texture->material.Light);
-		}
-
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
-		u = g_OrigVerts[index].tu;
-		v = g_OrigVerts[index].tv;
-		if (u > 0.9f && v > 0.9f)
-		{
-			backProject(index, &pos3D);
-			g_LaserList.insert(pos3D, texture->material.Light);
-		}
-
-		triangle++;
-	}
 }
 
 void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
@@ -2210,37 +2156,30 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 	uint32_t index;
 	UINT idx = curIndex;
 	Vector3 tempv0, tempv1, tempv2, P;
-	Vector2 v0, v1, v2;
 	Vector2 UV0, UV1, UV2, UV = texture->material.LightUVCoordPos;
 
 	// XWA batch renders all lasers that share the same texture, so we may see several
 	// lasers when parsing this instruction. To detect each individual laser, we need
 	// to look at the uv's and see if the current triangle contains the uv coord we're
-	// looking for (the default is (0.1, 0.9)). If the uv is contained, then we compute
+	// looking for (the default is (0.1, 0.5)). If the uv is contained, then we compute
 	// the 3D point using its barycentric coords and add it to the current list.
-	for (WORD i = 0; i < instruction->wCount; i++)
+	for (uint32_t i = 0; i < instruction->wCount; i++)
 	{
 		// Back-project the vertices of the triangle into metric 3D space:
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
-		v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv0);
 		if (g_bEnableVR) tempv0.y = -tempv0.y;
-		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv0.x, tempv0.y, tempv0.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
-		v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv1);
 		if (g_bEnableVR) tempv1.y = -tempv1.y;
-		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv1.x, tempv1.y, tempv1.z);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
-		v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy;
 		backProjectMetric(index, &tempv2);
 		if (g_bEnableVR) tempv2.y = -tempv2.y;
-		//log_debug("[DBG] tempv0: %0.3f, %0.3f, %0.3f", tempv2.x, tempv2.y, tempv2.z);
 
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
@@ -2248,7 +2187,7 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 			g_LaserList.insert(P, texture->material.Light);
 		}
 
-		triangle++;
+		if (!g_config.D3dHookExists) triangle++;
 	}
 }
 
@@ -2434,14 +2373,6 @@ HRESULT Direct3DDevice::Execute(
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-	/*
-	// DEBUG: This will print the message that the CockpitLook hook has set.
-	if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-		// Here we're using g_pSharedData->pDataPtr to access the shared data, but
-		// we can also save pDataPtr to a global variable and use that instead.
-		log_debug("[DBG] msg: %s", (char *)g_pSharedData->pDataPtr);
-	}
-	*/
 
 /*
 	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
@@ -2493,12 +2424,22 @@ HRESULT Direct3DDevice::Execute(
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input.jpg");
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenAsInputDynCockpitBG, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-BG-Input.jpg");
 		DirectX::SaveWICTextureToFile(context, resources->_DCTextAsInput, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-Text-Input.jpg");
+		
 		if (g_bDumpOBJEnabled) {
+			char sFileNameOBJ[80], sFileNameLaser[80];
+			sprintf_s(sFileNameOBJ, 80, "./DumpVertices%03d.OBJ", g_iOBJFileIdx);
+			sprintf_s(sFileNameLaser, 80, "./DumpVerticesLaser%03d.OBJ", g_iOBJFileIdx);
+			log_debug("[DBG] [SHW] g_iOBJFileIdx: %03d", g_iOBJFileIdx);
+			g_iOBJFileIdx++;
+
 			if (g_DumpOBJFile != NULL)
 				fclose(g_DumpOBJFile);
-			fopen_s(&g_DumpOBJFile, "./DumpVertices.OBJ", "wt");
-			g_iDumpOBJIdx = 1;
-			g_iDumpOBJFaceIdx = 1;
+			if (g_DumpLaserFile != NULL)
+				fclose(g_DumpLaserFile);
+
+			fopen_s(&g_DumpOBJFile, sFileNameOBJ, "wt");
+			fopen_s(&g_DumpLaserFile, sFileNameLaser, "wt");
+			g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1;
 			log_debug("[DBG] [SHW] sm_FOVscale: %0.3f", g_ShadowMapVSCBuffer.sm_FOVscale);
 			log_debug("[DBG] [SHW] sm_y_center: %0.3f", g_ShadowMapVSCBuffer.sm_y_center);
 			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
@@ -2955,7 +2896,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
-				bool bIsElectricity = false, bIsExplosion = false;
+				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
 					{
@@ -2967,7 +2908,7 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 
-					bIsLaser = lastTextureSelected->is_Laser;
+					bIsLaser = lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser;
 					bIsLightTexture = lastTextureSelected->is_LightTexture;
 					bIsText = lastTextureSelected->is_Text;
 					bIsReticle = lastTextureSelected->is_Reticle;
@@ -2989,6 +2930,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
 					bIsElectricity = lastTextureSelected->is_Electricity;
 					bIsExplosion = lastTextureSelected->is_Explosion;
+					bHasMaterial = lastTextureSelected->bHasMaterial;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -3650,6 +3592,12 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							// Get the limits for the throttle bar (as rendered by first principles)
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
 						}
 					}
 
@@ -3799,6 +3747,11 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_SUBCMP_SRC_IDX];
+							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
+								uv_minmax, box, dcElemSrcBox->uv_coords);
+							dcElemSrcBox->bComputed = true;
+
+							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
@@ -3988,6 +3941,12 @@ HRESULT Direct3DDevice::Execute(
 				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
 					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
+					goto out;
+
+				// Skip rendering the laser/ion energy levels and brackets if we're rendering them
+				// from first principles.
+				if (g_bRenderLaserIonEnergyLevels && bLastTextureSelectedNotNULL &&
+					lastTextureSelected->is_LaserIonEnergy)
 					goto out;
 
 				// Avoid rendering explosions on the CMD if we're rendering edges.
@@ -4265,10 +4224,15 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
+					//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
 					bModifiedShaders = true;
 					//EnableTransparency();
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
 				}
+
+				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Spark) {
+				//	log_debug("[DBG] Spark: %s", lastTextureSelected->_surface->_name);
+				//}
 
 				if (bIsDS2CoreExplosion) {
 					g_iReactorExplosionCount++;
@@ -4297,26 +4261,67 @@ HRESULT Direct3DDevice::Execute(
 					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
 					
 					g_ShadertoyBuffer.iTime = iTime;
-					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
+					//g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
+					g_ShadertoyBuffer.bDisneyStyle = false; // AlphaBlendEnabled: Do not blend the explosion with the original texture
+					g_ShadertoyBuffer.tunnel_speed = 1.0f; // ExplosionTime: Always set to 1 -- the animation is performed by iTime in VolumetricExplosion()
 					//g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
-					//g_ShadertoyBuffer.twirl = 2.0f; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
+					g_ShadertoyBuffer.twirl = 2.0f; // ExplosionScale: 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
-				/*
-				// Just for debugging: let's see if we can really recognize explosions
-				if (bIsExplosion)
+				// Render the procedural explosions
+				if (bIsExplosion && bHasMaterial && lastTextureSelected->material.ExplosionBlendMode > 0)
 				{
-					bModifiedShaders = true;
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_EXPLOSION;
-				}
-				*/
+					static float iTime = 0.0f;
+					//iTime += 0.05f;
+					iTime += lastTextureSelected->material.ExplosionSpeed;
 
-				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DS2_Energy_Field) {
-				//	log_debug("[DBG] RENDERING REACTOR ENERGY FIELD");
-				//}
+					bModifiedShaders = true;
+					bModifiedPixelShader = true;
+					bModifiedSamplerState = true;
+					resources->InitPixelShader(resources->_explosionPS);
+					// Set the noise texture and sampler state with wrap/repeat enabled.
+					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
+					// bModifiedSamplerState restores this sampler state at the end of this instruction.
+					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+
+					int GroupId = 0, ImageId = 0;
+					if (!lastTextureSelected->material.DATGroupImageIdParsed) {
+						// TODO: Maybe I can extract the group Id and image Id from the DAT's name during tagging and
+						// get rid of the DATGroupImageIdParsed field in the material property.
+						GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_name, &GroupId, &ImageId);
+						lastTextureSelected->material.GroupId = GroupId;
+						lastTextureSelected->material.ImageId = ImageId;
+						lastTextureSelected->material.DATGroupImageIdParsed = true;
+					}
+					else {
+						GroupId = lastTextureSelected->material.GroupId;
+						ImageId = lastTextureSelected->material.ImageId;
+					}
+					// TODO: The following time will increase in steps, but I'm not sure it's possible to do a smooth
+					// increase because there's no way to uniquely identify two different explosions on the same frame.
+					// The same GroupId can appear mutiple times on the screen belonging to different crafts and they
+					// may even be at different stages of the animation.
+					float ExplosionTime = min(1.0f, (float)ImageId / (float)lastTextureSelected->material.TotalFrames);
+					//log_debug("[DBG] Explosion Id: %d, Frame: %d, TotalFrames: %d, Time: %0.3f",
+					//	GroupId, ImageId, lastTextureSelected->material.TotalFrames, ExplosionTime);
+					//log_debug("[DBG] Explosion Id: %d", GroupId);
+
+					g_ShadertoyBuffer.iTime = iTime;
+					// ExplosionBlendMode:
+					// 0: Original texture, 
+					// 1: Blend with procedural explosion, 
+					// 2: Use procedural explosions only
+					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
+					g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 3..-1 The animation is performed by iTime in VolumetricExplosion()
+					// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
+					// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function
+					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale;
+					// Set the constant buffer
+					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+				}
 
 				// Capture the centroid of the current sun texture and store it.
 				// Sun Centroids appear to be around 50m away in metric 3D space
@@ -4358,7 +4363,7 @@ HRESULT Direct3DDevice::Execute(
 					// By default suns don't have any color. We specify that by setting the alpha component to 0:
 					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
 					// Use the material properties of this Sun -- if it has any associated with it
-					if (lastTextureSelected->bHasMaterial) {
+					if (bHasMaterial) {
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].x = lastTextureSelected->material.Light.x;
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].y = lastTextureSelected->material.Light.y;
 						g_ShadertoyBuffer.SunColor[SunFlareIdx].z = lastTextureSelected->material.Light.z;
@@ -4410,22 +4415,10 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
-				if (g_bProceduralLava && bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial && lastTextureSelected->material.IsLava)
+				if (g_bProceduralLava && bLastTextureSelectedNotNULL && bHasMaterial && lastTextureSelected->material.IsLava)
 				{
-					// lastT is not properly initialized on the very first frame; but nothing much seems
-					// to happen. So: ignoring for now.
-					static LARGE_INTEGER curT, lastT, elapsed_us;
-					QueryPerformanceCounter(&curT);
-					elapsed_us.QuadPart = curT.QuadPart - lastT.QuadPart;
-					elapsed_us.QuadPart *= 1000000;
-					elapsed_us.QuadPart /= g_PC_Frequency.QuadPart;
-
-					float elapsed_s = ((float)elapsed_us.QuadPart / 1000000.0f);
-					//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", elapsed_us.QuadPart, elapsed_s);
 					static float iTime = 0.0f;
-					//iTime += 0.01f * lastTextureSelected->material.LavaSpeed;
-					iTime += elapsed_s * lastTextureSelected->material.LavaSpeed;
-					lastT = curT;
+					iTime = g_HiResTimer.global_time_s * lastTextureSelected->material.LavaSpeed;
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
@@ -4497,7 +4490,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Apply specific material properties for the current texture
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->bHasMaterial) {
+				if (bHasMaterial) {
 					bModifiedShaders = true;
 					// DEBUG
 					/*
@@ -4538,6 +4531,7 @@ HRESULT Direct3DDevice::Execute(
 					if (lastTextureSelected->material.AlphaIsntGlass && !bIsLightTexture) {
 						bModifiedPixelShader = true;
 						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = 0.0f;
 						resources->InitPixelShader(resources->_noGlassPS);
 					}
 				}
@@ -4548,7 +4542,7 @@ HRESULT Direct3DDevice::Execute(
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
-						lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion ||
+						lastTextureSelected->is_Electricity || bIsExplosion ||
 						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
@@ -4696,13 +4690,13 @@ HRESULT Direct3DDevice::Execute(
 				// Modify the state for both VR and regular game modes...
 
 				// Maintain the k-closest lasers to the camera
-				if (g_bEnableLaserLights && bIsLaser)
+				if (g_bEnableLaserLights && bIsLaser && bHasMaterial)
 					AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
 
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
 				{
-					if (lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser) {
+					if (bIsLaser) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_Laser ?
 							g_BloomConfig.fLasersStrength : g_BloomConfig.fTurboLasersStrength;
@@ -4711,8 +4705,15 @@ HRESULT Direct3DDevice::Execute(
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
 					else if (bIsLightTexture) {
 						bModifiedShaders = true;
+						int anim_idx = lastTextureSelected->material.LightMapATCIndex;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
 							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
+						// If this is an animated light map, then use the right intensity setting
+						// TODO: Make the following code more efficient
+						if (anim_idx > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
+							g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
+						}
 						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 					}
 					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
@@ -4721,7 +4722,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
 						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
 					}
-					else if (lastTextureSelected->is_Electricity || lastTextureSelected->is_Explosion)
+					else if (lastTextureSelected->is_Electricity || bIsExplosion)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
@@ -4765,9 +4766,19 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
+					else if (!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1) {
+						bModifiedShaders = true;
+						int anim_idx = lastTextureSelected->material.TextureATCIndex;
+						// If this is an animated light map, then use the right intensity setting
+						// TODO: Make the following code more efficient
+						if (anim_idx > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
+							g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
+						}
+					}
 
 					// Remove Bloom for all textures with materials tagged as "NoBloom"
-					if (lastTextureSelected->bHasMaterial && lastTextureSelected->material.NoBloom)
+					if (bHasMaterial && lastTextureSelected->material.NoBloom)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = 0.0f;
@@ -4890,6 +4901,68 @@ HRESULT Direct3DDevice::Execute(
 					}*/
 				}
 
+				// Animated Light Maps/Textures
+				if (bHasMaterial) {
+					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1))
+					{
+						bModifiedPixelShader = true;
+						//log_debug("[DBG] %s, LightMapATCIndex: %d, TextureATCIndex: %d", lastTextureSelected->_surface->_name,
+						//	lastTextureSelected->material.LightMapATCIndex, lastTextureSelected->material.TextureATCIndex);
+
+						//int ATCIndex = bIsLightTexture ?
+						//	lastTextureSelected->material.LightMapATCIndex : lastTextureSelected->material.TextureATCIndex;
+
+						// The entry condition into this block makes it impossible for ATCIndex to end up with a -1:
+						// One of LightMapATCIndex or TextureATCIndex must be > -1
+						int ATCIndex = -1;
+						if (bIsLightTexture) {
+							resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
+							ATCIndex = lastTextureSelected->material.LightMapATCIndex;
+						}
+						else {
+							// If we're rendering a DC element, we don't want to replace the shader
+							if (g_PSCBuffer.DynCockpitSlots == 0)
+								resources->InitPixelShader(resources->_noGlassPS);
+							ATCIndex = lastTextureSelected->material.TextureATCIndex;
+						}
+
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+						int idx = atc->AnimIdx;
+						//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
+
+						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
+						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+						if (atc->BlackToAlpha)
+							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+
+						/*
+						// DEBUG
+						static std::vector<int> DumpedIndices;
+						bool bInVector = false;
+						for each (int index in DumpedIndices)
+							if (index == extraTexIdx) {
+								bInVector = true;
+								break;
+							}
+						if (!bInVector) {
+							wchar_t filename[80];
+							ID3D11Resource *res = NULL;
+							resources->_extraTextures[extraTexIdx]->GetResource(&res);
+							swprintf_s(filename, 80, L"c:\\temp\\_extraTex-%d.png", extraTexIdx);
+							DirectX::SaveWICTextureToFile(context, res, GUID_ContainerFormatPng, filename);
+							DumpedIndices.push_back(extraTexIdx);
+							log_debug("[DBG] Dumped extraTex %d", extraTexIdx);
+						}
+						// DEBUG
+						*/
+
+						if (extraTexIdx > -1) {
+							// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+							resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
+						}
+					}
+				}
 				// Count the number of *actual* DC commands sent to the GPU:
 				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
 				//	g_iDCElementsRendered++;
@@ -4901,8 +4974,14 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// DEBUG: Dump an OBJ for the current cockpit
-				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit)
-					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation);
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit) {
+					log_debug("[DBG] Dumping OBJ (Cockpit): %s", lastTextureSelected->_surface->_name);
+					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation, g_iDumpOBJIdx);
+				}
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsLaser) {
+					log_debug("[DBG] Dumping OBJ (Laser): %s", lastTextureSelected->_surface->_name);
+					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation, g_iDumpLaserOBJIdx);
+				}
 
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
@@ -5360,10 +5439,17 @@ HRESULT Direct3DDevice::Execute(
 			fflush(g_DumpOBJFile);
 			fclose(g_DumpOBJFile);
 		}
-		g_DumpOBJFile = NULL;
+		if (g_DumpLaserFile != NULL) {
+			fflush(g_DumpLaserFile);
+			fclose(g_DumpLaserFile);
+		}
+		g_DumpOBJFile = NULL; g_DumpLaserFile = NULL;
 		log_debug("[DBG] Vertices dumped to OBJ file");
 	}
 	//log_debug("[DBG] Execute (2)");
+	// DEBUG
+	g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1;
+	// DEBUG
 
 	if (FAILED(hr))
 	{
@@ -5933,8 +6019,13 @@ HRESULT Direct3DDevice::BeginScene()
 	g_ExecuteIndexCount = 0;
 	g_ExecuteStateCount = 0;
 	g_ExecuteTriangleCount = 0;
+
+	// Update the hi-res timer
+	g_HiResTimer.GetElapsedTime();
+
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	UpdateDCHologramState();
+	AnimateMaterials();
 
 	if (!this->_deviceResources->_renderTargetView)
 	{

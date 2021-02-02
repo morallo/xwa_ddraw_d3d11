@@ -52,6 +52,9 @@ typedef struct AuxTextureDataStruct {
 #define FONT_SMALL_IDX 2
 #define FONT_BLUE_COLOR 0x5555FF
 
+// Use this when using a static array for _extraTextures:
+//const int MAX_EXTRA_TEXTURES = 40;
+
 class TimedMessage {
 public:
 	time_t t_exp;
@@ -155,6 +158,8 @@ public:
 	void ResetDynamicCockpit();
 
 	void ResetActiveCockpit();
+
+	void ResetExtraTextures();
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -427,6 +432,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
+	ComPtr<ID3D11PixelShader> _pixelShaderAnimLightMap;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
@@ -456,8 +462,23 @@ public:
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:
-	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[40];
-	//ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
+	// The line below had a hard-coded max of 40. I think it should be 
+	// MAX_DC_SRC_ELEMENTS instead... but if something explodes in DC, it
+	// might be because of this.
+	// I think it was just dumb luck that I put the "40" in there and didn't
+	// overflow it when I added more slots.
+	ComPtr<ID3D11ShaderResourceView> dc_coverTexture[MAX_DC_SRC_ELEMENTS];
+
+	// Extra textures. For now, these textures will be used to do animations.
+	// We'll simply put the animation textures here, one after the other, no
+	// matter where they come from. The materials should have pointers/indices
+	// into this vector and it should be cleared every time a new mission
+	// is loaded (or just piggy-back where we clear the material properties)
+	//std::vector<ComPtr<ID3D11ShaderResourceView>> _extraTextures;
+	std::vector<ID3D11ShaderResourceView *> _extraTextures;
+
+	//ComPtr<ID3D11ShaderResourceView> _extraTextures[MAX_EXTRA_TEXTURES];
+	//int _numExtraTextures;
 
 	BOOL _useAnisotropy;
 	BOOL _useMultisampling;

@@ -780,6 +780,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// add everything up
 		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
 	}
+	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;
 	// Blend the existing tmp_bloom with the new one:
 	//laser_light_alpha = saturate(laser_light_alpha);

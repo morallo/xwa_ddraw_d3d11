@@ -1,7 +1,64 @@
 #pragma once
 #include <vector>
+#include "D2D1.h"
 #include "..\shaders\shader_common.h"
-#include "effects_common.h"
+#include "EffectsCommon.h"
+
+/*
+
+HOW TO ADD NEW DC SOURCE ELEMENTS:
+
+LoadDCInternalCoordinates loads the source areas into g_DCElemSrcBoxes.
+g_DCElemSrcBoxes must be pre-populated.
+
+1. Add new constant indices in DynamicCockpit.h.
+   Look for MAX_DC_SRC_ELEMENTS and increase it. Then add the new *_DC_ELEM_SRC_IDX
+   constants above it.
+
+2. Add the new slots in Dynamic_Cockpit_Internal_Areas.cfg.
+   Select a suitable *_HUD_BOX_IDX entry, find the corresponding image in HUD.dat and use
+   a program like Photoshop to write down coordinates in this image. Then add an entry
+   in Dynamic_Cockpit_Internal_Areas.cfg with the coordinates you wish to capture.
+   Each entry looks like this:
+
+	source_def = width,height, x0,y0, x1,y1
+
+   Remember that you can use negative numbers for (x0,y0) and (x1,y1)
+
+3. Add the code that captures the new slots in Direct3DDevice.cpp.
+   Find the HUD_BOX_IDX entry in the Execute() method. The code should look like
+   this:
+
+   if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
+   ...
+
+   Add the code to capture the new slot(s) in the case where it belongs. There
+   are plenty of examples in this area, just take a look at other cases.
+
+4. Go to g_DCElemSrcNames in DynamicCockpit.cpp and add the labels that will
+   be used for the new slots in the DC files. This is the text that cockpit
+   authors will use to load the element.
+
+   MAKE SURE YOU PLACE THE NEW LABELS ON THE SAME INDEX USED FOR THE NEW *_DC_ELEM_SRC_IDX
+
+
+HOW TO ADD NEW ERASE REGION COMMANDS:
+
+1. Go to DeviceResources.h and add the new region indices.
+   Add new *_HUD_BOX_IDX indices and make sure MAX_HUD_BOXES has the total
+   number of boxes.
+
+2. Add the regions in Dynamic_Cockpit_areas.cfg. Make sure the indices match with the
+   constants added in step 1.
+
+3. Add the new region names in g_HUDRegionNames, in DeviceResources.cpp.
+   Make sure the indices match. These names will be used in DC files to erase the
+   new regions.
+
+4. Add the code that computes the erase_region in Direct3DDevice.cpp.
+   Look for the calls to ComputeCoordsFromUV()
+
+*/
 
 // DYNAMIC COCKPIT
 typedef struct Box_struct {
@@ -72,15 +129,12 @@ typedef struct uv_coords_struct {
 	int numCoords;
 } uv_coords;
 
-//extern const int MAX_TEXTURE_NAME = 128; //Defined in TextureSurface.h
 typedef struct dc_element_struct {
 	uv_src_dst_coords coords;
 	int erase_slots[MAX_DC_COORDS_PER_TEXTURE];
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	//ComPtr<ID3D11ShaderResourceView> coverTexture = nullptr;
-	//ID3D11ShaderResourceView *coverTexture = NULL;
 	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
 } dc_element;
 
@@ -160,12 +214,12 @@ const int TARGETED_OBJ_CARGO_SRC_IDX = 36;
 const int TARGETED_OBJ_SYS_SRC_IDX = 37;
 const int TARGETED_OBJ_DIST_SRC_IDX = 38;
 const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
-const int MAX_DC_SRC_ELEMENTS = 40;
+const int EIGHT_LASERS_BOTH_SRC_IDX = 40;
+const int THROTTLE_BAR_DC_SRC_IDX = 41;
+const int MAX_DC_SRC_ELEMENTS = 42;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
-
-
 
 class DCElemSrcBox {
 public:
@@ -198,6 +252,9 @@ public:
 	}
 };
 
+extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
+extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
+extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;
 //float g_fReticleOfsX = 0.0f;
 //float g_fReticleOfsY = 0.0f;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
@@ -208,13 +265,13 @@ extern DCPixelShaderCBuffer g_DCPSCBuffer;
 extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
 extern int g_iNumDCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
-extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
+extern move_region_coords g_DCMoveRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern float g_fCoverTextureBrightness;
 extern float g_fDCBrightness;
 extern move_region_coords g_DCMoveRegions;
-
+extern char g_sCurrentCockpit[128];
 extern bool g_bDCManualActivate, g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
 extern bool g_bGlobalDebugFlag, g_bInhibitCMDBracket;
 extern bool g_bHUDVisibleOnStartup;

@@ -1,6 +1,6 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
-// Extended for VR by Leo Reyes, 2019
+// Extended for VR by Leo Reyes, 2019, 2020, 2021
 
 #include "common.h"
 #include "../shaders/material_defs.h"
@@ -189,6 +189,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_TrianglePointer = false;
 	this->is_Text = false;
 	this->is_Floating_GUI = false;
+	this->is_LaserIonEnergy = false;
 	this->is_GUI = false;
 	this->is_TargetingComp = false;
 	this->is_Laser = false;
@@ -456,6 +457,8 @@ void Direct3DTexture::TagTexture() {
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
+		if (isInVector(surface->_name, LaserIonEnergy_ResNames))
+			this->is_LaserIonEnergy = true;
 		if (isInVector(surface->_name, GUI_ResNames))
 			this->is_GUI = true;
 
@@ -584,7 +587,7 @@ void Direct3DTexture::TagTexture() {
 		// Capture the OPT name
 		char *start = strstr(surface->_name, "\\");
 		char *end = strstr(surface->_name, ".opt");
-		char sFileName[180];
+		char sFileName[180], sFileNameShort[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
 			int size = end - start;
@@ -601,9 +604,18 @@ void Direct3DTexture::TagTexture() {
 		else if (strstr(surface->_name, "dat,") != NULL) {
 			// For DAT images, OPTname.name is the full DAT name:
 			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
-			DATNameToMATParamsFile(OPTname.name, sFileName, 180);
-			if (sFileName[0] != 0)
-				LoadIndividualMATParams(OPTname.name, sFileName); // DAT material
+			DATNameToMATParamsFile(OPTname.name, sFileName, sFileNameShort, 180);
+			if (sFileName[0] != 0) {
+				// Load the regular DAT material:
+				if (!LoadIndividualMATParams(OPTname.name, sFileName)) {
+					// If the regular DAT material failed, try loading the mat file for DAT animations:
+					if (sFileNameShort[0] != 0)
+						// For some reason, each frame of the explosion animations is loaded multiple times.
+						// There doesn't seem to be any bad effects for this behavior, it's only a bit spammy.
+						// So, here we're just muting the debug messages to prevent the spam:
+						LoadIndividualMATParams(OPTname.name, sFileNameShort, false);
+				}
+			}
 		}
 	}
 
@@ -880,6 +892,52 @@ void Direct3DTexture::TagTexture() {
 				// This texture has a material associated with it, let's save it in the aux list:
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
+				// If this material has an animated light map, let's load the textures now
+				if ((this->material.LightMapATCIndex > -1 && this->is_LightTexture) ||
+					(this->material.TextureATCIndex > -1 && !this->is_LightTexture)) {
+					int ATCIndex = this->is_LightTexture ? this->material.LightMapATCIndex : this->material.TextureATCIndex;
+					AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+					for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
+						TexSeqElem tex_seq_elem = atc->Sequence[i];
+						char texname[MAX_TEX_SEQ_NAME + 20];
+						ID3D11ShaderResourceView *texSRV = nullptr;
+						wchar_t wTexName[MAX_TEX_SEQ_NAME];
+						size_t len = 0;
+
+						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
+						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
+						log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
+							this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
+						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
+						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
+						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
+						// Will have to come back to this later.
+						//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+						//	&(resources->_extraTextures[resources->_numExtraTextures]));
+						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+						if (FAILED(res)) {
+							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
+							atc->Sequence[i].ExtraTextureIndex = -1;
+						}
+						else {
+							// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
+							resources->_extraTextures.push_back(texSRV);
+
+							//texSRV->AddRef(); // Without this line, funny things happen
+							//ComPtr<ID3D11ShaderResourceView> p = texSRV;
+							//p->AddRef();
+							//resources->_extraTextures.push_back(p);
+							
+							atc->Sequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+							
+							//resources->_numExtraTextures++;
+							//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
+							//log_debug("[DBG] [MAT] Added animated texture in slot: %d",
+							//	this->material.LightMapSequence[i].ExtraTextureIndex);
+						}
+
+					}
+				}
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
@@ -929,6 +987,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_TrianglePointer = d3dTexture->is_TrianglePointer;
 	this->is_Text = d3dTexture->is_Text;
 	this->is_Floating_GUI = d3dTexture->is_Floating_GUI;
+	this->is_LaserIonEnergy = d3dTexture->is_LaserIonEnergy;
 	this->is_GUI = d3dTexture->is_GUI;
 	this->is_TargetingComp = d3dTexture->is_TargetingComp;
 	this->is_Laser = d3dTexture->is_Laser;

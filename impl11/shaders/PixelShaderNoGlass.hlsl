@@ -1,7 +1,8 @@
-// Copyright (c) 2020 Leo Reyes
+// Copyright (c) 2020, 2021 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
 // Simplified version of PixelShaderTexture. Alpha-enabled textures won't be interpreted
-// as glass materials
+// as glass materials. if fBloomStrength is not zero, then bloom will be applied and
+// modulated by the alpha of the texture.
 // Light Textures are not handled in this shader. This shader should not be used with
 // illumination textures.
 #include "shader_common.h"
@@ -42,6 +43,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float  alpha = texelColor.a;
+	float3 HSV = RGBtoHSV(texelColor.rgb);
+	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+		alpha = HSV.z;
 
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
@@ -51,6 +55,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
+	
 
 	// hook_normals code:
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
@@ -64,6 +69,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	
+	// bloom
+	if (HSV.z >= 0.8) {
+		float bloom_alpha = saturate(fBloomStrength);
+		diffuse = 1.0;
+		output.bloom = float4(fBloomStrength * texelColor.rgb, alpha);
+		//output.ssaoMask.r = SHADELESS_MAT;
+		output.ssMask.b = bloom_alpha;
+		//output.ssaoMask.ga = 1; // Maximum glossiness on light areas
+		output.ssaoMask.a = bloom_alpha;
+		//output.ssaoMask.b = 0.15; // Low spec intensity
+		output.ssaoMask.b = 0.15 * bloom_alpha; // Low spec intensity
+	}
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	return output;
 }

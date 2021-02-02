@@ -1,4 +1,5 @@
-#include "effects.h"
+#include "Effects.h"
+#include "globals.h"
 #include "common.h"
 #include "XWAFramework.h"
 #include "VRConfig.h"
@@ -7,8 +8,8 @@
 MainShadersCBuffer			g_MSCBuffer;
 // Constant Buffers
 BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-PSShadingSystemCB	  g_ShadingSys_PSBuffer;
-SSAOPixelShaderCBuffer g_SSAO_PSCBuffer;
+PSShadingSystemCB			g_ShadingSys_PSBuffer;
+SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 
 std::vector<ColorLightPair> g_TextureVector;
 /*
@@ -21,6 +22,13 @@ std::vector<Direct3DTexture*> g_AuxTextureVector;
 
 std::vector<char*> Text_ResNames = {
 	"dat,16000,"
+};
+
+std::vector<char*> LaserIonEnergy_ResNames = {
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
 };
 
 std::vector<char*> Floating_GUI_ResNames = {
@@ -50,8 +58,8 @@ std::vector<char*> GUI_ResNames = {
 std::vector<char*> Electricity_ResNames = {
 	// Animations (electricity)
 	"dat,2007,",
-	"dat,2008,",
-	"dat,3005,",
+	"dat,2008,", // <-- I think this is the hit effect of ions on disabled targets
+	"dat,3005,", // <-- I think this is displayed when a target has been disabled
 	//"dat,3051,", // Hyperspace!
 
 	// Sparks
@@ -76,6 +84,8 @@ std::vector<char*> Electricity_ResNames = {
 	"dat,22003,",
 	"dat,22005,",
 	//"dat,22007,", // Cockpit sparks
+
+	"dat,3055,", // Electricity -- Animations.dat
 };
 
 // List of common roots for the Explosion names
@@ -92,24 +102,23 @@ std::vector<char*> Explosion_ResNames = {
 
 // Smoke from explosions:
 std::vector<char*> Smoke_ResNames = {
-	"dat,3003,",
-	"dat,3004,",
+	"dat,3003,", // Sparks.dat <-- Smoke when hitting a target
+	"dat,3004,", // Sparks.dat <-- Smoke when hitting a target
 	// The following used to be tagged as explosions, but they look like smoke
-	"dat,3006,",
-	"dat,3055,",
-	"dat,3100,",
-	"dat,3200,",
-	"dat,3300,",
-	"dat,3400,",
-	"dat,3500,",
+	// Animations.dat
+	"dat,3006,", // Single-frame smoke?
 };
 
 std::vector<char*> Sparks_ResNames = {
 	"dat,3000,",
 	"dat,3001,",
 	"dat,3002,",
-	"dat,3003,",
-	"dat,3004,",
+	
+	"dat,3100,", // <-- This is the hit effect for ions
+	"dat,3200,", // <-- This is the hit effect for red lasers
+	"dat,3300,", // <-- This is the hit effect for green lasers
+	"dat,3400,",
+	"dat,3500,",
 };
 
 // List of Lens Flare effects
@@ -225,6 +234,56 @@ bool isInVector(char* OPTname, std::vector<OPTNameType>& vector) {
 		if (_stricmp(OPTname, x.name) == 0) // We need to avoid substrings because OPTs can be "Awing", "AwingExterior", "AwingCockpit"
 			return true;
 	return false;
+
+}
+
+// ***************************************************************
+// HiResTimer
+// ***************************************************************
+void HiResTimer::ResetGlobalTime() {
+	QueryPerformanceCounter(&(g_HiResTimer.start_time));
+	g_HiResTimer.global_time_s = 0.0f;
+	g_HiResTimer.last_time_s = 0.0f;
+}
+
+/*
+// Returns the seconds since the last time this function was called
+float HiResTimer::GetElapsedTimeSinceLastCall() {
+	// Query the performance counters. This will let us render animations at a consistent speed.
+	// The way this works is by computing the current time (curT) and then substracting the previous
+	// time (lastT) from it. Then lastT gets curT. The elapsed time, in seconds is placed in
+	// g_HiResTimer.elapsed_s.
+	// lastT is not properly initialized on the very first frame; but nothing much seems
+	// to happen. So: ignoring for now.
+	QueryPerformanceCounter(&(g_HiResTimer.curT));
+	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.lastT.QuadPart;
+	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
+	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
+	g_HiResTimer.elapsed_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	g_HiResTimer.lastT = g_HiResTimer.curT;
+	//log_debug("[DBG] elapsed_us.Q: %llu, elapsed_s: %0.6f", g_HiResTimer.elapsed_us.QuadPart, g_HiResTimer.elapsed_s);
+	//float FPS = 1.0f / g_HiResTimer.elapsed_s;
+	//char buf[40];
+	//sprintf_s(buf, 40, "%0.1f", FPS);
+	//DisplayTimedMessage(1, 0, buf);
+	return g_HiResTimer.elapsed_s;
+}
+*/
+
+// Get the time since the last time ResetGlobalTime was called, also computes the time elapsed since
+// this function was called.
+float HiResTimer::GetElapsedTime() {
+	// Query the performance counters. This will let us render animations at a consistent speed.
+	// The way this works is by computing the current time (curT) and then substracting the start
+	// time from it.
+	QueryPerformanceCounter(&(g_HiResTimer.curT));
+	g_HiResTimer.elapsed_us.QuadPart = g_HiResTimer.curT.QuadPart - g_HiResTimer.start_time.QuadPart;
+	g_HiResTimer.elapsed_us.QuadPart *= 1000000;
+	g_HiResTimer.elapsed_us.QuadPart /= g_HiResTimer.PC_Frequency.QuadPart;
+	g_HiResTimer.global_time_s = ((float)g_HiResTimer.elapsed_us.QuadPart / 1000000.0f);
+	g_HiResTimer.elapsed_s = g_HiResTimer.global_time_s - g_HiResTimer.last_time_s;
+	g_HiResTimer.last_time_s = g_HiResTimer.global_time_s;
+	return g_HiResTimer.global_time_s;
 }
 
 void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
@@ -236,15 +295,15 @@ void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
 	log_debug("[DBG] START Geom");
 	for (WORD i = 0; i < instruction->wCount; i++)
 	{
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		vert = g_OrigVerts[index];
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
 		triangle++;
 	}

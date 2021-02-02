@@ -1,4 +1,4 @@
-#include "dynamic_cockpit.h"
+#include "DynamicCockpit.h"
 
 #include "common.h"
 #include "globals.h"
@@ -27,6 +27,8 @@ float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
+bool g_bRenderLaserIonEnergyLevels = false, g_bRenderThrottle = false;
+D2D1::ColorF g_DCLaserColor(0xFF0000, 0.35f), g_DCIonColor(0x0000FF, 0.35f), g_DCThrottleColor(0x0000FF, 1.0f);
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
@@ -48,7 +50,7 @@ const char* DC_BEAM_BOX_SRC_RESNAME = "dat,12000,4400,";
 const char* DC_TOP_LEFT_SRC_RESNAME = "dat,12000,2700,";
 const char* DC_TOP_RIGHT_SRC_RESNAME = "dat,12000,2800,";
 
-std::vector<const char*>g_HUDRegionNames = {
+std::vector<const char*> g_HUDRegionNames = {
 	"LEFT_SENSOR_REGION",		// 0
 	"RIGHT_SENSOR_REGION",		// 1
 	"SHIELDS_REGION",			// 2
@@ -62,7 +64,7 @@ std::vector<const char*>g_HUDRegionNames = {
 	"TEXT_CMD_REGION",			// 10
 };
 
-std::vector<const char*>g_DCElemSrcNames = {
+std::vector<const char*> g_DCElemSrcNames = {
 	"LEFT_SENSOR_SRC",			// 0
 	"RIGHT_SENSOR_SRC",			// 1
 	"LASER_RECHARGE_SRC",		// 2
@@ -103,6 +105,8 @@ std::vector<const char*>g_DCElemSrcNames = {
 	"TARGETED_OBJ_SYS_SRC",		// 37
 	"TARGETED_OBJ_DIST_SRC",	// 38
 	"TARGETED_OBJ_SUBCMP_SRC",	// 39
+	"EIGHT_LASERS_BOTH_SRC",	// 40
+	"THROTTLE_BAR_SRC",			// 41
 };
 
 int HUDRegionNameToIndex(char* name) {
@@ -255,7 +259,6 @@ bool LoadIndividualDCParams(char* sFileName) {
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
 	float cover_tex_width = 1, cover_tex_height = 1;
-	//const float DEG2RAD = 3.141593f / 180.0f;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");
@@ -282,6 +285,10 @@ bool LoadIndividualDCParams(char* sFileName) {
 	g_DCTargetingColor.w = 0.0f; // Reset the targeting mesh color
 	// Do not re-render Missiles/Counters from first principles by default:
 	g_bReRenderMissilesNCounterMeasures = false;
+	// Do not render laser/ion energy levels by default:
+	g_bRenderLaserIonEnergyLevels = false;
+	// Do not render the throttle bar by default:
+	g_bRenderThrottle = false;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -435,6 +442,39 @@ bool LoadIndividualDCParams(char* sFileName) {
 			}
 			else if (_stricmp(param, "transparent") == 0) {
 				g_DCElements[lastDCElemSelected].bTransparent = (bool)fValue;
+			}
+			else if (_stricmp(param, "render_laser_ions") == 0) {
+				g_bRenderLaserIonEnergyLevels = (bool)fValue;
+			}
+			else if (_stricmp(param, "laser_energy_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCLaserColor.r = x;
+					g_DCLaserColor.g = y;
+					g_DCLaserColor.b = z;
+					g_DCLaserColor.a = 0.35f;
+				}
+			}
+			else if (_stricmp(param, "ion_energy_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCIonColor.r = x;
+					g_DCIonColor.g = y;
+					g_DCIonColor.b = z;
+					g_DCIonColor.a = 0.35f;
+				}
+			}
+			else if (_stricmp(param, "render_throttle") == 0) {
+				g_bRenderThrottle = (bool)fValue;
+			}
+			else if (_stricmp(param, "throttle_color") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCThrottleColor.r = x;
+					g_DCThrottleColor.g = y;
+					g_DCThrottleColor.b = z;
+					g_DCThrottleColor.a = 1.0f;
+				}
 			}
 		}
 	}
@@ -592,7 +632,7 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 {
 	float x0, y0, x1, y1, intensity;
 	int src_slot;
-	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer;
+	uint32_t uColor, hColor, wColor, uBitField, text_layer, obj_layer, bloomOn;
 	int res = 0, idx = coords->numCoords;
 	char* substr = NULL;
 	char slot_name[50];
@@ -621,7 +661,9 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 		obj_layer = 1;
 		text_layer = 1;
 		intensity = 1.0f;
-		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */;
+		bloomOn = 0;
+		uBitField = (0x00) /* intensity: 1 */ | (0x04) /* Bit 2 enables text */ | (0x08) /* Bit 3 enables objects */ |
+					(0x00); /* Bit 4 enables Bloom */
 
 		src_slot = -1;
 		slot_name[0] = 0;
@@ -642,7 +684,16 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 
 		// Parse the rest of the parameters
 		substr += len + 1;
-		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x", &x0, &y0, &x1, &y1, &uColor, &intensity, &text_layer, &obj_layer, &hColor, &wColor);
+		// uv_coords = SRC, x0, y0, x1, y1; bgColor; Intensity; TextEnable; ObjEnable; hgColor; whColor; bloomOn
+		// TextEnable -- Display the text layer -- you'll need to enable this for the synthetic DC elems.
+		// ObjEnable -- Display the object layer
+		// hgColor -- Highlight Color: this is the color used when the aiming reticle is highlighted
+		// whColor -- Warhead Lock Color: this is the color used warhead lock is solid
+		// bloomOn -- Enable bloom in the DC element. Activated by brightness
+		res = sscanf_s(substr, "%f, %f, %f, %f; 0x%x; %f; %d; %d; 0x%x; 0x%x; %d",
+						&x0, &y0, &x1, &y1, &uColor, // 5 elements
+						&intensity, &text_layer, &obj_layer, // 8 elements
+						&hColor, &wColor, &bloomOn); // 11 elements
 		//log_debug("[DBG] [DC] res: %d, slot_name: %s", res, slot_name);
 		if (res < 4) {
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
@@ -679,7 +730,7 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 				if (obj_layer)
 					uBitField |= 0x08;
 				else
-					uBitField &= 0xF7;
+					uBitField &= 0xF7; // Turn off bit 3
 			}
 			// Process the highlight color
 			if (res < 9)
@@ -691,10 +742,18 @@ bool LoadDCUVCoords(char* buf, float width, float height, uv_src_dst_coords* coo
 			{
 				wColor = uColor;
 			}
+			// Process the bloom enable/disable
+			if (res >= 11) {
+				// bit 4 enables bloom
+				if (bloomOn)
+					uBitField |= 0x10;
+				else
+					uBitField &= 0xE7; // Turn off bit 4
+			}
 			// Store the regular and highlight colors
 			coords->uBGColor[idx] = uColor | (uBitField << 24);
-			coords->uHGColor[idx] = hColor | (uBitField << 24);
-			coords->uWHColor[idx] = wColor | (uBitField << 24);
+			coords->uHGColor[idx] = hColor | (uBitField << 24); // The alpha channel in hColor is not used
+			coords->uWHColor[idx] = wColor | (uBitField << 24); // The alpha channel in wColor is not used
 			coords->numCoords++;
 			//log_debug("[DBG] uColor: 0x%x, hColor: 0x%x, [%s]",
 			//	coords->uBGColor[idx], coords->uHGColor[idx], buf);

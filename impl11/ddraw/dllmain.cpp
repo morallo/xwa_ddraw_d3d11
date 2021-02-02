@@ -27,7 +27,7 @@ extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:
 SharedMem g_SharedMem(false);
 
-extern LARGE_INTEGER g_PC_Frequency;
+extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
 extern float *g_cachedFOVDist; // cached FOV dist / 512.0 (float), seems to be used for some sprite processing
@@ -626,6 +626,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
+			// Headlights must be automatic now. They are automatically turned on in the Death Star mission
+			/*
 			case 'H':
 				g_bEnableHeadLights = !g_bEnableHeadLights;
 				if (g_bEnableHeadLights)
@@ -633,6 +635,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Headlights OFF");
 				return 0;
+			*/
 			// Ctrl+O
 			//case 'O':
 			//	g_bAOEnabled = !g_bAOEnabled;
@@ -1127,7 +1130,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	case DLL_PROCESS_ATTACH:
 		log_debug("[DBG] **********************");
 		log_debug("[DBG] Initializing VR ddraw.dll");
-		QueryPerformanceFrequency(&g_PC_Frequency);
+		QueryPerformanceFrequency(&(g_HiResTimer.PC_Frequency));
 		// Initialize the libraries needed to dump DirectX Textures
 		CoInitialize(NULL);
 		// Load vrparams.cfg if present
@@ -1285,28 +1288,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 					log_debug("[DBG] Instructions flushed");
 			}
 
-			if (g_config.MusicSyncFix)
-			{
-				/*
-					// Patch to fix the music when ProcessAffinityCore = 0
-					// This patch doesn't work. It was superseeded by the music freeze hook.
-					At offset 191F44, replace 0F84 with 90E9.
-					At offset 192015, replace 75 with EB.
-				*/
-				uint32_t BASE_ADDR = 0x400C00;
-				// At offset 191F44, replace 0F84 with 90E9.
-				//log_debug("[DBG] [PATCH] Before: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
-				//log_debug("[DBG] [PATCH] Before: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
-				
-				PatchWithValue(BASE_ADDR + 0x191F44, 0x90, 1);
-				PatchWithValue(BASE_ADDR + 0x191F44 + 1, 0xE9, 1);
-				// At offset 192015, replace 75 with EB.
-				PatchWithValue(BASE_ADDR + 0x192015, 0xEB, 1);
-				log_debug("[DBG] [PATCH] Music Sync Fix Applied");
-				//log_debug("[DBG] [PATCH] After: 0x191F44: %X%X", *(uint8_t *)(BASE_ADDR + 0x191F44), *(uint8_t *)(BASE_ADDR + 0x191F44 + 1));
-				//log_debug("[DBG] [PATCH] After: 0x192015: %X", *(uint8_t *)(BASE_ADDR + 0x192015));
-			}
-
+			// Patch POV offsets for each flyable ship
 			{
 				//short *POV_Y0 = (short *)(0x5BB480 + 0x238); // = 0x5BB6B8, 0x5BB480 + 0x32 = Craft name
 				//short *POV_Z0 = (short *)(0x5BB480 + 0x23A);
@@ -1327,6 +1309,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 						i, *pov, *(pov+1), *(pov+2));
 				}
 				*/
+			}
+
+			// Enable recording in Melee missions (PPG/Yard)
+			{
+				uint32_t XWABase = 0x400C00;
+				// At offset 100AF8 (address 400C00 + 100AF8), replace 0F 85 86 01 00 00 with 9090 9090 9090 (6 bytes)
+				PatchWithValue(XWABase + 0x100AF8, 0x90, 6);
+				log_debug("[DBG] [PATCH] Enabled Melee Recordings");
 			}
 		}
 		break;

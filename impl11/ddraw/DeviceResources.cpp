@@ -69,6 +69,7 @@
 #include "../Debug/ExplosionShader.h"
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
+#include "../Debug/PixelShaderAnimLightMap.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -127,6 +128,7 @@
 #include "../Release/ExplosionShader.h"
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
+#include "../Release/PixelShaderAnimLightMap.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -334,6 +336,11 @@ DeviceResources::DeviceResources()
 
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
+
+	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
+	//	this->_extraTextures[i] = nullptr;
+	//this->_numExtraTextures = 0;
+	_extraTextures.clear();
 }
 
 HRESULT DeviceResources::Initialize()
@@ -1120,6 +1127,8 @@ void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size
 void DeviceResources::ResetDynamicCockpit() {
 	// Force the recomputation of y_center for the next cockpit
 	g_bYCenterHasBeenFixed = false;
+	g_bRenderLaserIonEnergyLevels = false;
+	g_bRenderThrottle = false;
 	if (g_bDynCockpitEnabled && g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
 	{
 		ResetActiveCockpit();
@@ -1186,6 +1195,28 @@ void DeviceResources::ResetActiveCockpit() {
 	}
 }
 
+void DeviceResources::ResetExtraTextures() {
+	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++) {
+	//	if (this->_extraTextures[i] != nullptr) {
+	//		this->_extraTextures[i]->Release();
+	//		this->_extraTextures[i] = nullptr;
+	//	}
+	//}
+	//this->_numExtraTextures = 0;
+
+	for (uint32_t i = 0; i < _extraTextures.size(); i++)
+		if (_extraTextures[i] != nullptr) {
+			_extraTextures[i]->Release();
+			_extraTextures[i] = nullptr;
+		}
+	_extraTextures.clear();
+
+	// Clear any references to the animated materials as well:
+	for (AnimatedTexControl atc : g_AnimatedMaterials)
+		atc.Sequence.clear();
+	g_AnimatedMaterials.clear();
+}
+
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 {
 	/*
@@ -1233,6 +1264,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_AuxTextureVector.clear();
 	DeleteRandomVectorTexture();
 	ResetXWALightInfo();
+	g_HiResTimer.ResetGlobalTime();
+	this->ResetExtraTextures();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
 	this->_depthStencilL.Release();
@@ -3364,6 +3397,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimLightMap, sizeof(g_PixelShaderAnimLightMap), nullptr, &_pixelShaderAnimLightMap)))
 		return hr;
 
 	if (g_bDynCockpitEnabled) {

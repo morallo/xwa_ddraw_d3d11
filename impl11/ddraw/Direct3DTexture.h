@@ -34,6 +34,8 @@ public:
 	bool is_Text;
 	// This flag is set to true if this is a floating GUI element (like the targeting computer)
 	bool is_Floating_GUI;
+	// This flag is set to true if this is a laser/ion energy bar or the bracket containing said energy bars.
+	bool is_LaserIonEnergy;
 	// This flag is set to true if this is a regular GUI element
 	bool is_GUI;
 	// This flag is set to true if this is the main targeting computer HUD background (center, low)

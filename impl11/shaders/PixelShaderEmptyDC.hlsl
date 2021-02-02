@@ -9,9 +9,11 @@
 #include "PixelShaderTextureCommon.h"
 #include "DC_common.h"
 
+// Cover texture
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// HUD offscreen buffer
 Texture2D    texture1 : register(t1);
 SamplerState sampler1 : register(s1);
 
@@ -43,6 +45,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float alpha = texelColor.w;
+	float3 HSV = RGBtoHSV(texelColor.rgb); // texelColor is the cover texture
+	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+		alpha = HSV.z;
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
@@ -70,14 +75,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We assume the caller will set this pixel shader iff DynCockpitSlots == 0 && bUseCoverTexture > 0
 	
 	// texelColor is the cover_texture right now
-	float3 HSV = RGBtoHSV(texelColor.xyz);
+	//float3 HSV = RGBtoHSV(texelColor.xyz);
 	float4 hud_texelColor = float4(0, 0, 0, 1);
 	float brightness = ct_brightness;
 	if (HSV.z * alpha >= 0.8) {
 		// The cover texture is bright enough, go shadeless and make it brighter
 		diffuse = float3(1, 1, 1);
 		// Increase the brightness:
-		HSV = RGBtoHSV(texelColor.xyz);
+		//HSV = RGBtoHSV(texelColor.xyz); // Redundant line
 		HSV.z *= 1.2;
 		texelColor.xyz = HSVtoRGB(HSV);
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 1);

@@ -8,6 +8,40 @@
 constexpr auto MAX_CACHED_MATERIALS = 32;
 constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
+constexpr auto MAX_TEX_SEQ_NAME = 80;
+
+// Used to store the information related to animated light maps that
+// is loaded from .mat files:
+typedef struct TexSeqElemStruct {
+	int ExtraTextureIndex;
+	char texname[MAX_TEX_SEQ_NAME];
+	float seconds, intensity;
+
+	TexSeqElemStruct() {
+		ExtraTextureIndex = -1;
+		texname[0] = 0;
+	}
+} TexSeqElem;
+
+typedef struct AnimatedTexControlStruct {
+	// Animated LightMaps:
+	std::vector<TexSeqElemStruct> Sequence;
+	int AnimIdx; // This is the current index in the Sequence, it can increase monotonically, or it can be random.
+	float TimeLeft; // Time left for the current index in the sequence.
+	bool IsRandom, BlackToAlpha;
+	
+	AnimatedTexControlStruct() {
+		Sequence.clear();
+		AnimIdx = 0;
+		TimeLeft = 1.0f;
+		IsRandom = false;
+		BlackToAlpha = false;
+	}
+
+	// Updates the timer/index on the current animated material. Only call this function
+	// if the current material has an animation.
+	void Animate();
+} AnimatedTexControl;
 
 // Materials
 typedef struct MaterialStruct {
@@ -30,6 +64,21 @@ typedef struct MaterialStruct {
 	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
 	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
 	float Ambient;
+
+	int TotalFrames; // Used for animated DAT files, like the explosions
+
+	float ExplosionScale;
+	float ExplosionSpeed;
+	int ExplosionBlendMode;
+	// Set to false by default. Should be set to true once the GroupId 
+	// and ImageId have been parsed:
+	bool DATGroupImageIdParsed;
+	int GroupId;
+	int ImageId;
+
+	int LightMapATCIndex; // Index into the AnimatedTexControl structure that holds LightMap animation data
+	int TextureATCIndex; // Index into the AnimatedTexControl structure that holds Texture animation data
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -43,7 +92,7 @@ typedef struct MaterialStruct {
 		SpecValue = DEFAULT_SPEC_VALUE;
 		IsShadeless = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
-		LightUVCoordPos = Vector2(0.1f, 0.9f);
+		LightUVCoordPos = Vector2(0.1f, 0.5f);
 		NoBloom = false;
 		IsLava = false;
 		LavaSpeed = 1.0f;
@@ -60,6 +109,18 @@ typedef struct MaterialStruct {
 		AlphaIsntGlass = false;
 		Ambient = 0.0f;
 
+		TotalFrames	= 0;
+		ExplosionScale = 2.0f; // 2.0f is the original scale
+		ExplosionSpeed = 0.001f;
+		ExplosionBlendMode = 1; // 0: Original texture, 1: Blend with procedural explosion, 2: Use procedural explosions only
+
+		DATGroupImageIdParsed = false;
+		GroupId = 0;
+		ImageId = 0;
+
+		LightMapATCIndex = -1;
+		TextureATCIndex = -1;
+
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -72,6 +133,7 @@ typedef struct MaterialStruct {
 		LavaTranspose = true;
 		*/
 	}
+
 } Material;
 
 /*
@@ -110,6 +172,13 @@ typedef struct TexnameStruct {
  Contains all the materials for all the OPTs currently loaded
 */
 extern std::vector<CraftMaterials> g_Materials;
+// List of all materials with animated textures. OPTs may re-use the same
+// texture several times in different areas. If this texture has an animation,
+// then the animation will be rendered multiple times on the screen. In order
+// to update the timer on these animations exactly *once* per frame, we need a
+// way to iterate over them at the end of the frame to update their timers.
+// This list is used to update the timers on animated materials once per frame.
+extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
 
@@ -122,9 +191,9 @@ void InitCraftMaterials();
 void ClearCraftMaterials();
 
 void OPTNameToMATParamsFile(char* OPTName, char* sFileName, int iFileNameSize);
-void DATNameToMATParamsFile(char* DATName, char* sFileName, int iFileNameSize);
+void DATNameToMATParamsFile(char *DATName, char *sFileName, char *sFileNameShort, int iFileNameSize);
+bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose = true);
 void ReadMaterialLine(char* buf, Material* curMaterial);
-bool LoadIndividualMATParams(char* OPTname, char* sFileName);
 bool GetGroupIdImageIdFromDATName(char* DATName, int* GroupId, int* ImageId);
 void InitOPTnames();
 void ClearOPTnames();
@@ -132,3 +201,5 @@ void InitCraftMaterials();
 void ClearCraftMaterials();
 int FindCraftMaterial(char* OPTname);
 Material FindMaterial(int CraftIndex, char* TexName, bool debug = false);
+// Iterate over all the g_AnimatedMaterials and update their timers
+void AnimateMaterials();

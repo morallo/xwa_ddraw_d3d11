@@ -1,13 +1,11 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
-
 #pragma once
 
-#include "effects_common.h"
+#include "EffectsCommon.h"
 
 class BackbufferSurface;
-
 class Direct3DTexture;
 
 void InitHeadingMatrix();
@@ -193,6 +191,8 @@ public:
 	void RenderRadar();
 
 	void RenderBracket();
+
+	void RenderSynthDCElems();
 
 	ULONG _refCount;
 

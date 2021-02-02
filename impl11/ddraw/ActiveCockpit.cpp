@@ -1,5 +1,5 @@
-#include "active_cockpit.h"
-#include "dynamic_cockpit.h"
+#include "ActiveCockpit.h"
+#include "DynamicCockpit.h"
 #include "utils.h"
 #include "Direct3DTexture.h"
 
