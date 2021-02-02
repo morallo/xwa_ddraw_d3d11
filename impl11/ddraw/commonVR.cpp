@@ -15,6 +15,7 @@ Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight, g_viewMatrix;
 Vector3 g_headCenter; // The head's center: this value should be re-calibrated whenever we set the headset
 bool g_bResetHeadCenter = true; // Reset the head center on startup
 
+
 // NewIPD is in cms
 void EvaluateIPD(float NewIPD) {
 	if (NewIPD < 0.0f)

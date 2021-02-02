@@ -50,3 +50,31 @@ struct XwaGlobalLight
 	/* 0x004C */ float BlendEndColorB;
 	/* 0x0050 */ float BlendEndColorG;
 };
+
+struct XwaVector3
+{
+	/* 0x0000 */ float x;
+	/* 0x0004 */ float y;
+	/* 0x0008 */ float z;
+};
+
+// S0x0000002
+struct XwaMatrix3x3
+{
+	/* 0x0000 */ float _11;
+	/* 0x0004 */ float _12;
+	/* 0x0008 */ float _13;
+	/* 0x000C */ float _21;
+	/* 0x0010 */ float _22;
+	/* 0x0014 */ float _23;
+	/* 0x0018 */ float _31;
+	/* 0x001C */ float _32;
+	/* 0x0020 */ float _33;
+};
+
+// S0x0000012
+struct XwaTransform
+{
+	/* 0x0000 */ XwaVector3 Position;
+	/* 0x000C */ XwaMatrix3x3 Rotation;
+};

@@ -113,6 +113,9 @@ extern std::vector<CraftMaterials> g_Materials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
 
+extern bool g_bReloadMaterialsEnabled;
+extern Material g_DefaultGlobalMaterial;
+
 void InitOPTnames();
 void ClearOPTnames();
 void InitCraftMaterials();

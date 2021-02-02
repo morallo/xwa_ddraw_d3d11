@@ -49,6 +49,17 @@ extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
 extern bool g_bDynCockpitEnabled;
 
+extern float g_fHangarAmbient, g_fGlobalAmbient;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
+extern bool g_bApplyXWALightsIntensity;
+extern float g_fHDRLightsMultiplier, g_fHDRWhitePoint;
+extern bool g_bHDREnabled;
+extern bool g_bEdgeDetectorEnabled;
+
+extern bool g_bEnableVR;
+extern bool g_bCockpitPZHackEnabled;
+extern bool g_bOverrideAspectRatio;
+
 
 
 // User-facing functions
@@ -62,6 +73,7 @@ bool LoadGeneric4DCoords(char* buf, float* x, float* y, float* z, float* w);
 void ApplyFocalLength(float focal_length);
 void SaveFocalLength();
 bool LoadFocalLength();
+void ComputeHyperFOVParams();
 
 bool LoadDCParams();
 bool LoadACParams();

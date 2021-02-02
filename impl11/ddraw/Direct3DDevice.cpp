@@ -466,15 +466,6 @@ SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
-extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
-extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
-extern bool g_bHeadLightsAutoTurnOn;
-
-
-
-void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR = false);
-void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out);
-void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out);
 
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
@@ -512,36 +503,7 @@ void ResetXWALightInfo()
 	}
 }
 
-void CycleFOVSetting()
-{
-	// Don't change the FOV in VR mode: use your head to look around!
-	if (g_bEnableVR) {
-		g_CurrentFOVType = GLOBAL_FOV;
-	}
-	else {
-		switch (g_CurrentFOVType) {
-		case GLOBAL_FOV:
-			g_CurrentFOVType = XWAHACKER_FOV;
-			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
-			DisplayTimedMessage(4, 0, "Current Craft FOV");
-			break;
-		case XWAHACKER_FOV:
-			g_CurrentFOVType = XWAHACKER_LARGE_FOV;
-			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
-			DisplayTimedMessage(4, 0, "Current Craft Large FOV");
-			break;
-		case XWAHACKER_LARGE_FOV:
-			g_CurrentFOVType = GLOBAL_FOV;
-			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
-			DisplayTimedMessage(4, 0, "Global FOV");
-			break;
-		}
 
-		// Apply the current FOV and recompute FOV-related parameters
-		g_bYCenterHasBeenFixed = false;
-		g_bCustomFOVApplied = false;
-	}
-}
 
 bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
 {
@@ -1139,29 +1101,7 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 }
 */
 
-void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX vert;
-	uint32_t index;
-	UINT idx = curIndex;
-	
-	log_debug("[DBG] START Geom");
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
-		vert = g_OrigVerts[index];
-		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
-		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
 
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
-		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
-
-		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
-		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
-		triangle++;
-	}
-	log_debug("[DBG] END Geom");
-}
 
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
@@ -1229,17 +1169,7 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
-inline void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float *x_out, float *y_out)
-{
-	*x_out = left + x / g_fCurInGameWidth * width;
-	*y_out = top + y / g_fCurInGameHeight * height;
-}
 
-void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float *x_out, float *y_out)
-{
-	*x_out = g_fCurInGameWidth * (x - left) / width;
-	*y_out = g_fCurInGameHeight * (y - top) / height;
-}
 
 /*
 bool rayTriangleIntersect_old(

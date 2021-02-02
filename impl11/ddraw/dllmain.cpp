@@ -37,7 +37,7 @@ int g_WindowWidth, g_WindowHeight;
 
 extern int g_KeySet;
 //extern float g_fMetricMult, 
-extern float g_fAspectRatio, g_fConcourseAspectRatio, g_fCockpitTranslationScale;
+extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
 
 void Normalize(float4 *Vector) {
@@ -76,8 +76,6 @@ extern Vector3 g_LaserPointDebug;
 HWND g_ThisWindow = 0;
 WNDPROC OldWindowProc = 0;
 
-void ComputeHyperFOVParams();
-
 void IncreaseScreenScale(float Delta); // Changes overall zoom
 //void IncreaseFocalDist(float Delta);   // Changes overall zoom after matrix projection
 //void IncreasePostProjScale(float Delta);
@@ -93,9 +91,6 @@ void IncreaseSkipNonZBufferDrawIdx(int Delta);
 // Lens distortion
 void IncreaseLensK1(float Delta);
 void IncreaseLensK2(float Delta);
-
-void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
-void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...);
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;

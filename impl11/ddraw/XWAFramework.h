@@ -141,7 +141,7 @@
 	inline uint32_t* g_XwaFlightHudBorderColor = (uint32_t*)0x005B531C; // The current HUD border color
 
 	inline int* s_XwaGlobalLightsCount = (int*)0x00782848;
-	inline XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0;
+	inline XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0; // Maximum 8 lights
 
 	inline uint32_t* g_playerInHangar = (uint32_t*)0x09C6E40;
 	inline uint32_t* g_playerIndex = (uint32_t*)0x8C1CC8;

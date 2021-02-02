@@ -28,6 +28,8 @@ extern int g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
 extern bool g_bSteamVRPosFromFreePIE;
 extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
 extern void* g_pSurface;
+extern bool g_bTogglePostPresentHandoff;
+extern bool g_bSteamVRMirrorWindowLeftEye;
 
 /*
  *	SteamVR specific functions declarations
@@ -35,11 +37,6 @@ extern void* g_pSurface;
 
 bool InitSteamVR();
 void ShutDownSteamVR();
-bool UpdateXWAHackerFOV();
-void CycleFOVSetting();
-float ComputeRealVertFOV();
-float ComputeRealHorzFOV();
-float RealVertFOVToRawFocalLength(float real_FOV);
 
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);

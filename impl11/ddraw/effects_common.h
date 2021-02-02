@@ -3,6 +3,7 @@
 #include "Matrices.h"
 #include "../shaders/material_defs.h"
 #include "../shaders/shader_common.h"
+#include "common.h"
 
 
 #ifndef EFFECTS_CONST
@@ -295,3 +296,17 @@ typedef enum {
 
 extern FOVtype g_CurrentFOVType;
 extern FOVtype g_CurrentFOV;
+extern bool g_bCustomFOVApplied;
+
+extern VertexShaderCBuffer g_VSCBuffer;
+extern PixelShaderCBuffer g_PSCBuffer;
+extern MetricReconstructionCB g_MetricRecCBuffer;
+extern float g_fAspectRatio, g_fGlobalScale, g_fBrightness, g_fGUIElemsScale, g_fHUDDepth, g_fFloatingGUIDepth;
+extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio;
+extern float g_fMetricMult;
+extern int g_WindowWidth, g_WindowHeight;
+extern D3D11_VIEWPORT g_nonVRViewport;
+
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
+void DisplayTimedMessageV(uint32_t seconds, int row, const char* format, ...);

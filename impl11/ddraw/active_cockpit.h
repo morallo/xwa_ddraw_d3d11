@@ -25,19 +25,26 @@ typedef struct ac_element_struct {
 	short width, height; // DEBUG, remove later
 } ac_element;
 
+// ACTIVE COCKPIT
+extern bool g_bActiveCockpitEnabled;
 extern Vector4 g_contOriginWorldSpace; // This is the origin of the controller in 3D, in world-space coords
 extern Vector4 g_contDirWorldSpace; // This is the direction in which the controller is pointing in world-space coords
 extern Vector4 g_contOriginViewSpace; // This is the origin of the controller in 3D, in view-space coords
 extern Vector4 g_contDirViewSpace; // The direction in which the controller is pointing, in view-space coords
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
-extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
+extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx; // The index into g_ACElements where the intersection occurred
-extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
 extern bool g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFullCockpitTest;
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iNumACElements, g_iLaserDirSelector;
+extern int g_iLaserDirSelector;
+extern int g_iNumACElements;
+extern bool g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
+extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFreePIEControllerButtonDataAvailable;
+extern float g_fLaserPointerLength;
+extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
+
 // DEBUG vars
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
@@ -45,10 +52,6 @@ extern Vector3 g_LPdebugPoint;
 extern float g_fLPdebugPointOffset;
 // DEBUG vars
 
-// ACTIVE COCKPIT
-extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iNumACElements;
-extern bool g_bActiveCockpitEnabled;
 bool LoadIndividualACParams(char* sFileName);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
 void TranslateACAction(WORD* scanCodes, char* action);

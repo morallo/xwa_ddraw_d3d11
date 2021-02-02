@@ -23,14 +23,6 @@ class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
 
-/*****************/
-// This struct is in the process of moving to the cockpit look hook. It can be removed
-// later
-typedef struct HeadPosStruct {
-	float x, y, z;
-} HeadPos;
-/*****************/
-
 #define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT

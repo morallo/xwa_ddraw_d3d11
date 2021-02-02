@@ -1,6 +1,7 @@
 #include "effects.h"
 #include "common.h"
 #include "XWAFramework.h"
+#include "VRConfig.h"
 
 // Main Pixel Shader constant buffer
 MainShadersCBuffer			g_MSCBuffer;
@@ -161,21 +162,29 @@ std::vector<char*> Trails_ResNames = {
 	"dat,21025,",
 };
 
-FOVtype g_CurrentFOVType = GLOBAL_FOV;
-FOVtype g_CurrentFOV = GLOBAL_FOV;
 
 // Global y_center and FOVscale parameters. These are updated only in ComputeHyperFOVParams.
 float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
+float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+FOVtype g_CurrentFOVType = GLOBAL_FOV;
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
+bool g_bMetricParamsNeedReapply = false;
+Matrix4 g_ReflRotX;
 
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
 float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 bool g_bHeadLightsAutoTurnOn = true;
+
+bool g_bKeybExitHyperspace = true;
+int g_iDraw2DCounter = 0;
+bool g_bRendering3D = false; // Set to true when the system is about to render in 3D
+bool g_bPrevPlayerInHangar = false;
+bool g_bInTechRoom = false; // Set to true in PrimarySurface Present 2D (Flip)
 
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
@@ -216,4 +225,72 @@ bool isInVector(char* OPTname, std::vector<OPTNameType>& vector) {
 		if (_stricmp(OPTname, x.name) == 0) // We need to avoid substrings because OPTs can be "Awing", "AwingExterior", "AwingCockpit"
 			return true;
 	return false;
+}
+
+void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex) {
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	uint32_t index;
+	UINT idx = curIndex;
+
+	log_debug("[DBG] START Geom");
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v1;
+		vert = g_OrigVerts[index];
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+		// , tu: %0.3f, tv: %0.3f, vert.tu, vert.tv
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v2;
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+
+		index = g_config.D3dHookExists ? index = g_OrigIndex[idx++] : index = triangle->v3;
+		log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f", vert.sx, vert.sy, vert.sz, vert.rhw);
+		triangle++;
+	}
+	log_debug("[DBG] END Geom");
+}
+
+void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float* x_out, float* y_out)
+{
+	*x_out = left + x / g_fCurInGameWidth * width;
+	*y_out = top + y / g_fCurInGameHeight * height;
+}
+
+void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float* x_out, float* y_out)
+{
+	*x_out = g_fCurInGameWidth * (x - left) / width;
+	*y_out = g_fCurInGameHeight * (y - top) / height;
+}
+
+
+void CycleFOVSetting()
+{
+	// Don't change the FOV in VR mode: use your head to look around!
+	if (g_bEnableVR) {
+		g_CurrentFOVType = GLOBAL_FOV;
+	}
+	else {
+		switch (g_CurrentFOVType) {
+		case GLOBAL_FOV:
+			g_CurrentFOVType = XWAHACKER_FOV;
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_fov");
+			DisplayTimedMessage(4, 0, "Current Craft FOV");
+			break;
+		case XWAHACKER_FOV:
+			g_CurrentFOVType = XWAHACKER_LARGE_FOV;
+			log_debug("[DBG] [FOV] Current FOV: xwahacker_large_fov");
+			DisplayTimedMessage(4, 0, "Current Craft Large FOV");
+			break;
+		case XWAHACKER_LARGE_FOV:
+			g_CurrentFOVType = GLOBAL_FOV;
+			log_debug("[DBG] [FOV] Current FOV: GLOBAL");
+			DisplayTimedMessage(4, 0, "Global FOV");
+			break;
+		}
+
+		// Apply the current FOV and recompute FOV-related parameters
+		g_bYCenterHasBeenFixed = false;
+		g_bCustomFOVApplied = false;
+	}
 }

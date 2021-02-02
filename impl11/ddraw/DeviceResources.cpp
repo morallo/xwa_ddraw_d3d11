@@ -146,9 +146,8 @@ extern MainShadersCBuffer g_MSCBuffer;
 extern BarrelPixelShaderCBuffer g_BarrelPSCBuffer;
 extern float g_fConcourseScale, g_fConcourseAspectRatio, g_fTechLibraryParallax, g_fBrightness;
 extern bool g_bRendering3D, g_bDumpDebug, g_bOverrideAspectRatio, g_bCustomFOVApplied, g_bTargetCompDrawn;
-extern bool g_bPrevPlayerInHangar;
 extern int g_iPresentCounter;
-int g_iDraw2DCounter = 0;
+
 extern bool g_bEnableVR, g_bForceViewportChange;
 extern Matrix4 g_FullProjMatrixLeft, g_FullProjMatrixRight;
 extern VertexShaderMatrixCB g_VSMatrixCB;
