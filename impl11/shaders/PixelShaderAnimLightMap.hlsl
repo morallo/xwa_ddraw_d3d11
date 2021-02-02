@@ -1,4 +1,9 @@
 // Copyright (c) 2021 Leo Reyes
+// This shader is used to display animated light maps.
+// Transparent areas won't change the previous contents; but this shader
+// can be used to render solid areas just like the regular pixel shader.
+// The main difference with the regular light map shader is that the alpha
+// of the light map is not multiplied by 10.
 // Licensed under the MIT license. See LICENSE.txt
 #include "shader_common.h"
 #include "HSV.h"
