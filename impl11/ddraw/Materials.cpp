@@ -2,9 +2,13 @@
 #include "Materials.h"
 #include "utils.h"
 #include <string.h>
+#include <string>
+#include <filesystem>
 #include "Vectors.h"
 #include "ShadowMapping.h"
 #include "DeviceResources.h"
+
+namespace fs = std::filesystem;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
@@ -82,6 +86,16 @@ bool LoadLightColor(char* buf, Vector3* Light)
 		}
 	}
 	return true;
+}
+
+void ListFilesInDir(char *path)
+{
+	std::string s_path = std::string("Animations\\") + std::string(path);
+	log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+	for (const auto & entry : fs::directory_iterator(s_path)) {
+		// Surely there's a better way to get the filename...
+		log_debug("[DBG] file: %s", entry.path().filename().string().c_str());
+	}
 }
 
 #define SKIP_WHITESPACES(s) {\
@@ -182,6 +196,74 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 		s = t; s += 1;
 	}
 	//log_debug("[DBG] [MAT] Texture sequence done");
+	return true;
+}
+
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is_lightmap, int *black_to_alpha) {
+	int res = 0;
+	char *s = NULL, *t = NULL, path[256];
+	float fps = 30.0f, intensity = 0.0f;
+	*is_lightmap = 0, *black_to_alpha = 1;
+
+	//log_debug("[DBG] [MAT] Reading texture sequence");
+	s = strchr(buf, '=');
+	if (s == NULL) return false;
+
+	// Skip the equals sign:
+	s += 1;
+
+	// Skip to the next comma
+	t = s;
+	while (*t != 0 && *t != ',') t++;
+	// If we reached the end of the string, that's an error
+	if (*t == 0) return false;
+	// End this string on the comma so that we can parse a string
+	*t = 0;
+	// Parse the texture name
+	try {
+		res = sscanf_s(s, "%s", path, 256);
+		if (res < 1) log_debug("[DBG] [MAT] Error reading path in '%s'", s);
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT} Could not read path in '%s'", s);
+		return false;
+	}
+
+	// Skip the comma
+	s = t; s += 1;
+	SKIP_WHITESPACES(s);
+
+	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
+	try {
+		res = sscanf_s(s, "%f, %d, %f, %d", &fps, is_lightmap, &intensity, black_to_alpha);
+		if (res < 4) {
+			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
+		}
+		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d", fps, *is_lightmap, intensity, *black_to_alpha);
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
+		return false;
+	}
+
+	// We just finished reading the path where a frame sequence is stored
+	// Now we need to load all the frames in that path into a tex_seq_elem
+	TexSeqElem tex_seq_elem;
+	std::string s_path = std::string("Animations\\") + std::string(path);
+	//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+	for (const auto & entry : fs::directory_iterator(s_path)) {
+		// Surely there's a better way to get the filename...
+		std::string filename = std::string(path) + "\\" + entry.path().filename().string();
+		//log_debug("[DBG] file: %s", filename.c_str());
+
+		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
+		tex_seq_elem.seconds = 1.0f / fps;
+		tex_seq_elem.intensity = intensity;
+		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+		tex_seq_elem.ExtraTextureIndex = -1;
+		tex_sequence.push_back(tex_seq_elem);
+	}
+
 	return true;
 }
 
@@ -319,10 +401,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			 _stricmp(param, "anim_seq") == 0 ||
 			 _stricmp(param, "anim_rand") == 0) {
 		// TOOD: Add support for multiline sequences
-		// TODO: Fix the alpha issues with side-loaded animations (remove the artifacts around the edges)
 		AnimatedTexControl atc;
 		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
-		atc.IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
+		bool IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
+		atc.BlackToAlpha = false;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
@@ -337,7 +419,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			atc.TimeLeft = atc.Sequence[0].seconds;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			if (atc.IsLightMap)
+			if (IsLightMap)
 				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
 			else
 				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
@@ -349,6 +431,34 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			}
 			log_debug("[DBG] [MAT] <<<<<< Animation Sequence End");
 			*/
+		}
+		else {
+			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
+		}
+	}
+	else if (_stricmp(param, "frame_seq") == 0) {
+		AnimatedTexControl atc;
+		int is_lightmap, black_to_alpha;
+		atc.IsRandom = 0;
+		// Clear the current Sequence and release the associated textures in the DeviceResources...
+		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
+		//       later...
+		atc.Sequence.clear();
+		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
+		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &black_to_alpha))
+			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
+		if (atc.Sequence.size() > 0) {
+			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
+			// Initialize the timer for this animation
+			atc.AnimIdx = 0;
+			atc.TimeLeft = atc.Sequence[0].seconds;
+			atc.BlackToAlpha = (bool)black_to_alpha;
+			// Add a reference to this material on the list of animated materials
+			g_AnimatedMaterials.push_back(atc);
+			if (is_lightmap)
+				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
+			else
+				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);

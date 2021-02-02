@@ -28,15 +28,14 @@ typedef struct AnimatedTexControlStruct {
 	std::vector<TexSeqElemStruct> Sequence;
 	int AnimIdx; // This is the current index in the Sequence, it can increase monotonically, or it can be random.
 	float TimeLeft; // Time left for the current index in the sequence.
-	bool IsRandom;
-	bool IsLightMap; // True if the current ATC is a LightMap animation
+	bool IsRandom, BlackToAlpha;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
 		AnimIdx = 0;
 		TimeLeft = 1.0f;
 		IsRandom = false;
-		IsLightMap = true;
+		BlackToAlpha = false;
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function

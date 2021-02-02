@@ -51,6 +51,7 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_HIGHLIGHT	5 // Used for debugging purposes (to highlight specific elements)
 #define SPECIAL_CONTROL_NO_COLOR_ALPHA 6 // When this is set, the alpha value for the color output is forced to 0. Used in AlphaToBloom.hlsl
 #define SPECIAL_CONTROL_EXPLOSION	7
+#define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

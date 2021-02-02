@@ -4991,7 +4991,9 @@ HRESULT Direct3DDevice::Execute(
 							ATCIndex = lastTextureSelected->material.LightMapATCIndex;
 						}
 						else {
-							resources->InitPixelShader(resources->_noGlassPS);
+							// If we're rendering a DC element, we don't want to replace the shader
+							if (g_PSCBuffer.DynCockpitSlots == 0)
+								resources->InitPixelShader(resources->_noGlassPS);
 							ATCIndex = lastTextureSelected->material.TextureATCIndex;
 						}
 
@@ -5001,6 +5003,8 @@ HRESULT Direct3DDevice::Execute(
 
 						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
 						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+						if (atc->BlackToAlpha)
+							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 
 						/*
 						// DEBUG

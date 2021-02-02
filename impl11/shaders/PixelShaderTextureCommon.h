@@ -2,8 +2,8 @@
 cbuffer ConstantBuffer : register(b0)
 {
 	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
-	uint DynCockpitSlots;		// (Unused here) How many DC slots will be used.
-	uint bUseCoverTexture;		// (Unused here) When set, use the first texture as cover texture for the dynamic cockpit
+	uint DynCockpitSlots;		// (DC) How many DC slots will be used.
+	uint bUseCoverTexture;		// (DC) When set, use the first texture as cover texture for the dynamic cockpit
 	uint bInHyperspace;			// 1 if we're rendering while in hyperspace
 	// 16 bytes
 

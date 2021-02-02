@@ -43,6 +43,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float  alpha = texelColor.a;
+	float3 HSV = RGBtoHSV(texelColor.rgb);
+	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+		alpha = HSV.z;
 
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
@@ -52,6 +55,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
+	
 
 	// hook_normals code:
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
@@ -67,7 +71,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 	
 	// bloom
-	float3 HSV = RGBtoHSV(texelColor.rgb);
 	if (HSV.z >= 0.8) {
 		float bloom_alpha = saturate(fBloomStrength);
 		diffuse = 1.0;

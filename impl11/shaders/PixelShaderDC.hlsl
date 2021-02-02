@@ -86,8 +86,12 @@ uint getBGColor(uint i) {
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 coverColor = texture0.Sample(sampler0, input.tex); // coverColor is the cover texture
-	const float coverAlpha = coverColor.w; // alpha of the cover texture
+	float4 coverColor = texture0.Sample(sampler0, input.tex); // coverColor/texelColor is the cover texture
+	float coverAlpha = coverColor.w; // alpha of the cover texture
+	float3 HSV = RGBtoHSV(coverColor.rgb);
+	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA) 
+		coverAlpha = HSV.z;
+
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly
 	//const float coverAlpha = 0.0;
 	// DEBUG
@@ -176,13 +180,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		// on areas with a high lightness value
 
 		// coverColor is the cover_texture right now
-		float3 HSV = RGBtoHSV(coverColor.xyz);
+		//float3 HSV = RGBtoHSV(coverColor.xyz);
 		float brightness = ct_brightness;
 		// The cover texture is bright enough, go shadeless and make it brighter
 		if (HSV.z * coverAlpha >= 0.8) {
 			diffuse = 1;
 			// Increase the brightness:
-			HSV = RGBtoHSV(coverColor.xyz);
+			//HSV = RGBtoHSV(coverColor.xyz); // Redundant
 			HSV.z *= 1.2;
 			coverColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
@@ -216,7 +220,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
 	}
 	
+	// At this point, coverColor is the blended cover texture (if it exists) and the HUD contents
 	if (dc_bloom) {
+		// coverColor may have changed, we need to convert to HSV again
 		float3 HSV = RGBtoHSV(coverColor.xyz);
 		if (HSV.z >= 0.8) {
 			diffuse = 1.0;
@@ -227,7 +233,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	output.color = float4(diffuse * coverColor.xyz, coverColor.w);
+	output.color = float4(diffuse * coverColor.xyz, coverAlpha);
 	if (bInHyperspace) output.color.a = 1.0;
 
 	// Text DC elements can be made to float inside the cockpit. In that case, we might want
