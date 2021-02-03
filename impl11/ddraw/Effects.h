@@ -63,13 +63,32 @@ extern std::vector<char*> Trails_ResNames;
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 // Constant Buffers
+extern VertexShaderMatrixCB		g_VSMatrixCB;
 extern BloomPixelShaderCBuffer	g_BloomPSCBuffer;
 extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
 extern PSShadingSystemCB		g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer			g_ShadertoyBuffer;
 extern LaserPointerCBuffer		g_LaserPointerBuffer;
 
+extern D3DTLVERTEX* g_OrigVerts;
+extern uint32_t* g_OrigIndex;
+
+// SteamVR
+extern DWORD g_FullScreenWidth, g_FullScreenHeight;
+extern Matrix4 g_viewMatrix;
+extern Matrix4 g_ReflRotX;
+
+extern bool g_bStart3DCapture, g_bDo3DCapture;
+extern FILE* g_HackFile;
+#ifdef DBR_VR
+extern bool g_bCapture2DOffscreenBuffer;
+#endif
+
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
+
+// BLOOM
+extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
+extern BloomConfig g_BloomConfig;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
@@ -79,6 +98,21 @@ extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
 extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
 extern bool g_bHeadLightsAutoTurnOn;
 
+extern int   g_iDraw2DCounter;
+extern bool g_bPrevPlayerInHangar;
+extern bool g_bInTechRoom;
+extern bool g_bMetricParamsNeedReapply;
+
 bool isInVector(uint32_t crc, std::vector<uint32_t>& vector);
 bool isInVector(char* name, std::vector<char*>& vector);
 bool isInVector(char* OPTname, std::vector<OPTNameType>& vector);
+void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex);
+void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float* x_out, float* y_out);
+void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float* x_out, float* y_out);
+void GetScreenLimitsInUVCoords(float* x0, float* y0, float* x1, float* y1, bool UseNonVR = false);
+
+bool UpdateXWAHackerFOV();
+void CycleFOVSetting();
+float ComputeRealVertFOV();
+float ComputeRealHorzFOV();
+float RealVertFOVToRawFocalLength(float real_FOV);

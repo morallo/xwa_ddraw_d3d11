@@ -15,7 +15,6 @@ float g_fCoverTextureBrightness = 1.0f;
 float g_fDCBrightness = 1.0f;
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
-float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
 bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bReRenderMissilesNCounterMeasures = false;
 bool g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
 bool g_bHUDVisibleOnStartup = false;
@@ -485,7 +484,7 @@ bool LoadIndividualDCParams(char* sFileName) {
 
 /*
  * Saves the current FOV to the current dc file -- if it exists.
- * Depending on the current g_CurrentFOV, it will write "xwahacker_fov" or
+ * Depending on the current g_CurrentFOVType, it will write "xwahacker_fov" or
  * "xwahacker_large_fov".
  */
 bool UpdateXWAHackerFOV()

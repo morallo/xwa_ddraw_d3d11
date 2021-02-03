@@ -226,6 +226,7 @@ Vector4 g_LightColor[2], g_TempLightColor[2];
 // the white point to go down... but not by much in either direction.
 float g_fHDRLightsMultiplier = 2.0f, g_fHDRWhitePoint = 1.0f;
 bool g_bHDREnabled = false;
+bool g_bGlobalSpecToggle = true;
 
 bool g_bDumpSpecificTex = false;
 int g_iDumpSpecificTexIdx = 0;
@@ -927,6 +928,198 @@ bool LoadFocalLength() {
 	}
 	fclose(file);
 	return bApplied;
+}
+
+float ComputeRealVertFOV() {
+	return 2.0f * atan2(0.5f * g_fCurInGameHeight, *g_fRawFOVDist) / DEG2RAD;
+}
+
+float ComputeRealHorzFOV() {
+	return 2.0f * atan2(0.5f * g_fCurInGameWidth, *g_fRawFOVDist) / DEG2RAD;
+}
+
+float RealVertFOVToRawFocalLength(float real_FOV_deg) {
+	return 0.5f * g_fCurInGameHeight / tan(0.5f * real_FOV_deg * DEG2RAD);
+}
+
+/**
+ * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
+ */
+void ComputeHyperFOVParams() {
+	float y_center_raw, FOVscale_raw;
+	// Find the current center of the screen after it has been displaced by the cockpit camera.
+	// We only care about the y-coordinate, as we're going to use it along with the reticle to
+	// compute y_center.
+
+	// To find the y-center of the screen, we're going to use math. The tangent of the current
+	// pitch can give us the information right away. This is closely related to the FOV and
+	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
+	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 2.0f * PI;
+	float H = *g_fRawFOVDist * tan(pitch); // This will give us the height, in pixels, measured from the center of the screen
+	H += g_fCurInGameHeight / 2.0f;
+	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);
+	if (g_ReticleCentroid.y > -1.0f) {
+		// *sigh* for whatever stupid reason, sometimes we can have ReticleCentroid.y == 0.0 while looking straight ahead (pitch == 0)
+		// This situation completely destroys the calculation below, so we need to make sure that the camera pitch and the centroid
+		// are consistent.
+		// Another way to solve this problem is to prevent this calculation until the reticle centroid is close-ish to the center
+		// of the screen
+		float y_dist_from_screen_center = (float)fabs(g_ReticleCentroid.y - g_fCurInGameHeight / 2.0f);
+		if (y_dist_from_screen_center < g_fCurInGameHeight / 2.0f) {
+			// The reticle center visible this frame and it's not close to the edge of the screen.
+			// We can use it to compute y_center...
+
+			// The formula to compute y_center seems to be:
+			// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
+			// The in-game-center has to be computer properly if the cockpit isn't facing forward
+			y_center_raw = 2.0f * (H - g_ReticleCentroid.y) / g_fCurInGameHeight;
+			log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
+			// We can stop looking for the reticle center now:
+			g_bYCenterHasBeenFixed = true;
+		}
+		else
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED COMPUTE Y_CENTER. WILL RETRY. Frame: %d", g_iPresentCounter);
+		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
+		// come back to this path on the next frame where a reticle is visible.
+	}
+
+	if (!g_bYCenterHasBeenFixed) {
+		// Provide a default value if we couldn't compute y_center:
+		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 0.0f; // I can't do this because the cockpits look wrong in the hangar. They look skewed
+	}
+	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
+
+	// Compute the aspect-ratio fix factors
+	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
+	if (g_bUseSteamVR)
+		g_fWindowAspectRatio = max(1.0f, (float)g_steamVRWidth / (float)g_steamVRHeight);
+	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
+	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
+	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
+	// aspect ratio. In other words, the size of the display window will stretch the view, so we
+	// have to compensate for that.
+	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
+
+	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
+		y_center_raw, FOVscale_raw, g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors, comp_factor);
+
+	// Compute the compensated FOV and y_center:
+	g_fFOVscale = comp_factor * FOVscale_raw;
+	g_fYCenter = comp_factor * y_center_raw;
+
+	// Store the global FOVscale, y_center in the CB:
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+	g_ShadertoyBuffer.y_center = g_fYCenter;
+
+	// If PreserveAspectRatio is 0, then we need to apply further compensation because the image
+	// will further stretch in either the X or Y axis.
+	g_ShadertoyBuffer.preserveAspectRatioComp[0] = 1.0f;
+	g_ShadertoyBuffer.preserveAspectRatioComp[1] = 1.0f;
+	// The VR modes behave just like PreserveAspectRatio = 0. The funny thing is that
+	// it will stretch the image in the same amount as when running in non-VR mode.
+	// This means that the aspect ratio of the in-game resolution should be an integer
+	// multiple of the Display/SteamVR window to avoid distortion.
+	if (!g_config.AspectRatioPreserved || g_bEnableVR)
+	{
+		float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+		// In SteamVR mode, the must compensate against the SteamVR window size
+		if (g_bUseSteamVR)
+			RealWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+
+		if (RealWindowAspectRatio > g_fCurInGameAspectRatio) {
+			// The display window is going to stretch the image horizontally, so we need
+			// to shrink the x axis:
+			if (RealWindowAspectRatio > 1.0f) // Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+		}
+		else {
+			// The display window is going to stretch the image vertically, so we need
+			// to shrink the y axis:
+			if (g_fCurInGameAspectRatio > 1.0f)
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+		}
+
+		log_debug("[DBG] [FOV] Real Window a/r: %0.3f, preserveA/R-Comp: %0.3f, %0.3f",
+			RealWindowAspectRatio, g_ShadertoyBuffer.preserveAspectRatioComp[0], g_ShadertoyBuffer.preserveAspectRatioComp[1]);
+	}
+
+	// Compute the *real* vertical and horizontal FOVs:
+	g_fRealVertFOV = ComputeRealVertFOV();
+	g_fRealHorzFOV = ComputeRealHorzFOV();
+	// Compute the metric scale factor conversion
+	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
+
+	// Populate the metric reconstruction CB. Noticeably, the Metric Rec values need the raw
+	// FOVscale and y_center, not the fixed ones. Making a 3D OBJ crosshairs as additional geometry
+	// also places the crosshairs at the right spot (the crosshairs need to be at (0,1,100))
+	g_MetricRecCBuffer.mr_FOVscale = FOVscale_raw;
+	g_MetricRecCBuffer.mr_y_center = y_center_raw;
+	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
+	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
+	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
+		}
+		else {
+			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
+			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
+			// we need to trust that the user will set the current desktop resolution to the HMD's 
+			// resolution. So let's use the desktop's resolution to compensate for aspect ratio in
+			// SBS mode:
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_WindowHeight / (float)g_WindowWidth;
+		}
+	}
+
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			if (g_config.AspectRatioPreserved) {
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			}
+		}
+		else {
+			// DirectSBS path
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+		}
+	}
+
+	// We just modified the Metric Reconstruction parameters, let's reapply them
+	g_bMetricParamsNeedReapply = true;
+
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, mr_aspect_ratio: %0.3f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV,
+		g_MetricRecCBuffer.mr_aspect_ratio, g_iPresentCounter);
+
+	// DEBUG
+	//static bool bFirstTime = true;
+	//if (bFirstTime) {
+	//	g_fDebugFOVscale = g_ShadertoyBuffer.FOVscale;
+	//	//g_fDebugYCenter = g_ShadertoyBuffer.y_center;
+	//	bFirstTime = false;
+	//}
+	//g_fFOVscale = g_fDebugFOVscale;
+	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	//
+	//g_fYCenter = g_fDebugYCenter;
+	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
+	////g_MetricRecCBuffer.mr_y_center = g_fDebugYCenter;
+	////log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
+	// DEBUG
 }
 
 /* Loads the dynamic_cockpit.cfg file */

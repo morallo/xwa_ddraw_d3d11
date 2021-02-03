@@ -252,15 +252,6 @@ public:
 	}
 };
 
-extern dc_element g_DCElements[];
-extern int g_iNumDCElements;
-extern DCHUDRegions g_DCHUDRegions;
-extern move_region_coords g_DCMoveRegions;
-extern char g_sCurrentCockpit[128];
-extern bool g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
-extern bool g_bEdgeEffectApplied, g_bDCHologramsVisible;
-extern float g_fReticleScale;
-extern DCElemSrcBoxes g_DCElemSrcBoxes;
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
 extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;
@@ -269,13 +260,37 @@ extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;
 //extern bool g_bInhibitCMDBracket; // Used in XwaDrawBracketHook
 //extern float g_fXWAScale;
 
-// DYNAMIC COCKPIT
+extern DCPixelShaderCBuffer g_DCPSCBuffer;
 // g_DCElements is used when loading textures to load the cover texture.
 extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
 extern int g_iNumDCElements;
 extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
-extern char g_sCurrentCockpit[128];
 extern DCHUDRegions g_DCHUDRegions;
+extern move_region_coords g_DCMoveRegions;
+extern DCElemSrcBoxes g_DCElemSrcBoxes;
+extern float g_fCoverTextureBrightness;
+extern float g_fDCBrightness;
+extern move_region_coords g_DCMoveRegions;
+extern char g_sCurrentCockpit[128];
+extern bool g_bDCManualActivate, g_bDCApplyEraseRegionCommands, g_bReRenderMissilesNCounterMeasures;
+extern bool g_bGlobalDebugFlag, g_bInhibitCMDBracket;
+extern bool g_bHUDVisibleOnStartup;
+extern bool g_bCompensateFOVfor1920x1080;
+extern bool g_bDCWasClearedOnThisFrame;
+extern int g_iHUDOffscreenCommandsRendered;
+extern bool g_bEdgeEffectApplied;
+extern int g_WindowWidth, g_WindowHeight;
+extern float4 g_DCTargetingColor, g_DCWireframeLuminance;
+extern float4 g_DCTargetingIFFColors[6];
+extern float g_DCWireframeContrast;
+extern float g_fReticleScale;
+extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
+// HOLOGRAMS
+extern float g_fDCHologramFadeIn, g_fDCHologramFadeInIncr, g_fDCHologramTime;
+extern bool g_bDCHologramsVisible, g_bDCHologramsVisiblePrev;
+
+
+
 bool LoadIndividualDCParams(char* sFileName);
 bool LoadDCCoverTextureSize(char* buf, float* width, float* height);
 void ClearDCMoveRegions();

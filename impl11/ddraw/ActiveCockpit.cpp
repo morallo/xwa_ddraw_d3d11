@@ -26,6 +26,76 @@ float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
 
 /*
+ * Executes the action defined by "action" as per the Active Cockpit
+ * definitions.
+ */
+void ACRunAction(WORD* action) {
+	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
+	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
+	// Virtual key codes: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+	// How to send extended scan codes
+	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
+	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
+	INPUT input[MAX_AC_ACTION_LEN];
+	bool bEscapedAction = (action[0] == 0xe0);
+
+	if (action[0] == 0) { // void action, skip
+		//log_debug("[DBG] [AC] Skipping VOID action");
+		return;
+	}
+
+	// Special internal action: these actions don't need to synthesize any input
+	if (action[0] == 0xFF) {
+		switch (action[1]) {
+		case AC_HOLOGRAM_FAKE_VK_CODE:
+			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		}
+		return;
+	}
+
+	//if (bEscapedAction)
+	//	log_debug("[DBG] [AC] Executing escaped code");
+	//log_debug("[DBG] [AC] Running action: ");
+	//DisplayACAction(action);
+
+	// Copy & initialize the scan codes
+	int i = 0, j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_AC_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) {
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+			//input[i].ki.dwExtraInfo = GetMessageExtraInfo();
+		}
+		i++; j++;
+	}
+
+	j = bEscapedAction ? 1 : 0;
+	while (action[j] && j < MAX_AC_ACTION_LEN) {
+		input[i].ki.wScan = action[j];
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) {
+			input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+			//input[i].ki.dwExtraInfo = GetMessageExtraInfo();
+		}
+		i++; j++;
+	}
+
+	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
+	SendInput(i, input, sizeof(INPUT));
+}
+
+/*
  * Converts a string representation of a hotkey to a series of scan codes
  */
 void TranslateACAction(WORD* scanCodes, char* action) {
