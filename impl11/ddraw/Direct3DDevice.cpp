@@ -4941,6 +4941,9 @@ HRESULT Direct3DDevice::Execute(
 						if (atc->BlackToAlpha)
 							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 						g_PSCBuffer.AuxColor = atc->Tint;
+						// TODO: Need to double-check that the line below does not break the bloom with regular
+						// lightmaps/animseqs
+						g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
 						/*
 						// DEBUG

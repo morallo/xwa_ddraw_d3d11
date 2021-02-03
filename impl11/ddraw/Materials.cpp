@@ -245,11 +245,13 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is
 			AuxColor->x = r;
 			AuxColor->y = g;
 			AuxColor->z = b;
+			AuxColor->w = 1.0f;
 		}
 		else {
 			AuxColor->x = 1.0f;
 			AuxColor->y = 1.0f;
 			AuxColor->z = 1.0f;
+			AuxColor->w = 1.0f;
 		}
 		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d; [%0.3f, %0.3f, %0.3f]",
 			fps, *is_lightmap, intensity, *black_to_alpha,
@@ -419,6 +421,11 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
 		bool IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
 		atc.BlackToAlpha = false;
+		// TODO: Add support for tint here?
+		atc.Tint.x = 1.0f;
+		atc.Tint.y = 1.0f;
+		atc.Tint.z = 1.0f;
+		atc.Tint.w = 1.0f;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
