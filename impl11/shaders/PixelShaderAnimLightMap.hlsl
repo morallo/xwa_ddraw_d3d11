@@ -35,7 +35,7 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	float4 texelColor = AuxColor * texture0.Sample(sampler0, input.tex);
 	float  alpha = texelColor.w;
 	float3 color = texelColor.rgb;
 	float3 HSV = RGBtoHSV(color);

@@ -199,10 +199,10 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is_lightmap, int *black_to_alpha) {
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is_lightmap, int *black_to_alpha, float4 *AuxColor) {
 	int res = 0;
 	char *s = NULL, *t = NULL, path[256];
-	float fps = 30.0f, intensity = 0.0f;
+	float fps = 30.0f, intensity = 0.0f, r,g,b;
 	*is_lightmap = 0, *black_to_alpha = 1;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
@@ -235,11 +235,25 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is
 
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
-		res = sscanf_s(s, "%f, %d, %f, %d", &fps, is_lightmap, &intensity, black_to_alpha);
+		res = sscanf_s(s, "%f, %d, %f, %d; %f, %f, %f", 
+			&fps, is_lightmap, &intensity, black_to_alpha,
+			&r, &g, &b);
 		if (res < 4) {
 			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
 		}
-		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d", fps, *is_lightmap, intensity, *black_to_alpha);
+		if (res >= 7) {
+			AuxColor->x = r;
+			AuxColor->y = g;
+			AuxColor->z = b;
+		}
+		else {
+			AuxColor->x = 1.0f;
+			AuxColor->y = 1.0f;
+			AuxColor->z = 1.0f;
+		}
+		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d; [%0.3f, %0.3f, %0.3f]",
+			fps, *is_lightmap, intensity, *black_to_alpha,
+			AuxColor->x, AuxColor->y, AuxColor->z);
 	}
 	catch (...) {
 		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
@@ -445,7 +459,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &black_to_alpha))
+		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &black_to_alpha, &(atc.Tint)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);

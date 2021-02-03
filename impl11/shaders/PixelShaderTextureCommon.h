@@ -27,5 +27,7 @@ cbuffer ConstantBuffer : register(b0)
 	uint special_control;
 	float fAmbient;				// Only used in PixelShaderNoGlass and implemented as a "soft-shadeless" setting
 	// 80 bytes
+
+	float4 AuxColor;			// Used as tint for animated frames. Could also be used to apply tint to DC cover textures
 };
 

@@ -86,7 +86,7 @@ uint getBGColor(uint i) {
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 coverColor = texture0.Sample(sampler0, input.tex); // coverColor/texelColor is the cover texture
+	float4 coverColor = AuxColor * texture0.Sample(sampler0, input.tex); // coverColor/texelColor is the cover texture
 	float coverAlpha = coverColor.w; // alpha of the cover texture
 	float3 HSV = RGBtoHSV(coverColor.rgb);
 	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA) 

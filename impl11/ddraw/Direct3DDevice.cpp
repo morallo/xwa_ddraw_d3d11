@@ -2481,6 +2481,10 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
 	g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
 	g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
+	g_PSCBuffer.AuxColor.x		= 1.0f;
+	g_PSCBuffer.AuxColor.y		= 1.0f;
+	g_PSCBuffer.AuxColor.z		= 1.0f;
+	g_PSCBuffer.AuxColor.w		= 1.0f;
 	
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
@@ -4906,6 +4910,7 @@ HRESULT Direct3DDevice::Execute(
 					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
 						(!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1))
 					{
+						bModifiedShaders = true;
 						bModifiedPixelShader = true;
 						//log_debug("[DBG] %s, LightMapATCIndex: %d, TextureATCIndex: %d", lastTextureSelected->_surface->_name,
 						//	lastTextureSelected->material.LightMapATCIndex, lastTextureSelected->material.TextureATCIndex);
@@ -4935,6 +4940,7 @@ HRESULT Direct3DDevice::Execute(
 						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
 						if (atc->BlackToAlpha)
 							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+						g_PSCBuffer.AuxColor = atc->Tint;
 
 						/*
 						// DEBUG
@@ -5385,6 +5391,10 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
 					g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity; // DEFAULT_SPEC_INT;
 					g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
+					g_PSCBuffer.AuxColor.x		= 1.0f;
+					g_PSCBuffer.AuxColor.y		= 1.0f;
+					g_PSCBuffer.AuxColor.z		= 1.0f;
+					g_PSCBuffer.AuxColor.w		= 1.0f;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };

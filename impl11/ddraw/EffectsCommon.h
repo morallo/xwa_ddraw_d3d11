@@ -233,6 +233,9 @@ typedef struct PixelShaderCBStruct {
 	uint32_t special_control;
 	float fAmbient;
 	// 80 bytes
+
+	float4 AuxColor;
+	// 96 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

@@ -29,6 +29,7 @@ typedef struct AnimatedTexControlStruct {
 	int AnimIdx; // This is the current index in the Sequence, it can increase monotonically, or it can be random.
 	float TimeLeft; // Time left for the current index in the sequence.
 	bool IsRandom, BlackToAlpha;
+	float4 Tint;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -36,6 +37,9 @@ typedef struct AnimatedTexControlStruct {
 		TimeLeft = 1.0f;
 		IsRandom = false;
 		BlackToAlpha = false;
+		Tint.x = 1.0f;
+		Tint.y = 1.0f;
+		Tint.z = 1.0f;
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function
