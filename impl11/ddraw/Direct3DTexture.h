@@ -156,6 +156,8 @@ public:
 	STDMETHOD(GetHandle)(THIS_ LPDIRECT3DDEVICE, LPD3DTEXTUREHANDLE);
 	
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
+
+	void LoadAnimatedTextures(int ATCIndex);
 	
 	STDMETHOD(Load)(THIS_ LPDIRECT3DTEXTURE);
 	

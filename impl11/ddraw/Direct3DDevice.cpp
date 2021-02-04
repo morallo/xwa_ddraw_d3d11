@@ -10,6 +10,26 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+
+HOW TO CREATE A SIMPLE TRACKER (from user BenKenobi, I think):
+
+https://forums.xwaupgrade.com/viewtopic.php?f=15&t=12551&p=166877&hilit=opentrack#p166877
+To add to that, You can also use Opentrack with an Aruco Marker. In that way all you need
+is a webcam and a piece of paper! I’m testing this while waiting for IR leds to arrive and
+the results are amazing!
+
+I found a video on this on the internet while waiting for the IR leds and thought I’d give
+it a go, didn’t even print the Aruco Marker, just used a piece of paper and used a black
+Edding marker to make it.
+
+See the video here: https://www.youtube.com/watch?v=ajoUzwe1bT0
+
+I do use it with a PS 3 Eye camera, tried others but the Eye camera perfoms the best, it’s
+not the resolution that’s important but the frame rate.
+
+*/
+
+/*
 Jeremy: Enable film recording in melee missions (PPG/Yard)
 At offset 100AF8, replace 0F8586010000 with 909090909090.
 */
@@ -2920,6 +2940,19 @@ HRESULT Direct3DDevice::Execute(
 					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
 					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
 					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
+					if (bIsTargetHighlighted) g_GameEvent.Target = TGT_EVT_LASER_LOCK;
+					if (PlayerDataTable[*g_playerIndex].warheadArmed) {
+						char state = PlayerDataTable[*g_playerIndex].warheadLockState;
+						switch (state) {
+							// state == 0 warhead armed, no lock
+						case 2:
+							g_GameEvent.Target = TGT_EVT_WARHEAD_LOCKING;
+							break;
+						case 3:
+							g_GameEvent.Target = TGT_EVT_WARHEAD_LOCKED;
+							break;
+						}
+					}
 					bIsGUI = lastTextureSelected->is_GUI;
 					bIsLensFlare = lastTextureSelected->is_LensFlare;
 					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
@@ -4770,9 +4803,9 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1) {
+					else if (!bIsLightTexture && lastTextureSelected->material.GetTextureATCIndex() > -1) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.TextureATCIndex;
+						int anim_idx = lastTextureSelected->material.GetTextureATCIndex();
 						// If this is an animated light map, then use the right intensity setting
 						// TODO: Make the following code more efficient
 						if (anim_idx > -1) {
@@ -4908,7 +4941,7 @@ HRESULT Direct3DDevice::Execute(
 				// Animated Light Maps/Textures
 				if (bHasMaterial) {
 					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
-						(!bIsLightTexture && lastTextureSelected->material.TextureATCIndex > -1))
+						(!bIsLightTexture && lastTextureSelected->material.GetTextureATCIndex() > -1))
 					{
 						bModifiedShaders = true;
 						bModifiedPixelShader = true;
@@ -4929,7 +4962,7 @@ HRESULT Direct3DDevice::Execute(
 							// If we're rendering a DC element, we don't want to replace the shader
 							if (g_PSCBuffer.DynCockpitSlots == 0)
 								resources->InitPixelShader(resources->_noGlassPS);
-							ATCIndex = lastTextureSelected->material.TextureATCIndex;
+							ATCIndex = lastTextureSelected->material.GetTextureATCIndex();
 						}
 
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
@@ -6039,6 +6072,10 @@ HRESULT Direct3DDevice::BeginScene()
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	UpdateDCHologramState();
 	AnimateMaterials();
+
+	// Update the global game event
+	int16_t currentTargetIndex = (int16_t)PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	g_GameEvent.Target = currentTargetIndex < 0 ? TGT_EVT_NO_TARGET : TGT_EVT_SELECTED;
 
 	if (!this->_deviceResources->_renderTargetView)
 	{

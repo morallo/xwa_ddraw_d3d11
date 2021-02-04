@@ -12,6 +12,7 @@ namespace fs = std::filesystem;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
+GameEvent g_GameEvent;
 
 /*
  Contains all the materials for all the OPTs currently loaded
@@ -199,11 +200,13 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is_lightmap, int *black_to_alpha, float4 *AuxColor) {
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, TargetEvent *eventType,
+	int *is_lightmap, int *black_to_alpha, float4 *AuxColor) 
+{
 	int res = 0;
-	char *s = NULL, *t = NULL, path[256];
+	char *s = NULL, *t = NULL, path[256], s_event[80];
 	float fps = 30.0f, intensity = 0.0f, r,g,b;
-	*is_lightmap = 0, *black_to_alpha = 1;
+	*is_lightmap = 0, *black_to_alpha = 1; *eventType = TGT_EVT_NONE;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
 	s = strchr(buf, '=');
@@ -219,13 +222,41 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, int *is
 	if (*t == 0) return false;
 	// End this string on the comma so that we can parse a string
 	*t = 0;
+	// Parse the event
+	try {
+		res = sscanf_s(s, "%s", s_event, 80);
+		if (res < 1) {
+			log_debug("[DBG] [MAT] Error reading event in '%s'", s);
+		}
+		else {
+			log_debug("[DBG] [MAT] EventType: %s", s_event);
+			if (stristr(s_event, "EVT_TGT_SEL"))
+				*eventType = TGT_EVT_SELECTED;
+		}
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT} Could not read event in '%s'", s);
+		return false;
+	}
+
+	// Skip the comma
+	s = t; s += 1;
+	SKIP_WHITESPACES(s);
+
+	// Skip to the next comma
+	t = s;
+	while (*t != 0 && *t != ',') t++;
+	// If we reached the end of the string, that's an error
+	if (*t == 0) return false;
+	// End this string on the comma so that we can parse a string
+	*t = 0;
 	// Parse the texture name
 	try {
 		res = sscanf_s(s, "%s", path, 256);
 		if (res < 1) log_debug("[DBG] [MAT] Error reading path in '%s'", s);
 	}
 	catch (...) {
-		log_debug("[DBG] [MAT} Could not read path in '%s'", s);
+		log_debug("[DBG] [MAT] Could not read path in '%s'", s);
 		return false;
 	}
 
@@ -466,7 +497,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &black_to_alpha, &(atc.Tint)))
+		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &black_to_alpha, &(atc.Tint)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -478,8 +509,16 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			g_AnimatedMaterials.push_back(atc);
 			if (is_lightmap)
 				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
-			else
-				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+			else {
+				switch (atc.Event) {
+				case TGT_EVT_SELECTED:
+					curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
+					break;
+				default:
+					curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+					break;
+				}
+			}
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);

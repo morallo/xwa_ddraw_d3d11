@@ -397,6 +397,52 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
+void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
+	TextureSurface *surface = this->_surface;
+	auto &resources = this->_deviceResources;
+	AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+
+	for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
+		TexSeqElem tex_seq_elem = atc->Sequence[i];
+		char texname[MAX_TEX_SEQ_NAME + 20];
+		ID3D11ShaderResourceView *texSRV = nullptr;
+		wchar_t wTexName[MAX_TEX_SEQ_NAME];
+		size_t len = 0;
+
+		sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
+		mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
+		log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
+			this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
+		// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
+		// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
+		// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
+		// Will have to come back to this later.
+		//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+		//	&(resources->_extraTextures[resources->_numExtraTextures]));
+		HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+		if (FAILED(res)) {
+			log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
+			atc->Sequence[i].ExtraTextureIndex = -1;
+		}
+		else {
+			// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
+			resources->_extraTextures.push_back(texSRV);
+
+			//texSRV->AddRef(); // Without this line, funny things happen
+			//ComPtr<ID3D11ShaderResourceView> p = texSRV;
+			//p->AddRef();
+			//resources->_extraTextures.push_back(p);
+
+			atc->Sequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+
+			//resources->_numExtraTextures++;
+			//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
+			//log_debug("[DBG] [MAT] Added animated texture in slot: %d",
+			//	this->material.LightMapSequence[i].ExtraTextureIndex);
+		}
+	}
+}
+
 void Direct3DTexture::TagTexture() {
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
@@ -894,48 +940,15 @@ void Direct3DTexture::TagTexture() {
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
 				if ((this->material.LightMapATCIndex > -1 && this->is_LightTexture) ||
-					(this->material.TextureATCIndex > -1 && !this->is_LightTexture)) {
-					int ATCIndex = this->is_LightTexture ? this->material.LightMapATCIndex : this->material.TextureATCIndex;
-					AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
-					for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
-						TexSeqElem tex_seq_elem = atc->Sequence[i];
-						char texname[MAX_TEX_SEQ_NAME + 20];
-						ID3D11ShaderResourceView *texSRV = nullptr;
-						wchar_t wTexName[MAX_TEX_SEQ_NAME];
-						size_t len = 0;
-
-						sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
-						mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
-						log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
-							this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
-						// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
-						// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
-						// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
-						// Will have to come back to this later.
-						//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
-						//	&(resources->_extraTextures[resources->_numExtraTextures]));
-						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
-						if (FAILED(res)) {
-							log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
-							atc->Sequence[i].ExtraTextureIndex = -1;
-						}
-						else {
-							// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
-							resources->_extraTextures.push_back(texSRV);
-
-							//texSRV->AddRef(); // Without this line, funny things happen
-							//ComPtr<ID3D11ShaderResourceView> p = texSRV;
-							//p->AddRef();
-							//resources->_extraTextures.push_back(p);
-							
-							atc->Sequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
-							
-							//resources->_numExtraTextures++;
-							//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
-							//log_debug("[DBG] [MAT] Added animated texture in slot: %d",
-							//	this->material.LightMapSequence[i].ExtraTextureIndex);
-						}
-
+					(this->material.AnyTextureATCIndex() && !this->is_LightTexture)) {
+					// Load the animated textures for each valid index
+					if (this->is_LightTexture)
+						LoadAnimatedTextures(this->material.LightMapATCIndex);
+					else {
+						if (this->material.TextureATCIndex > -1)
+							LoadAnimatedTextures(this->material.TextureATCIndex);
+						if (this->material.TgtEvtSelectedATCIndex > -1)
+							LoadAnimatedTextures(this->material.TgtEvtSelectedATCIndex);
 					}
 				}
 				// DEBUG

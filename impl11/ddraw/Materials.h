@@ -10,6 +10,35 @@ constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 constexpr auto MAX_TEX_SEQ_NAME = 80;
 
+// Target Event Enum
+// This enum can be used to trigger animations or changes in materials
+// when target-relate events occur.
+// For now, the plan is to use it to change which animated textures are
+// displayed.
+typedef enum TargetEventEnum {
+	TGT_EVT_NONE,				// Ignore this field (no condition is set, play all the time)
+	// TGT_EVT_NONE should be a global event type, not a target event type ... in case I decide to
+	// have more than one type of event.
+	TGT_EVT_NO_TARGET,			// Nothing's targeted
+	TGT_EVT_SELECTED,			// Something has been targeted
+	TGT_EVT_LASER_LOCK,			// Laser is "locked"
+	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
+	TGT_EVT_WARHEAD_LOCKED		// Warhead is locked (red)
+} TargetEvent;
+
+// I need to think this more carefully: will there be more events?
+typedef struct GameEventStruct {
+	TargetEvent Target;
+	// ... More event types?
+
+	GameEventStruct() {
+		Target = TGT_EVT_NONE;
+	}
+} GameEvent;
+
+// Global game event. Updated throughout the frame, reset in Direct3DDevice::BeginScene()
+extern GameEvent g_GameEvent;
+
 // Used to store the information related to animated light maps that
 // is loaded from .mat files:
 typedef struct TexSeqElemStruct {
@@ -30,6 +59,7 @@ typedef struct AnimatedTexControlStruct {
 	float TimeLeft; // Time left for the current index in the sequence.
 	bool IsRandom, BlackToAlpha;
 	float4 Tint;
+	TargetEvent Event;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -40,6 +70,7 @@ typedef struct AnimatedTexControlStruct {
 		Tint.x = 1.0f;
 		Tint.y = 1.0f;
 		Tint.z = 1.0f;
+		Event = TGT_EVT_NONE;
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function
@@ -80,8 +111,9 @@ typedef struct MaterialStruct {
 	int GroupId;
 	int ImageId;
 
-	int LightMapATCIndex; // Index into the AnimatedTexControl structure that holds LightMap animation data
-	int TextureATCIndex; // Index into the AnimatedTexControl structure that holds Texture animation data
+	int LightMapATCIndex;  // Index into the AnimatedTexControl structure that holds LightMap animation data
+	int TextureATCIndex;   // Index into the AnimatedTexControl structure that holds Texture animation data
+	int TgtEvtSelectedATCIndex; // Index into AnimatedTexControl structure that holds Texture animation data to be played when a target is selected
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -124,6 +156,7 @@ typedef struct MaterialStruct {
 
 		LightMapATCIndex = -1;
 		TextureATCIndex = -1;
+		TgtEvtSelectedATCIndex = -1;
 
 		/*
 		// DEBUG properties, remove later
@@ -136,6 +169,19 @@ typedef struct MaterialStruct {
 		LavaPosMult.z = -1.0f;
 		LavaTranspose = true;
 		*/
+	}
+
+	// Returns true if any of the possible texture indices is enabled
+	inline bool AnyTextureATCIndex() {
+		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1;
+	}
+
+	inline int GetTextureATCIndex() {
+		int index = TextureATCIndex; // Default index
+		// Overrides: these indices are only selected if specific events are set
+		if (g_GameEvent.Target != TGT_EVT_NO_TARGET && TgtEvtSelectedATCIndex > -1)
+			index = TgtEvtSelectedATCIndex;
+		return index;
 	}
 
 } Material;
