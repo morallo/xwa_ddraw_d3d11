@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
-GameEvent g_GameEvent;
+GlobalGameEvent g_GameEvent;
 
 /*
  Contains all the materials for all the OPTs currently loaded
@@ -200,13 +200,13 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, TargetEvent *eventType,
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType,
 	int *is_lightmap, int *black_to_alpha, float4 *AuxColor) 
 {
 	int res = 0;
 	char *s = NULL, *t = NULL, path[256], s_event[80];
 	float fps = 30.0f, intensity = 0.0f, r,g,b;
-	*is_lightmap = 0, *black_to_alpha = 1; *eventType = TGT_EVT_NONE;
+	*is_lightmap = 0, *black_to_alpha = 1; *eventType = EVT_NONE;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
 	s = strchr(buf, '=');
@@ -230,8 +230,14 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, TargetE
 		}
 		else {
 			log_debug("[DBG] [MAT] EventType: %s", s_event);
-			if (stristr(s_event, "EVT_TGT_SEL"))
+			if (stristr(s_event, "EVT_NONE") != NULL)
+				*eventType = EVT_NONE;
+			if (stristr(s_event, "EVT_NO_TARGET") != NULL)
+				*eventType = TGT_EVT_NO_TARGET;
+			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
 				*eventType = TGT_EVT_SELECTED;
+			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
+				*eventType = TGT_EVT_WARHEAD_LOCKED;
 		}
 	}
 	catch (...) {
@@ -513,6 +519,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 				switch (atc.Event) {
 				case TGT_EVT_SELECTED:
 					curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
+					break;
+				case TGT_EVT_WARHEAD_LOCKED:
+					curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
 					break;
 				default:
 					curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;

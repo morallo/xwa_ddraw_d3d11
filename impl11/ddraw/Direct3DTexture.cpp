@@ -945,10 +945,13 @@ void Direct3DTexture::TagTexture() {
 					if (this->is_LightTexture)
 						LoadAnimatedTextures(this->material.LightMapATCIndex);
 					else {
+						// Go over each valid *TextureATCIndex and load their associated animations
 						if (this->material.TextureATCIndex > -1)
 							LoadAnimatedTextures(this->material.TextureATCIndex);
 						if (this->material.TgtEvtSelectedATCIndex > -1)
 							LoadAnimatedTextures(this->material.TgtEvtSelectedATCIndex);
+						if (this->material.TgtEvtWarheadLockedATCIndex > -1)
+							LoadAnimatedTextures(this->material.TgtEvtWarheadLockedATCIndex);
 					}
 				}
 				// DEBUG

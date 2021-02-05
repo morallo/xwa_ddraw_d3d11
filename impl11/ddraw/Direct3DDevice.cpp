@@ -2940,16 +2940,16 @@ HRESULT Direct3DDevice::Execute(
 					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
 					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
 					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
-					if (bIsTargetHighlighted) g_GameEvent.Target = TGT_EVT_LASER_LOCK;
+					if (bIsTargetHighlighted) g_GameEvent.TargetEvent = TGT_EVT_LASER_LOCK;
 					if (PlayerDataTable[*g_playerIndex].warheadArmed) {
 						char state = PlayerDataTable[*g_playerIndex].warheadLockState;
 						switch (state) {
 							// state == 0 warhead armed, no lock
 						case 2:
-							g_GameEvent.Target = TGT_EVT_WARHEAD_LOCKING;
+							g_GameEvent.TargetEvent = TGT_EVT_WARHEAD_LOCKING;
 							break;
 						case 3:
-							g_GameEvent.Target = TGT_EVT_WARHEAD_LOCKED;
+							g_GameEvent.TargetEvent = TGT_EVT_WARHEAD_LOCKED;
 							break;
 						}
 					}
@@ -4803,9 +4803,9 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (!bIsLightTexture && lastTextureSelected->material.GetTextureATCIndex() > -1) {
+					else if (!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex() > -1) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.GetTextureATCIndex();
+						int anim_idx = lastTextureSelected->material.GetCurrentTextureATCIndex();
 						// If this is an animated light map, then use the right intensity setting
 						// TODO: Make the following code more efficient
 						if (anim_idx > -1) {
@@ -4941,7 +4941,7 @@ HRESULT Direct3DDevice::Execute(
 				// Animated Light Maps/Textures
 				if (bHasMaterial) {
 					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
-						(!bIsLightTexture && lastTextureSelected->material.GetTextureATCIndex() > -1))
+						(!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex() > -1))
 					{
 						bModifiedShaders = true;
 						bModifiedPixelShader = true;
@@ -4962,7 +4962,9 @@ HRESULT Direct3DDevice::Execute(
 							// If we're rendering a DC element, we don't want to replace the shader
 							if (g_PSCBuffer.DynCockpitSlots == 0)
 								resources->InitPixelShader(resources->_noGlassPS);
-							ATCIndex = lastTextureSelected->material.GetTextureATCIndex();
+							ATCIndex = lastTextureSelected->material.GetCurrentTextureATCIndex();
+							if (g_bDumpSSAOBuffers)
+								log_debug("[DBG] g_GameEvent.TargetEvent: %d", g_GameEvent.TargetEvent);
 						}
 
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
@@ -6075,7 +6077,7 @@ HRESULT Direct3DDevice::BeginScene()
 
 	// Update the global game event
 	int16_t currentTargetIndex = (int16_t)PlayerDataTable[*g_playerIndex].currentTargetIndex;
-	g_GameEvent.Target = currentTargetIndex < 0 ? TGT_EVT_NO_TARGET : TGT_EVT_SELECTED;
+	g_GameEvent.TargetEvent = currentTargetIndex < 0 ? TGT_EVT_NO_TARGET : TGT_EVT_SELECTED;
 
 	if (!this->_deviceResources->_renderTargetView)
 	{
