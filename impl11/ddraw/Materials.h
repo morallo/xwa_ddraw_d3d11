@@ -18,8 +18,9 @@ How to add support for a new event:
 2. Add a new TextureATCIndex in Material. Initialize it to -1 in the Material constructor
 3. Update AnyTextureATCIndex()
 4. Update GetCurrentTextureATCIndex()
-5. Update LoadFrameSequence() and parse the EVT_* label
-6. Update TagTexture() and load the frames for the new event
+5. Update Materials.cpp:LoadFrameSequence() and parse the EVT_* label
+6. Update Materials.cpp:ReadMaterialLine(), "frame_seq" case, look for switch (atc.Event) and insert into the right index
+7. Update TagTexture() and load the frames for the new event
 
 */
 // Target Event Enum
@@ -124,6 +125,7 @@ typedef struct MaterialStruct {
 	int LightMapATCIndex;  // Index into the AnimatedTexControl structure that holds LightMap animation data
 	int TextureATCIndex;   // Index into the AnimatedTexControl structure that holds Texture animation data
 	int TgtEvtSelectedATCIndex; // Index into AnimatedTexControl structure that holds Texture animation data to be played when a target is selected
+	int TgtEvtLaserLockedATCIndex; // Index into animation data to be played when the laser is "locked"
 	int TgtEvtWarheadLockedATCIndex; // Index into animation data to be played when a warhead is locked
 
 	// DEBUG properties, remove later
@@ -168,6 +170,7 @@ typedef struct MaterialStruct {
 		LightMapATCIndex = -1;
 		TextureATCIndex = -1;
 		TgtEvtSelectedATCIndex = -1;
+		TgtEvtLaserLockedATCIndex = -1;
 		TgtEvtWarheadLockedATCIndex = -1;
 
 		/*
@@ -185,7 +188,8 @@ typedef struct MaterialStruct {
 
 	// Returns true if any of the possible texture indices is enabled
 	inline bool AnyTextureATCIndex() {
-		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1;
+		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 ||
+			TgtEvtLaserLockedATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1;
 	}
 
 	inline int GetCurrentTextureATCIndex() {
@@ -194,6 +198,9 @@ typedef struct MaterialStruct {
 		// Overrides: these indices are only selected if specific events are set
 		
 		// Most specific events first...
+		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TgtEvtLaserLockedATCIndex > -1)
+			return TgtEvtLaserLockedATCIndex;
+		
 		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKED && TgtEvtWarheadLockedATCIndex > -1)
 			return TgtEvtWarheadLockedATCIndex;
 

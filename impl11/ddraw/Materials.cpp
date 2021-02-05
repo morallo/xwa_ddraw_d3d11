@@ -236,6 +236,8 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 				*eventType = TGT_EVT_NO_TARGET;
 			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
 				*eventType = TGT_EVT_SELECTED;
+			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
+				*eventType = TGT_EVT_LASER_LOCK;
 			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
 				*eventType = TGT_EVT_WARHEAD_LOCKED;
 		}
@@ -290,9 +292,9 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			AuxColor->z = 1.0f;
 			AuxColor->w = 1.0f;
 		}
-		log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d; [%0.3f, %0.3f, %0.3f]",
-			fps, *is_lightmap, intensity, *black_to_alpha,
-			AuxColor->x, AuxColor->y, AuxColor->z);
+		//log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d; [%0.3f, %0.3f, %0.3f]",
+		//	fps, *is_lightmap, intensity, *black_to_alpha,
+		//	AuxColor->x, AuxColor->y, AuxColor->z);
 	}
 	catch (...) {
 		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
@@ -519,6 +521,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 				switch (atc.Event) {
 				case TGT_EVT_SELECTED:
 					curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
+					break;
+				case TGT_EVT_LASER_LOCK:
+					curMaterial->TgtEvtLaserLockedATCIndex = g_AnimatedMaterials.size() - 1;
 					break;
 				case TGT_EVT_WARHEAD_LOCKED:
 					curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
