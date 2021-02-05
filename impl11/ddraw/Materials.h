@@ -18,8 +18,8 @@ How to add support for a new event:
 2. Add a new TextureATCIndex in Material. Initialize it to -1 in the Material constructor
 3. Update AnyTextureATCIndex()
 4. Update GetCurrentTextureATCIndex()
-5. Update Materials.cpp:LoadFrameSequence() and parse the EVT_* label
-6. Update Materials.cpp:ReadMaterialLine(), "frame_seq" case, look for switch (atc.Event) and insert into the right index
+5. Update Materials.cpp:ParseEvent() and parse the EVT_* label
+6. Update Materials.cpp:AssignTextureEvent() and assign into the right index
 7. Update TagTexture() and load the frames for the new event
 
 */

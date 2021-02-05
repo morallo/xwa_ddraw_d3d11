@@ -104,16 +104,50 @@ void ListFilesInDir(char *path)
 	if (*s == 0) return false;\
 }
 
+bool ParseEvent(char *s, GameEvent *eventType) {
+	char s_event[80];
+	int res;
+	*eventType = EVT_NONE;
+
+	// Parse the event
+	try {
+		res = sscanf_s(s, "%s", s_event, 80);
+		if (res < 1) {
+			log_debug("[DBG] [MAT] Error reading event in '%s'", s);
+		}
+		else {
+			log_debug("[DBG] [MAT] EventType: %s", s_event);
+			// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
+			if (stristr(s_event, "EVT_NONE") != NULL)
+				*eventType = EVT_NONE;
+			if (stristr(s_event, "EVT_NO_TARGET") != NULL)
+				*eventType = TGT_EVT_NO_TARGET;
+			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
+				*eventType = TGT_EVT_SELECTED;
+			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
+				*eventType = TGT_EVT_LASER_LOCK;
+			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
+				*eventType = TGT_EVT_WARHEAD_LOCKED;
+		}
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT} Could not read event in '%s'", s);
+		return false;
+	}
+	return true;
+}
+
 /*
  Load a texture sequence line of the form:
 
  lightmap_seq|rand|anim_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) {
 	int res = 0;
 	char *s = NULL, *t = NULL, texname[80];
 	float seconds, intensity = 1.0f;
+	*eventType = EVT_NONE;
 	
 	//log_debug("[DBG] [MAT] Reading texture sequence");
 	s = strchr(buf, '=');
@@ -121,6 +155,21 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence) {
 
 	// Skip the equals sign:
 	s += 1;
+
+	// Parse the event, if it exists
+	if (strstr(s, "EVT_") != NULL) {
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseEvent(s, eventType);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
 	
 	while (*s != 0) 
 	{
@@ -204,7 +253,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	int *is_lightmap, int *black_to_alpha, float4 *AuxColor) 
 {
 	int res = 0;
-	char *s = NULL, *t = NULL, path[256], s_event[80];
+	char *s = NULL, *t = NULL, path[256];
 	float fps = 30.0f, intensity = 0.0f, r,g,b;
 	*is_lightmap = 0, *black_to_alpha = 1; *eventType = EVT_NONE;
 
@@ -222,30 +271,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	if (*t == 0) return false;
 	// End this string on the comma so that we can parse a string
 	*t = 0;
-	// Parse the event
-	try {
-		res = sscanf_s(s, "%s", s_event, 80);
-		if (res < 1) {
-			log_debug("[DBG] [MAT] Error reading event in '%s'", s);
-		}
-		else {
-			log_debug("[DBG] [MAT] EventType: %s", s_event);
-			if (stristr(s_event, "EVT_NONE") != NULL)
-				*eventType = EVT_NONE;
-			if (stristr(s_event, "EVT_NO_TARGET") != NULL)
-				*eventType = TGT_EVT_NO_TARGET;
-			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
-				*eventType = TGT_EVT_SELECTED;
-			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
-				*eventType = TGT_EVT_LASER_LOCK;
-			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
-				*eventType = TGT_EVT_WARHEAD_LOCKED;
-		}
-	}
-	catch (...) {
-		log_debug("[DBG] [MAT} Could not read event in '%s'", s);
-		return false;
-	}
+	ParseEvent(s, eventType);
 
 	// Skip the comma
 	s = t; s += 1;
@@ -320,6 +346,24 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	}
 
 	return true;
+}
+
+void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
+{
+	switch (eventType) {
+	case TGT_EVT_SELECTED:
+		curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case TGT_EVT_LASER_LOCK:
+		curMaterial->TgtEvtLaserLockedATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case TGT_EVT_WARHEAD_LOCKED:
+		curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	default: // EVT_NONE and TGT_EVT_NO_TARGET
+		curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	}
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
@@ -470,7 +514,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence))
+		if (!LoadTextureSequence(buf, atc.Sequence, &(atc.Event)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -482,7 +526,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			if (IsLightMap)
 				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
 			else
-				curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
+				AssignTextureEvent(atc.Event, curMaterial);
 
 			/*
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
@@ -517,22 +561,8 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			g_AnimatedMaterials.push_back(atc);
 			if (is_lightmap)
 				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
-			else {
-				switch (atc.Event) {
-				case TGT_EVT_SELECTED:
-					curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
-					break;
-				case TGT_EVT_LASER_LOCK:
-					curMaterial->TgtEvtLaserLockedATCIndex = g_AnimatedMaterials.size() - 1;
-					break;
-				case TGT_EVT_WARHEAD_LOCKED:
-					curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
-					break;
-				default:
-					curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
-					break;
-				}
-			}
+			else
+				AssignTextureEvent(atc.Event, curMaterial);
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
