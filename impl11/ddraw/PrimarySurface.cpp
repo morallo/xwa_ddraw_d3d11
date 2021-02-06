@@ -9958,8 +9958,13 @@ void PrimarySurface::RenderText()
 	g_xwa_text.reserve(4096);
 
 	bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
-	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_bDCApplyEraseRegionCommands &&
-		!bExternalCamera) 
+	// It looks like sometimes the craftInstance table/pointer is not valid during the first few
+	// frames of a new mission. I've seen some intermittent cores when playing with the GUN or
+	// the MIS and then switching to other craft. So adding g_iPresentCounter > 5 seems to prevent
+	// this problem, since we wait for a few frames at the beginning of the mission before we
+	// try to access the CraftInstance table.
+	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_iPresentCounter > 5 &&
+		g_bDCApplyEraseRegionCommands && !bExternalCamera)
 	{
 		// Gather the data we'll need to replace the missiles and countermeasures
 		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
