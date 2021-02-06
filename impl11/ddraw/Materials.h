@@ -71,6 +71,9 @@ typedef struct AnimatedTexControlStruct {
 	bool IsRandom, BlackToAlpha;
 	float4 Tint;
 	GameEvent Event; // Activate this animation according to the value set in this field
+	float2 Offset;
+	float AspectRatio;
+	int Clamp;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -82,6 +85,10 @@ typedef struct AnimatedTexControlStruct {
 		Tint.y = 1.0f;
 		Tint.z = 1.0f;
 		Event = EVT_NONE;
+		Offset.x = 0.0f;
+		Offset.y = 0.0f;
+		AspectRatio = 1.0f;
+		Clamp = 0;
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function

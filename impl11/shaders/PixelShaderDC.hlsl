@@ -86,10 +86,13 @@ uint getBGColor(uint i) {
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 coverColor = AuxColor * texture0.Sample(sampler0, input.tex); // coverColor/texelColor is the cover texture
+	// coverColor/texelColor is the cover texture
+	float2 UV = (input.tex + Offset.xy) * float2(AspectRatio, 1);
+	if (Clamp) UV = saturate(UV);
+	float4 coverColor = AuxColor * texture0.Sample(sampler0, UV);
 	float coverAlpha = coverColor.w; // alpha of the cover texture
 	float3 HSV = RGBtoHSV(coverColor.rgb);
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA) 
+	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		coverAlpha = HSV.z;
 
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly
@@ -214,6 +217,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	else {
 		coverColor = hud_texelColor;
+		coverAlpha = coverColor.w;
 		diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);

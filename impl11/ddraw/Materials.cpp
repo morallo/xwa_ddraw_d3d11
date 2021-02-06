@@ -250,12 +250,18 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 }
 
 bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType,
-	int *is_lightmap, int *black_to_alpha, float4 *AuxColor) 
+	int *is_lightmap, int *black_to_alpha, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
 {
-	int res = 0;
+	int res = 0, clamp;
 	char *s = NULL, *t = NULL, path[256];
-	float fps = 30.0f, intensity = 0.0f, r,g,b;
+	float fps = 30.0f, intensity = 0.0f, r,g,b, OfsX, OfsY, ar;
 	*is_lightmap = 0, *black_to_alpha = 1; *eventType = EVT_NONE;
+	AuxColor->x = 1.0f;
+	AuxColor->y = 1.0f;
+	AuxColor->z = 1.0f;
+	AuxColor->w = 1.0f;
+	Offset->x = 0.0f; Offset->y = 0.0f;
+	*AspectRatio = 1.0f; *Clamp = 0;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
 	s = strchr(buf, '=');
@@ -300,9 +306,9 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
-		res = sscanf_s(s, "%f, %d, %f, %d; %f, %f, %f", 
+		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], (%f, %f), %f, %d", 
 			&fps, is_lightmap, &intensity, black_to_alpha,
-			&r, &g, &b);
+			&r, &g, &b, &OfsX, &OfsY, &ar, &clamp);
 		if (res < 4) {
 			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
 		}
@@ -312,15 +318,15 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			AuxColor->z = b;
 			AuxColor->w = 1.0f;
 		}
-		else {
-			AuxColor->x = 1.0f;
-			AuxColor->y = 1.0f;
-			AuxColor->z = 1.0f;
-			AuxColor->w = 1.0f;
+		if (res >= 9) {
+			Offset->x = OfsX;
+			Offset->y = OfsY;
 		}
-		//log_debug("[DBG] [MAT] frame_seq read: %f, %d, %f, %d; [%0.3f, %0.3f, %0.3f]",
-		//	fps, *is_lightmap, intensity, *black_to_alpha,
-		//	AuxColor->x, AuxColor->y, AuxColor->z);
+		if (res >= 10)
+			*AspectRatio = ar; // Aspect Ratio
+		if (res >= 11)
+			*Clamp = clamp; // clamp uv
+		
 	}
 	catch (...) {
 		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
@@ -549,7 +555,8 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &black_to_alpha, &(atc.Tint)))
+		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &black_to_alpha,
+			&(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);

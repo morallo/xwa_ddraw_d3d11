@@ -43,7 +43,9 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = AuxColor * texture0.Sample(sampler0, input.tex);
+	float2 UV = (input.tex + Offset.xy) * float2(AspectRatio, 1);
+	if (Clamp) UV = saturate(UV);
+	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	float alpha = texelColor.w;
 	float3 HSV = RGBtoHSV(texelColor.rgb); // texelColor is the cover texture
 	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)

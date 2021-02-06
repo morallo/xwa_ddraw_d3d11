@@ -11,6 +11,37 @@
 
 /*
 
+Yes, the cockpit instrument damages seem to be at offset 0x17F and 0x181 in the craft struct. I don't know how to interpret these values.
+But for the craft components damages, there is:
+In XwaCraft struct:
+ 0x01F7  Array<byte, 11> DamageAssessmentsOrder;
+ 0x0202  Array<word, 11> DamageAssessmentsPercent; // 100 = not damaged
+ 0x0218  Array<word, 11> DamageAssessmentsTimeRemaining;
+
+enum DamageAssessmentEnum : unsigned char
+{
+	DamageAssessment_Engines = 0,
+	DamageAssessment_FlightControls = 1,
+	DamageAssessment_CannonSystem = 2,
+	DamageAssessment_ShieldSystem = 3,
+	DamageAssessment_TargetingComputer = 4,
+	DamageAssessment_WarheadLauncher = 5,
+	DamageAssessment_BeamSystem = 6,
+	DamageAssessment_Communications = 7,
+	DamageAssessment_Countermeasures = 8,
+	DamageAssessment_Hyperdrive = 9,
+};
+
+Also, from the "how to get the value of the throttle question", we know that offset 0x181
+seems to behave like a bitfield:
+
+if ((ebp20->XwaCraft_m181 & 64) != 0)
+	<display throttle>
+
+*/
+
+/*
+
 HOW TO CREATE A SIMPLE TRACKER (from user BenKenobi, I think):
 
 https://forums.xwaupgrade.com/viewtopic.php?f=15&t=12551&p=166877&hilit=opentrack#p166877
@@ -2505,7 +2536,8 @@ HRESULT Direct3DDevice::Execute(
 	g_PSCBuffer.AuxColor.y		= 1.0f;
 	g_PSCBuffer.AuxColor.z		= 1.0f;
 	g_PSCBuffer.AuxColor.w		= 1.0f;
-	
+	g_PSCBuffer.AspectRatio		= 1.0f;
+		
 	g_DCPSCBuffer = { 0 };
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
 	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
@@ -4976,6 +5008,9 @@ HRESULT Direct3DDevice::Execute(
 						if (atc->BlackToAlpha)
 							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 						g_PSCBuffer.AuxColor = atc->Tint;
+						g_PSCBuffer.Offset = atc->Offset;
+						g_PSCBuffer.AspectRatio = atc->AspectRatio;
+						g_PSCBuffer.Clamp = atc->Clamp;
 						// TODO: Need to double-check that the line below does not break the bloom with regular
 						// lightmaps/animseqs
 						g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
@@ -5433,6 +5468,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.AuxColor.y		= 1.0f;
 					g_PSCBuffer.AuxColor.z		= 1.0f;
 					g_PSCBuffer.AuxColor.w		= 1.0f;
+					g_PSCBuffer.AspectRatio		= 1.0f;
 
 					if (g_PSCBuffer.DynCockpitSlots > 0) {
 						g_DCPSCBuffer = { 0 };

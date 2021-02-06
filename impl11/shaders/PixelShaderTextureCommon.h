@@ -29,5 +29,8 @@ cbuffer ConstantBuffer : register(b0)
 	// 80 bytes
 
 	float4 AuxColor;			// Used as tint for animated frames. Could also be used to apply tint to DC cover textures
+	float2 Offset;				// Used to offset the input UVs
+	float AspectRatio;			// Used to change the aspect ratio of the input UVs
+	uint Clamp;					// Used to clamp (saturate) the input UVs
 };
 

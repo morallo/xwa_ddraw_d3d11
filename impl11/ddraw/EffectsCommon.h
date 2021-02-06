@@ -27,6 +27,10 @@ typedef struct float4_struct {
 	float x, y, z, w;
 } float4;
 
+typedef struct float2_struct {
+	float x, y;
+} float2;
+
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
 	float mr_aspect_ratio;   // Same as sm_aspect_ratio (g_fCurInGameAspectRatio), remove sm_* later
@@ -236,6 +240,10 @@ typedef struct PixelShaderCBStruct {
 
 	float4 AuxColor;
 	// 96 bytes
+	float2 Offset;
+	float AspectRatio;
+	uint32_t Clamp;
+	// 112
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

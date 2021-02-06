@@ -35,7 +35,9 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = AuxColor * texture0.Sample(sampler0, input.tex);
+	float2 UV = (input.tex + Offset.xy) * float2(AspectRatio, 1);
+	if (Clamp) UV = saturate(UV);
+	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	float  alpha = texelColor.w;
 	float3 color = texelColor.rgb;
 	float3 HSV = RGBtoHSV(color);
@@ -50,8 +52,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
-
-	
 
 	// hook_normals code:
 	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
