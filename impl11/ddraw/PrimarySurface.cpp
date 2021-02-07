@@ -10420,6 +10420,10 @@ void PrimarySurface::RenderSynthDCElems()
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
 
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= 5) goto out;
+
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 	if (objectIndex < 0) goto out;
