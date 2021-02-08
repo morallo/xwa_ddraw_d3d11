@@ -7,6 +7,22 @@ using System.Text;
 using System.Threading.Tasks;
 using JeremyAnsel.Xwa.Dat;
 
+/*
+ 
+ DAT Image Formats:
+
+ - Format 7: 8-bit indexed colors and 1-bit alpha, RLE compressed. 
+   Use: concourse or in-flight.
+
+ - Format 23: 8-bit indexed colors and 8-bit alpha, RLE compressed.
+   Use: concourse.
+
+ - Format 24: 8-bit indexed colors and 8-bit alpha (uncompressed?) Use: in-flight.
+
+ - Format 25: 32-bit ARGB (uncompressed?) Use: in-flight.
+
+ */
+
 namespace DATReader
 {
     public class Main
@@ -45,7 +61,6 @@ namespace DATReader
                 return false;
             }
 
-            //DatFile datFile = DatFile.FromFile(sDatFileName);
             IList<DatGroup> groups = m_DATFile.Groups;
             Trace.WriteLine("[DBG] [C#] groups.Count: " + groups.Count());
             foreach (var group in groups)
@@ -58,8 +73,11 @@ namespace DATReader
                     {
                         if (image.ImageId == ImageId)
                         {
+                            // Release the previous cached image
+                            m_DATImage = null;
                             // Cache the current image
                             m_DATImage = image;
+                            // Populate the output values
                             *Width = image.Width;
                             *Height = image.Height;
                             *Format = (byte)image.Format;
@@ -71,6 +89,45 @@ namespace DATReader
                 }
             }
             return false;
+        }
+
+        [DllExport(CallingConvention.Cdecl)]
+        public static unsafe bool ReadDATImageData(byte *RawData_out, int RawDataSize)
+        {
+            if (m_DATImage == null) {
+                Trace.WriteLine("[DBG] [C#] Must cache an image first");
+                return false;
+            }
+            short W = m_DATImage.Width;
+            short H = m_DATImage.Height;
+            byte[] raw_data = m_DATImage.GetImageData();
+            Trace.WriteLine("[DBG] [C#] raw_data.len: " + raw_data.Length + ", Format: " + m_DATImage.Format);
+
+            m_DATImage.ConvertToFormat25();
+            byte[] data = m_DATImage.GetImageData();
+            int len = data.Length;
+            Trace.WriteLine("[DBG] [C#] RawData, W*H*4 = " + (W * H * 4) + ", len: " + len + ", Format: " + m_DATImage.Format);
+
+            if (RawData_out == null)
+            {
+                Trace.WriteLine("[DBG] [C#] ReadDATImageData: output buffer should not be NULL");
+                return false;
+            }
+
+            try
+            {
+                int min_len = RawDataSize;
+                if (data.Length < min_len) min_len = data.Length;
+                for (UInt32 i = 0; i < min_len; i++)
+                    RawData_out[i] = data[i];
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine("[DBG] [C#] Exception: " + e + ", caught in ReadDATImageData");
+                return false;
+            }
+
+            return true;
         }
     }
 }

@@ -24,7 +24,8 @@
 #include "SharedMem.h"
 
 typedef bool(_cdecl * LoadDATFileFun)(const char *);
-typedef bool (_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
+typedef bool(_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
+typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *, int);
 
 extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:
@@ -1323,10 +1324,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			}
 
 			// Load DATReader
-			if (false) {
+			if (false)
+			{
 				HMODULE hDATReader = LoadLibrary("DATReader.dll");
 				LoadDATFileFun LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
 				GetDATImageMetadataFun GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
+				ReadDATImageDataFun ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(hDATReader, "ReadDATImageData");
+				short Width = 0, Height = 0;
+				uint8_t Format = 0;
+				uint8_t *buf = NULL;
+				int buf_len = 0;
+
 				if (LoadDATFile != NULL) {
 					if (LoadDATFile("Resdata\\HUD.dat"))
 						log_debug("[DBG] [C++] Loaded DAT file");
@@ -1335,12 +1343,21 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				}
 
 				if (GetDATImageMetadata != NULL) {
-					short Width = 0, Height = 0;
-					uint8_t Format = 0;
 					if (GetDATImageMetadata(10000, 300, &Width, &Height, &Format))
 						log_debug("[DBG] [C++] Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
 					else
 						log_debug("[DBG] [C++] Image not found");
+				}
+
+				if (ReadDATImageData != NULL) {
+					buf_len = Width * Height * 4;
+					buf = new uint8_t[buf_len];
+					if (ReadDATImageData(buf, buf_len))
+						log_debug("[DBG] [C++] Read Image Data");
+					else
+						log_debug("[DBG] [C++] Failed to read image data");
+
+					delete[] buf;
 				}
 				FreeLibrary(hDATReader);
 			}
