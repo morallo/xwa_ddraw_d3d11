@@ -158,6 +158,10 @@ public:
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
 
 	void LoadAnimatedTextures(int ATCIndex);
+
+	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
+
+	bool LoadDATImage();
 	
 	STDMETHOD(Load)(THIS_ LPDIRECT3DTEXTURE);
 	

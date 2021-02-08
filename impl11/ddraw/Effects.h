@@ -116,3 +116,8 @@ void CycleFOVSetting();
 float ComputeRealVertFOV();
 float ComputeRealHorzFOV();
 float RealVertFOVToRawFocalLength(float real_FOV);
+
+// DATReader function pointers
+typedef bool(_cdecl * LoadDATFileFun)(const char *);
+typedef bool(_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
+typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *, int);

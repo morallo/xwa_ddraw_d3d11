@@ -20,12 +20,7 @@
 #include "globals.h"
 #include "commonVR.h"
 #include "XWAFramework.h"
-
 #include "SharedMem.h"
-
-typedef bool(_cdecl * LoadDATFileFun)(const char *);
-typedef bool(_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
-typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *, int);
 
 extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:

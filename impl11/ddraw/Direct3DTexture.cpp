@@ -443,10 +443,129 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	}
 }
 
+ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
+{
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	auto& device = resources->_d3dDevice;
+
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	ID3D11Texture2D *texture2D = NULL;
+	ID3D11ShaderResourceView *texture2DSRV = NULL;
+
+	desc.Width = (UINT)Width;
+	desc.Height = (UINT)Height;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = (void *)Buffer;
+	textureData.SysMemPitch = sizeof(uint8_t) * Width * 4;
+	textureData.SysMemSlicePitch = sizeof(uint8_t) * Width * Height * 4;
+
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &texture2D))) {
+		log_debug("[DBG] Failed when calling CreateTexture2D from Buffer, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+	if (FAILED(hr = device->CreateShaderResourceView(texture2D, &shaderResourceViewDesc, &texture2DSRV))) {
+		log_debug("[DBG] Failed when calling CreateShaderResourceView on texture2D, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+out:
+	// DEBUG
+	if (texture2D != NULL) {
+		hr = DirectX::SaveDDSTextureToFile(context, texture2D, L"C:\\Temp\\_DATImage.dds");
+		log_debug("[DBG] Dumped texture2D to file, hr: 0x%x", hr);
+	}
+	// DEBUG
+	if (texture2D != nullptr) texture2D->Release();
+	if (texture2DSRV != nullptr) texture2DSRV->Release();
+	return NULL;
+}
+
+bool Direct3DTexture::LoadDATImage() {
+	HMODULE hDATReader = LoadLibrary("DATReader.dll");
+	bool res = true;
+	if (hDATReader == NULL) return false;
+
+	LoadDATFileFun LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
+	GetDATImageMetadataFun GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
+	ReadDATImageDataFun ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(hDATReader, "ReadDATImageData");
+	short Width = 0, Height = 0;
+	uint8_t Format = 0;
+	uint8_t *buf = NULL;
+	int buf_len = 0;
+
+	if (LoadDATFile == NULL || GetDATImageMetadata == NULL || ReadDATImageData == NULL)
+	{
+		log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
+		res = false;
+		goto out;
+	}
+
+	//if (!LoadDATFile("Resdata\\HUD.dat")) 
+	if (!LoadDATFile("Animations\\RebelCockpitAnimations.dat"))
+	{
+		log_debug("[DBG] [C++] Could not load DAT file");
+		res = false;
+		goto out;
+	}
+
+	if (GetDATImageMetadata(0, 0, &Width, &Height, &Format))
+		log_debug("[DBG] [C++] Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
+	else {
+		log_debug("[DBG] [C++] Image not found");
+		res = false;
+		goto out;
+	}
+
+	buf_len = Width * Height * 4;
+	buf = new uint8_t[buf_len];
+	if (ReadDATImageData(buf, buf_len)) {
+		log_debug("[DBG] [C++] Read Image Data");
+		CreateSRVFromBuffer(buf, Width, Height);
+	}
+	else {
+		log_debug("[DBG] [C++] Failed to read image data");
+		res = false;
+	}
+
+	delete[] buf;
+
+out:
+	if (hDATReader != NULL) FreeLibrary(hDATReader);
+	return res;
+}
+
 void Direct3DTexture::TagTexture() {
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
+
+	static bool bFirstTime = true;
+	if (bFirstTime) {
+		log_debug("[DBG] Loading image from DAT");
+		LoadDATImage();
+		bFirstTime = false;
+	}
 	
 	// DEBUG: Remove later!
 	//log_debug("[DBG] %s", surface->_name);

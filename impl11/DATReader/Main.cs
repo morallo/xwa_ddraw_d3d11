@@ -118,8 +118,21 @@ namespace DATReader
             {
                 int min_len = RawDataSize;
                 if (data.Length < min_len) min_len = data.Length;
-                for (UInt32 i = 0; i < min_len; i++)
-                    RawData_out[i] = data[i];
+                //for (UInt32 i = 0; i < min_len; i++)
+                //    RawData_out[i] = data[i];
+                UInt32 OfsOut = 0, OfsIn = 0;
+                for (int y = 0; y < H; y++)
+                {
+                    for (int x = 0; x < W; x++)
+                    {
+                        RawData_out[OfsOut + 2] = data[OfsIn + 0]; // B
+                        RawData_out[OfsOut + 1] = data[OfsIn + 1]; // G
+                        RawData_out[OfsOut + 0] = data[OfsIn + 2]; // R
+                        RawData_out[OfsOut + 3] = data[OfsIn + 3]; // A
+                        OfsIn += 4;
+                        OfsOut += 4;
+                    }
+                }
             }
             catch (Exception e)
             {
