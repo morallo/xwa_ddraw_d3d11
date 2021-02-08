@@ -23,6 +23,9 @@
 
 #include "SharedMem.h"
 
+typedef bool(_cdecl * LoadDATFileFun)(const char *);
+typedef bool (_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
+
 extern SharedData *g_pSharedData;
 // ddraw is loaded after the hooks, so here we open an existing shared memory handle:
 SharedMem g_SharedMem(false);
@@ -1317,6 +1320,29 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				// At offset 100AF8 (address 400C00 + 100AF8), replace 0F 85 86 01 00 00 with 9090 9090 9090 (6 bytes)
 				PatchWithValue(XWABase + 0x100AF8, 0x90, 6);
 				log_debug("[DBG] [PATCH] Enabled Melee Recordings");
+			}
+
+			// Load DATReader
+			if (false) {
+				HMODULE hDATReader = LoadLibrary("DATReader.dll");
+				LoadDATFileFun LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
+				GetDATImageMetadataFun GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
+				if (LoadDATFile != NULL) {
+					if (LoadDATFile("Resdata\\HUD.dat"))
+						log_debug("[DBG] [C++] Loaded DAT file");
+					else
+						log_debug("[DBG] [C++] Could not load DAT file");
+				}
+
+				if (GetDATImageMetadata != NULL) {
+					short Width = 0, Height = 0;
+					uint8_t Format = 0;
+					if (GetDATImageMetadata(10000, 300, &Width, &Height, &Format))
+						log_debug("[DBG] [C++] Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
+					else
+						log_debug("[DBG] [C++] Image not found");
+				}
+				FreeLibrary(hDATReader);
 			}
 		}
 		break;
