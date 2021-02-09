@@ -1318,6 +1318,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				log_debug("[DBG] [PATCH] Enabled Melee Recordings");
 			}
 
+			/*
 			// Load DATReader
 			if (false)
 			{
@@ -1356,6 +1357,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				}
 				FreeLibrary(hDATReader);
 			}
+			*/
 		}
 		break;
 	case DLL_THREAD_ATTACH:

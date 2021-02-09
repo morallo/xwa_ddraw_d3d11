@@ -161,7 +161,7 @@ public:
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 
-	bool LoadDATImage();
+	ID3D11ShaderResourceView *LoadDATImage(char *sDATFileName, int GroupId, int ImageId);
 	
 	STDMETHOD(Load)(THIS_ LPDIRECT3DTEXTURE);
 	

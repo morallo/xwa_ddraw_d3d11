@@ -31,17 +31,37 @@ namespace DATReader
         static DatFile m_DATFile = null;
         // Cached image var. This must be loaded before accessing raw image data.
         // This var is loaded in GetDATImageMetadata below
-        static DatImage m_DATImage = null; 
+        static DatImage m_DATImage = null;
+        // Enable verbosity
+        static bool m_Verbose = false;
+
+        [DllExport(CallingConvention.Cdecl)]
+        public static void SetDATVerbosity(bool Verbose)
+        {
+            m_Verbose = Verbose;
+        }
 
         [DllExport(CallingConvention.Cdecl)]
         public static bool LoadDATFile([MarshalAs(UnmanagedType.LPStr)] string sDatFileName)
         {
-            Trace.WriteLine("[DBG] [C#] Loading File: " + sDatFileName);
+            // First, let's check if this DAT file is already loaded:
+            if (m_DATFile != null && m_DATFile.FileName.ToLower().Equals(sDatFileName.ToLower()))
+            {
+                if (m_Verbose) Trace.WriteLine("[DBG] [C#] DAT File " + sDatFileName + " already loaded");
+                return true;
+            }
+
+            if (m_Verbose) Trace.WriteLine("[DBG] [C#] Loading File: " + sDatFileName);
             try
             {
                 m_DATImage = null; // Release any previous instances
                 m_DATFile = null; // Release any previous instances
                 m_DATFile = DatFile.FromFile(sDatFileName);
+                if (m_DATFile == null)
+                {
+                    if (m_Verbose) Trace.WriteLine("[DBG] [C#] Failed when loading: " + sDatFileName);
+                    return false;
+                }
             }
             catch (Exception e)
             {
@@ -62,15 +82,11 @@ namespace DATReader
             }
 
             IList<DatGroup> groups = m_DATFile.Groups;
-            Trace.WriteLine("[DBG] [C#] groups.Count: " + groups.Count());
             foreach (var group in groups)
-            {
-                Trace.WriteLine("[DBG] [C#] GroupID: " + group.GroupId);
                 if (group.GroupId == GroupId)
                 {
                     IList<DatImage> images = group.Images;
                     foreach (var image in images)
-                    {
                         if (image.ImageId == ImageId)
                         {
                             // Release the previous cached image
@@ -81,13 +97,12 @@ namespace DATReader
                             *Width = image.Width;
                             *Height = image.Height;
                             *Format = (byte)image.Format;
-                            Trace.WriteLine("[DBG] [C#] Success. Found " + GroupId + "-" + ImageId + ", " +
+                            if (m_Verbose) Trace.WriteLine("[DBG] [C#] Found " + GroupId + "-" + ImageId + ", " +
                                 "MetaData: (" + image.Width + ", " + image.Height + "), Type: " + image.Format);
                             return true;
                         }
-                    }
+
                 }
-            }
             return false;
         }
 
@@ -98,15 +113,14 @@ namespace DATReader
                 Trace.WriteLine("[DBG] [C#] Must cache an image first");
                 return false;
             }
+            
+            //m_DATImage.ConvertToFormat25(); // Looks like there's no need to do any conversion
             short W = m_DATImage.Width;
             short H = m_DATImage.Height;
-            byte[] raw_data = m_DATImage.GetImageData();
-            Trace.WriteLine("[DBG] [C#] raw_data.len: " + raw_data.Length + ", Format: " + m_DATImage.Format);
-
-            m_DATImage.ConvertToFormat25();
             byte[] data = m_DATImage.GetImageData();
             int len = data.Length;
-            Trace.WriteLine("[DBG] [C#] RawData, W*H*4 = " + (W * H * 4) + ", len: " + len + ", Format: " + m_DATImage.Format);
+            if (m_Verbose)
+                Trace.WriteLine("[DBG] [C#] RawData, W*H*4 = " + (W * H * 4) + ", len: " + len + ", Format: " + m_DATImage.Format);
 
             if (RawData_out == null)
             {
@@ -118,8 +132,6 @@ namespace DATReader
             {
                 int min_len = RawDataSize;
                 if (data.Length < min_len) min_len = data.Length;
-                //for (UInt32 i = 0; i < min_len; i++)
-                //    RawData_out[i] = data[i];
                 UInt32 OfsOut = 0, OfsIn = 0;
                 for (int y = 0; y < H; y++)
                 {

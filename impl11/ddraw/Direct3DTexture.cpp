@@ -499,59 +499,68 @@ out:
 	if (texture2D != nullptr) texture2D->Release();
 	if (texture2DSRV != nullptr) texture2DSRV->Release();
 	return NULL;
+	//return texture2DSRV;
 }
 
-bool Direct3DTexture::LoadDATImage() {
-	HMODULE hDATReader = LoadLibrary("DATReader.dll");
-	bool res = true;
-	if (hDATReader == NULL) return false;
-
-	LoadDATFileFun LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
-	GetDATImageMetadataFun GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
-	ReadDATImageDataFun ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(hDATReader, "ReadDATImageData");
+ID3D11ShaderResourceView *Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId)
+{
+	static HMODULE hDATReader = nullptr;
+	static LoadDATFileFun LoadDATFile = nullptr;
+	static GetDATImageMetadataFun GetDATImageMetadata = nullptr;
+	static ReadDATImageDataFun ReadDATImageData = nullptr;
+	static SetDATVerbosityFun SetDATVerbosity = nullptr;
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
-	uint8_t *buf = NULL;
+	uint8_t *buf = nullptr;
 	int buf_len = 0;
+	ID3D11ShaderResourceView *res = nullptr;
 
-	if (LoadDATFile == NULL || GetDATImageMetadata == NULL || ReadDATImageData == NULL)
+	if (hDATReader == nullptr) 
 	{
-		log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
-		res = false;
-		goto out;
+		hDATReader = LoadLibrary("DATReader.dll");
+		if (hDATReader == nullptr) {
+			LoadDATFile = nullptr;
+			GetDATImageMetadata = nullptr;
+			ReadDATImageData = nullptr;
+			return nullptr;
+		}
+			
+		LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
+		GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
+		ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(hDATReader, "ReadDATImageData");
+		SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(hDATReader, "SetDATVerbosity");
+		if (LoadDATFile == nullptr || GetDATImageMetadata == nullptr || ReadDATImageData == nullptr)
+		{
+			log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
+			FreeLibrary(hDATReader);
+			hDATReader = nullptr;
+			return nullptr;
+		}
 	}
 
-	//if (!LoadDATFile("Resdata\\HUD.dat")) 
-	if (!LoadDATFile("Animations\\RebelCockpitAnimations.dat"))
-	{
-		log_debug("[DBG] [C++] Could not load DAT file");
-		res = false;
-		goto out;
+	// hDATReader must be loaded already and all the functions are available
+	//if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
+
+	if (!LoadDATFile(sDATFileName)) {
+		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
+		return nullptr;
 	}
 
-	if (GetDATImageMetadata(0, 0, &Width, &Height, &Format))
-		log_debug("[DBG] [C++] Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
+	if (GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format))
+		log_debug("[DBG] [C++] DAT Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
 	else {
-		log_debug("[DBG] [C++] Image not found");
-		res = false;
-		goto out;
+		log_debug("[DBG] [C++] DAT Image not found");
+		return nullptr;
 	}
 
 	buf_len = Width * Height * 4;
 	buf = new uint8_t[buf_len];
-	if (ReadDATImageData(buf, buf_len)) {
-		log_debug("[DBG] [C++] Read Image Data");
-		CreateSRVFromBuffer(buf, Width, Height);
-	}
-	else {
+	if (ReadDATImageData(buf, buf_len))
+		res = CreateSRVFromBuffer(buf, Width, Height);
+	else
 		log_debug("[DBG] [C++] Failed to read image data");
-		res = false;
-	}
 
-	delete[] buf;
-
-out:
-	if (hDATReader != NULL) FreeLibrary(hDATReader);
+	if (buf != nullptr) delete[] buf;
 	return res;
 }
 
@@ -560,12 +569,15 @@ void Direct3DTexture::TagTexture() {
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
 
+	/*
 	static bool bFirstTime = true;
 	if (bFirstTime) {
 		log_debug("[DBG] Loading image from DAT");
-		LoadDATImage();
+		LoadDATImage("ResData\\HUD.dat", 10000, 300);
+		//LoadDATImage("Animations\\RebelCockpitAnimations.dat", 0, 0);
 		bFirstTime = false;
 	}
+	*/
 	
 	// DEBUG: Remove later!
 	//log_debug("[DBG] %s", surface->_name);
