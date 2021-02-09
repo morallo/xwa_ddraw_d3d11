@@ -394,9 +394,9 @@ struct PlayerDataEntry
 	char field_60;
 	__int16 rollDelayTimer;
 	char field_63;
-	char hudActive1;
+	char hudActive1; // IsHUDVisible;
 	char hudActive2;
-	char simpleHUD;
+	char simpleHUD;  // Alt+.: 1 when only the reticle is visible.
 	char bottomLeftPanel;
 	char bottomRightPanel;
 	char activeWeapon;

@@ -137,6 +137,7 @@
 	inline const auto mouseLookResetPosition = (int*)0x9E962C;
 	inline const auto g_FlightSurfaceHeight = (DWORD*)0x07D4B6C;
 	inline auto g_hudScale = (DWORD*)0x06002B8;
+	inline byte *g_IsCMDVisible = (byte *)0x05B5334;
 	inline uint32_t* g_XwaFlightHudColor = (uint32_t*)0x005B5318; // The current HUD color
 	inline uint32_t* g_XwaFlightHudBorderColor = (uint32_t*)0x005B531C; // The current HUD border color
 

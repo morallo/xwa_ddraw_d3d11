@@ -10434,7 +10434,9 @@ void PrimarySurface::RenderSynthDCElems()
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 	if (craftInstance == NULL) goto out;
 
-	if (g_bRenderLaserIonEnergyLevels) {
+	// The Simple HUD is activated with Alt+. and it only displays the reticle
+	if (g_bRenderLaserIonEnergyLevels && !PlayerDataTable[*g_playerIndex].simpleHUD && *g_IsCMDVisible) {
+		//log_debug("[DBG] HUD visible: %d, CMD Visible: %d", PlayerDataTable[*g_playerIndex].simpleHUD, *g_IsCMDVisible);
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
 			rect.left = g_fCurScreenWidth * dcElemSrcBox->coords.x0;
