@@ -56,10 +56,12 @@ typedef struct TexSeqElemStruct {
 	int ExtraTextureIndex;
 	char texname[MAX_TEX_SEQ_NAME];
 	float seconds, intensity;
+	bool IsDATImage;
 
 	TexSeqElemStruct() {
 		ExtraTextureIndex = -1;
 		texname[0] = 0;
+		IsDATImage = false;
 	}
 } TexSeqElem;
 

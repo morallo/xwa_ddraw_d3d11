@@ -235,6 +235,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
 		tex_seq_elem.seconds = seconds;
 		tex_seq_elem.intensity = intensity;
+		tex_seq_elem.IsDATImage = false;
 		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 		tex_seq_elem.ExtraTextureIndex = -1;
 		tex_sequence.push_back(tex_seq_elem);
@@ -333,22 +334,67 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 		return false;
 	}
 
-	// We just finished reading the path where a frame sequence is stored
-	// Now we need to load all the frames in that path into a tex_seq_elem
+	// The path is either an actual path that contains the frame sequence, or it's
+	// a group name. Let's check if it's a path
 	TexSeqElem tex_seq_elem;
 	std::string s_path = std::string("Animations\\") + std::string(path);
-	//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
-	for (const auto & entry : fs::directory_iterator(s_path)) {
-		// Surely there's a better way to get the filename...
-		std::string filename = std::string(path) + "\\" + entry.path().filename().string();
-		//log_debug("[DBG] file: %s", filename.c_str());
+	if (fs::is_directory(s_path)) {
+		// We just finished reading the path where a frame sequence is stored
+		// Now we need to load all the frames in that path into a tex_seq_elem
 
-		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
-		tex_seq_elem.seconds = 1.0f / fps;
-		tex_seq_elem.intensity = intensity;
-		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
-		tex_seq_elem.ExtraTextureIndex = -1;
-		tex_sequence.push_back(tex_seq_elem);
+		//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+		for (const auto & entry : fs::directory_iterator(s_path)) {
+			// Surely there's a better way to get the filename...
+			std::string filename = std::string(path) + "\\" + entry.path().filename().string();
+			//log_debug("[DBG] file: %s", filename.c_str());
+
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
+			tex_seq_elem.IsDATImage = false;
+			tex_seq_elem.seconds = 1.0f / fps;
+			tex_seq_elem.intensity = intensity;
+			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+			tex_seq_elem.ExtraTextureIndex = -1;
+			tex_sequence.push_back(tex_seq_elem);
+		}
+	}
+	// s_path is not a directory let's see if we're trying to load a DAT group:
+	else if (stristr(path, ".dat-") != NULL) {
+		int split_idx = s_path.find_last_of('-');
+		if (split_idx > 0) {
+			
+			// s_path already contains the subdir 'Animations', so we can use that here:
+			std::string sDATFileName = s_path.substr(0, split_idx);
+			std::string sGroup = s_path.substr(split_idx + 1);
+			log_debug("[DBG] sDATFileName: %s, Group: %s", sDATFileName.c_str(), sGroup.c_str());
+
+			short GroupId = -1;
+			try {
+				GroupId = (short)std::stoi(sGroup);
+				std::vector<short> ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
+				log_debug("[DBG] Group %d has %d images", GroupId, ImageList.size());
+				// Iterate over the list of Images and add one TexSeqElem for each one of them
+				/*
+				for each (short ImageId in ImageList)
+				{
+					// Store the DAT filename in texname and set the appropriate flag
+					// TODO: Update the SRV-loading code in Direct3DTexture::TagTexture() to load
+					//		 images from DAT files.
+					strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+					tex_seq_elem.IsDATImage = true;
+					tex_seq_elem.seconds = 1.0f / fps;
+					tex_seq_elem.intensity = intensity;
+					// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+					tex_seq_elem.ExtraTextureIndex = -1;
+					tex_sequence.push_back(tex_seq_elem);
+				}
+				*/
+				ImageList.clear();
+			}
+			catch (...) {
+				log_debug("[DBG] Could not parse: %s into an integer", sGroup.c_str());
+			}
+			
+		}
 	}
 
 	return true;
@@ -500,7 +546,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		// 1: Blend with the original texture
 		// 2: Replace original texture with procedural explosion
 		curMaterial->ExplosionBlendMode = (int)fValue;
-	}
+	} 
 	else if (_stricmp(param, "lightmap_seq") == 0 ||
 			 _stricmp(param, "lightmap_rand") == 0 ||
 			 _stricmp(param, "anim_seq") == 0 ||

@@ -197,6 +197,20 @@ bool g_bInTechRoom = false; // Set to true in PrimarySurface Present 2D (Flip)
 
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
+// **************************
+// DATReader global vars and function pointers
+HMODULE g_hDATReader = nullptr;
+
+LoadDATFileFun				LoadDATFile = nullptr;
+GetDATImageMetadataFun		GetDATImageMetadata = nullptr;
+ReadDATImageDataFun			ReadDATImageData = nullptr;
+SetDATVerbosityFun			SetDATVerbosity = nullptr;
+GetDATGroupImageCountFun	GetDATGroupImageCount = nullptr;
+GetDATGroupImageListFun		GetDATGroupImageList = nullptr;
+// bool g_bEnableDATReader; // TODO
+// **************************
+
+
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
@@ -352,4 +366,68 @@ void CycleFOVSetting()
 		g_bYCenterHasBeenFixed = false;
 		g_bCustomFOVApplied = false;
 	}
+}
+
+bool InitDATReader() {
+	if (g_hDATReader != nullptr)
+		return true;
+
+	g_hDATReader = LoadLibrary("DATReader.dll");
+	if (g_hDATReader == nullptr) {
+		LoadDATFile = nullptr;
+		GetDATImageMetadata = nullptr;
+		ReadDATImageData = nullptr;
+		return false;
+	}
+
+	LoadDATFile = (LoadDATFileFun)GetProcAddress(g_hDATReader, "LoadDATFile");
+	GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(g_hDATReader, "GetDATImageMetadata");
+	ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(g_hDATReader, "ReadDATImageData");
+	SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(g_hDATReader, "SetDATVerbosity");
+	SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(g_hDATReader, "SetDATVerbosity");
+	GetDATGroupImageCount = (GetDATGroupImageCountFun)GetProcAddress(g_hDATReader, "GetDATGroupImageCount");
+	GetDATGroupImageList = (GetDATGroupImageListFun)GetProcAddress(g_hDATReader, "GetDATGroupImageList");
+	if (LoadDATFile == nullptr || GetDATImageMetadata == nullptr || ReadDATImageData == nullptr ||
+		SetDATVerbosity == nullptr || GetDATGroupImageCount == nullptr || GetDATGroupImageList == nullptr)
+	{
+		log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
+		FreeLibrary(g_hDATReader);
+		g_hDATReader = nullptr;
+		return false;
+	}
+	return true;
+}
+
+void CloseDATReader() {
+	if (g_hDATReader == nullptr)
+		return;
+
+	FreeLibrary(g_hDATReader);
+	g_hDATReader = nullptr;
+}
+
+std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int GroupId) {
+	std::vector<short> result;
+	if (!InitDATReader()) { // Idempotent call, does nothing if DATReader is already loaded
+		result.clear();
+		return result;
+	}
+
+	if (!LoadDATFile(sDATFileName)) {
+		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
+		return result;
+	}
+
+	int NumImages = GetDATGroupImageCount(GroupId);
+	if (NumImages > 0) {
+		short *ImageIds = new short[NumImages];
+		if (GetDATGroupImageList(GroupId, ImageIds, NumImages)) {
+			for (int i = 0; i < NumImages; i++) {
+				result.push_back(ImageIds[i]);
+				//log_debug("[DBG] DAT ImageId: %d added", ImageIds[i]);
+			}
+		}
+		delete[] ImageIds;
+	}
+	return result;
 }

@@ -504,42 +504,16 @@ out:
 
 ID3D11ShaderResourceView *Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId)
 {
-	static HMODULE hDATReader = nullptr;
-	static LoadDATFileFun LoadDATFile = nullptr;
-	static GetDATImageMetadataFun GetDATImageMetadata = nullptr;
-	static ReadDATImageDataFun ReadDATImageData = nullptr;
-	static SetDATVerbosityFun SetDATVerbosity = nullptr;
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
 	uint8_t *buf = nullptr;
 	int buf_len = 0;
 	ID3D11ShaderResourceView *res = nullptr;
 
-	if (hDATReader == nullptr) 
-	{
-		hDATReader = LoadLibrary("DATReader.dll");
-		if (hDATReader == nullptr) {
-			LoadDATFile = nullptr;
-			GetDATImageMetadata = nullptr;
-			ReadDATImageData = nullptr;
-			return nullptr;
-		}
-			
-		LoadDATFile = (LoadDATFileFun)GetProcAddress(hDATReader, "LoadDATFile");
-		GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(hDATReader, "GetDATImageMetadata");
-		ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(hDATReader, "ReadDATImageData");
-		SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(hDATReader, "SetDATVerbosity");
-		if (LoadDATFile == nullptr || GetDATImageMetadata == nullptr || ReadDATImageData == nullptr)
-		{
-			log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
-			FreeLibrary(hDATReader);
-			hDATReader = nullptr;
-			return nullptr;
-		}
-	}
+	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
+		return nullptr;
 
-	// hDATReader must be loaded already and all the functions are available
-	//if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
+	if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
 
 	if (!LoadDATFile(sDATFileName)) {
 		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);

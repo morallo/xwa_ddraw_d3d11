@@ -117,8 +117,22 @@ float ComputeRealVertFOV();
 float ComputeRealHorzFOV();
 float RealVertFOVToRawFocalLength(float real_FOV);
 
+// ********************************
 // DATReader function pointers
-typedef void(_cdecl * SetDATVerbosityFun)(bool);
-typedef bool(_cdecl * LoadDATFileFun)(const char *);
-typedef bool(_cdecl * GetDATImageMetadataFun)(int, int, short *, short *, uint8_t *);
-typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *, int);
+typedef void(_cdecl * SetDATVerbosityFun)(bool Verbose);
+typedef bool(_cdecl * LoadDATFileFun)(const char *sDatFileName);
+typedef bool(_cdecl * GetDATImageMetadataFun)(int GroupId, int ImageId, short *Width_out, short *Height_out, uint8_t *Format_out);
+typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *RawData_out, int RawData_size);
+typedef int(_cdecl * GetDATGroupImageCountFun)(int GroupId);
+typedef bool(_cdecl * GetDATGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
+
+extern LoadDATFileFun LoadDATFile;
+extern GetDATImageMetadataFun GetDATImageMetadata;
+extern ReadDATImageDataFun ReadDATImageData;
+extern SetDATVerbosityFun SetDATVerbosity;
+extern GetDATGroupImageCountFun GetDATGroupImageCount;
+extern GetDATGroupImageListFun GetDATGroupImageList;
+
+bool InitDATReader();
+void CloseDATReader();
+std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int GroupId);

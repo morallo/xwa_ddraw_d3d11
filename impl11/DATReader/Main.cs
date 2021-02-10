@@ -107,7 +107,7 @@ namespace DATReader
         }
 
         [DllExport(CallingConvention.Cdecl)]
-        public static unsafe bool ReadDATImageData(byte *RawData_out, int RawDataSize)
+        public static unsafe bool ReadDATImageData(byte *RawData_out, int RawData_size)
         {
             if (m_DATImage == null) {
                 Trace.WriteLine("[DBG] [C#] Must cache an image first");
@@ -130,7 +130,7 @@ namespace DATReader
 
             try
             {
-                int min_len = RawDataSize;
+                int min_len = RawData_size;
                 if (data.Length < min_len) min_len = data.Length;
                 UInt32 OfsOut = 0, OfsIn = 0;
                 for (int y = 0; y < H; y++)
@@ -153,6 +153,46 @@ namespace DATReader
             }
 
             return true;
+        }
+
+        [DllExport(CallingConvention.Cdecl)]
+        public static int GetDATGroupImageCount(int GroupId)
+        {
+            if (m_DATFile == null)
+            {
+                Trace.WriteLine("[DBG] [C#] Load a DAT file first");
+                return 0;
+            }
+
+            foreach (var group in m_DATFile.Groups)
+                if (group.GroupId == GroupId)
+                    return group.Images.Count;
+            return 0;
+        }
+
+        [DllExport(CallingConvention.Cdecl)]
+        public static unsafe bool GetDATGroupImageList(int GroupId, short *ImageIds_out, int ImageIds_size)
+        {
+            if (m_DATFile == null)
+            {
+                Trace.WriteLine("[DBG] [C#] Load a DAT file first");
+                return false;
+            }
+
+            foreach (var group in m_DATFile.Groups)
+                if (group.GroupId == GroupId)
+                {
+                    int Ofs = 0;
+                    foreach (var image in group.Images)
+                    {
+                        ImageIds_out[Ofs] = image.ImageId;
+                        if (m_Verbose) Trace.WriteLine("[DBG] [C#] Stored ImageId: " + image.ImageId);
+                        // Advance the output index, but prevent an overflow
+                        if (Ofs < ImageIds_size) Ofs++;
+                    }
+                    return true;
+                }
+            return false;
         }
     }
 }
