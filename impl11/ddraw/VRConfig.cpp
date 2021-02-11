@@ -2413,6 +2413,7 @@ void ReloadMaterials()
 	}
 
 	log_debug("[DBG] [MAT] Reloading materials.");
+	ClearAnimatedMaterials();
 	ClearCraftMaterials();
 	ClearOPTnames();
 

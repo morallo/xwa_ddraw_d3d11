@@ -560,16 +560,6 @@ void Direct3DTexture::TagTexture() {
 	auto &resources = this->_deviceResources;
 	this->is_Tagged = true;
 
-	/*
-	static bool bFirstTime = true;
-	if (bFirstTime) {
-		log_debug("[DBG] Loading image from DAT");
-		LoadDATImage("ResData\\HUD.dat", 10000, 300);
-		//LoadDATImage("Animations\\RebelCockpitAnimations.dat", 0, 0);
-		bFirstTime = false;
-	}
-	*/
-	
 	// DEBUG: Remove later!
 	//log_debug("[DBG] %s", surface->_name);
 	{

@@ -1318,8 +1318,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				log_debug("[DBG] [PATCH] Enabled Melee Recordings");
 			}
 
+			// DATReader debug block
 			/*
-			// Load DATReader
 			if (false)
 			{
 				HMODULE hDATReader = LoadLibrary("DATReader.dll");

@@ -1212,9 +1212,7 @@ void DeviceResources::ResetExtraTextures() {
 	_extraTextures.clear();
 
 	// Clear any references to the animated materials as well:
-	for (AnimatedTexControl atc : g_AnimatedMaterials)
-		atc.Sequence.clear();
-	g_AnimatedMaterials.clear();
+	ClearAnimatedMaterials();
 }
 
 HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)

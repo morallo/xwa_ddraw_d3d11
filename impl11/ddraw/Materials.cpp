@@ -307,9 +307,9 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
-		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], (%f, %f), %f, %d", 
+		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, (%f, %f), %d", 
 			&fps, is_lightmap, &intensity, black_to_alpha,
-			&r, &g, &b, &OfsX, &OfsY, &ar, &clamp);
+			&r, &g, &b, &ar, &OfsX, &OfsY, &clamp);
 		if (res < 4) {
 			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
 		}
@@ -319,12 +319,12 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			AuxColor->z = b;
 			AuxColor->w = 1.0f;
 		}
-		if (res >= 9) {
+		if (res >= 8)
+			*AspectRatio = ar; // Aspect Ratio
+		if (res >= 10) {
 			Offset->x = OfsX;
 			Offset->y = OfsY;
 		}
-		if (res >= 10)
-			*AspectRatio = ar; // Aspect Ratio
 		if (res >= 11)
 			*Clamp = clamp; // clamp uv
 		
@@ -968,4 +968,10 @@ void AnimateMaterials() {
 		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
 		atc->Animate();
 	}
+}
+
+void ClearAnimatedMaterials() {
+	for (AnimatedTexControl atc : g_AnimatedMaterials)
+		atc.Sequence.clear();
+	g_AnimatedMaterials.clear();
 }

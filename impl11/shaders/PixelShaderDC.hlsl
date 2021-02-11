@@ -87,7 +87,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	// coverColor/texelColor is the cover texture
-	float2 UV = (input.tex + Offset.xy) * float2(AspectRatio, 1);
+	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 	float4 coverColor = AuxColor * texture0.Sample(sampler0, UV);
 	float coverAlpha = coverColor.w; // alpha of the cover texture

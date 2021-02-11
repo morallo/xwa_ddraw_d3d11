@@ -291,3 +291,5 @@ int FindCraftMaterial(char* OPTname);
 Material FindMaterial(int CraftIndex, char* TexName, bool debug = false);
 // Iterate over all the g_AnimatedMaterials and update their timers
 void AnimateMaterials();
+// Clears g_AnimatedMaterials
+void ClearAnimatedMaterials();

@@ -35,7 +35,7 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float2 UV = (input.tex + Offset.xy) * float2(AspectRatio, 1);
+	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	float  alpha = texelColor.w;
