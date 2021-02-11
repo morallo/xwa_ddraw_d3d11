@@ -22,6 +22,7 @@ class DepthSurface;
 class BackbufferSurface;
 class FrontbufferSurface;
 class OffscreenSurface;
+class StereoRenderer;
 
 #define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define LINEAR_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
@@ -184,6 +185,7 @@ public:
 	ComPtr<ID3D11Device> _d3dDevice;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
 	ComPtr<IDXGISwapChain> _swapChain;
+
 	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
@@ -509,4 +511,6 @@ public:
 	BackbufferSurface* _backbufferSurface;
 	FrontbufferSurface* _frontbufferSurface;
 	OffscreenSurface* _offscreenSurface;
+
+	StereoRenderer* _stereoRenderer;
 };
