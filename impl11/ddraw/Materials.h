@@ -53,7 +53,7 @@ extern GlobalGameEvent g_GameEvent;
 // Used to store the information related to animated light maps that
 // is loaded from .mat files:
 typedef struct TexSeqElemStruct {
-	int ExtraTextureIndex;
+	int ExtraTextureIndex, GroupId, ImageId;
 	char texname[MAX_TEX_SEQ_NAME];
 	float seconds, intensity;
 	bool IsDATImage;
@@ -62,6 +62,7 @@ typedef struct TexSeqElemStruct {
 		ExtraTextureIndex = -1;
 		texname[0] = 0;
 		IsDATImage = false;
+		GroupId = ImageId = -1;
 	}
 } TexSeqElem;
 

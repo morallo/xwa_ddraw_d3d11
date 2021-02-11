@@ -404,24 +404,39 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 
 	for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
 		TexSeqElem tex_seq_elem = atc->Sequence[i];
-		char texname[MAX_TEX_SEQ_NAME + 20];
 		ID3D11ShaderResourceView *texSRV = nullptr;
-		wchar_t wTexName[MAX_TEX_SEQ_NAME];
-		size_t len = 0;
+		
+		HRESULT res = S_OK;
 
-		sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
-		mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
-		log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
-			this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
-		// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
-		// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
-		// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
-		// Will have to come back to this later.
-		//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
-		//	&(resources->_extraTextures[resources->_numExtraTextures]));
-		HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+		if (tex_seq_elem.IsDATImage) {
+			res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, &texSRV);
+			//if (SUCCEEDED(res)) log_debug("[DBG] DAT %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
+		}
+		else {
+			char texname[MAX_TEX_SEQ_NAME + 20];
+			wchar_t wTexName[MAX_TEX_SEQ_NAME];
+			size_t len = 0;
+			sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
+			mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
+			//log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
+			//	this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());
+
+			// For some weird reason, I just *have* to do &(resources->_extraTextures[resources->_numExtraTextures])
+			// with CreateWICTextureFromFile() or otherwise it. Just. Won't. Work! Most likely a ComPtr
+			// issue, but it's still irritating and also makes it hard to manage a dynamic std::vector.
+			// Will have to come back to this later.
+			//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+			//	&(resources->_extraTextures[resources->_numExtraTextures]));
+			res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+		}
+
 		if (FAILED(res)) {
-			log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x", texname, res);
+			if (tex_seq_elem.IsDATImage)
+				log_debug("[DBG] [MAT] ***** Could not load animated DAT texture [%s-%d-%d]: 0x%x",
+					tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, res);
+			else
+				log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x",
+					tex_seq_elem.texname, res);
 			atc->Sequence[i].ExtraTextureIndex = -1;
 		}
 		else {
@@ -491,46 +506,48 @@ ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, 
 
 out:
 	// DEBUG
-	if (texture2D != NULL) {
+	/*if (texture2D != NULL) {
 		hr = DirectX::SaveDDSTextureToFile(context, texture2D, L"C:\\Temp\\_DATImage.dds");
 		log_debug("[DBG] Dumped texture2D to file, hr: 0x%x", hr);
 	}
 	// DEBUG
 	if (texture2D != nullptr) texture2D->Release();
 	if (texture2DSRV != nullptr) texture2DSRV->Release();
-	return NULL;
-	//return texture2DSRV;
+	return NULL;*/
+	return texture2DSRV;
 }
 
-ID3D11ShaderResourceView *Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId)
+HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
 {
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
 	uint8_t *buf = nullptr;
 	int buf_len = 0;
-	ID3D11ShaderResourceView *res = nullptr;
+	// Initialize the output to null/failure by default:
+	HRESULT res = -1;
+	*srv = nullptr;
 
 	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
-		return nullptr;
+		return res;
 
-	if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
+	//if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
 
 	if (!LoadDATFile(sDATFileName)) {
 		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
-		return nullptr;
+		return res;
 	}
 
-	if (GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format))
-		log_debug("[DBG] [C++] DAT Image found: W,H: (%d, %d), Format: %d", Width, Height, Format);
-	else {
+	if (!GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format)) {
 		log_debug("[DBG] [C++] DAT Image not found");
-		return nullptr;
+		return res;
 	}
 
 	buf_len = Width * Height * 4;
 	buf = new uint8_t[buf_len];
-	if (ReadDATImageData(buf, buf_len))
-		res = CreateSRVFromBuffer(buf, Width, Height);
+	if (ReadDATImageData(buf, buf_len)) {
+		*srv = CreateSRVFromBuffer(buf, Width, Height);
+		if (*srv != nullptr) res = S_OK;
+	} 
 	else
 		log_debug("[DBG] [C++] Failed to read image data");
 

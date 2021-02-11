@@ -334,35 +334,15 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 		return false;
 	}
 
-	// The path is either an actual path that contains the frame sequence, or it's
-	// a group name. Let's check if it's a path
 	TexSeqElem tex_seq_elem;
-	std::string s_path = std::string("Animations\\") + std::string(path);
-	if (fs::is_directory(s_path)) {
-		// We just finished reading the path where a frame sequence is stored
-		// Now we need to load all the frames in that path into a tex_seq_elem
-
-		//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
-		for (const auto & entry : fs::directory_iterator(s_path)) {
-			// Surely there's a better way to get the filename...
-			std::string filename = std::string(path) + "\\" + entry.path().filename().string();
-			//log_debug("[DBG] file: %s", filename.c_str());
-
-			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
-			tex_seq_elem.IsDATImage = false;
-			tex_seq_elem.seconds = 1.0f / fps;
-			tex_seq_elem.intensity = intensity;
-			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
-			tex_seq_elem.ExtraTextureIndex = -1;
-			tex_sequence.push_back(tex_seq_elem);
-		}
-	}
-	// s_path is not a directory let's see if we're trying to load a DAT group:
-	else if (stristr(path, ".dat-") != NULL) {
+	// The path is either an actual path that contains the frame sequence, or it's
+	// a <Path>\<DATFile>-<GroupId>. Let's check if path contains the ".DAT-" token
+	// first:
+	if (stristr(path, ".dat-") != NULL) {
+		std::string s_path(path);
 		int split_idx = s_path.find_last_of('-');
 		if (split_idx > 0) {
-			
-			// s_path already contains the subdir 'Animations', so we can use that here:
+			// sDATFileName contains the path and DAT file name:
 			std::string sDATFileName = s_path.substr(0, split_idx);
 			std::string sGroup = s_path.substr(split_idx + 1);
 			log_debug("[DBG] sDATFileName: %s, Group: %s", sDATFileName.c_str(), sGroup.c_str());
@@ -373,30 +353,52 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 				std::vector<short> ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
 				log_debug("[DBG] Group %d has %d images", GroupId, ImageList.size());
 				// Iterate over the list of Images and add one TexSeqElem for each one of them
-				/*
 				for each (short ImageId in ImageList)
 				{
-					// Store the DAT filename in texname and set the appropriate flag
-					// TODO: Update the SRV-loading code in Direct3DTexture::TagTexture() to load
-					//		 images from DAT files.
+					// Store the DAT filename in texname and set the appropriate flag. texname contains
+					// the path and filename.
 					strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
-					tex_seq_elem.IsDATImage = true;
 					tex_seq_elem.seconds = 1.0f / fps;
 					tex_seq_elem.intensity = intensity;
+					// Save the DAT image data:
+					tex_seq_elem.IsDATImage = true;
+					tex_seq_elem.GroupId = GroupId;
+					tex_seq_elem.ImageId = ImageId;
 					// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 					tex_seq_elem.ExtraTextureIndex = -1;
 					tex_sequence.push_back(tex_seq_elem);
 				}
-				*/
 				ImageList.clear();
 			}
 			catch (...) {
 				log_debug("[DBG] Could not parse: %s into an integer", sGroup.c_str());
 			}
-			
+
 		}
 	}
+	else {
+		std::string s_path = std::string("Animations\\") + std::string(path);
+		if (fs::is_directory(s_path)) {
+			// We just finished reading the path where a frame sequence is stored
+			// Now we need to load all the frames in that path into a tex_seq_elem
 
+			//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+			for (const auto & entry : fs::directory_iterator(s_path)) {
+				// Surely there's a better way to get the filename...
+				std::string filename = std::string(path) + "\\" + entry.path().filename().string();
+				//log_debug("[DBG] file: %s", filename.c_str());
+
+				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
+				tex_seq_elem.IsDATImage = false;
+				tex_seq_elem.seconds = 1.0f / fps;
+				tex_seq_elem.intensity = intensity;
+				// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+				tex_seq_elem.ExtraTextureIndex = -1;
+				tex_sequence.push_back(tex_seq_elem);
+			}
+		}
+	}
+	
 	return true;
 }
 
