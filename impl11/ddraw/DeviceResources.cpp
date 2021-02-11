@@ -300,6 +300,7 @@ DeviceResources::DeviceResources()
 	this->_offscreenSurface = nullptr;
 	this->_grayNoiseTex = nullptr;
 	this->_grayNoiseSRV = nullptr;
+	this->_stereoRenderer = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -432,6 +433,11 @@ HRESULT DeviceResources::Initialize()
 	if (SUCCEEDED(hr))
 	{
 		hr = this->LoadResources();
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		hr = this->_stereoRenderer->init(this);
 	}
 
 	if (FAILED(hr))
