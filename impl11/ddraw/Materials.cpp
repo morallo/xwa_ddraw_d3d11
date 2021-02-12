@@ -137,16 +137,42 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 	return true;
 }
 
+bool ParseDatFileNameAndGroup(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId) {
+	std::string s_buf(buf);
+	*GroupId = -1;
+	sDATFileNameOut[0] = 0;
+
+	int split_idx = s_buf.find_last_of('-');
+	if (split_idx > 0) {
+		std::string sDATFileName = s_buf.substr(0, split_idx);
+		std::string sGroup = s_buf.substr(split_idx + 1);
+		try {
+			*GroupId = (short)std::stoi(sGroup);
+		}
+		catch (...) {
+			sDATFileNameOut[0] = 0;
+			*GroupId = -1;
+			return false;
+		}
+		strcpy_s(sDATFileNameOut, sDATFileNameSize, sDATFileName.c_str());
+		return true;
+	}
+	
+	return false;
+}
+
 /*
  Load a texture sequence line of the form:
 
- lightmap_seq|rand|anim_seq|rand = <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
+ lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
 bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) {
 	int res = 0;
-	char *s = NULL, *t = NULL, texname[80];
+	char *s = NULL, *t = NULL, texname[80], sDATFileName[128];
 	float seconds, intensity = 1.0f;
+	short GroupId = -1;
+	bool IsDATFile = false;
 	*eventType = EVT_NONE;
 	
 	//log_debug("[DBG] [MAT] Reading texture sequence");
@@ -157,7 +183,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	s += 1;
 
 	// Parse the event, if it exists
-	if (strstr(s, "EVT_") != NULL) {
+	if (stristr(s, "EVT_") != NULL) {
 		// Skip to the next comma
 		t = s;
 		while (*t != 0 && *t != ',') t++;
@@ -170,8 +196,29 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
 	}
-	
-	while (*s != 0) 
+
+	// Parse the DAT file name, if specified
+	if (stristr(s, ".dat-") != NULL) {
+		IsDATFile = true;
+		SKIP_WHITESPACES(s);
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		if (!ParseDatFileNameAndGroup(s, sDATFileName, 128, &GroupId))
+		{
+			log_debug("[DBG] ERROR: Could not parse DATFileName-GroupId. Ignoring line");
+			return false;
+		}
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	while (*s != 0)
 	{
 		// Skip to the next comma
 		t = s;
@@ -180,7 +227,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		// Parse the texture name
+		// Parse the texture name/ImageId
 		try {
 			res = sscanf_s(s, "%s", texname, 80);
 			if (res < 1) log_debug("[DBG] [MAT] Error reading texname in '%s'", s);
@@ -229,16 +276,36 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 
 		// We just finished reading one texture in the sequence, let's skip to the next one
 		// if possible
-		//log_debug("[DBG] [MAT] [<%s>,%0.3f,%0.3f]", texname, seconds, intensity);
-		//material.tex_sequence.push_back(tex_seq_elem)
 		TexSeqElem tex_seq_elem;
-		strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
-		tex_seq_elem.seconds = seconds;
-		tex_seq_elem.intensity = intensity;
-		tex_seq_elem.IsDATImage = false;
-		// The texture itself will be loaded later. So the reference index is initialized to -1 here:
-		tex_seq_elem.ExtraTextureIndex = -1;
-		tex_sequence.push_back(tex_seq_elem);
+		if (IsDATFile) {
+			// This is a DAT file sequence, texname should be parsed as ImageId
+			try {
+				short ImageId = (short)std::stoi(std::string(texname));
+				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName);
+				tex_seq_elem.seconds = seconds;
+				tex_seq_elem.intensity = intensity;
+				log_debug("[DBG] DAT tex_seq_elem added: [%s], Group: %d, ImageId: %d",
+					tex_seq_elem.texname, GroupId, ImageId);
+				tex_seq_elem.IsDATImage = true;
+				tex_seq_elem.GroupId = GroupId;
+				tex_seq_elem.ImageId = ImageId;
+				// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+				tex_seq_elem.ExtraTextureIndex = -1;
+				tex_sequence.push_back(tex_seq_elem);
+			}
+			catch (...) {
+				log_debug("[DBG] ERROR: Could not parse [%s] as an ImageId", texname);
+			}
+		}
+		else {
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, texname);
+			tex_seq_elem.seconds = seconds;
+			tex_seq_elem.intensity = intensity;
+			tex_seq_elem.IsDATImage = false;
+			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+			tex_seq_elem.ExtraTextureIndex = -1;
+			tex_sequence.push_back(tex_seq_elem);
+		}
 
 		// If we reached the end of the string, we're done
 		if (*t == 0) break;
