@@ -132,9 +132,13 @@ namespace DATReader
             {
                 int min_len = RawData_size;
                 if (data.Length < min_len) min_len = data.Length;
-                UInt32 OfsOut = 0, OfsIn = 0;
+                // For some reason, the images are still upside down when used as SRVs
+                // So, let's flip them here. RowOfs and RowStride are used to flip the
+                // image by reading it "backwards".
+                UInt32 OfsOut = 0, OfsIn = 0, RowStride = (UInt32 )W * 4, RowOfs = (UInt32)(H - 1) * RowStride;
                 for (int y = 0; y < H; y++)
                 {
+                    OfsIn = RowOfs; // Flip the image
                     for (int x = 0; x < W; x++)
                     {
                         RawData_out[OfsOut + 2] = data[OfsIn + 0]; // B
@@ -144,6 +148,9 @@ namespace DATReader
                         OfsIn += 4;
                         OfsOut += 4;
                     }
+                    // Flip the image and prevent underflows:
+                    RowOfs -= RowStride;
+                    if (RowOfs < 0) RowOfs = 0;
                 }
             }
             catch (Exception e)
