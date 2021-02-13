@@ -982,22 +982,32 @@ void Direct3DTexture::TagTexture() {
 					g_DCElements[idx].bActive = true;
 					// Load the cover texture if necessary
 					if (resources->dc_coverTexture[idx] == nullptr &&
-						g_DCElements[idx].coverTextureName[0] != 0) {
-						//ID3D11ShaderResourceView *coverTexture;
-						wchar_t wTexName[MAX_TEXTURE_NAME];
-						size_t len = 0;
-						mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
-						HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
-							&(resources->dc_coverTexture[idx]));
+						g_DCElements[idx].coverTextureName[0] != 0) 
+					{
+						HRESULT res = S_OK;
+						if (stristr(g_DCElements[idx].coverTextureName, ".dat-") != NULL) {
+							// This is a DAT texture, load it through the DATReader library
+							char sDATFileName[128];
+							short GroupId, ImageId;
+							res = -1;
+							if (ParseDatFileNameGroupIdImageId(g_DCElements[idx].coverTextureName, sDATFileName, 128, &GroupId, &ImageId)) {
+								//log_debug("[DBG] [DC] Loading cover texture [%s]-%d-%d", sDATFileName, GroupId, ImageId);
+								res = LoadDATImage(sDATFileName, GroupId, ImageId, &(resources->dc_coverTexture[idx]));
+								//if (FAILED(res)) log_debug("[DBG] [DC] *** ERROR loading cover texture");
+							}
+						} else {
+							// This is a regular texture, load it as usual
+							wchar_t wTexName[MAX_TEXTURE_NAME];
+							size_t len = 0;
+							mbstowcs_s(&len, wTexName, MAX_TEXTURE_NAME, g_DCElements[idx].coverTextureName, MAX_TEXTURE_NAME);
+							res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
+								&(resources->dc_coverTexture[idx]));
+						}
 						if (FAILED(res)) {
 							//log_debug("[DBG] [DC] ***** Could not load cover texture [%s]: 0x%x",
 							//	g_DCElements[idx].coverTextureName, res);
 							resources->dc_coverTexture[idx] = nullptr;
 						}
-						//else {
-							//resources->dc_coverTexture[idx] = coverTexture;
-							//log_debug("[DBG] [DC] ***** Loaded cover texture [%d][%s]", idx, g_DCElements[idx].coverTextureName);
-						//}
 					}
 				}
 				else if (strstr(surface->_name, ",light") != NULL) {

@@ -161,6 +161,43 @@ bool ParseDatFileNameAndGroup(char *buf, char *sDATFileNameOut, int sDATFileName
 	return false;
 }
 
+// Parse the DAT file name, GroupId and ImageId from a string of the form:
+// <Path>\<DATFileName>-<GroupId>-<ImageId>
+// Returns false if the string could not be parsed
+bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId) {
+	std::string s_buf(buf);
+	*GroupId = -1; *ImageId = -1;
+	sDATFileNameOut[0] = 0;
+	int split_idx = -1;
+
+	// Find the last hyphen and get the ImageId
+	split_idx = s_buf.find_last_of('-');
+	if (split_idx < 0)
+		return false;
+	std::string sImageId = s_buf.substr(split_idx + 1);
+
+	// Terminate the string here and find the next hyphen
+	s_buf[split_idx] = 0;
+	split_idx = s_buf.find_last_of('-');
+	if (split_idx < 0)
+		return false;
+
+	std::string sDATFileName = s_buf.substr(0, split_idx);
+	std::string sGroupId = s_buf.substr(split_idx + 1);
+	try {
+		*ImageId = (short)std::stoi(sImageId);
+		*GroupId = (short)std::stoi(sGroupId);
+	}
+	catch (...) {
+		sDATFileNameOut[0] = 0;
+		*GroupId = -1;
+		*ImageId = -1;
+		return false;
+	}
+	strcpy_s(sDATFileNameOut, sDATFileNameSize, sDATFileName.c_str());
+	return true;
+}
+
 /*
  Load a texture sequence line of the form:
 
