@@ -206,14 +206,24 @@ bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFi
 */
 bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) {
 	int res = 0;
+	char temp[256];
 	char *s = NULL, *t = NULL, texname[80], sDATFileName[128];
 	float seconds, intensity = 1.0f;
-	short GroupId = -1;
 	bool IsDATFile = false;
 	*eventType = EVT_NONE;
+	std::string s_temp;
+	
+	// Remove any parentheses from the line
+	int i = 0, j = 0;
+	while (buf[i] && j < 254) {
+		if (buf[i] != '(' && buf[i] != ')')
+			temp[j++] = buf[i];
+		i++;
+	}
+	temp[j] = 0;
 	
 	//log_debug("[DBG] [MAT] Reading texture sequence");
-	s = strchr(buf, '=');
+	s = strchr(temp, '=');
 	if (s == NULL) return false;
 
 	// Skip the equals sign:
@@ -235,7 +245,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	}
 
 	// Parse the DAT file name, if specified
-	if (stristr(s, ".dat-") != NULL) {
+	if (stristr(s, ".dat") != NULL) {
 		IsDATFile = true;
 		SKIP_WHITESPACES(s);
 		// Skip to the next comma
@@ -245,11 +255,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		if (!ParseDatFileNameAndGroup(s, sDATFileName, 128, &GroupId))
-		{
-			log_debug("[DBG] ERROR: Could not parse DATFileName-GroupId. Ignoring line");
-			return false;
-		}
+		// Copy the DAT's filename
+		strcpy_s(sDATFileName, 128, s);
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
@@ -264,13 +271,13 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		// Parse the texture name/ImageId
+		// Parse the texture name/GroupId-ImageId
 		try {
 			res = sscanf_s(s, "%s", texname, 80);
 			if (res < 1) log_debug("[DBG] [MAT] Error reading texname in '%s'", s);
 		}
 		catch (...) {
-			log_debug("[DBG] [MAT} Could not read texname in '%s'", s);
+			log_debug("[DBG] [MAT] Could not read texname in '%s'", s);
 			return false;
 		}
 
@@ -290,7 +297,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 			if (res < 1) log_debug("[DBG] [MAT] Error reading seconds in '%s'", s);
 		}
 		catch (...) {
-			log_debug("[DBG] [MAT} Could not read seconds in '%s'", s);
+			log_debug("[DBG] [MAT] Could not read seconds in '%s'", s);
 			return false;
 		}
 
@@ -307,7 +314,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 			if (res < 1) log_debug("[DBG] [MAT] Error reading intensity in '%s'", s);
 		}
 		catch (...) {
-			log_debug("[DBG] [MAT} Could not read intensity in '%s'", s);
+			log_debug("[DBG] [MAT] Could not read intensity in '%s'", s);
 			return false;
 		}
 
@@ -315,9 +322,14 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		// if possible
 		TexSeqElem tex_seq_elem;
 		if (IsDATFile) {
-			// This is a DAT file sequence, texname should be parsed as ImageId
+			// This is a DAT file sequence, texname should be parsed as GroupId-ImageId
 			try {
-				short ImageId = (short)std::stoi(std::string(texname));
+				int GroupId = -1, ImageId = -1;
+				int res = sscanf_s(texname, "%d-%d", &GroupId, &ImageId);
+				if (res < 2) {
+					log_debug("[DBG] [MAT] Could not parse GroupId-ImageId from [%s]", texname);
+					return false;
+				}
 				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName);
 				tex_seq_elem.seconds = seconds;
 				tex_seq_elem.intensity = intensity;
