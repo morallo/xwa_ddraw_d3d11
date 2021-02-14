@@ -1074,6 +1074,8 @@ void Direct3DTexture::TagTexture() {
 							LoadAnimatedTextures(this->material.TgtEvtSelectedATCIndex);
 						if (this->material.TgtEvtLaserLockedATCIndex > -1)
 							LoadAnimatedTextures(this->material.TgtEvtLaserLockedATCIndex);
+						if (this->material.TgtEvtWarheadLockingATCIndex > -1)
+							LoadAnimatedTextures(this->material.TgtEvtWarheadLockingATCIndex);
 						if (this->material.TgtEvtWarheadLockedATCIndex > -1)
 							LoadAnimatedTextures(this->material.TgtEvtWarheadLockedATCIndex);
 					}

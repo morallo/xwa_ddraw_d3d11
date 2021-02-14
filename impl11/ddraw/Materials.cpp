@@ -120,12 +120,12 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 			// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
 			if (stristr(s_event, "EVT_NONE") != NULL)
 				*eventType = EVT_NONE;
-			if (stristr(s_event, "EVT_NO_TARGET") != NULL)
-				*eventType = TGT_EVT_NO_TARGET;
 			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
 				*eventType = TGT_EVT_SELECTED;
 			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
 				*eventType = TGT_EVT_LASER_LOCK;
+			else if (stristr(s_event, "EVT_WARHEAD_LOCKING") != NULL)
+				*eventType = TGT_EVT_WARHEAD_LOCKING;
 			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
 				*eventType = TGT_EVT_WARHEAD_LOCKED;
 		}
@@ -527,10 +527,13 @@ void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
 	case TGT_EVT_LASER_LOCK:
 		curMaterial->TgtEvtLaserLockedATCIndex = g_AnimatedMaterials.size() - 1;
 		break;
+	case TGT_EVT_WARHEAD_LOCKING:
+		curMaterial->TgtEvtWarheadLockingATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
 	case TGT_EVT_WARHEAD_LOCKED:
 		curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
 		break;
-	default: // EVT_NONE and TGT_EVT_NO_TARGET
+	default: // EVT_NONE
 		curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
 		break;
 	}

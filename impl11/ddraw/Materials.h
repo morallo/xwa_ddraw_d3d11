@@ -15,12 +15,13 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 How to add support for a new event:
 
 1. Add the new event in GameEventEnum
-2. Add a new TextureATCIndex in Material. Initialize it to -1 in the Material constructor
-3. Update AnyTextureATCIndex()
-4. Update GetCurrentTextureATCIndex()
-5. Update Materials.cpp:ParseEvent() and parse the EVT_* label
-6. Update Materials.cpp:AssignTextureEvent() and assign into the right index
-7. Update TagTexture() and load the frames for the new event
+2. Update g_GameEvent.TargetEvent (and other future fields): Add support in BeginScene (or wherever relevant) to detect the new event
+3. Add a new TextureATCIndex in MaterialStruct. Initialize it to -1 in the Material constructor
+4. Update AnyTextureATCIndex()
+5. Update GetCurrentTextureATCIndex()
+6. Update Materials.cpp:ParseEvent() and parse the EVT_* label
+7. Update Materials.cpp:AssignTextureEvent() and assign into the right index
+8. Update Direct3DTexture::TagTexture() and load the frames for the new event
 
 */
 // Target Event Enum
@@ -29,8 +30,7 @@ How to add support for a new event:
 // For now, the plan is to use it to change which animated textures are
 // displayed.
 typedef enum GameEventEnum {
-	EVT_NONE,					// Ignore events (no condition is set, play all the time)
-	TGT_EVT_NO_TARGET,			// Nothing's targeted
+	EVT_NONE,					// Play when no other event is active
 	TGT_EVT_SELECTED,			// Something has been targeted
 	TGT_EVT_LASER_LOCK,			// Laser is "locked"
 	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
@@ -136,6 +136,7 @@ typedef struct MaterialStruct {
 	int TextureATCIndex;   // Index into the AnimatedTexControl structure that holds Texture animation data
 	int TgtEvtSelectedATCIndex; // Index into AnimatedTexControl structure that holds Texture animation data to be played when a target is selected
 	int TgtEvtLaserLockedATCIndex; // Index into animation data to be played when the laser is "locked"
+	int TgtEvtWarheadLockingATCIndex; // Index into animation data to be played when a warhead is locking onto a target
 	int TgtEvtWarheadLockedATCIndex; // Index into animation data to be played when a warhead is locked
 
 	// DEBUG properties, remove later
@@ -181,6 +182,7 @@ typedef struct MaterialStruct {
 		TextureATCIndex = -1;
 		TgtEvtSelectedATCIndex = -1;
 		TgtEvtLaserLockedATCIndex = -1;
+		TgtEvtWarheadLockingATCIndex = -1;
 		TgtEvtWarheadLockedATCIndex = -1;
 
 		/*
@@ -198,26 +200,31 @@ typedef struct MaterialStruct {
 
 	// Returns true if any of the possible texture indices is enabled
 	inline bool AnyTextureATCIndex() {
-		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 ||
-			TgtEvtLaserLockedATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1;
+		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 || TgtEvtLaserLockedATCIndex > -1 ||
+			TgtEvtWarheadLockingATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1;
 	}
 
 	inline int GetCurrentTextureATCIndex() {
-		int index = TextureATCIndex; // Default index
+		int index = TextureATCIndex; // Default index, this is what we'll play if EVT_NONE is set
 
 		// Overrides: these indices are only selected if specific events are set
 		
-		// Most specific events first...
+		// Most-specific events first...
 		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TgtEvtLaserLockedATCIndex > -1)
 			return TgtEvtLaserLockedATCIndex;
 		
+		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKING && TgtEvtWarheadLockingATCIndex > -1)
+			return TgtEvtWarheadLockingATCIndex;
+
 		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKED && TgtEvtWarheadLockedATCIndex > -1)
 			return TgtEvtWarheadLockedATCIndex;
 
-		// Least specific events later
-		// I still got some confusing in my head between EVT_NONE and TGT_EVT_NO_TARGET...
-		if (g_GameEvent.TargetEvent != TGT_EVT_NO_TARGET && TgtEvtSelectedATCIndex > -1)
-			index = TgtEvtSelectedATCIndex;
+		// Least-specific events later.
+		// This event is for the TGT_EVT_SELECTED which should be enabled if there's a laser or
+		// warhead lock. That's why the condition is placed at the end, after we've checked all
+		// the previous events, and we compare against EVT_NONE:
+		if (g_GameEvent.TargetEvent != EVT_NONE && TgtEvtSelectedATCIndex > -1)
+			return TgtEvtSelectedATCIndex;
 		
 		return index;
 	}

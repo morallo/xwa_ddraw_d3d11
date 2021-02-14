@@ -6113,7 +6113,7 @@ HRESULT Direct3DDevice::BeginScene()
 
 	// Update the global game event
 	int16_t currentTargetIndex = (int16_t)PlayerDataTable[*g_playerIndex].currentTargetIndex;
-	g_GameEvent.TargetEvent = currentTargetIndex < 0 ? TGT_EVT_NO_TARGET : TGT_EVT_SELECTED;
+	g_GameEvent.TargetEvent = currentTargetIndex < 0 ? EVT_NONE : TGT_EVT_SELECTED;
 
 	if (!this->_deviceResources->_renderTargetView)
 	{
