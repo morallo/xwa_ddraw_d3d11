@@ -12,7 +12,7 @@ extern bool g_bTriggerReticleCapture, g_bYCenterHasBeenFixed;
 extern std::vector<char*> Reticle_ResNames;
 extern std::vector<char*> ReticleCenter_ResNames;
 extern std::vector<char*> CustomReticleCenter_ResNames;
-
+extern char g_sLaserLockedReticleResName[80];
 
 int ReticleIndexToHUDSlot(int ReticleIndex);
 void ReticleIndexToHUDresname(int ReticleIndex, char* out_str, int out_str_len);

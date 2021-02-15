@@ -11,6 +11,19 @@
 
 /*
 
+craftInstance->CockpitInstrumentStatus damage bits:
+
+ 0x0001 is the CMD/Targeting computer.
+ 0x000E is the laser/ion display. Looks like all 3 bits must be on, but not sure what happens if the craft doesn't have ions
+ 0x0010 is the beam weapon
+ 0x0020 is the shields display
+ 0x0040 is the throttle (text) display <-- This matches the code that Jeremy provided (see m181 & 64 below)
+ 0x0180 both sensors. Both bits must be on, if either bit is off, both sensors will shut down
+ 0x0200 lasers recharge rate
+ 0x0400 engine level
+ 0x0800 shields recharge rate
+ 0x1000 beam recharge rate
+
 Yes, the cockpit instrument damages seem to be at offset 0x17F and 0x181 in the craft struct. I don't know how to interpret these values.
 But for the craft components damages, there is:
 In XwaCraft struct:

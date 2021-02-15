@@ -43,6 +43,7 @@ std::vector<char*> ReticleCenter_ResNames = {
 };
 
 std::vector<char*> CustomReticleCenter_ResNames;
+char g_sLaserLockedReticleResName[80] = { 0 };
 
 /*
  Converts an index number as specified in the custom reticle files to a slot index
@@ -80,6 +81,7 @@ void ClearCustomReticleCenterResNames() {
 		}
 	}
 	CustomReticleCenter_ResNames.clear();
+	g_sLaserLockedReticleResName[0] = 0;
 }
 
 bool LoadReticleTXTFile(char* sFileName) {
@@ -114,14 +116,21 @@ bool LoadReticleTXTFile(char* sFileName) {
 
 		if (sscanf_s(buf, "%s = %s", param, 80, svalue, 80) > 0) {
 			iValue = atoi(svalue);
-			if (_stricmp(param, "Reticle_5") == 0) {
+			if (_stricmp(param, "Reticle_5") == 0) { // Laser reticle
 				log_debug("[DBG] [RET] Reticle_5: %d", iValue);
 				ResName = new char[80];
 				ReticleIndexToHUDresname(iValue, ResName, 80);
 				CustomReticleCenter_ResNames.push_back(ResName);
 				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
 			}
-			else if (_stricmp(param, "Reticle_7") == 0) {
+			else if (_stricmp(param, "Reticle_6") == 0) { // Highlighted laser reticle ("locked" laser)
+				log_debug("[DBG] [RET] Reticle_6: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				strcpy_s(g_sLaserLockedReticleResName, 80, ResName);
+				log_debug("[DBG] [RET] Laser Highlight Reticle Center: %s", ResName);
+			}
+			else if (_stricmp(param, "Reticle_7") == 0) { // Warhead reticle
 				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
 				ResName = new char[80];
 				ReticleIndexToHUDresname(iValue, ResName, 80);

@@ -604,14 +604,19 @@ void Direct3DTexture::TagTexture() {
 		}
 
 		/*
-		 * TODO: For custom reticles, I would need to load the list of reticles from either the
-		 * ship reticle cfg or ship ini file, look for index 6 and test against the name in there.
-		 * Of course, this will only work if we already know the ship's name, or we won't be able
-		 * to find the file we need to load... Maybe I need to ask Jeremy if this information is
-		 * stored somewhere in-memory... For now, only the standard HUD is supported!
+		 * Custom reticles are loaded in Reticle.cpp::LoadCustomReticle(). The algorithm that translates
+		 * a custom reticle index into a HUD resname is in ReticleIndexToHUDSlot(). The algorithm was
+		 * written before we had DATReader.dll, so maybe we can replace the algorithm for that library
+		 * later. The custom reticle code puts the laserlock resname in g_sLaserLockedReticleResName, and
+		 * we're using that here to tag textures.
 		 */
-		if (strstr(surface->_name, "dat,12000,600,") != NULL) // TODO: how to do this for custom reticles?
+		if (strstr(surface->_name, "dat,12000,600,") != NULL ||
+			(g_sLaserLockedReticleResName[0] != 0 && strstr(surface->_name, g_sLaserLockedReticleResName) != NULL)
+		   )
+		{
+			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_name);
 			this->is_HighlightedReticle = true;
+		}
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
