@@ -3661,8 +3661,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader -- Dynamic Cockpit data
-	constantBufferDesc.ByteWidth = 448;
-	static_assert(sizeof(DCPixelShaderCBuffer) == 448, "sizeof(DCPixelShaderCBuffer) must be 448");
+	constantBufferDesc.ByteWidth = 464;
+	static_assert(sizeof(DCPixelShaderCBuffer) == 464, "sizeof(DCPixelShaderCBuffer) must be 464");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBufferDC)))
 		return hr;
 

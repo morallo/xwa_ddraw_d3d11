@@ -134,8 +134,8 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 				*eventType = CPT_EVT_BROKEN_CMD;
 			else if (stristr(s_event, "EVT_BROKEN_LASER_ION") != NULL)
 				*eventType = CPT_EVT_BROKEN_LASER_ION;
-			else if (stristr(s_event, "EVT_BROKEN_BEAMWEAPON") != NULL)
-				*eventType = CPT_EVT_BROKEN_BEAMWEAPON;
+			else if (stristr(s_event, "EVT_BROKEN_BEAM_WEAPON") != NULL)
+				*eventType = CPT_EVT_BROKEN_BEAM_WEAPON;
 			else if (stristr(s_event, "EVT_BROKEN_SHIELDS") != NULL)
 				*eventType = CPT_EVT_BROKEN_SHIELDS;
 			else if (stristr(s_event, "EVT_BROKEN_THROTTLE") != NULL)
@@ -144,8 +144,8 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 				*eventType = CPT_EVT_BROKEN_SENSORS;
 			else if (stristr(s_event, "EVT_BROKEN_LASER_RECHARGE") != NULL)
 				*eventType = CPT_EVT_BROKEN_LASER_RECHARGE;
-			else if (stristr(s_event, "EVT_BROKEN_ENGINE_LEVEL") != NULL)
-				*eventType = CPT_EVT_BROKEN_ENGINE_LEVEL;
+			else if (stristr(s_event, "EVT_BROKEN_ENGINE_POWER") != NULL)
+				*eventType = CPT_EVT_BROKEN_ENGINE_POWER;
 			else if (stristr(s_event, "EVT_BROKEN_SHIELD_REGHARGE") != NULL)
 				*eventType = CPT_EVT_BROKEN_SHIELD_REGHARGE;
 			else if (stristr(s_event, "EVT_BROKEN_BEAM_RECHARGE") != NULL)
@@ -561,7 +561,7 @@ void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
 	case CPT_EVT_BROKEN_LASER_ION:
 		curMaterial->CptEvtBrokenLaserIonIndex = g_AnimatedMaterials.size() - 1;
 		break;
-	case CPT_EVT_BROKEN_BEAMWEAPON:
+	case CPT_EVT_BROKEN_BEAM_WEAPON:
 		curMaterial->CptEvtBrokenBeamWeaponIndex = g_AnimatedMaterials.size() - 1;
 		break;
 	case CPT_EVT_BROKEN_SHIELDS:
@@ -576,8 +576,8 @@ void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
 	case CPT_EVT_BROKEN_LASER_RECHARGE:
 		curMaterial->CptEvtBrokenLaserRechargeIndex = g_AnimatedMaterials.size() - 1;
 		break;
-	case CPT_EVT_BROKEN_ENGINE_LEVEL:
-		curMaterial->CptEvtBrokenEngineLevelIndex = g_AnimatedMaterials.size() - 1;
+	case CPT_EVT_BROKEN_ENGINE_POWER:
+		curMaterial->CptEvtBrokenEnginePowerIndex = g_AnimatedMaterials.size() - 1;
 		break;
 	case CPT_EVT_BROKEN_SHIELD_REGHARGE:
 		curMaterial->CptEvtBrokenShieldRechargeIndex = g_AnimatedMaterials.size() - 1;
@@ -1157,7 +1157,7 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 	Throttle		= (x.Throttle != 0);
 	Sensors			= (x.Sensors == 0x3);
 	LaserRecharge	= (x.LaserRecharge != 0);
-	EngineLevel		= (x.EngineLevel != 0);
+	EnginePower		= (x.EngineLevel != 0);
 	ShieldRecharge	= (x.ShieldRecharge  != 0);
 	BeamRecharge	= (x.BeamRecharge != 0);
 }

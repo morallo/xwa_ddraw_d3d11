@@ -4848,9 +4848,9 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex() > -1) {
+					else if (!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex(NULL) > -1) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.GetCurrentTextureATCIndex();
+						int anim_idx = lastTextureSelected->material.GetCurrentTextureATCIndex(NULL);
 						// If this is an animated light map, then use the right intensity setting
 						// TODO: Make the following code more efficient
 						if (anim_idx > -1) {
@@ -4919,6 +4919,7 @@ HRESULT Direct3DDevice::Execute(
 								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
 								g_DCPSCBuffer.noisy_holo = bIsNoisyHolo;
 								g_DCPSCBuffer.transparent = bIsTransparent;
+								g_DCPSCBuffer.use_damage_texture = false;
 								if (bWarheadLocked)
 									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
 								else
@@ -4986,8 +4987,9 @@ HRESULT Direct3DDevice::Execute(
 				// Animated Light Maps/Textures
 				if (bHasMaterial) {
 					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
-						(!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex() > -1))
+						(!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex(NULL) > -1))
 					{
+						bool bIsDamageTex = false;
 						bModifiedShaders = true;
 						bModifiedPixelShader = true;
 						//log_debug("[DBG] %s, LightMapATCIndex: %d, TextureATCIndex: %d", lastTextureSelected->_surface->_name,
@@ -5007,9 +5009,7 @@ HRESULT Direct3DDevice::Execute(
 							// If we're rendering a DC element, we don't want to replace the shader
 							if (g_PSCBuffer.DynCockpitSlots == 0)
 								resources->InitPixelShader(resources->_noGlassPS);
-							ATCIndex = lastTextureSelected->material.GetCurrentTextureATCIndex();
-							if (g_bDumpSSAOBuffers)
-								log_debug("[DBG] g_GameEvent.TargetEvent: %d", g_GameEvent.TargetEvent);
+							ATCIndex = lastTextureSelected->material.GetCurrentTextureATCIndex(&bIsDamageTex);
 						}
 
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
@@ -5052,6 +5052,10 @@ HRESULT Direct3DDevice::Execute(
 						if (extraTexIdx > -1) {
 							// Use the following when using std::vector<ID3D11ShaderResourceView*>:
 							resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
+							// Force the use of damage textures if DC is on. This makes damage textures visible
+							// even when no cover texture is available:
+							if (g_PSCBuffer.DynCockpitSlots > 0)
+								g_DCPSCBuffer.use_damage_texture = bIsDamageTex;
 						}
 					}
 				}
@@ -6130,13 +6134,8 @@ HRESULT Direct3DDevice::BeginScene()
 
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
-		CockpitInstrumentStateStruct prevInstruments = g_GameEvent.CockpitInstruments;
 		// Update the cockpit instrument status
 		g_GameEvent.CockpitInstruments.FromXWADamage(craftInstance->CockpitInstrumentStatus);
-		//if (prevInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD)
-		//	log_debug("[DBG] CMD Damaged!");
-		//if (prevInstruments.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon)
-		//	log_debug("[DBG] LaserIon Damaged!");
 	}
 
 	if (!this->_deviceResources->_renderTargetView)

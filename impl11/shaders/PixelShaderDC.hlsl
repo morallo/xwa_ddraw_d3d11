@@ -216,8 +216,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
 	}
 	else {
-		coverColor = hud_texelColor;
-		coverAlpha = coverColor.w;
+		// If use_damage_texture is set, then the cover texture will have the damage texture, so
+		// we must continue to use it. Otherwise, display the HUD contents:
+		if (!use_damage_texture) {
+			coverColor = hud_texelColor;
+			coverAlpha = coverColor.w;
+		}
 		diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);

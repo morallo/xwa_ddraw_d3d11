@@ -1099,8 +1099,8 @@ void Direct3DTexture::TagTexture() {
 							LoadAnimatedTextures(this->material.CptEvtBrokenSensorsIndex);
 						if (this->material.CptEvtBrokenLaserRechargeIndex > -1)
 							LoadAnimatedTextures(this->material.CptEvtBrokenLaserRechargeIndex);
-						if (this->material.CptEvtBrokenEngineLevelIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenEngineLevelIndex);
+						if (this->material.CptEvtBrokenEnginePowerIndex > -1)
+							LoadAnimatedTextures(this->material.CptEvtBrokenEnginePowerIndex);
 						if (this->material.CptEvtBrokenShieldRechargeIndex > -1)
 							LoadAnimatedTextures(this->material.CptEvtBrokenShieldRechargeIndex);
 						if (this->material.CptEvtBrokenBeamRechargeIndex > -1)

@@ -259,8 +259,11 @@ typedef struct DCPixelShaderCBStruct {
 
 	float ct_brightness, dc_brightness;
 	uint32_t noisy_holo; // If set to 1, the hologram shader will be noisy!
-	float transparent; // If set to 1, the background will be transparent
+	uint32_t transparent; // If set to 1, the background will be transparent
 	// 448 bytes
+	uint32_t use_damage_texture; // If set to 1, force the use of the damage texture
+	uint32_t dc_unused[3];
+	// 464 bytes
 } DCPixelShaderCBuffer;
 
 /* 2D Constant Buffers */

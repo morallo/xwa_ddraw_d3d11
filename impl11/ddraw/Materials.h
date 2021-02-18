@@ -38,12 +38,12 @@ typedef enum GameEventEnum {
 	// Cockpit Instrument Damage Events
 	CPT_EVT_BROKEN_CMD,
 	CPT_EVT_BROKEN_LASER_ION,
-	CPT_EVT_BROKEN_BEAMWEAPON,
+	CPT_EVT_BROKEN_BEAM_WEAPON,
 	CPT_EVT_BROKEN_SHIELDS,
 	CPT_EVT_BROKEN_THROTTLE,
 	CPT_EVT_BROKEN_SENSORS,
 	CPT_EVT_BROKEN_LASER_RECHARGE,
-	CPT_EVT_BROKEN_ENGINE_LEVEL,
+	CPT_EVT_BROKEN_ENGINE_POWER,
 	CPT_EVT_BROKEN_SHIELD_REGHARGE,
 	CPT_EVT_BROKEN_BEAM_RECHARGE,
 } GameEvent;
@@ -87,7 +87,7 @@ typedef struct CockpitInstrumentStateStruct {
 	bool Throttle;
 	bool Sensors;
 	bool LaserRecharge;
-	bool EngineLevel;
+	bool EnginePower;
 	bool ShieldRecharge;
 	bool BeamRecharge;
 
@@ -99,7 +99,7 @@ typedef struct CockpitInstrumentStateStruct {
 		Throttle = true;
 		Sensors = true;
 		LaserRecharge = true;
-		EngineLevel = true;
+		EnginePower = true;
 		ShieldRecharge = true;
 		BeamRecharge = true;
 	}
@@ -218,7 +218,7 @@ typedef struct MaterialStruct {
 	int CptEvtBrokenThrottleIndex;
 	int CptEvtBrokenSensorsIndex;
 	int CptEvtBrokenLaserRechargeIndex;
-	int CptEvtBrokenEngineLevelIndex;
+	int CptEvtBrokenEnginePowerIndex;
 	int CptEvtBrokenShieldRechargeIndex;
 	int CptEvtBrokenBeamRechargeIndex;
 
@@ -276,7 +276,7 @@ typedef struct MaterialStruct {
 		CptEvtBrokenSensorsIndex = -1;
 		CptEvtBrokenThrottleIndex = -1;
 		CptEvtBrokenLaserRechargeIndex = -1;
-		CptEvtBrokenEngineLevelIndex = -1;
+		CptEvtBrokenEnginePowerIndex = -1;
 		CptEvtBrokenShieldRechargeIndex = -1;
 		CptEvtBrokenBeamRechargeIndex = -1;
 
@@ -299,46 +299,67 @@ typedef struct MaterialStruct {
 			TgtEvtWarheadLockingATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1 ||
 			CptEvtBrokenCMDIndex > -1 || CptEvtBrokenLaserIonIndex > -1 || CptEvtBrokenBeamWeaponIndex > -1 ||
 			CptEvtBrokenShieldsIndex > -1 || CptEvtBrokenThrottleIndex > -1 || CptEvtBrokenSensorsIndex > -1 ||
-			CptEvtBrokenLaserRechargeIndex > -1 || CptEvtBrokenEngineLevelIndex > -1 || CptEvtBrokenShieldRechargeIndex > -1 ||
+			CptEvtBrokenLaserRechargeIndex > -1 || CptEvtBrokenEnginePowerIndex > -1 || CptEvtBrokenShieldRechargeIndex > -1 ||
 			CptEvtBrokenBeamRechargeIndex > -1;
 	}
 
-	inline int GetCurrentTextureATCIndex() {
+	inline int GetCurrentTextureATCIndex(bool *bIsDamageTex) {
 		int index = TextureATCIndex; // Default index, this is what we'll play if EVT_NONE is set
+		if (bIsDamageTex != NULL) *bIsDamageTex = false;
 
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first...
 
 		// Cockpit Damage Events
-		if (!g_GameEvent.CockpitInstruments.CMD && CptEvtBrokenCMDIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.CMD && CptEvtBrokenCMDIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenCMDIndex;
+		}
 		
-		if (!g_GameEvent.CockpitInstruments.LaserIon && CptEvtBrokenLaserIonIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.LaserIon && CptEvtBrokenLaserIonIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenLaserIonIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamWeapon && CptEvtBrokenBeamWeaponIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.BeamWeapon && CptEvtBrokenBeamWeaponIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenBeamWeaponIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.Shields && CptEvtBrokenShieldsIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.Shields && CptEvtBrokenShieldsIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenShieldsIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.Throttle && CptEvtBrokenThrottleIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.Throttle && CptEvtBrokenThrottleIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenThrottleIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.Sensors && CptEvtBrokenSensorsIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.Sensors && CptEvtBrokenSensorsIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenSensorsIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.LaserRecharge && CptEvtBrokenLaserRechargeIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.LaserRecharge && CptEvtBrokenLaserRechargeIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenLaserRechargeIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.EngineLevel && CptEvtBrokenEngineLevelIndex > -1)
-			return CptEvtBrokenEngineLevelIndex;
+		if (!g_GameEvent.CockpitInstruments.EnginePower && CptEvtBrokenEnginePowerIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
+			return CptEvtBrokenEnginePowerIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && CptEvtBrokenShieldRechargeIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && CptEvtBrokenShieldRechargeIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenShieldRechargeIndex;
+		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamRecharge && CptEvtBrokenBeamRechargeIndex > -1)
+		if (!g_GameEvent.CockpitInstruments.BeamRecharge && CptEvtBrokenBeamRechargeIndex > -1) {
+			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return CptEvtBrokenBeamRechargeIndex;
+		}
 
 		// Target Events
 		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TgtEvtLaserLockedATCIndex > -1)

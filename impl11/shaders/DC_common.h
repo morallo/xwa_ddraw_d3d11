@@ -10,5 +10,8 @@ cbuffer ConstantBuffer : register(b1)
 	float dc_brightness;	// DC element brightness
 	uint noisy_holo;		// If set to 1, the hologram shader will be noisy!
 	uint transparent;		// If set to 1, the background will be transparent
+
+	uint use_damage_texture; // If set to 1, force the use of the damage texture
+	uint dc_unused0, dc_unused1, dc_unused2;
 };
 
