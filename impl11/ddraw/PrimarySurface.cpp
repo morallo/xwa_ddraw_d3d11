@@ -9967,14 +9967,7 @@ void PrimarySurface::RenderText()
 		g_bDCApplyEraseRegionCommands && !bExternalCamera)
 	{
 		// Gather the data we'll need to replace the missiles and countermeasures
-		int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-		//log_debug("[DBG] objectIndex: %d", objectIndex);
-		if (objectIndex < 0) goto out;
-		ObjectEntry *object = &((*objects)[objectIndex]);
-		if (object == NULL) goto out;
-		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
-		if (mobileObject == NULL) goto out;
-		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 		if (craftInstance == NULL) goto out;
 
 		int speed = (int)(PlayerDataTable[*g_playerIndex].currentSpeed / 2.25f);
@@ -10420,22 +10413,14 @@ void PrimarySurface::RenderSynthDCElems()
 	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
 
-	// I've seen the game crash when trying to access the CraftInstance table in the
-	// first few frames of a new mission. Let's add this test to prevent this crash.
-	if (g_iPresentCounter <= 5) goto out;
-
 	// Fetch the pointer to the current CraftInstance
-	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
-	if (objectIndex < 0) goto out;
-	ObjectEntry *object = &((*objects)[objectIndex]);
-	if (object == NULL) goto out;
-	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
-	if (mobileObject == NULL) goto out;
-	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance == NULL) goto out;
 
 	// The Simple HUD is activated with Alt+. and it only displays the reticle
-	if (g_bRenderLaserIonEnergyLevels && !PlayerDataTable[*g_playerIndex].simpleHUD && *g_IsCMDVisible) {
+	if (g_bRenderLaserIonEnergyLevels && !PlayerDataTable[*g_playerIndex].simpleHUD && *g_IsCMDVisible &&
+		g_GameEvent.CockpitInstruments.LaserIon) 
+	{
 		//log_debug("[DBG] HUD visible: %d, CMD Visible: %d", PlayerDataTable[*g_playerIndex].simpleHUD, *g_IsCMDVisible);
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[EIGHT_LASERS_BOTH_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {
@@ -10491,8 +10476,8 @@ void PrimarySurface::RenderSynthDCElems()
 		}
 	}
 
-	if (g_bDynCockpitEnabled && g_bRenderThrottle&& g_bDCApplyEraseRegionCommands &&
-		!bExternalCamera) 
+	if (g_bDynCockpitEnabled && g_bRenderThrottle && g_bDCApplyEraseRegionCommands &&
+		!bExternalCamera && g_GameEvent.CockpitInstruments.Throttle)
 	{
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
 		if (dcElemSrcBox->bComputed) {

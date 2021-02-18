@@ -136,3 +136,5 @@ extern GetDATGroupImageListFun GetDATGroupImageList;
 bool InitDATReader();
 void CloseDATReader();
 std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int GroupId);
+
+CraftInstance *GetPlayerCraftInstanceSafe();

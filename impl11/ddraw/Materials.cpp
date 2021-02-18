@@ -120,6 +120,7 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 			// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
 			if (stristr(s_event, "EVT_NONE") != NULL)
 				*eventType = EVT_NONE;
+			// Target Events
 			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
 				*eventType = TGT_EVT_SELECTED;
 			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
@@ -128,6 +129,27 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 				*eventType = TGT_EVT_WARHEAD_LOCKING;
 			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
 				*eventType = TGT_EVT_WARHEAD_LOCKED;
+			// Cockpit Instrument Damage Events
+			else if (stristr(s_event, "EVT_BROKEN_CMD") != NULL)
+				*eventType = CPT_EVT_BROKEN_CMD;
+			else if (stristr(s_event, "EVT_BROKEN_LASER_ION") != NULL)
+				*eventType = CPT_EVT_BROKEN_LASER_ION;
+			else if (stristr(s_event, "EVT_BROKEN_BEAMWEAPON") != NULL)
+				*eventType = CPT_EVT_BROKEN_BEAMWEAPON;
+			else if (stristr(s_event, "EVT_BROKEN_SHIELDS") != NULL)
+				*eventType = CPT_EVT_BROKEN_SHIELDS;
+			else if (stristr(s_event, "EVT_BROKEN_THROTTLE") != NULL)
+				*eventType = CPT_EVT_BROKEN_THROTTLE;
+			else if (stristr(s_event, "EVT_BROKEN_SENSORS") != NULL)
+				*eventType = CPT_EVT_BROKEN_SENSORS;
+			else if (stristr(s_event, "EVT_BROKEN_LASER_RECHARGE") != NULL)
+				*eventType = CPT_EVT_BROKEN_LASER_RECHARGE;
+			else if (stristr(s_event, "EVT_BROKEN_ENGINE_LEVEL") != NULL)
+				*eventType = CPT_EVT_BROKEN_ENGINE_LEVEL;
+			else if (stristr(s_event, "EVT_BROKEN_SHIELD_REGHARGE") != NULL)
+				*eventType = CPT_EVT_BROKEN_SHIELD_REGHARGE;
+			else if (stristr(s_event, "EVT_BROKEN_BEAM_RECHARGE") != NULL)
+				*eventType = CPT_EVT_BROKEN_BEAM_RECHARGE;
 		}
 	}
 	catch (...) {
@@ -532,6 +554,36 @@ void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
 		break;
 	case TGT_EVT_WARHEAD_LOCKED:
 		curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_CMD:
+		curMaterial->CptEvtBrokenCMDIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_LASER_ION:
+		curMaterial->CptEvtBrokenLaserIonIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_BEAMWEAPON:
+		curMaterial->CptEvtBrokenBeamWeaponIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_SHIELDS:
+		curMaterial->CptEvtBrokenShieldsIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_THROTTLE:
+		curMaterial->CptEvtBrokenThrottleIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_SENSORS:
+		curMaterial->CptEvtBrokenSensorsIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_LASER_RECHARGE:
+		curMaterial->CptEvtBrokenLaserRechargeIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_ENGINE_LEVEL:
+		curMaterial->CptEvtBrokenEngineLevelIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_SHIELD_REGHARGE:
+		curMaterial->CptEvtBrokenShieldRechargeIndex = g_AnimatedMaterials.size() - 1;
+		break;
+	case CPT_EVT_BROKEN_BEAM_RECHARGE:
+		curMaterial->CptEvtBrokenBeamRechargeIndex = g_AnimatedMaterials.size() - 1;
 		break;
 	default: // EVT_NONE
 		curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
@@ -1093,4 +1145,19 @@ void ClearAnimatedMaterials() {
 	for (AnimatedTexControl atc : g_AnimatedMaterials)
 		atc.Sequence.clear();
 	g_AnimatedMaterials.clear();
+}
+
+void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
+	CockpitDamage x;
+	x.Flags = XWADamage;
+	CMD				= (x.CMD != 0);
+	LaserIon		= (x.LaserIon == 0x7);
+	BeamWeapon		= (x.BeamWeapon != 0);
+	Shields			= (x.Shields != 0);
+	Throttle		= (x.Throttle != 0);
+	Sensors			= (x.Sensors == 0x3);
+	LaserRecharge	= (x.LaserRecharge != 0);
+	EngineLevel		= (x.EngineLevel != 0);
+	ShieldRecharge	= (x.ShieldRecharge  != 0);
+	BeamRecharge	= (x.BeamRecharge != 0);
 }

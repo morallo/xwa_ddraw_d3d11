@@ -6128,6 +6128,17 @@ HRESULT Direct3DDevice::BeginScene()
 	int16_t currentTargetIndex = (int16_t)PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	g_GameEvent.TargetEvent = currentTargetIndex < 0 ? EVT_NONE : TGT_EVT_SELECTED;
 
+	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
+	if (craftInstance != NULL) {
+		CockpitInstrumentStateStruct prevInstruments = g_GameEvent.CockpitInstruments;
+		// Update the cockpit instrument status
+		g_GameEvent.CockpitInstruments.FromXWADamage(craftInstance->CockpitInstrumentStatus);
+		//if (prevInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD)
+		//	log_debug("[DBG] CMD Damaged!");
+		//if (prevInstruments.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon)
+		//	log_debug("[DBG] LaserIon Damaged!");
+	}
+
 	if (!this->_deviceResources->_renderTargetView)
 	{
 #if LOGGER

@@ -431,3 +431,21 @@ std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int Group
 	}
 	return result;
 }
+
+CraftInstance *GetPlayerCraftInstanceSafe()
+{
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= 5) return NULL;
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) return NULL;
+	ObjectEntry *object = &((*objects)[objectIndex]);
+	if (object == NULL) return NULL;
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	if (mobileObject == NULL) return NULL;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}

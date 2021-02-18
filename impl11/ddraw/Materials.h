@@ -15,7 +15,7 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 How to add support for a new event:
 
 1. Add the new event in GameEventEnum
-2. Update g_GameEvent.TargetEvent (and other future fields): Add support in BeginScene (or wherever relevant) to detect the new event
+2. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
 3. Add a new TextureATCIndex in MaterialStruct. Initialize it to -1 in the Material constructor
 4. Update AnyTextureATCIndex()
 5. Update GetCurrentTextureATCIndex()
@@ -34,13 +34,84 @@ typedef enum GameEventEnum {
 	TGT_EVT_SELECTED,			// Something has been targeted
 	TGT_EVT_LASER_LOCK,			// Laser is "locked"
 	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
-	TGT_EVT_WARHEAD_LOCKED		// Warhead is locked (red)
+	TGT_EVT_WARHEAD_LOCKED,		// Warhead is locked (red)
+	// Cockpit Instrument Damage Events
+	CPT_EVT_BROKEN_CMD,
+	CPT_EVT_BROKEN_LASER_ION,
+	CPT_EVT_BROKEN_BEAMWEAPON,
+	CPT_EVT_BROKEN_SHIELDS,
+	CPT_EVT_BROKEN_THROTTLE,
+	CPT_EVT_BROKEN_SENSORS,
+	CPT_EVT_BROKEN_LASER_RECHARGE,
+	CPT_EVT_BROKEN_ENGINE_LEVEL,
+	CPT_EVT_BROKEN_SHIELD_REGHARGE,
+	CPT_EVT_BROKEN_BEAM_RECHARGE,
 } GameEvent;
+
+// *********************
+// Cockpit Damage
+// *********************
+/*
+ 0x0001 is the CMD/Targeting computer.
+ 0x000E is the laser/ion display. Looks like all 3 bits must be on, but not sure what happens if the craft doesn't have ions
+ 0x0010 is the beam weapon
+ 0x0020 is the shields display
+ 0x0040 is the throttle (text) display <-- This matches the code that Jeremy provided (see m181 & 64 below)
+ 0x0180 both sensors. Both bits must be on, if either bit is off, both sensors will shut down
+ 0x0200 lasers recharge rate
+ 0x0400 engine level
+ 0x0800 shields recharge rate
+ 0x1000 beam recharge rate
+*/
+typedef union CockpitDamageUnion {
+	struct {
+		/* 0x0001 */ WORD CMD : 1;
+		/* 0x000E */ WORD LaserIon : 3;
+		/* 0x0010 */ WORD BeamWeapon : 1;
+		/* 0x0020 */ WORD Shields : 1;
+		/* 0x0040 */ WORD Throttle : 1;
+		/* 0x0180 */ WORD Sensors : 2;
+		/* 0x0200 */ WORD LaserRecharge : 1;
+		/* 0x0400 */ WORD EngineLevel : 1;
+		/* 0x0800 */ WORD ShieldRecharge : 1;
+		/* 0x1000 */ WORD BeamRecharge : 1;
+	};
+	WORD Flags;
+} CockpitDamage;
+
+typedef struct CockpitInstrumentStateStruct {
+	bool CMD;
+	bool LaserIon;
+	bool BeamWeapon;
+	bool Shields;
+	bool Throttle;
+	bool Sensors;
+	bool LaserRecharge;
+	bool EngineLevel;
+	bool ShieldRecharge;
+	bool BeamRecharge;
+
+	CockpitInstrumentStateStruct() {
+		CMD = true;
+		LaserIon = true;
+		BeamWeapon = true;
+		Shields = true;
+		Throttle = true;
+		Sensors = true;
+		LaserRecharge = true;
+		EngineLevel = true;
+		ShieldRecharge = true;
+		BeamRecharge = true;
+	}
+
+	void FromXWADamage(WORD XWADamage);
+} CockpitInstrumentState;
 
 // I need to think this more carefully: will there be more events?
 typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
-	// ... More event types?
+	// ... More (exclusive) event types?
+	CockpitInstrumentState CockpitInstruments;
 
 	GlobalGameEventStruct() {
 		TargetEvent = EVT_NONE;
@@ -139,6 +210,18 @@ typedef struct MaterialStruct {
 	int TgtEvtWarheadLockingATCIndex; // Index into animation data to be played when a warhead is locking onto a target
 	int TgtEvtWarheadLockedATCIndex; // Index into animation data to be played when a warhead is locked
 
+	// Cockpit Instrument Damage Indices:
+	int CptEvtBrokenCMDIndex;
+	int CptEvtBrokenLaserIonIndex;
+	int CptEvtBrokenBeamWeaponIndex;
+	int CptEvtBrokenShieldsIndex;
+	int CptEvtBrokenThrottleIndex;
+	int CptEvtBrokenSensorsIndex;
+	int CptEvtBrokenLaserRechargeIndex;
+	int CptEvtBrokenEngineLevelIndex;
+	int CptEvtBrokenShieldRechargeIndex;
+	int CptEvtBrokenBeamRechargeIndex;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -185,6 +268,18 @@ typedef struct MaterialStruct {
 		TgtEvtWarheadLockingATCIndex = -1;
 		TgtEvtWarheadLockedATCIndex = -1;
 
+		CptEvtBrokenCMDIndex = -1;
+		CptEvtBrokenLaserIonIndex = -1;
+		CptEvtBrokenBeamWeaponIndex = -1;
+		CptEvtBrokenShieldsIndex = -1;
+		CptEvtBrokenThrottleIndex = -1;
+		CptEvtBrokenSensorsIndex = -1;
+		CptEvtBrokenThrottleIndex = -1;
+		CptEvtBrokenLaserRechargeIndex = -1;
+		CptEvtBrokenEngineLevelIndex = -1;
+		CptEvtBrokenShieldRechargeIndex = -1;
+		CptEvtBrokenBeamRechargeIndex = -1;
+
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -201,15 +296,51 @@ typedef struct MaterialStruct {
 	// Returns true if any of the possible texture indices is enabled
 	inline bool AnyTextureATCIndex() {
 		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 || TgtEvtLaserLockedATCIndex > -1 ||
-			TgtEvtWarheadLockingATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1;
+			TgtEvtWarheadLockingATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1 ||
+			CptEvtBrokenCMDIndex > -1 || CptEvtBrokenLaserIonIndex > -1 || CptEvtBrokenBeamWeaponIndex > -1 ||
+			CptEvtBrokenShieldsIndex > -1 || CptEvtBrokenThrottleIndex > -1 || CptEvtBrokenSensorsIndex > -1 ||
+			CptEvtBrokenLaserRechargeIndex > -1 || CptEvtBrokenEngineLevelIndex > -1 || CptEvtBrokenShieldRechargeIndex > -1 ||
+			CptEvtBrokenBeamRechargeIndex > -1;
 	}
 
 	inline int GetCurrentTextureATCIndex() {
 		int index = TextureATCIndex; // Default index, this is what we'll play if EVT_NONE is set
 
 		// Overrides: these indices are only selected if specific events are set
-		
 		// Most-specific events first...
+
+		// Cockpit Damage Events
+		if (!g_GameEvent.CockpitInstruments.CMD && CptEvtBrokenCMDIndex > -1)
+			return CptEvtBrokenCMDIndex;
+		
+		if (!g_GameEvent.CockpitInstruments.LaserIon && CptEvtBrokenLaserIonIndex > -1)
+			return CptEvtBrokenLaserIonIndex;
+
+		if (!g_GameEvent.CockpitInstruments.BeamWeapon && CptEvtBrokenBeamWeaponIndex > -1)
+			return CptEvtBrokenBeamWeaponIndex;
+
+		if (!g_GameEvent.CockpitInstruments.Shields && CptEvtBrokenShieldsIndex > -1)
+			return CptEvtBrokenShieldsIndex;
+
+		if (!g_GameEvent.CockpitInstruments.Throttle && CptEvtBrokenThrottleIndex > -1)
+			return CptEvtBrokenThrottleIndex;
+
+		if (!g_GameEvent.CockpitInstruments.Sensors && CptEvtBrokenSensorsIndex > -1)
+			return CptEvtBrokenSensorsIndex;
+
+		if (!g_GameEvent.CockpitInstruments.LaserRecharge && CptEvtBrokenLaserRechargeIndex > -1)
+			return CptEvtBrokenLaserRechargeIndex;
+
+		if (!g_GameEvent.CockpitInstruments.EngineLevel && CptEvtBrokenEngineLevelIndex > -1)
+			return CptEvtBrokenEngineLevelIndex;
+
+		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && CptEvtBrokenShieldRechargeIndex > -1)
+			return CptEvtBrokenShieldRechargeIndex;
+
+		if (!g_GameEvent.CockpitInstruments.BeamRecharge && CptEvtBrokenBeamRechargeIndex > -1)
+			return CptEvtBrokenBeamRechargeIndex;
+
+		// Target Events
 		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TgtEvtLaserLockedATCIndex > -1)
 			return TgtEvtLaserLockedATCIndex;
 		
