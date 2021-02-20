@@ -146,8 +146,8 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 				*eventType = CPT_EVT_BROKEN_LASER_RECHARGE;
 			else if (stristr(s_event, "EVT_BROKEN_ENGINE_POWER") != NULL)
 				*eventType = CPT_EVT_BROKEN_ENGINE_POWER;
-			else if (stristr(s_event, "EVT_BROKEN_SHIELD_REGHARGE") != NULL)
-				*eventType = CPT_EVT_BROKEN_SHIELD_REGHARGE;
+			else if (stristr(s_event, "EVT_BROKEN_SHIELD_RECHARGE") != NULL)
+				*eventType = CPT_EVT_BROKEN_SHIELD_RECHARGE;
 			else if (stristr(s_event, "EVT_BROKEN_BEAM_RECHARGE") != NULL)
 				*eventType = CPT_EVT_BROKEN_BEAM_RECHARGE;
 		}
@@ -540,55 +540,9 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	return true;
 }
 
-void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
+inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
 {
-	switch (eventType) {
-	case TGT_EVT_SELECTED:
-		curMaterial->TgtEvtSelectedATCIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case TGT_EVT_LASER_LOCK:
-		curMaterial->TgtEvtLaserLockedATCIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case TGT_EVT_WARHEAD_LOCKING:
-		curMaterial->TgtEvtWarheadLockingATCIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case TGT_EVT_WARHEAD_LOCKED:
-		curMaterial->TgtEvtWarheadLockedATCIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_CMD:
-		curMaterial->CptEvtBrokenCMDIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_LASER_ION:
-		curMaterial->CptEvtBrokenLaserIonIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_BEAM_WEAPON:
-		curMaterial->CptEvtBrokenBeamWeaponIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_SHIELDS:
-		curMaterial->CptEvtBrokenShieldsIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_THROTTLE:
-		curMaterial->CptEvtBrokenThrottleIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_SENSORS:
-		curMaterial->CptEvtBrokenSensorsIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_LASER_RECHARGE:
-		curMaterial->CptEvtBrokenLaserRechargeIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_ENGINE_POWER:
-		curMaterial->CptEvtBrokenEnginePowerIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_SHIELD_REGHARGE:
-		curMaterial->CptEvtBrokenShieldRechargeIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	case CPT_EVT_BROKEN_BEAM_RECHARGE:
-		curMaterial->CptEvtBrokenBeamRechargeIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	default: // EVT_NONE
-		curMaterial->TextureATCIndex = g_AnimatedMaterials.size() - 1;
-		break;
-	}
+	curMaterial->TextureATCIndices[eventType] = g_AnimatedMaterials.size() - 1;
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {

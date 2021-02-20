@@ -1072,39 +1072,10 @@ void Direct3DTexture::TagTexture() {
 					if (this->is_LightTexture)
 						LoadAnimatedTextures(this->material.LightMapATCIndex);
 					else {
-						// Go over each valid *TextureATCIndex and load their associated animations
-						if (this->material.TextureATCIndex > -1)
-							LoadAnimatedTextures(this->material.TextureATCIndex);
-						// Target Events:
-						if (this->material.TgtEvtSelectedATCIndex > -1)
-							LoadAnimatedTextures(this->material.TgtEvtSelectedATCIndex);
-						if (this->material.TgtEvtLaserLockedATCIndex > -1)
-							LoadAnimatedTextures(this->material.TgtEvtLaserLockedATCIndex);
-						if (this->material.TgtEvtWarheadLockingATCIndex > -1)
-							LoadAnimatedTextures(this->material.TgtEvtWarheadLockingATCIndex);
-						if (this->material.TgtEvtWarheadLockedATCIndex > -1)
-							LoadAnimatedTextures(this->material.TgtEvtWarheadLockedATCIndex);
-						// Cockpit Instrument Damage:
-						if (this->material.CptEvtBrokenCMDIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenCMDIndex);
-						if (this->material.CptEvtBrokenLaserIonIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenLaserIonIndex);
-						if (this->material.CptEvtBrokenBeamWeaponIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenBeamWeaponIndex);
-						if (this->material.CptEvtBrokenShieldsIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenShieldsIndex);
-						if (this->material.CptEvtBrokenThrottleIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenThrottleIndex);
-						if (this->material.CptEvtBrokenSensorsIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenSensorsIndex);
-						if (this->material.CptEvtBrokenLaserRechargeIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenLaserRechargeIndex);
-						if (this->material.CptEvtBrokenEnginePowerIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenEnginePowerIndex);
-						if (this->material.CptEvtBrokenShieldRechargeIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenShieldRechargeIndex);
-						if (this->material.CptEvtBrokenBeamRechargeIndex > -1)
-							LoadAnimatedTextures(this->material.CptEvtBrokenBeamRechargeIndex);
+						// Go over each valid TextureATCIndex and load their associated animations
+						for (int i = 0; i < MAX_GAME_EVT; i++)
+							if (this->material.TextureATCIndices[i] > -1)
+								LoadAnimatedTextures(this->material.TextureATCIndices[i]);
 					}
 				}
 				// DEBUG

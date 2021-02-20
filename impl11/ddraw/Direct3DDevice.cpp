@@ -6134,8 +6134,56 @@ HRESULT Direct3DDevice::BeginScene()
 
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
+		CockpitInstrumentState prevDamage = g_GameEvent.CockpitInstruments;
 		// Update the cockpit instrument status
 		g_GameEvent.CockpitInstruments.FromXWADamage(craftInstance->CockpitInstrumentStatus);
+		if (prevDamage.CMD && !g_GameEvent.CockpitInstruments.CMD)
+			log_debug("[DBG] [CPT] CMD Damaged!");
+		if (prevDamage.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon)
+			log_debug("[DBG] [CPT] LaserIon Damaged!");
+		if (prevDamage.BeamWeapon && !g_GameEvent.CockpitInstruments.BeamWeapon)
+			log_debug("[DBG] [CPT] BeamWeapon Damaged!");
+		if (prevDamage.Shields && !g_GameEvent.CockpitInstruments.Shields)
+			log_debug("[DBG] [CPT] Shields Damaged!");
+		if (prevDamage.Sensors && !g_GameEvent.CockpitInstruments.Sensors)
+			log_debug("[DBG] [CPT] Sensors Damaged!");
+		if (prevDamage.LaserRecharge && !g_GameEvent.CockpitInstruments.LaserRecharge)
+			log_debug("[DBG] [CPT] LaserRecharge Damaged!");
+		if (prevDamage.ShieldRecharge && !g_GameEvent.CockpitInstruments.ShieldRecharge)
+			log_debug("[DBG] [CPT] ShieldRecharge Damaged!");
+		if (prevDamage.EnginePower && !g_GameEvent.CockpitInstruments.EnginePower)
+			log_debug("[DBG] [CPT] EnginePower Damaged!");
+		if (prevDamage.BeamRecharge && !g_GameEvent.CockpitInstruments.BeamRecharge)
+			log_debug("[DBG] [CPT] BeamRecharge Damaged!");
+		if (prevDamage.Throttle && !g_GameEvent.CockpitInstruments.Throttle)
+			log_debug("[DBG] [CPT] Throttle Damaged!");
+
+		// Dump the CraftInstance table
+		/*
+		if (g_bDumpSSAOBuffers) {
+			static int counter = 0;
+			FILE *fileCI = NULL;
+			int error = 0;
+			char sFileNameCI[128];
+			sprintf_s(sFileNameCI, 128, "./CraftInstance%d", counter);
+			counter++;
+
+			log_debug("[DBG] InitialCockpitInstruments: 0x%x, CockpitInstrumentStatus: 0x%x",
+				craftInstance->InitialCockpitInstruments, craftInstance->CockpitInstrumentStatus);
+
+			try {
+				error = fopen_s(&fileCI, sFileNameCI, "wb");
+			}
+			catch (...) {
+				log_debug("Could not create %s", sFileNameCI);
+			}
+			if (error == 0) {
+				fwrite(craftInstance, sizeof(CraftInstance), 1, fileCI);
+				fclose(fileCI);
+				log_debug("[DBG] Dumped %s", sFileNameCI);
+			}
+		}
+		*/
 	}
 
 	if (!this->_deviceResources->_renderTargetView)

@@ -16,12 +16,12 @@ How to add support for a new event:
 
 1. Add the new event in GameEventEnum
 2. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
-3. Add a new TextureATCIndex in MaterialStruct. Initialize it to -1 in the Material constructor
-4. Update AnyTextureATCIndex()
-5. Update GetCurrentTextureATCIndex()
-6. Update Materials.cpp:ParseEvent() and parse the EVT_* label
-7. Update Materials.cpp:AssignTextureEvent() and assign into the right index
-8. Update Direct3DTexture::TagTexture() and load the frames for the new event
+--3. Add a new TextureATCIndex in MaterialStruct. Initialize it to -1 in the Material constructor
+--4. Update AnyTextureATCIndex()
+5. Update GetCurrentTextureATCIndex(). Mind the priority of the new event!
+6. Update Materials.cpp:ParseEvent() and parse the new EVT_* label
+--7. Update Materials.cpp:AssignTextureEvent() and assign into the right index
+--8. Update Direct3DTexture::TagTexture() and load the frames for the new event
 
 */
 // Target Event Enum
@@ -30,7 +30,7 @@ How to add support for a new event:
 // For now, the plan is to use it to change which animated textures are
 // displayed.
 typedef enum GameEventEnum {
-	EVT_NONE,					// Play when no other event is active
+	EVT_NONE = 0,				// Play when no other event is active
 	TGT_EVT_SELECTED,			// Something has been targeted
 	TGT_EVT_LASER_LOCK,			// Laser is "locked"
 	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
@@ -44,8 +44,10 @@ typedef enum GameEventEnum {
 	CPT_EVT_BROKEN_SENSORS,
 	CPT_EVT_BROKEN_LASER_RECHARGE,
 	CPT_EVT_BROKEN_ENGINE_POWER,
-	CPT_EVT_BROKEN_SHIELD_REGHARGE,
+	CPT_EVT_BROKEN_SHIELD_RECHARGE,
 	CPT_EVT_BROKEN_BEAM_RECHARGE,
+	// End-of-events sentinel. Do not remove!
+	MAX_GAME_EVT
 } GameEvent;
 
 // *********************
@@ -204,6 +206,7 @@ typedef struct MaterialStruct {
 	int ImageId;
 
 	int LightMapATCIndex;  // Index into the AnimatedTexControl structure that holds LightMap animation data
+	/*
 	int TextureATCIndex;   // Index into the AnimatedTexControl structure that holds Texture animation data
 	int TgtEvtSelectedATCIndex; // Index into AnimatedTexControl structure that holds Texture animation data to be played when a target is selected
 	int TgtEvtLaserLockedATCIndex; // Index into animation data to be played when the laser is "locked"
@@ -221,6 +224,10 @@ typedef struct MaterialStruct {
 	int CptEvtBrokenEnginePowerIndex;
 	int CptEvtBrokenShieldRechargeIndex;
 	int CptEvtBrokenBeamRechargeIndex;
+	*/
+	
+	int TextureATCIndices[MAX_GAME_EVT];
+	int LightMapATCIndices[MAX_GAME_EVT];
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -262,7 +269,7 @@ typedef struct MaterialStruct {
 		ImageId = 0;
 
 		LightMapATCIndex = -1;
-		TextureATCIndex = -1;
+		/*TextureATCIndex = -1;
 		TgtEvtSelectedATCIndex = -1;
 		TgtEvtLaserLockedATCIndex = -1;
 		TgtEvtWarheadLockingATCIndex = -1;
@@ -279,6 +286,12 @@ typedef struct MaterialStruct {
 		CptEvtBrokenEnginePowerIndex = -1;
 		CptEvtBrokenShieldRechargeIndex = -1;
 		CptEvtBrokenBeamRechargeIndex = -1;
+		*/
+
+		for (int i = 0; i < MAX_GAME_EVT; i++) {
+			TextureATCIndices[i] = -1;
+			LightMapATCIndices[i] = -1;
+		}
 
 		/*
 		// DEBUG properties, remove later
@@ -295,88 +308,86 @@ typedef struct MaterialStruct {
 
 	// Returns true if any of the possible texture indices is enabled
 	inline bool AnyTextureATCIndex() {
-		return TextureATCIndex > -1 || TgtEvtSelectedATCIndex > -1 || TgtEvtLaserLockedATCIndex > -1 ||
-			TgtEvtWarheadLockingATCIndex > -1 || TgtEvtWarheadLockedATCIndex > -1 ||
-			CptEvtBrokenCMDIndex > -1 || CptEvtBrokenLaserIonIndex > -1 || CptEvtBrokenBeamWeaponIndex > -1 ||
-			CptEvtBrokenShieldsIndex > -1 || CptEvtBrokenThrottleIndex > -1 || CptEvtBrokenSensorsIndex > -1 ||
-			CptEvtBrokenLaserRechargeIndex > -1 || CptEvtBrokenEnginePowerIndex > -1 || CptEvtBrokenShieldRechargeIndex > -1 ||
-			CptEvtBrokenBeamRechargeIndex > -1;
+		for (int i = 0; i < MAX_GAME_EVT; i++)
+			if (TextureATCIndices[i] > -1)
+				return true;
+		return false;
 	}
 
 	inline int GetCurrentTextureATCIndex(bool *bIsDamageTex) {
-		int index = TextureATCIndex; // Default index, this is what we'll play if EVT_NONE is set
+		int index = TextureATCIndices[EVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
 		if (bIsDamageTex != NULL) *bIsDamageTex = false;
 
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first...
 
 		// Cockpit Damage Events
-		if (!g_GameEvent.CockpitInstruments.CMD && CptEvtBrokenCMDIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.CMD && TextureATCIndices[CPT_EVT_BROKEN_CMD] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenCMDIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_CMD];
 		}
 		
-		if (!g_GameEvent.CockpitInstruments.LaserIon && CptEvtBrokenLaserIonIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.LaserIon && TextureATCIndices[CPT_EVT_BROKEN_LASER_ION] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenLaserIonIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_LASER_ION];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamWeapon && CptEvtBrokenBeamWeaponIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.BeamWeapon && TextureATCIndices[CPT_EVT_BROKEN_BEAM_WEAPON] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenBeamWeaponIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_BEAM_WEAPON];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.Shields && CptEvtBrokenShieldsIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.Shields && TextureATCIndices[CPT_EVT_BROKEN_SHIELDS] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenShieldsIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_SHIELDS];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.Throttle && CptEvtBrokenThrottleIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.Throttle && TextureATCIndices[CPT_EVT_BROKEN_THROTTLE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenThrottleIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_THROTTLE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.Sensors && CptEvtBrokenSensorsIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.Sensors && TextureATCIndices[CPT_EVT_BROKEN_SENSORS] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenSensorsIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_SENSORS];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.LaserRecharge && CptEvtBrokenLaserRechargeIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.LaserRecharge && TextureATCIndices[CPT_EVT_BROKEN_LASER_RECHARGE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenLaserRechargeIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_LASER_RECHARGE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.EnginePower && CptEvtBrokenEnginePowerIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.EnginePower && TextureATCIndices[CPT_EVT_BROKEN_ENGINE_POWER] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenEnginePowerIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_ENGINE_POWER];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && CptEvtBrokenShieldRechargeIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && TextureATCIndices[CPT_EVT_BROKEN_SHIELD_RECHARGE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenShieldRechargeIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_SHIELD_RECHARGE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamRecharge && CptEvtBrokenBeamRechargeIndex > -1) {
+		if (!g_GameEvent.CockpitInstruments.BeamRecharge && TextureATCIndices[CPT_EVT_BROKEN_BEAM_RECHARGE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
-			return CptEvtBrokenBeamRechargeIndex;
+			return TextureATCIndices[CPT_EVT_BROKEN_BEAM_RECHARGE];
 		}
 
 		// Target Events
-		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TgtEvtLaserLockedATCIndex > -1)
-			return TgtEvtLaserLockedATCIndex;
+		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TextureATCIndices[TGT_EVT_LASER_LOCK] > -1)
+			return TextureATCIndices[TGT_EVT_LASER_LOCK];
 		
-		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKING && TgtEvtWarheadLockingATCIndex > -1)
-			return TgtEvtWarheadLockingATCIndex;
+		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKING && TextureATCIndices[TGT_EVT_WARHEAD_LOCKING] > -1)
+			return TextureATCIndices[TGT_EVT_WARHEAD_LOCKING];
 
-		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKED && TgtEvtWarheadLockedATCIndex > -1)
-			return TgtEvtWarheadLockedATCIndex;
+		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKED && TextureATCIndices[TGT_EVT_WARHEAD_LOCKED] > -1)
+			return TextureATCIndices[TGT_EVT_WARHEAD_LOCKED];
 
 		// Least-specific events later.
 		// This event is for the TGT_EVT_SELECTED which should be enabled if there's a laser or
 		// warhead lock. That's why the condition is placed at the end, after we've checked all
 		// the previous events, and we compare against EVT_NONE:
-		if (g_GameEvent.TargetEvent != EVT_NONE && TgtEvtSelectedATCIndex > -1)
-			return TgtEvtSelectedATCIndex;
+		if (g_GameEvent.TargetEvent != EVT_NONE && TextureATCIndices[TGT_EVT_SELECTED] > -1)
+			return TextureATCIndices[TGT_EVT_SELECTED];
 		
 		return index;
 	}

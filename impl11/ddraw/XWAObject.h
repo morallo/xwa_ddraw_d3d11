@@ -137,8 +137,8 @@ struct CraftInstance {
 	BYTE field_13F[8];
 	DWORD field_147[8];
 	DWORD field_167[6];
-	WORD InitialCockpitInstruments;
-	WORD CockpitInstrumentStatus;
+	WORD InitialCockpitInstruments; // Ofs 0x17F
+	WORD CockpitInstrumentStatus;   // Ofs 0x181
 	WORD InitialSubsystems;
 	WORD SubsystemStatus;
 	WORD MagTimeRemaining;
@@ -186,9 +186,9 @@ struct CraftInstance {
 	BYTE WarheadsFired;
 	BYTE WarheadsHit;
 	BYTE SysRepairPriority[11]; // Ofs 0x1F7 db 11 dup(? )
-	WORD SysRepairPercent[11];
-	WORD SysRepairTimeRemaining[11];
-	BYTE MeshState[50];
+	WORD SysRepairPercent[11];  // Ofs 0x202
+	WORD SysRepairTimeRemaining[11]; // Ofs 0x218
+	BYTE MeshState[50]; // Ofs 0x22E
 	BYTE MeshRotationAngles[50];
 	BYTE MeshHP[50];
 	WORD field_2C4; // Ofs 0x2C4       dw ?
