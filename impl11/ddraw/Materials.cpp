@@ -540,9 +540,9 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	return true;
 }
 
-inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial)
+inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial, int ATCType=TEXTURE_ATC_IDX)
 {
-	curMaterial->TextureATCIndices[eventType] = g_AnimatedMaterials.size() - 1;
+	curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
@@ -702,10 +702,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			atc.TimeLeft = atc.Sequence[0].seconds;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			if (IsLightMap)
-				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
-			else
-				AssignTextureEvent(atc.Event, curMaterial);
+			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 
 			/*
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
@@ -739,10 +736,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			atc.BlackToAlpha = (bool)black_to_alpha;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			if (is_lightmap)
-				curMaterial->LightMapATCIndex = g_AnimatedMaterials.size() - 1;
-			else
-				AssignTextureEvent(atc.Event, curMaterial);
+			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);

@@ -4787,7 +4787,7 @@ HRESULT Direct3DDevice::Execute(
 					// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
 					else if (bIsLightTexture) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.LightMapATCIndex;
+						int anim_idx = lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->is_CockpitTex ?
 							g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
 						// If this is an animated light map, then use the right intensity setting
@@ -4848,9 +4848,9 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex(NULL) > -1) {
+					else if (!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL) > -1) {
 						bModifiedShaders = true;
-						int anim_idx = lastTextureSelected->material.GetCurrentTextureATCIndex(NULL);
+						int anim_idx = lastTextureSelected->material.GetCurrentATCIndex(NULL);
 						// If this is an animated light map, then use the right intensity setting
 						// TODO: Make the following code more efficient
 						if (anim_idx > -1) {
@@ -4986,8 +4986,8 @@ HRESULT Direct3DDevice::Execute(
 
 				// Animated Light Maps/Textures
 				if (bHasMaterial) {
-					if ((bIsLightTexture && lastTextureSelected->material.LightMapATCIndex > -1) ||
-						(!bIsLightTexture && lastTextureSelected->material.GetCurrentTextureATCIndex(NULL) > -1))
+					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
 					{
 						bool bIsDamageTex = false;
 						bModifiedShaders = true;
@@ -5003,13 +5003,13 @@ HRESULT Direct3DDevice::Execute(
 						int ATCIndex = -1;
 						if (bIsLightTexture) {
 							resources->InitPixelShader(resources->_pixelShaderAnimLightMap);
-							ATCIndex = lastTextureSelected->material.LightMapATCIndex;
+							ATCIndex = lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
 						}
 						else {
 							// If we're rendering a DC element, we don't want to replace the shader
 							if (g_PSCBuffer.DynCockpitSlots == 0)
 								resources->InitPixelShader(resources->_noGlassPS);
-							ATCIndex = lastTextureSelected->material.GetCurrentTextureATCIndex(&bIsDamageTex);
+							ATCIndex = lastTextureSelected->material.GetCurrentATCIndex(&bIsDamageTex);
 						}
 
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);

@@ -1066,17 +1066,15 @@ void Direct3DTexture::TagTexture() {
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
-				if ((this->material.LightMapATCIndex > -1 && this->is_LightTexture) ||
-					(this->material.AnyTextureATCIndex() && !this->is_LightTexture)) {
+				if ((this->material.AnyLightMapATCIndex() && this->is_LightTexture) ||
+					(this->material.AnyTextureATCIndex() && !this->is_LightTexture)) 
+				{
 					// Load the animated textures for each valid index
-					if (this->is_LightTexture)
-						LoadAnimatedTextures(this->material.LightMapATCIndex);
-					else {
-						// Go over each valid TextureATCIndex and load their associated animations
-						for (int i = 0; i < MAX_GAME_EVT; i++)
-							if (this->material.TextureATCIndices[i] > -1)
-								LoadAnimatedTextures(this->material.TextureATCIndices[i]);
-					}
+					int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
+					// Go over each valid TextureATCIndex and load their associated animations
+					for (int i = 0; i < MAX_GAME_EVT; i++)
+						if (this->material.TextureATCIndices[ATCType][i] > -1)
+							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
 				}
 				// DEBUG
 				/*if (bIsDat) {
