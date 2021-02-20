@@ -121,6 +121,7 @@ extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
 extern float g_fLPdebugPointOffset, g_fDebugYCenter;
+extern bool g_bApplyCockpitDamage;
 
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them

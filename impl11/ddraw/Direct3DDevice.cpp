@@ -519,6 +519,9 @@ bool g_bEnableLaserLights = false;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
 
+// Force Cockpit Damage
+bool g_bApplyCockpitDamage = false;
+
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
  */
@@ -6142,6 +6145,22 @@ HRESULT Direct3DDevice::BeginScene()
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
 		CockpitInstrumentState prevDamage = g_GameEvent.CockpitInstruments;
+		// Apply the cockpit damage if requested
+		if (g_bApplyCockpitDamage) {
+			FILE *MaskFile = NULL;
+			fopen_s(&MaskFile, "CockpitDamage.txt", "rt");
+			if (MaskFile != NULL) {
+				uint32_t Mask = 0x0;
+				fscanf_s(MaskFile, "0x%x", &Mask);
+				fclose(MaskFile);
+
+				log_debug("[DBG] InitialCockpitInstruments: 0x%x, CockpitInstrumentStatus: 0x%x",
+					craftInstance->InitialCockpitInstruments, craftInstance->CockpitInstrumentStatus);
+				craftInstance->CockpitInstrumentStatus = craftInstance->InitialCockpitInstruments & Mask;
+				log_debug("[DBG] New Cockpit Instruments: 0x%x", craftInstance->CockpitInstrumentStatus);
+			}
+			g_bApplyCockpitDamage = false;
+		}
 		// Update the cockpit instrument status
 		g_GameEvent.CockpitInstruments.FromXWADamage(craftInstance->CockpitInstrumentStatus);
 		if (prevDamage.CMD && !g_GameEvent.CockpitInstruments.CMD)

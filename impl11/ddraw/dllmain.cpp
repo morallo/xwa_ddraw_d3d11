@@ -67,8 +67,6 @@ extern int g_iHyperStateOverride;
 // ACTIVE COCKPIT
 extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
 extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
-extern float g_fLPdebugPointOffset;
-extern bool g_bDumpLaserPointerDebugInfo;
 
 extern Vector3 g_LaserPointDebug;
 
@@ -469,12 +467,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bSkipGUI: %d", g_bSkipGUI);
 				return 0;
 #endif
-				// Ctrl + Alt + Key
-				// DEBUG
+			// Ctrl + Alt + Key
+			// Toggle Debug buffers
 			case 'D':
 				g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
+			// Toggle FXAA
 			case 'F':
 				g_config.FXAAEnabled = !g_config.FXAAEnabled;
 				if (g_config.FXAAEnabled)
@@ -482,6 +481,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "FXAA Disabled");
 				return 0;
+			// Dump Debug buffers
 			case 'X':
 				g_bDumpSSAOBuffers = true;
 				return 0;
@@ -650,6 +650,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			}
 			*/
+
+			// Ctrl+C: Force cockpit damage (helps test the cockpit damage animations)
+			case 'C':
+				g_bApplyCockpitDamage = true;
+				return 0;
 
 			// Ctrl+D --> Toggle dynamic lights
 			case 'D': {
