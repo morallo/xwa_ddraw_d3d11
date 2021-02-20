@@ -4020,10 +4020,15 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				// Dynamic Cockpit: Remove all the alpha overlays in hi-res mode
+				// Dynamic Cockpit: Remove all the alpha overlays (lightmaps), unless there's an active
+				// lightmap animation.
 				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
-					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
-					goto out;
+					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay) 
+				{
+					if (!bHasMaterial) goto out;
+					if (lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) < 0) goto out;
+					// This lightmap has a material and an animated light map, we can't skip this texture.
+				}
 
 				// Skip rendering the laser/ion energy levels and brackets if we're rendering them
 				// from first principles.
@@ -4882,7 +4887,9 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst)
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst &&
+					// We should never render lightmap textures with the DC pixel shader:
+					!lastTextureSelected->is_DynCockpitAlphaOverlay)
 				{
 					int idx = lastTextureSelected->DCElementIndex;
 					//log_debug("[DBG] Replacing cockpit textures with DC");

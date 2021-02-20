@@ -1263,6 +1263,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	DeleteRandomVectorTexture();
 	ResetXWALightInfo();
 	g_HiResTimer.ResetGlobalTime();
+	ResetGameEvent();
 	this->ResetExtraTextures();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();

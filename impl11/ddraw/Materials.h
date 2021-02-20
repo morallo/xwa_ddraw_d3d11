@@ -15,7 +15,7 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 How to add support for a new event:
 
 1. Add the new event in GameEventEnum
-2. Add a new field to g_GameEvent (if applicable).
+2. Add a new field to g_GameEvent and update ResetGameEvent() (if applicable).
 3. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
 4. Update GetCurrentTextureATCIndex(). Mind the priority of the new event!
 5. Update Materials.cpp:ParseEvent() and parse the new EVT_* label
@@ -450,3 +450,5 @@ void AnimateMaterials();
 void ClearAnimatedMaterials();
 
 bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId);
+
+void ResetGameEvent();

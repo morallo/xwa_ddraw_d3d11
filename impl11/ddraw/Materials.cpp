@@ -716,10 +716,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
 		}
 	}
-	else if (_stricmp(param, "frame_seq") == 0) {
+	else if (_stricmp(param, "frame_seq") == 0 || _stricmp(param, "frame_rand") == 0) {
 		AnimatedTexControl atc;
 		int is_lightmap, black_to_alpha;
-		atc.IsRandom = 0;
+		atc.IsRandom = _stricmp(param, "frame_rand") == 0;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
@@ -1108,4 +1108,9 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 	EnginePower		= (x.EngineLevel != 0);
 	ShieldRecharge	= (x.ShieldRecharge  != 0);
 	BeamRecharge	= (x.BeamRecharge != 0);
+}
+
+void ResetGameEvent() {
+	g_GameEvent.TargetEvent = EVT_NONE;
+	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
 }
