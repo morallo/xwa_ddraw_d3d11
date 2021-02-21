@@ -439,6 +439,7 @@ HRESULT DeviceResources::Initialize()
 	{
 		if (g_bUseOpenXR)
 		{
+			this->_stereoRenderer = new VRRendererOpenXR();
 			g_bOpenXRInitialized = this->_stereoRenderer->init(this);
 			if (g_bOpenXRInitialized)
 				log_debug("[DBG][OpenXR] VR Renderer initialized");
