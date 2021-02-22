@@ -6136,7 +6136,6 @@ HRESULT Direct3DDevice::BeginScene()
 
 	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
 	UpdateDCHologramState();
-	AnimateMaterials();
 
 	// Update the global game event
 	int16_t currentTargetIndex = (int16_t)PlayerDataTable[*g_playerIndex].currentTargetIndex;
@@ -6340,6 +6339,11 @@ HRESULT Direct3DDevice::EndScene()
 
 	g_SubCMDBracket.x = -1.0f;
 	g_SubCMDBracket.y = -1.0f;
+
+	// Check which events fired in this frame.
+	UpdateEventsFired();
+	// Animate all materials
+	AnimateMaterials();
 
 	return D3D_OK;
 }

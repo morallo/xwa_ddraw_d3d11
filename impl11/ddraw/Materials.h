@@ -15,10 +15,12 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 How to add support for a new event:
 
 1. Add the new event in GameEventEnum
-2. Add a new field to g_GameEvent and update ResetGameEvent() (if applicable).
-3. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
-4. Update GetCurrentTextureATCIndex(). Mind the priority of the new event!
-5. Update Materials.cpp:ParseEvent() and parse the new EVT_* label
+2. Add the corresponding string for the new event in g_sGameEventNames
+3. Add a new field to g_GameEvent and update ResetGameEvent() (if applicable).
+4. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
+5. Update GetCurrentTextureATCIndex(). Mind the priority of the new event!
+6. Update Materials.cpp:ResetGameEvent()
+7. Update Materials.cpp:UpdateEventsFired()
 
 */
 
@@ -50,6 +52,8 @@ typedef enum GameEventEnum {
 	// End-of-events sentinel. Do not remove!
 	MAX_GAME_EVT
 } GameEvent;
+
+extern char *g_sGameEventNames[MAX_GAME_EVT];
 
 // *********************
 // Cockpit Damage
@@ -110,10 +114,8 @@ typedef struct CockpitInstrumentStateStruct {
 	void FromXWADamage(WORD XWADamage);
 } CockpitInstrumentState;
 
-// I need to think this more carefully: will there be more events?
 typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
-	// ... More (exclusive) event types?
 	CockpitInstrumentState CockpitInstruments;
 
 	GlobalGameEventStruct() {
@@ -145,9 +147,9 @@ typedef struct AnimatedTexControlStruct {
 	std::vector<TexSeqElemStruct> Sequence;
 	int AnimIdx; // This is the current index in the Sequence, it can increase monotonically, or it can be random.
 	float TimeLeft; // Time left for the current index in the sequence.
-	bool IsRandom, BlackToAlpha;
+	bool IsRandom, BlackToAlpha, NoLoop;
 	float4 Tint;
-	GameEvent Event; // Activate this animation according to the value set in this field
+	GameEvent Event; // Activate this animation according to the value set in this field, this is like a "back-pointer" to the event
 	float2 Offset;
 	float AspectRatio;
 	int Clamp;
@@ -166,6 +168,7 @@ typedef struct AnimatedTexControlStruct {
 		Offset.y = 0.0f;
 		AspectRatio = 1.0f;
 		Clamp = 0;
+		NoLoop = false; // Animations loop by default
 	}
 
 	// Updates the timer/index on the current animated material. Only call this function
@@ -452,3 +455,5 @@ void ClearAnimatedMaterials();
 bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId);
 
 void ResetGameEvent();
+void UpdateEventsFired();
+bool EventFired(GameEvent Event);

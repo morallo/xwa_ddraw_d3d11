@@ -416,7 +416,7 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 			char texname[MAX_TEX_SEQ_NAME + 20];
 			wchar_t wTexName[MAX_TEX_SEQ_NAME];
 			size_t len = 0;
-			sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Animations\\%s", tex_seq_elem.texname);
+			sprintf_s(texname, MAX_TEX_SEQ_NAME + 20, "Effects\\Animations\\%s", tex_seq_elem.texname);
 			mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, texname, MAX_TEX_SEQ_NAME);
 			//log_debug("[DBG] [MAT] Loading Light(%d) ANIMATED texture: %s for ATC index: %d, extraTexIdx: %d",
 			//	this->is_LightTexture, texname, ATCIndex, resources->_extraTextures.size());

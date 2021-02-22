@@ -12,7 +12,30 @@ namespace fs = std::filesystem;
 
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
-GlobalGameEvent g_GameEvent;
+GlobalGameEvent g_GameEvent, g_PrevGameEvent;
+// Set of flags that tell us when events fired on the current frame
+bool bEventsFired[MAX_GAME_EVT] = { 0 };
+// The ordering in this array MUST match the ordering in GameEventEnum
+char *g_sGameEventNames[MAX_GAME_EVT] = {
+	"EVT_NONE",
+	// Target Events
+	"EVT_TARGET_SEL",
+	"EVT_LASER_LOCKED",
+	"EVT_WARHEAD_LOCKING",
+	"EVT_WARHEAD_LOCKED",
+	// Cockpit Damage Events
+	"EVT_BROKEN_CMD",
+	"EVT_BROKEN_LASER_ION",
+	"EVT_BROKEN_BEAM_WEAPON",
+	"EVT_BROKEN_SHIELDS",
+	"EVT_BROKEN_THROTTLE",
+	"EVT_BROKEN_SENSORS",
+	"EVT_BROKEN_LASER_RECHARGE",
+	"EVT_BROKEN_ENGINE_POWER",
+	"EVT_BROKEN_SHIELD_RECHARGE",
+	"EVT_BROKEN_BEAM_RECHARGE",
+};
+
 
 /*
  Contains all the materials for all the OPTs currently loaded
@@ -89,16 +112,6 @@ bool LoadLightColor(char* buf, Vector3* Light)
 	return true;
 }
 
-void ListFilesInDir(char *path)
-{
-	std::string s_path = std::string("Animations\\") + std::string(path);
-	log_debug("[DBG] Listing files under path: %s", s_path.c_str());
-	for (const auto & entry : fs::directory_iterator(s_path)) {
-		// Surely there's a better way to get the filename...
-		log_debug("[DBG] file: %s", entry.path().filename().string().c_str());
-	}
-}
-
 #define SKIP_WHITESPACES(s) {\
 	while (*s != 0 && *s == ' ') s++;\
 	if (*s == 0) return false;\
@@ -107,6 +120,7 @@ void ListFilesInDir(char *path)
 bool ParseEvent(char *s, GameEvent *eventType) {
 	char s_event[80];
 	int res;
+	// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
 	*eventType = EVT_NONE;
 
 	// Parse the event
@@ -117,39 +131,11 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 		}
 		else {
 			log_debug("[DBG] [MAT] EventType: %s", s_event);
-			// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
-			if (stristr(s_event, "EVT_NONE") != NULL)
-				*eventType = EVT_NONE;
-			// Target Events
-			else if (stristr(s_event, "EVT_TARGET_SEL") != NULL)
-				*eventType = TGT_EVT_SELECTED;
-			else if (stristr(s_event, "EVT_LASER_LOCKED") != NULL)
-				*eventType = TGT_EVT_LASER_LOCK;
-			else if (stristr(s_event, "EVT_WARHEAD_LOCKING") != NULL)
-				*eventType = TGT_EVT_WARHEAD_LOCKING;
-			else if (stristr(s_event, "EVT_WARHEAD_LOCKED") != NULL)
-				*eventType = TGT_EVT_WARHEAD_LOCKED;
-			// Cockpit Instrument Damage Events
-			else if (stristr(s_event, "EVT_BROKEN_CMD") != NULL)
-				*eventType = CPT_EVT_BROKEN_CMD;
-			else if (stristr(s_event, "EVT_BROKEN_LASER_ION") != NULL)
-				*eventType = CPT_EVT_BROKEN_LASER_ION;
-			else if (stristr(s_event, "EVT_BROKEN_BEAM_WEAPON") != NULL)
-				*eventType = CPT_EVT_BROKEN_BEAM_WEAPON;
-			else if (stristr(s_event, "EVT_BROKEN_SHIELDS") != NULL)
-				*eventType = CPT_EVT_BROKEN_SHIELDS;
-			else if (stristr(s_event, "EVT_BROKEN_THROTTLE") != NULL)
-				*eventType = CPT_EVT_BROKEN_THROTTLE;
-			else if (stristr(s_event, "EVT_BROKEN_SENSORS") != NULL)
-				*eventType = CPT_EVT_BROKEN_SENSORS;
-			else if (stristr(s_event, "EVT_BROKEN_LASER_RECHARGE") != NULL)
-				*eventType = CPT_EVT_BROKEN_LASER_RECHARGE;
-			else if (stristr(s_event, "EVT_BROKEN_ENGINE_POWER") != NULL)
-				*eventType = CPT_EVT_BROKEN_ENGINE_POWER;
-			else if (stristr(s_event, "EVT_BROKEN_SHIELD_RECHARGE") != NULL)
-				*eventType = CPT_EVT_BROKEN_SHIELD_RECHARGE;
-			else if (stristr(s_event, "EVT_BROKEN_BEAM_RECHARGE") != NULL)
-				*eventType = CPT_EVT_BROKEN_BEAM_RECHARGE;
+			for (int i = 0; i < MAX_GAME_EVT; i++)
+				if (stristr(s_event, g_sGameEventNames[i]) != NULL) {
+					*eventType = (GameEvent)i;
+					break;
+				}
 		}
 	}
 	catch (...) {
@@ -515,7 +501,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 		}
 	}
 	else {
-		std::string s_path = std::string("Animations\\") + std::string(path);
+		std::string s_path = std::string("Effects\\Animations\\") + std::string(path);
 		if (fs::is_directory(s_path)) {
 			// We just finished reading the path where a frame sequence is stored
 			// Now we need to load all the frames in that path into a tex_seq_elem
@@ -1069,7 +1055,6 @@ void AnimatedTexControl::Animate() {
 			idx = rand() % num_frames;
 		else
 			idx = (idx + 1) % num_frames;
-		// time += 1.0f;
 		// Use the time specified in the sequence for the next index
 		time += this->Sequence[idx].seconds;
 	}
@@ -1113,4 +1098,43 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 void ResetGameEvent() {
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
+	// Reset the Events Fired flags
+	for (int i = 0; i < MAX_GAME_EVT; i++)
+		bEventsFired[i] = false;
+	g_PrevGameEvent = g_GameEvent;
+}
+
+// Check which events were set on the current frame and set the corresponding flags
+void UpdateEventsFired() {
+	// Set all events to false
+	for (int i = 0; i < MAX_GAME_EVT; i++)
+		bEventsFired[i] = false;
+	
+	// Set the current target event to true if it changed:
+	if (g_PrevGameEvent.TargetEvent != g_GameEvent.TargetEvent)
+		bEventsFired[g_GameEvent.TargetEvent] = true;
+	
+	// Manually check and set each damage event
+	bEventsFired[CPT_EVT_BROKEN_CMD] = (g_PrevGameEvent.CockpitInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD);
+	bEventsFired[CPT_EVT_BROKEN_LASER_ION] = (g_PrevGameEvent.CockpitInstruments.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon);
+	bEventsFired[CPT_EVT_BROKEN_BEAM_WEAPON] = (g_PrevGameEvent.CockpitInstruments.BeamWeapon && !g_GameEvent.CockpitInstruments.BeamWeapon);
+
+	bEventsFired[CPT_EVT_BROKEN_SHIELDS] = (g_PrevGameEvent.CockpitInstruments.Shields && !g_GameEvent.CockpitInstruments.Shields);
+	bEventsFired[CPT_EVT_BROKEN_THROTTLE] = (g_PrevGameEvent.CockpitInstruments.Throttle && !g_GameEvent.CockpitInstruments.Throttle);
+	bEventsFired[CPT_EVT_BROKEN_SENSORS] = (g_PrevGameEvent.CockpitInstruments.Sensors && !g_GameEvent.CockpitInstruments.Sensors);
+
+	bEventsFired[CPT_EVT_BROKEN_LASER_RECHARGE] = (g_PrevGameEvent.CockpitInstruments.LaserRecharge && !g_GameEvent.CockpitInstruments.LaserRecharge);
+	bEventsFired[CPT_EVT_BROKEN_ENGINE_POWER] = (g_PrevGameEvent.CockpitInstruments.EnginePower && !g_GameEvent.CockpitInstruments.EnginePower);
+	bEventsFired[CPT_EVT_BROKEN_SHIELD_RECHARGE] = (g_PrevGameEvent.CockpitInstruments.ShieldRecharge && !g_GameEvent.CockpitInstruments.ShieldRecharge);
+	bEventsFired[CPT_EVT_BROKEN_BEAM_RECHARGE] = (g_PrevGameEvent.CockpitInstruments.BeamRecharge && !g_GameEvent.CockpitInstruments.BeamRecharge);
+
+	for (int i = 0; i < MAX_GAME_EVT; i++)
+		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
+
+	// Copy the events
+	g_PrevGameEvent = g_GameEvent;
+}
+
+bool EventFired(GameEvent Event) {
+	return bEventsFired[Event];
 }
