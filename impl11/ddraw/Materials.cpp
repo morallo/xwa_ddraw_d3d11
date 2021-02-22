@@ -214,7 +214,7 @@ bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFi
 */
 bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) {
 	int res = 0;
-	char temp[256];
+	char temp[512];
 	char *s = NULL, *t = NULL, texname[80], sDATFileName[128];
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false;
@@ -223,7 +223,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	
 	// Remove any parentheses from the line
 	int i = 0, j = 0;
-	while (buf[i] && j < 254) {
+	while (buf[i] && j < 511) {
 		if (buf[i] != '(' && buf[i] != ')')
 			temp[j++] = buf[i];
 		i++;
@@ -662,12 +662,15 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 	} 
 	else if (_stricmp(param, "lightmap_seq") == 0 ||
 			 _stricmp(param, "lightmap_rand") == 0 ||
+			 _stricmp(param, "lightmap_once") == 0 ||
 			 _stricmp(param, "anim_seq") == 0 ||
-			 _stricmp(param, "anim_rand") == 0) {
+			 _stricmp(param, "anim_rand") == 0 ||
+			 _stricmp(param, "anim_once") == 0) {
 		// TOOD: Add support for multiline sequences
 		AnimatedTexControl atc;
 		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
 		bool IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
+		atc.NoLoop = _stricmp(param, "lightmap_once") == 0 || _stricmp(param, "anim_once") == 0;
 		atc.BlackToAlpha = false;
 		// TODO: Add support for tint here?
 		atc.Tint.x = 1.0f;
@@ -684,8 +687,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
 			// Initialize the timer for this animation
-			atc.AnimIdx = 0; 
-			atc.TimeLeft = atc.Sequence[0].seconds;
+			atc.ResetAnimation();
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
 			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
@@ -702,10 +704,13 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
 		}
 	}
-	else if (_stricmp(param, "frame_seq") == 0 || _stricmp(param, "frame_rand") == 0) {
+	else if (_stricmp(param, "frame_seq") == 0 ||
+			 _stricmp(param, "frame_rand") == 0 ||
+			 _stricmp(param, "frame_once") == 0) {
 		AnimatedTexControl atc;
 		int is_lightmap, black_to_alpha;
 		atc.IsRandom = _stricmp(param, "frame_rand") == 0;
+		atc.NoLoop = _stricmp(param, "frame_once") == 0;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
@@ -717,8 +722,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
 			// Initialize the timer for this animation
-			atc.AnimIdx = 0;
-			atc.TimeLeft = atc.Sequence[0].seconds;
+			atc.ResetAnimation();
 			atc.BlackToAlpha = (bool)black_to_alpha;
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
@@ -768,7 +772,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 
 	if (verbose) log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
-	char buf[256], param[256], svalue[256]; // texname[MAX_TEXNAME];
+	char buf[512], param[256], svalue[512]; // texname[MAX_TEXNAME];
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
 	float fValue = 0.0f;
@@ -800,15 +804,15 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// We always start the craft material with one material: the default material in slot 0
 	bool MaterialSaved = true;
 	texnameList.clear();
-	while (fgets(buf, 256, file) != NULL) {
+	while (fgets(buf, 512, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
 		if (buf[0] == ';' || buf[0] == '#')
 			continue;
 		if (strlen(buf) == 0)
 			continue;
-
-		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 256) > 0) {
+		
+		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
 			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
@@ -1040,6 +1044,12 @@ Material FindMaterial(int CraftIndex, char* TexName, bool debug) {
 	return defMat;
 }
 
+void AnimatedTexControl::ResetAnimation() {
+	this->AnimIdx = 0;
+	if (this->Sequence.size() >= 1)
+		this->TimeLeft = this->Sequence[0].seconds;
+}
+
 void AnimatedTexControl::Animate() {
 	int num_frames = this->Sequence.size();
 	if (num_frames == 0) return;
@@ -1053,8 +1063,12 @@ void AnimatedTexControl::Animate() {
 	while (time < 0.0f) {
 		if (this->IsRandom)
 			idx = rand() % num_frames;
-		else
-			idx = (idx + 1) % num_frames;
+		else {
+			if (NoLoop)
+				idx = min(num_frames - 1, idx + 1);
+			else
+				idx = (idx + 1) % num_frames;
+		}
 		// Use the time specified in the sequence for the next index
 		time += this->Sequence[idx].seconds;
 	}
@@ -1070,7 +1084,11 @@ void AnimateMaterials() {
 	// which doesn't work, because we need to modify the source element
 	for (uint32_t i = 0; i < g_AnimatedMaterials.size(); i++) {
 		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
-		atc->Animate();
+		// Reset this ATC if its event fired during the current frame
+		if (EventFired(atc->Event))
+			atc->ResetAnimation();
+		else
+			atc->Animate();
 	}
 }
 

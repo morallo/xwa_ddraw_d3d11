@@ -864,6 +864,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					return 0;
 				*/
 #endif
+			// Ctrl+Shift+C: Reset the cockpit damage
+			case 'C':
+				g_bResetCockpitDamage = true;
+				return 0;
+
 			case 'T': {
 				g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				return 0;

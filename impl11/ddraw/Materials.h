@@ -171,6 +171,7 @@ typedef struct AnimatedTexControlStruct {
 		NoLoop = false; // Animations loop by default
 	}
 
+	void ResetAnimation();
 	// Updates the timer/index on the current animated material. Only call this function
 	// if the current material has an animation.
 	void Animate();

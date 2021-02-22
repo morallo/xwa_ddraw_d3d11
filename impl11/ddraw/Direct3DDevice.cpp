@@ -520,7 +520,7 @@ bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
 
 // Force Cockpit Damage
-bool g_bApplyCockpitDamage = false;
+bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false;
 
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
@@ -6144,6 +6144,12 @@ HRESULT Direct3DDevice::BeginScene()
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
 		CockpitInstrumentState prevDamage = g_GameEvent.CockpitInstruments;
+		// Restore the cockpit damage
+		if (g_bResetCockpitDamage) {
+			log_debug("[DBG] Restoring Cockpit Damage");
+			craftInstance->CockpitInstrumentStatus = craftInstance->InitialCockpitInstruments;
+			g_bResetCockpitDamage = false;
+		}
 		// Apply the cockpit damage if requested
 		if (g_bApplyCockpitDamage) {
 			FILE *MaskFile = NULL;
@@ -6160,6 +6166,7 @@ HRESULT Direct3DDevice::BeginScene()
 			}
 			g_bApplyCockpitDamage = false;
 		}
+
 		// Update the cockpit instrument status
 		g_GameEvent.CockpitInstruments.FromXWADamage(craftInstance->CockpitInstrumentStatus);
 		if (prevDamage.CMD && !g_GameEvent.CockpitInstruments.CMD)
