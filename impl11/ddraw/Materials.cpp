@@ -206,18 +206,59 @@ bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFi
 	return true;
 }
 
+// Interpolates the ImageId between two TexSeqElem's.
+// Only call this if the tex sequence is for a DAT file, so that texnames are in the format
+// GroupId-ImageId.
+bool InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem tex_seq_elem0, TexSeqElem tex_seq_elem1)
+{
+	int ImageId0, ImageId1;
+	float steps, cur_step;
+	int res = 0;
+	log_debug("[DBG] [MAT] INTERPOLATING TEXSEQELEMS");
+	//log_debug("[DBG] [MAT] tex_seq_elem0: [%s], sec: %0.3f, int: %0.3f",
+	//	tex_seq_elem0.texname, tex_seq_elem0.seconds, tex_seq_elem0.intensity);
+
+	try {
+		ImageId0 = tex_seq_elem0.ImageId;
+		ImageId1 = tex_seq_elem1.ImageId;
+		steps = (float )(ImageId1 - ImageId0);
+		cur_step = 1.0f;
+		// The cycle starts at ImageId0 + 1 because ImageId0 is already part of the sequence:
+		// it was read and added in the previous loop.
+		for (int ImageId = ImageId0 + 1; ImageId <= ImageId1; ImageId++, cur_step += 1.0f) {
+			TexSeqElem cur_tex_seq_elem;
+			strcpy_s(cur_tex_seq_elem.texname, MAX_TEX_SEQ_NAME, tex_seq_elem0.texname);
+			cur_tex_seq_elem.seconds = tex_seq_elem0.seconds;
+			cur_tex_seq_elem.intensity = tex_seq_elem0.intensity;
+			cur_tex_seq_elem.IsDATImage = true;
+			cur_tex_seq_elem.GroupId = tex_seq_elem0.GroupId;
+			cur_tex_seq_elem.ImageId = ImageId;
+			cur_tex_seq_elem.ExtraTextureIndex = -1;
+			log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
+				cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
+			tex_sequence.push_back(cur_tex_seq_elem);
+		}
+	}
+	catch (...) {
+		return false;
+	}
+	return true;
+}
+
 /*
  Load a texture sequence line of the form:
 
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) {
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) 
+{
+	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
 	char temp[512];
 	char *s = NULL, *t = NULL, texname[80], sDATFileName[128];
 	float seconds, intensity = 1.0f;
-	bool IsDATFile = false;
+	bool IsDATFile = false, bEllipsis = false;
 	*eventType = EVT_NONE;
 	std::string s_temp;
 	
@@ -272,7 +313,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 
 	while (*s != 0)
 	{
-		// Skip to the next comma
+		// Skip to the next comma, we want to read the texname
 		t = s;
 		while (*t != 0 && *t != ',') t++;
 		// If we reached the end of the string, that's an error
@@ -292,6 +333,37 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
+
+		// if texname happens to be an ellipsis, then we didn't read the texname, so
+		// we need to do it again
+		if (strstr(texname, "..") != NULL) {
+			texname[0] = 0;
+			bEllipsis = true;
+			log_debug("[DBG] [MAT] ELLIPSIS FOUND!");
+			// Skip to the next comma, we want to read the texname
+			t = s;
+			while (*t != 0 && *t != ',') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return false;
+			// End this string on the comma so that we can parse a string
+			*t = 0;
+			// Parse the texture name/GroupId-ImageId
+			try {
+				res = sscanf_s(s, "%s", texname, 80);
+				if (res < 1) log_debug("[DBG] [MAT] Error reading texname in '%s'", s);
+			}
+			catch (...) {
+				log_debug("[DBG] [MAT] Could not read texname in '%s'", s);
+				return false;
+			}
+
+			// Skip the comma
+			s = t; s += 1;
+			SKIP_WHITESPACES(s);
+		}
+		else {
+			bEllipsis = false;
+		}
 
 		// Parse the seconds
 		t = s;
@@ -326,9 +398,9 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 			return false;
 		}
 
-		// We just finished reading one texture in the sequence, let's skip to the next one
-		// if possible
-		TexSeqElem tex_seq_elem;
+		// Save the last tex_seq_elem, we might need it later, to interpolate a range of elems.
+		prev_tex_seq_elem = tex_seq_elem;
+		// Populate the tex_seq_elem with the data we just read
 		if (IsDATFile) {
 			// This is a DAT file sequence, texname should be parsed as GroupId-ImageId
 			try {
@@ -341,17 +413,24 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName);
 				tex_seq_elem.seconds = seconds;
 				tex_seq_elem.intensity = intensity;
-				log_debug("[DBG] DAT tex_seq_elem added: [%s], Group: %d, ImageId: %d",
-					tex_seq_elem.texname, GroupId, ImageId);
 				tex_seq_elem.IsDATImage = true;
 				tex_seq_elem.GroupId = GroupId;
 				tex_seq_elem.ImageId = ImageId;
 				// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 				tex_seq_elem.ExtraTextureIndex = -1;
-				tex_sequence.push_back(tex_seq_elem);
+				if (!bEllipsis) {
+					tex_sequence.push_back(tex_seq_elem);
+					log_debug("[DBG] DAT tex_seq_elem added: [%s], Group: %d, ImageId: %d",
+						tex_seq_elem.texname, GroupId, ImageId);
+				}
+				else {
+					// Interpolate between prev_tex_seq_elem and tex_seq_elem
+					InterpolateTexSequence(tex_sequence, prev_tex_seq_elem, tex_seq_elem);
+				}
 			}
 			catch (...) {
 				log_debug("[DBG] ERROR: Could not parse [%s] as an ImageId", texname);
+				return false;
 			}
 		}
 		else {

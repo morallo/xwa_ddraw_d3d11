@@ -139,6 +139,7 @@ typedef struct TexSeqElemStruct {
 		texname[0] = 0;
 		IsDATImage = false;
 		GroupId = ImageId = -1;
+		seconds = intensity = 0.0f;
 	}
 } TexSeqElem;
 
