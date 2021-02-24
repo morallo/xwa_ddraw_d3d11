@@ -209,40 +209,40 @@ bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFi
 // Interpolates the ImageId between two TexSeqElem's.
 // Only call this if the tex sequence is for a DAT file, so that texnames are in the format
 // GroupId-ImageId.
-bool InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem tex_seq_elem0, TexSeqElem tex_seq_elem1)
+void InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem tex_seq_elem0, TexSeqElem tex_seq_elem1)
 {
-	int ImageId0, ImageId1;
-	float steps, cur_step;
+	TexSeqElem cur_tex_seq_elem;
+	int ImageId0, ImageId1, ImageIdStep, CurImageId, num_steps;
+	float size;
 	int res = 0;
-	log_debug("[DBG] [MAT] INTERPOLATING TEXSEQELEMS");
+	log_debug("[DBG] [MAT] Interpolating tex sequence elements");
 	//log_debug("[DBG] [MAT] tex_seq_elem0: [%s], sec: %0.3f, int: %0.3f",
 	//	tex_seq_elem0.texname, tex_seq_elem0.seconds, tex_seq_elem0.intensity);
 
-	try {
-		ImageId0 = tex_seq_elem0.ImageId;
-		ImageId1 = tex_seq_elem1.ImageId;
-		steps = (float )(ImageId1 - ImageId0);
-		cur_step = 1.0f;
-		// The cycle starts at ImageId0 + 1 because ImageId0 is already part of the sequence:
-		// it was read and added in the previous loop.
-		for (int ImageId = ImageId0 + 1; ImageId <= ImageId1; ImageId++, cur_step += 1.0f) {
-			TexSeqElem cur_tex_seq_elem;
-			strcpy_s(cur_tex_seq_elem.texname, MAX_TEX_SEQ_NAME, tex_seq_elem0.texname);
-			cur_tex_seq_elem.seconds = tex_seq_elem0.seconds;
-			cur_tex_seq_elem.intensity = tex_seq_elem0.intensity;
-			cur_tex_seq_elem.IsDATImage = true;
-			cur_tex_seq_elem.GroupId = tex_seq_elem0.GroupId;
-			cur_tex_seq_elem.ImageId = ImageId;
-			cur_tex_seq_elem.ExtraTextureIndex = -1;
-			log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
-				cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
-			tex_sequence.push_back(cur_tex_seq_elem);
-		}
+	ImageId0 = tex_seq_elem0.ImageId;
+	ImageId1 = tex_seq_elem1.ImageId;
+	if (ImageId0 == ImageId1) return; // Nothing to do, both ImageIds are equal and the previous one has already been added.
+	ImageIdStep = (ImageId1 > ImageId0) ? 1 : -1;
+	num_steps = abs(ImageId1 - ImageId0);
+	size = (float )(ImageId1 - ImageId0);
+	// The cycle starts at ImageId0 + ImageIdStep because ImageId0 is already part of the sequence:
+	// it was read and added in the previous loop in LoadTextureSequence().
+	CurImageId = ImageId0 + ImageIdStep;
+	for (int i = 0; i < num_steps; i++, CurImageId += ImageIdStep) {
+		// Copy the DAT file name:
+		strcpy_s(cur_tex_seq_elem.texname, MAX_TEX_SEQ_NAME, tex_seq_elem0.texname);
+		// Interpolate the seconds and intensity attributes:
+		cur_tex_seq_elem.seconds = tex_seq_elem1.seconds * (CurImageId - ImageId0) / size + tex_seq_elem0.seconds * (ImageId1 - CurImageId) / size;
+		cur_tex_seq_elem.intensity = tex_seq_elem1.intensity * (CurImageId - ImageId0) / size + tex_seq_elem0.intensity * (ImageId1 - CurImageId) / size;
+		// Fill the rest of the fields:
+		cur_tex_seq_elem.IsDATImage = true;
+		cur_tex_seq_elem.GroupId = tex_seq_elem0.GroupId;
+		cur_tex_seq_elem.ImageId = CurImageId;
+		cur_tex_seq_elem.ExtraTextureIndex = -1;
+		log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
+			cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
+		tex_sequence.push_back(cur_tex_seq_elem);
 	}
-	catch (...) {
-		return false;
-	}
-	return true;
 }
 
 /*
@@ -339,7 +339,6 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (strstr(texname, "..") != NULL) {
 			texname[0] = 0;
 			bEllipsis = true;
-			log_debug("[DBG] [MAT] ELLIPSIS FOUND!");
 			// Skip to the next comma, we want to read the texname
 			t = s;
 			while (*t != 0 && *t != ',') t++;
