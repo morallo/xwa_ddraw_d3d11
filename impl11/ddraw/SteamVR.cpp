@@ -8,6 +8,7 @@
 #include "FreePIE.h"
 #include "SharedMem.h"
 #include "XWAFramework.h"
+#include "globals.h"
 
 vr::IVRSystem* g_pHMD = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;

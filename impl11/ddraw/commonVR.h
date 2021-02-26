@@ -41,8 +41,8 @@ extern Vector3 g_headCenter;
 extern bool g_bSteamVRPosFromFreePIE, g_bReshadeEnabled, g_bSteamVRDistortionEnabled, g_bSteamVRYawPitchRollFromMouseLook;
 extern vr::IVRSystem* g_pHMD;
 extern int g_iFreePIESlot, g_iSteamVR_Remaining_ms, g_iSteamVR_VSync_ms;
-extern bool g_bDirectSBSInitialized, g_bSteamVRInitialized;
-extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
+extern bool g_bUseSeparateEyeBuffers; // The system will set this flag if the user requested SteamVR and SteamVR was initialized properly
+extern StereoRenderer* g_stereoRenderer;
 
 void EvaluateIPD(float NewIPD);
 void IncreaseIPD(float Delta);

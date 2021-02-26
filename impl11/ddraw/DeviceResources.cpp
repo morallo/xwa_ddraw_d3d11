@@ -381,6 +381,27 @@ HRESULT DeviceResources::Initialize()
 	}
 
 	/*
+	//Get and log adapter LUID for debugging purposes
+
+	DXGI_ADAPTER_DESC adapterDesc = {};
+	ComPtr<IDXGIDevice> dxgiDevice;
+	ComPtr<IDXGIAdapter> dxgiAdapter;	
+
+	hr = this->_d3dDevice.As(&dxgiDevice);
+
+	if (SUCCEEDED(hr))
+	{
+		hr = dxgiDevice->GetAdapter(&dxgiAdapter);
+
+		if (SUCCEEDED(hr))
+		{
+			dxgiAdapter->GetDesc(&adapterDesc);			
+			log_debug("[DBG] Default ID3D11Device LUID: %d", adapterDesc.AdapterLuid);
+		}
+	}
+	*/
+
+	/*
 	if (SUCCEEDED(hr)) {
 		log_debug("[DBG] Getting the DX11.1 device");
 		hr = this->_d3dDevice->QueryInterface(__uuidof(ID3D11Device1),
@@ -436,13 +457,23 @@ HRESULT DeviceResources::Initialize()
 	}
 
 	if (SUCCEEDED(hr))
-	{
-		if (g_bUseOpenXR)
+	{	// Initialize OpenXR if it has not been initialized yet (apparently DeviceResources::Initialize()
+		// is called multiple times due to XwingAlliance.exe calling DirectDrawCreate() multiple times).
+		if (g_bOpenXREnabled && !g_bOpenXRInitialized)
 		{
-			this->_stereoRenderer = new VRRendererOpenXR();
-			g_bOpenXRInitialized = this->_stereoRenderer->init(this);
-			if (g_bOpenXRInitialized)
-				log_debug("[DBG][OpenXR] VR Renderer initialized");
+			log_debug("[DBG] [OpenXR] Checking if OpenXR and extensions are available");
+			g_bUseOpenXR = VRRendererOpenXR::is_available();
+			if (g_bUseOpenXR)
+				log_debug("[DBG] [OpenXR] OpenXR is available, enabling");
+				this->_stereoRenderer = g_stereoRenderer;
+				if (g_bOpenXRInitialized = this->_stereoRenderer->init(this))
+				{
+					log_debug("[DBG] VR Renderer initialized");
+					g_steamVRWidth = this->_stereoRenderer->renderProperties.width;
+					g_steamVRHeight = this->_stereoRenderer->renderProperties.height;
+				}
+			else
+				log_debug("[DBG] [OpenXR] OpenXR runtime not available");
 		}
 	}
 
@@ -1248,13 +1279,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		g_bWndProcReplaced = true;
 	}
 	
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		// dwWidth, dwHeight are the in-game's resolution
-		// When using SteamVR, let's override the size with the recommended size
+		// When using SteamVR or OpenXR, let's override the size with the recommended size
 		log_debug("[DBG] Original dwWidth, dwHeight: %d, %d", dwWidth, dwHeight);
 		dwWidth = g_steamVRWidth;
 		dwHeight = g_steamVRHeight;
-		log_debug("[DBG] Using SteamVR settings: %u, %u", dwWidth, dwHeight);
+		log_debug("[DBG] Using SteamVR/OpenXR settings: %u, %u", dwWidth, dwHeight);
 	}
 
 	// Reset the present counter
@@ -1303,7 +1334,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_shadertoyRTV.Release();
 	this->_shadertoySRV.Release();
 	this->_shadertoyAuxSRV.Release();
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		this->_offscreenBufferR.Release();
 		this->_offscreenBufferAsInputR.Release();
 		this->_offscreenBufferPostR.Release();
@@ -1380,7 +1411,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewSSAOMask.Release();
 		this->_renderTargetViewSSMask.Release();
 		//this->_renderTargetViewEmissionMask.Release();
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
@@ -1422,7 +1453,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		//this->_bloomOutput1SRV.Release();
 		this->_bloomOutput2SRV.Release();
 		this->_bloomOutputSumSRV.Release();
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			/*this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
@@ -1456,7 +1487,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewSSAO_R.Release();
 		this->_ssaoBufSRV.Release();
 		this->_ssaoBufSRV_R.Release();
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			this->_depthBufR.Release();
 			this->_depthBufAsInputR.Release();
 			this->_renderTargetViewDepthBufR.Release();
@@ -1511,11 +1542,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		{
 			DXGI_SWAP_CHAIN_DESC sd{};
 			sd.BufferCount = 2;
-			sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // ORIGINAL = 0x1
+			//sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // ORIGINAL = 0x1
 			//sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-			//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Recommended for better performance. Can we use it?
-			sd.BufferDesc.Width  = g_bUseSteamVR ? g_steamVRWidth : 0;
-			sd.BufferDesc.Height = g_bUseSteamVR ? g_steamVRHeight : 0;
+			sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Recommended for better performance. Can we use it?
+			sd.BufferDesc.Width  = g_bUseSeparateEyeBuffers ? g_steamVRWidth : 0;
+			sd.BufferDesc.Height = g_bUseSeparateEyeBuffers ? g_steamVRHeight : 0;
 			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1627,7 +1658,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				step = "_offscreenBufferR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
 				if (FAILED(hr)) {
@@ -1686,7 +1717,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				step = "_offscreenBufferPostR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferPostR);
 				if (FAILED(hr)) {
@@ -1746,7 +1777,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					}
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					desc.Format = BLOOM_BUFFER_FORMAT;
 					step = "_offscreenBufferBloomMaskR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMaskR);
@@ -1804,7 +1835,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					// _depthBuf should be just like offscreenBuffer because it will be used as a renderTarget
 					step = "_depthBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufR);
@@ -1832,7 +1863,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					step = "_shadertoyBufMSAA_R";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufMSAA_R);
 					if (FAILED(hr)) {
@@ -1866,7 +1897,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				step = "_offscreenBufferAsInputR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputR);
 				if (FAILED(hr)) {
@@ -1897,7 +1928,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					step = "_offscreenBufferAsInputBloomMaskR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
 					if (FAILED(hr)) {
@@ -1959,7 +1990,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 				desc.Format = BACKBUFFER_FORMAT;
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					step = "_shadertoyBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufR);
 					if (FAILED(hr)) {
@@ -2024,7 +2055,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _bloomOutputSum with combined flags\n");
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					step = "_bloomOutput1R";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
 					if (FAILED(hr)) {
@@ -2165,7 +2196,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					desc.Format = AO_MASK_FORMAT;
 					desc.MipLevels = 1; // 4;
 					step = "_ssaoMaskR";
@@ -2229,7 +2260,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					step = "_depthBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInputR);
 					if (FAILED(hr)) {
@@ -2332,7 +2363,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				// Create the shader resource view for offscreenBufferAsInputR
 				step = "offscreenAsInputShaderResourceViewR";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputR,
@@ -2373,7 +2404,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR)
+				if (g_bUseSeparateEyeBuffers)
 				{
 					step = "_offscreenAsInputBloomSRV_R";
 					hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
@@ -2417,7 +2448,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 
 					step = "_bloomOutput1SRV_R";
@@ -2489,7 +2520,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					shaderResourceViewDesc.Format = AO_MASK_FORMAT;
 					shaderResourceViewDesc.Texture2D.MipLevels = 1;
 					step = "_ssaoMaskSRV_R";
@@ -2582,7 +2613,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 					step = "_depthBufSRV_R";
 					hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInputR,
@@ -2633,7 +2664,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (SUCCEEDED(hr))
 	{
 		float W = (float )_displayWidth, H = (float )_displayHeight;
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			W /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
 			H /= g_fCurInGameAspectRatio * g_fCurInGameAspectRatio;
 		}
@@ -2680,7 +2711,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 		}
 
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			step = "RenderTargetViewR";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferR, &renderTargetViewDesc, &this->_renderTargetViewR);
 			if (FAILED(hr)) goto out;
@@ -2792,7 +2823,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				&this->_renderTargetViewNormBuf);
 			if (FAILED(hr)) goto out;
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 				step = "_renderTargetViewBloomMaskR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
@@ -2855,7 +2886,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				step = "_renderTargetViewBloom1R";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
 				if (FAILED(hr)) goto out;
@@ -2900,7 +2931,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
 			if (FAILED(hr)) goto out;
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_renderTargetViewDepthBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
@@ -4226,7 +4257,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	ID3D11ShaderResourceView* texView = nullptr;
 
 	/*
-	if (g_bUseSteamVR) {
+	if (g_bSteamVRInitialized) {
 		// Process SteamVR events
 		vr::VREvent_t event;
 		while (g_pHMD->PollNextEvent(&event, sizeof(event)))
@@ -4546,13 +4577,13 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			//g_fConcourseAspectRatio = 2.0f * actual_aspect / original_aspect;
 		}
 	}
-	//if (g_bUseSteamVR) g_fConcourseAspectRatio = 1.0f;
+	//if (g_bUseSeparateEyeBuffers) g_fConcourseAspectRatio = 1.0f;
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
 	bool bRenderToDC = g_bRendering3D && g_bDynCockpitEnabled && g_bExecuteBufferLock;
 
-	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
+	if (g_bEnableVR && !bRenderToDC) { // SteamVR, OpenXR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
 	} 
@@ -4654,7 +4685,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		// Left viewport
 		viewport.TopLeftX = 0;
 		viewport.TopLeftY = 0;
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			viewport.Width = screen_res_x;
 		else
 			viewport.Width = screen_res_x / 2.0f;
@@ -4670,14 +4701,14 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 		else
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
 		// Right viewport
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			viewport.TopLeftX = 0;
 			viewport.Width = screen_res_x;
 		} else {
@@ -4695,7 +4726,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());
 		else
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
