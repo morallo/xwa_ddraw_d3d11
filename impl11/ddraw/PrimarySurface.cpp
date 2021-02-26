@@ -1238,8 +1238,8 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	}
 	context->Draw(6, 0);
 
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Draw the right image when separate eye buffers are used (SteamVR, OpenXR)
+	if (g_bUseSeparateEyeBuffers) {
 		switch (pass) {
 		case 0: 	// Prepass
 			// Input: _offscreenAsInputReshadeSRV_R
@@ -1392,7 +1392,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
 	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
@@ -1414,7 +1414,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Copy _bloomOutput1 over _bloomOutputSum
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 
 	// DEBUG
@@ -1428,7 +1428,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// To make this step compatible with the rest of the code, we need to copy the results
 	// to offscreenBuffer and offscreenBufferR (in SteamVR mode).
 	/*context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);*/
 }
 
@@ -1650,13 +1650,13 @@ void PrimarySurface::DrawHUDVertices() {
 
 	// Don't clear the render target, the offscreenBuffer already has the 3D render in it
 	// Render the left image
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 	else
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 	// VIEWPORT-LEFT
 	if (g_bEnableVR) {
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			viewport.Width = (float)resources->_backbufferWidth;
 		else
 			viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -1689,13 +1689,13 @@ void PrimarySurface::DrawHUDVertices() {
 		return;
 
 	// Render the right image
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
 	else
 		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 
 	// VIEWPORT-RIGHT
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		viewport.Width = (float)resources->_backbufferWidth;
 		viewport.TopLeftX = 0.0f;
 	}
@@ -1800,8 +1800,8 @@ void PrimarySurface::ComputeNormalsPass(float fZoomFactor) {
 	context->OMSetRenderTargets(1, resources->_renderTargetViewNormBuf.GetAddressOf(), NULL);
 	context->Draw(6, 0);
 
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Draw the right image when separate eye buffers are used (SteamVR, OpenXR)
+	if (g_bUseSeparateEyeBuffers) {
 		// TODO: Check that this works in SteamVR
 		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 		// Input: _depthAsInputR
@@ -1927,8 +1927,8 @@ void PrimarySurface::SmoothNormalsPass(float fZoomFactor) {
 	
 	context->Draw(6, 0);
 
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Draw the right image when separate eye buffers are used (SteamVR, OpenXR)
+	if (g_bUseSeparateEyeBuffers) {
 		// TODO: Check that this works in SteamVR
 		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 		// Input: _depthAsInputR
@@ -2380,8 +2380,8 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	}
 
 out1:
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Draw the right image when separate eye buffers are used (SteamVR, OpenXR)
+	if (g_bUseSeparateEyeBuffers) {
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
 		viewport.Width = screen_res_x / fZoomFactor;
@@ -2928,8 +2928,8 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	 START PROCESS FOR THE RIGHT EYE, STEAMVR MODE
 	 *******************************************************************************/
 out1:
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
+	// Draw the right image when separate eye buffers are used
+	if (g_bUseSeparateEyeBuffers) {
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
 		viewport.Width    = screen_res_x / fZoomFactor;
@@ -3345,7 +3345,7 @@ void PrimarySurface::DeferredPass() {
 	}
 
 	// Deferred pass, Right image
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 	{
 		viewport.TopLeftX = 0.0f;
 		viewport.TopLeftY = 0.0f;
@@ -4033,7 +4033,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 	*/
 	// DEBUG
-	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSeparateEyeBuffers);
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
 	g_ShadertoyBuffer.x0 = x0;
@@ -4065,7 +4065,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			viewport.Width  = (float)resources->_backbufferWidth;
 			viewport.Height = (float)resources->_backbufferHeight;
 		}
@@ -4085,7 +4085,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.bPreventTransform =  0.0f;
 		g_VSCBuffer.bFullTransform    =  0.0f;
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
@@ -4111,7 +4111,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			resources->InitVertexShader(resources->_sbsVertexShader);
 		else
 			// The original (non-VR) code used _vertexShader:
@@ -4127,7 +4127,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 
 		// Render the right image
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 		{
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			// VIEWPORT-RIGHT
@@ -4163,7 +4163,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -4228,7 +4228,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -4246,7 +4246,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 			else
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -4324,7 +4324,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _offscreenBufferAsInput to re-use in the next step:
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4355,7 +4355,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->Draw(6, 0);
 
 		// Post-process the right image
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			if (!g_bReshadeEnabled) {
 				ID3D11RenderTargetView *rtvs[1] = {
@@ -4397,7 +4397,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 //out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
@@ -4478,7 +4478,7 @@ void PrimarySurface::RenderFXAA()
 
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
@@ -4495,7 +4495,7 @@ void PrimarySurface::RenderFXAA()
 	context->Draw(6, 0);
 
 	// Post-process the right image
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPostR.Get(),
@@ -4513,7 +4513,7 @@ void PrimarySurface::RenderFXAA()
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -4649,7 +4649,7 @@ void PrimarySurface::RenderStarDebug()
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSeparateEyeBuffers);
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -4692,7 +4692,7 @@ void PrimarySurface::RenderStarDebug()
 	resources->InitPixelShader(resources->_starDebugPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	// Render the star centroid
@@ -4702,7 +4702,7 @@ void PrimarySurface::RenderStarDebug()
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -4777,7 +4777,7 @@ void PrimarySurface::RenderStarDebug()
 		// Render the right image
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -4795,7 +4795,7 @@ void PrimarySurface::RenderStarDebug()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
 				ID3D11ShaderResourceView *srvs[2] = {
@@ -4855,7 +4855,7 @@ void PrimarySurface::RenderStarDebug()
 			// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4872,7 +4872,7 @@ void PrimarySurface::RenderStarDebug()
 			context->Draw(6, 0);
 
 			// TODO: Post-process the right image in SteamVR
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewPostR.Get(),
@@ -4892,7 +4892,7 @@ void PrimarySurface::RenderStarDebug()
 out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -4912,7 +4912,7 @@ void PrimarySurface::RenderExternalHUD()
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSeparateEyeBuffers);
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -5020,7 +5020,7 @@ void PrimarySurface::RenderExternalHUD()
 	resources->InitPixelShader(resources->_externalHUDPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 	// Resolve the Reticle buffer
 	if (g_bEnableVR) {
@@ -5038,7 +5038,7 @@ void PrimarySurface::RenderExternalHUD()
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -5114,7 +5114,7 @@ void PrimarySurface::RenderExternalHUD()
 		// Render the right image
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -5132,7 +5132,7 @@ void PrimarySurface::RenderExternalHUD()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
 				ID3D11ShaderResourceView *srvs[2] = {
@@ -5197,7 +5197,7 @@ void PrimarySurface::RenderExternalHUD()
 			// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -5214,7 +5214,7 @@ void PrimarySurface::RenderExternalHUD()
 			context->Draw(6, 0);
 
 			// TODO: Post-process the right image in SteamVR
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewPostR.Get(),
@@ -5234,7 +5234,7 @@ void PrimarySurface::RenderExternalHUD()
 out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -5414,7 +5414,7 @@ void PrimarySurface::RenderSpeedEffect()
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSeparateEyeBuffers);
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -5457,7 +5457,7 @@ void PrimarySurface::RenderSpeedEffect()
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
@@ -5549,7 +5549,7 @@ void PrimarySurface::RenderSpeedEffect()
 			// This should be the same viewport used in the Execute() function
 			// Set the new viewport (a full quad covering the full screen)
 			// VIEWPORT-LEFT
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -5600,7 +5600,7 @@ void PrimarySurface::RenderSpeedEffect()
 
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -5618,7 +5618,7 @@ void PrimarySurface::RenderSpeedEffect()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 			else
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -5688,7 +5688,7 @@ void PrimarySurface::RenderSpeedEffect()
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -5707,7 +5707,7 @@ void PrimarySurface::RenderSpeedEffect()
 		context->Draw(6, 0);
 
 		// TODO: Post-process the right image in SteamVR
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewPostR.Get(),
@@ -5727,7 +5727,7 @@ void PrimarySurface::RenderSpeedEffect()
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -5917,7 +5917,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
@@ -5987,7 +5987,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 			// This should be the same viewport used in the Execute() function
 			// Set the new viewport (a full quad covering the full screen)
 			// VIEWPORT-LEFT
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -6039,7 +6039,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		// Render the additional geometry on the right eye
 		if (g_bEnableVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -6057,7 +6057,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 			else
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
@@ -6134,7 +6134,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -6153,7 +6153,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		context->Draw(6, 0);
 
 		// TODO: Post-process the right image in SteamVR
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewPostR.Get(),
@@ -6173,7 +6173,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -6808,7 +6808,7 @@ void PrimarySurface::RenderSunFlare()
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
-	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+	bool bDirectSBS = (g_bEnableVR && !g_bUseSeparateEyeBuffers);
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -6885,7 +6885,7 @@ void PrimarySurface::RenderSunFlare()
 	resources->InitPixelShader(resources->_sunFlareShaderPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 #ifdef GENMIPMAPS_DEBUG
@@ -6907,7 +6907,7 @@ void PrimarySurface::RenderSunFlare()
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -6976,7 +6976,7 @@ void PrimarySurface::RenderSunFlare()
 		if (g_bEnableVR)
 		{
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -6994,7 +6994,7 @@ void PrimarySurface::RenderSunFlare()
 			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				// Set the SRVs:
 				ID3D11ShaderResourceView *srvs[2] = {
@@ -7019,7 +7019,7 @@ void PrimarySurface::RenderSunFlare()
 	
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPostR, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlareR.png");
 	}
 
@@ -7068,7 +7068,7 @@ void PrimarySurface::RenderSunFlare()
 		// to _shaderToyBuf to re-use in the next step:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
 			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 		}
@@ -7087,7 +7087,7 @@ void PrimarySurface::RenderSunFlare()
 		context->Draw(6, 0);
 
 		// Post-process the right image
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			//QR = projectToInGameCoords(Centroid, g_viewMatrix, g_FullProjMatrixRight);
 			for (int i = 0; i < g_ShadertoyBuffer.SunFlareCount; i++) {
 				g_ShadertoyBuffer.SunCoords[i].x = QR[i].x;
@@ -7111,7 +7111,7 @@ void PrimarySurface::RenderSunFlare()
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -7139,13 +7139,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// because this is a post-process effect
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 
 	resources->InitPixelShader(resources->_laserPointerPS);
 
 	g_LaserPointerBuffer.DirectSBSEye = -1;
-	if (g_bEnableVR && !g_bUseSteamVR)
+	if (g_bEnableVR && !g_bUseSeparateEyeBuffers)
 		g_LaserPointerBuffer.DirectSBSEye = 1;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -7323,7 +7323,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		viewport.Height = g_fCurScreenHeight;
 		// VIEWPORT-LEFT
 		if (g_bEnableVR) {
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				viewport.Width = (float)resources->_backbufferWidth;
 			else
 				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -7379,7 +7379,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 				viewport.Width = (float)resources->_backbufferWidth;
 				viewport.TopLeftX = 0.0f;
@@ -7397,7 +7397,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 			resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSeparateEyeBuffers) {
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
 				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
 			} 
@@ -7410,7 +7410,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
@@ -7521,42 +7521,51 @@ void UpdateViewMatrix()
 	static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
 
 	// Enable roll (formerly this was 6dof)
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		Matrix3 rotMatrix;
-
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
-		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
-		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
-		roll  *= RAD_TO_DEG * g_fRollMultiplier;
-
-		// DEBUG
-		if (g_bSteamVRYawPitchRollFromMouseLook)
-			GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
-		// DEBUG
-
-		yaw   += g_fYawOffset;
-		pitch += g_fPitchOffset;
-
-		// Compute the full rotation
 		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-		rotMatrixFull.identity();
-		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+		rotMatrixYaw.identity();
+		rotMatrixPitch.identity();
+		rotMatrixRoll.identity();
 
-		// Transform the absolute head position into a relative position. This is
-		// needed because the game will apply the yaw/pitch on its own. So, we need
-		// to undo the yaw/pitch transformation by computing the inverse of the
-		// rotation matrix. Fortunately, rotation matrices can be inverted with a
-		// simple transpose.
-		rotMatrix.invert();
+		if (g_bSteamVRInitialized) {
+			GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+			yaw   *= RAD_TO_DEG * g_fYawMultiplier;
+			pitch *= RAD_TO_DEG * g_fPitchMultiplier;
+			roll  *= RAD_TO_DEG * g_fRollMultiplier;
 
-		g_viewMatrix.identity();
-		g_viewMatrix.rotateZ(roll);
-		
-		// viewMat is not a full transform matrix: it's only RotZ
-		// because the cockpit hook already applies the yaw/pitch rotation
+			// DEBUG
+			if (g_bSteamVRYawPitchRollFromMouseLook)
+				GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
+			// DEBUG
+
+			yaw   += g_fYawOffset;
+			pitch += g_fPitchOffset;
+
+			// Compute the full rotation
+			rotMatrixYaw.rotateY(-yaw);
+			rotMatrixPitch.rotateX(-pitch);
+			rotMatrixRoll.rotateZ(roll);
+			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+			// Transform the absolute head position into a relative position. This is
+			// needed because the game will apply the yaw/pitch on its own. So, we need
+			// to undo the yaw/pitch transformation by computing the inverse of the
+			// rotation matrix. Fortunately, rotation matrices can be inverted with a
+			// simple transpose.
+			rotMatrix.invert();
+
+			g_viewMatrix.identity();
+			g_viewMatrix.rotateZ(roll);
+
+			// viewMat is not a full transform matrix: it's only RotZ
+			// because the cockpit hook already applies the yaw/pitch rotation
+		}
+		else if (g_bUseOpenXR) {
+			//TODO: read head tracking data from OpenXR
+			g_viewMatrix.identity();
+			rotMatrixFull.identity();
+		}
 		g_VSMatrixCB.viewMat = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = rotMatrixFull;
 	}
@@ -7730,7 +7739,7 @@ HRESULT PrimarySurface::Flip(
 			context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		}
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			if (!g_bHyperspaceFirstFrame) {
 				context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
 				context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
@@ -7740,7 +7749,7 @@ HRESULT PrimarySurface::Flip(
 
 		if (!g_bHyperspaceFirstFrame) {
 			context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 		}
 	}
@@ -7804,7 +7813,7 @@ HRESULT PrimarySurface::Flip(
 				float yaw, pitch, roll, x,y,z;
 				Matrix3 rotMatrix;
 
-				if (g_bUseSteamVR) {
+				if (g_bSteamVRInitialized) {
 					GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
 					// We need to multiply the yaw and pitch in SteamVR mode to invert the rotation
 					yaw   *= RAD_TO_DEG * g_fYawMultiplier * -1.0f;
@@ -7929,7 +7938,7 @@ HRESULT PrimarySurface::Flip(
 				if (g_bBloomEnabled) {
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 						resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 							resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 				}
@@ -7955,7 +7964,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: SSDO can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -7965,7 +7974,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: SSDO can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -7974,7 +7983,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: SSDO can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -8018,7 +8027,7 @@ HRESULT PrimarySurface::Flip(
 					// Initialize the accummulator buffer
 					float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 					float fScale = 2.0f;
@@ -8080,14 +8089,14 @@ HRESULT PrimarySurface::Flip(
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
 					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
-					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
+					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSeparateEyeBuffers) {
 						// Barrel effect enabled for DirectSBS mode
 						barrelEffect2D(i);
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					}
 					else {
 						// In SteamVR mode this will display the left image:
-						if (g_bUseSteamVR) {
+						if (g_bUseSeparateEyeBuffers) {
 							resizeForSteamVR(0, true);
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
@@ -8113,14 +8122,18 @@ HRESULT PrimarySurface::Flip(
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
 
-					if (g_bUseSteamVR) {
+					if (g_bSteamVRInitialized) {
 						vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
 						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
-					
+					else if (g_bUseOpenXR) {
+						g_stereoRenderer->Submit(context, this->_deviceResources->_offscreenBuffer.Get(), VREye::Eye_Left);
+						g_stereoRenderer->Submit(context, this->_deviceResources->_offscreenBufferR.Get(), VREye::Eye_Right);
+					}
+
 					g_bRendering3D = false;
 					if (g_bDumpSSAOBuffers) {
 						/*
@@ -8143,6 +8156,7 @@ HRESULT PrimarySurface::Flip(
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
+					
 					if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_iNaturalConcourseAnimations, 0)))
 					{
 						static bool messageShown = false;
@@ -8158,9 +8172,21 @@ HRESULT PrimarySurface::Flip(
 						break;
 					}
 
-					if (g_bUseSteamVR) {
+					if (g_bSteamVRInitialized) {
 						if (g_bTogglePostPresentHandoff)
 							g_pVRCompositor->PostPresentHandoff();
+					}
+
+					if (g_bUseOpenXR && g_stereoRenderer->is_ready())
+					{					
+						//First attempt at frame synchronization, naive. Everything happens here.
+						//this->_deviceResources->_stereoRenderer->EndFrame();
+						g_stereoRenderer->EndFrame();
+						//this->_deviceResources->_stereoRenderer->WaitFrame();
+						g_stereoRenderer->WaitFrame();
+						//TODO: move BeginFrame to the right place (CockpitLook? BeginScene?
+						//this->_deviceResources->_stereoRenderer->BeginFrame();
+						g_stereoRenderer->BeginFrame();
 					}
 				}
 
@@ -8172,7 +8198,7 @@ HRESULT PrimarySurface::Flip(
 					auto &context = this->_deviceResources->_d3dDeviceContext;
 					float bgColor[4] = { 0, 0, 0, 0 };
 					context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 					}
@@ -8294,7 +8320,7 @@ HRESULT PrimarySurface::Flip(
 					g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
 
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				}
 			}
@@ -8335,7 +8361,7 @@ HRESULT PrimarySurface::Flip(
 					//				  shadertoyBuf has a copy of the cockpit
 					if (resources->_useMultisampling) {
 						context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
 					}
 
@@ -8359,7 +8385,7 @@ HRESULT PrimarySurface::Flip(
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-				if (g_bUseSteamVR)
+				if (g_bUseSeparateEyeBuffers)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 
@@ -8369,7 +8395,7 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
 					context->ResolveSubresource(resources->_ssaoMask, 0, resources->_ssaoMaskMSAA, 0, AO_MASK_FORMAT);
 					context->ResolveSubresource(resources->_ssMask, 0, resources->_ssMaskMSAA, 0, AO_MASK_FORMAT);
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						context->ResolveSubresource(resources->_normBufR, 0, resources->_normBufMSAA_R, 0, AO_DEPTH_BUFFER_FORMAT);
 						context->ResolveSubresource(resources->_ssaoMaskR, 0, resources->_ssaoMaskMSAA_R, 0, AO_MASK_FORMAT);
 						context->ResolveSubresource(resources->_ssMaskR, 0, resources->_ssMaskMSAA_R, 0, AO_MASK_FORMAT);
@@ -8387,14 +8413,14 @@ HRESULT PrimarySurface::Flip(
 					// This may happen if there is no GUI (all HUD indicators were switched off) or the
 					// external camera is active.
 					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 				}
 
 #ifdef GENMIPMAPS
 				context->GenerateMips(resources->_depthBufSRV);
-				if (g_bUseSteamVR)
+				if (g_bSteamVRInitialized)
 					context->GenerateMips(resources->_depthBufSRV_R);
 #endif
 
@@ -8464,7 +8490,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: SSDO can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -8474,7 +8500,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: SSDO can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -8483,7 +8509,7 @@ HRESULT PrimarySurface::Flip(
 						// Resolve the bloom mask again: the deferred pass can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
@@ -8689,7 +8715,7 @@ HRESULT PrimarySurface::Flip(
 				resources->InitDepthStencilState(depthState, &desc);
 
 				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-				if (g_bUseSteamVR)
+				if (g_bUseSeparateEyeBuffers)
 					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 				RenderSpeedEffect();
 			}
@@ -8770,7 +8796,7 @@ HRESULT PrimarySurface::Flip(
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-				if (g_bUseSteamVR)
+				if (g_bUseSeparateEyeBuffers)
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
@@ -8899,7 +8925,7 @@ HRESULT PrimarySurface::Flip(
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 					L"C:\\Temp\\_offscreenBuf.jpg");
 				DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferR, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMaskR, L"C:\\Temp\\_bloomMask1R.dds");
@@ -8908,7 +8934,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
 			if (g_bEnableVR) {
-				if (g_bUseSteamVR) {
+				if (g_bUseSeparateEyeBuffers) {
 					/*
 					// The new Metric VR reconstruction shouldn't need any barrel effect distortion 
 					if (!g_bDisableBarrelEffect) {
@@ -9058,7 +9084,7 @@ HRESULT PrimarySurface::Flip(
 					g_bClearedAuxBuffer = true;
 					context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 				}
 				g_bHyperspaceFirstFrame = false;
@@ -9223,7 +9249,7 @@ HRESULT PrimarySurface::Flip(
 #endif
 
 			// Submit images to SteamVR
-			if (g_bUseSteamVR) {
+			if (g_bSteamVRInitialized) {
 				//if (!g_pHMD->GetTimeSinceLastVsync(&seconds, &frame))
 				//	log_debug("[DBG] No Vsync info available");
 				vr::EVRCompositorError error = vr::VRCompositorError_None;
@@ -9236,6 +9262,10 @@ HRESULT PrimarySurface::Flip(
 				//log_debug("[DBG] Submit 3D");
 				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
 				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+			}
+			else if (g_bUseOpenXR) {
+				g_stereoRenderer->Submit(context, resources->_offscreenBuffer.Get(), VREye::Eye_Left);
+				g_stereoRenderer->Submit(context, resources->_offscreenBufferR.Get(), VREye::Eye_Right);
 			}
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
@@ -9280,7 +9310,7 @@ HRESULT PrimarySurface::Flip(
 			if (*g_playerInHangar)
 				bEnableVSync = g_config.VSyncEnabledInHangar;
 			// If SteamVR is on, we do NOT want to do VSync with the monitor as well: that'll kill the performance.
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				bEnableVSync = false;
 			//log_debug("[DBG] ******************* PRESENT 3D");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
@@ -9295,7 +9325,7 @@ HRESULT PrimarySurface::Flip(
 				hr = DDERR_SURFACELOST;
 			}
 			// We may still need the PostPresentHandoff here...
-			if (g_bUseSteamVR && g_bTogglePostPresentHandoff) {
+			if (g_bSteamVRInitialized && g_bTogglePostPresentHandoff) {
 				g_pVRCompositor->PostPresentHandoff();
 			}
 		}

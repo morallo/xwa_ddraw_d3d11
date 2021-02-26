@@ -2442,7 +2442,7 @@ HRESULT Direct3DDevice::Execute(
 #endif
 
 /*
-	if (g_bUseSteamVR && g_ExecuteCount == 0) {//only wait once per frame
+	if (g_bUseSeparateEyeBuffers && g_ExecuteCount == 0) {//only wait once per frame
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
@@ -3213,7 +3213,7 @@ HRESULT Direct3DDevice::Execute(
 
 							context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-							if (g_bUseSteamVR)
+							if (g_bUseSeparateEyeBuffers)
 								context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 						}
 						*/
@@ -3258,7 +3258,7 @@ HRESULT Direct3DDevice::Execute(
 								g_bClearedAuxBuffer = true;
 								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								if (g_bUseSteamVR)
+								if (g_bUseSeparateEyeBuffers)
 									context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 							}
 						}
@@ -3311,7 +3311,7 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
+						if (g_bUseSeparateEyeBuffers)
 							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
 								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
 
@@ -3339,7 +3339,7 @@ HRESULT Direct3DDevice::Execute(
 							g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
 
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-							if (g_bUseSteamVR) {
+							if (g_bUseSeparateEyeBuffers) {
 								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 							}
 						}
@@ -5315,7 +5315,7 @@ HRESULT Direct3DDevice::Execute(
 					// with just using one, though... but why would we use just one? To make AO 
 					// computation faster? On the other hand, having always 2 z-buffers makes the code
 					// easier.
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
@@ -5360,7 +5360,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// VIEWPORT-LEFT
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						viewport.Width = (float)resources->_backbufferWidth;
 					} else {
 						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
@@ -5387,7 +5387,7 @@ HRESULT Direct3DDevice::Execute(
 					// just need one ZBuffer.
 					//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 					//	resources->_depthStencilViewR.Get());
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
 								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
@@ -5431,7 +5431,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// VIEWPORT-RIGHT
-					if (g_bUseSteamVR) {
+					if (g_bUseSeparateEyeBuffers) {
 						viewport.Width = (float)resources->_backbufferWidth;
 						viewport.TopLeftX = 0.0f;
 					} else {
@@ -6259,7 +6259,7 @@ HRESULT Direct3DDevice::BeginScene()
 		if (g_bEnableVR) {
 			context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
 		}
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
@@ -6270,7 +6270,7 @@ HRESULT Direct3DDevice::BeginScene()
 	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) 
 		if (!bTransitionToHyperspace) {
 			context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
-			if (g_bUseSteamVR)
+			if (g_bUseSeparateEyeBuffers)
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
 		}
 
@@ -6279,7 +6279,7 @@ HRESULT Direct3DDevice::BeginScene()
 		float zero[4] = { 0, 0, 0, 0 };
 		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
-		if (g_bUseSteamVR) {
+		if (g_bUseSeparateEyeBuffers) {
 			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 		}
@@ -6293,13 +6293,13 @@ HRESULT Direct3DDevice::BeginScene()
 		float zero[4] = { 0, 0, 0, 0 };
 
 		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
 	}
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-		if (g_bUseSteamVR)
+		if (g_bUseSeparateEyeBuffers)
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
