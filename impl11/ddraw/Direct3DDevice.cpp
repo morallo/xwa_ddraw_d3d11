@@ -1085,7 +1085,7 @@ HRESULT Direct3DDevice::GetStats(
 	return DDERR_UNSUPPORTED;
 }
 
-#ifdef DBG_VR
+#ifdef DBG_VR_DISABLED
 void DumpOrigVertices(FILE *file, int numVerts)
 {
 	char buf[256];
@@ -4201,7 +4201,7 @@ HRESULT Direct3DDevice::Execute(
 
 
 				// Skip specific draw calls for debugging purposes.
-#ifdef DBG_VR
+#ifdef DBG_VR_DISABLED
 				if (!bZWriteEnabled)
 					g_iNonZBufferCounter++;
 				if (!bZWriteEnabled && g_iSkipNonZBufferDrawIdx > -1 && g_iNonZBufferCounter >= g_iSkipNonZBufferDrawIdx)

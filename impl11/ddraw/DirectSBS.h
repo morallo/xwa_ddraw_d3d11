@@ -3,5 +3,4 @@
 extern bool g_bDirectSBSInitialized;
 
 bool InitDirectSBS();
-bool InitDirectSBS();
 bool ShutDownDirectSBS();

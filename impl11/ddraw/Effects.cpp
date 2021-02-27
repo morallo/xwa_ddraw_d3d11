@@ -209,7 +209,9 @@ GetDATGroupImageCountFun	GetDATGroupImageCount = nullptr;
 GetDATGroupImageListFun		GetDATGroupImageList = nullptr;
 // bool g_bEnableDATReader; // TODO
 // **************************
-
+//#ifdef DBR_VR
+bool g_bCapture2DOffscreenBuffer = false;
+//#endif
 
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
