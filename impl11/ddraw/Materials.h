@@ -16,9 +16,9 @@ How to add support for a new event:
 
 1. Add the new event in GameEventEnum
 2. Add the corresponding string for the new event in g_sGameEventNames
-3. Add a new field to g_GameEvent and update ResetGameEvent() (if applicable).
+3. Add a new field to g_GameEvent (if applicable).
 4. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
-5. Update GetCurrentTextureATCIndex(). Mind the priority of the new event!
+5. Update Materials.h:GetCurrentATCIndex(). Mind the priority of the new event!
 6. Update Materials.cpp:ResetGameEvent()
 7. Update Materials.cpp:UpdateEventsFired()
 
@@ -49,6 +49,10 @@ typedef enum GameEventEnum {
 	CPT_EVT_BROKEN_ENGINE_POWER,
 	CPT_EVT_BROKEN_SHIELD_RECHARGE,
 	CPT_EVT_BROKEN_BEAM_RECHARGE,
+	// Hull Damage Events
+	HULL_EVT_DAMAGE_75,
+	HULL_EVT_DAMAGE_50,
+	HULL_EVT_DAMAGE_25,
 	// End-of-events sentinel. Do not remove!
 	MAX_GAME_EVT
 } GameEvent;
@@ -117,6 +121,7 @@ typedef struct CockpitInstrumentStateStruct {
 typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
 	CockpitInstrumentState CockpitInstruments;
+	GameEvent HullEvent;
 
 	GlobalGameEventStruct() {
 		TargetEvent = EVT_NONE;
@@ -310,7 +315,7 @@ typedef struct MaterialStruct {
 		if (bIsDamageTex != NULL) *bIsDamageTex = false;
 
 		// Overrides: these indices are only selected if specific events are set
-		// Most-specific events first...
+		// Most-specific events first... least-specific events later.
 
 		// Cockpit Damage Events
 		if (!g_GameEvent.CockpitInstruments.CMD && TextureATCIndices[ATCType][CPT_EVT_BROKEN_CMD] > -1) {
@@ -362,6 +367,16 @@ typedef struct MaterialStruct {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE];
 		}
+
+		// Hull Damage Events
+		if (g_GameEvent.HullEvent == HULL_EVT_DAMAGE_25 && TextureATCIndices[ATCType][HULL_EVT_DAMAGE_25] > -1)
+			return TextureATCIndices[ATCType][HULL_EVT_DAMAGE_25];
+
+		if (g_GameEvent.HullEvent == HULL_EVT_DAMAGE_50 && TextureATCIndices[ATCType][HULL_EVT_DAMAGE_50] > -1)
+			return TextureATCIndices[ATCType][HULL_EVT_DAMAGE_50];
+
+		if (g_GameEvent.HullEvent == HULL_EVT_DAMAGE_75 && TextureATCIndices[ATCType][HULL_EVT_DAMAGE_75] > -1)
+			return TextureATCIndices[ATCType][HULL_EVT_DAMAGE_75];
 
 		// Target Events
 		if (g_GameEvent.TargetEvent == TGT_EVT_LASER_LOCK && TextureATCIndices[ATCType][TGT_EVT_LASER_LOCK] > -1)

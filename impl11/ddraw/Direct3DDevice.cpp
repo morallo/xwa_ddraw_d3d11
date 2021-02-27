@@ -5024,6 +5024,8 @@ HRESULT Direct3DDevice::Execute(
 
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
 						int idx = atc->AnimIdx;
+						if (g_bDumpSSAOBuffers)
+							log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
 						//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
 
 						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
@@ -6191,6 +6193,20 @@ HRESULT Direct3DDevice::BeginScene()
 			log_debug("[DBG] [CPT] BeamRecharge Damaged!");
 		if (prevDamage.Throttle && !g_GameEvent.CockpitInstruments.Throttle)
 			log_debug("[DBG] [CPT] Throttle Damaged!");
+
+		float hull = 100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength);
+		hull = max(0.0f, hull);
+		if (g_bDumpSSAOBuffers) log_debug("[DBG] Hull health: %0.3f", hull);
+		g_GameEvent.HullEvent = EVT_NONE;
+		// Update the event
+		if (hull > 75.0f)
+			g_GameEvent.HullEvent = EVT_NONE;
+		else if (50.0f < hull && hull <= 75.0f)
+			g_GameEvent.HullEvent = HULL_EVT_DAMAGE_75;
+		else if (25.0f < hull && hull <= 50.0f)
+			g_GameEvent.HullEvent = HULL_EVT_DAMAGE_50;
+		else if (hull <= 25.0f)
+			g_GameEvent.HullEvent = HULL_EVT_DAMAGE_25;
 
 		// Dump the CraftInstance table
 		/*

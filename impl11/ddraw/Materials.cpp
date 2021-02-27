@@ -15,7 +15,8 @@ Material g_DefaultGlobalMaterial;
 GlobalGameEvent g_GameEvent, g_PrevGameEvent;
 // Set of flags that tell us when events fired on the current frame
 bool bEventsFired[MAX_GAME_EVT] = { 0 };
-// The ordering in this array MUST match the ordering in GameEventEnum
+// Rule 1: The ordering in this array MUST match the ordering in GameEventEnum
+// Rule 2: Always begin an event with the token "EVT_" (it's used to parse it)
 char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_NONE",
 	// Target Events
@@ -34,6 +35,10 @@ char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_BROKEN_ENGINE_POWER",
 	"EVT_BROKEN_SHIELD_RECHARGE",
 	"EVT_BROKEN_BEAM_RECHARGE",
+	// Hull Damage Events
+	"EVT_DAMAGE_75",
+	"EVT_DAMAGE_50",
+	"EVT_DAMAGE_25",
 };
 
 
@@ -1240,9 +1245,15 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 void ResetGameEvent() {
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
+	g_GameEvent.HullEvent = EVT_NONE;
+
+	// Add new events here
+	// ...
+
 	// Reset the Events Fired flags
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
+
 	g_PrevGameEvent = g_GameEvent;
 }
 
@@ -1255,6 +1266,10 @@ void UpdateEventsFired() {
 	// Set the current target event to true if it changed:
 	if (g_PrevGameEvent.TargetEvent != g_GameEvent.TargetEvent)
 		bEventsFired[g_GameEvent.TargetEvent] = true;
+
+	// Set the current hull damage event to true if it changed:
+	if (g_PrevGameEvent.HullEvent != g_GameEvent.HullEvent)
+		bEventsFired[g_GameEvent.HullEvent] = true;
 	
 	// Manually check and set each damage event
 	bEventsFired[CPT_EVT_BROKEN_CMD] = (g_PrevGameEvent.CockpitInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD);
