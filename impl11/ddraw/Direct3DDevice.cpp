@@ -5030,6 +5030,8 @@ HRESULT Direct3DDevice::Execute(
 						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
 						if (atc->BlackToAlpha)
 							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+						else if (atc->AlphaIsBloomMask)
+							g_PSCBuffer.special_control = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
 						g_PSCBuffer.AuxColor = atc->Tint;
 						g_PSCBuffer.Offset = atc->Offset;
 						g_PSCBuffer.AspectRatio = atc->AspectRatio;

@@ -91,7 +91,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	// We can't do smoothstep(0.0, 0.8, val) because the hangar will bloom all over the
 	// place. Many other textures may have similar problems too.
-	const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
+	float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
 	//const float bloom_alpha = smoothstep(0.75, 0.81, val) * smoothstep(0.45, 0.51, alpha);
 	output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
 	output.ssaoMask.ra = bloom_alpha;
@@ -99,6 +99,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	output.color = float4(color, alpha);
 	output.bloom.rgb *= fBloomStrength;
+	if (special_control == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
+		output.bloom = lerp(output.bloom, float4(0, 0, 0, 1), alpha);
+		bloom_alpha = (1.0 - alpha);
+		output.ssaoMask.ra = bloom_alpha;
+		output.ssMask.a = bloom_alpha;
+	}
+	//if (special_control == SPECIAL_CONTROL_BLOOM_MULT_ALPHA)
+	//	output.color = float4(alpha, alpha, alpha, 1.0);
 	if (bInHyperspace && output.bloom.a < 0.5) {
 		//output.color.a = 1.0;
 		discard; // VERIFIED: Works fine in Win7

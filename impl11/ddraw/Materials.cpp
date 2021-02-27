@@ -453,12 +453,12 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 }
 
 bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType,
-	int *is_lightmap, int *black_to_alpha, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
+	int *is_lightmap, int *alpha_mode, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
 {
-	int res = 0, clamp;
+	int res = 0, clamp, raw_alpha_mode;
 	char *s = NULL, *t = NULL, path[256];
 	float fps = 30.0f, intensity = 0.0f, r,g,b, OfsX, OfsY, ar;
-	*is_lightmap = 0, *black_to_alpha = 1; *eventType = EVT_NONE;
+	*is_lightmap = 0; *alpha_mode = 0; *eventType = EVT_NONE;
 	AuxColor->x = 1.0f;
 	AuxColor->y = 1.0f;
 	AuxColor->z = 1.0f;
@@ -510,10 +510,20 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
 		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, (%f, %f), %d", 
-			&fps, is_lightmap, &intensity, black_to_alpha,
+			&fps, is_lightmap, &intensity, &raw_alpha_mode,
 			&r, &g, &b, &ar, &OfsX, &OfsY, &clamp);
 		if (res < 4) {
 			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
+		}
+		switch (raw_alpha_mode) {
+		case 1:
+			*alpha_mode = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+			break;
+		case 2:
+			*alpha_mode = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+			break;
+		default:
+			*alpha_mode = 0;
 		}
 		if (res >= 7) {
 			AuxColor->x = r;
@@ -538,45 +548,72 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 	TexSeqElem tex_seq_elem;
 	// The path is either an actual path that contains the frame sequence, or it's
-	// a <Path>\<DATFile>-<GroupId>. Let's check if path contains the ".DAT-" token
-	// first:
-	if (stristr(path, ".dat-") != NULL) {
-		std::string s_path(path);
-		int split_idx = s_path.find_last_of('-');
+	// a <Path>\<DATFile>-<GroupId> or <Path>\<DATFile>-<GroupId>-<ImageId>. Let's
+	// check if path contains the ".DAT-" token first:
+	char *split = stristr(path, ".dat-");
+	if (split != NULL) {
+		// Split the string at the first dash and move the cursor after it:
+		split[4] = 0;
+		split += 5;
+		// sDATFileName contains the path and DAT file name:
+		std::string sDATFileName(path);
+		std::string sGroupImage(split);
+		std::string sGroup, sImage;
+		int split_idx = sGroupImage.find_last_of('-');
 		if (split_idx > 0) {
-			// sDATFileName contains the path and DAT file name:
-			std::string sDATFileName = s_path.substr(0, split_idx);
-			std::string sGroup = s_path.substr(split_idx + 1);
-			log_debug("[DBG] sDATFileName: %s, Group: %s", sDATFileName.c_str(), sGroup.c_str());
+			sGroup = sGroupImage.substr(0, split_idx);
+			sImage = sGroupImage.substr(split_idx + 1);
+		}
+		else {
+			sGroup = sGroupImage;
+			sImage = "";
+		}
+		log_debug("[DBG] sDATFileName: [%s], Group: [%s], Image: [%s]", sDATFileName.c_str(), sGroup.c_str(), sImage.c_str());
 
-			short GroupId = -1;
+		short GroupId = -1, ImageId = -1;
+		try {
+			GroupId = (short)std::stoi(sGroup);
+		}
+		catch (...) {
+			log_debug("[DBG] Could not parse: %s into an integer", sGroup.c_str());
+			return false;
+		}
+		if (sImage.size() > 0) {
 			try {
-				GroupId = (short)std::stoi(sGroup);
-				std::vector<short> ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
-				log_debug("[DBG] Group %d has %d images", GroupId, ImageList.size());
-				// Iterate over the list of Images and add one TexSeqElem for each one of them
-				for each (short ImageId in ImageList)
-				{
-					// Store the DAT filename in texname and set the appropriate flag. texname contains
-					// the path and filename.
-					strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
-					tex_seq_elem.seconds = 1.0f / fps;
-					tex_seq_elem.intensity = intensity;
-					// Save the DAT image data:
-					tex_seq_elem.IsDATImage = true;
-					tex_seq_elem.GroupId = GroupId;
-					tex_seq_elem.ImageId = ImageId;
-					// The texture itself will be loaded later. So the reference index is initialized to -1 here:
-					tex_seq_elem.ExtraTextureIndex = -1;
-					tex_sequence.push_back(tex_seq_elem);
-				}
-				ImageList.clear();
+				ImageId = (short)std::stoi(sImage);
 			}
 			catch (...) {
-				log_debug("[DBG] Could not parse: %s into an integer", sGroup.c_str());
+				log_debug("[DBG] Could not parse: %s into an integer", sImage.c_str());
+				return false;
 			}
-
 		}
+
+		std::vector<short> ImageList;
+		if (ImageId > -1) {
+			ImageList.push_back(ImageId);
+			log_debug("[DBG] Using only %d-%d", GroupId, ImageId);
+		}
+		else {
+			ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
+			log_debug("[DBG] Group %d has %d images", GroupId, ImageList.size());
+		}
+		// Iterate over the list of Images and add one TexSeqElem for each one of them
+		for each (short ImageId in ImageList)
+		{
+			// Store the DAT filename in texname and set the appropriate flag. texname contains
+			// the path and filename.
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+			tex_seq_elem.seconds = 1.0f / fps;
+			tex_seq_elem.intensity = intensity;
+			// Save the DAT image data:
+			tex_seq_elem.IsDATImage = true;
+			tex_seq_elem.GroupId = GroupId;
+			tex_seq_elem.ImageId = ImageId;
+			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+			tex_seq_elem.ExtraTextureIndex = -1;
+			tex_sequence.push_back(tex_seq_elem);
+		}
+		ImageList.clear();
 	}
 	else {
 		std::string s_path = std::string("Effects\\Animations\\") + std::string(path);
@@ -786,7 +823,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			 _stricmp(param, "frame_rand") == 0 ||
 			 _stricmp(param, "frame_once") == 0) {
 		AnimatedTexControl atc;
-		int is_lightmap, black_to_alpha;
+		int is_lightmap, alpha_mode;
 		atc.IsRandom = _stricmp(param, "frame_rand") == 0;
 		atc.NoLoop = _stricmp(param, "frame_once") == 0;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
@@ -794,14 +831,23 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &black_to_alpha,
+		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &alpha_mode,
 			&(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
 			// Initialize the timer for this animation
 			atc.ResetAnimation();
-			atc.BlackToAlpha = (bool)black_to_alpha;
+			atc.BlackToAlpha = false;
+			atc.AlphaIsBloomMask = false;
+			switch (alpha_mode) {
+			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
+				atc.BlackToAlpha = true;
+				break;
+			case SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK:
+				atc.AlphaIsBloomMask = true;
+				break;
+			}
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
 			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
