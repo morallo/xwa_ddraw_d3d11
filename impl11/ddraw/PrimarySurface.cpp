@@ -8659,6 +8659,10 @@ HRESULT PrimarySurface::Flip(
 
 				{
 					float fScale = 2.0f;
+					// Set the _mainSamplerState on the first 2 texture slots. That way we prevent the
+					// bloom effect from "bleeding" around the edge of the screen.
+					context->PSSetSamplers(0, 1, resources->_mainSamplerState.GetAddressOf());
+					context->PSSetSamplers(1, 1, resources->_mainSamplerState.GetAddressOf());
 					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
 						int AdditionalPasses = g_iBloomPasses[i] - 1;
 						// Zoom level 2.0f with only one pass tends to show artifacts unless
