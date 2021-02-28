@@ -250,22 +250,65 @@ void InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem te
 	}
 }
 
+int AlphaModeToSpecialControl(int alpha_mode) {
+	switch (alpha_mode) {
+	case 1:
+		return SPECIAL_CONTROL_BLACK_TO_ALPHA;
+		break;
+	case 2:
+		return SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+		break;
+	default:
+		return 0;
+	}
+}
+
+bool ParseOptionalTexSeqArgs(char *buf, int *alpha_mode, float4 *AuxColor)
+{
+	int res = 0, raw_alpha_mode;
+	float r, g, b;
+
+	*alpha_mode = 0;
+	AuxColor->x = 1.0f;
+	AuxColor->y = 1.0f;
+	AuxColor->z = 1.0f;
+	AuxColor->w = 1.0f;
+	res = sscanf_s(buf, "%d, [%f, %f, %f]", &raw_alpha_mode, &r, &g, &b);
+	if (res < 4)
+	{
+		log_debug("[DBG] [MAT] Error, expected at least 4 elements reading OptTexSeqArgs in %s", buf);
+		return false;
+	}
+	*alpha_mode = AlphaModeToSpecialControl(raw_alpha_mode);
+	AuxColor->x = r;
+	AuxColor->y = g;
+	AuxColor->z = b;
+	AuxColor->w = 1.0f;
+	return true;
+}
+
 /*
  Load a texture sequence line of the form:
 
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType) 
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType, int *alpha_mode,
+	float4 *AuxColor) 
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
 	char temp[512];
-	char *s = NULL, *t = NULL, texname[80], sDATFileName[128];
+	char *s = NULL, *t = NULL, texname[80], sDATFileName[128], sOptionalArgs[128];
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false, bEllipsis = false;
 	*eventType = EVT_NONE;
 	std::string s_temp;
+	*alpha_mode = 0;
+	AuxColor->x = 1.0f;
+	AuxColor->y = 1.0f;
+	AuxColor->z = 1.0f;
+	AuxColor->w = 1.0f;
 	
 	// Remove any parentheses from the line
 	int i = 0, j = 0;
@@ -312,6 +355,34 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		// Copy the DAT's filename
 		strcpy_s(sDATFileName, 128, s);
 		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse optional args, if specified
+	if (s[0] == '{') {
+		// Skip the opening braces
+		s++;
+		// Skip to the closing braces
+		t = s;
+		while (*t != 0 && *t != '}') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the closing braces so that we can parse a string
+		*t = 0;
+		// Copy the optional args
+		strcpy_s(sOptionalArgs, 128, s);
+		// log_debug("[DBG] [MAT] sOptionalArgs: [%s]", sOptionalArgs);
+		// Parse the optional args...
+		ParseOptionalTexSeqArgs(sOptionalArgs, alpha_mode, AuxColor);
+		// Skip the closing braces
+		s = t; s += 1;
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// Skip the comma and remaining white spaces
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
 	}
@@ -520,16 +591,8 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 		if (res < 4) {
 			log_debug("[DBG] [MAT] Error (using defaults), expected at least 4 elements in %s", s);
 		}
-		switch (raw_alpha_mode) {
-		case 1:
-			*alpha_mode = SPECIAL_CONTROL_BLACK_TO_ALPHA;
-			break;
-		case 2:
-			*alpha_mode = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
-			break;
-		default:
-			*alpha_mode = 0;
-		}
+
+		*alpha_mode = AlphaModeToSpecialControl(raw_alpha_mode);
 		if (res >= 7) {
 			AuxColor->x = r;
 			AuxColor->y = g;
@@ -788,26 +851,31 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			 _stricmp(param, "anim_once") == 0) {
 		// TOOD: Add support for multiline sequences
 		AnimatedTexControl atc;
+		int alpha_mode = 0;
 		atc.IsRandom = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "anim_rand") == 0);
 		bool IsLightMap = (_stricmp(param, "lightmap_rand") == 0) || (_stricmp(param, "lightmap_seq") == 0);
 		atc.NoLoop = _stricmp(param, "lightmap_once") == 0 || _stricmp(param, "anim_once") == 0;
-		atc.BlackToAlpha = false;
-		// TODO: Add support for tint here?
-		atc.Tint.x = 1.0f;
-		atc.Tint.y = 1.0f;
-		atc.Tint.z = 1.0f;
-		atc.Tint.w = 1.0f;
 		// Clear the current Sequence and release the associated textures in the DeviceResources...
 		// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence, &(atc.Event)))
+		if (!LoadTextureSequence(buf, atc.Sequence, &(atc.Event), &alpha_mode, &(atc.Tint)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
 			// Initialize the timer for this animation
 			atc.ResetAnimation();
+			atc.BlackToAlpha = false;
+			atc.AlphaIsBloomMask = false;
+			switch (alpha_mode) {
+			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
+				atc.BlackToAlpha = true;
+				break;
+			case SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK:
+				atc.AlphaIsBloomMask = true;
+				break;
+			}
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
 			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
@@ -1199,7 +1267,10 @@ void AnimatedTexControl::Animate() {
 				idx = (idx + 1) % num_frames;
 		}
 		// Use the time specified in the sequence for the next index
-		time += this->Sequence[idx].seconds;
+		if (this->Sequence[idx].seconds < 0.00001f) { // prevent infinite loops
+			time = 0.0f;
+		} else
+			time += this->Sequence[idx].seconds;
 	}
 	this->AnimIdx = idx;
 	this->TimeLeft = time;

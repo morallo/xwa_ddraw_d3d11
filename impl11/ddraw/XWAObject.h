@@ -23,13 +23,43 @@ struct CraftInstanceHardpoint {
 };
 static_assert(sizeof(CraftInstanceHardpoint) == 0xE, "size of CraftInstance must be 0xE");
 
+enum CraftState {
+	Craftstate_Normal = 0,
+	Craftstate_Inactive = 1,
+	Craftstate_NoSpeed = 2,
+	Craftstate_Dying = 3,
+	Craftstate_DiedInstantly = 4,
+	Craftstate_HyperingOut = 5,
+	Craftstate_HyperingIn = 6,
+	Craftstate_Despawned = 7,
+	Craftstate_UNK8 = 8,
+	Craftstate_NoRotation = 9,
+};
+
+/*
+00000001 ; enum CockpitInstruments, mappedto_218, bitfield
+00000001 CockpitInstrument_Targeting  = 1
+00000002 CockpitInstrument_LeftCannon  = 2
+00000004 CockpitInstrument_RightCannon  = 4
+00000008 CockpitInstrument_Warhead  = 8
+00000010 CockpitInstrument_BeamEnergy  = 10h
+00000020 CockpitInstrument_Shields  = 20h
+00000040 CockpitInstrument_Throttle  = 40h
+00000080 CockpitInstrument_LeftSensor  = 80h
+00000100 CockpitInstrument_RightSensor  = 100h
+00000200 CockpitInstrument_CannonConfig  = 200h
+00000400 CockpitInstrument_EngineConfig  = 400h
+00000800 CockpitInstrument_ShieldConfig  = 800h
+00001000 CockpitInstrument_BeamConfig  = 1000h
+*/
+
 struct CraftInstance {
 	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
 	DWORD NumberInFG;
 	WORD CraftType; // enum CraftTypeEnum
 	DWORD LeaderCraftIndex;
 	BYTE VirtualCraftPointerSet;
-	BYTE CraftState; // enum CraftState
+	BYTE CraftState; // enum CraftState. See above
 	BYTE RemovedFromPlay;
 	WORD AiSkill;
 	WORD field_F; // Ofs 0x0F
