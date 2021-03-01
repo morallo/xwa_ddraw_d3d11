@@ -4,12 +4,15 @@
 #include "commonVR.h"
 #include "SteamVR.h"
 #include "DirectXMath.h"
+#include <WICTextureLoader.h>
+#include <ScreenGrab.h>
 
 using namespace std;
 
 bool g_bOpenXREnabled = false; // The user sets this flag to true to request support for OpenXR
 bool g_bUseOpenXR = false; //The systems sets this flag when an OpenXR is available and compatible
 bool g_bOpenXRInitialized = false; //The systems sets this flag when OpenXR has been initialized correctly
+uint32_t g_openXR_framecount = 0;
 
 const char* VRRendererOpenXR::ask_extensions[] = {
 	XR_KHR_D3D11_ENABLE_EXTENSION_NAME, // Use Direct3D11 for rendering
@@ -130,7 +133,8 @@ bool VRRendererOpenXR::init(DeviceResources *deviceResources)
 		// like laptops with integrated graphics chips in addition to dedicated graphics cards.
 		XrGraphicsRequirementsD3D11KHR requirement = { XR_TYPE_GRAPHICS_REQUIREMENTS_D3D11_KHR };
 		ext_xrGetD3D11GraphicsRequirementsKHR(xr_instance, xr_system_id, &requirement);		
-		//log_debug("[DBG] [OpenXR] OpenXR ID3D11Device adapter LUID: %d", requirement.adapterLuid);
+		log_debug("[DBG] [OpenXR] OpenXR ID3D11Device adapter LUID: %d", requirement.adapterLuid);
+		log_debug("[DBG] [OpenXR] OpenXR minFeatureLevel: 0x%x", requirement.minFeatureLevel);
 
 		// A session represents this application's desire to display things! This is where we hook up our graphics API.
 		// This does not start the session, for that, you'll need a call to xrBeginSession, which we do in openxr_poll_events
@@ -397,17 +401,48 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 		
 		// If the session is active, lets render our layer in the compositor		
 		if (frame_state.shouldRender && (xr_session_state == XR_SESSION_STATE_VISIBLE || xr_session_state == XR_SESSION_STATE_FOCUSED)) {
+
+			//DEBUG: dump input buffer to verify it contains a valid image
+			//HRESULT hr = DirectX::SaveWICTextureToFile(
+			//	context,
+			//	(ID3D11Resource*)eye_buffer,
+			//	GUID_ContainerFormatJpeg, L"C:\\Temp\\eye_buffer.jpg"
+			//);
+
 			// Copy input buffer into the display swapchain buffer for the correct eye
 			context->ResolveSubresource(xr_swapchains[vrEye].surface_images[img_id].texture, 0, eye_buffer, 0, BACKBUFFER_FORMAT);
 			//context->CopyResource(xr_swapchains[vrEye].surface_images[img_id].texture, eye_buffer);
+			//ID3D11Device* d3dDevice;
+			//context->GetDevice(&d3dDevice);
+			//DirectX::CreateWICTextureFromFile(d3dDevice, "C:\\Temp\\test.jpg", (ID3D11Resource *) xr_swapchains[vrEye].surface_images[img_id].texture,nullptr);
+
+			if (vrEye == Eye_Left)
+			{
+				g_openXR_framecount++;
+				log_debug("[DBG] [OpenXR] Frames rendered: %d", g_openXR_framecount);
+			}
+
+			//DEBUG: dump OpenXR swapchain buffer to disk for 1st frame
+			if (g_openXR_framecount == 1 && vrEye == 0) {
+
+				HRESULT hr = DirectX::SaveDDSTextureToFile(
+					context,
+					(ID3D11Resource*)xr_swapchains[vrEye].surface_images[img_id].texture,
+					L"C:\\Temp\\xr_swapchain_texture.dds"
+				);
+				if (FAILED(hr)) {
+					log_debug("[DBG] [OpenXR] Dump openXR swapchain texture to disk failed. Error: %s", _com_error(hr).ErrorMessage());
+				}
+			}
+
 
 			// Set up our rendering information for the viewpoint we're using right now
 			this->layer_proj_views[vrEye] = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 			this->layer_proj_views[vrEye].pose = this->xr_views[vrEye].pose;
 			this->layer_proj_views[vrEye].fov = this->xr_views[vrEye].fov;
 			this->layer_proj_views[vrEye].subImage.swapchain = this->xr_swapchains[vrEye].handle;
-			log_debug("[DBG] [OpenXR] xr_swapchains[vrEye].handle = %d", this->xr_swapchains[vrEye].handle);
-			log_debug("[DBG] [OpenXR] this->layer_proj_views[vrEye].subImage.swapchain = %d", this->layer_proj_views[vrEye].subImage.swapchain);
+			//log_debug("[DBG] [OpenXR] xr_swapchains[vrEye].handle = %d", this->xr_swapchains[vrEye].handle);
+			//log_debug("[DBG] [OpenXR] this->layer_proj_views[vrEye].subImage.swapchain = %d", this->layer_proj_views[vrEye].subImage.swapchain);
 			// As we are using separate swapchains for each eye, the layer corresponds to the full size.
 			// TODO: test double-width rendering like DirectSBS and here choose the correct half for each XrCompositionLayerProjectionView.
 			this->layer_proj_views[vrEye].subImage.imageRect.offset = { 0, 0 };
@@ -440,7 +475,6 @@ void VRRendererOpenXR::EndFrame(ID3D11Device* d3dDevice)
 	XrResult xrResult = XR_SUCCESS;
 	xrResult = xrEndFrame(xr_session, &end_info);
 	unfinishedFrame = false;
-
 	if (FAILED(xrResult))
 	{
 		XrCompositionLayerProjection* output_layers;
