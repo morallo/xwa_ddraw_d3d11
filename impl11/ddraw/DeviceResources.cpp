@@ -366,7 +366,7 @@ HRESULT DeviceResources::Initialize()
 	UINT createDeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
 #ifdef _DEBUG
-	//createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
 	this->_d3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
@@ -380,7 +380,6 @@ HRESULT DeviceResources::Initialize()
 		hr = D3D11CreateDevice(nullptr, this->_d3dDriverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &this->_d3dDevice, &this->_d3dFeatureLevel, &this->_d3dDeviceContext);
 	}
 
-	/*
 	//Get and log adapter LUID for debugging purposes
 
 	DXGI_ADAPTER_DESC adapterDesc = {};
@@ -397,9 +396,9 @@ HRESULT DeviceResources::Initialize()
 		{
 			dxgiAdapter->GetDesc(&adapterDesc);			
 			log_debug("[DBG] Default ID3D11Device LUID: %d", adapterDesc.AdapterLuid);
+			log_debug("[DBG] Default ID3D11Device feature level: 0x%x", this->_d3dDevice->GetFeatureLevel());
 		}
 	}
-	*/
 
 	/*
 	if (SUCCEEDED(hr)) {
