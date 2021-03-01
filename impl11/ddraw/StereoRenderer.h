@@ -36,7 +36,7 @@ class StereoRenderer {
 		/*
 		* Initialize all the necessary resources for the VR runtime. To be called only once.
 		*/
-		virtual bool init(DeviceResources* deviceResources) = 0;	
+		virtual bool init(ID3D11Device* d3dDevice) = 0;	
 
 		/*
 		* Verifies if the VR runtime is ready to start rendering frames

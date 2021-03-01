@@ -213,6 +213,10 @@ GetDATGroupImageListFun		GetDATGroupImageList = nullptr;
 bool g_bCapture2DOffscreenBuffer = false;
 //#endif
 
+//To keep track of the 2 separate calls of DirectDrawCreate and initialize OpenXR at the right time (2nd pass)
+uint32_t g_DirectDrawCreatePass = 1;
+
+
 void SmallestK::insert(Vector3 P, Vector3 col) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {

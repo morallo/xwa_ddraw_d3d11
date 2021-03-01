@@ -6,6 +6,7 @@
 #include "DirectXMath.h"
 #include <WICTextureLoader.h>
 #include <ScreenGrab.h>
+#include "globals.h"
 
 using namespace std;
 
@@ -69,8 +70,6 @@ bool VRRendererOpenXR::is_available()
 		}
 	}
 
-	//DEBUG: adding required extension manually, ignoring error while checking availability
-	use_extensions.push_back(XR_KHR_D3D11_ENABLE_EXTENSION_NAME);
 	log_debug("[DBG] [OpenXR] Extensions requested");
 	for (size_t i = 0; i < use_extensions.size(); i++) {
 		log_debug("- %s\n", use_extensions[i]);
@@ -78,21 +77,21 @@ bool VRRendererOpenXR::is_available()
 	// If a required extension isn't present, you want to ditch out here!
 	// It's possible something like your rendering API might not be provided
 	// by the active runtime. APIs like OpenGL don't have universal support.
-	//if (!any_of(use_extensions.begin(), use_extensions.end(),
-	//	[](const char* ext) {
-    //		return strcmp(ext, XR_KHR_D3D11_ENABLE_EXTENSION_NAME) == 0;
-	//	}))
-	//{
-	//	log_debug("[DBG] [OpenXR] One of the extensions is not available");
-	//	//return false;
-	//}
+	if (!any_of(use_extensions.begin(), use_extensions.end(),
+		[](const char* ext) {
+    		return strcmp(ext, XR_KHR_D3D11_ENABLE_EXTENSION_NAME) == 0;
+		}))
+	{
+		log_debug("[DBG] [OpenXR] One of the extensions is not available");
+		return false;
+	}
 
 	//If it didn't fail yet, we consider OpenXR is available
 	return true;
 		
 }
 
-bool VRRendererOpenXR::init(DeviceResources *deviceResources)
+bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 {
 		XrResult xrResult = XR_SUCCESS;
 		// Initialize OpenXR with the extensions we've found!
@@ -139,7 +138,7 @@ bool VRRendererOpenXR::init(DeviceResources *deviceResources)
 		// A session represents this application's desire to display things! This is where we hook up our graphics API.
 		// This does not start the session, for that, you'll need a call to xrBeginSession, which we do in openxr_poll_events
 		XrGraphicsBindingD3D11KHR binding = { XR_TYPE_GRAPHICS_BINDING_D3D11_KHR };
-		binding.device = deviceResources->_d3dDevice;
+		binding.device = d3dDevice;
 		XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
 		sessionInfo.next = &binding;
 		sessionInfo.systemId = xr_system_id;
@@ -401,29 +400,12 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 		
 		// If the session is active, lets render our layer in the compositor		
 		if (frame_state.shouldRender && (xr_session_state == XR_SESSION_STATE_VISIBLE || xr_session_state == XR_SESSION_STATE_FOCUSED)) {
-
-			//DEBUG: dump input buffer to verify it contains a valid image
-			//HRESULT hr = DirectX::SaveWICTextureToFile(
-			//	context,
-			//	(ID3D11Resource*)eye_buffer,
-			//	GUID_ContainerFormatJpeg, L"C:\\Temp\\eye_buffer.jpg"
-			//);
-
 			// Copy input buffer into the display swapchain buffer for the correct eye
 			context->ResolveSubresource(xr_swapchains[vrEye].surface_images[img_id].texture, 0, eye_buffer, 0, BACKBUFFER_FORMAT);
-			//context->CopyResource(xr_swapchains[vrEye].surface_images[img_id].texture, eye_buffer);
-			//ID3D11Device* d3dDevice;
-			//context->GetDevice(&d3dDevice);
-			//DirectX::CreateWICTextureFromFile(d3dDevice, "C:\\Temp\\test.jpg", (ID3D11Resource *) xr_swapchains[vrEye].surface_images[img_id].texture,nullptr);
 
-			if (vrEye == Eye_Left)
-			{
-				g_openXR_framecount++;
-				log_debug("[DBG] [OpenXR] Frames rendered: %d", g_openXR_framecount);
-			}
-
-			//DEBUG: dump OpenXR swapchain buffer to disk for 1st frame
-			if (g_openXR_framecount == 1 && vrEye == 0) {
+#ifdef DBG_VR
+			//DEBUG: dump OpenXR swapchain buffer to disk when user presses Ctrl+Alt+X
+			if (g_bDumpSSAOBuffers == 1 && vrEye == 0) {
 
 				HRESULT hr = DirectX::SaveDDSTextureToFile(
 					context,
@@ -433,16 +415,15 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 				if (FAILED(hr)) {
 					log_debug("[DBG] [OpenXR] Dump openXR swapchain texture to disk failed. Error: %s", _com_error(hr).ErrorMessage());
 				}
+				g_bDumpSSAOBuffers = false;
 			}
-
+#endif
 
 			// Set up our rendering information for the viewpoint we're using right now
 			this->layer_proj_views[vrEye] = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 			this->layer_proj_views[vrEye].pose = this->xr_views[vrEye].pose;
 			this->layer_proj_views[vrEye].fov = this->xr_views[vrEye].fov;
 			this->layer_proj_views[vrEye].subImage.swapchain = this->xr_swapchains[vrEye].handle;
-			//log_debug("[DBG] [OpenXR] xr_swapchains[vrEye].handle = %d", this->xr_swapchains[vrEye].handle);
-			//log_debug("[DBG] [OpenXR] this->layer_proj_views[vrEye].subImage.swapchain = %d", this->layer_proj_views[vrEye].subImage.swapchain);
 			// As we are using separate swapchains for each eye, the layer corresponds to the full size.
 			// TODO: test double-width rendering like DirectSBS and here choose the correct half for each XrCompositionLayerProjectionView.
 			this->layer_proj_views[vrEye].subImage.imageRect.offset = { 0, 0 };
@@ -460,7 +441,8 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 
 void VRRendererOpenXR::EndFrame(ID3D11Device* d3dDevice)
 {
-	//We only have one layer with both eyes
+	// We only have one layer with both eyes
+	// Only pass it to EndFrame when it was actually rendered
 	if (frame_state.shouldRender)
 		layer = (XrCompositionLayerBaseHeader*)&this->layer_proj;
 	else
@@ -476,25 +458,7 @@ void VRRendererOpenXR::EndFrame(ID3D11Device* d3dDevice)
 	xrResult = xrEndFrame(xr_session, &end_info);
 	unfinishedFrame = false;
 	if (FAILED(xrResult))
-	{
-		XrCompositionLayerProjection* output_layers;
-		output_layers = (XrCompositionLayerProjection *) end_info.layers;
-		switch (xrResult) {
-		case XR_ERROR_CALL_ORDER_INVALID:
-			//First frame, xrEndFrame is called before the rendering starts.
-			break;
-		case XR_ERROR_HANDLE_INVALID:
-			log_debug("[DBG] [OpenXR] xrEndFrame error XR_ERROR_HANDLE_INVALID", xrResult);
-			log_debug("[DBG] [OpenXR] Left  Eye Swapchain handle: %d", this->layer_proj.views[0].subImage.swapchain);
-			log_debug("[DBG] [OpenXR] Right Eye Swapchain handle: %d", this->layer_proj.views[1].subImage.swapchain);
-			break;
-		default:
-			log_debug("[DBG] [OpenXR] xrEndFrame error: %d", xrResult);
-		}
-		HRESULT reason = d3dDevice->GetDeviceRemovedReason();
-		if (reason != 0)
-			log_debug("[DBG] [OpenXR] D3D11 Device removed! DXGI_ERROR code: 0x%X", reason);
-	}
+		log_debug("[DBG] [OpenXR] xrEndFrame error: %d", xrResult);
 }
 
 void VRRendererOpenXR::ShutDown()
