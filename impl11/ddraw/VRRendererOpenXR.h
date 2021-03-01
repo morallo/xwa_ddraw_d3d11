@@ -29,7 +29,7 @@ public:
 	static bool is_available(); //Returns true if there is a valid OpenXR runtime available
 
 	VRRendererOpenXR::VRRendererOpenXR();
-	bool init(DeviceResources *deviceResources);
+	bool init(ID3D11Device* d3dDevice);
 	bool is_ready();
 	void WaitFrame();
 	void BeginFrame();

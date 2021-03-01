@@ -8135,8 +8135,8 @@ HRESULT PrimarySurface::Flip(
 						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
 					else if (g_bUseOpenXR) {
-						g_stereoRenderer->Submit(context, this->_deviceResources->_offscreenBuffer.Get(), VREye::Eye_Left);
-						g_stereoRenderer->Submit(context, this->_deviceResources->_offscreenBufferR.Get(), VREye::Eye_Right);
+						g_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBuffer.Get(), VREye::Eye_Left);
+						g_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBufferR.Get(), VREye::Eye_Right);
 					}
 
 					g_bRendering3D = false;
@@ -8187,7 +8187,7 @@ HRESULT PrimarySurface::Flip(
 						//First attempt at frame synchronization, naive. Everything happens here.
 						//resources->_stereoRenderer->EndFrame();
 						if (g_stereoRenderer->unfinishedFrame == true)
-							g_stereoRenderer->EndFrame(device);
+							g_stereoRenderer->EndFrame(device.Get());
 						//resources->_stereoRenderer->WaitFrame();
 						g_stereoRenderer->WaitFrame();
 						//TODO: move BeginFrame to the right place (CockpitLook? BeginScene?
@@ -9270,8 +9270,8 @@ HRESULT PrimarySurface::Flip(
 				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 			}
 			else if (g_bUseOpenXR) {
-				g_stereoRenderer->Submit(context, resources->_offscreenBuffer.Get(), VREye::Eye_Left);
-				g_stereoRenderer->Submit(context, resources->_offscreenBufferR.Get(), VREye::Eye_Right);
+				g_stereoRenderer->Submit(context.Get(), resources->_offscreenBuffer.Get(), VREye::Eye_Left);
+				g_stereoRenderer->Submit(context.Get(), resources->_offscreenBufferR.Get(), VREye::Eye_Right);
 			}
 
 			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
@@ -9339,7 +9339,7 @@ HRESULT PrimarySurface::Flip(
 			{
 				//First attempt at frame synchronization, naive. Everything happens here.
 				//this->_deviceResources->_stereoRenderer->EndFrame();
-				g_stereoRenderer->EndFrame(device);
+				g_stereoRenderer->EndFrame(device.Get());
 				//this->_deviceResources->_stereoRenderer->WaitFrame();
 				g_stereoRenderer->WaitFrame();
 				//TODO: move BeginFrame to the right place (CockpitLook? BeginScene?

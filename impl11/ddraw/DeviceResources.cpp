@@ -457,8 +457,10 @@ HRESULT DeviceResources::Initialize()
 
 	if (SUCCEEDED(hr))
 	{	// Initialize OpenXR if it has not been initialized yet (apparently DeviceResources::Initialize()
-		// is called multiple times due to XwingAlliance.exe calling DirectDrawCreate() multiple times).
-		if (g_bOpenXREnabled && !g_bOpenXRInitialized)
+		// is called multiple times due to XwingAlliance.exe calling DirectDrawCreate() multiple times. But WHY???
+		// Also, initialize only on the 2nd pass to ensure the OpenXR swapchains are associated to the
+		// same ID3D11Device+Context as the other buffers.
+		if (g_bOpenXREnabled && !g_bOpenXRInitialized && g_DirectDrawCreatePass==2)
 		{
 			log_debug("[DBG] [OpenXR] Checking if OpenXR and extensions are available");
 			g_bUseOpenXR = VRRendererOpenXR::is_available();
@@ -466,7 +468,7 @@ HRESULT DeviceResources::Initialize()
 			{
 				log_debug("[DBG] [OpenXR] OpenXR is available, enabling");
 				this->_stereoRenderer = g_stereoRenderer;
-				if (g_bOpenXRInitialized = this->_stereoRenderer->init(this))
+				if (g_bOpenXRInitialized = this->_stereoRenderer->init(this->_d3dDevice.Get()))
 				{
 					log_debug("[DBG] VR Renderer initialized");
 					g_steamVRWidth = this->_stereoRenderer->renderProperties.width;
@@ -486,6 +488,7 @@ HRESULT DeviceResources::Initialize()
 				return DDERR_GENERIC;
 			}
 		}
+		g_DirectDrawCreatePass++;
 	}
 
 	if (FAILED(hr))
@@ -4690,27 +4693,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			}
 			goto out;
 		}
-
-		// DEBUG: Override the OpenXR matrices with values known to work. REMOVE THIS BLOCK LATER!
-		{
-			static bool bFirstTime = true;
-			if (bFirstTime) {
-				g_projLeft.set
-				(
-					0.847458f, 0.0f, 0.0f, 0.0f,
-					0.0f, 0.746269f, 0.0f, 0.0f,
-					0.0f, 0.0f, -1.000010f, -0.001f,
-					0.0f, 0.0f, -1.0f, 0.0f
-				);
-				g_projLeft.transpose();
-				g_projRight = g_projLeft;
-
-				g_FullProjMatrixLeft = g_projLeft * g_EyeMatrixLeftInv;
-				g_FullProjMatrixRight = g_projRight * g_EyeMatrixRightInv;
-				bFirstTime = false;
-			}
-		}
-		// DEBUG
 
 		// Let's do SBS rendering here. That'll make it compatible with the Tech Library where
 		// both 2D and 3D are mixed.
