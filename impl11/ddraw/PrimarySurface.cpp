@@ -2643,11 +2643,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				NULL, //resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
@@ -2656,11 +2656,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		else {
 			ID3D11RenderTargetView *rtvs[2] = {
 				resources->_renderTargetViewSSAO.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				NULL, //resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(2, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
@@ -2708,16 +2708,16 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssEmissionMask);
 			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
-			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+			// context->CopyResource(resources->_bentBufR, resources->_bentBuf);
 			// Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
 			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_normBufSRV.Get(),
-					resources->_bentBufSRV_R.Get(),
+					NULL, //resources->_bentBufSRV_R.Get(),
 					//resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 	g_SSAO_Type != SSO_BENT_NORMALS) {
@@ -2728,7 +2728,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// Alternatively, we could change renderTargetViewBentBuf to be MSAA too, just like I did for ssMaskMSAA, etc; but... eh...
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
-					resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
+					NULL, //resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
@@ -2744,7 +2744,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			else {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO.Get(),
-					resources->_renderTargetViewBentBuf.Get(),
+					NULL, //resources->_renderTargetViewBentBuf.Get(),
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
@@ -2911,7 +2911,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
-			resources->_bentBufSRV.Get(),							// Bent Normals
+			NULL, //resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
 
 			g_ShadowMapping.bEnabled ? 
@@ -2955,10 +2955,10 @@ out1:
 			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewR.Get(),
-					resources->_renderTargetViewBentBufR.Get(),
+					NULL, //resources->_renderTargetViewBentBufR.Get(),
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
@@ -2967,10 +2967,10 @@ out1:
 			else {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO_R.Get(),
-					resources->_renderTargetViewBentBufR.Get()
+					NULL, //resources->_renderTargetViewBentBufR.Get()
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
@@ -3016,23 +3016,23 @@ out1:
 				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
 				// Here I'm reusing bentBuf as a temporary buffer for bentBufR
 				// This is just to avoid having to make a temporary buffer to blur the bent normals.
-				context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+				//context->CopyResource(resources->_bentBuf, resources->_bentBufR);
 				// Clear the destination buffers: the blur will re-populate them
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
 				ID3D11ShaderResourceView *srvs[4] = {
 						//resources->_offscreenAsInputShaderResourceViewR.Get(), // LDR
 						resources->_bloomOutput1SRV.Get(), // HDR
 						resources->_depthBufSRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
-						resources->_bentBufSRV.Get(),
+						NULL, //resources->_bentBufSRV.Get(),
 				};
 				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
 					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 					// Don't mix MSAA and non-MSAA RTVs:
 					ID3D11RenderTargetView *rtvs[2] = {
 						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewSSAO_R.Get(),
-						resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBufR.Get(),
+						NULL, //resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBufR.Get(),
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
 					context->PSSetShaderResources(0, 4, srvs);
@@ -3046,7 +3046,7 @@ out1:
 				else {
 					ID3D11RenderTargetView *rtvs[2] = {
 						resources->_renderTargetViewSSAO_R.Get(),
-						resources->_renderTargetViewBentBufR.Get()
+						NULL, //resources->_renderTargetViewBentBufR.Get()
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
 					context->PSSetShaderResources(0, 4, srvs);
@@ -3200,7 +3200,7 @@ out1:
 
 				resources->_depthBufSRV_R.Get(),						// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
-				resources->_bentBufSRV_R.Get(),							// Bent Normals
+				NULL, //resources->_bentBufSRV_R.Get(),							// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
 
 				g_ShadowMapping.bEnabled ?
@@ -8525,7 +8525,7 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
@@ -9129,6 +9129,11 @@ HRESULT PrimarySurface::Flip(
 						if (g_bEnableVR) {
 							// We couldn't load the custom FOV and we're running in VR mode, let's apply
 							// the current VR FOV...
+							if (resources->_stereoRenderer->renderProperties.vFOV_rad)
+							{
+								g_fVR_FOV = resources->_stereoRenderer->renderProperties.vFOV_rad * RAD_TO_DEG;
+							}
+
 							ApplyFocalLength(RealVertFOVToRawFocalLength(g_fVR_FOV));
 							// ... and save it
 							SaveFocalLength();

@@ -344,11 +344,6 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		)));
 		m4_viewMatrix = XMFLOAT44toMatrix4(xm_viewMatrix);
 
-		float fLeft = tanf(xr_views[i].fov.angleLeft);
-		float fRight = tanf(xr_views[i].fov.angleRight);
-		float fBottom = tanf(xr_views[i].fov.angleDown);
-		float fTop = tanf(xr_views[i].fov.angleUp);
-
 		// Next the projection matrix
 		// Near and far view planes values taken from SteamVR code
 		// Why far plane is only 100 meters?
@@ -362,9 +357,15 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		XMStoreFloat4x4(&xm_projMatrix, XMMatrixPerspectiveOffCenterRH(left, right, down, up, clip_near, clip_far));
 		m4_projMatrix = XMFLOAT44toMatrix4(xm_projMatrix);
 		//ShowMatrix4(m4_projMatrix, "OpenXR projection Matrix from XMMatrixPerspectiveOffCenterRH()");
-
+		
 		// Projection Matrix composition adapted from 
 		// https://github.com/ValveSoftware/openvr/wiki/IVRSystem::GetProjectionRaw
+		/*
+		float fLeft = tanf(xr_views[i].fov.angleLeft);
+		float fRight = tanf(xr_views[i].fov.angleRight);
+		float fBottom = tanf(xr_views[i].fov.angleDown);
+		float fTop = tanf(xr_views[i].fov.angleUp);
+		
 		float idx = 1.0f / (fRight - fLeft);
 		float idy = 1.0f / (fTop - fBottom);
 		float idz = 1.0f / (clip_far - clip_near);
@@ -378,7 +379,7 @@ void VRRendererOpenXR::UpdateViewMatrices()
 			0,			0,			-1.0f,			0
 		);
 		m4_projMatrix.transpose();
-
+		*/
 		//Compute the full matrix for each eye relative to the HMD location (translation+rotation+projection)
 		if (i == 0)
 			eyeMatrixLeft = m4_projMatrix * m4_viewMatrix;
