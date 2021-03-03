@@ -293,6 +293,10 @@ void VRRendererOpenXR::WaitFrame()
 
 void VRRendererOpenXR::UpdateViewMatrices()
 {
+	if (!frame_state.shouldRender) {
+		//No need to update the view if no rendering is done
+		return;
+	}
 	// This is the HMD centroid pose relative to the world (seated) space, to provide to XWA for rendering.
 	XrSpaceLocation xr_hmd_location = { XR_TYPE_SPACE_LOCATION };
 	//To get the head pose locate the XR_REFERENCE_SPACE_TYPE_VIEW relative to XR_REFERENCE_SPACE_TYPE_LOCAL	
@@ -340,6 +344,11 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		)));
 		m4_viewMatrix = XMFLOAT44toMatrix4(xm_viewMatrix);
 
+		float fLeft = tanf(xr_views[i].fov.angleLeft);
+		float fRight = tanf(xr_views[i].fov.angleRight);
+		float fBottom = tanf(xr_views[i].fov.angleDown);
+		float fTop = tanf(xr_views[i].fov.angleUp);
+
 		// Next the projection matrix
 		// Near and far view planes values taken from SteamVR code
 		// Why far plane is only 100 meters?
@@ -350,8 +359,25 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		const float down = clip_near * tanf(xr_views[i].fov.angleDown);
 		const float up = clip_near * tanf(xr_views[i].fov.angleUp);
 
-		XMStoreFloat4x4(&xm_projMatrix, XMMatrixPerspectiveOffCenterRH(left, right, down, up, 0.001f, 100.0f));
+		XMStoreFloat4x4(&xm_projMatrix, XMMatrixPerspectiveOffCenterRH(left, right, down, up, clip_near, clip_far));
 		m4_projMatrix = XMFLOAT44toMatrix4(xm_projMatrix);
+		//ShowMatrix4(m4_projMatrix, "OpenXR projection Matrix from XMMatrixPerspectiveOffCenterRH()");
+
+		// Projection Matrix composition adapted from 
+		// https://github.com/ValveSoftware/openvr/wiki/IVRSystem::GetProjectionRaw
+		float idx = 1.0f / (fRight - fLeft);
+		float idy = 1.0f / (fTop - fBottom);
+		float idz = 1.0f / (clip_far - clip_near);
+		float sx = fRight + fLeft;
+		float sy = fBottom + fTop;
+
+		m4_projMatrix.set(
+			2 * idx,	0,			sx * idx,		0,
+			0,			2 * idy,	sy * idy,		0,
+			0,			0,			-clip_far*idz,	-clip_far * clip_near*idz,
+			0,			0,			-1.0f,			0
+		);
+		m4_projMatrix.transpose();
 
 		//Compute the full matrix for each eye relative to the HMD location (translation+rotation+projection)
 		if (i == 0)
@@ -359,20 +385,6 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		else
 			eyeMatrixRight = m4_projMatrix * m4_viewMatrix;
 	}
-
-	// Overwrite the matrices with hardcoded values for debug
-	g_projLeft.set
-	(
-		0.847458f, 0.0f, 0.0f, 0.0f,
-		0.0f, 0.746269f, 0.0f, 0.0f,
-		0.0f, 0.0f, -1.000010f, -0.001f,
-		0.0f, 0.0f, -1.0f, 0.0f
-	);
-	g_projLeft.transpose();
-	g_projRight = g_projLeft;
-
-	eyeMatrixLeft = g_projLeft * m4_viewMatrix;
-	eyeMatrixRight = g_projRight * m4_viewMatrix;
 }
 
 void VRRendererOpenXR::BeginFrame()
