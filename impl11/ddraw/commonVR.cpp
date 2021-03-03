@@ -38,10 +38,10 @@ void IncreaseIPD(float Delta) {
 
 Matrix4 XMFLOAT44toMatrix4(const DirectX::XMFLOAT4X4 & mat) {
 	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0], //1st column
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1], //2nd column
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2], //3rd column
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]  //4th column
+		mat.m[0][0], mat.m[0][1], mat.m[0][2], mat.m[0][3], //1st column
+		mat.m[1][0], mat.m[1][1], mat.m[1][2], mat.m[1][3], //2nd column
+		mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3], //3rd column
+		mat.m[3][0], mat.m[3][1], mat.m[3][2], mat.m[3][3]  //4th column
 	);
 	return matrixObj;
 }
