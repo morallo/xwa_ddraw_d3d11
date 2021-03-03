@@ -671,6 +671,8 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			// Store the DAT filename in texname and set the appropriate flag. texname contains
 			// the path and filename.
 			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+			// Prevent division by 0:
+			fps = max(0.0001f, fps);
 			tex_seq_elem.seconds = 1.0f / fps;
 			tex_seq_elem.intensity = intensity;
 			// Save the DAT image data:
