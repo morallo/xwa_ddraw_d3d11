@@ -1488,15 +1488,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_depthBuf.Release();
 		this->_depthBufAsInput.Release();
 		
-		this->_bentBuf.Release();
-		this->_bentBufR.Release(); // bentBufR is used to hold a copy of bentBuf to blur it (and viceversa)
+		//this->_bentBuf.Release();
+		//this->_bentBufR.Release(); // bentBufR is used to hold a copy of bentBuf to blur it (and viceversa)
 		this->_ssaoBuf.Release();
 		this->_ssaoBufR.Release(); // ssaoBufR will be used to store SSDO Indirect (and viceversa)
 		this->_renderTargetViewDepthBuf.Release();
 		this->_depthBufSRV.Release();
-		this->_bentBufSRV.Release();
-		this->_bentBufSRV_R.Release();
-		this->_renderTargetViewBentBuf.Release();
+		//this->_bentBufSRV.Release();
+		//this->_bentBufSRV_R.Release();
+		//this->_renderTargetViewBentBuf.Release();
 		this->_renderTargetViewSSAO.Release();
 		this->_renderTargetViewSSAO_R.Release();
 		this->_ssaoBufSRV.Release();
@@ -1506,7 +1506,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_depthBufAsInputR.Release();
 			this->_renderTargetViewDepthBufR.Release();
 			this->_depthBufSRV_R.Release();
-			this->_renderTargetViewBentBufR.Release();
+			//this->_renderTargetViewBentBufR.Release();
 		}
 	}
 
@@ -2285,7 +2285,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				// Add the RTV flag
-				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				/*desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 				step = "_bentBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBuf);
 				if (FAILED(hr)) {
@@ -2301,7 +2301,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
-
+				*/
 				desc.Format = HDR_FORMAT;
 				step = "_ssaoBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf);
@@ -2593,7 +2593,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
-
+				/*
 				step = "_bentBufSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
 				if (FAILED(hr)) {
@@ -2609,7 +2609,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
-
+				*/
 				shaderResourceViewDesc.Format = HDR_FORMAT;
 				step = "_ssaoBufSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
@@ -2931,11 +2931,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			step = "_renderTargetViewDepthBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf);
 			if (FAILED(hr)) goto out;
-
+			/*
 			step = "_renderTargetViewBentBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
 			if (FAILED(hr)) goto out;
-
+			*/
 			renderTargetViewDescNoMSAA.Format = HDR_FORMAT;
 			step = "_renderTargetViewSSAO";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO);
