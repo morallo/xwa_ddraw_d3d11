@@ -625,6 +625,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
+			// Ctrl+H will toggle the headlights now
+			case 'H':
+				g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				return 0;
 			// Headlights must be automatic now. They are automatically turned on in the Death Star mission
 			/*
 			case 'H':
@@ -868,11 +872,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'C':
 				g_bResetCockpitDamage = true;
 				return 0;
-
+			/*
 			case 'T': {
 				g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				return 0;
 			}
+			*/
 
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);

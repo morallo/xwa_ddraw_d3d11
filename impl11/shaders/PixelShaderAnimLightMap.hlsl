@@ -101,9 +101,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom.rgb *= fBloomStrength;
 	if (special_control == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
 		output.bloom = lerp(output.bloom, float4(0, 0, 0, 1), alpha);
-		bloom_alpha = (1.0 - alpha);
-		output.ssaoMask.ra = bloom_alpha;
-		output.ssMask.a = bloom_alpha;
+		output.ssaoMask = lerp(float4(0, 0, 0, 1), float4(output.ssaoMask.rgb, alpha), alpha);
+		output.ssMask = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alpha), alpha);
 	}
 	//if (special_control == SPECIAL_CONTROL_BLOOM_MULT_ALPHA)
 	//	output.color = float4(alpha, alpha, alpha, 1.0);
