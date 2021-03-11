@@ -49,6 +49,7 @@ public:
 	bool Text2DAntiAlias;
 	bool Geometry2DAntiAlias;
 	bool MusicSyncFix;
+	bool GammaFixEnabled;
 };
 
 extern Config g_config;

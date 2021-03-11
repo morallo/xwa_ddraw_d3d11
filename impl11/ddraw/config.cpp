@@ -56,6 +56,7 @@ Config::Config()
 	this->Text2DAntiAlias = true;
 	this->Geometry2DAntiAlias = true;
 	this->MusicSyncFix = false;
+	this->GammaFixEnabled = false;
 
 	if (ifstream("Hook_D3d.dll"))
 	{
@@ -213,6 +214,10 @@ Config::Config()
 			else if (name == "MusicSyncFix")
 			{
 				this->MusicSyncFix = (bool)stoi(value);
+			}
+			else if (name == "EnableGammaFix")
+			{
+				this->GammaFixEnabled = (bool)stoi(value);
 			}
 		}
 	}

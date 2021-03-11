@@ -70,6 +70,7 @@
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
 #include "../Debug/PixelShaderAnimLightMap.h"
+#include "../Debug/GammaFix.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -129,6 +130,7 @@
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
 #include "../Release/PixelShaderAnimLightMap.h"
+#include "../Release/GammaFix.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -1274,10 +1276,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
+	this->_renderTargetViewGammaFix.Release();
+	this->_renderTargetViewGammaFixR.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_offscreenBufferGammaFix.Release();
+	this->_offscreenBufferGammaFixR.Release();
 	if (this->_useMultisampling)
 		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
@@ -1931,6 +1937,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
+				desc.Format = LINEAR_BUFFER_FORMAT;
+				step = "_offscreenBufferGammaFix";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferGammaFix);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				desc.Format = BACKBUFFER_FORMAT;
+
 				if (g_bUseSteamVR) {
 					step = "_shadertoyBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufR);
@@ -1942,6 +1958,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 					step = "_shadertoyAuxBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBufR);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
+
+					desc.Format = LINEAR_BUFFER_FORMAT;
+					step = "_offscreenBufferGammaFixR";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferGammaFixR);
 					if (FAILED(hr)) {
 						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 						log_err_desc(step, hWnd, hr, desc);
@@ -2812,6 +2837,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
 			if (FAILED(hr)) goto out;
 
+			renderTargetViewDesc.Format = LINEAR_BUFFER_FORMAT;
+			step = "_renderTargetViewGammaFix";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferGammaFix, &renderTargetViewDescNoMSAA, &this->_renderTargetViewGammaFix);
+			if (FAILED(hr)) goto out;
+			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
+
 			if (g_bUseSteamVR) {
 				step = "_renderTargetViewBloom1R";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
@@ -2824,6 +2855,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				step = "_renderTargetViewBloomSumR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
 				if (FAILED(hr)) goto out;
+
+				renderTargetViewDesc.Format = LINEAR_BUFFER_FORMAT;
+				step = "_renderTargetViewGammaFixR";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferGammaFixR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewGammaFixR);
+				if (FAILED(hr)) goto out;
+				renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			}
 
 			renderTargetViewDesc.Format = oldFormat;
@@ -3197,6 +3234,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_GammaFix, sizeof(g_GammaFix), nullptr, &_gammaFixPS)))
+		return hr;
+
 	if (g_bBloomEnabled) {
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
 		//	return hr;
@@ -3509,6 +3549,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_GammaFix, sizeof(g_GammaFix), nullptr, &_gammaFixPS)))
 		return hr;
 
 	if (g_bBloomEnabled) {
