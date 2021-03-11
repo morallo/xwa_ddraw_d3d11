@@ -102,6 +102,8 @@ public:
 
 	void RenderFXAA();
 
+	void RenderGammaFix();
+
 	void RenderStarDebug();
 
 	void RenderExternalHUD();

@@ -24,6 +24,7 @@ class FrontbufferSurface;
 class OffscreenSurface;
 
 #define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
+#define LINEAR_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
@@ -189,6 +190,8 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
+	ComPtr<ID3D11Texture2D> _offscreenBufferGammaFix;
+	ComPtr<ID3D11Texture2D> _offscreenBufferGammaFixR;
 	// Dynamic Cockpit
 	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
@@ -256,6 +259,8 @@ public:
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewGammaFix;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewGammaFixR;
 	// Dynamic Cockpit
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpitBG; // Used to render the HUD to an offscreen buffer
@@ -395,6 +400,7 @@ public:
 	ComPtr<ID3D11PixelShader> _explosionPS;
 	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
 	ComPtr<ID3D11PixelShader> _noGlassPS;
+	ComPtr<ID3D11PixelShader> _gammaFixPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
