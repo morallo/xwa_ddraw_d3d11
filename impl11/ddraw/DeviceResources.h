@@ -24,8 +24,9 @@ class FrontbufferSurface;
 class OffscreenSurface;
 class StereoRenderer;
 
-#define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
-#define LINEAR_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
+#define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM // Final swapchain format cannot be explicitly RGB, but the data copied from _offscreenBuffer will be.
+#define SRGB_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
+
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
@@ -187,70 +188,71 @@ public:
 	ComPtr<IDXGISwapChain> _swapChain;
 
 	// Buffers/Textures
-	ComPtr<ID3D11Texture2D> _backBuffer;
-	ComPtr<ID3D11Texture2D> _offscreenBuffer;
-	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR or OpenXR are used, _offscreenBuffer becomes the left eye and this one becomes the right eye
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR or OpenXR are used, this is the right eye as input buffer
+	// 2D monitor swapchain buffer, BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _backBuffer; 
+	ComPtr<ID3D11Texture2D> _offscreenBuffer; // Final render buffer to store the frame, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR or OpenXR are used, _offscreenBuffer becomes the left eye and this one becomes the right eye, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput; // Input for barrel shader. BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; //Input for barrel shader right eye. BACKBUFFER_FORMAT, NoMSAA
 	ComPtr<ID3D11Texture2D> _offscreenBufferGammaFix;
 	ComPtr<ID3D11Texture2D> _offscreenBufferGammaFixR;
 	// Dynamic Cockpit
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
-	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer
-	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer
-	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text
-	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders
-	ComPtr<ID3D11Texture2D> _ReticleBufMSAA;			   // "RTV" to render the HUD in VR mode
-	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from DCTextMSAA for use in shaders
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim, BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim, BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpit;   // HUD elements buffer. BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _offscreenAsInputDynCockpitBG; // HUD element backgrounds buffer. BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text, BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders. BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _ReticleBufMSAA;			   // "RTV" to render the HUD in VR mode, BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from DCTextMSAA for use in shaders. BACKBUFFER_FORMAT, NoMSAA
 	// Barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
-	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
+	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR, BACKBUFFER_FORMAT_TYPELESS, MSAA
 	// ShaderToy effects
-	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;
-	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;
-	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;	// BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;// BACKBUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // BACKBUFFER_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // BACKBUFFER_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // BACKBUFFER_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // BACKBUFFER_FORMAT, No MSAA
 	// Bloom
-	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
-	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
-	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
-	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
-	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
-	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask, BLOOM_BUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR). BLOOM_BUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask, BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR, BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1. BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2. BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator. BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR). BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR). BLOOM_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR). BLOOM_BUFFER_FORMAT, NoMSAA
 	// Ambient Occlusion
-	ComPtr<ID3D11Texture2D> _depthBuf;
+	ComPtr<ID3D11Texture2D> _depthBuf;			
 	ComPtr<ID3D11Texture2D> _depthBufR;
-	ComPtr<ID3D11Texture2D> _depthBufAsInput;
-	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
+	ComPtr<ID3D11Texture2D> _depthBufAsInput;	// AO_DEPTH_BUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _depthBufAsInputR;  // AO_DEPTH_BUFFER_FORMAT, NoMSAA
 	//ComPtr<ID3D11Texture2D> _depthBuf2;
 	//ComPtr<ID3D11Texture2D> _depthBuf2R;
 	//ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
 	//ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
 	//ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	//ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBuf;		// HDR_FORMAT. No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoBufR;		// HDR_FORMAT. No MSAA
 	// Shading System
-	ComPtr<ID3D11Texture2D> _normBufMSAA;
-	ComPtr<ID3D11Texture2D> _normBufMSAA_R;
-	ComPtr<ID3D11Texture2D> _normBuf;		 // No MSAA so that it can be both bound to RTV and SRV
-	ComPtr<ID3D11Texture2D> _normBufR;		 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA;
-	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA_R;
-	ComPtr<ID3D11Texture2D> _ssaoMask;		 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	
-	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;
-	ComPtr<ID3D11Texture2D> _ssMask;		 // No MSAA
-	ComPtr<ID3D11Texture2D> _ssMaskR;		 // No MSAA
+	ComPtr<ID3D11Texture2D> _normBufMSAA;	 //AO_DEPTH_BUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _normBufMSAA_R;  //AO_DEPTH_BUFFER_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _normBuf;		 // AO_DEPTH_BUFFER_FORMAT, No MSAA so that it can be both bound to RTV and SRV
+	ComPtr<ID3D11Texture2D> _normBufR;		 // AO_DEPTH_BUFFER_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA;	 // AO_MASK_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskMSAA_R; // AO_MASK_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMask;		 // AO_MASK_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _ssaoMaskR;		 // AO_MASK_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA;	 // AO_MASK_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskMSAA_R;	 // AO_MASK_FORMAT, MSAA
+	ComPtr<ID3D11Texture2D> _ssMask;		 // AO_MASK_FORMAT, No MSAA
+	ComPtr<ID3D11Texture2D> _ssMaskR;		 // AO_MASK_FORMAT, No MSAA
 	// Shadow Mapping
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
@@ -305,18 +307,18 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
 
 	// SRVs
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;	//BACKBUFFER_FORMAT
+	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // BACKBUFFER_FORMAT. When SteamVR is enabled, this is the SRV for the right eye
 	// Dynamic Cockpit
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
 	ComPtr<ID3D11ShaderResourceView> _DCTextSRV;						// SRV for the HUD text
-	ComPtr<ID3D11ShaderResourceView> _ReticleSRV;						// SRV for the HUD text
+	ComPtr<ID3D11ShaderResourceView> _ReticleSRV;						// SRV for the HUD text. BACKBUFFER_FORMAT
 	// Shadertoy
-	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
-	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
-	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV;
-	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV_R;
+	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;		// BACKBUFFER_FORMAT
+	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;	// BACKBUFFER_FORMAT
+	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV;	// BACKBUFFER_FORMAT
+	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV_R;// BACKBUFFER_FORMAT
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;

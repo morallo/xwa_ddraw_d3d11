@@ -37,6 +37,7 @@ public:
 	void EndFrame(ID3D11Device* d3dDevice);
 	void Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eyeBuffer, VREye vrEye);
 	virtual void ShutDown();
+	void quatToEuler(XrQuaternionf q, float* yaw, float* roll, float* pitch);
 
 private:
 	const XrPosef  xr_pose_identity = { {0,0,0,1}, {0,0,0} };

@@ -21,6 +21,7 @@ struct RenderProperties {
 	uint32_t width; //Recommended render horizontal resolution
 	uint32_t height; //Recommended render vertical resolution
 	RenderType renderType; //To identify the type of renderer (when other implementations are using the StereoRender abstract class)
+	DXGI_FORMAT swapchainColorFormat;
 };
 
 // Abstract class to define a common interface for stereo renderers (DirectSBS, SteamVR, OpenXR...)

@@ -468,7 +468,8 @@ HRESULT DeviceResources::Initialize()
 			{
 				log_debug("[DBG] [OpenXR] OpenXR is available, enabling");
 				this->_stereoRenderer = g_stereoRenderer;
-				if (g_bOpenXRInitialized = this->_stereoRenderer->init(this->_d3dDevice.Get()))
+				g_bOpenXRInitialized = this->_stereoRenderer->init(this->_d3dDevice.Get());
+				if (g_bOpenXRInitialized)
 				{
 					log_debug("[DBG] VR Renderer initialized");
 					g_steamVRWidth = this->_stereoRenderer->renderProperties.width;
@@ -1994,7 +1995,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				desc.Format = LINEAR_BUFFER_FORMAT;
+				desc.Format = SRGB_BUFFER_FORMAT;
 				step = "_offscreenBufferGammaFix";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferGammaFix);
 				if (FAILED(hr)) {
@@ -2021,7 +2022,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 						goto out;
 					}
 
-					desc.Format = LINEAR_BUFFER_FORMAT;
+					desc.Format = SRGB_BUFFER_FORMAT;
 					step = "_offscreenBufferGammaFixR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferGammaFixR);
 					if (FAILED(hr)) {
@@ -2894,7 +2895,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
 			if (FAILED(hr)) goto out;
 
-			renderTargetViewDesc.Format = LINEAR_BUFFER_FORMAT;
+			renderTargetViewDesc.Format = SRGB_BUFFER_FORMAT;
 			step = "_renderTargetViewGammaFix";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferGammaFix, &renderTargetViewDescNoMSAA, &this->_renderTargetViewGammaFix);
 			if (FAILED(hr)) goto out;
@@ -2913,7 +2914,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
 				if (FAILED(hr)) goto out;
 
-				renderTargetViewDesc.Format = LINEAR_BUFFER_FORMAT;
+				renderTargetViewDesc.Format = SRGB_BUFFER_FORMAT;
 				step = "_renderTargetViewGammaFixR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferGammaFixR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewGammaFixR);
 				if (FAILED(hr)) goto out;

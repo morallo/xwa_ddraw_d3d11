@@ -1173,6 +1173,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		g_fDefaultFOVDist = *g_fRawFOVDist;
 		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
 
+		// Initialize shared memory section to exchange data with CockpitLook hook
 		InitSharedMem();
 		
 		if (IsXwaExe())
@@ -1389,10 +1390,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		break;
 	case DLL_PROCESS_DETACH:
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
-		if (g_bUseSteamVR)
+		if (g_bSteamVRInitialized)
 			ShutDownSteamVR();
-		//if (g_bUseOpenXR)
-			//TODO: call StereoRender::ShutDown()
+		if (g_bUseOpenXR)
+			g_stereoRenderer->ShutDown();
 		else if (g_bEnableVR)
 			ShutDownDirectSBS();
 		// Generic FreePIE shutdown, just in case...
