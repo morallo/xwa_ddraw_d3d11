@@ -4596,7 +4596,7 @@ void PrimarySurface::RenderGammaFix()
 
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
+	if (g_bUseSeparateEyeBuffers)
 		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewGammaFix, bgColor);
 
@@ -4612,7 +4612,7 @@ void PrimarySurface::RenderGammaFix()
 	context->Draw(6, 0);
 
 	// Post-process the right image
-	if (g_bUseSteamVR) {
+	if (g_bUseSeparateEyeBuffers) {
 		context->ClearRenderTargetView(resources->_renderTargetViewGammaFixR, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewGammaFixR.Get(),
@@ -8967,7 +8967,7 @@ HRESULT PrimarySurface::Flip(
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferGammaFix, L"C:\\Temp\\_offscreenGammaFix.dds");
-					if (g_bUseSteamVR)
+					if (g_bUseSeparateEyeBuffers)
 						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferGammaFixR, L"C:\\Temp\\_offscreenGammaFixR.dds");
 				}
 			}

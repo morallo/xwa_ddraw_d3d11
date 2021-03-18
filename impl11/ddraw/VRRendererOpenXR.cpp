@@ -196,9 +196,10 @@ bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 		//TODO: OpenXR applications should avoid submitting linear encoded 8 bit color data
 		// (e.g. DXGI_FORMAT_R8G8B8A8_UNORM) whenever possible as it may result in color banding.
 		// https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-24-importance-being-linear
-		int64_t swapchain_format = BACKBUFFER_FORMAT;
+		renderProperties.swapchainColorFormat = SRGB_BUFFER_FORMAT;
+		//renderProperties.swapchainColorFormat = BACKBUFFER_FORMAT;
 		
-		/*
+/*#ifdef _DEBUG		
 		uint32_t formatCountOutput = 0;
 		std::vector<int64_t> formats;
 		xrEnumerateSwapchainFormats(xr_session, 0, &formatCountOutput, nullptr);
@@ -209,7 +210,7 @@ bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 		{
 			log_debug("[DBG] [OpenXR]   - %d", formats[i]);
 		}
-		*/
+#endif*/
 
 		for (uint32_t i = 0; i < view_count; i++) {
 			// Create a swapchain for this viewpoint!
@@ -224,12 +225,16 @@ bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 			swapchain_info.arraySize = 1;
 			swapchain_info.mipCount = 1;
 			swapchain_info.faceCount = 1;
-			swapchain_info.format = swapchain_format;
+			swapchain_info.format = renderProperties.swapchainColorFormat;
 			swapchain_info.width = view.recommendedImageRectWidth;
 			swapchain_info.height = view.recommendedImageRectHeight;
 			swapchain_info.sampleCount = view.recommendedSwapchainSampleCount;
 			swapchain_info.usageFlags = XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
-			xrCreateSwapchain(xr_session, &swapchain_info, &handle);
+			xrResult = xrCreateSwapchain(xr_session, &swapchain_info, &handle);
+			if (XR_FAILED(xrResult))
+			{
+				log_debug("[DBG] [OpenXR] Could not create XrSwapchain. Error: %d", xrResult);
+			}
 
 			// Find out how many textures were generated for the swapchain
 			uint32_t surface_count = 0;
@@ -244,6 +249,30 @@ bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 
 			xr_swapchains.push_back(swapchain);
 		}
+/*
+		//Initialize intermediate buffer to cast to SRGB format
+		CD3D11_TEXTURE2D_DESC desc(
+			BACKBUFFER_FORMAT_TYPELESS,
+			//DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, // Make the final render buffer gamma corrected.
+			renderProperties.width,
+			renderProperties.height,
+			1,
+			1,
+			D3D11_BIND_RENDER_TARGET,
+			D3D11_USAGE_DEFAULT,
+			0,
+			1, //SampleCount no-MSAA
+			0, //SampleQuality
+			0);
+		HRESULT hr;
+		hr = d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferSRGB_L);
+		hr = d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferSRGB_R);
+		log_debug("[DBG] _offscreenBufferSRGB: %u, %u", desc.Width, desc.Height);
+		if (FAILED(hr)) {
+			log_debug("[DBG] [OpenXR] Error creating temporary buffer _offscreenBufferSRGB");
+			return false;
+		}
+*/
 		return true;
 }
 
@@ -297,95 +326,158 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		//No need to update the view if no rendering is done
 		return;
 	}
-	// This is the HMD centroid pose relative to the world (seated) space, to provide to XWA for rendering.
-	XrSpaceLocation xr_hmd_location = { XR_TYPE_SPACE_LOCATION };
-	//To get the head pose locate the XR_REFERENCE_SPACE_TYPE_VIEW relative to XR_REFERENCE_SPACE_TYPE_LOCAL	
-	xrLocateSpace(xr_hmd_space, xr_app_space, frame_state.predictedDisplayTime, &xr_hmd_location);
-
-	// TODO: update transform matrices based on HMD pose
-	// for now we disable tracking
-	rotViewMatrix.identity();
-	fullViewMatrix.identity();
-
-	//xrLocateViews relative to XR_REFERENCE_SPACE_TYPE_VIEW to get the head to eye transform.
-	//Set eyeMatrixLeft, eyeMatrixRight;
-	uint32_t         view_count = 0;
-	XrViewState      view_state = { XR_TYPE_VIEW_STATE };
-	XrViewLocateInfo view_locate_info = { XR_TYPE_VIEW_LOCATE_INFO };
-	view_locate_info.viewConfigurationType = app_config_view;
-	view_locate_info.displayTime = frame_state.predictedDisplayTime;
-	view_locate_info.space = xr_hmd_space; // This indicates that the view location refers to the HMD, not the absolute space
-	xrLocateViews(xr_session, &view_locate_info, &view_state, (uint32_t)xr_views.size(), &view_count, xr_views.data());
-
-	// Set FOV. OpenXR angles are in radians, from -pi/2 to pi/2
-	// In our targeted XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, we assume the FOV is the same for both eyes, take the one for Left eye
-	renderProperties.vFOV_rad = (xr_views[0].fov.angleUp - xr_views[0].fov.angleDown);
-	// Most HMD's FOV is asymmetrical between the eyes (lower angle towards the nose).
-	// We assume a symmetrical FOV doubling the largest value so that XWA renders everything potentially in our HMD FOV.
-	renderProperties.hFOV_rad = -2 * xr_views[0].fov.angleLeft;
-
-	//WIP: Convert pose+projection into a full eye transform matrix (eye to head pose + eye projection)
-	using namespace DirectX;
-	XMFLOAT4X4 xm_projMatrix;
-	XMFLOAT4X4 xm_viewMatrix;
-	Matrix4 m4_projMatrix;
-	Matrix4 m4_viewMatrix;
-
-	for (uint32_t i = 0; i < view_count; i++)
+	
+	// HEADTRACKING POSE
 	{
-		// First, lets compute the pose matrix with DirectXMath functions
-		// Scaling = 1
-		// RotationOrigin = 0
-		// Get the inverse to get the transformation matrix from head to eye
-		XMStoreFloat4x4(&xm_viewMatrix, XMMatrixInverse(nullptr, XMMatrixAffineTransformation(
-			DirectX::g_XMOne, DirectX::g_XMZero,
-			XMLoadFloat4((XMFLOAT4*)&xr_views[i].pose.orientation),
-			XMLoadFloat3((XMFLOAT3*)&xr_views[i].pose.position)
-		)));
-		m4_viewMatrix = XMFLOAT44toMatrix4(xm_viewMatrix);
+		// This is the HMD centroid pose relative to the world (seated) space, to provide to XWA for rendering.
+		XrSpaceLocation xr_hmd_location = { XR_TYPE_SPACE_LOCATION };
+		//To get the head pose locate the XR_REFERENCE_SPACE_TYPE_VIEW relative to XR_REFERENCE_SPACE_TYPE_LOCAL	
+		xrLocateSpace(xr_hmd_space, xr_app_space, frame_state.predictedDisplayTime, &xr_hmd_location);
 
-		// Next the projection matrix
-		// Near and far view planes values taken from SteamVR code
-		// Why far plane is only 100 meters?
-		const float clip_near = 0.001f;
-		const float clip_far = 100.0f;
-		const float left = clip_near * tanf(xr_views[i].fov.angleLeft);
-		const float right = clip_near * tanf(xr_views[i].fov.angleRight);
-		const float down = clip_near * tanf(xr_views[i].fov.angleDown);
-		const float up = clip_near * tanf(xr_views[i].fov.angleUp);
+		float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+		quatToEuler(xr_hmd_location.pose.orientation, &yaw, &pitch, &roll);
 
-		XMStoreFloat4x4(&xm_projMatrix, XMMatrixPerspectiveOffCenterRH(left, right, down, up, clip_near, clip_far));
-		m4_projMatrix = XMFLOAT44toMatrix4(xm_projMatrix);
-		//ShowMatrix4(m4_projMatrix, "OpenXR projection Matrix from XMMatrixPerspectiveOffCenterRH()");
+		rotViewMatrix.identity();
+		rotViewMatrix.rotateZ(roll);
+
+		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixYaw.identity();
+		rotMatrixPitch.identity();
+		rotMatrixRoll.identity();
+
+		yaw *= RAD_TO_DEG * g_fYawMultiplier;
+		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
+		roll *= RAD_TO_DEG * g_fRollMultiplier;
+
+		yaw += g_fYawOffset;
+		pitch += g_fPitchOffset;
+
+		// Compute the full rotation
+		rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.rotateX(-pitch);
+		rotMatrixRoll.rotateZ(roll);
+		fullViewMatrix = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+
+		//DEBUG: Disable headtracking
+		//rotViewMatrix.identity();
+		//fullViewMatrix.identity();
 		
-		// Projection Matrix composition adapted from 
-		// https://github.com/ValveSoftware/openvr/wiki/IVRSystem::GetProjectionRaw
-		/*
-		float fLeft = tanf(xr_views[i].fov.angleLeft);
-		float fRight = tanf(xr_views[i].fov.angleRight);
-		float fBottom = tanf(xr_views[i].fov.angleDown);
-		float fTop = tanf(xr_views[i].fov.angleUp);
-		
-		float idx = 1.0f / (fRight - fLeft);
-		float idy = 1.0f / (fTop - fBottom);
-		float idz = 1.0f / (clip_far - clip_near);
-		float sx = fRight + fLeft;
-		float sy = fBottom + fTop;
-
-		m4_projMatrix.set(
-			2 * idx,	0,			sx * idx,		0,
-			0,			2 * idy,	sy * idy,		0,
-			0,			0,			-clip_far*idz,	-clip_far * clip_near*idz,
-			0,			0,			-1.0f,			0
-		);
-		m4_projMatrix.transpose();
-		*/
-		//Compute the full matrix for each eye relative to the HMD location (translation+rotation+projection)
-		if (i == 0)
-			eyeMatrixLeft = m4_projMatrix * m4_viewMatrix;
-		else
-			eyeMatrixRight = m4_projMatrix * m4_viewMatrix;
 	}
+
+	// VIEW AND PROJECTION MATRICES
+	{
+		//xrLocateViews relative to XR_REFERENCE_SPACE_TYPE_VIEW to get the head to eye transform.
+		//Set eyeMatrixLeft, eyeMatrixRight;
+		uint32_t         view_count = 0;
+		XrViewState      view_state = { XR_TYPE_VIEW_STATE };
+		XrViewLocateInfo view_locate_info = { XR_TYPE_VIEW_LOCATE_INFO };
+		view_locate_info.viewConfigurationType = app_config_view;
+		view_locate_info.displayTime = frame_state.predictedDisplayTime;
+		view_locate_info.space = xr_hmd_space; // This indicates that the view location refers to the HMD, not the absolute space
+		xrLocateViews(xr_session, &view_locate_info, &view_state, (uint32_t)xr_views.size(), &view_count, xr_views.data());
+
+		// Set FOV. OpenXR angles are in radians, from -pi/2 to pi/2
+		// In our targeted XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, we assume the FOV is the same for both eyes, take the one for Left eye
+		renderProperties.vFOV_rad = (xr_views[0].fov.angleUp - xr_views[0].fov.angleDown);
+		// Most HMD's FOV is asymmetrical between the eyes (lower angle towards the nose).
+		// We assume a symmetrical FOV doubling the largest value so that XWA renders everything potentially in our HMD FOV.
+		renderProperties.hFOV_rad = -2 * xr_views[0].fov.angleLeft;
+
+		//Convert pose+projection into a full eye transform matrix (eye to head pose + eye projection)
+		using namespace DirectX;
+		XMFLOAT4X4 xm_projMatrix;
+		XMFLOAT4X4 xm_viewMatrix;
+		Matrix4 m4_projMatrix;
+		Matrix4 m4_viewMatrix;
+
+		for (uint32_t i = 0; i < view_count; i++)
+		{
+			// First, lets compute the pose matrix with DirectXMath functions
+			// Scaling = 1
+			// RotationOrigin = 0
+			// Get the inverse to get the transformation matrix from head to eye
+			XMStoreFloat4x4(&xm_viewMatrix, XMMatrixInverse(nullptr, XMMatrixAffineTransformation(
+				DirectX::g_XMOne, DirectX::g_XMZero,
+				XMLoadFloat4((XMFLOAT4*)&xr_views[i].pose.orientation),
+				XMLoadFloat3((XMFLOAT3*)&xr_views[i].pose.position)
+			)));
+			m4_viewMatrix = XMFLOAT44toMatrix4(xm_viewMatrix);
+
+			// Next the projection matrix
+			// Near and far view planes values taken from SteamVR code
+			// Why far plane is only 100 meters?
+			const float clip_near = 0.001f;
+			const float clip_far = 100.0f;
+			const float left = clip_near * tanf(xr_views[i].fov.angleLeft);
+			const float right = clip_near * tanf(xr_views[i].fov.angleRight);
+			const float down = clip_near * tanf(xr_views[i].fov.angleDown);
+			const float up = clip_near * tanf(xr_views[i].fov.angleUp);
+
+			XMStoreFloat4x4(&xm_projMatrix, XMMatrixPerspectiveOffCenterRH(left, right, down, up, clip_near, clip_far));
+			m4_projMatrix = XMFLOAT44toMatrix4(xm_projMatrix);
+			//ShowMatrix4(m4_projMatrix, "OpenXR projection Matrix from XMMatrixPerspectiveOffCenterRH()");
+
+			// Projection Matrix composition adapted from 
+			// https://github.com/ValveSoftware/openvr/wiki/IVRSystem::GetProjectionRaw
+			/*
+			float fLeft = tanf(xr_views[i].fov.angleLeft);
+			float fRight = tanf(xr_views[i].fov.angleRight);
+			float fBottom = tanf(xr_views[i].fov.angleDown);
+			float fTop = tanf(xr_views[i].fov.angleUp);
+
+			float idx = 1.0f / (fRight - fLeft);
+			float idy = 1.0f / (fTop - fBottom);
+			float idz = 1.0f / (clip_far - clip_near);
+			float sx = fRight + fLeft;
+			float sy = fBottom + fTop;
+
+			m4_projMatrix.set(
+				2 * idx,	0,			sx * idx,		0,
+				0,			2 * idy,	sy * idy,		0,
+				0,			0,			-clip_far*idz,	-clip_far * clip_near*idz,
+				0,			0,			-1.0f,			0
+			);
+			m4_projMatrix.transpose();
+			*/
+			//Compute the full matrix for each eye relative to the HMD location (translation+rotation+projection)
+			if (i == 0)
+				eyeMatrixLeft = m4_projMatrix * m4_viewMatrix;
+			else
+				eyeMatrixRight = m4_projMatrix * m4_viewMatrix;
+		}
+	}
+}
+
+/*
+   From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
+   yaw: left = +90, right = -90
+   pitch: up = +90, down = -90
+   roll: left = +90, right = -90
+
+   if roll > 90, the axis will swap pitch and roll; but why would anyone do that?
+*/
+void VRRendererOpenXR::quatToEuler(XrQuaternionf q, float* yaw, float* roll, float* pitch)
+{
+	float test = q.x * q.y + q.z * q.w;
+
+	if (test > 0.499f) { // singularity at north pole
+		*yaw = 2 * atan2(q.x, q.w);
+		*pitch = PI / 2.0f;
+		*roll = 0;
+		return;
+	}
+	if (test < -0.499f) { // singularity at south pole
+		*yaw = -2 * atan2(q.x, q.w);
+		*pitch = -PI / 2.0f;
+		*roll = 0;
+		return;
+	}
+	float sqx = q.x * q.x;
+	float sqy = q.y * q.y;
+	float sqz = q.z * q.z;
+	*yaw = atan2(2.0f * q.y * q.w - 2.0f * q.x * q.z, 1.0f - 2.0f * sqy - 2.0f * sqz);
+	*pitch = asin(2.0f * test);
+	*roll = atan2(2.0f * q.x * q.w - 2.0f * q.y * q.z, 1.0f - 2.0f * sqx - 2.0f * sqz);
 }
 
 void VRRendererOpenXR::BeginFrame()
@@ -414,7 +506,7 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 		// If the session is active, lets render our layer in the compositor		
 		if (frame_state.shouldRender && (xr_session_state == XR_SESSION_STATE_VISIBLE || xr_session_state == XR_SESSION_STATE_FOCUSED)) {
 			// Copy input buffer into the display swapchain buffer for the correct eye
-			context->ResolveSubresource(xr_swapchains[vrEye].surface_images[img_id].texture, 0, eye_buffer, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(xr_swapchains[vrEye].surface_images[img_id].texture, 0, eye_buffer, 0, renderProperties.swapchainColorFormat);
 
 #ifdef DBG_VR
 			//DEBUG: dump OpenXR swapchain buffer to disk when user presses Ctrl+Alt+X
@@ -443,7 +535,7 @@ void VRRendererOpenXR::Submit(ID3D11DeviceContext* context, ID3D11Texture2D* eye
 			this->layer_proj_views[vrEye].subImage.imageRect.extent = { this->xr_swapchains[vrEye].width, this->xr_swapchains[vrEye].height };
 		}
 
-		this->layer_proj.space = this->xr_app_space;
+		this->layer_proj.space = this->xr_hmd_space; // The views provided are in relation to the HMD space
 		this->layer_proj.viewCount = (uint32_t)this->layer_proj_views.size();
 		this->layer_proj.views = this->layer_proj_views.data();
 
