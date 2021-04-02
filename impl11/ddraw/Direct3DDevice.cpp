@@ -11,6 +11,19 @@
 
 /*
 
+// V0x007FFD80
+dword s_XwaObjectsCount;
+
+// V0x008C1CE4
+dword s_XwaCraftsCount;
+
+Use s_XwaObjectsCount to read the objects table.
+Use s_XwaCraftsCount to read the crafts table.
+
+*/
+
+/*
+
 craftInstance->CockpitInstrumentStatus damage bits:
 
  0x0001 is the CMD/Targeting computer.
