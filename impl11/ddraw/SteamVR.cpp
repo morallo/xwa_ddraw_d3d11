@@ -7,6 +7,7 @@
 #include <headers/openvr.h>
 #include "FreePIE.h"
 #include "SharedMem.h"
+#include "XWAFramework.h"
 
 vr::IVRSystem* g_pHMD = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
@@ -306,7 +307,10 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
-		if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
+		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
+		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
+		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
+		if (g_bRendering3D && !g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
 			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
 			// current frame in xwingaliance.exe.
 			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
