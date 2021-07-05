@@ -2284,7 +2284,8 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 /*
  * Compute the effective screen limits in uv coords when rendering effects using a
  * full-screen quad. This is used in SSDO to get the effective viewport limits in
- * uv-coords. Pixels outside the uv-coords computed here should be black.
+ * uv-coords (it's also used for other effects, like the hyperspace effect). Pixels
+ * outside the uv-coords computed here should be black.
  */
 void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool UseNonVR) 
 {
@@ -2307,8 +2308,14 @@ void GetScreenLimitsInUVCoords(float *x0, float *y0, float *x1, float *y1, bool 
 		*x0 = x / g_fCurScreenWidth;
 		*y0 = y / g_fCurScreenHeight;
 		InGameToScreenCoords(left, top, width, height, g_fCurInGameWidth, g_fCurInGameHeight, &x, &y);
-		*x1 = x / g_fCurScreenWidth;
-		*y1 = y / g_fCurScreenHeight;
+		// Some effects, like the hyperspace effect, cover a few more pixels on the last column and row
+		// causing an artifact where the effect -- which should be in the background -- shows through
+		// the edges of the cockpit. This is most likely due to roundoff errors. To compensate for that,
+		// we're substracting 2 pixels from the right/bottom so that the effective viewport is slightly
+		// smaller, preventing the background from "showing through". This problem was reported by Angel
+		// from the TFTC project.
+		*x1 = (x - 2.0f) / g_fCurScreenWidth;
+		*y1 = (y - 2.0f) / g_fCurScreenHeight;
 		//if (g_bDumpSSAOBuffers)
 		//log_debug("[DBG] [DBG] (x0,y0)-(x1,y1): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 		//	*x0, *y0, *x1, *y1);
