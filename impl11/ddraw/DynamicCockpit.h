@@ -80,6 +80,8 @@ extern const char* DC_BEAM_BOX_SRC_RESNAME;
 extern const char* DC_TOP_LEFT_SRC_RESNAME;
 extern const char* DC_TOP_RIGHT_SRC_RESNAME;
 
+const int SKIRMISH_MISSION_INDEX = 0;
+const int PILOT_PROVING_GROUNDS_MISSION_INDEX = 6;
 // Use the following with `const auto missionIndexLoaded = (int *)0x9F5E74;` to detect the DSII tunnel run mission.
 const int DEATH_STAR_MISSION_INDEX = 52;
 

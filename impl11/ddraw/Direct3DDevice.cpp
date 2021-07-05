@@ -11,6 +11,16 @@
 
 /*
 
+Mission Index:
+	Skirmish: 0
+	PPG: 6 (looks like this is complicated in TFTC).
+	Death Star: 52
+	The Death Star mission index isn't used anywhere. Lights are automatically turned on when there are no global
+	lights. The only mission in XWA where this happens is mission 52.
+*/
+
+/*
+
 // V0x007FFD80
 dword s_XwaObjectsCount;
 

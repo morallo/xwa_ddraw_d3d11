@@ -1,5 +1,6 @@
 #pragma once
 
+#include "XWAFramework.h"
 #include "Matrices.h"
 #include "../shaders/material_defs.h"
 #include "../shaders/shader_common.h"
@@ -387,6 +388,20 @@ typedef struct MaterialStruct {
 
 		if (g_GameEvent.TargetEvent == TGT_EVT_WARHEAD_LOCKED && TextureATCIndices[ATCType][TGT_EVT_WARHEAD_LOCKED] > -1)
 			return TextureATCIndices[ATCType][TGT_EVT_WARHEAD_LOCKED];
+
+		// If we're parked in the hangar and this material belongs to the CMD, then we don't want to animate it. The reason
+		// is that in the PPG the CMD will display data even when nothing is targeted and we don't want to override it with
+		// an animation. Right now, we detect if the current material belong to a CMD by looking at other target-related events.
+		// This is reasonable. If cockpit authors only specify EVT_NONE for the CMD, then it will never display the CMD contents.
+		// They must also specify at least EVT_SELECTED so that the animation is removed once something is targeted.
+		if (*g_playerInHangar && (
+			TextureATCIndices[ATCType][TGT_EVT_SELECTED] > -1 ||
+			TextureATCIndices[ATCType][TGT_EVT_LASER_LOCK] > -1 ||
+			TextureATCIndices[ATCType][TGT_EVT_WARHEAD_LOCKING] > -1 ||
+			TextureATCIndices[ATCType][TGT_EVT_WARHEAD_LOCKED] > -1))
+		{
+			return -1;
+		}
 
 		// Least-specific events later.
 		// This event is for the TGT_EVT_SELECTED which should be enabled if there's a laser or
