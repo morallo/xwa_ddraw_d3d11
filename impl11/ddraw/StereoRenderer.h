@@ -1,7 +1,12 @@
 #pragma once
 
-#include "DeviceResources.h"
 #include "Matrices.h"
+//#include "DeviceResources.h"
+#include "common.h"
+
+class StereoRenderer;
+//extern DDRAW_DLL_EXPORT StereoRenderer* g_stereoRenderer;
+//extern StereoRenderer* g_stereoRenderer;
 
 enum VREye
 {
@@ -16,22 +21,26 @@ enum RenderType {
 };
 
 struct RenderProperties {
-	float vFOV_rad; //Total vertical FOV in radians, to be used to calculate focal_length for rendering in XWA 
-	float hFOV_rad; //Total horizontal FOV in radians. Probably not used, implicit in vFOV + display resolution aspect ratio.
-	uint32_t width; //Recommended render horizontal resolution
-	uint32_t height; //Recommended render vertical resolution
+	float vFOV_rad = 0; //Total vertical FOV in radians, to be used to calculate focal_length for rendering in XWA 
+	float hFOV_rad = 0; //Total horizontal FOV in radians. Probably not used, implicit in vFOV + display resolution aspect ratio.
+	uint32_t width = 0; //Recommended render horizontal resolution
+	uint32_t height = 0; //Recommended render vertical resolution
 	RenderType renderType; //To identify the type of renderer (when other implementations are using the StereoRender abstract class)
 	DXGI_FORMAT swapchainColorFormat;
 };
 
 // Abstract class to define a common interface for stereo renderers (DirectSBS, SteamVR, OpenXR...)
 class StereoRenderer {
-	public:		
+	public:
+
+		//static StereoRenderer g_stereoRenderer;
+
 		RenderProperties renderProperties;
 		Matrix4 rotViewMatrix;	// Transformation matrix with only roll, to apply on ddraw (g_VSMatrixCB.viewMat)
 		Matrix4 fullViewMatrix; // Traslation + rotation matrix to be applied on CockpitLook (except roll) (g_VSMatrixCB.fullViewMat)
 		Matrix4 eyeMatrixLeft; // Translation + projection matrix for left eye (g_VSMatrixCB.projEye)
 		Matrix4 eyeMatrixRight;// Translation + projection matrix for right eye (g_VSMatrixCB.projEye)
+		float x, y, z, yaw, pitch, roll;
 		bool unfinishedFrame = false;
 							   
 		/*

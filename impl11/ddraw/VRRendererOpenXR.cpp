@@ -196,7 +196,8 @@ bool VRRendererOpenXR::init(ID3D11Device* d3dDevice)
 		//TODO: OpenXR applications should avoid submitting linear encoded 8 bit color data
 		// (e.g. DXGI_FORMAT_R8G8B8A8_UNORM) whenever possible as it may result in color banding.
 		// https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-24-importance-being-linear
-		renderProperties.swapchainColorFormat = SRGB_BUFFER_FORMAT;
+		//renderProperties.swapchainColorFormat = SRGB_BUFFER_FORMAT;
+		renderProperties.swapchainColorFormat = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 		//renderProperties.swapchainColorFormat = BACKBUFFER_FORMAT;
 		
 /*#ifdef _DEBUG		
@@ -322,7 +323,7 @@ void VRRendererOpenXR::WaitFrame()
 
 void VRRendererOpenXR::UpdateViewMatrices()
 {
-	if (!frame_state.shouldRender) {
+	if (!frame_state.shouldRender && renderProperties.vFOV_rad) {
 		//No need to update the view if no rendering is done
 		return;
 	}
@@ -334,7 +335,8 @@ void VRRendererOpenXR::UpdateViewMatrices()
 		//To get the head pose locate the XR_REFERENCE_SPACE_TYPE_VIEW relative to XR_REFERENCE_SPACE_TYPE_LOCAL	
 		xrLocateSpace(xr_hmd_space, xr_app_space, frame_state.predictedDisplayTime, &xr_hmd_location);
 
-		float yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+		x = 0.0f, y = 0.0f, z = 0.0f;
+		yaw = 0.0f , pitch = 0.0f, roll = 0.0f;
 		quatToEuler(xr_hmd_location.pose.orientation, &yaw, &pitch, &roll);
 
 		rotViewMatrix.identity();

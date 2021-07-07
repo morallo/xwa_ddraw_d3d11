@@ -825,6 +825,10 @@ void LoadCockpitLookParams() {
 					log_debug("Using SteamVR for tracking");
 					g_TrackerType = TRACKER_STEAMVR;
 				}
+				else if (_stricmp(svalue, "OpenXR") == 0) {
+					log_debug("Using OpenXR for tracking");
+					g_TrackerType = TRACKER_OPENXR;
+				}
 				else if (_stricmp(svalue, "TrackIR") == 0) {
 					log_debug("Using TrackIR for tracking");
 					g_TrackerType = TRACKER_TRACKIR;

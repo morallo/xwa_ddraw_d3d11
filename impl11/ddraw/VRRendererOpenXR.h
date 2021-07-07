@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef DDRAW_EXPORTS
+#define DDRAW_DLL_EXPORT __declspec(dllexport)
+#else
+#define DDRAW_DLL_EXPORT __declspec(dllimport)
+#endif
+
 // Tell OpenXR what platform code we'll be using
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_D3D11
@@ -7,6 +13,8 @@
 #include "StereoRenderer.h"
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
+#include <vector>
+//#include "DeviceResources.h"
 
 extern bool g_bOpenXREnabled; // The user sets this flag to true to request support for OpenXR
 extern bool g_bUseOpenXR; //The systems sets this flag when an OpenXR is available and compatible
@@ -20,7 +28,7 @@ struct swapchain_t {
 };
 
 ///<inheritdoc/>
-class VRRendererOpenXR :
+class DDRAW_DLL_EXPORT VRRendererOpenXR :
     public StereoRenderer
 {
 public:

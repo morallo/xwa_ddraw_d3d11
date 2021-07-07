@@ -7558,7 +7558,7 @@ void UpdateViewMatrix()
 			// viewMat is not a full transform matrix: it's only RotZ
 			// because the cockpit hook already applies the yaw/pitch rotation
 		}
-		else if (g_bUseOpenXR) {
+		else if (g_bUseOpenXR) {			
 			g_stereoRenderer->UpdateViewMatrices();
 			g_FullProjMatrixLeft = g_stereoRenderer->eyeMatrixLeft;
 			g_FullProjMatrixRight = g_stereoRenderer->eyeMatrixRight;
@@ -7640,7 +7640,7 @@ void UpdateViewMatrix()
 	// We can use these values to apply head tracking to the hangar.
 	// The reason we have to do this here is because the hangar does not activate the regular
 	// mouse look hook.
-	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR) && *g_playerInHangar) {
+	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR || g_TrackerType == TRACKER_OPENXR) && *g_playerInHangar) {
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].externalCamera;
 		
 		// For the DirectSBS mode we need to invert the yaw:
@@ -8135,8 +8135,8 @@ HRESULT PrimarySurface::Flip(
 						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 					}
 					else if (g_bUseOpenXR) {
-						g_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBuffer.Get(), VREye::Eye_Left);
-						g_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBufferR.Get(), VREye::Eye_Right);
+						this->_deviceResources->_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBuffer.Get(), VREye::Eye_Left);
+						this->_deviceResources->_stereoRenderer->Submit(context.Get(), this->_deviceResources->_offscreenBufferR.Get(), VREye::Eye_Right);
 					}
 
 					g_bRendering3D = false;
