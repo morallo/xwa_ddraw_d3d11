@@ -311,7 +311,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
 		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
 		//if (g_bRendering3D && !g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
-		if (g_bRendering3D) {
+		if (g_bRendering3D && !(*g_playerInHangar)) {
 
 			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
 			// current frame in xwingaliance.exe.
