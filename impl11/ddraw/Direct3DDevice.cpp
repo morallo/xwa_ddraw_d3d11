@@ -6178,10 +6178,11 @@ HRESULT Direct3DDevice::BeginScene()
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
 		CockpitInstrumentState prevDamage = g_GameEvent.CockpitInstruments;
-		// Restore the cockpit damage
+		// Restore the cockpit and hull damage
 		if (g_bResetCockpitDamage) {
-			log_debug("[DBG] Restoring Cockpit Damage");
+			log_debug("[DBG] Restoring Cockpit and Hull Damage");
 			craftInstance->CockpitInstrumentStatus = craftInstance->InitialCockpitInstruments;
+			craftInstance->HullDamageReceived = 0;
 			g_bResetCockpitDamage = false;
 		}
 		// Apply the cockpit damage if requested
@@ -6189,14 +6190,23 @@ HRESULT Direct3DDevice::BeginScene()
 			FILE *MaskFile = NULL;
 			fopen_s(&MaskFile, "CockpitDamage.txt", "rt");
 			if (MaskFile != NULL) {
+				int num_read = 0;
 				uint32_t Mask = 0x0;
-				fscanf_s(MaskFile, "0x%x", &Mask);
+				float hull;
+				// First line: the cockpit damage hex mask
+				num_read = fscanf_s(MaskFile, "0x%x\n", &Mask);
+				if (num_read == 0) Mask = 0x0;
+				// Second line: hull health percentage. A number in [1..100].
+				num_read = fscanf_s(MaskFile, "%f\n", &hull);
+				if (num_read == 0) hull = 100.0f;
 				fclose(MaskFile);
 
 				log_debug("[DBG] InitialCockpitInstruments: 0x%x, CockpitInstrumentStatus: 0x%x",
 					craftInstance->InitialCockpitInstruments, craftInstance->CockpitInstrumentStatus);
 				craftInstance->CockpitInstrumentStatus = craftInstance->InitialCockpitInstruments & Mask;
+				craftInstance->HullDamageReceived = (int)((float)craftInstance->HullStrength - (float)craftInstance->HullStrength * (hull / 100.0f));
 				log_debug("[DBG] New Cockpit Instruments: 0x%x", craftInstance->CockpitInstrumentStatus);
+				log_debug("[DBG] New Hull value: %0.3f", hull);
 			}
 			g_bApplyCockpitDamage = false;
 		}
