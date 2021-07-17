@@ -305,25 +305,32 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
 		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
 		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
 		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
-		if (g_bRendering3D && !g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
+		//if (g_bRendering3D && !g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
+		if (g_bRendering3D && !(*g_playerInHangar)) {
+
 			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
 			// current frame in xwingaliance.exe.
 			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
 			// bDataReady is true, but I don't think there's a huge advantage to doing that.
-			trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
-			//log_debug("[DBG] Using trackedDevidePose from CockpitLook");
+			//trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
+			//log_debug("[DBG] Using trackedDevicePose from CockpitLook\n");
+			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 		}
 		else {
 			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
+			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
-			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses");
+			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses\n");
+			//log_debug("[DBG] g_bRendering3D=%d\n",g_bRendering3D);
+			//log_debug("[DBG] g_playerInHangar=%d\n", g_playerInHangar);
 		}
-		//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
