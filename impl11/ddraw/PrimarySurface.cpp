@@ -7465,7 +7465,7 @@ void UpdateViewMatrix()
 			// If we're rendering 2D, then the PlayerDataTable camera will not be updated by the mouse hook,
 			// so we need to use the yaw,pitch,roll coming from FreePIE. But if we're doing 3D rendering, then
 			// the hook should've updated the cockpit/external camera and we can read it here:
-			if (g_bRendering3D && !g_playerInHangar) {
+			if (g_bRendering3D && !(*g_playerInHangar)) {
 				if (PlayerDataTable[*g_playerIndex].externalCamera) {
 					yaw   = (float)PlayerDataTable[*g_playerIndex].cameraYaw / 65536.0f * 360.0f;
 					pitch = (float)PlayerDataTable[*g_playerIndex].cameraPitch / 65536.0f * 360.0f;

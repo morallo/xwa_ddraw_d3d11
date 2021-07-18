@@ -269,11 +269,15 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& 
 	z = PX[2];
 }
 
+/*
+// To prevent jittering, avoid calling WaitGetPoses from ddraw -- call it from the CockpitLook hook
+// instead. m0rgg found that we were calling WaitGetPoses from those two places, thus causing jittering.
 bool WaitGetPoses() {
 	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
 		0, NULL, 0);
 	return true;
 }
+*/
 
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError)
 {
@@ -310,7 +314,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
 		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
 		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
-		//if (g_bRendering3D && !g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
+		//if (g_bRendering3D && !*g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
 		if (g_bRendering3D && !(*g_playerInHangar)) {
 
 			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
@@ -328,7 +332,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses\n");
 			//log_debug("[DBG] g_bRendering3D=%d\n",g_bRendering3D);
-			//log_debug("[DBG] g_playerInHangar=%d\n", g_playerInHangar);
+			//log_debug("[DBG] g_playerInHangar=%d\n", *g_playerInHangar);
 		}
 		
 
