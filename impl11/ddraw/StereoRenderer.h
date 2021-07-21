@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DeviceResources.h"
 #include "Matrices.h"
 //#include "DeviceResources.h"
 #include "common.h"
@@ -31,7 +32,7 @@ struct RenderProperties {
 
 // Abstract class to define a common interface for stereo renderers (DirectSBS, SteamVR, OpenXR...)
 class StereoRenderer {
-	public:
+	public:		
 
 		//static StereoRenderer g_stereoRenderer;
 
