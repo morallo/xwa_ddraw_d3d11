@@ -9,6 +9,7 @@
 
 
 extern vr::IVRSystem* g_pHMD;
+extern vr::IVRChaperone* g_pChaperone;
 extern vr::IVRCompositor* g_pVRCompositor;
 extern vr::IVRScreenshots* g_pVRScreenshots;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;

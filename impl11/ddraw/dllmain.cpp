@@ -923,7 +923,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_OEM_PERIOD:
 				if (g_bUseSteamVR)
-					g_pHMD->ResetSeatedZeroPose();
+					g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
 				g_bResetHeadCenter = true;
 
 				//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
