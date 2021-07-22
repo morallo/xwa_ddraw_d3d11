@@ -10,6 +10,7 @@
 #include "XWAFramework.h"
 
 vr::IVRSystem* g_pHMD = NULL;
+vr::IVRChaperone* g_pChaperone = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
 vr::IVRScreenshots* g_pVRScreenshots = NULL;
 vr::TrackedDevicePose_t g_rTrackedDevicePose;
@@ -62,6 +63,7 @@ bool InitSteamVR()
 	vr::EVRInitError eError = vr::VRInitError_None;
 	g_pHMD = vr::VR_Init(&eError, vr::VRApplication_Scene);
 	g_headCenter.set(0, 0, 0);
+	g_pChaperone = vr::VRChaperone();
 
 	if (eError != vr::VRInitError_None)
 	{
@@ -102,7 +104,8 @@ bool InitSteamVR()
 	}
 
 	// Reset the seated pose
-	g_pHMD->ResetSeatedZeroPose();
+	//g_pHMD->ResetSeatedZeroPose();
+	g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
 
 	// Pre-multiply and store the eye and projection matrices:
 	ProcessSteamVREyeMatrices(vr::EVREye::Eye_Left);
