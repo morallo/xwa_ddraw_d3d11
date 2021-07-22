@@ -272,16 +272,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& 
 	z = PX[2];
 }
 
-/*
-// To prevent jittering, avoid calling WaitGetPoses from ddraw -- call it from the CockpitLook hook
-// instead. m0rgg found that we were calling WaitGetPoses from those two places, thus causing jittering.
-bool WaitGetPoses() {
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
-	return true;
-}
-*/
-
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError)
 {
 	char* pchBuffer = NULL;
@@ -306,13 +296,16 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		vr::TrackedDevicePose_t trackedDevicePose;
+		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
+		// Pose array predicted for next frame N+1, to use by XWA for CPU calculations next time CockpitLook is called.
+		vr::TrackedDevicePose_t trackedDevicePoseArrayNext[vr::k_unMaxTrackedDeviceCount];
+		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
 		vr::HmdMatrix34_t poseMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, trackedDevicePoseArrayNext, vr::k_unMaxTrackedDeviceCount);
 
 		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
 		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
@@ -326,12 +319,12 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// bDataReady is true, but I don't think there's a huge advantage to doing that.
 			//trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
 			//log_debug("[DBG] Using trackedDevicePose from CockpitLook\n");
-			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+			//vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 		}
 		else {
 			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
-			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+			//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses\n");
 			//log_debug("[DBG] g_bRendering3D=%d\n",g_bRendering3D);
