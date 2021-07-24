@@ -432,6 +432,210 @@ std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int Group
 	return result;
 }
 
+/*
+ * Saves the current POV Offset to the current .ini file.
+ * Only call this function if the shared memory pointer proxy (g_pSharedData)
+ * has been initialized.
+ */
+bool SavePOVOffset()
+{
+	char sFileName[256], *sTempFileName = "./TempIniFile.txt";
+	char sCraftName[128];
+	FILE* in_file, *out_file;
+	int error = 0, line = 0, len = 0;
+	char buf[256];
+	// In order to parse the .ini file, we need a finit state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		INIT_ST,
+		IN_TAG_ST,
+		OUT_OF_TAG_ST
+	} fsm = INIT_ST;
+
+	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+		log_debug("[DBG] [POV] Shared Memory has not been initialized, cannot write POV Offset");
+		return false;
+	}
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [POV] Cockpit name hasn't been captured, will not write current POV Offset");
+		return false;
+	}
+
+	// We need to remove the word "Cockpit" from g_sCurrentCockpit:
+	strncpy_s(sCraftName, 128, g_sCurrentCockpit, 128);
+	len = strlen(sCraftName);
+	sCraftName[len - 7] = 0;
+
+	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
+	log_debug("[DBG] [POV] Saving current POV Offset to INI file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	// Create sTempFileName
+	try {
+		error = fopen_s(&out_file, sTempFileName, "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not create temporary file: [%s]", sTempFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when creating [%s]", error, sTempFileName);
+		return false;
+	}
+
+	bool bPOVWritten = false;
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+		// Commented lines are automatically pass-through
+		if (buf[0] == ';') {
+			fprintf(out_file, buf);
+			continue;
+		}
+
+		// Catch section names
+		if (buf[0] == '[') {
+			if (strstr(buf, "CockpitPOVOffset") != NULL) {
+				fsm = IN_TAG_ST;
+			}
+			else {
+				if (fsm == IN_TAG_ST) {
+					fsm = OUT_OF_TAG_ST;
+					fprintf(out_file, "[CockpitPOVOffset]\n");
+					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
+					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
+					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+					fprintf(out_file, "\n");
+					bPOVWritten = true;
+				}
+			}
+		}
+
+		// If we're not in-tag, then just pass-through:
+		if (fsm != IN_TAG_ST)
+			fprintf(out_file, buf);
+	}
+
+	// This DC file may not have the "xwahacker_fov" line, so let's add it:
+	if (!bPOVWritten) {
+		fprintf(out_file, "[CockpitPOVOffset]\n");
+		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
+		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
+		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+		fprintf(out_file, "\n");
+		bPOVWritten = true;
+	}
+
+	fclose(out_file);
+	fclose(in_file);
+
+	// Swap the files
+	remove(sFileName);
+	rename(sTempFileName, sFileName);
+	return true;
+}
+
+/*
+ * Saves the current POV Offset to the current .ini file.
+ * Only call this function if the shared memory pointer proxy (g_pSharedData)
+ * has been initialized.
+ */
+bool LoadPOVOffset()
+{
+	char sFileName[256], sCraftName[128];
+	char buf[256], param[128], svalue[128];
+	FILE* in_file;
+	int error = 0, line = 0, len = 0;
+	float fValue;
+	// In order to parse the .ini file, we need a finit state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		OUT_OF_TAG_ST,
+		IN_TAG_ST,
+	} fsm = OUT_OF_TAG_ST;
+
+	log_debug("[DBG] [POV] LoadPOVOffset");
+	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+		log_debug("[DBG] [POV] Shared Memory has not been initialized. Cannot read current POV Offset");
+		return false;
+	}
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [POV] Cockpit name hasn't been captured, cannot read current POV Offset");
+		return false;
+	}
+
+	// We need to remove the word "Cockpit" from g_sCurrentCockpit:
+	strncpy_s(sCraftName, 128, g_sCurrentCockpit, 128);
+	len = strlen(sCraftName);
+	sCraftName[len - 7] = 0;
+
+	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
+	log_debug("[DBG] [POV] Loading current POV Offset from INI file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [POV] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [POV] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		// Catch section names
+		if (buf[0] == '[') {
+			fsm = (strstr(buf, "CockpitPOVOffset") != NULL) ? IN_TAG_ST : OUT_OF_TAG_ST;
+		}
+
+		// If we're not in-tag, then just pass-through:
+		if (fsm == IN_TAG_ST) {
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				fValue = (float)atof(svalue);
+				// Read the relevant parameters
+				if (_stricmp(param, "OffsetX") == 0) {
+					log_debug("[DBG] [POV] Read OffsetX: %0.3f", fValue);
+					g_pSharedData->pSharedData->POVOffsetX = fValue;
+				}
+				if (_stricmp(param, "OffsetY") == 0) {
+					log_debug("[DBG] [POV] Read OffsetY: %0.3f", fValue);
+					g_pSharedData->pSharedData->POVOffsetY = fValue;
+				}
+				if (_stricmp(param, "OffsetZ") == 0) {
+					log_debug("[DBG] [POV] Read OffsetZ: %0.3f", fValue);
+					g_pSharedData->pSharedData->POVOffsetZ = fValue;
+				}
+			}
+		}
+	}
+	log_debug("[DBG] [POV] numlines read: %d", line);
+	fclose(in_file);
+	return true;
+}
+
 CraftInstance *GetPlayerCraftInstanceSafe()
 {
 	// I've seen the game crash when trying to access the CraftInstance table in the

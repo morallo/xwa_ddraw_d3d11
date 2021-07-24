@@ -38,7 +38,7 @@ int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 
-extern SharedData* g_pSharedData;
+extern SharedDataProxy* g_pSharedData;
 
 bool InitSteamVR()
 {

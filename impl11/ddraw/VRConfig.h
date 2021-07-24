@@ -83,7 +83,6 @@ bool LoadHyperParams();
 bool LoadDefaultGlobalMaterial();
 void ReloadMaterials();
 
-
 #ifdef DBG_VR
 extern bool g_bDo3DCapture, g_bStart3DCapture;
 extern bool g_bCapture2DOffscreenBuffer = false;

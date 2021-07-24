@@ -1069,6 +1069,7 @@ struct PlayerDataEntry
 	char chatStringTerminator; // 0xb45
 	char chatStringCharCount;  // 0xb46
 	char multiChatMode;		   // 0xb47
+	// PlayerCamera struct begins here
 	int cameraX;			   // 0xb48
 	int cameraY;			   // 0xb4c
 	int cameraZ;			   // 0xb50
@@ -1103,7 +1104,8 @@ struct PlayerDataEntry
 	char field_B92;
 	char field_B93;
 	char field_B94;
-	__int16 screenResolutionSetting;
+	// PlayerCamera struct ends here
+	__int16 screenResolutionSetting; // Ofs: 0x0B95
 	int rosterID;
 	int missionTime;
 	int posX;

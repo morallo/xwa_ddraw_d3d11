@@ -396,7 +396,7 @@ float s_XwaHudScale = 1.0f;
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include "SharedMem.h"
-SharedData *g_pSharedData = NULL;
+SharedDataProxy *g_pSharedData = NULL;
 
 #include "XWAFramework.h"
 

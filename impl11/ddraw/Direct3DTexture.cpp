@@ -877,6 +877,10 @@ void Direct3DTexture::TagTexture() {
 					{
 						LoadCustomReticle(g_sCurrentCockpit);
 					}
+					// Load the POV Offset from the current INI file
+					{
+						LoadPOVOffset();
+					}
 				}
 					
 			}

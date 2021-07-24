@@ -5,6 +5,7 @@
 #include "ActiveCockpit.h"
 #include "DynamicCockpit.h"
 #include "ShadowMapping.h"
+#include "SharedMem.h"
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
@@ -187,3 +188,4 @@ extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 extern float g_fRealHorzFOV, g_fRealVertFOV;
 
+extern SharedDataProxy *g_pSharedData;

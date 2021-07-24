@@ -9,6 +9,7 @@
 #include "materials.h"
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
+#include "SharedMem.h"
 
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
@@ -2611,4 +2612,3 @@ void IncreaseNoDrawAfterHUD(int Delta) {
 //	g_iSkyBoxExecIndex += Delta;
 //	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
 //}
-
