@@ -7398,9 +7398,9 @@ void UpdateViewMatrix()
 
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-		Matrix3 rotMatrix;
+		//Matrix3 rotMatrix;
 
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z /*, &rotMatrix*/);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
@@ -7426,7 +7426,7 @@ void UpdateViewMatrix()
 		// to undo the yaw/pitch transformation by computing the inverse of the
 		// rotation matrix. Fortunately, rotation matrices can be inverted with a
 		// simple transpose.
-		rotMatrix.invert();
+		// rotMatrix.invert(); // I don't think we need to invert this matrix anymore: it's not used after this point
 
 		g_viewMatrix.identity();
 		g_viewMatrix.rotateZ(roll);
@@ -7488,7 +7488,7 @@ void UpdateViewMatrix()
 			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
 			rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
 			// Can we avoid computing the matrix inverse?
-			rotMatrixYaw.invert();
+			// rotMatrixYaw.invert(); // I don't think we need to invert this matrix anymore: it's not used after this point.
 
 			g_viewMatrix.identity();
 			g_viewMatrix.rotateZ(roll);

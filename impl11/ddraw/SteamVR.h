@@ -42,7 +42,7 @@ void ShutDownSteamVR();
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix);
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z /*, Matrix3* rotMatrix */);
 // WaitGetPoses is now called from the CockpitLook hook.
 //bool WaitGetPoses();
 

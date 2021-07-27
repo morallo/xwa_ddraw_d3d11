@@ -295,7 +295,7 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z /*, Matrix3* rotMatrix */)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
@@ -319,7 +319,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
 		//if (g_bRendering3D && !*g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
 		if (g_bRendering3D && !(*g_playerInHangar)) {
-
 			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
 			// current frame in xwingaliance.exe.
 			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
@@ -348,11 +347,11 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			*x = poseMatrix.m[0][3];
 			*y = poseMatrix.m[1][3];
 			*z = poseMatrix.m[2][3];
-			*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+			//*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
 		}
-		else {
+		//else {
 			//log_debug("[DBG] HMD pose not valid");
-		}
+		//}
 	}
 }
 
