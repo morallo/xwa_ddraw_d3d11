@@ -879,7 +879,11 @@ void Direct3DTexture::TagTexture() {
 					}
 					// Load the POV Offset from the current INI file
 					{
-						LoadPOVOffset();
+						LoadPOVOffsetFromIniFile();
+					}
+					// Load the HUD color from the current INI file
+					{
+						LoadHUDColorFromIniFile();
 					}
 				}
 					

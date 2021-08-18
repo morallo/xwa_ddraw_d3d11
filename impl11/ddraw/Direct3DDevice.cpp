@@ -545,6 +545,9 @@ bool g_b3DSkydomePresent = false;
 // Force Cockpit Damage
 bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false;
 
+// Custom HUD colors
+uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
+
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
  */

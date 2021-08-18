@@ -902,7 +902,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
 				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
 					g_pSharedData->pSharedData->POVOffsetZ -= POVOffsetIncr;
-					SavePOVOffset();
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_RIGHT:
@@ -910,21 +910,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
 				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
 					g_pSharedData->pSharedData->POVOffsetZ += POVOffsetIncr;
-					SavePOVOffset();
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_UP:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
 				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
 					g_pSharedData->pSharedData->POVOffsetY += POVOffsetIncr;
-					SavePOVOffset();
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_DOWN:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
 				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
 					g_pSharedData->pSharedData->POVOffsetY -= POVOffsetIncr;
-					SavePOVOffset();
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_OEM_PERIOD:
@@ -933,7 +933,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pSharedData->pSharedData->POVOffsetX = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetY = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetZ = 0.0f;
-					SavePOVOffset();;
+					SavePOVOffsetToIniFile();;
 				}
 				return 0;
 			}

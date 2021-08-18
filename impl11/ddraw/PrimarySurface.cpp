@@ -8856,6 +8856,12 @@ HRESULT PrimarySurface::Flip(
 				// Read the int value at offset 0B54 in the player struct and compare it with the player object index
 				//int *pEntry = (int *)(&PlayerDataTable[*g_playerIndex] + 0x0B54);
 				//log_debug("[DBG] Focus idx: %d", PlayerDataTable[*g_playerIndex].cameraFG);
+
+				//uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
+				// This will change the color of the HUD
+				//*g_XwaFlightHudBorderColor = 0xffffb7d2;
+				//*g_XwaFlightHudColor = 0xff805c69;
+				//log_debug("[DBG] hud_color, border: 0x%x, inside: 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
 			}
 
 			// RESET CONTROL VARS, FRAME COUNTERS, CLEAR VECTORS, ETC
@@ -9100,7 +9106,9 @@ HRESULT PrimarySurface::Flip(
 				error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
 			}
 
-			// We're about to switch to 3D rendering, update the hyperspace FSM if necessary
+			// We're about to switch to 3D rendering.
+			// * Update the hyperspace FSM if necessary
+			// * Apply custom HUD colors
 			if (!g_bRendering3D) {
 				// We were presenting 2D content and now we're about to show 3D content. If we were in
 				// hyperspace, we might need to reset the hyperspace FSM and restore any settings we
@@ -9116,6 +9124,8 @@ HRESULT PrimarySurface::Flip(
 					g_bHyperspaceLastFrame = (g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST);
 					g_HyperspacePhaseFSM = HS_INIT_ST;
 				}
+
+				ApplyCustomHUDColor();
 			}
 			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
 			// the Holdo bug (but more changes may be needed).

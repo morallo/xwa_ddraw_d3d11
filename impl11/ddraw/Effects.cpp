@@ -437,14 +437,14 @@ std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int Group
  * Only call this function if the shared memory pointer proxy (g_pSharedData)
  * has been initialized.
  */
-bool SavePOVOffset()
+bool SavePOVOffsetToIniFile()
 {
 	char sFileName[256], *sTempFileName = "./TempIniFile.txt";
 	char sCraftName[128];
 	FILE* in_file, *out_file;
 	int error = 0, line = 0, len = 0;
 	char buf[256];
-	// In order to parse the .ini file, we need a finit state machine so that we can
+	// In order to parse the .ini file, we need a finite state machine so that we can
 	// tell when we see the [Section] we're interested in, and when we exit that same
 	// [Section]
 	enum FSM {
@@ -552,14 +552,14 @@ bool SavePOVOffset()
  * Only call this function if the shared memory pointer proxy (g_pSharedData)
  * has been initialized.
  */
-bool LoadPOVOffset()
+bool LoadPOVOffsetFromIniFile()
 {
 	char sFileName[256], sCraftName[128];
 	char buf[256], param[128], svalue[128];
 	FILE* in_file;
 	int error = 0, line = 0, len = 0;
 	float fValue;
-	// In order to parse the .ini file, we need a finit state machine so that we can
+	// In order to parse the .ini file, we need a finite state machine so that we can
 	// tell when we see the [Section] we're interested in, and when we exit that same
 	// [Section]
 	enum FSM {
@@ -633,6 +633,101 @@ bool LoadPOVOffset()
 	}
 	log_debug("[DBG] [POV] numlines read: %d", line);
 	fclose(in_file);
+	return true;
+}
+
+void ApplyCustomHUDColor()
+{
+	if (g_iHUDInnerColor != 0)
+		*g_XwaFlightHudColor = g_iHUDInnerColor;
+	if (g_iHUDBorderColor != 0)
+		*g_XwaFlightHudBorderColor = g_iHUDBorderColor;
+}
+
+/*
+ * Loads the HUD color from the current INI file. This function will only work if
+ * g_sCurrentCockpit has been filled with the current cockpit name.
+ */
+bool LoadHUDColorFromIniFile()
+{
+	char sFileName[256], sCraftName[128];
+	char buf[256], param[128], svalue[128];
+	FILE* in_file;
+	int error = 0, line = 0, len = 0;
+	float fValue, x, y, z;
+	uint32_t color = 0x0;
+	g_iHUDInnerColor = 0;
+	g_iHUDBorderColor = 0;
+
+	// In order to parse the .ini file, we need a finite state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		OUT_OF_TAG_ST,
+		IN_TAG_ST,
+	} fsm = OUT_OF_TAG_ST;
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [HUD] Cockpit name hasn't been captured, cannot read current HUD color");
+		return false;
+	}
+
+	// We need to remove the word "Cockpit" from g_sCurrentCockpit:
+	strncpy_s(sCraftName, 128, g_sCurrentCockpit, 128);
+	len = strlen(sCraftName);
+	sCraftName[len - 7] = 0;
+
+	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
+	log_debug("[DBG] [HUD] Loading current HUD color from INI file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [HUD] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [HUD] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		// Catch section names
+		if (buf[0] == '[') {
+			fsm = (strstr(buf, "HUDColor") != NULL) ? IN_TAG_ST : OUT_OF_TAG_ST;
+		}
+
+		// If we're not in-tag, then just pass-through:
+		if (fsm == IN_TAG_ST) {
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				fValue = (float)atof(svalue);
+				// Read the relevant parameters
+				if (_stricmp(param, "HUDBorderColor") == 0) {
+					if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+						color = 0xff << 24 | uint32_t(x * 255) << 16 | uint32_t(y * 255) << 8 | uint32_t(z * 255);
+						g_iHUDBorderColor = color;
+						log_debug("[DBG] [HUD] HUD border color: 0x%x", color);
+					}
+				} else if (_stricmp(param, "HUDInnerColor") == 0) {
+					if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+						color = 0xff << 24 | uint32_t(x * 255) << 16 | uint32_t(y * 255) << 8 | uint32_t(z * 255);
+						g_iHUDInnerColor = color;
+						log_debug("[DBG] [HUD] HUD inner color: 0x%x", color);
+					}
+				}
+			}
+		}
+	}
+	fclose(in_file);
+	ApplyCustomHUDColor();
 	return true;
 }
 
