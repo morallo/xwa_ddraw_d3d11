@@ -2462,6 +2462,40 @@ inline void UpdateDCHologramState() {
 	g_bDCHologramsVisiblePrev = g_bDCHologramsVisible;
 }
 
+uint32_t Direct3DDevice::GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index, color = 0;
+	UINT idx = curIndex;
+
+	for (uint32_t i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
+		color = (uint32_t)g_OrigVerts[index].color;
+		break;
+		//index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
+
+		//index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
+
+		//if (!g_config.D3dHookExists) triangle++;
+	}
+	//log_debug("[DBG] GetWarningLightColor, wCount: %d, color: 0x%x", instruction->wCount, color);
+	//log_debug("[DBG] HUD colors: 0x%x, 0x%x", *g_XwaFlightHudColor, *g_XwaFlightHudBorderColor);
+
+	// The green warning light is encoded as: 0xff 10bc00 (ARGB)
+	// The yellow warning light is encoded as: 0xff fcd400 (ARGB)
+	// The red warning light is encoded as: 0xff ff0000 (ARGB)
+	// I haven't seen the color of the beam warning light yet.
+	// Here we check the color of the current instruction against the current HUD color. If they are
+	// different, then we know the event for the current warning light has been activated. Otherwise,
+	// we'll just return 0 to signal that no event happened.
+	if (color == *g_XwaFlightHudColor)
+		color = 0;
+
+	return color;
+}
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -3417,6 +3451,43 @@ HRESULT Direct3DDevice::Execute(
 				//if (debugTexture != NULL) {
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
+
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->WarningLightType != NONE_WLIGHT) {
+					uint32_t color = GetWarningLightColor(instruction, currentIndexLocation, lastTextureSelected);
+					switch (lastTextureSelected->WarningLightType) {
+						case RETICLE_LEFT_WLIGHT:
+						case WARHEAD_RETICLE_LEFT_WLIGHT:
+							g_GameEvent.WLightLLEvent = (color != 0);
+							//log_debug("[DBG] WLightLLEvent --> %d", g_GameEvent.WLightLLEvent);
+							break;
+						case RETICLE_MID_LEFT_WLIGHT:
+						case WARHEAD_RETICLE_MID_LEFT_WLIGHT:
+							g_GameEvent.WLightMLEvent = (color != 0);
+							//log_debug("[DBG] WLightMLEvent --> %d", g_GameEvent.WLightMLEvent);
+							break;
+						case RETICLE_MID_RIGHT_WLIGHT:
+						case WARHEAD_RETICLE_MID_RIGHT_WLIGHT:
+							g_GameEvent.WLightMREvent = (color != 0);
+							//log_debug("[DBG] WLightMREvent --> %d", g_GameEvent.WLightMREvent);
+							break;
+						case RETICLE_RIGHT_WLIGHT:
+						case WARHEAD_RETICLE_RIGHT_WLIGHT: {
+							g_GameEvent.WLightRREvent = 0;
+							//log_debug("[DBG] WLIGHT RR color: 0x%x", color);
+							// If color is yellow (0xff fcd400) (ARGB), then assign 1
+							if (color == 0xfffcd400) {
+								g_GameEvent.WLightRREvent = 1;
+								//log_debug("[DBG] WLightRREvent --> YELLOW");
+							}
+							// If color is red (0xff ff0000) (ARGB), assign 2
+							else if (color == 0xffff0000) {
+								g_GameEvent.WLightRREvent = 2;
+								//log_debug("[DBG] WLightRREvent --> RED");
+							}
+							break;
+						}
+					}
+				}
 
 				// Dynamic Cockpit: Reset the DC HUD Regions
 				if (g_bResetDC) {

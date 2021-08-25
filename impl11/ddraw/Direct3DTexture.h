@@ -9,6 +9,18 @@
 
 class TextureSurface;
 
+enum WarningLightEnum {
+	NONE_WLIGHT = 0,
+	RETICLE_LEFT_WLIGHT,
+	RETICLE_MID_LEFT_WLIGHT,
+	RETICLE_MID_RIGHT_WLIGHT,
+	RETICLE_RIGHT_WLIGHT,
+	WARHEAD_RETICLE_LEFT_WLIGHT,
+	WARHEAD_RETICLE_MID_LEFT_WLIGHT,
+	WARHEAD_RETICLE_MID_RIGHT_WLIGHT,
+	WARHEAD_RETICLE_RIGHT_WLIGHT
+};
+
 class Direct3DTexture : public IDirect3DTexture
 {
 public:
@@ -99,6 +111,8 @@ public:
 	bool is_DS2_Reactor_Explosion;
 	// True if this is the energy field surrounding the reactor core.
 	//bool is_DS2_Energy_Field;
+	// The following encodes whether this is a warning light or not (and which type)
+	WarningLightEnum WarningLightType;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 

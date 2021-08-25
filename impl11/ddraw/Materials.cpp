@@ -39,6 +39,12 @@ char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_DAMAGE_75",
 	"EVT_DAMAGE_50",
 	"EVT_DAMAGE_25",
+	// Warning Lights Events
+	"EVT_WLIGHT_LEFT",
+	"EVT_WLIGHT_MID_LEFT",
+	"EVT_WLIGHT_MID_RIGHT",
+	"EVT_WLIGHT_RIGHT_YELLOW",
+	"EVT_WLIGHT_RIGHT_RED",
 };
 
 
@@ -1319,6 +1325,10 @@ void ResetGameEvent() {
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
 	g_GameEvent.HullEvent = EVT_NONE;
+	g_GameEvent.WLightLLEvent = false;
+	g_GameEvent.WLightMLEvent = false;
+	g_GameEvent.WLightMREvent = false;
+	g_GameEvent.WLightRREvent = 0;
 
 	// Add new events here
 	// ...
@@ -1357,6 +1367,18 @@ void UpdateEventsFired() {
 	bEventsFired[CPT_EVT_BROKEN_ENGINE_POWER] = (g_PrevGameEvent.CockpitInstruments.EnginePower && !g_GameEvent.CockpitInstruments.EnginePower);
 	bEventsFired[CPT_EVT_BROKEN_SHIELD_RECHARGE] = (g_PrevGameEvent.CockpitInstruments.ShieldRecharge && !g_GameEvent.CockpitInstruments.ShieldRecharge);
 	bEventsFired[CPT_EVT_BROKEN_BEAM_RECHARGE] = (g_PrevGameEvent.CockpitInstruments.BeamRecharge && !g_GameEvent.CockpitInstruments.BeamRecharge);
+
+	// Set the current Warning Light events to true if they changed:
+	if (!g_PrevGameEvent.WLightLLEvent && g_GameEvent.WLightLLEvent)
+		bEventsFired[WLIGHT_EVT_LEFT] = true;
+	if (!g_PrevGameEvent.WLightMLEvent && g_GameEvent.WLightMLEvent)
+		bEventsFired[WLIGHT_EVT_MID_LEFT] = true;
+	if (!g_PrevGameEvent.WLightMREvent && g_GameEvent.WLightMREvent)
+		bEventsFired[WLIGHT_EVT_MID_RIGHT] = true;
+	if (g_PrevGameEvent.WLightRREvent != 1 && g_GameEvent.WLightRREvent == 1)
+		bEventsFired[WLIGHT_EVT_RIGHT_YELLOW] = true;
+	if (g_PrevGameEvent.WLightRREvent != 2 && g_GameEvent.WLightRREvent == 2)
+		bEventsFired[WLIGHT_EVT_RIGHT_RED] = true;
 
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);

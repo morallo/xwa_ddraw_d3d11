@@ -220,6 +220,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_BlastMark = false;
 	this->is_DS2_Reactor_Explosion = false;
 	//this->is_DS2_Energy_Field = false;
+	this->WarningLightType = NONE_WLIGHT;
 	this->ActiveCockpitIdx = -1;
 	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
@@ -616,6 +617,33 @@ void Direct3DTexture::TagTexture() {
 		{
 			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_name);
 			this->is_HighlightedReticle = true;
+		}
+
+		// Reticle Warning Light textures
+		this->WarningLightType = NONE_WLIGHT;
+		if (strstr(surface->_name, "dat,12000,1500,") != NULL || strstr(surface->_name, "dat,12000,1900,") != NULL ||
+			isInVector(surface->_name, CustomWLight_LL_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a LL Warning Light", surface->_name);
+			this->WarningLightType = RETICLE_LEFT_WLIGHT;
+		}
+		if (strstr(surface->_name, "dat,12000,1600,") != NULL || strstr(surface->_name, "dat,12000,2000,") != NULL ||
+			isInVector(surface->_name, CustomWLight_ML_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a ML Warning Light", surface->_name);
+			this->WarningLightType = RETICLE_MID_LEFT_WLIGHT;
+		}
+		if (strstr(surface->_name, "dat,12000,1700,") != NULL || strstr(surface->_name, "dat,12000,2100,") != NULL ||
+			isInVector(surface->_name, CustomWLight_MR_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a MR Warning Light", surface->_name);
+			this->WarningLightType = RETICLE_MID_RIGHT_WLIGHT;
+		}
+		if (strstr(surface->_name, "dat,12000,1800,") != NULL || strstr(surface->_name, "dat,12000,2200,") != NULL ||
+			isInVector(surface->_name, CustomWLight_RR_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a RR Warning Light", surface->_name);
+			this->WarningLightType = RETICLE_RIGHT_WLIGHT;
 		}
 
 		if (isInVector(surface->_name, Floating_GUI_ResNames))
@@ -1165,6 +1193,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
 	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
+	this->WarningLightType = d3dTexture->WarningLightType;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
 	// g_AuxTextureVector will keep a list of references to textures that have associated materials.

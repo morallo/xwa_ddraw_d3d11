@@ -54,6 +54,12 @@ typedef enum GameEventEnum {
 	HULL_EVT_DAMAGE_75,
 	HULL_EVT_DAMAGE_50,
 	HULL_EVT_DAMAGE_25,
+	// Warning Light Events
+	WLIGHT_EVT_LEFT,
+	WLIGHT_EVT_MID_LEFT,
+	WLIGHT_EVT_MID_RIGHT,
+	WLIGHT_EVT_RIGHT_YELLOW,
+	WLIGHT_EVT_RIGHT_RED,
 	// End-of-events sentinel. Do not remove!
 	MAX_GAME_EVT
 } GameEvent;
@@ -123,9 +129,17 @@ typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
 	CockpitInstrumentState CockpitInstruments;
 	GameEvent HullEvent;
+	bool WLightLLEvent;
+	bool WLightMLEvent;
+	bool WLightMREvent;
+	uint8_t WLightRREvent;
 
 	GlobalGameEventStruct() {
 		TargetEvent = EVT_NONE;
+		WLightLLEvent = false;
+		WLightMLEvent = false;
+		WLightMREvent = false;
+		WLightRREvent = 0; // 0: No event, 1: Yellow (locking), 2: Red (locked)
 	}
 } GlobalGameEvent;
 
@@ -409,6 +423,18 @@ typedef struct MaterialStruct {
 		// the previous events, and we compare against EVT_NONE:
 		if (g_GameEvent.TargetEvent != EVT_NONE && TextureATCIndices[ATCType][TGT_EVT_SELECTED] > -1)
 			return TextureATCIndices[ATCType][TGT_EVT_SELECTED];
+
+		// Warning Light Events (this group event is independent from the others above)
+		if (g_GameEvent.WLightLLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_LEFT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_LEFT];
+		if (g_GameEvent.WLightMLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT];
+		if (g_GameEvent.WLightMREvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT];
+		if (g_GameEvent.WLightRREvent == 1 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW];
+		if (g_GameEvent.WLightRREvent == 2 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED];
 		
 		return index;
 	}
