@@ -548,6 +548,10 @@ bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false;
 // Custom HUD colors
 uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
 
+// Laser/Ion Cannon counting vars
+bool g_bLasersIonsNeedCounting = false;
+int g_iNumLaserCannons = 0, g_iNumIonCannons = 0;
+
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
  */
@@ -2494,6 +2498,24 @@ uint32_t Direct3DDevice::GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT
 		color = 0;
 
 	return color;
+}
+
+void CountLasersAndIons(CraftInstance *craftInstance) {
+	g_iNumLaserCannons = 0;
+	g_iNumIonCannons = 0;
+	for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
+		switch (craftInstance->Hardpoints[i].WeaponType) {
+		case 1:
+			g_iNumLaserCannons++;
+			break;
+		case 2:
+			g_iNumIonCannons++;
+			break;
+		}
+	}
+	log_debug("[DBG] Num Laser Cannons: %d, Num Ion Cannons: %d, TotalLasers: %d",
+		g_iNumLaserCannons, g_iNumIonCannons, craftInstance->NumberOfLasers);
+	g_bLasersIonsNeedCounting = false;
 }
 
 HRESULT Direct3DDevice::Execute(
@@ -6312,7 +6334,7 @@ HRESULT Direct3DDevice::BeginScene()
 		hull = max(0.0f, hull);
 		if (g_bDumpSSAOBuffers) log_debug("[DBG] Hull health: %0.3f", hull);
 		g_GameEvent.HullEvent = EVT_NONE;
-		// Update the event
+		// Update the Hull event
 		if (hull > 75.0f)
 			g_GameEvent.HullEvent = EVT_NONE;
 		else if (50.0f < hull && hull <= 75.0f)
@@ -6321,6 +6343,77 @@ HRESULT Direct3DDevice::BeginScene()
 			g_GameEvent.HullEvent = HULL_EVT_DAMAGE_50;
 		else if (hull <= 25.0f)
 			g_GameEvent.HullEvent = HULL_EVT_DAMAGE_25;
+
+		/*
+		LaserNextHardpoint tells us which laser cannon is ready to fire.
+		LaserLinkStatus: 0x1 -- Single fire.
+		LaserLinkStatus: 0x2 -- Dual fire. LaserHardpoint will now be either 0x0 or 0x1 and it will skip one laser
+		LaserLinkStatus: 0x3 -- Fire all lasers in the current group. LaserHardpoint stays at 0x0 -- all cannons ready to fire
+		LaserLinkStatus: 0x4 -- Fire all lasers in all groups. All LaserLinkStatus indices become 0x4 as soon as one of them is 0x4
+
+		X/W, single fire:
+		[808][DBG][Cockpitlook] WarheadArmed: 0, NumberOfLaserSets : 1, NumberOfLasers : 4, NumWarheadLauncherGroups : 1, Countermeasures : 0
+		[808][DBG][Cockpitlook] LaserNextHardpoint[0] : 0x0,
+		[808][DBG][Cockpitlook] LaserNextHardpoint[0] : 0x1,
+		[808][DBG][Cockpitlook] LaserNextHardpoint[0] : 0x2,
+		[808][DBG][Cockpitlook] LaserNextHardpoint[0] : 0x3, ... then it goes back to 0
+		The other indices in LaserNextHardpoint remain at 0:
+		[808] [DBG] [Cockpitlook] LaserNextHardpoint[1]: 0x0, <-- This is the second set of lasers/ions (when it exists)
+		[808] [DBG] [Cockpitlook] LaserNextHardpoint[2]: 0x0, <-- Maybe the third set of lasers, if it exists?
+
+		For the B-Wing the first LaserNextHardpoint group goes 0x0, 0x1, 0x2
+		The second group (ions) goes 0x3, 0x4, 0x5.
+		LaserLinkStatus is either 0x1 or 0x3. There's no dual fire
+		The B-Wing has 6 lasers and 2 groups
+
+		For the T/D the first LaserNextHardpoint group goes 0x0, 0x1, 0x2, 0x3
+		The second group goes: 0x4, 0x5
+		LaserLinkStatus goes 0x1, 0x2, 0x3 and 0x4. There's single fire, dual fire, current group fire and all groups fire.
+		The T/D has 6 lasers and 2 groups.
+		*/
+		// Update the cannon ready events
+		if (g_bLasersIonsNeedCounting)
+			CountLasersAndIons(craftInstance);
+
+		for (int i = 0; i < MAX_CANNONS; i++)
+			g_GameEvent.CannonReady[i] = false;
+		for (int j = 0; j < craftInstance->NumberOfLaserSets; j++) {
+			int FirstLaserIndexInGroup, LastLaserIndexInGroup;
+			switch (j) {
+			case 0:
+				FirstLaserIndexInGroup = 0;
+				LastLaserIndexInGroup = g_iNumLaserCannons - 1;
+				break;
+			case 1:
+				FirstLaserIndexInGroup = g_iNumLaserCannons;
+				LastLaserIndexInGroup = g_iNumLaserCannons + g_iNumIonCannons - 1;
+				break;
+			case 2:
+				// The following formula is probably wrong, but I don't have a single example
+				// of a 3-set laser craft to figure this out. This should suffice for now.
+				FirstLaserIndexInGroup = g_iNumLaserCannons + g_iNumIonCannons;
+				LastLaserIndexInGroup = craftInstance->NumberOfLasers - 1;
+				break;
+			}
+
+			switch (craftInstance->LaserLinkStatus[j]) {
+			case 0x1: // Single fire
+				g_GameEvent.CannonReady[craftInstance->LaserNextHardpoint[j]] = true;
+				break;
+			case 0x2: // Dual Fire
+				for (int i = craftInstance->LaserNextHardpoint[j]; i <= LastLaserIndexInGroup; i += 2)
+					g_GameEvent.CannonReady[i] = true;
+				break;
+			case 0x3: // Fire all lasers in the current group (group j is the current group)
+				for (int i = FirstLaserIndexInGroup; i <= LastLaserIndexInGroup; i++)
+					g_GameEvent.CannonReady[i] = true;
+				break;
+			case 0x4: // Fire all lasers in all groups
+				for (int i = 0; i < craftInstance->NumberOfLasers; i++)
+					g_GameEvent.CannonReady[i] = true;
+				break;
+			}
+		}
 
 		// Dump the CraftInstance table
 		/*

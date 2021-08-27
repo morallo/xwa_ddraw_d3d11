@@ -45,6 +45,15 @@ char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_WLIGHT_MID_RIGHT",
 	"EVT_WLIGHT_RIGHT_YELLOW",
 	"EVT_WLIGHT_RIGHT_RED",
+	// Laser/Ion cannon ready to fire events
+	"EVT_CANNON_1_READY",
+	"EVT_CANNON_2_READY",
+	"EVT_CANNON_3_READY",
+	"EVT_CANNON_4_READY",
+	"EVT_CANNON_5_READY",
+	"EVT_CANNON_6_READY",
+	"EVT_CANNON_7_READY",
+	"EVT_CANNON_8_READY",
 };
 
 
@@ -1330,13 +1339,18 @@ void ResetGameEvent() {
 	g_GameEvent.WLightMREvent = false;
 	g_GameEvent.WLightRREvent = 0;
 
+	for (int i = 0; i < MAX_CANNONS; i++)
+		g_GameEvent.CannonReady[i] = false;
+
 	// Add new events here
 	// ...
 
+	// Don't modify the code below this line if you're just adding new events
 	// Reset the Events Fired flags
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
 
+	// Always keep this line at the end of this function
 	g_PrevGameEvent = g_GameEvent;
 }
 
@@ -1380,6 +1394,12 @@ void UpdateEventsFired() {
 	if (g_PrevGameEvent.WLightRREvent != 2 && g_GameEvent.WLightRREvent == 2)
 		bEventsFired[WLIGHT_EVT_RIGHT_RED] = true;
 
+	// Trigger the cannon ready events if they changed
+	for (int i = 0; i < MAX_CANNONS; i++)
+		if (!g_PrevGameEvent.CannonReady[i] && g_GameEvent.CannonReady[i])
+			bEventsFired[CANNON_EVT_1_READY + i] = true;
+
+	// Don't modify the code below this line if you're only adding new events
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
 

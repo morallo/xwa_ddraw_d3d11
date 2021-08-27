@@ -913,6 +913,10 @@ void Direct3DTexture::TagTexture() {
 					{
 						LoadHUDColorFromIniFile();
 					}
+					// We need to count the number of lasers and ions in this new craft, but we probably
+					// can't do it now since we're still loading resources here. Instead, let's set a flag
+					// to count them later.
+					g_bLasersIonsNeedCounting = true;
 				}
 					
 			}

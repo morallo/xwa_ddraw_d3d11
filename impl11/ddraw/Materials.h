@@ -10,6 +10,7 @@ constexpr auto MAX_CACHED_MATERIALS = 32;
 constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 constexpr auto MAX_TEX_SEQ_NAME = 80;
+constexpr auto MAX_CANNONS = 8;
 
 /*
 
@@ -60,6 +61,16 @@ typedef enum GameEventEnum {
 	WLIGHT_EVT_MID_RIGHT,
 	WLIGHT_EVT_RIGHT_YELLOW,
 	WLIGHT_EVT_RIGHT_RED,
+	// Laser/Ion cannon ready events
+	CANNON_EVT_1_READY,
+	CANNON_EVT_2_READY,
+	CANNON_EVT_3_READY,
+	CANNON_EVT_4_READY,
+	CANNON_EVT_5_READY,
+	CANNON_EVT_6_READY,
+	CANNON_EVT_7_READY,
+	CANNON_EVT_8_READY,
+	// How many more cannons can be supported?
 	// End-of-events sentinel. Do not remove!
 	MAX_GAME_EVT
 } GameEvent;
@@ -129,10 +140,13 @@ typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
 	CockpitInstrumentState CockpitInstruments;
 	GameEvent HullEvent;
+	// Warning Lights Events
 	bool WLightLLEvent;
 	bool WLightMLEvent;
 	bool WLightMREvent;
 	uint8_t WLightRREvent;
+	// Cannon Ready Events
+	bool CannonReady[MAX_CANNONS];
 
 	GlobalGameEventStruct() {
 		TargetEvent = EVT_NONE;
@@ -140,6 +154,8 @@ typedef struct GlobalGameEventStruct {
 		WLightMLEvent = false;
 		WLightMREvent = false;
 		WLightRREvent = 0; // 0: No event, 1: Yellow (locking), 2: Red (locked)
+		for (int i = 0; i < MAX_CANNONS; i++)
+			CannonReady[i] = false;
 	}
 } GlobalGameEvent;
 
@@ -332,6 +348,23 @@ typedef struct MaterialStruct {
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first... least-specific events later.
 
+		// Warning Light Events (this group event is independent from the others above)
+		if (g_GameEvent.WLightLLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_LEFT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_LEFT];
+		if (g_GameEvent.WLightMLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT];
+		if (g_GameEvent.WLightMREvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT];
+		if (g_GameEvent.WLightRREvent == 1 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW];
+		if (g_GameEvent.WLightRREvent == 2 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED] > -1)
+			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED];
+
+		// Cannon Ready Events
+		for (int i = 0; i < MAX_CANNONS; i++)
+			if (g_GameEvent.CannonReady[i] && TextureATCIndices[ATCType][CANNON_EVT_1_READY + i] > -1)
+				return TextureATCIndices[ATCType][CANNON_EVT_1_READY + i];
+
 		// Cockpit Damage Events
 		if (!g_GameEvent.CockpitInstruments.CMD && TextureATCIndices[ATCType][CPT_EVT_BROKEN_CMD] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
@@ -423,19 +456,7 @@ typedef struct MaterialStruct {
 		// the previous events, and we compare against EVT_NONE:
 		if (g_GameEvent.TargetEvent != EVT_NONE && TextureATCIndices[ATCType][TGT_EVT_SELECTED] > -1)
 			return TextureATCIndices[ATCType][TGT_EVT_SELECTED];
-
-		// Warning Light Events (this group event is independent from the others above)
-		if (g_GameEvent.WLightLLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_LEFT] > -1)
-			return TextureATCIndices[ATCType][WLIGHT_EVT_LEFT];
-		if (g_GameEvent.WLightMLEvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT] > -1)
-			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_LEFT];
-		if (g_GameEvent.WLightMREvent && TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT] > -1)
-			return TextureATCIndices[ATCType][WLIGHT_EVT_MID_RIGHT];
-		if (g_GameEvent.WLightRREvent == 1 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW] > -1)
-			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_YELLOW];
-		if (g_GameEvent.WLightRREvent == 2 && TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED] > -1)
-			return TextureATCIndices[ATCType][WLIGHT_EVT_RIGHT_RED];
-		
+	
 		return index;
 	}
 
