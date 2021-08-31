@@ -2503,6 +2503,13 @@ uint32_t Direct3DDevice::GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT
 void CountLasersAndIons(CraftInstance *craftInstance) {
 	g_iNumLaserCannons = 0;
 	g_iNumIonCannons = 0;
+	// A probably better way to count the cannons would be to figure out how many
+	// cannons per set we have. Something like:
+	// set 0: 4 lasers
+	// set 1: 2 ions
+	// set 2: 2 lasers
+	// This would be a somewhat exotic setup, but we might need this and the only way
+	// would be to detect when we switch from one type of cannon to another.
 	for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
 		switch (craftInstance->Hardpoints[i].WeaponType) {
 		case 1:

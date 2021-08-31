@@ -1400,8 +1400,10 @@ void UpdateEventsFired() {
 			bEventsFired[CANNON_EVT_1_READY + i] = true;
 
 	// Don't modify the code below this line if you're only adding new events
+#ifdef DEBUG_EVENTS
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
+#endif
 
 	// Copy the events
 	g_PrevGameEvent = g_GameEvent;
