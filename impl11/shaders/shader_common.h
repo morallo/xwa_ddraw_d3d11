@@ -53,6 +53,7 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_EXPLOSION	7
 #define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
+#define SPECIAL_CONTROL_ADD_GREEBLE 10
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

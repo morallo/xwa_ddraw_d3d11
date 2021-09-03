@@ -245,6 +245,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
 	this->material.Intensity  = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
+
+	this->GreebleTexIdx = -1;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -457,6 +459,23 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 			//	this->material.LightMapSequence[i].ExtraTextureIndex);
 		}
 	}
+}
+
+void Direct3DTexture::LoadGreebleTexture(int GreebleIndex)
+{
+	auto &resources = this->_deviceResources;
+	ID3D11ShaderResourceView *texSRV = nullptr;
+	HRESULT res = S_OK;
+	// Load some greeble texture
+	res = LoadDATImage("Effects\\Greebles.dat", 0 /* GroupId */, 1 /* ImageId */, &texSRV);
+	if (FAILED(res)) {
+		log_debug("[DBG] Could not load greeble");
+		return;
+	}
+	resources->_extraTextures.push_back(texSRV);
+	// Link the new texture as a greeble of the current texture
+	this->GreebleTexIdx = resources->_extraTextures.size() - 1;
+	log_debug("[DBG] Loaded Greeble texture at index: %d", this->GreebleTexIdx);
 }
 
 ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
@@ -1116,6 +1135,11 @@ void Direct3DTexture::TagTexture() {
 						if (this->material.TextureATCIndices[ATCType][i] > -1)
 							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
 				}
+				// If this material has a greeble texture, let's load it here
+				if (strstr(surface->_name, "ImperialStarDestroyer") != NULL) {
+					this->LoadGreebleTexture(0);
+				}
+
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
@@ -1232,6 +1256,8 @@ HRESULT Direct3DTexture::Load(
 	this->material = d3dTexture->material;
 	this->bHasMaterial = d3dTexture->bHasMaterial;
 	//this->lightTexture = d3dTexture->lightTexture;
+
+	this->GreebleTexIdx = d3dTexture->GreebleTexIdx;
 
 	// DEBUG
 	// Looks like we always tag the color texture before the light texture.

@@ -143,8 +143,11 @@ public:
 	bool bHasMaterial;
 	Material material;
 
-	// **** Back-pointer to the light texture
+	// **** Back-pointer to the light texture -- is this still used???
 	Direct3DTexture *lightTexture;
+
+	// **** Greebles
+	int GreebleTexIdx;
 		
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
@@ -172,6 +175,8 @@ public:
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
 
 	void LoadAnimatedTextures(int ATCIndex);
+
+	void LoadGreebleTexture(int GreebleIndex);
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 

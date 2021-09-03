@@ -9,6 +9,12 @@
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+// Texture slot 9 (and above) seem to be free. We might be able to use other slots, but I don't
+// want to break something by doing that. Will have to come back later and check if it's possible
+// to save some slots
+Texture2D    greebleTex0 : register(t9);
+SamplerState greebleSamp0 : register(s9);
+
 // pos3D/Depth buffer has the following coords:
 // X+: Right
 // Y+: Up
@@ -40,6 +46,11 @@ struct PixelShaderOutput
 	float4 ssaoMask : SV_TARGET4;
 	float4 ssMask   : SV_TARGET5;
 };
+
+inline float4 overlay(float4 a, float4 b)
+{
+	return (a < 0.5) ? 2.0 * a * b : 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
+}
 
 PixelShaderOutput main(PixelShaderInput input)
 {
@@ -111,6 +122,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask   = float4(fNMIntensity, fSpecVal, 0.0, a);
 		return output;
 	}
+
+	
 
 	/*
 	if (special_control == SPECIAL_CONTROL_EXPLOSION)
@@ -232,6 +245,22 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	
+	if (special_control == SPECIAL_CONTROL_ADD_GREEBLE)
+	{
+		//float4 greeble = float4(1, 0, 0, output.color.a);
+		//float greeble_factor = 0.75;
+		const float greeble_scale = 1.5;
+		const float greeble_mix = 0.9;
+		// Sample the greeble texture
+		float4 greeble = greebleTex0.Sample(greebleSamp0, frac(greeble_scale * input.tex));
+		// Mix the greeble with the current texture, use either the overlay or multiply blending modes
+		//float4 greebleMix = lerp(output.color, overlay(output.color, greeble), greeble_mix);
+		float4 greebleMix = lerp(output.color, output.color * greeble * greeble, greeble_mix);
+		// Display the greeble mix depending on the depth of the current point.
+		output.color = lerp(greebleMix, output.color, saturate(P.z / 500.0));
+		return output;
+	}
+
 	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;
 	return output;

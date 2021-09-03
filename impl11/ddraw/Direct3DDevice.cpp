@@ -5127,6 +5127,12 @@ HRESULT Direct3DDevice::Execute(
 					}*/
 				}
 
+				// Greebles
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->GreebleTexIdx > -1) {
+					g_PSCBuffer.special_control = SPECIAL_CONTROL_ADD_GREEBLE;
+					context->PSSetShaderResources(9, 1, &(resources->_extraTextures[lastTextureSelected->GreebleTexIdx]));
+				}
+
 				// Animated Light Maps/Textures
 				if (bHasMaterial) {
 					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
