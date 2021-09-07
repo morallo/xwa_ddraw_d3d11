@@ -245,22 +245,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	
-	if (special_control == SPECIAL_CONTROL_ADD_GREEBLE)
-	{
-		//float4 greeble = float4(1, 0, 0, output.color.a);
-		//float greeble_factor = 0.75;
-		const float greeble_scale = 1.5;
-		const float greeble_mix = 0.9;
-		// Sample the greeble texture
-		float4 greeble = greebleTex0.Sample(greebleSamp0, frac(greeble_scale * input.tex));
-		// Mix the greeble with the current texture, use either the overlay or multiply blending modes
-		//float4 greebleMix = lerp(output.color, overlay(output.color, greeble), greeble_mix);
-		float4 greebleMix = lerp(output.color, output.color * greeble * greeble, greeble_mix);
-		// Display the greeble mix depending on the depth of the current point.
-		output.color = lerp(greebleMix, output.color, saturate(P.z / 500.0));
-		return output;
-	}
-
 	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;
 	return output;

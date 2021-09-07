@@ -66,6 +66,8 @@ std::vector<CraftMaterials> g_Materials;
 std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
+// Global Greeble Data (mask, textures, blending modes)
+std::vector<GreebleData> g_GreebleData;
 
 /*
  * Convert an OPT name into a MAT params file of the form:
@@ -731,6 +733,28 @@ inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial, int A
 	curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
 }
 
+GreebleData *GetOrAddGreebleData(Material *curMaterial) {
+	if (curMaterial->GreebleDataIdx == -1) {
+		// If this material doesn't have a GreebleData entry, add one and link it
+		GreebleData greeble_data;
+		g_GreebleData.push_back(greeble_data);
+		curMaterial->GreebleDataIdx = g_GreebleData.size() - 1;
+	}
+	// else // This material has a GreebleData entry, fetch it
+	return &(g_GreebleData[curMaterial->GreebleDataIdx]);
+}
+
+void PrintGreebleData(GreebleData *greeble_data) {
+	log_debug("[DBG] [GRB] Greeble 1: %s (%d), Greeble 2: %s (%d)",
+		greeble_data->GreebleTexName[0], greeble_data->GreebleTexIndex[0],
+		greeble_data->GreebleTexName[1], greeble_data->GreebleTexIndex[1]);
+	log_debug("[DBG] [GRB] Greeble Mask: %s (%d)",
+		greeble_data->GreebleMaskName, greeble_data->GreebleMaskIndex);
+	log_debug("[DBG] [GRB] Greeble Dist 1: %0.0f, Dist 2: %0.0f, Blend Mode 1: %d, Blend Mode 2: %d",
+		greeble_data->GreebleDist[0], greeble_data->GreebleDist[1],
+		greeble_data->GreebleBlendMode[0], greeble_data->GreebleBlendMode[1]);
+}
+
 void ReadMaterialLine(char* buf, Material* curMaterial) {
 	char param[256], svalue[512];
 	float fValue = 0.0f;
@@ -946,6 +970,56 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
 		}
 	}
+	else if (_stricmp(param, "GreebleTex1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		log_debug("[DBG] [GRB] Loading Greeble 1 Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleTexName[0], MAX_GREEBLE_NAME, svalue);
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleTex2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		log_debug("[DBG] [GRB] Loading Greeble 2 Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleTexName[1], MAX_GREEBLE_NAME, svalue);
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleMask") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		log_debug("[DBG] [GRB] Loading Greeble Mask Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleMaskName, MAX_GREEBLE_NAME, svalue);
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleBlendMode1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleBlendMode[0] = (GreebleBlendMode)((int)fValue);
+		//PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleBlendMode2") == 0) {
+		log_debug("[DBG] [GRB] Loading Blend Mode 2: %0.0f", fValue);
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleDistance1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleDist[0] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleDistance2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleDist[1] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleMix") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleMix = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleScale") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleScale = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));

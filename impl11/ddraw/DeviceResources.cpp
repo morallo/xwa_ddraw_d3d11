@@ -70,6 +70,7 @@
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
 #include "../Debug/PixelShaderAnimLightMap.h"
+#include "../Debug/PixelShaderGreeble.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -129,6 +130,7 @@
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
 #include "../Release/PixelShaderAnimLightMap.h"
+#include "../Release/PixelShaderGreeble.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3401,6 +3403,10 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimLightMap, sizeof(g_PixelShaderAnimLightMap), nullptr, &_pixelShaderAnimLightMap)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))
+		return hr;
+	
+
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
 			return hr;
@@ -3656,8 +3662,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 112;
-	static_assert(sizeof(PixelShaderCBuffer) == 112, "sizeof(PixelShaderCBuffer) must be 112");
+	constantBufferDesc.ByteWidth = 128;
+	static_assert(sizeof(PixelShaderCBuffer) == 128, "sizeof(PixelShaderCBuffer) must be 128");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 

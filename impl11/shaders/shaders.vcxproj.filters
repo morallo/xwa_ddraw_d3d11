@@ -73,6 +73,7 @@
     <FxCompile Include="AlphaToBloomPS.hlsl" />
     <FxCompile Include="PixelShaderNoGlass.hlsl" />
     <FxCompile Include="PixelShaderAnimLightMap.hlsl" />
+    <FxCompile Include="PixelShaderGreeble.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

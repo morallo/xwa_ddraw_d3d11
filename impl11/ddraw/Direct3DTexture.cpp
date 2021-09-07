@@ -461,21 +461,34 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	}
 }
 
-void Direct3DTexture::LoadGreebleTexture(int GreebleIndex)
+int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId)
 {
 	auto &resources = this->_deviceResources;
 	ID3D11ShaderResourceView *texSRV = nullptr;
+	int GroupId = -1, ImageId = -1;
 	HRESULT res = S_OK;
-	// Load some greeble texture
-	res = LoadDATImage("Effects\\Greebles.dat", 0 /* GroupId */, 1 /* ImageId */, &texSRV);
+	char *substr = stristr(GreebleDATGroupIdImageId, ".dat");
+	if (substr == NULL) return -1;
+	// Skip the ".dat" token and terminate the string
+	substr += 4;
+	*substr = 0;
+	// Advance to the next substring, we should now have a string of the form
+	// <GroupId>-<ImageId>
+	substr++;
+	log_debug("[DBG] Loading GreebleTex: %s, GroupId-ImageId: %s", GreebleDATGroupIdImageId, substr);
+	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
+
+	// Load the greeble texture
+	res = LoadDATImage(GreebleDATGroupIdImageId, GroupId, ImageId, &texSRV);
 	if (FAILED(res)) {
 		log_debug("[DBG] Could not load greeble");
-		return;
+		return -1;
 	}
 	resources->_extraTextures.push_back(texSRV);
 	// Link the new texture as a greeble of the current texture
 	this->GreebleTexIdx = resources->_extraTextures.size() - 1;
 	log_debug("[DBG] Loaded Greeble texture at index: %d", this->GreebleTexIdx);
+	return this->GreebleTexIdx;
 }
 
 ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
@@ -1135,9 +1148,32 @@ void Direct3DTexture::TagTexture() {
 						if (this->material.TextureATCIndices[ATCType][i] > -1)
 							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
 				}
-				// If this material has a greeble texture, let's load it here
-				if (strstr(surface->_name, "ImperialStarDestroyer") != NULL) {
-					this->LoadGreebleTexture(0);
+
+				// Load the Greeble Textures here...
+				if (this->material.GreebleDataIdx != -1) {
+					GreebleData *greeble_data = &(g_GreebleData[this->material.GreebleDataIdx]);
+					//log_debug("[DBG] [GRB] This material has GreebleData at index: %d", this->material.GreebleDataIdx);
+					//log_debug("[DBG] [GRB] GreebleTexIndex[0]: %d, GreebleTexIndex[1]: %d",
+					//	greeble_data->GreebleTexIndex[0], greeble_data->GreebleTexIndex[1]);
+					// Load the Greeble Textures
+					for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
+						// We need to load this texture. Textures are loaded in resources->_extraTextures
+						if (greeble_data->GreebleTexIndex[i] == -1) {
+							// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
+							// textures if we find we've already loaded them before...
+							greeble_data->GreebleTexIndex[i] = LoadGreebleTexture(greeble_data->GreebleTexName[i]);
+							if (greeble_data->GreebleTexIndex[i] != -1)
+								log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
+						}
+					}
+					// Load the Greeble Mask
+					if (greeble_data->GreebleMaskIndex == -1) {
+						// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
+						// textures if we find we've already loaded them before...
+						greeble_data->GreebleMaskIndex = LoadGreebleTexture(greeble_data->GreebleMaskName);
+						if (greeble_data->GreebleMaskIndex != -1)
+							log_debug("[DBG] [GRB] Loaded Greeble Mask at index: %d", greeble_data->GreebleMaskIndex);
+					}
 				}
 
 				// DEBUG

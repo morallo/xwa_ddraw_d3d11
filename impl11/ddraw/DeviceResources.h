@@ -433,6 +433,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11PixelShader> _pixelShaderAnimLightMap;
+	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;

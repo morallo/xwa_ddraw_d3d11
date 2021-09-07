@@ -176,7 +176,7 @@ public:
 
 	void LoadAnimatedTextures(int ATCIndex);
 
-	void LoadGreebleTexture(int GreebleIndex);
+	int LoadGreebleTexture(char *GreebleDATGroupIdImageId);
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 

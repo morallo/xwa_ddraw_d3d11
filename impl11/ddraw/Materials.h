@@ -11,6 +11,13 @@ constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 constexpr auto MAX_TEX_SEQ_NAME = 80;
 constexpr auto MAX_CANNONS = 8;
+constexpr auto MAX_GREEBLE_NAME = 80;
+constexpr auto MAX_GREEBLE_LEVELS = 2;
+
+typedef enum GreebleBlendModeEnum {
+	GBM_MULTIPLY = 1,
+	GBM_OVERLAY
+} GreebleBlendMode;
 
 /*
 
@@ -215,6 +222,32 @@ typedef struct AnimatedTexControlStruct {
 	void Animate();
 } AnimatedTexControl;
 
+// Used to store the information related to greebles
+typedef struct GreebleDataStruct {
+	// Holds the DAT filename where the greeble data is stored.
+	char GreebleMaskName[MAX_GREEBLE_NAME];
+	char GreebleTexName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
+	// The following (GreebleMask and GreebleTexIndex) are indices into resources->_extraTextures
+	// If greeble mask and greeble textures are loaded, these indices will be greater than -1
+	int GreebleMaskIndex;
+	int GreebleTexIndex[MAX_GREEBLE_LEVELS];
+	float GreebleDist[MAX_GREEBLE_LEVELS];
+	GreebleBlendMode GreebleBlendMode[2];
+	float GreebleMix = 0.9f;
+	float GreebleScale = 1.5f;
+
+	GreebleDataStruct() {
+		GreebleMaskName[0] = 0;
+		GreebleMaskIndex = -1;
+		for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
+			GreebleTexName[i][0] = 0;
+			GreebleTexIndex[i] = -1;
+			GreebleDist[i] = 500.0f / (i + 1.0f);
+			GreebleBlendMode[i] = GBM_MULTIPLY;
+		}
+	}
+} GreebleData;
+
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
@@ -249,6 +282,9 @@ typedef struct MaterialStruct {
 	int ImageId;
 
 	int TextureATCIndices[2][MAX_GAME_EVT];
+
+	//GreebleData GreebleData;
+	int GreebleDataIdx;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -312,6 +348,7 @@ typedef struct MaterialStruct {
 			for (int i = 0; i < MAX_GAME_EVT; i++)
 				TextureATCIndices[j][i] = -1;
 
+		GreebleDataIdx = -1;
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -507,6 +544,8 @@ extern std::vector<CraftMaterials> g_Materials;
 extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
+// Global Greeble Data (mask, textures, blending modes)
+extern std::vector<GreebleData> g_GreebleData;
 
 extern bool g_bReloadMaterialsEnabled;
 extern Material g_DefaultGlobalMaterial;
