@@ -339,9 +339,6 @@ DeviceResources::DeviceResources()
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
 
-	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
-	//	this->_extraTextures[i] = nullptr;
-	//this->_numExtraTextures = 0;
 	_extraTextures.clear();
 }
 
@@ -3662,8 +3659,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 128;
-	static_assert(sizeof(PixelShaderCBuffer) == 128, "sizeof(PixelShaderCBuffer) must be 128");
+	constantBufferDesc.ByteWidth = 144;
+	static_assert(sizeof(PixelShaderCBuffer) == 144, "sizeof(PixelShaderCBuffer) must be 144");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 

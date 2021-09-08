@@ -1009,14 +1009,24 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		greeble_data->GreebleDist[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
-	else if (_stricmp(param, "GreebleMix") == 0) {
+	else if (_stricmp(param, "GreebleMix1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->GreebleMix = fValue;
+		greeble_data->GreebleMix[0] = fValue;
 		PrintGreebleData(greeble_data);
 	}
-	else if (_stricmp(param, "GreebleScale") == 0) {
+	else if (_stricmp(param, "GreebleMix2") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->GreebleScale = fValue;
+		greeble_data->GreebleMix[1] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleScale1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleScale[0] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleScale2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleScale[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
 	

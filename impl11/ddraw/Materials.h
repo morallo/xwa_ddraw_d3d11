@@ -233,8 +233,8 @@ typedef struct GreebleDataStruct {
 	int GreebleTexIndex[MAX_GREEBLE_LEVELS];
 	float GreebleDist[MAX_GREEBLE_LEVELS];
 	GreebleBlendMode GreebleBlendMode[2];
-	float GreebleMix = 0.9f;
-	float GreebleScale = 1.5f;
+	float GreebleMix[MAX_GREEBLE_LEVELS];
+	float GreebleScale[MAX_GREEBLE_LEVELS];
 
 	GreebleDataStruct() {
 		GreebleMaskName[0] = 0;
@@ -244,6 +244,8 @@ typedef struct GreebleDataStruct {
 			GreebleTexIndex[i] = -1;
 			GreebleDist[i] = 500.0f / (i + 1.0f);
 			GreebleBlendMode[i] = GBM_MULTIPLY;
+			GreebleMix[i] = 0.9f;
+			GreebleScale[i] = 1.0f;
 		}
 	}
 } GreebleData;

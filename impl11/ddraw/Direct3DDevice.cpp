@@ -5136,11 +5136,15 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
 
-					g_PSCBuffer.GreebleMix = greeble_data->GreebleMix;
-					g_PSCBuffer.GreebleScale = greeble_data->GreebleScale;
+					g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
+					g_PSCBuffer.GreebleScale1 = greeble_data->GreebleScale[0];
 					g_PSCBuffer.GreebleDist1 = greeble_data->GreebleDist[0];
+
+					g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
+					g_PSCBuffer.GreebleScale2 = greeble_data->GreebleScale[1];
 					g_PSCBuffer.GreebleDist2 = greeble_data->GreebleDist[1];
-					g_PSCBuffer.GreebleControl = (HasGreebleMask << 16) |
+
+					g_PSCBuffer.GreebleControl = (HasGreebleMask << 8) |
 						(greeble_data->GreebleBlendMode[1] << 2) |
 						(greeble_data->GreebleBlendMode[0]);
 					resources->InitPixelShader(resources->_pixelShaderGreeble);

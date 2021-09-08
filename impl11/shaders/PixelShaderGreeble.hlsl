@@ -174,41 +174,48 @@ PixelShaderOutput main(PixelShaderInput input)
 								// 0x00C Second Tex Blend Mode
 								// 0x001: Multiply
 								// 0x002: Overlay
+	// GBM_MULTIPLY = 1,
+	// GBM_OVERLAY = 2
 	*/
-
-	//float greeble_factor = 0.75;
-	//const float greeble_scale = 1.5;
-	//const float greeble_mix = 0.9;
 
 	uint BlendingMode1 = GreebleControl & 0x3;
 	uint BlendingMode2 = (GreebleControl >> 2) & 0x3;
+	bool bHasMask = (GreebleControl & 0x100) != 0x0;
+	float4 maskCol = 1.0;
+	float mask = 1.0;
 
-	// Sample the greeble textures
-	//float4 greeble = float4(1, 0, 0, output.color.a);
-	float4 greeble1 = greebleTex1.Sample(greebleSamp1, frac(GreebleScale * input.tex));
+	// Sample the mask, we should use the UVs of the original texture. The mask should be defined
+	// with respect to the original texture. The mask is expected to be a grayscale image, but we
+	// also multiply with the alpha component so that either black or alpha can inhibit greebles.
+	if (bHasMask) {
+		maskCol = greebleMaskTex.Sample(greebleMaskSamp, input.tex);
+		mask = maskCol.a * dot(0.333, maskCol.rgb);
+	}
+
+	// Sample the greeble textures. If this shader is called, it should at least have one
+	// greeble texture activated.
+	float4 greeble1 = greebleTex1.Sample(greebleSamp1, frac(GreebleScale1 * input.tex));
 	float4 greeble2 = 0.0;
+	float4 greebleMixCol = 0.0;
 
 	// Mix the greeble with the current texture, use either the overlay or multiply blending modes
-	float4 greebleMixCol = 0.0;
-	// GBM_MULTIPLY = 1,
-	// GBM_OVERLAY = 2
+	//greeble1 = float4(1, 0, 0, 1);
 	if (BlendingMode1 == 1)
-		greebleMixCol = lerp(output.color, output.color * greeble1, GreebleMix);
+		greebleMixCol = lerp(output.color, output.color * greeble1, GreebleMix1 * greeble1.a * mask);
 	if (BlendingMode1 == 2)
-		greebleMixCol = lerp(output.color, overlay(output.color, greeble1), GreebleMix);
-
-	/*
-	// TODO: Blend the second greeble texture
-	if (BlendingMode2 != 0) {
-		greeble2 = greebleTex2.Sample(greebleSamp2, frac(GreebleScale * input.tex));
-		if (BlendingMode2 == 1)
-			greebleMixCol = lerp(greebleMixCol, greebleMix * greeble2, GreebleMix);
-		if (BlendingMode2 == 2)
-			greebleMixCol = lerp(greebleMixCol, overlay(greebleMix, greeble2), GreebleMix);
-	}
-	*/
-		
-	// Display the greeble mix depending on the depth of the current point.
+		greebleMixCol = lerp(output.color, overlay(output.color, greeble1), GreebleMix1 * greeble1.a * mask);
+	// Mix the greeble color depending on the current depth
 	output.color = lerp(greebleMixCol, output.color, saturate(P.z / GreebleDist1));
+
+	if (BlendingMode2 != 0) {
+		greeble2 = greebleTex2.Sample(greebleSamp2, frac(GreebleScale2 * input.tex));
+		//greeble2 = float4(0, 1, 0, 1);
+		if (BlendingMode2 == 1)
+			greebleMixCol = lerp(output.color, output.color * greeble2, GreebleMix2 * greeble2.a * mask);
+		if (BlendingMode2 == 2)
+			greebleMixCol = lerp(output.color, overlay(output.color, greeble2), GreebleMix2 * greeble2.a * mask);
+		// Mix the greeble color depending on the current depth
+		output.color = lerp(greebleMixCol, output.color, saturate(P.z / GreebleDist2));
+	}
 	return output;
 }

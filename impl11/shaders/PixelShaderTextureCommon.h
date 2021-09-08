@@ -40,7 +40,11 @@ cbuffer ConstantBuffer : register(b0)
 	// 112 bytes
 
 	float GreebleDist1, GreebleDist2;
-	float GreebleScale, GreebleMix;
+	float GreebleScale1, GreebleScale2;
 	// 128 bytes
+
+	float GreebleMix1, GreebleMix2;
+	float ps_unused0, ps_unused1;
+	// 144 bytes
 };
 
