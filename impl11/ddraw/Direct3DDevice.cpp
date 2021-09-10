@@ -5128,36 +5128,80 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Greebles
-				if (bHasMaterial && !lastTextureSelected->is_LightTexture && lastTextureSelected->material.GreebleDataIdx != -1)
+				//if (bHasMaterial && !lastTextureSelected->is_LightTexture && lastTextureSelected->material.GreebleDataIdx != -1)
+				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx != -1)
 				{
 					Material *material = &(lastTextureSelected->material);
 					GreebleData *greeble_data = &(g_GreebleData[material->GreebleDataIdx]);
-					uint32_t HasGreebleMask = (greeble_data->GreebleMaskIndex != -1);
-					bModifiedShaders = true;
-					bModifiedPixelShader = true;
+					
+					bool bIsRegularGreeble = (!lastTextureSelected->is_LightTexture && greeble_data->GreebleTexIndex[0] != -1);
+					bool bIsLightmapGreeble = (lastTextureSelected->is_LightTexture && greeble_data->GreebleLightMapIndex[0] != -1);
+					if (bIsRegularGreeble || bIsLightmapGreeble) {
+						uint32_t HasGreebleMask = 0;
+						bModifiedShaders = true;
+						bModifiedPixelShader = true;
 
-					g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
-					g_PSCBuffer.GreebleScale1 = greeble_data->GreebleScale[0];
-					g_PSCBuffer.GreebleDist1 = greeble_data->GreebleDist[0];
+						//if (bIsLightmapGreeble)
+						//	g_PSCBuffer.bIsLightTexture = true;
+						resources->InitPixelShader(resources->_pixelShaderGreeble);
 
-					g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
-					g_PSCBuffer.GreebleScale2 = greeble_data->GreebleScale[1];
-					g_PSCBuffer.GreebleDist2 = greeble_data->GreebleDist[1];
+						if (bIsRegularGreeble) {
+							// Load the greeble mask
+							if (greeble_data->GreebleMaskIndex != -1) {
+								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleMaskIndex]));
+								HasGreebleMask = 1;
+							}
 
-					g_PSCBuffer.GreebleControl = (HasGreebleMask << 8) |
-						(greeble_data->GreebleBlendMode[1] << 2) |
-						(greeble_data->GreebleBlendMode[0]);
-					resources->InitPixelShader(resources->_pixelShaderGreeble);
-					if (greeble_data->GreebleMaskIndex != -1)
-						context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleMaskIndex]));
-					if (greeble_data->GreebleTexIndex[0] != -1)
-						context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[0]]));
-					if (greeble_data->GreebleTexIndex[1] != -1)
-						context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[1]]));
+							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
+							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
+
+							g_PSCBuffer.GreebleDist1 = greeble_data->GreebleDist[0];
+							g_PSCBuffer.GreebleDist2 = greeble_data->GreebleDist[1];
+
+							g_PSCBuffer.GreebleScale1 = greeble_data->GreebleScale[0];
+							g_PSCBuffer.GreebleScale2 = greeble_data->GreebleScale[1];
+
+							uint32_t blendMask1 = greeble_data->GreebleTexIndex[0] != -1 ? greeble_data->greebleBlendMode[0] : 0x0;
+							uint32_t blendMask2 = greeble_data->GreebleTexIndex[1] != -1 ? greeble_data->greebleBlendMode[1] : 0x0;
+							g_PSCBuffer.GreebleControl = (HasGreebleMask << 8) | (blendMask2 << 3) | blendMask1;
+
+							// Load regular greebles...
+							if (greeble_data->GreebleTexIndex[0] != -1)
+								context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[0]]));
+							if (greeble_data->GreebleTexIndex[1] != -1)
+								context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[1]]));
+						}
+						else if (bIsLightmapGreeble) {
+							// Load the lightmap greeble mask
+							if (greeble_data->GreebleLightMapMaskIndex != -1) {
+								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapMaskIndex]));
+								HasGreebleMask = 1;
+							}
+							
+							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleLightMapMix[0];
+							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleLightMapMix[1];
+
+							g_PSCBuffer.GreebleDist1 = greeble_data->GreebleLightMapDist[0];
+							g_PSCBuffer.GreebleDist2 = greeble_data->GreebleLightMapDist[1];
+
+							g_PSCBuffer.GreebleScale1 = greeble_data->GreebleLightMapScale[0];
+							g_PSCBuffer.GreebleScale2 = greeble_data->GreebleLightMapScale[1];
+
+							uint32_t blendMask1 = greeble_data->GreebleLightMapIndex[0] != -1 ? greeble_data->greebleLightMapBlendMode[0] : 0x0;
+							uint32_t blendMask2 = greeble_data->GreebleLightMapIndex[1] != -1 ? greeble_data->greebleLightMapBlendMode[1] : 0x0;
+							g_PSCBuffer.GreebleControl = (HasGreebleMask << 8) | (blendMask2 << 3) | blendMask1;
+
+							// ... or load lightmap greebles
+							if (greeble_data->GreebleLightMapIndex[0] != -1)
+								context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[0]]));
+							if (greeble_data->GreebleLightMapIndex[1] != -1)
+								context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[1]]));
+						}
+					}
 				}
 
 				// Animated Light Maps/Textures
-				if (bHasMaterial && lastTextureSelected->GreebleTexIdx == -1) {
+				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx == -1) {
 					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
 						(!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
 					{

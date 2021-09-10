@@ -752,7 +752,7 @@ void PrintGreebleData(GreebleData *greeble_data) {
 		greeble_data->GreebleMaskName, greeble_data->GreebleMaskIndex);
 	log_debug("[DBG] [GRB] Greeble Dist 1: %0.0f, Dist 2: %0.0f, Blend Mode 1: %d, Blend Mode 2: %d",
 		greeble_data->GreebleDist[0], greeble_data->GreebleDist[1],
-		greeble_data->GreebleBlendMode[0], greeble_data->GreebleBlendMode[1]);
+		greeble_data->greebleBlendMode[0], greeble_data->greebleBlendMode[1]);
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial) {
@@ -982,23 +982,49 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		strcpy_s(greeble_data->GreebleTexName[1], MAX_GREEBLE_NAME, svalue);
 		PrintGreebleData(greeble_data);
 	}
+	else if (_stricmp(param, "GreebleLightMap1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		log_debug("[DBG] [GRB] Loading Lightmap Greeble 1 Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleLightMapName[0], MAX_GREEBLE_NAME, svalue);
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleLightMap2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		log_debug("[DBG] [GRB] Loading Lightmap Greeble 2 Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleLightMapName[1], MAX_GREEBLE_NAME, svalue);
+		PrintGreebleData(greeble_data);
+	}
+
 	else if (_stricmp(param, "GreebleMask") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		log_debug("[DBG] [GRB] Loading Greeble Mask Information from %s", svalue);
 		strcpy_s(greeble_data->GreebleMaskName, MAX_GREEBLE_NAME, svalue);
 		PrintGreebleData(greeble_data);
 	}
-	else if (_stricmp(param, "GreebleBlendMode1") == 0) {
+	else if (_stricmp(param, "GreebleLightMapMask") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->GreebleBlendMode[0] = (GreebleBlendMode)((int)fValue);
-		//PrintGreebleData(greeble_data);
-	}
-	else if (_stricmp(param, "GreebleBlendMode2") == 0) {
-		log_debug("[DBG] [GRB] Loading Blend Mode 2: %0.0f", fValue);
-		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->GreebleBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		log_debug("[DBG] [GRB] Loading Greeble LightMap Mask Information from %s", svalue);
+		strcpy_s(greeble_data->GreebleLightMapMaskName, MAX_GREEBLE_NAME, svalue);
 		PrintGreebleData(greeble_data);
 	}
+
+	else if (_stricmp(param, "GreebleBlendMode1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->greebleBlendMode[0] = (GreebleBlendMode)((int)fValue);
+	}
+	else if (_stricmp(param, "GreebleBlendMode2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->greebleBlendMode[1] = (GreebleBlendMode)((int)fValue);
+	}
+	else if (_stricmp(param, "GreebleLightMapBlendMode1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->greebleLightMapBlendMode[0] = (GreebleBlendMode)((int)fValue);
+	}
+	else if (_stricmp(param, "GreebleLightMapBlendMode2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->greebleLightMapBlendMode[1] = (GreebleBlendMode)((int)fValue);
+	}
+
 	else if (_stricmp(param, "GreebleDistance1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		greeble_data->GreebleDist[0] = fValue;
@@ -1009,6 +1035,17 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		greeble_data->GreebleDist[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
+	else if (_stricmp(param, "GreebleLightMapDistance1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapDist[0] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleLightMapDistance2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapDist[1] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+
 	else if (_stricmp(param, "GreebleMix1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		greeble_data->GreebleMix[0] = fValue;
@@ -1019,6 +1056,17 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		greeble_data->GreebleMix[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
+	else if (_stricmp(param, "GreebleLightMapMix1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapMix[0] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleLightMapMix2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapMix[1] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+
 	else if (_stricmp(param, "GreebleScale1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		greeble_data->GreebleScale[0] = fValue;
@@ -1027,6 +1075,16 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 	else if (_stricmp(param, "GreebleScale2") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		greeble_data->GreebleScale[1] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleLightMapScale1") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapScale[0] = fValue;
+		PrintGreebleData(greeble_data);
+	}
+	else if (_stricmp(param, "GreebleLightMapScale2") == 0) {
+		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
+		greeble_data->GreebleLightMapScale[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
 	

@@ -11,10 +11,9 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint GreebleControl;		// Bitmask: 0x100 -- Use Greeble Mask
-								// 0x003 First Tex Blend Mode
-								// 0x00C Second Tex Blend Mode
-								// 0x001: Multiply
-								// 0x002: Overlay
+								// 0x007 First Tex Blend Mode
+								// 0x038 Second Tex Blend Mode
+								// 0x001: Multiply, 0x002: Overlay, 0x003: Screen, 0x004: Replace
 	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect

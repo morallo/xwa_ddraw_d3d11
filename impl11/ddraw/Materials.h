@@ -16,7 +16,9 @@ constexpr auto MAX_GREEBLE_LEVELS = 2;
 
 typedef enum GreebleBlendModeEnum {
 	GBM_MULTIPLY = 1,
-	GBM_OVERLAY
+	GBM_OVERLAY,
+	GBM_SCREEN,
+	GBM_REPLACE
 } GreebleBlendMode;
 
 /*
@@ -226,26 +228,50 @@ typedef struct AnimatedTexControlStruct {
 typedef struct GreebleDataStruct {
 	// Holds the DAT filename where the greeble data is stored.
 	char GreebleMaskName[MAX_GREEBLE_NAME];
+	char GreebleLightMapMaskName[MAX_GREEBLE_NAME];
+	
 	char GreebleTexName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
+	char GreebleLightMapName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
 	// The following (GreebleMask and GreebleTexIndex) are indices into resources->_extraTextures
 	// If greeble mask and greeble textures are loaded, these indices will be greater than -1
 	int GreebleMaskIndex;
+	int GreebleLightMapMaskIndex;
+
 	int GreebleTexIndex[MAX_GREEBLE_LEVELS];
+	int GreebleLightMapIndex[MAX_GREEBLE_LEVELS];
+	
 	float GreebleDist[MAX_GREEBLE_LEVELS];
-	GreebleBlendMode GreebleBlendMode[2];
+	float GreebleLightMapDist[MAX_GREEBLE_LEVELS];
+	
+	GreebleBlendMode greebleBlendMode[MAX_GREEBLE_LEVELS];
+	GreebleBlendMode greebleLightMapBlendMode[MAX_GREEBLE_LEVELS];
+	
 	float GreebleMix[MAX_GREEBLE_LEVELS];
+	float GreebleLightMapMix[MAX_GREEBLE_LEVELS];
+	
 	float GreebleScale[MAX_GREEBLE_LEVELS];
+	float GreebleLightMapScale[MAX_GREEBLE_LEVELS];
 
 	GreebleDataStruct() {
 		GreebleMaskName[0] = 0;
 		GreebleMaskIndex = -1;
+		
+		GreebleLightMapMaskName[0] = 0;
+		GreebleLightMapMaskIndex = -1;
+
 		for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
 			GreebleTexName[i][0] = 0;
 			GreebleTexIndex[i] = -1;
+			GreebleLightMapName[i][0] = 0;
+			GreebleLightMapIndex[i] = -1;
 			GreebleDist[i] = 500.0f / (i + 1.0f);
-			GreebleBlendMode[i] = GBM_MULTIPLY;
+			GreebleLightMapDist[i] = 500.0f / (i + 1.0f);
+			greebleBlendMode[i] = GBM_MULTIPLY;
+			greebleLightMapBlendMode[i] = GBM_SCREEN;
 			GreebleMix[i] = 0.9f;
+			GreebleLightMapMix[i] = 0.9f;
 			GreebleScale[i] = 1.0f;
+			GreebleLightMapScale[i] = 1.0f;
 		}
 	}
 } GreebleData;
