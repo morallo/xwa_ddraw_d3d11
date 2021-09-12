@@ -489,7 +489,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	DumpGlobalLights();
 			//	return 0;
 			case 'G':
-				g_bDumpLaserPointerDebugInfo = true;
+				//g_bDumpLaserPointerDebugInfo = true;
+				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
 				return 0;
 				// DEBUG
 			case 'P':

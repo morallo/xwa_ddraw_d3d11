@@ -18,7 +18,8 @@ typedef enum GreebleBlendModeEnum {
 	GBM_MULTIPLY = 1,
 	GBM_OVERLAY,
 	GBM_SCREEN,
-	GBM_REPLACE
+	GBM_REPLACE,
+	GBM_NORMAL_MAP
 } GreebleBlendMode;
 
 /*

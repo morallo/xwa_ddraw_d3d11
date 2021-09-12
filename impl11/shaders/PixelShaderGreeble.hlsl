@@ -4,6 +4,7 @@
 #include "HSV.h"
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
+#include "ShaderToyDefs.h"
 
 Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
@@ -28,6 +29,8 @@ SamplerState greebleSamp2 : register(s11);
 // Y+: Up
 // Z+: Away from the camera
 // (0,0,0) is the camera center, (0,0,Z) is the center of the screen
+// The Normal buffer is different:
+// Z+ points towards the camera.
 
 struct PixelShaderInput
 {
@@ -56,6 +59,67 @@ inline float4 overlay(float4 a, float4 b)
 inline float4 screen(float4 a, float4 b)
 {
 	return 1.0 - (1.0 - a) * (1.0 - b);
+}
+
+// From: http://www.thetenthplanet.de/archives/1180
+mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv) {
+	/*
+	I made a little mess when building the normal and depth buffers.
+
+	The depth buffer's coord sys looks like this:
+		X+: Right
+		Y+: Up
+		Z+: Away from the camera
+
+	But the normal buffer looks like this:
+		X+: Right
+		Y+: Up
+		Z+: Pointing directly into the camera
+
+	These systems are inconsistent: the Z coordinate is flipped between these two systems. According
+	to the structure of the depth buffer, Z+ should point away from the camera, but in the normal buffer Z+
+	points into the camera.
+
+	I did this on purpose, I flipped the Z coordinate of the normals so that blue meant the surface was pointing
+	into the camera (I also flipped the Y coordinate, but that's irrelevant because Y is consistent with the
+	depth buffer). This made it easier to debug the normal buffer because it looks exactly like a regular normal
+	map.
+
+	Now, as a consequence, I have to flip the Z coordinate of the normals in the computations below, so that they
+	are consistent with the depth buffer and the 3D position (p). Then at the end of all the math, I have to flip
+	Z again so that it's consistent with the rest of the code that expects Z+ to point into the camera. Z is
+	flipped again at the end of perturb_normal().
+	*/
+	N.z = -N.z;
+	// get edge vectors of the pixel triangle
+	vec3 dp1 = ddx(p);
+	vec3 dp2 = ddy(p);
+	vec2 duv1 = ddx(uv);
+	vec2 duv2 = ddy(uv);
+
+	// solve the linear system
+	vec3 dp2perp = cross(dp2, N);
+	vec3 dp1perp = cross(N, dp1);
+	vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+	vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+	// construct a scale-invariant frame
+	float invmax = rsqrt(max(dot(T, T), dot(B, B)));
+	return mat3(T * invmax, B * invmax, N);
+}
+
+vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord, vec3 NMCol) {
+	// N: the interpolated vertex normal and
+	// V: the view vector (vertex to eye)
+	// NMCol: the raw sampled color from the blue-ish normal map.
+	NMCol.rgb = normalize((NMCol.rgb - 0.5) * 2.0);
+	mat3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
+	//return normalize(mul(NMCol, TBN));
+	// We flip the Z coordinate for... reasons. See cotangent_frame() for the explanation.
+	// I _think_ mul(vec3, mat3) is the right order because of the way the matrix was built.
+	vec3 tempN = normalize(mul(NMCol, TBN));
+	tempN.z = -tempN.z;
+	return tempN;
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -140,7 +204,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// GBM_MULTIPLY = 1,
 	// GBM_OVERLAY = 2,
 	// GBM_SCREEN = 3,
-	// GBM_REPLACE = 4
+	// GBM_REPLACE = 4,
+	// GBM_NORMAL_MAP = 5
 	*/
 
 	uint BlendingMode1 = GreebleControl & 0x7;
@@ -177,6 +242,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		// For the replace mode, we ignore greeble1.a because we want to replace the original texture everywhere,
 		// including the transparent areas
 		greebleMixCol = lerp(output.color, greeble1, GreebleMix1 * mask);
+	else if (BlendingMode1 == 5) {
+		output.normal.xyz = lerp(output.normal.xyz,
+			perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble1.rgb),
+			GreebleMix1 * greeble1.a * mask);
+		greebleMixCol = output.color;
+	}
 	// Mix the greeble color depending on the current depth
 	output.color = lerp(greebleMixCol, output.color, saturate(P.z / GreebleDist1));
 
@@ -195,6 +266,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			// For the replace mode, we ignore greeble2.a because we want to replace the original texture everywhere,
 			// including the transparent areas
 			greebleMixCol = lerp(output.color, greeble2, GreebleMix2 * mask);
+		else if (BlendingMode2 == 5) {
+			output.normal.xyz = lerp(output.normal.xyz,
+				perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble2.rgb),
+				GreebleMix2 * greeble2.a * mask);
+			greebleMixCol = output.color;
+		}
 		// Mix the greeble color depending on the current depth
 		output.color = lerp(greebleMixCol, output.color, saturate(P.z / GreebleDist2));
 	}

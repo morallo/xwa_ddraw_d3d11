@@ -536,6 +536,7 @@ bool g_bStart3DCapture = false, g_bDo3DCapture = false, g_bSkipTexturelessGUI = 
 bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
+bool g_bAutoGreeblesEnabled = true;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -5129,7 +5130,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Greebles
 				//if (bHasMaterial && !lastTextureSelected->is_LightTexture && lastTextureSelected->material.GreebleDataIdx != -1)
-				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx != -1)
+				if (g_bAutoGreeblesEnabled && bHasMaterial && lastTextureSelected->material.GreebleDataIdx != -1)
 				{
 					Material *material = &(lastTextureSelected->material);
 					GreebleData *greeble_data = &(g_GreebleData[material->GreebleDataIdx]);
@@ -5141,8 +5142,6 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedShaders = true;
 						bModifiedPixelShader = true;
 
-						//if (bIsLightmapGreeble)
-						//	g_PSCBuffer.bIsLightTexture = true;
 						resources->InitPixelShader(resources->_pixelShaderGreeble);
 
 						if (bIsRegularGreeble) {
