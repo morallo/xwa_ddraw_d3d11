@@ -5162,7 +5162,7 @@ HRESULT Direct3DDevice::Execute(
 
 							uint32_t blendMask1 = greeble_data->GreebleTexIndex[0] != -1 ? greeble_data->greebleBlendMode[0] : 0x0;
 							uint32_t blendMask2 = greeble_data->GreebleTexIndex[1] != -1 ? greeble_data->greebleBlendMode[1] : 0x0;
-							g_PSCBuffer.GreebleControl = (HasGreebleMask << 8) | (blendMask2 << 3) | blendMask1;
+							g_PSCBuffer.GreebleControl = (HasGreebleMask << 9) | (blendMask2 << 3) | blendMask1;
 
 							// Load regular greebles...
 							if (greeble_data->GreebleTexIndex[0] != -1)

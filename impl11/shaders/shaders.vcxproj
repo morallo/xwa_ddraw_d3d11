@@ -444,6 +444,7 @@
     <ClInclude Include="HSV.h" />
     <ClInclude Include="material_defs.h" />
     <ClInclude Include="metric_common.h" />
+    <ClInclude Include="NormalMapping.h" />
     <ClInclude Include="PixelShaderTextureCommon.h" />
     <ClInclude Include="ShadertoyCBuffer.h" />
     <ClInclude Include="ShaderToyDefs.h" />
