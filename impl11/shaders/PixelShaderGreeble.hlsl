@@ -143,16 +143,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 
 	/*
-	uint GreebleControl;		// Bitmask: 0x100 -- Use Greeble Mask
-								// 0x003 First Tex Blend Mode
-								// 0x00C Second Tex Blend Mode
-								// 0x001: Multiply
-								// 0x002: Overlay
-	// GBM_MULTIPLY = 1,
-	// GBM_OVERLAY = 2,
-	// GBM_SCREEN = 3,
-	// GBM_REPLACE = 4,
-	// GBM_NORMAL_MAP = 5
+	uint GreebleControl;	// Bitmask: 0x200 -- Use Greeble Mask
+							//			0x400 -- Use Normal Map
+							// 0x007 First Tex Blend Mode
+							// 0x038 Second Tex Blend Mode
+							// 0x1C0 Third Tex Blend Mode
+							// 0x001: Multiply, 0x002: Overlay, 0x003: Screen, 0x004: Replace, 0x005: Normal Map
+		GBM_MULTIPLY = 1,
+		GBM_OVERLAY = 2,
+		GBM_SCREEN = 3,
+		GBM_REPLACE = 4,
+		GBM_NORMAL_MAP = 5
 	*/
 
 	uint BlendingMode1 = GreebleControl & 0x7;
@@ -170,18 +171,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		mask = maskCol.a * dot(0.333, maskCol.rgb);
 	}
 
-	// Sample the greeble textures. If this shader is called, it should at least have one
-	// greeble texture activated.
-	float4 greeble1 = greebleTex1.Sample(greebleSamp1, frac(GreebleScale1 * input.tex));
-	float4 greeble2 = 0.0;
+	float4 greeble1 = 0.0, greeble2 = 0.0;
 	float4 greebleMixCol = 0.0;
-	// Convert grayscale into transparency for lightmaps
-	if (bIsLightTexture) greeble1.a *= dot(0.333, greeble1.rgb);
 	const float2 distBlendFactors = saturate(P.zz / float2(GreebleDist1, GreebleDist2));
 
-	// Mix the greeble with the current texture, use either the overlay or multiply blending modes
-	//greeble1 = float4(1, 0, 0, 1);
 	if (BlendingMode1 != 0 && distBlendFactors.x <= 1.0) {
+		greeble1 = greebleTex1.Sample(greebleSamp1, frac(GreebleScale1 * input.tex));
+		// Convert grayscale into transparency for lightmaps
+		if (bIsLightTexture) greeble1.a *= dot(0.333, greeble1.rgb);
+
 		if (BlendingMode1 == 1)
 			greebleMixCol = lerp(output.color, output.color * greeble1, GreebleMix1 * greeble1.a * mask);
 		else if (BlendingMode1 == 2)
@@ -206,7 +204,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		greeble2 = greebleTex2.Sample(greebleSamp2, frac(GreebleScale2 * input.tex));
 		// Convert grayscale into transparency for lightmaps
 		if (bIsLightTexture) greeble2.a *= dot(0.333, greeble2.rgb);
-		//greeble2 = float4(0, 1, 0, 1);
+
 		if (BlendingMode2 == 1)
 			greebleMixCol = lerp(output.color, output.color * greeble2, GreebleMix2 * greeble2.a * mask);
 		else if (BlendingMode2 == 2)
@@ -232,10 +230,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.normal.a = 0;
 		//output.ssaoMask.r = SHADELESS_MAT;
 		output.ssMask = 0; // Normal Mapping intensity --> 0
-		//output.pos3D = 0;
-		//output.normal = 0;
-		//output.diffuse = 0;
-		//float3 color = texelColor.rgb;
 		float3 color = output.color.rgb; // <-- This makes this section different from the lightmap shader in PixelShaderTexture
 		alpha = output.color.a;
 		// This is a light texture, process the bloom mask accordingly
