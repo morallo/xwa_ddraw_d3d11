@@ -461,7 +461,7 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	}
 }
 
-int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId)
+int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width, short *Height)
 {
 	auto &resources = this->_deviceResources;
 	ID3D11ShaderResourceView *texSRV = nullptr;
@@ -479,7 +479,7 @@ int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId)
 	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
 
 	// Load the greeble texture
-	res = LoadDATImage(GreebleDATGroupIdImageId, GroupId, ImageId, &texSRV);
+	res = LoadDATImage(GreebleDATGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
 	if (FAILED(res)) {
 		log_debug("[DBG] Could not load greeble");
 		return -1;
@@ -550,7 +550,8 @@ out:
 	return texture2DSRV;
 }
 
-HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
+HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
+	short *Width_out, short *Height_out)
 {
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
@@ -574,6 +575,9 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 		log_debug("[DBG] [C++] DAT Image not found");
 		return res;
 	}
+
+	if (Width_out != nullptr) *Width_out = Width;
+	if (Height_out != nullptr) *Height_out = Height;
 
 	buf_len = Width * Height * 4;
 	buf = new uint8_t[buf_len];
@@ -1152,6 +1156,7 @@ void Direct3DTexture::TagTexture() {
 				// Load the Greeble Textures here...
 				if (this->material.GreebleDataIdx != -1) {
 					GreebleData *greeble_data = &(g_GreebleData[this->material.GreebleDataIdx]);
+					short Width, Height;
 					//log_debug("[DBG] [GRB] This material has GreebleData at index: %d", this->material.GreebleDataIdx);
 					//log_debug("[DBG] [GRB] GreebleTexIndex[0]: %d, GreebleTexIndex[1]: %d",
 					//	greeble_data->GreebleTexIndex[0], greeble_data->GreebleTexIndex[1]);
@@ -1161,17 +1166,35 @@ void Direct3DTexture::TagTexture() {
 						if (greeble_data->GreebleTexIndex[i] == -1) {
 							// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
 							// textures if we find we've already loaded them before...
-							greeble_data->GreebleTexIndex[i] = LoadGreebleTexture(greeble_data->GreebleTexName[i]);
-							if (greeble_data->GreebleTexIndex[i] != -1)
+							greeble_data->GreebleTexIndex[i] = LoadGreebleTexture(greeble_data->GreebleTexName[i], &Width, &Height);
+							if (greeble_data->GreebleTexIndex[i] != -1) {
+								if (greeble_data->greebleBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									log_debug("[DBG] [GRB] UVDispMapResolution: %0.0f, %0.0f",
+										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
 								log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
+							}
 						}
 						// Load Lightmap Greebles
 						if (greeble_data->GreebleLightMapIndex[i] == -1) {
 							// TODO: Optimization opportunity: search all the lightmap texture names in g_GreebleData and avoid loading
 							// textures if we find we've already loaded them before...
-							greeble_data->GreebleLightMapIndex[i] = LoadGreebleTexture(greeble_data->GreebleLightMapName[i]);
-							if (greeble_data->GreebleLightMapIndex[i] != -1)
+							greeble_data->GreebleLightMapIndex[i] = LoadGreebleTexture(greeble_data->GreebleLightMapName[i], &Width, &Height);
+							if (greeble_data->GreebleLightMapIndex[i] != -1) {
+								if (greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									// TODO: Only one (1) UVDispMap is currently supported for regular and lightmap greebles.
+									// I may need to add support for more maps later.
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									log_debug("[DBG] [GRB] UVDispMapResolution (Lightmap): %0.0f, %0.0f",
+										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
 								log_debug("[DBG] [GRB] Loaded Lightmap Greeble Texture at index: %d", greeble_data->GreebleLightMapIndex[i]);
+							}
 						}
 					}
 

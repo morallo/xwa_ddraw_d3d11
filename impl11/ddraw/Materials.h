@@ -19,7 +19,9 @@ typedef enum GreebleBlendModeEnum {
 	GBM_OVERLAY,
 	GBM_SCREEN,
 	GBM_REPLACE,
-	GBM_NORMAL_MAP
+	GBM_NORMAL_MAP,
+	GBM_UV_DISP,
+	GBM_UV_DISP_AND_NORMAL_MAP,
 } GreebleBlendMode;
 
 /*
@@ -253,12 +255,17 @@ typedef struct GreebleDataStruct {
 	float GreebleScale[MAX_GREEBLE_LEVELS];
 	float GreebleLightMapScale[MAX_GREEBLE_LEVELS];
 
+	float2 UVDispMapResolution;
+
 	GreebleDataStruct() {
 		GreebleMaskName[0] = 0;
 		GreebleMaskIndex = -1;
 		
 		GreebleLightMapMaskName[0] = 0;
 		GreebleLightMapMaskIndex = -1;
+
+		UVDispMapResolution.x = 1.0;
+		UVDispMapResolution.y = 1.0;
 
 		for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
 			GreebleTexName[i][0] = 0;

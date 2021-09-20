@@ -12,6 +12,8 @@ For ViewVector use -Pos3D, this vector doesn't need to be normalized
 */
 
 
+// p: the 3D position of the current pixel, you can use -V since it's the same, with V
+// being the view vector (vertex to eye)
 float3x3 cotangent_frame(float3 N, float3 p, float2 uv)
 {
 	/*
@@ -68,6 +70,23 @@ float3 perturb_normal(float3 N, float3 V, float2 texcoord, float3 NMCol)
 	NMCol.rgb = (NMCol.rgb - 0.5) * 2.0;
 
 	float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
+	//return normalize(mul(NMCol, TBN));
+	// We flip the Z coordinate for... reasons. See cotangent_frame() for the explanation.
+	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.
+	float3 tempN = normalize(mul(NMCol, TBN));
+	tempN.z = -tempN.z;
+	return tempN;
+}
+
+// Simplified version of the above, supply the TBN matrix computed with cotangent_frame to this function.
+float3 perturb_normal(float3x3 TBN, float3 N, float3 NMCol)
+{
+	// N: the interpolated vertex normal and
+	// NMCol: the raw sampled color from the blue-ish normal map.
+	//NMCol.rgb = normalize((NMCol.rgb - 0.5) * 2.0); // Looks like we don't actually need to normalize this
+	NMCol.rgb = (NMCol.rgb - 0.5) * 2.0;
+
+	//float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
 	//return normalize(mul(NMCol, TBN));
 	// We flip the Z coordinate for... reasons. See cotangent_frame() for the explanation.
 	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.

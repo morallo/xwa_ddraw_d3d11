@@ -176,11 +176,12 @@ public:
 
 	void LoadAnimatedTextures(int ATCIndex);
 
-	int LoadGreebleTexture(char *GreebleDATGroupIdImageId);
+	int LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width=nullptr, short *Height=nullptr);
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 
-	HRESULT LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
+	HRESULT LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
+		short *Width_out=nullptr, short *Height_out=nullptr);
 	
 	STDMETHOD(Load)(THIS_ LPDIRECT3DTEXTURE);
 	

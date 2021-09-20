@@ -77,6 +77,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float3x3 TBN;
 	// Zero-out the bloom mask.
 	output.bloom = 0;
 	output.color = texelColor;
@@ -128,7 +129,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Never call this shader for lasers
 	//if (bIsLaser) {
 	
-	
 
 	// Enhance the engine glow.
 	// Never call this shader for engine glow
@@ -153,15 +153,22 @@ PixelShaderOutput main(PixelShaderInput input)
 		GBM_OVERLAY = 2,
 		GBM_SCREEN = 3,
 		GBM_REPLACE = 4,
-		GBM_NORMAL_MAP = 5
+		GBM_NORMAL_MAP = 5,
+		GBM_UV_DISP = 6,
+		GBM_UV_DISP_AND_NORMAL_MAP = 7
 	*/
 
-	uint BlendingMode1 = GreebleControl & 0x7;
-	uint BlendingMode2 = (GreebleControl >> 3) & 0x7;
-	bool bHasMask = (GreebleControl & 0x200) != 0x0;
-	//bool bHasNormalMap = (GreebleControl & 0x400) != 0x0;
+	uint BlendingMode1 = GreebleControl & 0xF;
+	uint BlendingMode2 = (GreebleControl >> 4) & 0xF;
+	//uint BlendingMode3 = (GreebleControl >> 8) & 0xF;
+	bool bHasMask = (GreebleControl & 0x10000) != 0x0;
+	bool bUsesNormalMap = (GreebleControl & 0x20000) != 0x0;
 	float4 maskCol = 1.0;
 	float mask = 1.0;
+
+	// Compute the TBN matrix if any of our blending modes require normal mapping
+	if (bUsesNormalMap)
+		TBN = cotangent_frame(output.normal.xyz, P, input.tex);
 
 	// Sample the mask, we should use the UVs of the original texture. The mask should be defined
 	// with respect to the original texture. The mask is expected to be a grayscale image, but we
@@ -192,9 +199,25 @@ PixelShaderOutput main(PixelShaderInput input)
 			greebleMixCol = lerp(output.color, greeble1, GreebleMix1 * mask);
 		else if (BlendingMode1 == 5) {
 			output.normal.xyz = lerp(output.normal.xyz,
-				perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble1.rgb),
+				//perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble1.rgb),
+				perturb_normal(TBN, output.normal.xyz, greeble1.rgb),
 				GreebleMix1 * greeble1.a * mask);
 			greebleMixCol = output.color;
+		}
+		else if (BlendingMode1 == 6) {
+			// UV displacement
+			float2 UVDisp = ((greeble1.xy - 0.5) * 2.0) / UVDispMapResolution;
+			greebleMixCol = texture0.Sample(sampler0, frac(input.tex + UVDisp * GreebleMix1 * greeble1.a * mask));
+		}
+		else if (BlendingMode1 == 7) {
+			// UV displacement
+			float2 UVDisp = ((greeble1.xy - 0.5) * 2.0) / UVDispMapResolution;
+			greebleMixCol = texture0.Sample(sampler0, frac(input.tex + UVDisp * (2.0*GreebleMix1) * greeble1.a * mask));
+			// Normal Mapping
+			output.normal.xyz = lerp(output.normal.xyz,
+				//perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble1.rgb),
+				perturb_normal(TBN, output.normal.xyz, greeble1.rgb),
+				GreebleMix1 * greeble1.a * mask);
 		}
 		// Mix the greeble color depending on the current depth
 		output.color = lerp(greebleMixCol, output.color, distBlendFactors.x);
@@ -217,7 +240,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			greebleMixCol = lerp(output.color, greeble2, GreebleMix2 * mask);
 		else if (BlendingMode2 == 5) {
 			output.normal.xyz = lerp(output.normal.xyz,
-				perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble2.rgb),
+				//perturb_normal(output.normal.xyz, /* g_viewvector */ -P, input.tex, greeble2.rgb),
+				perturb_normal(TBN, output.normal.xyz, greeble2.rgb),
 				GreebleMix2 * greeble2.a * mask);
 			greebleMixCol = output.color;
 		}

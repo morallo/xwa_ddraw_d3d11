@@ -249,7 +249,7 @@ typedef struct PixelShaderCBStruct {
 	// 128 bytes
 
 	float GreebleMix1, GreebleMix2;
-	float ps_unused0, ps_unused1;
+	float2 UVDispMapResolution;
 	// 144 bytes
 } PixelShaderCBuffer;
 
