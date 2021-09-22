@@ -144,6 +144,13 @@ bool LoadReticleTXTFile(char* sFileName) {
 				strcpy_s(g_sLaserLockedReticleResName, 80, ResName);
 				log_debug("[DBG] [RET] Laser Highlight Reticle Center: %s", ResName);
 			}
+			else if (_stricmp(param, "Reticle_7") == 0) { // Warhead reticle
+				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomReticleCenter_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom Warhead Reticle Center: %s Added", ResName);
+			}
 			// Warning Lights are indices 15,16,17,18 for the regular reticle and
 			// indices 19,20,21,22 for the warhead reticle
 			// Left-Left Warning Lights

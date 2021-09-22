@@ -934,7 +934,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pSharedData->pSharedData->POVOffsetX = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetY = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetZ = 0.0f;
-					SavePOVOffsetToIniFile();;
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			}
