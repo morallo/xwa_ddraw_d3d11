@@ -66,8 +66,27 @@ std::vector<CraftMaterials> g_Materials;
 std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
+
+char *g_sGreebleBlendModes[GBM_MAX_MODES - 1] = {
+	"MULTIPLY",					// Mode 1, the ordering must match GreebleBlendMode
+	"OVERLAY",					// 2
+	"SCREEN",					// 3
+	"REPLACE",					// 4
+	"NORMAL_MAP",				// 5
+	"UV_DISP",					// 6
+	"UV_DISP_AND_NORMAL_MAP",	// 7
+};
 // Global Greeble Data (mask, textures, blending modes)
 std::vector<GreebleData> g_GreebleData;
+
+// Looks for sBlendMode in g_sGreebleBlendModes. Returns the corresponding
+// GreebleBlendMode if found, or 0 if not.
+int GreebleBlendModeToEnum(char *sBlendMode) {
+	for (int i = 0; i < GBM_MAX_MODES - 1; i++)
+		if (_stricmp(sBlendMode, g_sGreebleBlendModes[i]) == 0)
+			return i + 1; // Greeble blend modes are 1-based.
+	return 0;
+}
 
 /*
  * Convert an OPT name into a MAT params file of the form:
@@ -748,8 +767,6 @@ void PrintGreebleData(GreebleData *greeble_data) {
 	log_debug("[DBG] [GRB] Greeble 1: %s (%d), Greeble 2: %s (%d)",
 		greeble_data->GreebleTexName[0], greeble_data->GreebleTexIndex[0],
 		greeble_data->GreebleTexName[1], greeble_data->GreebleTexIndex[1]);
-	log_debug("[DBG] [GRB] Greeble Mask: %s (%d)",
-		greeble_data->GreebleMaskName, greeble_data->GreebleMaskIndex);
 	log_debug("[DBG] [GRB] Greeble Dist 1: %0.0f, Dist 2: %0.0f, Blend Mode 1: %d, Blend Mode 2: %d",
 		greeble_data->GreebleDist[0], greeble_data->GreebleDist[1],
 		greeble_data->greebleBlendMode[0], greeble_data->greebleBlendMode[1]);
@@ -995,34 +1012,33 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 		PrintGreebleData(greeble_data);
 	}
 
-	else if (_stricmp(param, "GreebleMask") == 0) {
-		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		log_debug("[DBG] [GRB] Loading Greeble Mask Information from %s", svalue);
-		strcpy_s(greeble_data->GreebleMaskName, MAX_GREEBLE_NAME, svalue);
-		PrintGreebleData(greeble_data);
-	}
-	else if (_stricmp(param, "GreebleLightMapMask") == 0) {
-		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		log_debug("[DBG] [GRB] Loading Greeble LightMap Mask Information from %s", svalue);
-		strcpy_s(greeble_data->GreebleLightMapMaskName, MAX_GREEBLE_NAME, svalue);
-		PrintGreebleData(greeble_data);
-	}
-
 	else if (_stricmp(param, "GreebleBlendMode1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->greebleBlendMode[0] = (GreebleBlendMode)((int)fValue);
+		if (isdigit(svalue[0]))
+			greeble_data->greebleBlendMode[0] = (GreebleBlendMode)((int)fValue);
+		else
+			greeble_data->greebleBlendMode[0] = (GreebleBlendMode)GreebleBlendModeToEnum(svalue);
 	}
 	else if (_stricmp(param, "GreebleBlendMode2") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->greebleBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		if (isdigit(svalue[0]))
+			greeble_data->greebleBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		else
+			greeble_data->greebleBlendMode[1] = (GreebleBlendMode)GreebleBlendModeToEnum(svalue);
 	}
 	else if (_stricmp(param, "GreebleLightMapBlendMode1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->greebleLightMapBlendMode[0] = (GreebleBlendMode)((int)fValue);
+		if (isdigit(svalue[0]))
+			greeble_data->greebleLightMapBlendMode[0] = (GreebleBlendMode)((int)fValue);
+		else
+			greeble_data->greebleLightMapBlendMode[0] = (GreebleBlendMode)GreebleBlendModeToEnum(svalue);
 	}
 	else if (_stricmp(param, "GreebleLightMapBlendMode2") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
-		greeble_data->greebleLightMapBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		if (isdigit(svalue[1]))
+			greeble_data->greebleLightMapBlendMode[1] = (GreebleBlendMode)((int)fValue);
+		else
+			greeble_data->greebleLightMapBlendMode[1] = (GreebleBlendMode)GreebleBlendModeToEnum(svalue);
 	}
 
 	else if (_stricmp(param, "GreebleDistance1") == 0) {

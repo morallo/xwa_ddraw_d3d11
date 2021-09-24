@@ -10,8 +10,7 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint GreebleControl;		// Bitmask: 0x1 0000 -- Use Greeble Mask
-								//			0x2 0000 -- Use Normal Map
+	uint GreebleControl;		// Bitmask: 0x1 0000 -- Use Normal Map
 								// 0x00F 1st Tex Blend Mode
 								// 0x0F0 2nd Tex Blend Mode
 								// 0xF00 3rd Tex Blend Mode

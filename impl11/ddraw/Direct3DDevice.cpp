@@ -5148,10 +5148,10 @@ HRESULT Direct3DDevice::Execute(
 
 						if (bIsRegularGreeble) {
 							// Load the greeble mask
-							if (greeble_data->GreebleMaskIndex != -1) {
+							/*if (greeble_data->GreebleMaskIndex != -1) {
 								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleMaskIndex]));
 								GreebleControlBits = 1;
-							}
+							}*/
 
 							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
 							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
@@ -5166,7 +5166,7 @@ HRESULT Direct3DDevice::Execute(
 							uint32_t blendMask2 = greeble_data->GreebleTexIndex[1] != -1 ? greeble_data->greebleBlendMode[1] : 0x0;
 							if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
 								blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
-								GreebleControlBits |= 0x2;
+								GreebleControlBits |= 0x1;
 							if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
 								blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
 								g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;
@@ -5180,10 +5180,10 @@ HRESULT Direct3DDevice::Execute(
 						}
 						else if (bIsLightmapGreeble) {
 							// Load the lightmap greeble mask
-							if (greeble_data->GreebleLightMapMaskIndex != -1) {
+							/*if (greeble_data->GreebleLightMapMaskIndex != -1) {
 								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapMaskIndex]));
 								GreebleControlBits = 1;
-							}
+							}*/
 							
 							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleLightMapMix[0];
 							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleLightMapMix[1];
@@ -5198,7 +5198,7 @@ HRESULT Direct3DDevice::Execute(
 							uint32_t blendMask2 = greeble_data->GreebleLightMapIndex[1] != -1 ? greeble_data->greebleLightMapBlendMode[1] : 0x0;
 							if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
 								blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
-								GreebleControlBits |= 0x2;
+								GreebleControlBits |= 0x1;
 							if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
 								blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
 								g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;

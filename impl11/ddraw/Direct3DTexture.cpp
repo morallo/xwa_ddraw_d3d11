@@ -1197,23 +1197,7 @@ void Direct3DTexture::TagTexture() {
 							}
 						}
 					}
-
-					// Load the Greeble Mask
-					if (greeble_data->GreebleMaskIndex == -1) {
-						// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
-						// textures if we find we've already loaded them before...
-						greeble_data->GreebleMaskIndex = LoadGreebleTexture(greeble_data->GreebleMaskName);
-						if (greeble_data->GreebleMaskIndex != -1)
-							log_debug("[DBG] [GRB] Loaded Greeble Mask at index: %d", greeble_data->GreebleMaskIndex);
-					}
-					// Load the LightMap Greeble Mask
-					if (greeble_data->GreebleLightMapMaskIndex == -1) {
-						// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
-						// textures if we find we've already loaded them before...
-						greeble_data->GreebleLightMapMaskIndex = LoadGreebleTexture(greeble_data->GreebleLightMapMaskName);
-						if (greeble_data->GreebleLightMapMaskIndex != -1)
-							log_debug("[DBG] [GRB] Loaded Greeble LightMap Mask at index: %d", greeble_data->GreebleLightMapMaskIndex);
-					}
+					
 				}
 
 				// DEBUG

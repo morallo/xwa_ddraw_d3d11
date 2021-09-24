@@ -22,7 +22,11 @@ typedef enum GreebleBlendModeEnum {
 	GBM_NORMAL_MAP,
 	GBM_UV_DISP,
 	GBM_UV_DISP_AND_NORMAL_MAP,
+	// Add more blending modes here, if you do, also update Materials.cpp:g_sGreebleBlendModes
+	GBM_MAX_MODES, // Sentinel, do not remove!
 } GreebleBlendMode;
+
+extern char *g_sGreebleBlendModes[GBM_MAX_MODES - 1];
 
 /*
 
@@ -230,16 +234,10 @@ typedef struct AnimatedTexControlStruct {
 // Used to store the information related to greebles
 typedef struct GreebleDataStruct {
 	// Holds the DAT filename where the greeble data is stored.
-	char GreebleMaskName[MAX_GREEBLE_NAME];
-	char GreebleLightMapMaskName[MAX_GREEBLE_NAME];
-	
 	char GreebleTexName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
 	char GreebleLightMapName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
-	// The following (GreebleMask and GreebleTexIndex) are indices into resources->_extraTextures
-	// If greeble mask and greeble textures are loaded, these indices will be greater than -1
-	int GreebleMaskIndex;
-	int GreebleLightMapMaskIndex;
-
+	// The following are indices into resources->_extraTextures. If greeble
+	// textures are loaded, these indices will be greater than -1
 	int GreebleTexIndex[MAX_GREEBLE_LEVELS];
 	int GreebleLightMapIndex[MAX_GREEBLE_LEVELS];
 	
@@ -258,12 +256,6 @@ typedef struct GreebleDataStruct {
 	float2 UVDispMapResolution;
 
 	GreebleDataStruct() {
-		GreebleMaskName[0] = 0;
-		GreebleMaskIndex = -1;
-		
-		GreebleLightMapMaskName[0] = 0;
-		GreebleLightMapMaskIndex = -1;
-
 		UVDispMapResolution.x = 1.0;
 		UVDispMapResolution.y = 1.0;
 
