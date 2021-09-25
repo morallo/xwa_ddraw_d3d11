@@ -266,6 +266,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 10:
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
+				case 12:
+					g_bShowBlastMarks = !g_bShowBlastMarks;
+					log_debug("[DBG] g_bShowBlastMarks: %d", g_bShowBlastMarks);
+					break;
 				}
 
 				/*

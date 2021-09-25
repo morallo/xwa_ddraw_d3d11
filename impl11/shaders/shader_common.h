@@ -44,6 +44,8 @@ LaserPointerCBuffer : register(b8)
 #define MAX_CB_POINT_LIGHTS 8
 
 // Used in the special_control CB field in the pixel shader
+// These flags are mutually-exclusive, so be careful when setting them. Only a handful are used
+// in the same shader though.
 #define SPECIAL_CONTROL_XWA_SHADOW	1
 #define SPECIAL_CONTROL_GLASS		2
 #define SPECIAL_CONTROL_BACKGROUND	3
@@ -53,6 +55,7 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_EXPLOSION	7
 #define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
+#define SPECIAL_CONTROL_BLAST_MARK 10 // Set when the current texture is a blast mark
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

@@ -537,6 +537,7 @@ bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 bool g_bAutoGreeblesEnabled = true;
+bool g_bShowBlastMarks = true;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -4447,11 +4448,26 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
-					//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
-					bModifiedShaders = true;
-					//EnableTransparency();
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+				if (bLastTextureSelectedNotNULL) {
+					if (lastTextureSelected->is_Smoke) {
+						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
+						bModifiedShaders = true;
+						//EnableTransparency();
+						g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+					}
+					else if (bIsBlastMark) {
+						// Blast Marks are rendered on top of the original texture, after greebles have been added. Greebles are
+						// rendered with PixelShaderGreeble, and then the blast mark is rendered with PixelShaderTexture on its
+						// own draw call, using textures like the following:
+						// dat, 3050, 0, 0, 0
+						// dat, 3050, 1, 0, 0
+						// dat, 3050, 3, 0, 0
+						// Now, blast marks have transparency. PixelShaderTexture renders transparency as a glass material, and
+						// we can't have that, in part because that erases the normal-mapped greebles that were rendered in a previous
+						// draw call. So, here we enable this flag so that we *don't* render blast marks as glass.
+						bModifiedShaders = true;
+						g_PSCBuffer.special_control = SPECIAL_CONTROL_BLAST_MARK;
+					}
 				}
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Spark) {
@@ -5328,6 +5344,10 @@ HRESULT Direct3DDevice::Execute(
 						if (g_PSCBuffer.DynCockpitSlots > 0)
 							resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 					}
+
+					// DEBUG: Disable blast marks!
+					//if (!g_bShowBlastMarks && bIsBlastMark)
+					//	goto out;
 
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
