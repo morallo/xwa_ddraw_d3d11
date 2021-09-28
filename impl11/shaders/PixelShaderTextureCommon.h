@@ -10,7 +10,11 @@ cbuffer ConstantBuffer : register(b0)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint ps_unused1;
+	uint GreebleControl;		// Bitmask: 0x1 0000 -- Use Normal Map
+								// 0x00F 1st Tex Blend Mode
+								// 0x0F0 2nd Tex Blend Mode
+								// 0xF00 3rd Tex Blend Mode
+								// 0x1: Multiply, 0x2: Overlay, 0x3: Screen, 0x4: Replace, 0x5: Normal Map, 0x6: UVDisp, 0x7: UVDisp+NM
 	// 32 bytes
 
 	float fBloomStrength;		// General multiplier for the bloom effect
@@ -29,8 +33,18 @@ cbuffer ConstantBuffer : register(b0)
 	// 80 bytes
 
 	float4 AuxColor;			// Used as tint for animated frames. Could also be used to apply tint to DC cover textures
+	// 96 bytes
 	float2 Offset;				// Used to offset the input UVs
 	float AspectRatio;			// Used to change the aspect ratio of the input UVs
 	uint Clamp;					// Used to clamp (saturate) the input UVs
+	// 112 bytes
+
+	float GreebleDist1, GreebleDist2;
+	float GreebleScale1, GreebleScale2;
+	// 128 bytes
+
+	float GreebleMix1, GreebleMix2;
+	float2 UVDispMapResolution;
+	// 144 bytes
 };
 

@@ -11,6 +11,22 @@ constexpr auto MAX_TEXNAME = 40;
 constexpr auto MAX_OPT_NAME = 80;
 constexpr auto MAX_TEX_SEQ_NAME = 80;
 constexpr auto MAX_CANNONS = 8;
+constexpr auto MAX_GREEBLE_NAME = 80;
+constexpr auto MAX_GREEBLE_LEVELS = 2;
+
+typedef enum GreebleBlendModeEnum {
+	GBM_MULTIPLY = 1,
+	GBM_OVERLAY,
+	GBM_SCREEN,
+	GBM_REPLACE,
+	GBM_NORMAL_MAP,
+	GBM_UV_DISP,
+	GBM_UV_DISP_AND_NORMAL_MAP,
+	// Add more blending modes here, if you do, also update Materials.cpp:g_sGreebleBlendModes
+	GBM_MAX_MODES, // Sentinel, do not remove!
+} GreebleBlendMode;
+
+extern char *g_sGreebleBlendModes[GBM_MAX_MODES - 1];
 
 /*
 
@@ -215,6 +231,51 @@ typedef struct AnimatedTexControlStruct {
 	void Animate();
 } AnimatedTexControl;
 
+// Used to store the information related to greebles
+typedef struct GreebleDataStruct {
+	// Holds the DAT filename where the greeble data is stored.
+	char GreebleTexName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
+	char GreebleLightMapName[MAX_GREEBLE_LEVELS][MAX_GREEBLE_NAME];
+	// The following are indices into resources->_extraTextures. If greeble
+	// textures are loaded, these indices will be greater than -1
+	int GreebleTexIndex[MAX_GREEBLE_LEVELS];
+	int GreebleLightMapIndex[MAX_GREEBLE_LEVELS];
+	
+	float GreebleDist[MAX_GREEBLE_LEVELS];
+	float GreebleLightMapDist[MAX_GREEBLE_LEVELS];
+	
+	GreebleBlendMode greebleBlendMode[MAX_GREEBLE_LEVELS];
+	GreebleBlendMode greebleLightMapBlendMode[MAX_GREEBLE_LEVELS];
+	
+	float GreebleMix[MAX_GREEBLE_LEVELS];
+	float GreebleLightMapMix[MAX_GREEBLE_LEVELS];
+	
+	float GreebleScale[MAX_GREEBLE_LEVELS];
+	float GreebleLightMapScale[MAX_GREEBLE_LEVELS];
+
+	float2 UVDispMapResolution;
+
+	GreebleDataStruct() {
+		UVDispMapResolution.x = 1.0;
+		UVDispMapResolution.y = 1.0;
+
+		for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
+			GreebleTexName[i][0] = 0;
+			GreebleTexIndex[i] = -1;
+			GreebleLightMapName[i][0] = 0;
+			GreebleLightMapIndex[i] = -1;
+			GreebleDist[i] = 500.0f / (i + 1.0f);
+			GreebleLightMapDist[i] = 500.0f / (i + 1.0f);
+			greebleBlendMode[i] = GBM_MULTIPLY;
+			greebleLightMapBlendMode[i] = GBM_SCREEN;
+			GreebleMix[i] = 0.9f;
+			GreebleLightMapMix[i] = 0.9f;
+			GreebleScale[i] = 1.0f;
+			GreebleLightMapScale[i] = 1.0f;
+		}
+	}
+} GreebleData;
+
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
@@ -249,6 +310,9 @@ typedef struct MaterialStruct {
 	int ImageId;
 
 	int TextureATCIndices[2][MAX_GAME_EVT];
+
+	//GreebleData GreebleData;
+	int GreebleDataIdx;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -312,6 +376,7 @@ typedef struct MaterialStruct {
 			for (int i = 0; i < MAX_GAME_EVT; i++)
 				TextureATCIndices[j][i] = -1;
 
+		GreebleDataIdx = -1;
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -507,6 +572,8 @@ extern std::vector<CraftMaterials> g_Materials;
 extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
+// Global Greeble Data (mask, textures, blending modes)
+extern std::vector<GreebleData> g_GreebleData;
 
 extern bool g_bReloadMaterialsEnabled;
 extern Material g_DefaultGlobalMaterial;

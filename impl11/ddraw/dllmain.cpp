@@ -266,6 +266,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 10:
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
+				case 12:
+					g_bShowBlastMarks = !g_bShowBlastMarks;
+					log_debug("[DBG] g_bShowBlastMarks: %d", g_bShowBlastMarks);
+					break;
 				}
 
 				/*
@@ -489,7 +493,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	DumpGlobalLights();
 			//	return 0;
 			case 'G':
-				g_bDumpLaserPointerDebugInfo = true;
+				//g_bDumpLaserPointerDebugInfo = true;
+				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
 				return 0;
 				// DEBUG
 			case 'P':
@@ -933,7 +938,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_pSharedData->pSharedData->POVOffsetX = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetY = 0.0f;
 					g_pSharedData->pSharedData->POVOffsetZ = 0.0f;
-					SavePOVOffsetToIniFile();;
+					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			}

@@ -245,6 +245,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
 	this->material.Intensity  = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
+
+	this->GreebleTexIdx = -1;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -459,6 +461,36 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	}
 }
 
+int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width, short *Height)
+{
+	auto &resources = this->_deviceResources;
+	ID3D11ShaderResourceView *texSRV = nullptr;
+	int GroupId = -1, ImageId = -1;
+	HRESULT res = S_OK;
+	char *substr = stristr(GreebleDATGroupIdImageId, ".dat");
+	if (substr == NULL) return -1;
+	// Skip the ".dat" token and terminate the string
+	substr += 4;
+	*substr = 0;
+	// Advance to the next substring, we should now have a string of the form
+	// <GroupId>-<ImageId>
+	substr++;
+	log_debug("[DBG] Loading GreebleTex: %s, GroupId-ImageId: %s", GreebleDATGroupIdImageId, substr);
+	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
+
+	// Load the greeble texture
+	res = LoadDATImage(GreebleDATGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
+	if (FAILED(res)) {
+		log_debug("[DBG] Could not load greeble");
+		return -1;
+	}
+	resources->_extraTextures.push_back(texSRV);
+	// Link the new texture as a greeble of the current texture
+	this->GreebleTexIdx = resources->_extraTextures.size() - 1;
+	log_debug("[DBG] Loaded Greeble texture at index: %d", this->GreebleTexIdx);
+	return this->GreebleTexIdx;
+}
+
 ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
 {
 	auto& resources = this->_deviceResources;
@@ -518,7 +550,8 @@ out:
 	return texture2DSRV;
 }
 
-HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
+HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
+	short *Width_out, short *Height_out)
 {
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
@@ -542,6 +575,9 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 		log_debug("[DBG] [C++] DAT Image not found");
 		return res;
 	}
+
+	if (Width_out != nullptr) *Width_out = Width;
+	if (Height_out != nullptr) *Height_out = Height;
 
 	buf_len = Width * Height * 4;
 	buf = new uint8_t[buf_len];
@@ -1116,6 +1152,54 @@ void Direct3DTexture::TagTexture() {
 						if (this->material.TextureATCIndices[ATCType][i] > -1)
 							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
 				}
+
+				// Load the Greeble Textures here...
+				if (this->material.GreebleDataIdx != -1) {
+					GreebleData *greeble_data = &(g_GreebleData[this->material.GreebleDataIdx]);
+					short Width, Height;
+					//log_debug("[DBG] [GRB] This material has GreebleData at index: %d", this->material.GreebleDataIdx);
+					//log_debug("[DBG] [GRB] GreebleTexIndex[0]: %d, GreebleTexIndex[1]: %d",
+					//	greeble_data->GreebleTexIndex[0], greeble_data->GreebleTexIndex[1]);
+					// Load the Greeble Textures
+					for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
+						// We need to load this texture. Textures are loaded in resources->_extraTextures
+						if (greeble_data->GreebleTexIndex[i] == -1) {
+							// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
+							// textures if we find we've already loaded them before...
+							greeble_data->GreebleTexIndex[i] = LoadGreebleTexture(greeble_data->GreebleTexName[i], &Width, &Height);
+							if (greeble_data->GreebleTexIndex[i] != -1) {
+								if (greeble_data->greebleBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									log_debug("[DBG] [GRB] UVDispMapResolution: %0.0f, %0.0f",
+										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
+								log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
+							}
+						}
+						// Load Lightmap Greebles
+						if (greeble_data->GreebleLightMapIndex[i] == -1) {
+							// TODO: Optimization opportunity: search all the lightmap texture names in g_GreebleData and avoid loading
+							// textures if we find we've already loaded them before...
+							greeble_data->GreebleLightMapIndex[i] = LoadGreebleTexture(greeble_data->GreebleLightMapName[i], &Width, &Height);
+							if (greeble_data->GreebleLightMapIndex[i] != -1) {
+								if (greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									// TODO: Only one (1) UVDispMap is currently supported for regular and lightmap greebles.
+									// I may need to add support for more maps later.
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									log_debug("[DBG] [GRB] UVDispMapResolution (Lightmap): %0.0f, %0.0f",
+										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
+								log_debug("[DBG] [GRB] Loaded Lightmap Greeble Texture at index: %d", greeble_data->GreebleLightMapIndex[i]);
+							}
+						}
+					}
+					
+				}
+
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
@@ -1232,6 +1316,8 @@ HRESULT Direct3DTexture::Load(
 	this->material = d3dTexture->material;
 	this->bHasMaterial = d3dTexture->bHasMaterial;
 	//this->lightTexture = d3dTexture->lightTexture;
+
+	this->GreebleTexIdx = d3dTexture->GreebleTexIdx;
 
 	// DEBUG
 	// Looks like we always tag the color texture before the light texture.

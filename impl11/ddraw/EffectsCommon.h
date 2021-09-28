@@ -220,7 +220,7 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bIsLaser;
 	uint32_t bIsLightTexture;
 	uint32_t bIsEngineGlow;
-	uint32_t ps_unused1;
+	uint32_t GreebleControl;
 	// 32 bytes
 
 	float fBloomStrength;
@@ -243,7 +243,14 @@ typedef struct PixelShaderCBStruct {
 	float2 Offset;
 	float AspectRatio;
 	uint32_t Clamp;
-	// 112
+	// 112 bytes
+	float GreebleDist1, GreebleDist2;
+	float GreebleScale1, GreebleScale2;
+	// 128 bytes
+
+	float GreebleMix1, GreebleMix2;
+	float2 UVDispMapResolution;
+	// 144 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

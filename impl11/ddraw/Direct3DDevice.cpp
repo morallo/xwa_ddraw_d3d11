@@ -536,6 +536,8 @@ bool g_bStart3DCapture = false, g_bDo3DCapture = false, g_bSkipTexturelessGUI = 
 bool g_bDumpGUI = false;
 int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
+bool g_bAutoGreeblesEnabled = true;
+bool g_bShowBlastMarks = true;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -4446,11 +4448,26 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
-				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Smoke) {
-					//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
-					bModifiedShaders = true;
-					//EnableTransparency();
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+				if (bLastTextureSelectedNotNULL) {
+					if (lastTextureSelected->is_Smoke) {
+						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
+						bModifiedShaders = true;
+						//EnableTransparency();
+						g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+					}
+					else if (bIsBlastMark) {
+						// Blast Marks are rendered on top of the original texture, after greebles have been added. Greebles are
+						// rendered with PixelShaderGreeble, and then the blast mark is rendered with PixelShaderTexture on its
+						// own draw call, using textures like the following:
+						// dat, 3050, 0, 0, 0
+						// dat, 3050, 1, 0, 0
+						// dat, 3050, 3, 0, 0
+						// Now, blast marks have transparency. PixelShaderTexture renders transparency as a glass material, and
+						// we can't have that, in part because that erases the normal-mapped greebles that were rendered in a previous
+						// draw call. So, here we enable this flag so that we *don't* render blast marks as glass.
+						bModifiedShaders = true;
+						g_PSCBuffer.special_control = SPECIAL_CONTROL_BLAST_MARK;
+					}
 				}
 
 				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Spark) {
@@ -5127,8 +5144,93 @@ HRESULT Direct3DDevice::Execute(
 					}*/
 				}
 
+				// Greebles
+				//if (bHasMaterial && !lastTextureSelected->is_LightTexture && lastTextureSelected->material.GreebleDataIdx != -1)
+				if (g_bAutoGreeblesEnabled && bHasMaterial && lastTextureSelected->material.GreebleDataIdx != -1)
+				{
+					Material *material = &(lastTextureSelected->material);
+					GreebleData *greeble_data = &(g_GreebleData[material->GreebleDataIdx]);
+					
+					bool bIsRegularGreeble = (!lastTextureSelected->is_LightTexture && greeble_data->GreebleTexIndex[0] != -1);
+					bool bIsLightmapGreeble = (lastTextureSelected->is_LightTexture && greeble_data->GreebleLightMapIndex[0] != -1);
+					if (bIsRegularGreeble || bIsLightmapGreeble) {
+						// 0x1: This greeble has a mask
+						// 0x2: This greeble will use normal mapping
+						uint32_t GreebleControlBits = 0;
+						bModifiedShaders = true;
+						bModifiedPixelShader = true;
+
+						resources->InitPixelShader(resources->_pixelShaderGreeble);
+
+						if (bIsRegularGreeble) {
+							// Load the greeble mask
+							/*if (greeble_data->GreebleMaskIndex != -1) {
+								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleMaskIndex]));
+								GreebleControlBits = 1;
+							}*/
+
+							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
+							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
+
+							g_PSCBuffer.GreebleDist1 = greeble_data->GreebleDist[0];
+							g_PSCBuffer.GreebleDist2 = greeble_data->GreebleDist[1];
+
+							g_PSCBuffer.GreebleScale1 = greeble_data->GreebleScale[0];
+							g_PSCBuffer.GreebleScale2 = greeble_data->GreebleScale[1];
+
+							uint32_t blendMask1 = greeble_data->GreebleTexIndex[0] != -1 ? greeble_data->greebleBlendMode[0] : 0x0;
+							uint32_t blendMask2 = greeble_data->GreebleTexIndex[1] != -1 ? greeble_data->greebleBlendMode[1] : 0x0;
+							if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+								blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+								GreebleControlBits |= 0x1;
+							if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+								blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+								g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;
+							g_PSCBuffer.GreebleControl = (GreebleControlBits << 16) | (blendMask2 << 4) | blendMask1;
+
+							// Load regular greebles...
+							if (greeble_data->GreebleTexIndex[0] != -1)
+								context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[0]]));
+							if (greeble_data->GreebleTexIndex[1] != -1)
+								context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[1]]));
+						}
+						else if (bIsLightmapGreeble) {
+							// Load the lightmap greeble mask
+							/*if (greeble_data->GreebleLightMapMaskIndex != -1) {
+								context->PSSetShaderResources(9, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapMaskIndex]));
+								GreebleControlBits = 1;
+							}*/
+							
+							g_PSCBuffer.GreebleMix1 = greeble_data->GreebleLightMapMix[0];
+							g_PSCBuffer.GreebleMix2 = greeble_data->GreebleLightMapMix[1];
+
+							g_PSCBuffer.GreebleDist1 = greeble_data->GreebleLightMapDist[0];
+							g_PSCBuffer.GreebleDist2 = greeble_data->GreebleLightMapDist[1];
+
+							g_PSCBuffer.GreebleScale1 = greeble_data->GreebleLightMapScale[0];
+							g_PSCBuffer.GreebleScale2 = greeble_data->GreebleLightMapScale[1];
+
+							uint32_t blendMask1 = greeble_data->GreebleLightMapIndex[0] != -1 ? greeble_data->greebleLightMapBlendMode[0] : 0x0;
+							uint32_t blendMask2 = greeble_data->GreebleLightMapIndex[1] != -1 ? greeble_data->greebleLightMapBlendMode[1] : 0x0;
+							if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+								blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+								GreebleControlBits |= 0x1;
+							if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+								blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+								g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;
+							g_PSCBuffer.GreebleControl = (GreebleControlBits << 16) | (blendMask2 << 4) | blendMask1;
+
+							// ... or load lightmap greebles
+							if (greeble_data->GreebleLightMapIndex[0] != -1)
+								context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[0]]));
+							if (greeble_data->GreebleLightMapIndex[1] != -1)
+								context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[1]]));
+						}
+					}
+				}
+
 				// Animated Light Maps/Textures
-				if (bHasMaterial) {
+				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx == -1) {
 					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
 						(!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
 					{
@@ -5242,6 +5344,10 @@ HRESULT Direct3DDevice::Execute(
 						if (g_PSCBuffer.DynCockpitSlots > 0)
 							resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 					}
+
+					// DEBUG: Disable blast marks!
+					//if (!g_bShowBlastMarks && bIsBlastMark)
+					//	goto out;
 
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
