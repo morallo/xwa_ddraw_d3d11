@@ -2271,6 +2271,15 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
+			if (_stricmp(param, "g_fBlastMarkOfsX") == 0) {
+				g_fBlastMarkOfsX = fValue;
+				log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+			}
+			if (_stricmp(param, "g_fBlastMarkOfsY") == 0) {
+				g_fBlastMarkOfsY = fValue;
+				log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+			}
+
 			if (_stricmp(param, "star_debug_enabled") == 0) {
 				g_bStarDebugEnabled = (bool)fValue;
 			}

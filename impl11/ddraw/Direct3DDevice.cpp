@@ -379,7 +379,6 @@ float s_XwaHudScale = 1.0f;
 //#include <assert.h>
 
 #include "effects.h"
-#include "globals.h"
 #include "commonVR.h"
 #include "FreePIE.h"
 #include "SteamVR.h"
@@ -538,6 +537,7 @@ int g_iHUDTexDumpCounter = 0;
 int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 bool g_bAutoGreeblesEnabled = true;
 bool g_bShowBlastMarks = true;
+float g_fBlastMarkOfsX = 0.0f, g_fBlastMarkOfsY = 0.0f;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -4445,7 +4445,7 @@ HRESULT Direct3DDevice::Execute(
 					//D3D11_BLEND_SRC_ALPHA == 5
 					//D3D11_BLEND_INV_SRC_ALPHA == 6
 					bModifiedShaders = true;
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_XWA_SHADOW;
+					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
 				if (bLastTextureSelectedNotNULL) {
@@ -4453,7 +4453,7 @@ HRESULT Direct3DDevice::Execute(
 						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
 						bModifiedShaders = true;
 						//EnableTransparency();
-						g_PSCBuffer.special_control = SPECIAL_CONTROL_SMOKE;
+						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE;
 					}
 					else if (bIsBlastMark) {
 						// Blast Marks are rendered on top of the original texture, after greebles have been added. Greebles are
@@ -4466,7 +4466,9 @@ HRESULT Direct3DDevice::Execute(
 						// we can't have that, in part because that erases the normal-mapped greebles that were rendered in a previous
 						// draw call. So, here we enable this flag so that we *don't* render blast marks as glass.
 						bModifiedShaders = true;
-						g_PSCBuffer.special_control = SPECIAL_CONTROL_BLAST_MARK;
+						g_PSCBuffer.special_control.bBlastMark = 1;
+						//g_PSCBuffer.GreebleDist1 = g_fBlastMarkOfsX;
+						//g_PSCBuffer.GreebleDist2 = g_fBlastMarkOfsY;
 					}
 				}
 
@@ -4724,7 +4726,7 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.sz_override = 0.01f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
-					g_PSCBuffer.special_control = SPECIAL_CONTROL_BACKGROUND;
+					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
 					// Suns are pushed to infinity too:
 					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
 				}
@@ -4764,7 +4766,7 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedShaders = true;
 						resources->InitPixelShader(resources->_alphaToBloomPS);
 						if (lastTextureSelected->material.NoColorAlpha)
-							g_PSCBuffer.special_control = SPECIAL_CONTROL_NO_COLOR_ALPHA;
+							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_NO_COLOR_ALPHA;
 						g_PSCBuffer.fBloomStrength = lastTextureSelected->material.EffectBloom;
 					}
 
@@ -5266,9 +5268,9 @@ HRESULT Direct3DDevice::Execute(
 						//int rand_idx = rand() % lastTextureSelected->material.LightMapSequence.size();
 						int extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
 						if (atc->BlackToAlpha)
-							g_PSCBuffer.special_control = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 						else if (atc->AlphaIsBloomMask)
-							g_PSCBuffer.special_control = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
 						g_PSCBuffer.AuxColor = atc->Tint;
 						g_PSCBuffer.Offset = atc->Offset;
 						g_PSCBuffer.AspectRatio = atc->AspectRatio;

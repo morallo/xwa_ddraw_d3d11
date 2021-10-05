@@ -28,7 +28,7 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	bool IsShadow   = special_control == SPECIAL_CONTROL_XWA_SHADOW;
+	bool IsShadow   = (special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK) == SPECIAL_CONTROL_XWA_SHADOW;
 
 	// Using an alpha of 0.25 for the shadow causes overlapping shadows to show, which isn't great
 	// since shadows don't behave that way.

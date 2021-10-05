@@ -56,10 +56,17 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	uint   bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	if (bIsBlastMark) {
+		//texelColor = texture0.Sample(sampler0, (input.tex * 0.5) + 0.25);
+		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+		//texelColor = texture0.Sample(sampler0, (input.tex * 0.1) + 0.5);
+	}
 	float  alpha	  = texelColor.w;
 	float3 diffuse    = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P		  = input.pos3D.xyz;
 	float  SSAOAlpha  = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	uint   ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	// Zero-out the bloom mask.
 	output.bloom  = 0;
 	output.color  = texelColor;
@@ -113,7 +120,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	if (special_control == SPECIAL_CONTROL_SMOKE)
+	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 	{
 		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 		const float a   = 0.1 * alpha;
@@ -123,10 +130,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	
-
 	/*
-	if (special_control == SPECIAL_CONTROL_EXPLOSION)
+	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
 		output.color = float4(0, 1, 0, alpha);
 		output.bloom = output.color;
@@ -234,8 +239,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
 		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
 		&& alpha < 0.95 /* This texture has transparency */
-		&& special_control != SPECIAL_CONTROL_BLAST_MARK /* See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
-		)
+		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
 	{
 		// Change the material and do max glossiness and spec_intensity
 		output.ssaoMask.r = GLASS_MAT;
@@ -250,7 +254,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 	
-	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
+	//if (ExclusiveMask == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;
 	return output;
 }

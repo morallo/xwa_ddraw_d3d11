@@ -48,7 +48,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	float alpha = texelColor.w;
 	float3 HSV = RGBtoHSV(texelColor.rgb); // texelColor is the cover texture
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	// Zero-out the bloom mask.

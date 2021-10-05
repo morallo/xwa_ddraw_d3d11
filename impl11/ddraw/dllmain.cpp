@@ -270,6 +270,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bShowBlastMarks = !g_bShowBlastMarks;
 					log_debug("[DBG] g_bShowBlastMarks: %d", g_bShowBlastMarks);
 					break;
+				case 13:
+					g_fBlastMarkOfsX += 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+					break;
 				}
 
 				/*
@@ -333,6 +337,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 10:
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
+				case 13:
+					g_fBlastMarkOfsX -= 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+					break;
 				}
 
 				/*
@@ -382,6 +390,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsY -= 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
 					break;*/
+				case 13:
+					g_fBlastMarkOfsY -= 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
 				}
 
 				return 0;
@@ -419,6 +431,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsY += 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
 					break;*/
+				case 13:
+					g_fBlastMarkOfsY += 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
 				}
 
 				return 0;

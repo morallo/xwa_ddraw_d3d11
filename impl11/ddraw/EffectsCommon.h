@@ -209,6 +209,14 @@ typedef struct PSShadingSystemCBStruct {
 	// 608 bytes
 } PSShadingSystemCB;
 
+typedef struct {
+	/* Exclusive Flags. Only one flag can be set at the same time */
+	uint32_t ExclusiveMask : 8;
+	/* Bitfields */
+	uint32_t bBlastMark : 1;
+	uint32_t UnusedBits : 23;
+} special_control_bitfield;
+
 // See PixelShaderTextureCommon.h for an explanation of these settings
 typedef struct PixelShaderCBStruct {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
@@ -234,7 +242,7 @@ typedef struct PixelShaderCBStruct {
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint32_t special_control;
+	special_control_bitfield special_control;
 	float fAmbient;
 	// 80 bytes
 

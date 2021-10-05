@@ -55,7 +55,12 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_EXPLOSION	7
 #define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
-#define SPECIAL_CONTROL_BLAST_MARK 10 // Set when the current texture is a blast mark
+// These are the bits used for exclusive special control flags
+#define SPECIAL_CONTROL_EXCLUSIVE_MASK 0x0FF
+// The following are bits in the special_control field. They need to be blended with the rest of the exclusive
+// flags
+#define SPECIAL_CONTROL_BLAST_MARK 0x100 // Set when the current texture is a blast mark
+// New flag should start at 0x200 and take one bit. So they would be 0x200, 0x400, 0x800, etc.
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6

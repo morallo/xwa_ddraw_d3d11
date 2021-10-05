@@ -92,7 +92,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 coverColor = AuxColor * texture0.Sample(sampler0, UV);
 	float coverAlpha = coverColor.w; // alpha of the cover texture
 	float3 HSV = RGBtoHSV(coverColor.rgb);
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		coverAlpha = HSV.z;
 
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly

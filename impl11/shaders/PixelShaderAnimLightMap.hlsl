@@ -41,7 +41,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  alpha = texelColor.w;
 	float3 color = texelColor.rgb;
 	float3 HSV = RGBtoHSV(color);
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
 
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
@@ -99,12 +100,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	output.color = float4(color, alpha);
 	output.bloom.rgb *= fBloomStrength;
-	if (special_control == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
+	if (ExclusiveMask == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
 		output.bloom = lerp(output.bloom, float4(0, 0, 0, 1), alpha);
 		output.ssaoMask = lerp(float4(0, 0, 0, 1), float4(output.ssaoMask.rgb, alpha), alpha);
 		output.ssMask = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alpha), alpha);
 	}
-	//if (special_control == SPECIAL_CONTROL_BLOOM_MULT_ALPHA)
+	//if (ExclusiveMask == SPECIAL_CONTROL_BLOOM_MULT_ALPHA)
 	//	output.color = float4(alpha, alpha, alpha, 1.0);
 	if (bInHyperspace && output.bloom.a < 0.5) {
 		//output.color.a = 1.0;

@@ -120,7 +120,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
 	// We shouldn't call this shader for smoke
-	//if (special_control == SPECIAL_CONTROL_SMOKE)
+	//if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 
 	// Never call this shader for lasers
 	//if (bIsLaser) {

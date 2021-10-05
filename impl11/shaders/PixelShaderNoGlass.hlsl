@@ -1,6 +1,7 @@
 // Copyright (c) 2020, 2021 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
-// Simplified version of PixelShaderTexture. Alpha-enabled textures won't be interpreted
+// Simplified version of PixelShaderTexture. This shader is used to render animated
+// textures and textures with alpha that we don't want to render as glass.
 // as glass materials. if fBloomStrength is not zero, then bloom will be applied and
 // modulated by the alpha of the texture.
 // Light Textures are not handled in this shader. This shader should not be used with
@@ -44,9 +45,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
+	//if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.5) + 0.25);
+	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	//if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.25) + 0.35);
 	float  alpha = texelColor.a;
 	float3 HSV = RGBtoHSV(texelColor.rgb);
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	
+	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
 
 	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
@@ -71,6 +77,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+
+	
 	
 	// bloom
 	if (HSV.z >= 0.8) {

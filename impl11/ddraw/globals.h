@@ -125,6 +125,7 @@ extern float g_fLPdebugPointOffset, g_fDebugYCenter;
 extern bool g_bApplyCockpitDamage, g_bResetCockpitDamage;
 extern bool g_bAutoGreeblesEnabled;
 extern bool g_bShowBlastMarks;
+extern float g_fBlastMarkOfsX, g_fBlastMarkOfsY;
 
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
