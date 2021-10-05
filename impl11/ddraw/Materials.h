@@ -347,7 +347,9 @@ typedef struct MaterialStruct {
 		TotalFrames	= 0;
 		ExplosionScale = 2.0f; // 2.0f is the original scale
 		ExplosionSpeed = 0.001f;
-		ExplosionBlendMode = 1; // 0: Original texture, 1: Blend with procedural explosion, 2: Use procedural explosions only
+		// MechDonald's explosions are so good that we probably want to default to using them
+		// now (instead of blending them with a procedural explosion)
+		ExplosionBlendMode = 0; // 0: Original texture, 1: Blend with procedural explosion, 2: Use procedural explosions only
 
 		DATGroupImageIdParsed = false;
 		GroupId = 0;

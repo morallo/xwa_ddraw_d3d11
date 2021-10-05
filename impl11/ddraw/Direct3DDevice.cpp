@@ -473,6 +473,8 @@ bool g_bResetDC = false;
 
 // DS2 Effects
 int g_iReactorExplosionCount = 0;
+// Replace regular explosions with procedural explosions during the DS2 mission to improve visibility.
+bool g_bDS2ForceProceduralExplosions = true;
 
 /*********************************************************/
 // High Resolution Timers
@@ -4514,7 +4516,12 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Render the procedural explosions
-				if (bIsExplosion && bHasMaterial && lastTextureSelected->material.ExplosionBlendMode > 0)
+				if (bIsExplosion && bHasMaterial &&
+					(lastTextureSelected->material.ExplosionBlendMode > 0 ||
+					// The newest explosions by MechDonald are bigger and longer. Unfortunately, during the DS2 mission, this can
+					// block a lot of visibility in the tunnel. So if we're in the DS2 mission, let's use procedural explosions
+					// instead.
+					(g_bDS2ForceProceduralExplosions && *missionIndexLoaded == DEATH_STAR_MISSION_INDEX)))
 				{
 					static float iTime = 0.0f;
 					//iTime += 0.05f;

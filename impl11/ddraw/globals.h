@@ -77,6 +77,7 @@ extern HiResTimer g_HiResTimer;
 
 // DS2 Effects
 extern int g_iReactorExplosionCount;
+extern bool g_bDS2ForceProceduralExplosions;
 
 
 

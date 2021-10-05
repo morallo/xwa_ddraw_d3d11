@@ -2283,6 +2283,10 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "star_debug_enabled") == 0) {
 				g_bStarDebugEnabled = (bool)fValue;
 			}
+
+			if (_stricmp(param, "DS2_force_procedural_explosions") == 0) {
+				g_bDS2ForceProceduralExplosions = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
