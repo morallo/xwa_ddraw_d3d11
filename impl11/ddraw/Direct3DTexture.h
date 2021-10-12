@@ -33,6 +33,8 @@ public:
 	// have to be tagged at least two times to allow them to be recognized as custom reticles.
 	// The field below helps us tag these resources multiple times to recognize custom reticles.
 	uint8_t TagCount;
+	// These indices store the GroupId and ImageId of this texture (if it's a DAT image)
+	int DATGroupId, DATImageId;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
 	// This flag is set during resource Load
 	bool is_Reticle;

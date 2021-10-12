@@ -15,8 +15,7 @@ Mission Index:
 	Skirmish: 0
 	PPG: 6 (looks like this is complicated in TFTC).
 	Death Star: 52
-	The Death Star mission index isn't used anywhere. Lights are automatically turned on when there are no global
-	lights. The only mission in XWA where this happens is mission 52.
+	Lights are automatically turned on when there are no global lights. The only mission in XWA where this happens is mission 52.
 */
 
 /*
@@ -474,7 +473,7 @@ bool g_bResetDC = false;
 // DS2 Effects
 int g_iReactorExplosionCount = 0;
 // Replace regular explosions with procedural explosions during the DS2 mission to improve visibility.
-bool g_bDS2ForceProceduralExplosions = true;
+bool g_bDS2ForceProceduralExplosions = false;
 
 /*********************************************************/
 // High Resolution Timers
@@ -3114,8 +3113,9 @@ HRESULT Direct3DDevice::Execute(
 					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
 					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
 					bIsElectricity = lastTextureSelected->is_Electricity;
-					bIsExplosion = lastTextureSelected->is_Explosion;
 					bHasMaterial = lastTextureSelected->bHasMaterial;
+					bIsExplosion = lastTextureSelected->is_Explosion;
+					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -4516,60 +4516,97 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Render the procedural explosions
-				if (bIsExplosion && bHasMaterial &&
-					(lastTextureSelected->material.ExplosionBlendMode > 0 ||
-					// The newest explosions by MechDonald are bigger and longer. Unfortunately, during the DS2 mission, this can
-					// block a lot of visibility in the tunnel. So if we're in the DS2 mission, let's use procedural explosions
-					// instead.
-					(g_bDS2ForceProceduralExplosions && *missionIndexLoaded == DEATH_STAR_MISSION_INDEX)))
+				if (bIsExplosion && bHasMaterial)
 				{
-					static float iTime = 0.0f;
-					//iTime += 0.05f;
-					iTime += lastTextureSelected->material.ExplosionSpeed;
+					if (lastTextureSelected->material.ExplosionBlendMode > 0 ||
+						// The newest explosions by MechDonald are bigger and longer. Unfortunately, during the DS2 mission, this can
+						// block a lot of visibility in the tunnel. So if we're in the DS2 mission, let's use procedural explosions
+						// instead.
+						(g_bDS2ForceProceduralExplosions && *missionIndexLoaded == DEATH_STAR_MISSION_INDEX))
+					{
+						static float iTime = 0.0f;
+						iTime += lastTextureSelected->material.ExplosionSpeed;
 
-					bModifiedShaders = true;
-					bModifiedPixelShader = true;
-					bModifiedSamplerState = true;
-					resources->InitPixelShader(resources->_explosionPS);
-					// Set the noise texture and sampler state with wrap/repeat enabled.
-					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
-					// bModifiedSamplerState restores this sampler state at the end of this instruction.
-					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+						bModifiedShaders = true;
+						bModifiedPixelShader = true;
+						bModifiedSamplerState = true;
+						resources->InitPixelShader(resources->_explosionPS);
+						// Set the noise texture and sampler state with wrap/repeat enabled.
+						context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
+						// bModifiedSamplerState restores this sampler state at the end of this instruction.
+						context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
 
-					int GroupId = 0, ImageId = 0;
-					if (!lastTextureSelected->material.DATGroupImageIdParsed) {
-						// TODO: Maybe I can extract the group Id and image Id from the DAT's name during tagging and
-						// get rid of the DATGroupImageIdParsed field in the material property.
-						GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_name, &GroupId, &ImageId);
-						lastTextureSelected->material.GroupId = GroupId;
-						lastTextureSelected->material.ImageId = ImageId;
-						lastTextureSelected->material.DATGroupImageIdParsed = true;
+						int GroupId = 0, ImageId = 0;
+						if (!lastTextureSelected->material.DATGroupImageIdParsed) {
+							// TODO: Maybe I can extract the group Id and image Id from the DAT's name during tagging and
+							// get rid of the DATGroupImageIdParsed field in the material property.
+							GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_name, &GroupId, &ImageId);
+							lastTextureSelected->material.GroupId = GroupId;
+							lastTextureSelected->material.ImageId = ImageId;
+							lastTextureSelected->material.DATGroupImageIdParsed = true;
+						}
+						else {
+							GroupId = lastTextureSelected->material.GroupId;
+							ImageId = lastTextureSelected->material.ImageId;
+						}
+						// TODO: The following time will increase in steps, but I'm not sure it's possible to do a smooth
+						// increase because there's no way to uniquely identify two different explosions on the same frame.
+						// The same GroupId can appear mutiple times on the screen belonging to different crafts and they
+						// may even be at different stages of the animation.
+						float ExplosionTime = min(1.0f, (float)ImageId / (float)lastTextureSelected->material.TotalFrames);
+						//log_debug("[DBG] Explosion Id: %d, Frame: %d, TotalFrames: %d, Time: %0.3f",
+						//	GroupId, ImageId, lastTextureSelected->material.TotalFrames, ExplosionTime);
+						//log_debug("[DBG] Explosion Id: %d", GroupId);
+
+						g_ShadertoyBuffer.iTime = iTime;
+						// ExplosionBlendMode:
+						// 0: Original texture, 
+						// 1: Blend with procedural explosion, 
+						// 2: Use procedural explosions only
+						// AlphaBlendEnabled: true blend with original texture, false: replace original texture
+						g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode;
+						g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 3..-1 The animation is performed by iTime in VolumetricExplosion()
+						// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
+						// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function
+						g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale;
+						// Set the constant buffer
+						resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 					}
-					else {
-						GroupId = lastTextureSelected->material.GroupId;
-						ImageId = lastTextureSelected->material.ImageId;
+					else { // ExplosionBlendMode == 0
+						int AltExplosionSelectorIdx = lastTextureSelected->DATGroupId - 2000; // 2000 is the first explosion GroupId
+						if (AltExplosionSelectorIdx >= 0 && AltExplosionSelectorIdx < MAX_XWA_EXPLOSIONS) {
+							int RandomAltIdx = g_AltExplosionSelector[AltExplosionSelectorIdx];
+							// Debug override: force a specific index so that we can see each alternate explosion set if we want to.
+							if (g_iForceAltExplosion > -1 && g_iForceAltExplosion < MAX_ALT_EXPLOSIONS)
+								RandomAltIdx = g_iForceAltExplosion;
+							if (RandomAltIdx > -1) {
+								Material *material = &lastTextureSelected->material;
+								// If we're in the DS2 mission, we need to load the alternate explosion designed for it.
+								// Otherwise we select one of the alternatives at random.
+								int AltExpIndex = (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX) ? DS2_ALT_EXPLOSION_IDX : RandomAltIdx;
+								int ATCIndex = material->AltExplosionIdx[AltExpIndex];
+								if (ATCIndex > -1) {
+									AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+									int frame = lastTextureSelected->DATImageId;
+									if (-1 < frame && frame < (int)atc->Sequence.size()) {
+										int extraTexIdx = atc->Sequence[frame].ExtraTextureIndex;
+										if (extraTexIdx > -1)
+											resources->InitPSShaderResourceView(resources->_extraTextures[extraTexIdx]);
+										else // Skip this frame
+											goto out;
+									}
+									else
+										// The alternate explosion has less frame than the original. Skip this frame.
+										// If we *don't* skip this frame, then the original animation will play after the alternate
+										// animation. That usually looks weird.
+										goto out;
+								}
+								// else: ATCIndex is -1: there's no alternate explosion, use the original version
+							}
+							// else: RandomAltIdx is -1, use the original version
+						}
+						// else: Unknown Explosion group!
 					}
-					// TODO: The following time will increase in steps, but I'm not sure it's possible to do a smooth
-					// increase because there's no way to uniquely identify two different explosions on the same frame.
-					// The same GroupId can appear mutiple times on the screen belonging to different crafts and they
-					// may even be at different stages of the animation.
-					float ExplosionTime = min(1.0f, (float)ImageId / (float)lastTextureSelected->material.TotalFrames);
-					//log_debug("[DBG] Explosion Id: %d, Frame: %d, TotalFrames: %d, Time: %0.3f",
-					//	GroupId, ImageId, lastTextureSelected->material.TotalFrames, ExplosionTime);
-					//log_debug("[DBG] Explosion Id: %d", GroupId);
-
-					g_ShadertoyBuffer.iTime = iTime;
-					// ExplosionBlendMode:
-					// 0: Original texture, 
-					// 1: Blend with procedural explosion, 
-					// 2: Use procedural explosions only
-					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode; // AlphaBlendEnabled: true blend with original texture, false: replace original texture
-					g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 3..-1 The animation is performed by iTime in VolumetricExplosion()
-					// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
-					// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function
-					g_ShadertoyBuffer.twirl = lastTextureSelected->material.ExplosionScale;
-					// Set the constant buffer
-					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
 				// Capture the centroid of the current sun texture and store it.
@@ -6455,8 +6492,8 @@ HRESULT Direct3DDevice::BeginScene()
 		float hull = 100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength);
 		hull = max(0.0f, hull);
 		if (g_bDumpSSAOBuffers) log_debug("[DBG] Hull health: %0.3f", hull);
-		g_GameEvent.HullEvent = EVT_NONE;
 		// Update the Hull event
+		g_GameEvent.HullEvent = EVT_NONE;
 		if (hull > 75.0f)
 			g_GameEvent.HullEvent = EVT_NONE;
 		else if (50.0f < hull && hull <= 75.0f)

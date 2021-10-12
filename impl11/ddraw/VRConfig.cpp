@@ -2287,6 +2287,9 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "DS2_force_procedural_explosions") == 0) {
 				g_bDS2ForceProceduralExplosions = (bool)fValue;
 			}
+			if (_stricmp(param, "force_alt_explosion") == 0) {
+				g_iForceAltExplosion = (int)fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -2408,7 +2411,7 @@ bool LoadDefaultGlobalMaterial() {
 	// Now, try to load the global materials file
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
-		ReadMaterialLine(buf, &g_DefaultGlobalMaterial);
+		ReadMaterialLine(buf, &g_DefaultGlobalMaterial, "GlobalMaterial");
 	}
 	fclose(file);
 	return true;

@@ -44,6 +44,10 @@ How to add support for a new event:
 
 constexpr int TEXTURE_ATC_IDX = 0;
 constexpr int LIGHTMAP_ATC_IDX = 1;
+constexpr int MAX_ATC_TYPES = 2;
+constexpr int MAX_ALT_EXPLOSIONS = 5;
+/* Alternate explosions will be loaded in slots 0..3. The following slot is for DS2 explosions */
+constexpr int DS2_ALT_EXPLOSION_IDX = 4;
 
 // Target Event Enum
 // This enum can be used to trigger animations or changes in materials
@@ -87,6 +91,7 @@ typedef enum GameEventEnum {
 	CANNON_EVT_7_READY,
 	CANNON_EVT_8_READY,
 	// How many more cannons can be supported?
+	// ... Add more events here
 	// End-of-events sentinel. Do not remove!
 	MAX_GAME_EVT
 } GameEvent;
@@ -198,6 +203,7 @@ typedef struct TexSeqElemStruct {
 typedef struct AnimatedTexControlStruct {
 	// Animated LightMaps:
 	std::vector<TexSeqElemStruct> Sequence;
+	bool SequenceLoaded;
 	int AnimIdx; // This is the current index in the Sequence, it can increase monotonically, or it can be random.
 	float TimeLeft; // Time left for the current index in the sequence.
 	bool IsRandom, BlackToAlpha, NoLoop, AlphaIsBloomMask;
@@ -209,6 +215,7 @@ typedef struct AnimatedTexControlStruct {
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
+		SequenceLoaded = false;
 		AnimIdx = 0;
 		TimeLeft = 1.0f;
 		IsRandom = false;
@@ -303,13 +310,17 @@ typedef struct MaterialStruct {
 	float ExplosionScale;
 	float ExplosionSpeed;
 	int ExplosionBlendMode;
+	// Holds indices into g_AnimatedMaterials for alternate explosion animations
+	int AltExplosionIdx[MAX_ALT_EXPLOSIONS];
+	int DS2ExplosionIdx;
+
 	// Set to false by default. Should be set to true once the GroupId 
 	// and ImageId have been parsed:
 	bool DATGroupImageIdParsed;
 	int GroupId;
 	int ImageId;
 
-	int TextureATCIndices[2][MAX_GAME_EVT];
+	int TextureATCIndices[MAX_ATC_TYPES][MAX_GAME_EVT];
 
 	//GreebleData GreebleData;
 	int GreebleDataIdx;
@@ -374,11 +385,16 @@ typedef struct MaterialStruct {
 		CptEvtBrokenBeamRechargeIndex = -1;
 		*/
 
-		for (int j = 0; j < 2; j++)
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_GAME_EVT; i++)
 				TextureATCIndices[j][i] = -1;
 
 		GreebleDataIdx = -1;
+
+		for (int i = 0; i < MAX_ALT_EXPLOSIONS; i++)
+			AltExplosionIdx[i] = -1;
+		DS2ExplosionIdx = -1;
+
 		/*
 		// DEBUG properties, remove later
 		LavaNormalMult.x = 1.0f;
@@ -523,6 +539,10 @@ typedef struct MaterialStruct {
 		// the previous events, and we compare against EVT_NONE:
 		if (g_GameEvent.TargetEvent != EVT_NONE && TextureATCIndices[ATCType][TGT_EVT_SELECTED] > -1)
 			return TextureATCIndices[ATCType][TGT_EVT_SELECTED];
+
+		// Explosion variants cannot be triggered by events. Instead, we need to do a frame-by-frame replacement.
+		//if (g_GameEvent.ExplosionEvent != EVT_NONE && TextureATCIndices[ATCType][EVT_DS2] > -1)
+		//	TextureATCIndices[ATCType][EVT_DS2];
 	
 		return index;
 	}
@@ -588,7 +608,7 @@ void ClearCraftMaterials();
 void OPTNameToMATParamsFile(char* OPTName, char* sFileName, int iFileNameSize);
 void DATNameToMATParamsFile(char *DATName, char *sFileName, char *sFileNameShort, int iFileNameSize);
 bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose = true);
-void ReadMaterialLine(char* buf, Material* curMaterial);
+void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname);
 bool GetGroupIdImageIdFromDATName(char* DATName, int* GroupId, int* ImageId);
 void InitOPTnames();
 void ClearOPTnames();

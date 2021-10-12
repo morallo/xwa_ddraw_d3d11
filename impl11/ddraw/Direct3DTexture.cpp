@@ -181,6 +181,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
+	this->DATImageId = -1;
+	this->DATGroupId = -1;
 	this->is_Tagged = false;
 	this->TagCount = 3;
 	this->is_Reticle = false;
@@ -723,6 +725,8 @@ void Direct3DTexture::TagTexture() {
 			this->is_DAT = true;
 			// Check if this DAT image is a custom reticle
 			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
+				this->DATGroupId = GroupId;
+				this->DATImageId = ImageId;
 				if (GroupId == 12000 && ImageId > 5000) {
 					this->is_Reticle = true; // Custom Reticle
 					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
@@ -1172,10 +1176,10 @@ void Direct3DTexture::TagTexture() {
 									greeble_data->greebleBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
 									greeble_data->UVDispMapResolution.x = Width;
 									greeble_data->UVDispMapResolution.y = Height;
-									log_debug("[DBG] [GRB] UVDispMapResolution: %0.0f, %0.0f",
-										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+									//log_debug("[DBG] [GRB] UVDispMapResolution: %0.0f, %0.0f",
+									//	greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
 								}
-								log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
+								//log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
 							}
 						}
 						// Load Lightmap Greebles
@@ -1190,14 +1194,43 @@ void Direct3DTexture::TagTexture() {
 									// I may need to add support for more maps later.
 									greeble_data->UVDispMapResolution.x = Width;
 									greeble_data->UVDispMapResolution.y = Height;
-									log_debug("[DBG] [GRB] UVDispMapResolution (Lightmap): %0.0f, %0.0f",
-										greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+									//log_debug("[DBG] [GRB] UVDispMapResolution (Lightmap): %0.0f, %0.0f",
+									//	greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
 								}
-								log_debug("[DBG] [GRB] Loaded Lightmap Greeble Texture at index: %d", greeble_data->GreebleLightMapIndex[i]);
+								//log_debug("[DBG] [GRB] Loaded Lightmap Greeble Texture at index: %d", greeble_data->GreebleLightMapIndex[i]);
 							}
 						}
 					}
 					
+				}
+
+				// Load the alternate explosions here...
+				for (int AltExpIdx = 0; AltExpIdx < MAX_ALT_EXPLOSIONS; AltExpIdx++) {
+					int ATCIndex = this->material.AltExplosionIdx[AltExpIdx];
+					if (ATCIndex != -1) {
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+						// Make sure we only load this sequence once
+						if (!atc->SequenceLoaded) {
+							log_debug("[DBG] Loading AltExplosionIdx[%d]: %d", AltExpIdx, ATCIndex);
+							for (uint32_t j = 0; j < atc->Sequence.size(); j++) {
+								TexSeqElem tex_seq_elem = atc->Sequence[j];
+								ID3D11ShaderResourceView *texSRV = nullptr;
+								if (atc->Sequence[j].ExtraTextureIndex == -1) {
+									HRESULT res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
+										/* ImageId */ j, &texSRV);
+									if (FAILED(res)) {
+										log_debug("[DBG] [MAT] ***** Could not load DAT texture [%s-%d-%d]: 0x%x",
+											tex_seq_elem.texname, tex_seq_elem.GroupId, j, res);
+									}
+									else {
+										resources->_extraTextures.push_back(texSRV);
+										atc->Sequence[j].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+									}
+								}
+							}
+							atc->SequenceLoaded = true; // Make extra-sure we only load this animation once
+						}
+					}
 				}
 
 				// DEBUG
@@ -1258,6 +1291,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Electricity = d3dTexture->is_Electricity;
 	this->is_Explosion = d3dTexture->is_Explosion;
+	this->DATImageId = d3dTexture->DATImageId;
+	this->DATGroupId = d3dTexture->DATGroupId;
 	this->is_Smoke = d3dTexture->is_Smoke;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
 	this->is_GunnerTex = d3dTexture->is_GunnerTex;

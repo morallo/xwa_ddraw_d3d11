@@ -199,3 +199,15 @@ extern uint32_t g_iHUDInnerColor, g_iHUDBorderColor;
 // Laser/Ion Cannon counting vars
 extern bool g_bLasersIonsNeedCounting;
 extern int g_iNumLaserCannons, g_iNumIonCannons;
+
+// Alternate Explosions
+constexpr int MAX_XWA_EXPLOSIONS = 7; // XWA only has 7 DAT Groups for explosions
+// We can load alternate versions of each one of the 7 explosions that XWA uses. The version
+// that is displayed is selected with g_AltExplosionSelector. Every few frames we'll randomly
+// choose another version provided that no explosions are being displayed at the moment of the
+// switch.
+extern int g_AltExplosionSelector[MAX_XWA_EXPLOSIONS];
+// Reset to false during Present(). Set to true if at least one explosion was displayed in the
+// current frame.
+extern bool g_bExplosionsDisplayedOnCurrentFrame;
+extern int g_iForceAltExplosion;

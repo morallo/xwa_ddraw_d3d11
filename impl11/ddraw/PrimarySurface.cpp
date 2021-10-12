@@ -8949,6 +8949,21 @@ HRESULT PrimarySurface::Flip(
 					//if (g_bEnableHeadLights)
 					//	g_LaserList.insert(g_HeadLightsPosition, g_HeadLightsColor);
 				}
+
+				// Select other alternate explosions if none were displayed
+				if (!g_bExplosionsDisplayedOnCurrentFrame &&
+					g_iPresentCounter % 300 == 0 /* Shuffle every 5 seconds (assuming 60fps) */)
+				{
+					for (int i = 0; i < MAX_XWA_EXPLOSIONS; i++) {
+						// There's MAX_ALT_EXPLOSIONS to choose from plus the original version, so in reality, we have
+						// MAX_ALT_EXPLOSIONS + 1 choices
+						int rand_choice = rand() % (MAX_ALT_EXPLOSIONS + 1);
+						// rand_choice goes from 0 to MAX_ALT_EXPLOSIONS, but we need it to be in the range
+						// -1 .. MAX_ALT_EXPLOSIONS - 1, so we use rand_choice - 1
+						g_AltExplosionSelector[i] = rand_choice - 1;
+					}
+				}
+				g_bExplosionsDisplayedOnCurrentFrame = false;
 			}
 
 			// Apply the custom FOV

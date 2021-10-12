@@ -88,6 +88,12 @@ int GreebleBlendModeToEnum(char *sBlendMode) {
 	return 0;
 }
 
+// Alternate Explosion Selector. -1 means: use the default version.
+int g_AltExplosionSelector[MAX_XWA_EXPLOSIONS] = { -1, -1, -1,  -1, -1, -1,  -1 };
+bool g_bExplosionsDisplayedOnCurrentFrame = false;
+// Force a specific alternate explosion set. -1 doesn't force anything.
+int g_iForceAltExplosion = -1;
+
 /*
  * Convert an OPT name into a MAT params file of the form:
  * Materials\<OPTName>.mat
@@ -747,6 +753,106 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	return true;
 }
 
+/*
+ * Loads all the frames from GroupId in a DAT file into tex_sequence. This function is currently
+ * only used to load alternate explosion animations. See "alt_frames_1" (etc) below.
+ */
+bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
+{
+	int res = 0;
+	char *s = NULL, *t = NULL, path[256];
+	//float fps = 30.0f, intensity = 0.0f, r, g, b, OfsX, OfsY, ar;
+
+	s = strchr(buf, '=');
+	if (s == NULL) return false;
+
+	// Skip the equals sign:
+	s += 1;
+
+	// Skip to the next comma/end of the string
+	t = s;
+	while (*t != 0 && *t != ',') t++;
+	// If we reached the end of the string, that's an error
+	//if (*t == 0) return false;
+	// End this string on the comma so that we can parse a string
+	*t = 0;
+	// Parse the texture name
+	try {
+		res = sscanf_s(s, "%s", path, 256);
+		if (res < 1) log_debug("[DBG] [MAT] Error reading path in '%s'", s);
+	}
+	catch (...) {
+		log_debug("[DBG] [MAT] Could not read path in '%s'", s);
+		return false;
+	}
+
+	TexSeqElem tex_seq_elem;
+	// The path is either an actual path that contains the frame sequence, or it's
+	// a <Path>\<DATFile>-<GroupId>. Let's check if path contains the ".DAT-" token
+	// first:
+	char *split = stristr(path, ".dat-");
+	if (split != NULL) {
+		// Split the string at the first dash and move the cursor after it:
+		split[4] = 0;
+		split += 5;
+		// sDATFileName contains the path and DAT file name:
+		std::string sDATFileName(path);
+		std::string sGroup(split);
+		log_debug("[DBG] [MAT] sDATFileName: [%s], Group: [%s]", sDATFileName.c_str(), sGroup.c_str());
+
+		short GroupId = -1;
+		try {
+			GroupId = (short)std::stoi(sGroup);
+		}
+		catch (...) {
+			log_debug("[DBG] [MAT] Could not parse: %s into an integer", sGroup.c_str());
+			return false;
+		}
+		
+		std::vector<short> ImageList;
+		ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
+		log_debug("[DBG] [MAT] Frame-by-Frame data. Group %d has %d images", GroupId, ImageList.size());
+		// Iterate over the list of Images and add one TexSeqElem for each one of them
+		for each (short ImageId in ImageList)
+		{
+			// Store the DAT filename in texname and set the appropriate flag. texname contains
+			// the path and filename.
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+			// Prevent division by 0:
+			// Save the DAT image data:
+			tex_seq_elem.IsDATImage = true;
+			tex_seq_elem.GroupId = GroupId;
+			tex_seq_elem.ImageId = -1;
+			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+			tex_seq_elem.ExtraTextureIndex = -1;
+			tex_sequence.push_back(tex_seq_elem);
+		}
+		ImageList.clear();
+	}
+	else {
+		std::string s_path = std::string("Effects\\Animations\\") + std::string(path);
+		if (fs::is_directory(s_path)) {
+			// We just finished reading the path where a frame sequence is stored
+			// Now we need to load all the frames in that path into a tex_seq_elem
+
+			//log_debug("[DBG] Listing files under path: %s", s_path.c_str());
+			for (const auto & entry : fs::directory_iterator(s_path)) {
+				// Surely there's a better way to get the filename...
+				std::string filename = std::string(path) + "\\" + entry.path().filename().string();
+				//log_debug("[DBG] file: %s", filename.c_str());
+
+				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, filename.c_str());
+				tex_seq_elem.IsDATImage = false;
+				// The texture itself will be loaded later. So the reference index is initialized to -1 here:
+				tex_seq_elem.ExtraTextureIndex = -1;
+				tex_sequence.push_back(tex_seq_elem);
+			}
+		}
+	}
+
+	return true;
+}
+
 inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial, int ATCType=TEXTURE_ATC_IDX)
 {
 	curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
@@ -772,7 +878,7 @@ void PrintGreebleData(GreebleData *greeble_data) {
 		greeble_data->greebleBlendMode[0], greeble_data->greebleBlendMode[1]);
 }
 
-void ReadMaterialLine(char* buf, Material* curMaterial) {
+void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	char param[256], svalue[512];
 	float fValue = 0.0f;
 
@@ -987,6 +1093,38 @@ void ReadMaterialLine(char* buf, Material* curMaterial) {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
 		}
 	}
+	else if (_stricmp(param, "alt_frames_1") == 0 ||
+			 _stricmp(param, "alt_frames_2") == 0 ||
+			 _stricmp(param, "alt_frames_3") == 0 ||
+			 _stricmp(param, "alt_frames_4") == 0 ||
+			 _stricmp(param, "ds2_frames") == 0)
+	{
+		AnimatedTexControl atc;
+		int AltIdx = (_stricmp(param, "ds2_frames") == 0) ? DS2_ALT_EXPLOSION_IDX : param[11] - '1'; // Get the alt idx (1-4)
+		// Avoid loading this animation if we have already loaded it before
+		if (curMaterial->AltExplosionIdx[AltIdx] == -1) {
+			// Alternate frames are currently only used in explosions. They replace the original explosion
+			// animations on a frame-by-frame basis. So a number of fields in the ATC struct are not needed.
+			// TODO: Either release the ExtraTextures pointed at by LightMapSequence, or garbage-collect them
+			//       later...
+			atc.Sequence.clear();
+			log_debug("[DBG] [MAT] [ALT] Loading Frame-by-Frame alternate data for [%s] AltIdx: %d", OPTname, AltIdx);
+			if (!LoadSimpleFrames(buf, atc.Sequence))
+				log_debug("[DBG] [MAT] [ALT] Error loading animated Frame-by-Frame data for [%s], syntax error?", buf);
+			if (atc.Sequence.size() > 0) {
+				log_debug("[DBG] [MAT] [ALT] Frame-by-Frame Sequence.size() = %d for Texture [%s], AltIdx: %d", atc.Sequence.size(), buf, AltIdx);
+				// Add a reference to this material on the list of animated materials
+				g_AnimatedMaterials.push_back(atc);
+				curMaterial->AltExplosionIdx[AltIdx] = g_AnimatedMaterials.size() - 1;
+				log_debug("[DBG] [MAT] [ALT] curMaterial->AltExplosionIdx[%d] = %d", AltIdx, curMaterial->AltExplosionIdx[AltIdx]);
+			}
+			else {
+				log_debug("[DBG] [MAT] [ALT] ERROR: No Animation Data Loaded for [%s], [%s]", OPTname, buf);
+			}
+		}
+		//else
+		//	log_debug("[DBG] [MAT] [ALT] Frame-by-Frame data already loaded for [%s], AltIdx: %d", OPTname, AltIdx);
+	}
 	else if (_stricmp(param, "GreebleTex1") == 0) {
 		GreebleData *greeble_data = GetOrAddGreebleData(curMaterial);
 		log_debug("[DBG] [GRB] Loading Greeble 1 Information from %s", svalue);
@@ -1148,30 +1286,59 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
 	float fValue = 0.0f;
+	bool bIsExplosion = false;
 	MaterialTexDef curMaterialTexDef;
 
+	// Explosions need a different material mechanism. Each frame in the explosion is loaded separately,
+	// and on top of that, each frame seems to be loaded multiple times. Explosion materials are defined
+	// for the whole animation, so we need to coalesce all frames into a single material slot. The code
+	// below has several "unhappy" paths for explosions so that each explosion animation has a single
+	// material and the [Default] material gets overwritten every time.
+	if (isInVector(OPTname, Explosion_ResNames)) {
+		int GroupId, ImageId;
+		bIsExplosion = true;
+		GetGroupIdImageIdFromDATName(OPTname, &GroupId, &ImageId);
+		sprintf_s(OPTname, MAX_OPT_NAME, "dat,%d,0,0,0", GroupId);
+	}
 	// Find this OPT in the global materials and clear it if necessary...
 	int craftIdx = FindCraftMaterial(OPTname);
 	if (craftIdx < 0) {
 		// New Craft Material
 		if (verbose) log_debug("[DBG] [MAT] New Craft Material (%s)", OPTname);
-		//craftIdx = g_Materials.size();
 	}
 	else {
 		// Existing Craft Material, clear it
-		if (verbose) log_debug("[DBG] [MAT] Existing Craft Material, clearing %s", OPTname);
-		g_Materials[craftIdx].MaterialList.clear();
+		if (verbose) log_debug("[DBG] [MAT] Existing Craft Material, %s clearing %s", bIsExplosion ? "NOT" : "", OPTname);
+		// We must not clear explosion materials because each frame is loaded multiple times
+		if (!bIsExplosion) g_Materials[craftIdx].MaterialList.clear();
 	}
 	CraftMaterials craftMat;
-	// Clear the materials for this craft and add a default material
-	craftMat.MaterialList.clear();
-	strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
+	if (bIsExplosion) {
+		if (craftIdx == -1) {
+			craftMat.MaterialList.clear();
+			strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
 
-	curMaterialTexDef.material = g_DefaultGlobalMaterial;
-	strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
-	// The default material will always be in slot 0:
-	craftMat.MaterialList.push_back(curMaterialTexDef);
-	//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+			curMaterialTexDef.material = g_DefaultGlobalMaterial;
+			strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+			// The default material will always be in slot 0:
+			craftMat.MaterialList.push_back(curMaterialTexDef);
+		}
+		else {
+			craftMat = g_Materials[craftIdx];
+			curMaterialTexDef = craftMat.MaterialList[0];
+		}
+	}
+	else {
+		// Clear the materials for this craft and add a default material
+		craftMat.MaterialList.clear();
+		strncpy_s(craftMat.OPTname, OPTname, MAX_OPT_NAME);
+
+		curMaterialTexDef.material = g_DefaultGlobalMaterial;
+		strncpy_s(curMaterialTexDef.texname, "Default", MAX_TEXNAME);
+		// The default material will always be in slot 0:
+		craftMat.MaterialList.push_back(curMaterialTexDef);
+		//craftMat.MaterialList.insert(craftMat.MaterialList.begin(), materialTexDef);
+	}
 
 	// We always start the craft material with one material: the default material in slot 0
 	bool MaterialSaved = true;
@@ -1244,20 +1411,26 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 					// DEBUG
 				}
 
-				// Start a new material
-				//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
-				curMaterialTexDef.texname[0] = 0;
-				curMaterialTexDef.material = g_DefaultGlobalMaterial;
+				// Start a new material -- but not for Explosions. Explosions are loaded multiple times and they all
+				// share the Default material
+				if (!bIsExplosion) {
+					//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
+					curMaterialTexDef.texname[0] = 0;
+					curMaterialTexDef.material = g_DefaultGlobalMaterial;
+				}
 				MaterialSaved = false;
 			}
 			else
-				ReadMaterialLine(buf, &(curMaterialTexDef.material));
+				ReadMaterialLine(buf, &(curMaterialTexDef.material), OPTname);
 		}
 	}
 	fclose(file);
 
 	// Save the last material if necessary...
-	if (!MaterialSaved) {
+	if (bIsExplosion) {
+		craftMat.MaterialList[0] = curMaterialTexDef;
+	}
+	else if (!MaterialSaved) {
 		// There's an existing material that needs to be saved before proceeding
 		for (TexnameType texname : texnameList) {
 			// Copy the texture name from the list to the current material
@@ -1556,6 +1729,8 @@ void UpdateEventsFired() {
 	for (int i = 0; i < MAX_CANNONS; i++)
 		if (!g_PrevGameEvent.CannonReady[i] && g_GameEvent.CannonReady[i])
 			bEventsFired[CANNON_EVT_1_READY + i] = true;
+
+	// Alternate explosions cannot be triggered as events. Instead, we need to do a frame-by-frame replacement.
 
 	// Don't modify the code below this line if you're only adding new events
 #ifdef DEBUG_EVENTS
