@@ -285,7 +285,7 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z /*, Matrix3* rotMatrix */)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* fullMatrix)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
@@ -301,7 +301,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		// Pose array predicted for next frame N+1, to use by XWA for CPU calculations next time CockpitLook is called.
 		vr::TrackedDevicePose_t trackedDevicePoseArrayNext[vr::k_unMaxTrackedDeviceCount];
 		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
-		vr::HmdMatrix34_t poseMatrix;
+		vr::HmdMatrix34_t m34_correctionMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
@@ -333,14 +333,47 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
-			poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
-			q = rotationToQuaternion(poseMatrix);
+			// We need to apply the perspective correction between the pose predicted in the previous frame
+			// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
+			// and the actual pose returned by WaitGetPoses that will be used to do the final 3D->2D projection
+
+			// Obtain the yaw, pitch that was applied by CockpitLook. Roll was ignored.
+			float yaw_cockpitlook, pitch_cockpitlook, x_cockpitlook, y_cockpitlook, z_cockpitlook;
+			Matrix4 m4_UndoCockpitLook;
+			yaw_cockpitlook = (float) (PlayerDataTable[*g_playerIndex].cockpitCameraYaw * 360.0f / 65535.0f);
+			pitch_cockpitlook = (float) (PlayerDataTable[*g_playerIndex].cockpitCameraPitch * 360.0f / 65535.0f);
+
+			// Get the translation
+			float g_fXWAUnitsToMetersScale = 400.0f; // Empirical value used hardcoded in CockpitLook, or set in cockpitlook.cfg (xwa_units_to_meters_scale)
+			x_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitXReference / g_fXWAUnitsToMetersScale;
+			y_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitYReference / g_fXWAUnitsToMetersScale;
+			z_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitZReference / g_fXWAUnitsToMetersScale;
+
+
+			// Build a transform matrix to "undo" the CockpitLook transformation based on HMD pose estimated in the previous frame
+			Matrix4 rotMatrixYaw, rotMatrixPitch, posMatrix;
+			rotMatrixYaw.identity();	rotMatrixYaw.rotateY(yaw_cockpitlook);
+			rotMatrixPitch.identity();	rotMatrixPitch.rotateX(-pitch_cockpitlook);
+			posMatrix.identity();		posMatrix.translate(-x_cockpitlook, -y_cockpitlook, z_cockpitlook);
+			// Create inverse matrix by applying the opposite angles, in inverse order
+			m4_UndoCockpitLook = posMatrix * rotMatrixYaw * rotMatrixPitch;
+
+			// Invert it to get the transform from that pose into the head center coordinate reference,
+			// hopefully cancelling the pose estimation and the loss of precision (float to int32)
+			//mCockpitLook.invert();
+
+			//Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
+			Matrix4 m4_correctionMatrix = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking) * m4_UndoCockpitLook;
+			Matrix4toHmdMatrix34(m4_correctionMatrix, m34_correctionMatrix);  // This matrix contains all positional and rotational data.
+			
+			// Finally we extract the components of the composed matrix to apply them later
+			q = rotationToQuaternion(m34_correctionMatrix);
 			quatToEuler(q, yaw, pitch, roll);
 
-			*x = poseMatrix.m[0][3];
-			*y = poseMatrix.m[1][3];
-			*z = poseMatrix.m[2][3];
-			//*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+			*x = m34_correctionMatrix.m[0][3];
+			*y = m34_correctionMatrix.m[1][3];
+			*z = m34_correctionMatrix.m[2][3];
+			*fullMatrix = m4_correctionMatrix;
 		}
 		//else {
 			//log_debug("[DBG] HMD pose not valid");
@@ -494,6 +527,40 @@ Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t& mat) {
 	return matrixObj;
 }
 
+Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
+	);
+	return matrixObj;
+}
+
+Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
+	);
+	return matrixObj;
+}
+
+void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[15];
+}
+
+void Matrix4toHmdMatrix34(const Matrix4& m4, vr::HmdMatrix34_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14];
+}
+
 void DumpMatrix34(FILE* file, const vr::HmdMatrix34_t& m) {
 	if (file == NULL)
 		return;
@@ -559,33 +626,6 @@ void ShowHmdMatrix44(const vr::HmdMatrix44_t& mat, char* name) {
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3]);
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[3][0], mat.m[3][1], mat.m[3][2], mat.m[3][3]);
 	log_debug("[DBG] =========================================");
-}
-
-void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
-	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
-	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
-	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
-	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[14];
-}
-
-Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
-	);
-	return matrixObj;
-}
-
-Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
-	);
-	return matrixObj;
 }
 
 void ProcessSteamVREyeMatrices(vr::EVREye eye) {
