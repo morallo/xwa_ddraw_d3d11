@@ -7398,12 +7398,13 @@ void UpdateViewMatrix()
 
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-		Matrix3 rotMatrix;
+		Matrix4 fullViewMatrix;
 
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &rotMatrix);
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &fullViewMatrix);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
+
 
 		// DEBUG
 		if (g_bSteamVRYawPitchRollFromMouseLook)
@@ -7413,28 +7414,25 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		// Compute the full rotation
-		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-		rotMatrixFull.identity();
-		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
+		// Compute the correction matrix with the correct axis signs
+		Matrix4 correctionMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
+		rotMatrixYaw.identity();	rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.identity();	rotMatrixPitch.rotateX(-pitch);
+		rotMatrixRoll.identity();	rotMatrixRoll.rotateZ(roll);
+		posMatrix.identity();		posMatrix.translate(x, y, -z);
+		correctionMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+		
 
-		// Transform the absolute head position into a relative position. This is
-		// needed because the game will apply the yaw/pitch on its own. So, we need
-		// to undo the yaw/pitch transformation by computing the inverse of the
-		// rotation matrix. Fortunately, rotation matrices can be inverted with a
-		// simple transpose.
-		rotMatrix.invert();
+		//g_viewMatrix.identity();
+		//g_viewMatrix.rotateZ(roll);
 
-		g_viewMatrix.identity();
-		g_viewMatrix.rotateZ(roll);
 		
 		// viewMat is not a full transform matrix: it's only RotZ
 		// because the cockpit hook already applies the yaw/pitch rotation
-		g_VSMatrixCB.viewMat = g_viewMatrix;
-		g_VSMatrixCB.fullViewMat = rotMatrixFull;
+		//g_VSMatrixCB.viewMat = g_viewMatrix;
+		//g_VSMatrixCB.fullViewMat = rotMatrixFull;
+		g_VSMatrixCB.viewMat = correctionMatrixFull;
+		g_VSMatrixCB.fullViewMat = correctionMatrixFull;
 	}
 	else 
 	{
@@ -9069,8 +9067,6 @@ HRESULT PrimarySurface::Flip(
 				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
 			*/
-
-			//CalculateViewMatrix();
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
