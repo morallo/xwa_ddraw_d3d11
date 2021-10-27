@@ -354,16 +354,30 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			Matrix4 rotMatrixYaw, rotMatrixPitch, posMatrix;
 			rotMatrixYaw.identity();	rotMatrixYaw.rotateY(yaw_cockpitlook);
 			rotMatrixPitch.identity();	rotMatrixPitch.rotateX(-pitch_cockpitlook);
-			posMatrix.identity();		posMatrix.translate(-x_cockpitlook, -y_cockpitlook, z_cockpitlook);
+			posMatrix.identity();		posMatrix.translate(-x_cockpitlook, -y_cockpitlook, -z_cockpitlook);			
 			// Create inverse matrix by applying the opposite angles, in inverse order
 			m4_UndoCockpitLook = posMatrix * rotMatrixYaw * rotMatrixPitch;
 
-			// Invert it to get the transform from that pose into the head center coordinate reference,
-			// hopefully cancelling the pose estimation and the loss of precision (float to int32)
-			//mCockpitLook.invert();
+			Matrix4 m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
+
+			// Recommended settings in CockpitLook.cfg to avoid jitter due to cockpit shake
+			// positional_x_multiplier = 0
+			// positional_y_multiplier = 0
+			// positional_z_multiplier = 0
+			// 
+			// DEBUG: you can cancel positional tracking completely by uncommenting these lines
+			// g_fPosXMultiplier = 0;
+			// g_fPosYMultiplier = 0;
+			// g_fPosZMultiplier = 0;
+
+			// Invert axes so that it works properly. I don't understand yet why this is necessary.
+			int col = 3; //4th column (index 3) of the pose matrix is the translation vector x,y,z
+			m4_hmdPose[col * 4] =		-m4_hmdPose[col * 4]	* g_fPosXMultiplier;
+			m4_hmdPose[col * 4 + 1] =	-m4_hmdPose[col * 4 + 1]* g_fPosYMultiplier;
+			m4_hmdPose[col * 4 + 2] =	-m4_hmdPose[col * 4 + 2]* g_fPosZMultiplier;
 
 			//Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
-			Matrix4 m4_correctionMatrix = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking) * m4_UndoCockpitLook;
+			Matrix4 m4_correctionMatrix = m4_hmdPose * m4_UndoCockpitLook;
 			Matrix4toHmdMatrix34(m4_correctionMatrix, m34_correctionMatrix);  // This matrix contains all positional and rotational data.
 			
 			// Finally we extract the components of the composed matrix to apply them later
