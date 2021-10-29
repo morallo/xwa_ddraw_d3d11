@@ -120,6 +120,7 @@ const char* ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char* FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char* STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
 // Cockpitlook params
+const char* POSE_CORRECTED_HEADTRACKING = "pose_corrected_headtracking";
 const char* YAW_MULTIPLIER_CLPARAM = "yaw_multiplier";
 const char* PITCH_MULTIPLIER_CLPARAM = "pitch_multiplier";
 const char* YAW_OFFSET_CLPARAM = "yaw_offset";
@@ -149,6 +150,7 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
 TrackerType g_TrackerType = TRACKER_NONE;
+bool g_bCorrectedHeadTracking = false;
 
 float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
@@ -648,7 +650,7 @@ void SaveVRParams() {
 			fprintf(file, "%s = %s\n", VR_MODE_VRPARAM, VR_MODE_STEAMVR_SVAL);
 	}
 	fprintf(file, "\n");
-
+	
 	//fprintf(file, "focal_dist = %0.6f # Try not to modify this value, change IPD instead.\n", focal_dist);
 
 	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", IPD_VRPARAM);
@@ -825,6 +827,10 @@ void LoadCockpitLookParams() {
 					g_TrackerType = TRACKER_NONE;
 				}
 
+			}
+			else if (_stricmp(param, POSE_CORRECTED_HEADTRACKING) == 0) {
+				log_debug("Using pose corrected head tracking");
+				g_bCorrectedHeadTracking = (bool)fValue;
 			}
 			/*else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
 				g_bCockpitInertiaEnabled = (bool)fValue;
