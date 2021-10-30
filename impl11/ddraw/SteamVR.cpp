@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "commonVR.h"
 #include "SteamVR.h"
+#include "globals.h"
 #include <headers/openvr.h>
 #include "FreePIE.h"
 #include "SharedMem.h"
@@ -272,16 +273,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& 
 	z = PX[2];
 }
 
-/*
-// To prevent jittering, avoid calling WaitGetPoses from ddraw -- call it from the CockpitLook hook
-// instead. m0rgg found that we were calling WaitGetPoses from those two places, thus causing jittering.
-bool WaitGetPoses() {
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
-	return true;
-}
-*/
-
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError)
 {
 	char* pchBuffer = NULL;
@@ -295,7 +286,7 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z /*, Matrix3* rotMatrix */)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
@@ -306,48 +297,83 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		vr::TrackedDevicePose_t trackedDevicePose;
+		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
-		vr::HmdMatrix34_t poseMatrix;
+		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
+		vr::HmdMatrix34_t m34_fullMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-
-		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
-		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
-		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
-		//if (g_bRendering3D && !*g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
-		if (g_bRendering3D && !(*g_playerInHangar)) {
-			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
-			// current frame in xwingaliance.exe.
-			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
-			// bDataReady is true, but I don't think there's a huge advantage to doing that.
-			//trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
-			//log_debug("[DBG] Using trackedDevicePose from CockpitLook\n");
+		if (g_bRendering3D && !(*g_playerInHangar) && !g_bCorrectedHeadTracking) {
+			// For legacy/stable tracking, WaitGetPoses() is run in CockpitLook. Get the last tracking pose obtained then.
+			// This pose was just used to render the current frame in xwingaliance.exe and will provide consistent tracking.			
 			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+			//log_debug("[DBG] ddraw.dll calling GetLastPoses()\n");
 		}
 		else {
-			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
+			// CockpitLookHook is not running (we are in 2D mode) or not calling WaitGetPoses (pose_corrected_headtracking = 1).
+			// We do the vsync blocking here and use the latest poses obtained just before starting rendering
 			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
-			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses\n");
-			//log_debug("[DBG] g_bRendering3D=%d\n",g_bRendering3D);
-			//log_debug("[DBG] g_playerInHangar=%d\n", *g_playerInHangar);
+			//log_debug("[DBG] ddraw.dll calling WaitGetPoses()\n");
 		}
-		
+		trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];		
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
-			poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
-			q = rotationToQuaternion(poseMatrix);
+			Matrix4 m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
+
+			if (g_bCorrectedHeadTracking) {
+				// We need to apply the perspective correction between the pose predicted in the previous frame
+				// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
+				// and the actual pose just returned by WaitGetPoses() that will be used to do the D3D render
+
+				// Obtain the yaw, pitch that was applied by CockpitLook. Roll was ignored.
+				float yaw_cockpitlook, pitch_cockpitlook, x_cockpitlook, y_cockpitlook, z_cockpitlook;
+				Matrix4 m4_UndoCockpitLook;
+				yaw_cockpitlook = (float)(PlayerDataTable[*g_playerIndex].cockpitCameraYaw * 360.0f / 65535.0f);
+				pitch_cockpitlook = (float)(PlayerDataTable[*g_playerIndex].cockpitCameraPitch * 360.0f / 65535.0f);
+
+				// Get the translation applied by CockpitLook
+				float g_fXWAUnitsToMetersScale = 400.0f; // Empirical value used hardcoded in CockpitLook, or set in cockpitlook.cfg (xwa_units_to_meters_scale)
+				x_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitXReference / g_fXWAUnitsToMetersScale;
+				y_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitYReference / g_fXWAUnitsToMetersScale;
+				z_cockpitlook = (float)PlayerDataTable[*g_playerIndex].cockpitZReference / g_fXWAUnitsToMetersScale;
+
+
+				// Build a transform matrix to "undo" the CockpitLook transformation based on HMD pose estimated in the previous frame
+				Matrix4 rotMatrixYaw, rotMatrixPitch, posMatrix;
+				rotMatrixYaw.identity();	rotMatrixYaw.rotateY(yaw_cockpitlook);
+				rotMatrixPitch.identity();	rotMatrixPitch.rotateX(-pitch_cockpitlook);
+				posMatrix.identity();		posMatrix.translate(-x_cockpitlook, -y_cockpitlook, -z_cockpitlook);
+				// Create inverse matrix by applying the opposite angles, in inverse order
+				m4_UndoCockpitLook = posMatrix * rotMatrixYaw * rotMatrixPitch;
+
+				// DEBUG: you can cancel positional tracking completely by uncommenting these lines
+				// g_fPosXMultiplier = 0;
+				// g_fPosYMultiplier = 0;
+				// g_fPosZMultiplier = 0;
+
+				// Invert axes so that it works properly. I don't understand yet why this is necessary.
+				int col = 3; //4th column (index 3) of the pose matrix is the translation vector x,y,z
+				m4_hmdPose[col * 4] = -m4_hmdPose[col * 4] * g_fPosXMultiplier;
+				m4_hmdPose[col * 4 + 1] = -m4_hmdPose[col * 4 + 1] * g_fPosYMultiplier;
+				m4_hmdPose[col * 4 + 2] = -m4_hmdPose[col * 4 + 2] * g_fPosZMultiplier;
+
+				//Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
+				Matrix4 m4_correctionMatrix = m4_hmdPose * m4_UndoCockpitLook;
+				Matrix4toHmdMatrix34(m4_correctionMatrix, m34_fullMatrix);  // This matrix contains all positional and rotational data.
+			}
+			else //Legacy headtracking. There is no pose prediction correction, we take the pose as it was returned by GetLastPoses() and used by CockpitLook.
+			{	
+				Matrix4toHmdMatrix34(m4_hmdPose, m34_fullMatrix);
+			}
+			// Finally we extract the components of the composed matrix to apply them later
+			q = rotationToQuaternion(m34_fullMatrix);
 			quatToEuler(q, yaw, pitch, roll);
 
-			*x = poseMatrix.m[0][3];
-			*y = poseMatrix.m[1][3];
-			*z = poseMatrix.m[2][3];
-			//*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+			*x = m34_fullMatrix.m[0][3];
+			*y = m34_fullMatrix.m[1][3];
+			*z = m34_fullMatrix.m[2][3];
 		}
 		//else {
 			//log_debug("[DBG] HMD pose not valid");
@@ -501,6 +527,40 @@ Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t& mat) {
 	return matrixObj;
 }
 
+Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
+	);
+	return matrixObj;
+}
+
+Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
+	);
+	return matrixObj;
+}
+
+void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[15];
+}
+
+void Matrix4toHmdMatrix34(const Matrix4& m4, vr::HmdMatrix34_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14];
+}
+
 void DumpMatrix34(FILE* file, const vr::HmdMatrix34_t& m) {
 	if (file == NULL)
 		return;
@@ -566,33 +626,6 @@ void ShowHmdMatrix44(const vr::HmdMatrix44_t& mat, char* name) {
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3]);
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[3][0], mat.m[3][1], mat.m[3][2], mat.m[3][3]);
 	log_debug("[DBG] =========================================");
-}
-
-void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
-	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
-	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
-	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
-	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[14];
-}
-
-Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
-	);
-	return matrixObj;
-}
-
-Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
-	);
-	return matrixObj;
 }
 
 void ProcessSteamVREyeMatrices(vr::EVREye eye) {

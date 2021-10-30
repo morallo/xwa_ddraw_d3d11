@@ -42,7 +42,7 @@ void ShutDownSteamVR();
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z /*, Matrix3* rotMatrix */);
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z);
 // WaitGetPoses is now called from the CockpitLook hook.
 //bool WaitGetPoses();
 
@@ -60,6 +60,7 @@ void ShowMatrix4(const Matrix4& mat, char* name);
 void ShowHmdMatrix34(const vr::HmdMatrix34_t& mat, char* name);
 void ShowHmdMatrix44(const vr::HmdMatrix44_t& mat, char* name);
 void Matrix4toHmdMatrix44(const Matrix4 & m4, vr::HmdMatrix44_t & mat);
+void Matrix4toHmdMatrix34(const Matrix4& m4, vr::HmdMatrix34_t& mat);
 Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat);
 Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat);
 void ShowVector4(const Vector4& X, char* name);

@@ -7398,12 +7398,12 @@ void UpdateViewMatrix()
 
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-		//Matrix3 rotMatrix;
 
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z /*, &rotMatrix*/);
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
+
 
 		// DEBUG
 		if (g_bSteamVRYawPitchRollFromMouseLook)
@@ -7413,28 +7413,27 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		// Compute the full rotation
-		Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-		rotMatrixFull.identity();
-		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-		rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-		rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw;
-
-		// Transform the absolute head position into a relative position. This is
-		// needed because the game will apply the yaw/pitch on its own. So, we need
-		// to undo the yaw/pitch transformation by computing the inverse of the
-		// rotation matrix. Fortunately, rotation matrices can be inverted with a
-		// simple transpose.
-		// rotMatrix.invert(); // I don't think we need to invert this matrix anymore: it's not used after this point
-
-		g_viewMatrix.identity();
-		g_viewMatrix.rotateZ(roll);
+		Matrix4 correctionMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
+		rotMatrixYaw.identity();
+		rotMatrixPitch.identity();
+		posMatrix.identity();
+		rotMatrixRoll.identity();
 		
-		// viewMat is not a full transform matrix: it's only RotZ
-		// because the cockpit hook already applies the yaw/pitch rotation
+		// Compute the component matrices with the correct axis signs
+		if (g_bCorrectedHeadTracking) {
+			// If we want corrected tracking, we need to apply the full rotation+translation matrix
+			rotMatrixYaw.rotateY(-yaw);
+			rotMatrixPitch.rotateX(-pitch);
+			posMatrix.translate(x, y, -z);
+		}
+		// In all cases we want the roll from the HMD pose as it is never applied in CockpitLook
+		rotMatrixRoll.rotateZ(roll);
+
+		// Compose the full transformation matrix to use in the Vertex Shader.
+		g_viewMatrix = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+
 		g_VSMatrixCB.viewMat = g_viewMatrix;
-		g_VSMatrixCB.fullViewMat = rotMatrixFull;
+		g_VSMatrixCB.fullViewMat = g_viewMatrix;
 	}
 	else 
 	{
@@ -9090,8 +9089,6 @@ HRESULT PrimarySurface::Flip(
 				context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 			}
 			*/
-
-			//CalculateViewMatrix();
 
 #ifdef DBG_VR
 			if (g_bStart3DCapture && !g_bDo3DCapture) {
