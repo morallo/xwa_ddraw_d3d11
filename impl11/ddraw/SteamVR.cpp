@@ -346,7 +346,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 				rotMatrixPitch.identity();	rotMatrixPitch.rotateX(-pitch_cockpitlook);
 				posMatrix.identity();		posMatrix.translate(-x_cockpitlook, -y_cockpitlook, -z_cockpitlook);
 				// Create inverse matrix by applying the opposite angles, in inverse order
-				m4_UndoCockpitLook = posMatrix * rotMatrixYaw * rotMatrixPitch;
+				m4_UndoCockpitLook = posMatrix * rotMatrixPitch * rotMatrixYaw;
 
 				// DEBUG: you can cancel positional tracking completely by uncommenting these lines
 				// g_fPosXMultiplier = 0;
