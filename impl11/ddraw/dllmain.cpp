@@ -973,6 +973,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//g_bACActionTriggered = true;
 					g_bACTriggerState = false;
 				}
+
+				// Custom HUD color. Turns out that pressing H followed by the Spacebar restarts
+				// the current mission. The clock isn't reset and nothing else changes. So the only
+				// way I could find to detect this change is by catching the Spacebar event itself.
+				// When a mission is reset this way, the custom HUD color is also reset. So, let's
+				// reapply it here (if there is no custom HUD color, the following call does nothing)
+				ApplyCustomHUDColor();
 				break;
 
 			case VK_OEM_PERIOD:
