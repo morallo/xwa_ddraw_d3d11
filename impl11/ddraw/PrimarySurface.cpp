@@ -7413,27 +7413,30 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		Matrix4 correctionMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
+		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
 		rotMatrixYaw.identity();
 		rotMatrixPitch.identity();
 		posMatrix.identity();
 		rotMatrixRoll.identity();
 		
 		// Compute the component matrices with the correct axis signs
-		if (g_bCorrectedHeadTracking) {
-			// If we want corrected tracking, we need to apply the full rotation+translation matrix
-			rotMatrixYaw.rotateY(-yaw);
-			rotMatrixPitch.rotateX(-pitch);
-			posMatrix.translate(x, y, -z);
-		}
+		rotMatrixYaw.rotateY(-yaw);
+		rotMatrixPitch.rotateX(-pitch);
+		posMatrix.translate(x, y, -z);
 		// In all cases we want the roll from the HMD pose as it is never applied in CockpitLook
 		rotMatrixRoll.rotateZ(roll);
+		g_viewMatrix = rotMatrixRoll;
 
 		// Compose the full transformation matrix to use in the Vertex Shader.
-		g_viewMatrix = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+		viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+
+		if (g_bCorrectedHeadTracking) {
+			// If we want corrected tracking, we need to apply the full rotation+translation matrix in all cases
+			g_viewMatrix = viewMatrixFull;
+		}
 
 		g_VSMatrixCB.viewMat = g_viewMatrix;
-		g_VSMatrixCB.fullViewMat = g_viewMatrix;
+		g_VSMatrixCB.fullViewMat = viewMatrixFull;
 	}
 	else 
 	{
