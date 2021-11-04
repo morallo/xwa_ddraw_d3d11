@@ -2241,6 +2241,36 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.BindFlags = oldFlags;
 				desc.MipLevels = 1;
 			}
+
+			// Create Non-MSAA buffers for 3D Vision
+			if (g_bEnable3DVision) {
+				UINT curCPUFlags = desc.CPUAccessFlags;
+				UINT curBindFlags = desc.BindFlags;
+				D3D11_USAGE curUsage = desc.Usage;
+
+				desc.BindFlags = 0;
+				desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+				desc.Usage = D3D11_USAGE_STAGING;
+				log_debug("[DBG] [3DV] 3D Vision is enabled, creating buffers...");
+				
+				step = "_vision3DStaging";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_vision3DStaging);
+				if (FAILED(hr)) {
+					log_debug("[DBG] [3DV] Failed to create _vision3DStating: hr: 0x%x", hr);
+					log_err("Failed to create _vision3DStaging\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_debug("[DBG] [3DV] Succesfully created _vision3DStaging");
+				}
+
+				desc.CPUAccessFlags = curCPUFlags;
+				desc.BindFlags = curBindFlags;
+				desc.Usage = curUsage;
+			}
 		}
 
 		/* SRVs */

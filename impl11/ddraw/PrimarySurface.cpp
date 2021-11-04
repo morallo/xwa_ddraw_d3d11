@@ -7557,6 +7557,49 @@ void UpdateViewMatrix()
 		g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
 }
 
+void PrimarySurface::Add3DVisionSignature()
+{
+	/*
+	static byte data[] =
+	{
+		0x4e, 0x56, 0x33, 0x44, // NVSTEREO_IMAGE_SIGNATURE         = 0x4433564e
+		0x00, 0x0F, 0x00, 0x00, // Screen width * 2 = 1920*2 = 3840 = 0x00000F00
+		0x38, 0x04, 0x00, 0x00, // Screen height = 1080             = 0x00000438
+		0x20, 0x00, 0x00, 0x00, // dwBPP = 32                       = 0x00000020
+		0x03, 0x00, 0x00, 0x00  // dwFlags = SIH_SCALE_TO_FIT       = 0x00000003
+	};
+	*/
+
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	D3D11_MAPPED_SUBRESOURCE map;
+	HRESULT hr = context->Map(resources->_vision3DStaging, 0, D3D11_MAP_WRITE, 0, &map);
+
+	if (SUCCEEDED(hr))
+	{
+		uint32_t LastRow = map.RowPitch * (resources->_backbufferHeight - 1);
+		DWORD dwBPP = 32;
+		DWORD dwFlags = 0x02; // Side by Side
+		uint32_t data[] = {
+			0x4433564e,						// NVSTEREO_IMAGE_SIGNATURE
+			resources->_backbufferWidth,
+			resources->_backbufferHeight,
+			dwBPP,
+			dwFlags,
+		};
+
+		// Debug: the following line should write a white line on the last row of the image:
+		//memset((char *)((uint32_t)map.pData + LastRow), 0xFF, 4 * resources->_backbufferWidth);
+
+		memcpy((byte *)((uint32_t)map.pData + LastRow), data, 20);
+		context->Unmap(resources->_vision3DStaging, 0);
+	}
+	else {
+		if (g_bDumpSSAOBuffers)
+			log_debug("[DBG] [3DV] _vision3DStaging could not be mapped: 0x%x", hr);
+	}
+}
+
 HRESULT PrimarySurface::Flip(
 	LPDIRECTDRAWSURFACE lpDDSurfaceTargetOverride,
 	DWORD dwFlags
@@ -7962,6 +8005,19 @@ HRESULT PrimarySurface::Flip(
 						// Barrel effect enabled for DirectSBS mode
 						barrelEffect2D(i);
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+
+						if (g_bEnable3DVision) {
+							// If 3D vision is enabled, copy the backbuffer to a staging buffer where we
+							// can add the control bits, then copy the staging buffer back to the backbuffer
+							// for display
+							context->CopyResource(resources->_vision3DStaging, resources->_backBuffer);
+							Add3DVisionSignature();
+							context->CopyResource(resources->_backBuffer, resources->_vision3DStaging);
+							if (g_bDumpSSAOBuffers) {
+								log_debug("[DBG] [3DV] Dumping _vision3DStaging...");
+								DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
+							}
+						}
 					}
 					else {
 						// In SteamVR mode this will display the left image:
@@ -8803,6 +8859,19 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					} else
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+
+					if (g_bEnable3DVision) {
+						// If 3D vision is enabled, copy the backbuffer to a staging buffer where we
+						// can add the control bits, then copy the staging buffer back to the backbuffer
+						// for display
+						context->CopyResource(resources->_vision3DStaging, resources->_backBuffer);
+						Add3DVisionSignature();
+						context->CopyResource(resources->_backBuffer, resources->_vision3DStaging);
+						if (g_bDumpSSAOBuffers) {
+							log_debug("[DBG] [3DV] Dumping _vision3DStaging...");
+							DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
+						}
+					}
 				}
 			}
 			else { // Non-VR mode

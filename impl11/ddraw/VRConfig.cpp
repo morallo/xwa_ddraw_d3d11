@@ -149,6 +149,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
+bool g_bEnable3DVision = false; // TODO: Enable this here guy. I want to load it from VRParams.cfg
 TrackerType g_TrackerType = TRACKER_NONE;
 bool g_bCorrectedHeadTracking = false;
 
@@ -520,6 +521,8 @@ next:
 	LoadSSAOParams();
 	// Load the Hyperspace params
 	LoadHyperParams();
+	// Load the 3D Vision params
+	Load3DVisionParams();
 	// Load FOV params
 	LoadFocalLength();
 	// Load the default global material
@@ -2378,6 +2381,52 @@ bool LoadHyperParams() {
 			else if (_stricmp(param, "shake_speed") == 0) {
 				g_fHyperShakeRotationSpeed = fValue;
 			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+/* Loads the Bloom parameters from bloom.cfg */
+bool Load3DVisionParams() {
+	log_debug("[DBG] Loading 3DVision params...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./3DVision.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load 3DVision.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading 3DVision.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	// Set some default values
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "enable_3D_vision") == 0) {
+				g_bEnable3DVision = (bool)fValue;
+				if (g_bEnable3DVision)
+					log_debug("[DBG] [3DV] 3D Vision enabled");
+			}
+
 		}
 	}
 	fclose(file);

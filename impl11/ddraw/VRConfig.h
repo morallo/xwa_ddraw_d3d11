@@ -80,6 +80,7 @@ bool LoadACParams();
 bool LoadBloomParams();
 bool LoadSSAOParams();
 bool LoadHyperParams();
+bool Load3DVisionParams();
 bool LoadDefaultGlobalMaterial();
 void ReloadMaterials();
 

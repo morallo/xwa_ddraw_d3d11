@@ -252,6 +252,8 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
+	// 3D Vision
+	ComPtr<ID3D11Texture2D> _vision3DStaging;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
