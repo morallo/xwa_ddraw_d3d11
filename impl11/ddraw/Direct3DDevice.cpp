@@ -6531,6 +6531,7 @@ HRESULT Direct3DDevice::BeginScene()
 		The T/D has 6 lasers and 2 groups.
 		*/
 		// Update the cannon ready events
+		bool bAllCannonsReady = false;
 		if (g_bLasersIonsNeedCounting)
 			CountLasersAndIons(craftInstance);
 
@@ -6568,9 +6569,29 @@ HRESULT Direct3DDevice::BeginScene()
 					g_GameEvent.CannonReady[i] = true;
 				break;
 			case 0x4: // Fire all lasers in all groups
+				bAllCannonsReady = true;
 				for (int i = 0; i < craftInstance->NumberOfLasers; i++)
 					g_GameEvent.CannonReady[i] = true;
 				break;
+			}
+		}
+
+		// Deactivate lasers and ions if the warhead is armed
+		if (PlayerDataTable[*g_playerIndex].warheadArmed) {
+			for (int i = 0; i < craftInstance->NumberOfLasers; i++)
+				g_GameEvent.CannonReady[i] = false;
+		}
+		else if (!bAllCannonsReady) {
+			// Deactivate the lasers or ions depending on primarySecondaryArmed
+			if (PlayerDataTable[*g_playerIndex].primarySecondaryArmed == 0) {
+				// Deactivate ions
+				for (int i = g_iNumLaserCannons; i < g_iNumLaserCannons + g_iNumIonCannons; i++)
+					g_GameEvent.CannonReady[i] = false;
+			}
+			else {
+				// Deactivate lasers
+				for (int i = 0; i < g_iNumLaserCannons; i++)
+					g_GameEvent.CannonReady[i] = false;
 			}
 		}
 
