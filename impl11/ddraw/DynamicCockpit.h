@@ -137,7 +137,13 @@ typedef struct dc_element_struct {
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
+	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo;
+	// If set, the surface where the DC element is displayed will be removed, making it transparent.
+	// Use this for floating text elements, for instance
+	bool bTransparent;
+	// bTransparent layers are completely removed when D is pressed to show the regular HUD. Set the
+	// following flag to keep transparent layers visible even when D is pressed.
+	bool bAlwaysVisible;
 } dc_element;
 
 typedef struct move_region_coords_struct {

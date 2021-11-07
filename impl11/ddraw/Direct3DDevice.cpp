@@ -3068,6 +3068,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false;
+				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
 					{
@@ -3076,6 +3077,7 @@ HRESULT Direct3DDevice::Execute(
 							bIsHologram |= g_DCElements[idx].bHologram;
 							bIsNoisyHolo |= g_DCElements[idx].bNoisyHolo;
 							bIsTransparent |= g_DCElements[idx].bTransparent;
+							bDCElemAlwaysVisible |= g_DCElements[idx].bAlwaysVisible;
 						}
 					}
 
@@ -5082,7 +5084,9 @@ HRESULT Direct3DDevice::Execute(
 				// commands are being ignored, then this will cause the text messages to be rendered twice. To avoid
 				// having duplicated messages, we're removing these textures here when the erase_region commmands are
 				// not being applied.
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bIsTransparent && !g_bDCApplyEraseRegionCommands)
+				// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
+				// transparent layer will remain visible even when the HUD is displayed.
+				if (g_bDCManualActivate && g_bDynCockpitEnabled && bIsTransparent && !g_bDCApplyEraseRegionCommands && !bDCElemAlwaysVisible)
 					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:

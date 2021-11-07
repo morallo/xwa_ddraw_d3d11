@@ -331,6 +331,7 @@ bool LoadIndividualDCParams(char* sFileName) {
 					dc_elem.bHologram = false;
 					dc_elem.bNoisyHolo = false;
 					dc_elem.bTransparent = false;
+					dc_elem.bAlwaysVisible = false;
 					//g_DCElements.push_back(dc_elem);
 					g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
@@ -442,6 +443,9 @@ bool LoadIndividualDCParams(char* sFileName) {
 			}
 			else if (_stricmp(param, "transparent") == 0) {
 				g_DCElements[lastDCElemSelected].bTransparent = (bool)fValue;
+			}
+			else if (_stricmp(param, "always_visible") == 0) {
+				g_DCElements[lastDCElemSelected].bAlwaysVisible = (bool)fValue;
 			}
 			else if (_stricmp(param, "render_laser_ions") == 0) {
 				g_bRenderLaserIonEnergyLevels = (bool)fValue;
