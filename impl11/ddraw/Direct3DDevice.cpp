@@ -6598,6 +6598,13 @@ HRESULT Direct3DDevice::BeginScene()
 					g_GameEvent.CannonReady[i] = false;
 			}
 		}
+		// Deactivate lasers and ions if they ran out of energy
+		for (int i = 0; i < craftInstance->NumberOfLasers; i++)
+			// Not sure if I should also check that craftInstance->Hardpoints[i].WeaponType
+			// is either 1 or 2 (lasers or ions). It doesn't seem to be necessary.
+			if (craftInstance->Hardpoints[i].Energy == 0)
+				g_GameEvent.CannonReady[i] = false;
+
 
 		// Dump the CraftInstance table
 		/*
