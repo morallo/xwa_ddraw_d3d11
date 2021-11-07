@@ -1648,22 +1648,23 @@ void ClearAnimatedMaterials() {
 
 void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 	CockpitDamage x;
-	x.Flags = XWADamage;
+	x.Flags			= XWADamage;
 	CMD				= (x.CMD != 0);
-	LaserIon		= (x.LaserIon == 0x7);
+	LaserIon			= (x.LaserIon == 0x7);
 	BeamWeapon		= (x.BeamWeapon != 0);
 	Shields			= (x.Shields != 0);
-	Throttle		= (x.Throttle != 0);
+	Throttle			= (x.Throttle != 0);
 	Sensors			= (x.Sensors == 0x3);
 	LaserRecharge	= (x.LaserRecharge != 0);
 	EnginePower		= (x.EngineLevel != 0);
-	ShieldRecharge	= (x.ShieldRecharge  != 0);
-	BeamRecharge	= (x.BeamRecharge != 0);
+	ShieldRecharge	= (x.ShieldRecharge != 0);
+	BeamRecharge		= (x.BeamRecharge != 0);
 }
 
 void ResetGameEvent() {
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
+	g_GameEvent.bCockpitInitialized = false;
 	g_GameEvent.HullEvent = EVT_NONE;
 	g_GameEvent.WLightLLEvent = false;
 	g_GameEvent.WLightMLEvent = false;

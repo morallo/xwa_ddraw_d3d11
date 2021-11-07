@@ -159,7 +159,8 @@ typedef struct CockpitInstrumentStateStruct {
 
 typedef struct GlobalGameEventStruct {
 	GameEvent TargetEvent;
-	CockpitInstrumentState CockpitInstruments;
+	CockpitInstrumentState CockpitInstruments, InitialCockpitInstruments;
+	bool bCockpitInitialized;
 	GameEvent HullEvent;
 	// Warning Lights Events
 	bool WLightLLEvent;
@@ -177,6 +178,7 @@ typedef struct GlobalGameEventStruct {
 		WLightRREvent = 0; // 0: No event, 1: Yellow (locking), 2: Red (locked)
 		for (int i = 0; i < MAX_CANNONS; i++)
 			CannonReady[i] = false;
+		bCockpitInitialized = false;
 	}
 } GlobalGameEvent;
 
@@ -459,7 +461,8 @@ typedef struct MaterialStruct {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_LASER_ION];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamWeapon && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1) {
+		if (!g_GameEvent.CockpitInstruments.BeamWeapon && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1 &&
+			g_GameEvent.InitialCockpitInstruments.BeamWeapon) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON];
 		}
@@ -494,7 +497,8 @@ typedef struct MaterialStruct {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1) {
+		if (!g_GameEvent.CockpitInstruments.BeamRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1 &&
+			g_GameEvent.InitialCockpitInstruments.BeamRecharge) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE];
 		}
