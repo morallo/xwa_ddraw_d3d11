@@ -253,6 +253,12 @@ public:
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 	// 3D Vision
+	// double-wide version of _offscreenBufferPost. We use this buffer to resize the _offscreenBuffer
+	// to double-wide size while doing the barrel effect
+	ComPtr<ID3D11Texture2D> _vision3DPost; 
+	// We use this buffer to resolve _vision3DPost into a Non-MSAA buffer:
+	ComPtr<ID3D11Texture2D> _vision3DNoMSAA;
+	// We use this buffer to add the 3D vision signature
 	ComPtr<ID3D11Texture2D> _vision3DStaging;
 
 	// RTVs
@@ -298,6 +304,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
+	// 3D vision
+	ComPtr<ID3D11RenderTargetView> _RTVvision3DPost; // Used for the "barrel" effect in 3D vision
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -366,6 +374,7 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
 	ComPtr<ID3D11PixelShader> _steamVRMirrorPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
+	ComPtr<ID3D11PixelShader> _simpleResizePS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;

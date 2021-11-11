@@ -18,6 +18,7 @@
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
 #include "../Debug/MainPixelShaderBpp4ColorKey20.h"
 #include "../Debug/BarrelPixelShader.h"
+#include "../Debug/SimpleResizePS.h"
 #include "../Debug/SteamVRMirrorPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
@@ -78,6 +79,7 @@
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
 #include "../Release/MainPixelShaderBpp4ColorKey20.h"
 #include "../Release/BarrelPixelShader.h"
+#include "../Release/SimpleResizePS.h"
 #include "../Release/SteamVRMirrorPixelShader.h"
 #include "../Release/SingleBarrelPixelShader.h"
 #include "../Release/VertexShader.h"
@@ -1304,6 +1306,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoySRV_R.Release();
 		this->_shadertoyAuxSRV_R.Release();
 	}
+	if (g_b3DVisionEnabled) {
+		log_debug("[DBG] [3DV] Releasing 3D vision buffers");
+		this->_RTVvision3DPost.Release();
+		this->_vision3DPost.Release();
+		this->_vision3DNoMSAA.Release();
+		this->_vision3DStaging.Release();
+
+		this->_RTVvision3DPost = nullptr;
+		this->_vision3DPost = nullptr;
+		this->_vision3DNoMSAA = nullptr;
+		this->_vision3DStaging = nullptr;
+	}
 
 	this->_DCTextMSAA.Release();
 	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1500,6 +1514,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 			sd.BufferDesc.Width  = g_bUseSteamVR ? g_steamVRWidth : 0;
 			sd.BufferDesc.Height = g_bUseSteamVR ? g_steamVRHeight : 0;
+			/*
+			In the "StereoTest" program from here:
+
+			https://gist.github.com/AvengerDr/6062614
+			
+			* The swap chain desc is 1920x1080 (regular size)
+			* The backbuffer is also regular size (it's created from the swap chain)
+			* The stereo texture is double-wide with the 3D vision signature.
+
+			On each frame, the stereo texture is copied over the backbuffer using CopySubresourceRegion,
+			even if it doesn't actually fit. The nVidia driver is supposed to catch this operation and do
+			its magic.
+			*/
 			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1507,7 +1534,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.SampleDesc.Count = 1;
 			sd.SampleDesc.Quality = 0;
 			sd.Windowed = TRUE;
-			log_debug("[DBG] SwapChain W,H: %d, %d", sd.BufferDesc.Width, sd.BufferDesc.Height); // This line isn't actually executing
+			log_debug("[DBG] SwapChain W,H: %d, %d", sd.BufferDesc.Width, sd.BufferDesc.Height);
 
 			ComPtr<IDXGIFactory> dxgiFactory;
 			hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
@@ -1628,6 +1655,20 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
+			}
+
+			if (g_b3DVisionEnabled) {
+				step = "_vision3DPost";
+				desc.Width *= 2;
+				// offscreenBufferPost should be just like offscreenBuffer because it will be bound as a renderTarget
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_vision3DPost);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				log_debug("[DBG] [3DV] _vision3DPost created, size: %u, %u", desc.Width, desc.Height);
+				desc.Width /= 2;
 			}
 
 			step = "_DCTextMSAA";
@@ -2246,20 +2287,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// Create Non-MSAA buffers for 3D Vision
-			if (g_bEnable3DVision) {
-				UINT curCPUFlags = desc.CPUAccessFlags;
-				UINT curBindFlags = desc.BindFlags;
-				D3D11_USAGE curUsage = desc.Usage;
-
-				desc.BindFlags = 0;
-				desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-				desc.Usage = D3D11_USAGE_STAGING;
+			if (g_b3DVisionEnabled) {
+				D3D11_TEXTURE2D_DESC backBufferDesc;
 				log_debug("[DBG] [3DV] 3D Vision is enabled, creating buffers...");
-				
-				step = "_vision3DStaging";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_vision3DStaging);
+
+				this->_backBuffer->GetDesc(&backBufferDesc);
+				backBufferDesc.Width *= 2;
+
+				step = "_vision3DNoMSAA";
+				hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_vision3DNoMSAA);
 				if (FAILED(hr)) {
-					log_debug("[DBG] [3DV] Failed to create _vision3DStating: hr: 0x%x", hr);
+					log_debug("[DBG] [3DV] Failed to create _vision3DNoMSAA: hr: 0x%x", hr);
 					log_err("Failed to create _vision3DStaging\n");
 					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -2267,12 +2305,28 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 				else {
-					log_debug("[DBG] [3DV] Succesfully created _vision3DStaging");
+					log_debug("[DBG] [3DV] Succesfully created _vision3DNoMSAA, size: %d, %d",
+						backBufferDesc.Width, backBufferDesc.Height);
 				}
 
-				desc.CPUAccessFlags = curCPUFlags;
-				desc.BindFlags = curBindFlags;
-				desc.Usage = curUsage;
+				backBufferDesc.BindFlags = 0;
+				backBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+				backBufferDesc.Usage = D3D11_USAGE_STAGING;
+
+				step = "_vision3DStaging";
+				hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_vision3DStaging);
+				if (FAILED(hr)) {
+					log_debug("[DBG] [3DV] Failed to create _vision3DStaging: hr: 0x%x", hr);
+					log_err("Failed to create _vision3DStaging\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_debug("[DBG] [3DV] Succesfully created _vision3DStaging, size: %d, %d",
+						backBufferDesc.Width, backBufferDesc.Height);
+				}
 			}
 		}
 
@@ -2657,6 +2711,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "_renderTargetViewPost";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &renderTargetViewDesc, &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
+
+		if (g_b3DVisionEnabled) {
+			step = "_RTVvision3DPost";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_vision3DPost, &renderTargetViewDesc, &this->_RTVvision3DPost);
+			if (FAILED(hr)) goto out;
+		}
 
 		step = "_shadertoyRTV";
 		hr = this->_d3dDevice->CreateRenderTargetView(
@@ -3145,6 +3205,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SimpleResizePS, sizeof(g_SimpleResizePS), nullptr, &_simpleResizePS)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
 		return hr;
 
@@ -3458,6 +3521,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SimpleResizePS, sizeof(g_SimpleResizePS), nullptr, &_simpleResizePS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SingleBarrelPixelShader, sizeof(g_SingleBarrelPixelShader), nullptr, &_singleBarrelPixelShader)))

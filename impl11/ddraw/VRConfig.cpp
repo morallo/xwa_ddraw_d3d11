@@ -149,7 +149,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
-bool g_bEnable3DVision = false; // TODO: Enable this here guy. I want to load it from VRParams.cfg
+bool g_b3DVisionEnabled = false; // TODO: Enable this here guy. I want to load it from VRParams.cfg
 TrackerType g_TrackerType = TRACKER_NONE;
 bool g_bCorrectedHeadTracking = false;
 
@@ -2608,8 +2608,8 @@ bool Load3DVisionParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "enable_3D_vision") == 0) {
-				g_bEnable3DVision = (bool)fValue;
-				if (g_bEnable3DVision)
+				g_b3DVisionEnabled = (bool)fValue;
+				if (g_b3DVisionEnabled)
 					log_debug("[DBG] [3DV] 3D Vision enabled");
 			}
 
