@@ -144,6 +144,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float intensity, text_alpha_override = 1.0, obj_alpha_override = 1.0;
 	bool dc_bloom = false;
 	float4 hud_texelColor = uintColorToFloat4(getBGColor(0), intensity, text_alpha_override, obj_alpha_override, dc_bloom);
+	float hud_Lightness = 0.0;
 	//[unroll] unroll or loop?
 	[loop]
 	for (uint i = 0; i < DynCockpitSlots; i++) {
@@ -164,6 +165,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor.rgb = lerp(hud_texelColor.rgb, texelText.rgb, textAlpha);
 			hud_texelColor.w = saturate(dc_brightness * max(hud_texelColor.w, textAlpha));
 			hud_texelColor = saturate(intensity * hud_texelColor);
+			// Multiplying by 10 acts like a threshold: only really black colors won't contribute to the
+			// hud_Lightness. Also, computing hud_Lightness here is good because we see the lightness of
+			// any type of DC element, including text and graphics.
+			hud_Lightness = max(hud_Lightness, saturate(dot(float3(0.33, 0.33, 0.33), 10.0 * hud_texelColor.rgb)));
 
 			const float hud_alpha = hud_texelColor.w;
 			// DEBUG: Display the source UVs
@@ -176,7 +181,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
-
 	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
 	// Also go shadeless where the cover texture is bright enough and mark that in the bloom mask.
 	if (bUseCoverTexture > 0) {
@@ -207,7 +211,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
 		diffuse = lerp(1.0, diffuse, coverAlpha);
 		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
-		// ssMask: NMIntensity, SpecValue, unused
+		// ssMask: NMIntensity, SpecValue, Shadeless
 		// DC areas are shadeless, have high glossiness and low spec intensity
 		// if coverAlpha is 1, this is the cover texture
 		// if coverAlpha is 0, this is the hole in the cover texture
@@ -228,6 +232,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
 	}
+	// Let's make the text and other DC elements emissive so that they are readable even in low lighting conditions
+	output.ssaoMask.r = lerp(output.ssaoMask.r, EMISSION_MAT, hud_Lightness);
 	
 	// At this point, coverColor is the blended cover texture (if it exists) and the HUD contents
 	if (dc_bloom) {

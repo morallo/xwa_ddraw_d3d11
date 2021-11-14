@@ -209,6 +209,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = 0;
 	output.bloom = 0;
 
+	if (mask > EMISSION_LO) {
+		output.color = float4(color, 1);
+		return output;
+	}
+
 	// DEBUG
 	//output.color = float4(ssao, 1);
 	//return output;

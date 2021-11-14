@@ -453,6 +453,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	// An area is "shadeless" if it's GLASS_MAT or above
 	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	shadeless = max(shadeless, shadeless_mask);
+	if (mask > EMISSION_LO) {
+		output.color = float4(color, 1);
+		return output;
+	}
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
@@ -801,7 +805,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-	
 
 #ifdef DISABLED
 	if (ssao_debug == 8)

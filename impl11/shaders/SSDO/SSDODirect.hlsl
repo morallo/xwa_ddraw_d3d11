@@ -488,6 +488,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.emission = float4(saturate(emission_intensity * emission / (float)samples), 1);
 
 	// DEBUG
+#ifdef DISABLED
 	if (ssao_debug == 1)
 		output.ssao.xyz = output.ssao.xxx;
 	if (ssao_debug == 2)
@@ -502,6 +503,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssao.xyz = Normal;
 	//if (ssao_debug == 7)
 	//	output.ssao.xyz = lerp(float3(0, 0, 0.1), float3(1, 1, 1), contactShadow);
+#endif
 
 	//if (ssao_debug != 0)
 	//	return output;
