@@ -964,7 +964,7 @@ void ComputeHyperFOVParams() {
 	// To find the y-center of the screen, we're going to use math. The tangent of the current
 	// pitch can give us the information right away. This is closely related to the FOV and
 	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
-	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 2.0f * PI;
+	float pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 2.0f * PI;
 	float H = *g_fRawFOVDist * tan(pitch); // This will give us the height, in pixels, measured from the center of the screen
 	H += g_fCurInGameHeight / 2.0f;
 	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);

@@ -32,6 +32,8 @@ extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
 
+extern vr::TrackedDevicePose_t g_lastPredictedHmdPose; // HMD pose predicted in last frame used by CockpitLook.
+
 /*
  *	SteamVR specific functions declarations
  */
