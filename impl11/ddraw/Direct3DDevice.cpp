@@ -3039,7 +3039,7 @@ HRESULT Direct3DDevice::Execute(
 					We're using a non-exhaustive list of GUI CRCs to tell when the 3D content has finished drawing.
 				*/
 
-				const bool bExternalCamera = (bool)PlayerDataTable[*g_playerIndex].externalCamera;
+				const bool bExternalCamera = (bool)PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 				/* 
 				 * ZWriteEnabled is false when rendering the background starfield or when
 				 * rendering the GUI elements -- except that the targetting computer GUI
@@ -3254,12 +3254,12 @@ HRESULT Direct3DDevice::Execute(
 							g_PSCBuffer.bInHyperspace = 1;
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							g_bClearedAuxBuffer = false; // We use this flag to clear the aux buffer if the cockpit camera moves
-							if (PlayerDataTable[*g_playerIndex].cockpitCameraYaw != g_fLastCockpitCameraYaw ||
-								PlayerDataTable[*g_playerIndex].cockpitCameraPitch != g_fLastCockpitCameraPitch)
+							if (PlayerDataTable[*g_playerIndex].MousePositionX != g_fLastCockpitCameraYaw ||
+								PlayerDataTable[*g_playerIndex].MousePositionY != g_fLastCockpitCameraPitch)
 								g_bHyperHeadSnapped = true;
 							if (*numberOfPlayersInGame == 1) {
-								PlayerDataTable[*g_playerIndex].cockpitCameraYaw = g_fLastCockpitCameraYaw;
-								PlayerDataTable[*g_playerIndex].cockpitCameraPitch = g_fLastCockpitCameraPitch;
+								PlayerDataTable[*g_playerIndex].MousePositionX = g_fLastCockpitCameraYaw;
+								PlayerDataTable[*g_playerIndex].MousePositionY = g_fLastCockpitCameraPitch;
 								// Restoring the cockpitX/Y/Z/Reference didn't seem to have any effect when cockpit inertia was on:
 								//PlayerDataTable[*g_playerIndex].cockpitXReference = g_lastCockpitXReference;
 								//PlayerDataTable[*g_playerIndex].cockpitYReference = g_lastCockpitYReference;
@@ -3434,11 +3434,11 @@ HRESULT Direct3DDevice::Execute(
 					{
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
-							g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].cockpitCameraYaw;
-							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].cockpitCameraPitch;
-							g_lastCockpitXReference   = PlayerDataTable[*g_playerIndex].cockpitXReference;
-							g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].cockpitYReference;
-							g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].cockpitZReference;
+							g_fLastCockpitCameraYaw   = PlayerDataTable[*g_playerIndex].MousePositionX;
+							g_fLastCockpitCameraPitch = PlayerDataTable[*g_playerIndex].MousePositionY;
+							g_lastCockpitXReference   = PlayerDataTable[*g_playerIndex].Camera.ShakeX;
+							g_lastCockpitYReference   = PlayerDataTable[*g_playerIndex].Camera.ShakeY;
+							g_lastCockpitZReference   = PlayerDataTable[*g_playerIndex].Camera.ShakeZ;
 
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 							if (g_bUseSteamVR) {
@@ -6156,7 +6156,7 @@ void Direct3DDevice::RenderEdgeDetector()
 	auto& context = resources->_d3dDeviceContext;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	const bool bExternalView = PlayerDataTable[*g_playerIndex].externalCamera;
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	D3D11_DEPTH_STENCIL_DESC desc;
 	D3D11_BLEND_DESC blendDesc{};
 	ComPtr<ID3D11DepthStencilState> depthState;

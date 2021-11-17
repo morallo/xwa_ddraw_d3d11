@@ -727,7 +727,7 @@ void log_debug(const char *format, ...)
 
 	vsprintf_s(buf, 512, format, args);
 	OutputDebugString(buf);
-
+	OutputDebugString("\n");
 	va_end(args);
 }
 
