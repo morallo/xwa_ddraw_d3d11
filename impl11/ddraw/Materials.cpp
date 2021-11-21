@@ -341,9 +341,9 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
 	char temp[512];
-	char *s = NULL, *t = NULL, texname[80], sDATFileName[128], sOptionalArgs[128];
+	char *s = NULL, *t = NULL, texname[80], sDATZIPFileName[128], sOptionalArgs[128];
 	float seconds, intensity = 1.0f;
-	bool IsDATFile = false, bEllipsis = false;
+	bool IsDATFile = false, IsZIPFile = false, bEllipsis = false;
 	*eventType = EVT_NONE;
 	std::string s_temp;
 	*alpha_mode = 0;
@@ -386,6 +386,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	// Parse the DAT file name, if specified
 	if (stristr(s, ".dat") != NULL) {
 		IsDATFile = true;
+		IsZIPFile = false;
 		SKIP_WHITESPACES(s);
 		// Skip to the next comma
 		t = s;
@@ -395,7 +396,25 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		// End this string on the comma so that we can parse a string
 		*t = 0;
 		// Copy the DAT's filename
-		strcpy_s(sDATFileName, 128, s);
+		strcpy_s(sDATZIPFileName, 128, s);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+	// Parse the ZIP file name, if specified
+	else if (stristr(s, ".zip") != NULL) {
+		IsZIPFile = true;
+		IsDATFile = false;
+		SKIP_WHITESPACES(s);
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		// Copy the DAT's filename
+		strcpy_s(sDATZIPFileName, 128, s);
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
@@ -518,8 +537,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		// Save the last tex_seq_elem, we might need it later, to interpolate a range of elems.
 		prev_tex_seq_elem = tex_seq_elem;
 		// Populate the tex_seq_elem with the data we just read
-		if (IsDATFile) {
-			// This is a DAT file sequence, texname should be parsed as GroupId-ImageId
+		if (IsDATFile || IsZIPFile) {
+			// This is a DAT/ZIP file sequence, texname should be parsed as GroupId-ImageId
 			try {
 				int GroupId = -1, ImageId = -1;
 				int res = sscanf_s(texname, "%d-%d", &GroupId, &ImageId);
@@ -527,18 +546,19 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 					log_debug("[DBG] [MAT] Could not parse GroupId-ImageId from [%s]", texname);
 					return false;
 				}
-				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName);
+				strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATZIPFileName);
 				tex_seq_elem.seconds = seconds;
 				tex_seq_elem.intensity = intensity;
-				tex_seq_elem.IsDATImage = true;
+				tex_seq_elem.IsDATImage = IsDATFile;
+				tex_seq_elem.IsZIPImage = IsZIPFile;
 				tex_seq_elem.GroupId = GroupId;
 				tex_seq_elem.ImageId = ImageId;
 				// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 				tex_seq_elem.ExtraTextureIndex = -1;
 				if (!bEllipsis) {
 					tex_sequence.push_back(tex_seq_elem);
-					log_debug("[DBG] DAT tex_seq_elem added: [%s], Group: %d, ImageId: %d",
-						tex_seq_elem.texname, GroupId, ImageId);
+					log_debug("[DBG] %s tex_seq_elem added: [%s], Group: %d, ImageId: %d",
+						IsDATFile ? "DAT" : "ZIP", tex_seq_elem.texname, GroupId, ImageId);
 				}
 				else {
 					// Interpolate between prev_tex_seq_elem and tex_seq_elem
@@ -555,6 +575,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 			tex_seq_elem.seconds = seconds;
 			tex_seq_elem.intensity = intensity;
 			tex_seq_elem.IsDATImage = false;
+			tex_seq_elem.IsZIPImage = false;
 			// The texture itself will be loaded later. So the reference index is initialized to -1 here:
 			tex_seq_elem.ExtraTextureIndex = -1;
 			tex_sequence.push_back(tex_seq_elem);
@@ -658,15 +679,19 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 	TexSeqElem tex_seq_elem;
 	// The path is either an actual path that contains the frame sequence, or it's
-	// a <Path>\<DATFile>-<GroupId> or <Path>\<DATFile>-<GroupId>-<ImageId>. Let's
-	// check if path contains the ".DAT-" token first:
-	char *split = stristr(path, ".dat-");
+	// a <Path>\<DATFile|ZIPFile>-<GroupId> or <Path>\<DATFile|ZIPFile>-<GroupId>-<ImageId>.
+	// Let's check if path contains the ".DAT-" token first:
+	char *splitDAT = stristr(path, ".dat-");
+	char *splitZIP = stristr(path, ".zip-");
+	char *split = splitDAT != NULL ? splitDAT : splitZIP;
+	bool IsDATFile = splitDAT != NULL;
+	bool IsZIPFile = splitZIP != NULL;
 	if (split != NULL) {
 		// Split the string at the first dash and move the cursor after it:
 		split[4] = 0;
 		split += 5;
-		// sDATFileName contains the path and DAT file name:
-		std::string sDATFileName(path);
+		// sDATZIPFileName contains the path and DAT|ZIP file name:
+		std::string sDATZIPFileName(path);
 		std::string sGroupImage(split);
 		std::string sGroup, sImage;
 		int split_idx = sGroupImage.find_last_of('-');
@@ -678,7 +703,8 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			sGroup = sGroupImage;
 			sImage = "";
 		}
-		log_debug("[DBG] sDATFileName: [%s], Group: [%s], Image: [%s]", sDATFileName.c_str(), sGroup.c_str(), sImage.c_str());
+		log_debug("[DBG] sDATZIPFileName: [%s], Group: [%s], Image: [%s]",
+			sDATZIPFileName.c_str(), sGroup.c_str(), sImage.c_str());
 
 		short GroupId = -1, ImageId = -1;
 		try {
@@ -704,7 +730,10 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 			log_debug("[DBG] Using only %d-%d", GroupId, ImageId);
 		}
 		else {
-			ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
+			if (IsDATFile)
+				ImageList = ReadDATImageListFromGroup(sDATZIPFileName.c_str(), GroupId);
+			else if (IsZIPFile)
+				ImageList = ReadZIPImageListFromGroup(sDATZIPFileName.c_str(), GroupId);
 			log_debug("[DBG] Group %d has %d images", GroupId, ImageList.size());
 		}
 		// Iterate over the list of Images and add one TexSeqElem for each one of them
@@ -712,13 +741,14 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 		{
 			// Store the DAT filename in texname and set the appropriate flag. texname contains
 			// the path and filename.
-			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATZIPFileName.c_str());
 			// Prevent division by 0:
 			fps = max(0.0001f, fps);
 			tex_seq_elem.seconds = 1.0f / fps;
 			tex_seq_elem.intensity = intensity;
 			// Save the DAT image data:
-			tex_seq_elem.IsDATImage = true;
+			tex_seq_elem.IsDATImage = IsDATFile;
+			tex_seq_elem.IsZIPImage = IsZIPFile;
 			tex_seq_elem.GroupId = GroupId;
 			tex_seq_elem.ImageId = ImageId;
 			// The texture itself will be loaded later. So the reference index is initialized to -1 here:

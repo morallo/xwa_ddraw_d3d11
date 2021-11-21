@@ -16,7 +16,10 @@
 #include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
+#include <filesystem>
 #include "globals.h"
+
+namespace fs = std::filesystem;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
@@ -417,6 +420,10 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 			res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, &texSRV);
 			//if (SUCCEEDED(res)) log_debug("[DBG] DAT %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
 		}
+		else if (tex_seq_elem.IsZIPImage) {
+			res = LoadZIPImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, &texSRV);
+			//if (SUCCEEDED(res)) log_debug("[DBG] DAT %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
+		}
 		else {
 			char texname[MAX_TEX_SEQ_NAME + 20];
 			wchar_t wTexName[MAX_TEX_SEQ_NAME];
@@ -591,6 +598,93 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 		log_debug("[DBG] [C++] Failed to read image data");
 
 	if (buf != nullptr) delete[] buf;
+	return res;
+}
+
+std::string GenerateZIPTempDir(char *sZIPFileName)
+{
+	std::string sFileName(sZIPFileName);
+	int idx = sFileName.find_last_of('.');
+	sFileName = sFileName.substr(0, idx);
+	sFileName.append("_tmp_zip");
+	return sFileName;
+}
+
+bool ZIPFileExists(char *sZIPFileName, int GroupId, int ImageId, std::string &sActualFileName)
+{
+	std::string sPath = GenerateZIPTempDir(sZIPFileName);
+	if (!fs::is_directory(sPath)) {
+		sActualFileName = std::string("");
+		return false;
+	}
+	sPath.append("\\");
+	sPath.append(std::to_string(GroupId));
+	sPath.append("\\");
+	sPath.append(std::to_string(ImageId));
+	
+	sActualFileName = std::string(sPath).append(".jpg");
+	//log_debug("[DBG] Checking file: [%s]", sActualFileName.c_str());
+	if (fs::is_regular_file(sActualFileName)) {
+		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
+		return true;
+	}
+
+	sActualFileName = std::string(sPath).append(".png");
+	//log_debug("[DBG] Checking file: %s", sActualFileName.c_str());
+	if (fs::is_regular_file(sActualFileName)) {
+		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
+		return true;
+	}
+	
+	sActualFileName = std::string(sPath).append(".gif");
+	//log_debug("[DBG] Checking file: %s", sActualFileName.c_str());
+	if (fs::is_regular_file(sActualFileName)) {
+		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
+		return true;
+	}
+	sActualFileName = std::string("");
+	return false;
+}
+
+HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
+	short *Width_out, short *Height_out)
+{
+	auto &resources = this->_deviceResources;
+	short Width = 0, Height = 0;
+	uint8_t Format = 0;
+	uint8_t *buf = nullptr;
+	int buf_len = 0;
+	// Initialize the output to null/failure by default:
+	HRESULT res = -1;
+	*srv = nullptr;
+
+	if (!InitZIPReader()) // This call is idempotent and should do nothing when ZIPReader is already loaded
+		return res;
+
+	if (SetZIPVerbosity != nullptr) SetZIPVerbosity(true);
+
+	// First, see if the file already has been unzipped
+	std::string sActualFileName;
+	if (!ZIPFileExists(sZIPFileName, GroupId, ImageId, sActualFileName)) {
+		// We couldn't find the file, let's unzip the ZIP file first
+		if (!LoadZIPFile(sZIPFileName)) {
+			log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
+			return res;
+		}
+	}
+
+	// Let's try again
+	if (!ZIPFileExists(sZIPFileName, GroupId, ImageId, sActualFileName)) {
+		log_debug("[DBG] Could not find ZIP file [%s],%d,%d", sZIPFileName, GroupId, ImageId);
+		return res;
+	}
+
+	// TODO: Do I really need the Width and Height? Probably not... Or at least, not here!
+	wchar_t wTexName[MAX_TEX_SEQ_NAME];
+	size_t len = 0;
+	mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, sActualFileName.c_str(), MAX_TEX_SEQ_NAME);
+	res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, srv);
+	
 	return res;
 }
 

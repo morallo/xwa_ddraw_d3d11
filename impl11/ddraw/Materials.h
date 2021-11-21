@@ -192,11 +192,13 @@ typedef struct TexSeqElemStruct {
 	char texname[MAX_TEX_SEQ_NAME];
 	float seconds, intensity;
 	bool IsDATImage;
+	bool IsZIPImage;
 
 	TexSeqElemStruct() {
 		ExtraTextureIndex = -1;
 		texname[0] = 0;
 		IsDATImage = false;
+		IsZIPImage = false;
 		GroupId = ImageId = -1;
 		seconds = intensity = 0.0f;
 	}

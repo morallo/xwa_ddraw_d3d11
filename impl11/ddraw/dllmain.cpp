@@ -1434,6 +1434,12 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				FreeLibrary(hDATReader);
 			}
 			*/
+
+			// ZIPReader: Load and erase any dangling temporary directories
+			{
+				if (InitZIPReader())
+					DeleteAllTempZIPDirectories();
+			}
 		}
 		break;
 	case DLL_THREAD_ATTACH:
@@ -1441,6 +1447,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		break;
 	case DLL_PROCESS_DETACH:
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
+		CloseZIPReader(); // Idempotent: does nothing if the ZIPReader wasn't loaded.
 		if (g_bUseSteamVR)
 			ShutDownSteamVR();
 		else if (g_bEnableVR)

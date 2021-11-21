@@ -205,9 +205,20 @@ LoadDATFileFun				LoadDATFile = nullptr;
 GetDATImageMetadataFun		GetDATImageMetadata = nullptr;
 ReadDATImageDataFun			ReadDATImageData = nullptr;
 SetDATVerbosityFun			SetDATVerbosity = nullptr;
-GetDATGroupImageCountFun	GetDATGroupImageCount = nullptr;
+GetDATGroupImageCountFun		GetDATGroupImageCount = nullptr;
 GetDATGroupImageListFun		GetDATGroupImageList = nullptr;
 // bool g_bEnableDATReader; // TODO
+// **************************
+
+// **************************
+// ZIPReader global vars and function pointers
+HMODULE g_hZIPReader = nullptr;
+
+SetZIPVerbosityFun				SetZIPVerbosity = nullptr;
+LoadZIPFileFun					LoadZIPFile = nullptr;
+GetZIPGroupImageCountFun			GetZIPGroupImageCount = nullptr;
+GetZIPGroupImageListFun			GetZIPGroupImageList = nullptr;
+DeleteAllTempZIPDirectoriesFun	DeleteAllTempZIPDirectories = nullptr;
 // **************************
 
 
@@ -368,6 +379,9 @@ void CycleFOVSetting()
 	}
 }
 
+//******************************************************************************************
+// DAT Reader code
+//******************************************************************************************
 bool InitDATReader() {
 	if (g_hDATReader != nullptr)
 		return true;
@@ -384,13 +398,12 @@ bool InitDATReader() {
 	GetDATImageMetadata = (GetDATImageMetadataFun)GetProcAddress(g_hDATReader, "GetDATImageMetadata");
 	ReadDATImageData = (ReadDATImageDataFun)GetProcAddress(g_hDATReader, "ReadDATImageData");
 	SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(g_hDATReader, "SetDATVerbosity");
-	SetDATVerbosity = (SetDATVerbosityFun)GetProcAddress(g_hDATReader, "SetDATVerbosity");
 	GetDATGroupImageCount = (GetDATGroupImageCountFun)GetProcAddress(g_hDATReader, "GetDATGroupImageCount");
 	GetDATGroupImageList = (GetDATGroupImageListFun)GetProcAddress(g_hDATReader, "GetDATGroupImageList");
 	if (LoadDATFile == nullptr || GetDATImageMetadata == nullptr || ReadDATImageData == nullptr ||
 		SetDATVerbosity == nullptr || GetDATGroupImageCount == nullptr || GetDATGroupImageList == nullptr)
 	{
-		log_debug("[DBG] Error in LoadDATImage: Some functions could not be loaded from DATReader.dll");
+		log_debug("[DBG] Error in InitDATReader: Some functions could not be loaded from DATReader.dll");
 		FreeLibrary(g_hDATReader);
 		g_hDATReader = nullptr;
 		return false;
@@ -431,6 +444,78 @@ std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int Group
 	}
 	return result;
 }
+//******************************************************************************************
+
+//******************************************************************************************
+// ZIP Reader code
+//******************************************************************************************
+bool IsZIPReaderLoaded() {
+	if (g_hZIPReader != nullptr)
+		return true;
+	return false;
+}
+
+bool InitZIPReader() {
+	if (IsZIPReaderLoaded())
+		return true;
+
+	g_hZIPReader = LoadLibrary("ZIPReader.dll");
+	if (g_hZIPReader == nullptr) {
+		LoadZIPFile = nullptr;
+		return false;
+	}
+
+	LoadZIPFile = (LoadZIPFileFun)GetProcAddress(g_hZIPReader, "LoadZIPFile");
+	SetZIPVerbosity = (SetZIPVerbosityFun)GetProcAddress(g_hZIPReader, "SetZIPVerbosity");
+	GetZIPGroupImageCount = (GetZIPGroupImageCountFun)GetProcAddress(g_hZIPReader, "GetZIPGroupImageCount");
+	GetZIPGroupImageList = (GetZIPGroupImageListFun)GetProcAddress(g_hZIPReader, "GetZIPGroupImageList");
+	DeleteAllTempZIPDirectories = (DeleteAllTempZIPDirectoriesFun)GetProcAddress(g_hZIPReader, "DeleteAllTempZIPDirectories");
+	if (LoadZIPFile == nullptr || SetZIPVerbosity == nullptr || GetZIPGroupImageCount == nullptr ||
+		GetZIPGroupImageList == nullptr || DeleteAllTempZIPDirectories == nullptr)
+	{
+		log_debug("[DBG] Error in InitZIPReader: Some functions could not be loaded from ZIPReader.dll");
+		FreeLibrary(g_hZIPReader);
+		g_hZIPReader = nullptr;
+		return false;
+	}
+	return true;
+}
+
+void CloseZIPReader() {
+	if (g_hZIPReader == nullptr)
+		return;
+
+	FreeLibrary(g_hZIPReader);
+	g_hZIPReader = nullptr;
+}
+
+std::vector<short> ReadZIPImageListFromGroup(const char *sZIPFileName, int GroupId) {
+	std::vector<short> result;
+	if (!InitZIPReader()) { // Idempotent call, does nothing if ZIPReader is already loaded
+		result.clear();
+		return result;
+	}
+
+	// Unzip the file
+	if (!LoadZIPFile(sZIPFileName)) {
+		log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
+		return result;
+	}
+
+	int NumImages = GetZIPGroupImageCount(GroupId);
+	if (NumImages > 0) {
+		short *ImageIds = new short[NumImages];
+		if (GetZIPGroupImageList(GroupId, ImageIds, NumImages)) {
+			for (int i = 0; i < NumImages; i++) {
+				result.push_back(ImageIds[i]);
+				//log_debug("[DBG] DAT ImageId: %d added", ImageIds[i]);
+			}
+		}
+		delete[] ImageIds;
+	}
+	return result;
+}
+//******************************************************************************************
 
 /*
  * Saves the current POV Offset to the current .ini file.

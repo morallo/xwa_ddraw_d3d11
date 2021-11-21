@@ -136,5 +136,26 @@ extern GetDATGroupImageListFun GetDATGroupImageList;
 bool InitDATReader();
 void CloseDATReader();
 std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int GroupId);
+// ********************************
+
+// ********************************
+// ZIPReader function pointers
+typedef void(_cdecl * SetZIPVerbosityFun)(bool Verbose);
+typedef bool(_cdecl * LoadZIPFileFun)(const char *sZIPFileName);
+typedef int(_cdecl * GetZIPGroupImageCountFun)(int GroupId);
+typedef bool(_cdecl * GetZIPGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
+typedef void(_cdecl * DeleteAllTempZIPDirectoriesFun)();
+
+extern LoadZIPFileFun LoadZIPFile;
+extern SetZIPVerbosityFun SetZIPVerbosity;
+extern GetZIPGroupImageCountFun GetZIPGroupImageCount;
+extern GetZIPGroupImageListFun GetZIPGroupImageList;
+extern DeleteAllTempZIPDirectoriesFun DeleteAllTempZIPDirectories;
+
+bool IsZIPReaderLoaded();
+bool InitZIPReader();
+void CloseZIPReader();
+std::vector<short> ReadZIPImageListFromGroup(const char *sZIPFileName, int GroupId);
+// ********************************
 
 CraftInstance *GetPlayerCraftInstanceSafe();
