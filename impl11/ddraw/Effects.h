@@ -145,12 +145,15 @@ typedef bool(_cdecl * LoadZIPFileFun)(const char *sZIPFileName);
 typedef int(_cdecl * GetZIPGroupImageCountFun)(int GroupId);
 typedef bool(_cdecl * GetZIPGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
 typedef void(_cdecl * DeleteAllTempZIPDirectoriesFun)();
+typedef bool(_cdecl * GetZIPImageMetadataFun)(
+	int GroupId, int ImageId, short *Width_out, short *Height_out, char *ImagePath_out, int ImagePathSize);
 
 extern LoadZIPFileFun LoadZIPFile;
 extern SetZIPVerbosityFun SetZIPVerbosity;
 extern GetZIPGroupImageCountFun GetZIPGroupImageCount;
 extern GetZIPGroupImageListFun GetZIPGroupImageList;
 extern DeleteAllTempZIPDirectoriesFun DeleteAllTempZIPDirectories;
+extern GetZIPImageMetadataFun GetZIPImageMetadata;
 
 bool IsZIPReaderLoaded();
 bool InitZIPReader();

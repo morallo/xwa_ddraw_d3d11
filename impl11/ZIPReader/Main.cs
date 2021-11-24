@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -93,11 +94,34 @@ namespace ZIPReader
             return true;
         }
 
+        static string FindUnzippedImage(int GroupId, int ImageId)
+        {
+            string sPath = null;
+            if (!FileAlreadyUnzipped(m_sZIPFileName))
+            {
+                Trace.WriteLine("[DBG] [C#] Load a ZIP file first");
+                return null;
+            }
+
+            string[] ImageExtensions = { ".png", ".jpg", ".gif" };
+            sPath = Path.Combine(Path.Combine(m_sTempPath, GroupId.ToString()), ImageId.ToString());
+            //Trace.WriteLineIf(m_Verbose, "[DBG] [C#] Searching for image " + GroupId + "-" + ImageId + " in [" + sPath + "]");
+            foreach (var Extension in ImageExtensions) {
+                string sFullPath = sPath + Extension;
+                if (File.Exists(sFullPath))
+                {
+                    //Trace.WriteLineIf(m_Verbose, "[DBG] [C#] Found image: [" + sFullPath + "] for " + GroupId + "-" + ImageId);
+                    return sFullPath;
+                }
+            }
+
+            return null;
+        }
+
         [DllExport(CallingConvention.Cdecl)]
         public static bool LoadZIPFile([MarshalAs(UnmanagedType.LPStr)] string sZIPFileName)
         {
             ZipArchive ZIPFile = null;
-            string sTempPath = null;
             bool result = false;
 
             // First, let's check if this ZIP file is already loaded:
@@ -108,8 +132,8 @@ namespace ZIPReader
             }
 
             // Now let's create the temporary directory to unzip the file to
-            if (CreateTempDir(sZIPFileName, out sTempPath))
-                Trace.WriteLineIf(m_Verbose, "[DBG] [C#] ZIP Temp path: " + sTempPath);
+            if (CreateTempDir(sZIPFileName, out m_sTempPath))
+                Trace.WriteLineIf(m_Verbose, "[DBG] [C#] ZIP Temp path: " + m_sTempPath);
             else
                 return false;
             
@@ -125,11 +149,10 @@ namespace ZIPReader
 
                 // Unzip the file into the temporary directory
                 Trace.WriteLine("[DBG] [C#] Unzipping [" + sZIPFileName + "]");
-                ZIPFile.ExtractToDirectory(sTempPath);
+                ZIPFile.ExtractToDirectory(m_sTempPath);
                 Trace.WriteLine("[DBG] [C#] Finished unzipping file");
                 // "Cache" the name of the ZIP file and the temp path for future reference
                 m_sZIPFileName = sZIPFileName;
-                m_sTempPath = sTempPath;
                 result = true;
             }
             catch (Exception e)
@@ -151,40 +174,33 @@ namespace ZIPReader
         }
 
         [DllExport(CallingConvention.Cdecl)]
-        public static unsafe bool GetZIPImageMetadata(int GroupId, int ImageId, short *Width, short *Height, byte *Format)
+        public static unsafe bool GetZIPImageMetadata(int GroupId, int ImageId, short *Width_out, short *Height_out, byte *ImagePath_out, int ImagePathSize)
         {
-            /*
-            if (m_DATFile == null)
-            {
-                Trace.WriteLine("[DBG] [C#] Load a DAT file first");
-                *Width = 0; *Height = 0; *Format = 0;
+            string sImagePath = FindUnzippedImage(GroupId, ImageId);
+            if (sImagePath == null)
                 return false;
+
+            if (ImagePath_out != null)
+            {
+                int j = 0;
+                for (int i = 0; i < sImagePath.Length; i++)
+                {
+                    if (j < ImagePathSize - 1)
+                        ImagePath_out[j++] = (byte)sImagePath[i];
+                }
+                ImagePath_out[j] = 0;
             }
 
-            IList<DatGroup> groups = m_DATFile.Groups;
-            foreach (var group in groups)
-                if (group.GroupId == GroupId)
+            using (var fileStream = new FileStream(sImagePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                using (var image = Image.FromStream(fileStream, false, false))
                 {
-                    IList<DatImage> images = group.Images;
-                    foreach (var image in images)
-                        if (image.ImageId == ImageId)
-                        {
-                            // Release the previous cached image
-                            m_DATImage = null;
-                            // Cache the current image
-                            m_DATImage = image;
-                            // Populate the output values
-                            *Width = image.Width;
-                            *Height = image.Height;
-                            *Format = (byte)image.Format;
-                            if (m_Verbose) Trace.WriteLine("[DBG] [C#] Found " + GroupId + "-" + ImageId + ", " +
-                                "MetaData: (" + image.Width + ", " + image.Height + "), Type: " + image.Format);
-                            return true;
-                        }
-
+                    if (Height_out != null) *Height_out = (short)image.Height;
+                    if (Width_out != null) *Width_out = (short)image.Width;
                 }
-            */
-            return false;
+            }
+
+            return true;
         }
 
         [DllExport(CallingConvention.Cdecl)]

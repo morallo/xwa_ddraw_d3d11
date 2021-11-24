@@ -422,7 +422,7 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 		}
 		else if (tex_seq_elem.IsZIPImage) {
 			res = LoadZIPImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, &texSRV);
-			//if (SUCCEEDED(res)) log_debug("[DBG] DAT %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
+			//if (SUCCEEDED(res)) log_debug("[DBG] ZIP %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
 		}
 		else {
 			char texname[MAX_TEX_SEQ_NAME + 20];
@@ -470,25 +470,31 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	}
 }
 
-int Direct3DTexture::LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width, short *Height)
+int Direct3DTexture::LoadGreebleTexture(char *GreebleDATZIPGroupIdImageId, short *Width, short *Height)
 {
 	auto &resources = this->_deviceResources;
 	ID3D11ShaderResourceView *texSRV = nullptr;
 	int GroupId = -1, ImageId = -1;
 	HRESULT res = S_OK;
-	char *substr = stristr(GreebleDATGroupIdImageId, ".dat");
+	char *substr_dat = stristr(GreebleDATZIPGroupIdImageId, ".dat");
+	char *substr_zip = stristr(GreebleDATZIPGroupIdImageId, ".zip");
+	bool bIsDATFile = substr_dat != NULL;
+	char *substr = bIsDATFile ? substr_dat : substr_zip;
 	if (substr == NULL) return -1;
-	// Skip the ".dat" token and terminate the string
+	// Skip the ".dat/.zip" token and terminate the string
 	substr += 4;
 	*substr = 0;
 	// Advance to the next substring, we should now have a string of the form
 	// <GroupId>-<ImageId>
 	substr++;
-	log_debug("[DBG] Loading GreebleTex: %s, GroupId-ImageId: %s", GreebleDATGroupIdImageId, substr);
+	log_debug("[DBG] Loading GreebleTex: %s, GroupId-ImageId: %s", GreebleDATZIPGroupIdImageId, substr);
 	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
 
 	// Load the greeble texture
-	res = LoadDATImage(GreebleDATGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
+	if (bIsDATFile)
+		res = LoadDATImage(GreebleDATZIPGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
+	else
+		res = LoadZIPImage(GreebleDATZIPGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
 	if (FAILED(res)) {
 		log_debug("[DBG] Could not load greeble");
 		return -1;
@@ -601,6 +607,7 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 	return res;
 }
 
+/*
 std::string GenerateZIPTempDir(char *sZIPFileName)
 {
 	std::string sFileName(sZIPFileName);
@@ -645,12 +652,12 @@ bool ZIPFileExists(char *sZIPFileName, int GroupId, int ImageId, std::string &sA
 	sActualFileName = std::string("");
 	return false;
 }
+*/
 
 HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
 	short *Width_out, short *Height_out)
 {
 	auto &resources = this->_deviceResources;
-	short Width = 0, Height = 0;
 	uint8_t Format = 0;
 	uint8_t *buf = nullptr;
 	int buf_len = 0;
@@ -664,25 +671,25 @@ HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int Image
 	if (SetZIPVerbosity != nullptr) SetZIPVerbosity(true);
 
 	// First, see if the file already has been unzipped
-	std::string sActualFileName;
-	if (!ZIPFileExists(sZIPFileName, GroupId, ImageId, sActualFileName)) {
+	constexpr int MAX_PATH_LEN = 256;
+	char sActualFileName[MAX_PATH_LEN];
+	if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, sActualFileName, MAX_PATH_LEN)) {
 		// We couldn't find the file, let's unzip the ZIP file first
 		if (!LoadZIPFile(sZIPFileName)) {
 			log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
 			return res;
 		}
+
+		// Now that we've loaded the ZIP file, let's try again
+		if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, sActualFileName, MAX_PATH_LEN)) {
+			log_debug("[DBG] Could not find ZIP file %s,%d-%d", sZIPFileName, GroupId, ImageId);
+			return res;
+		}
 	}
 
-	// Let's try again
-	if (!ZIPFileExists(sZIPFileName, GroupId, ImageId, sActualFileName)) {
-		log_debug("[DBG] Could not find ZIP file [%s],%d,%d", sZIPFileName, GroupId, ImageId);
-		return res;
-	}
-
-	// TODO: Do I really need the Width and Height? Probably not... Or at least, not here!
 	wchar_t wTexName[MAX_TEX_SEQ_NAME];
 	size_t len = 0;
-	mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, sActualFileName.c_str(), MAX_TEX_SEQ_NAME);
+	mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, sActualFileName, MAX_TEX_SEQ_NAME);
 	res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, srv);
 	
 	return res;

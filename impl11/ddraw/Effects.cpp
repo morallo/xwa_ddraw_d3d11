@@ -219,6 +219,7 @@ LoadZIPFileFun					LoadZIPFile = nullptr;
 GetZIPGroupImageCountFun			GetZIPGroupImageCount = nullptr;
 GetZIPGroupImageListFun			GetZIPGroupImageList = nullptr;
 DeleteAllTempZIPDirectoriesFun	DeleteAllTempZIPDirectories = nullptr;
+GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 // **************************
 
 
@@ -470,8 +471,10 @@ bool InitZIPReader() {
 	GetZIPGroupImageCount = (GetZIPGroupImageCountFun)GetProcAddress(g_hZIPReader, "GetZIPGroupImageCount");
 	GetZIPGroupImageList = (GetZIPGroupImageListFun)GetProcAddress(g_hZIPReader, "GetZIPGroupImageList");
 	DeleteAllTempZIPDirectories = (DeleteAllTempZIPDirectoriesFun)GetProcAddress(g_hZIPReader, "DeleteAllTempZIPDirectories");
+	GetZIPImageMetadata = (GetZIPImageMetadataFun)GetProcAddress(g_hZIPReader, "GetZIPImageMetadata");
 	if (LoadZIPFile == nullptr || SetZIPVerbosity == nullptr || GetZIPGroupImageCount == nullptr ||
-		GetZIPGroupImageList == nullptr || DeleteAllTempZIPDirectories == nullptr)
+		GetZIPGroupImageList == nullptr || DeleteAllTempZIPDirectories == nullptr ||
+		GetZIPImageMetadata == nullptr)
 	{
 		log_debug("[DBG] Error in InitZIPReader: Some functions could not be loaded from ZIPReader.dll");
 		FreeLibrary(g_hZIPReader);
