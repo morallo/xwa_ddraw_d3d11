@@ -627,7 +627,7 @@ void AnimateMaterials();
 // Clears g_AnimatedMaterials
 void ClearAnimatedMaterials();
 
-bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId);
+bool ParseDatZipFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId);
 
 void ResetGameEvent();
 void UpdateEventsFired();

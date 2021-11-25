@@ -204,63 +204,6 @@ namespace ZIPReader
         }
 
         [DllExport(CallingConvention.Cdecl)]
-        public static unsafe bool ReadZIPImageData(byte *RawData_out, int RawData_size)
-        {
-            /*
-            if (m_DATImage == null) {
-                Trace.WriteLine("[DBG] [C#] Must cache an image first");
-                return false;
-            }
-            
-            //m_DATImage.ConvertToFormat25(); // Looks like there's no need to do any conversion
-            short W = m_DATImage.Width;
-            short H = m_DATImage.Height;
-            byte[] data = m_DATImage.GetImageData();
-            int len = data.Length;
-            if (m_Verbose)
-                Trace.WriteLine("[DBG] [C#] RawData, W*H*4 = " + (W * H * 4) + ", len: " + len + ", Format: " + m_DATImage.Format);
-
-            if (RawData_out == null)
-            {
-                Trace.WriteLine("[DBG] [C#] ReadZIPImageData: output buffer should not be NULL");
-                return false;
-            }
-
-            try
-            {
-                int min_len = RawData_size;
-                if (data.Length < min_len) min_len = data.Length;
-                // For some reason, the images are still upside down when used as SRVs
-                // So, let's flip them here. RowOfs and RowStride are used to flip the
-                // image by reading it "backwards".
-                UInt32 OfsOut = 0, OfsIn = 0, RowStride = (UInt32 )W * 4, RowOfs = (UInt32)(H - 1) * RowStride;
-                for (int y = 0; y < H; y++)
-                {
-                    OfsIn = RowOfs; // Flip the image
-                    for (int x = 0; x < W; x++)
-                    {
-                        RawData_out[OfsOut + 2] = data[OfsIn + 0]; // B
-                        RawData_out[OfsOut + 1] = data[OfsIn + 1]; // G
-                        RawData_out[OfsOut + 0] = data[OfsIn + 2]; // R
-                        RawData_out[OfsOut + 3] = data[OfsIn + 3]; // A
-                        OfsIn += 4;
-                        OfsOut += 4;
-                    }
-                    // Flip the image and prevent underflows:
-                    RowOfs -= RowStride;
-                    if (RowOfs < 0) RowOfs = 0;
-                }
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine("[DBG] [C#] Exception: " + e + ", caught in ReadZIPImageData");
-                return false;
-            }
-            */
-            return true;
-        }
-
-        [DllExport(CallingConvention.Cdecl)]
         public static int GetZIPGroupImageCount(int GroupId)
         {
             if (m_sTempPath == null)
@@ -278,7 +221,6 @@ namespace ZIPReader
             int dot_idx = sImageName.LastIndexOf('.');
             int slash_idx = sImageName.LastIndexOf('\\');
             string sRoot = sImageName.Substring(slash_idx + 1, dot_idx - (slash_idx + 1));
-            Trace.WriteLineIf(m_Verbose, "[DBG] [C#] sRoot: [" + sRoot + "]");
             if (int.TryParse(sRoot, out result))
                 return result;
             else
@@ -307,7 +249,6 @@ namespace ZIPReader
             foreach (int ImageId in ImageIds)
             {
                 ImageIds_out[Ofs] = (short)ImageId;
-                Trace.WriteLineIf(m_Verbose, "[DBG] [C#] Stored ImageId: " + ImageIds_out[Ofs]);
                 // Advance the output index, but prevent an overflow
                 if (Ofs < ImageIds_size) Ofs++;
             }

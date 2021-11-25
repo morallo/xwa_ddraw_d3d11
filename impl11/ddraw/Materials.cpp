@@ -216,13 +216,14 @@ bool ParseDatFileNameAndGroup(char *buf, char *sDATFileNameOut, int sDATFileName
 	return false;
 }
 
-// Parse the DAT file name, GroupId and ImageId from a string of the form:
-// <Path>\<DATFileName>-<GroupId>-<ImageId>
+// Parse the DAT/ZIP file name, GroupId and ImageId from a string of the form:
+// <Path>\<DATorZIPFileName>-<GroupId>-<ImageId>
 // Returns false if the string could not be parsed
-bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId, short *ImageId) {
+bool ParseDatZipFileNameGroupIdImageId(char *buf, char *sDATZIPFileNameOut, int sDATZIPFileNameSize, short *GroupId, short *ImageId)
+{
 	std::string s_buf(buf);
 	*GroupId = -1; *ImageId = -1;
-	sDATFileNameOut[0] = 0;
+	sDATZIPFileNameOut[0] = 0;
 	int split_idx = -1;
 
 	// Find the last hyphen and get the ImageId
@@ -237,19 +238,19 @@ bool ParseDatFileNameGroupIdImageId(char *buf, char *sDATFileNameOut, int sDATFi
 	if (split_idx < 0)
 		return false;
 
-	std::string sDATFileName = s_buf.substr(0, split_idx);
+	std::string sDATZIPFileName = s_buf.substr(0, split_idx);
 	std::string sGroupId = s_buf.substr(split_idx + 1);
 	try {
 		*ImageId = (short)std::stoi(sImageId);
 		*GroupId = (short)std::stoi(sGroupId);
 	}
 	catch (...) {
-		sDATFileNameOut[0] = 0;
+		sDATZIPFileNameOut[0] = 0;
 		*GroupId = -1;
 		*ImageId = -1;
 		return false;
 	}
-	strcpy_s(sDATFileNameOut, sDATFileNameSize, sDATFileName.c_str());
+	strcpy_s(sDATZIPFileNameOut, sDATZIPFileNameSize, sDATZIPFileName.c_str());
 	return true;
 }
 
@@ -784,7 +785,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 }
 
 /*
- * Loads all the frames from GroupId in a DAT file into tex_sequence. This function is currently
+ * Loads all the frames from GroupId in a DAT|ZIP file into tex_sequence. This function is currently
  * only used to load alternate explosion animations. See "alt_frames_1" (etc) below.
  */
 bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
@@ -818,17 +819,21 @@ bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
 
 	TexSeqElem tex_seq_elem;
 	// The path is either an actual path that contains the frame sequence, or it's
-	// a <Path>\<DATFile>-<GroupId>. Let's check if path contains the ".DAT-" token
-	// first:
-	char *split = stristr(path, ".dat-");
+	// a <Path>\<DATZIPFile>-<GroupId>. Let's check if path contains the ".DAT-" or
+	// ".ZIP-" token first:
+	char *split_dat = stristr(path, ".dat-");
+	char *split_zip = stristr(path, ".zip-");
+	bool bIsDATFile = split_dat != NULL;
+	bool bIsZIPFile = split_zip != NULL;
+	char *split = bIsDATFile ? split_dat : split_zip;
 	if (split != NULL) {
 		// Split the string at the first dash and move the cursor after it:
 		split[4] = 0;
 		split += 5;
-		// sDATFileName contains the path and DAT file name:
-		std::string sDATFileName(path);
+		// sDATZIPFileName contains the path and DAT|ZIP file name:
+		std::string sDATZIPFileName(path);
 		std::string sGroup(split);
-		log_debug("[DBG] [MAT] sDATFileName: [%s], Group: [%s]", sDATFileName.c_str(), sGroup.c_str());
+		log_debug("[DBG] [MAT] sDATZIPFileName: [%s], Group: [%s]", sDATZIPFileName.c_str(), sGroup.c_str());
 
 		short GroupId = -1;
 		try {
@@ -840,17 +845,21 @@ bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
 		}
 		
 		std::vector<short> ImageList;
-		ImageList = ReadDATImageListFromGroup(sDATFileName.c_str(), GroupId);
+		if (bIsDATFile)
+			ImageList = ReadDATImageListFromGroup(sDATZIPFileName.c_str(), GroupId);
+		else
+			ImageList = ReadZIPImageListFromGroup(sDATZIPFileName.c_str(), GroupId);
 		log_debug("[DBG] [MAT] Frame-by-Frame data. Group %d has %d images", GroupId, ImageList.size());
 		// Iterate over the list of Images and add one TexSeqElem for each one of them
 		for each (short ImageId in ImageList)
 		{
 			// Store the DAT filename in texname and set the appropriate flag. texname contains
 			// the path and filename.
-			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATFileName.c_str());
+			strcpy_s(tex_seq_elem.texname, MAX_TEX_SEQ_NAME, sDATZIPFileName.c_str());
 			// Prevent division by 0:
 			// Save the DAT image data:
-			tex_seq_elem.IsDATImage = true;
+			tex_seq_elem.IsDATImage = bIsDATFile;
+			tex_seq_elem.IsZIPImage = bIsZIPFile;
 			tex_seq_elem.GroupId = GroupId;
 			tex_seq_elem.ImageId = -1;
 			// The texture itself will be loaded later. So the reference index is initialized to -1 here:

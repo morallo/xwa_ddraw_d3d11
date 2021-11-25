@@ -413,7 +413,6 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
 		TexSeqElem tex_seq_elem = atc->Sequence[i];
 		ID3D11ShaderResourceView *texSRV = nullptr;
-		
 		HRESULT res = S_OK;
 
 		if (tex_seq_elem.IsDATImage) {
@@ -607,53 +606,6 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 	return res;
 }
 
-/*
-std::string GenerateZIPTempDir(char *sZIPFileName)
-{
-	std::string sFileName(sZIPFileName);
-	int idx = sFileName.find_last_of('.');
-	sFileName = sFileName.substr(0, idx);
-	sFileName.append("_tmp_zip");
-	return sFileName;
-}
-
-bool ZIPFileExists(char *sZIPFileName, int GroupId, int ImageId, std::string &sActualFileName)
-{
-	std::string sPath = GenerateZIPTempDir(sZIPFileName);
-	if (!fs::is_directory(sPath)) {
-		sActualFileName = std::string("");
-		return false;
-	}
-	sPath.append("\\");
-	sPath.append(std::to_string(GroupId));
-	sPath.append("\\");
-	sPath.append(std::to_string(ImageId));
-	
-	sActualFileName = std::string(sPath).append(".jpg");
-	//log_debug("[DBG] Checking file: [%s]", sActualFileName.c_str());
-	if (fs::is_regular_file(sActualFileName)) {
-		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
-		return true;
-	}
-
-	sActualFileName = std::string(sPath).append(".png");
-	//log_debug("[DBG] Checking file: %s", sActualFileName.c_str());
-	if (fs::is_regular_file(sActualFileName)) {
-		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
-		return true;
-	}
-	
-	sActualFileName = std::string(sPath).append(".gif");
-	//log_debug("[DBG] Checking file: %s", sActualFileName.c_str());
-	if (fs::is_regular_file(sActualFileName)) {
-		//log_debug("[DBG] File: [%s] exists", sActualFileName.c_str());
-		return true;
-	}
-	sActualFileName = std::string("");
-	return false;
-}
-*/
-
 HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv,
 	short *Width_out, short *Height_out)
 {
@@ -668,24 +620,20 @@ HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int Image
 	if (!InitZIPReader()) // This call is idempotent and should do nothing when ZIPReader is already loaded
 		return res;
 
-	if (SetZIPVerbosity != nullptr) SetZIPVerbosity(true);
+	//if (SetZIPVerbosity != nullptr) SetZIPVerbosity(true);
 
+	//log_debug("[DBG] [C#] Trying to load ZIP Image: [%s],%d-%d", sZIPFileName, GroupId, ImageId);
+	// Unzip the file first. If the file has been unzipped already, this is a no-op
+	if (!LoadZIPFile(sZIPFileName)) {
+		log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
+		return res;
+	}
 	// First, see if the file already has been unzipped
 	constexpr int MAX_PATH_LEN = 256;
 	char sActualFileName[MAX_PATH_LEN];
-	if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, sActualFileName, MAX_PATH_LEN)) {
-		// We couldn't find the file, let's unzip the ZIP file first
-		if (!LoadZIPFile(sZIPFileName)) {
-			log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
-			return res;
-		}
-
-		// Now that we've loaded the ZIP file, let's try again
-		if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, sActualFileName, MAX_PATH_LEN)) {
-			log_debug("[DBG] Could not find ZIP file %s,%d-%d", sZIPFileName, GroupId, ImageId);
-			return res;
-		}
-	}
+	if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, sActualFileName, MAX_PATH_LEN))
+		return res;
+	//log_debug("[DBG] [C#] ZIP Image: [%s] loaded", sActualFileName);
 
 	wchar_t wTexName[MAX_TEX_SEQ_NAME];
 	size_t len = 0;
@@ -1171,14 +1119,20 @@ void Direct3DTexture::TagTexture() {
 						g_DCElements[idx].coverTextureName[0] != 0) 
 					{
 						HRESULT res = S_OK;
-						if (stristr(g_DCElements[idx].coverTextureName, ".dat-") != NULL) {
-							// This is a DAT texture, load it through the DATReader library
-							char sDATFileName[128];
+						char *substr_dat = stristr(g_DCElements[idx].coverTextureName, ".dat");
+						char *substr_zip = stristr(g_DCElements[idx].coverTextureName, ".zip");
+						if (substr_dat != NULL || substr_zip != NULL) {
+							// This is a DAT or a ZIP texture, load it through the DATReader or ZIPReader libraries
+							char sDATZIPFileName[128];
 							short GroupId, ImageId;
+							bool bIsDATFile = false;
 							res = -1;
-							if (ParseDatFileNameGroupIdImageId(g_DCElements[idx].coverTextureName, sDATFileName, 128, &GroupId, &ImageId)) {
+							if (ParseDatZipFileNameGroupIdImageId(g_DCElements[idx].coverTextureName, sDATZIPFileName, 128, &GroupId, &ImageId)) {
 								//log_debug("[DBG] [DC] Loading cover texture [%s]-%d-%d", sDATFileName, GroupId, ImageId);
-								res = LoadDATImage(sDATFileName, GroupId, ImageId, &(resources->dc_coverTexture[idx]));
+								if (substr_dat != NULL)
+									res = LoadDATImage(sDATZIPFileName, GroupId, ImageId, &(resources->dc_coverTexture[idx]));
+								else
+									res = LoadZIPImage(sDATZIPFileName, GroupId, ImageId, &(resources->dc_coverTexture[idx]));
 								//if (FAILED(res)) log_debug("[DBG] [DC] *** ERROR loading cover texture");
 							}
 						} else {
@@ -1317,8 +1271,15 @@ void Direct3DTexture::TagTexture() {
 								TexSeqElem tex_seq_elem = atc->Sequence[j];
 								ID3D11ShaderResourceView *texSRV = nullptr;
 								if (atc->Sequence[j].ExtraTextureIndex == -1) {
-									HRESULT res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
-										/* ImageId */ j, &texSRV);
+									HRESULT res = S_OK;
+
+									if (tex_seq_elem.IsDATImage)
+										res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
+											/* ImageId */ j, &texSRV);
+									else if (tex_seq_elem.IsZIPImage)
+										res = LoadZIPImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
+											/* ImageId */ j, &texSRV);
+
 									if (FAILED(res)) {
 										log_debug("[DBG] [MAT] ***** Could not load DAT texture [%s-%d-%d]: 0x%x",
 											tex_seq_elem.texname, tex_seq_elem.GroupId, j, res);
