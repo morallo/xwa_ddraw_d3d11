@@ -334,39 +334,10 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 				// We need to apply the perspective correction between the pose predicted in the previous frame
 				// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
 				// and the actual pose just returned by WaitGetPoses() that will be used to do the D3D render
-				float yaw_cockpitlook, pitch_cockpitlook, roll_cockpitlook, x_cockpitlook, y_cockpitlook, z_cockpitlook;
-				if (false)
-				{ //Full transform applied by CockpitLook, including roll. Currently not implemented
-					m4_UndoCockpitLook = HmdMatrix34toMatrix4(g_lastPredictedHmdPose.mDeviceToAbsoluteTracking).invertAffine();
-				}
-				else {
-					//Get the pitch and yaw applied by CockpitLook from XWA variables. Roll was ignored.
-					//yaw_cockpitlook = (float)(PlayerDataTable[*g_playerIndex].cockpitCameraYaw * 360.0f / 65535.0f);
-					//pitch_cockpitlook = (float)(PlayerDataTable[*g_playerIndex].cockpitCameraPitch * 360.0f / 65535.0f);
 
-					q = rotationToQuaternion(m34_cockpitLookPose);
-					quatToEuler(q, &yaw_cockpitlook, &pitch_cockpitlook, &roll_cockpitlook);
+				// In this mode, the full rotation is applied in CockpitLook, including roll
+				m4_UndoCockpitLook = HmdMatrix34toMatrix4(g_lastPredictedHmdPose.mDeviceToAbsoluteTracking).invertAffine();
 
-					// Get the translation applied by CockpitLook. It's not stored in XWA globals, we need to get it from the matrix					
-					x_cockpitlook = m34_cockpitLookPose.m[0][3];
-					y_cockpitlook = m34_cockpitLookPose.m[1][3];
-					z_cockpitlook = m34_cockpitLookPose.m[2][3];
-
-					// Build a transform matrix applied by CockpitLook based on HMD pose estimated in the previous frame
-					// We need to remove roll as it was not applied in the hook
-					Matrix4 rotMatrixYaw, rotMatrixPitch, posMatrix;
-					rotMatrixYaw.identity();	rotMatrixYaw.rotateY(RAD_TO_DEG * yaw_cockpitlook);
-					rotMatrixPitch.identity();	rotMatrixPitch.rotateX(RAD_TO_DEG * pitch_cockpitlook);
-					posMatrix.identity();		posMatrix.translate(x_cockpitlook, y_cockpitlook, z_cockpitlook);
-					// Create inverse matrix by applying the opposite angles, in inverse order
-					m4_UndoCockpitLook = (posMatrix * rotMatrixYaw * rotMatrixPitch ).invertAffine();
-					
-					// Invert axes so that it works properly. I don't understand yet why this is necessary.
-					//int col = 3; //4th column (index 3) of the pose matrix is the translation vector x,y,z
-					//m4_hmdPose[col * 4] = -m4_hmdPose[col * 4];
-					//m4_hmdPose[col * 4 + 1] = -m4_hmdPose[col * 4 + 1];
-					//m4_hmdPose[col * 4 + 2] = -m4_hmdPose[col * 4 + 2];
-				}
 				//Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
 				m4_correctionMatrix = m4_hmdPose * m4_UndoCockpitLook;
 
