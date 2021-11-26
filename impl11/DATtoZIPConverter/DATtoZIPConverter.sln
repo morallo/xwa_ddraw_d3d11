@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.28307.1705
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DATtoZIPConverter", "DATtoZIPConverter\DATtoZIPConverter.csproj", "{22248D94-E617-432F-8EEE-1B3A0FF94F41}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DATtoZIPConverterGUI", "DATtoZIPConverterGUI\DATtoZIPConverterGUI.csproj", "{D806772E-0813-4EBE-9B9B-2878F29A7F52}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,14 @@ Global
 		{22248D94-E617-432F-8EEE-1B3A0FF94F41}.Release|Any CPU.Build.0 = Release|Any CPU
 		{22248D94-E617-432F-8EEE-1B3A0FF94F41}.Release|x86.ActiveCfg = Release|x86
 		{22248D94-E617-432F-8EEE-1B3A0FF94F41}.Release|x86.Build.0 = Release|x86
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Debug|x86.Build.0 = Debug|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Release|x86.ActiveCfg = Release|Any CPU
+		{D806772E-0813-4EBE-9B9B-2878F29A7F52}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

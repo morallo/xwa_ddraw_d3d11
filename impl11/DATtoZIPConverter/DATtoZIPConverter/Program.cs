@@ -15,27 +15,29 @@ using System.Windows.Media;
 
 namespace DATtoZIPConverter
 {
-    class Converter
+    public class Converter
     {
         static string m_sTempDirectory = null;
+        static string m_sZIPFileName = null;
+        static string m_sLastError = null;
         static bool m_bKeepTempDirectory = false;
         static bool m_bConvertToJpeg = false;
 
         static void MakeZIPFile(string sTempDirectory, string sDATFileName)
         {
             string sDirectory = Path.GetDirectoryName(sDATFileName);
-            string sZIPFileName = Path.GetFileNameWithoutExtension(sDATFileName);
-            sZIPFileName = Path.Combine(sDirectory, sZIPFileName + ".ZIP");
+            m_sZIPFileName = Path.GetFileNameWithoutExtension(sDATFileName);
+            m_sZIPFileName = Path.Combine(sDirectory, m_sZIPFileName + ".ZIP");
 
-            if (File.Exists(sZIPFileName))
+            if (File.Exists(m_sZIPFileName))
             {
-                Console.WriteLine("Overwriting ZIP file: " + sZIPFileName);
-                File.Delete(sZIPFileName);
+                Console.WriteLine("Overwriting ZIP file: " + m_sZIPFileName);
+                File.Delete(m_sZIPFileName);
             }
             else
-                Console.WriteLine("Creating ZIP file on: " + sZIPFileName + "...");
+                Console.WriteLine("Creating ZIP file on: " + m_sZIPFileName + "...");
       
-            ZipFile.CreateFromDirectory(sTempDirectory, sZIPFileName);
+            ZipFile.CreateFromDirectory(sTempDirectory, m_sZIPFileName);
             Console.WriteLine("Done");
         }
 
@@ -91,6 +93,14 @@ namespace DATtoZIPConverter
         }
 
         /*
+         * Returns the value of m_bKeepTempDirectory.
+         */
+        public static bool GetKeepTempDirectory()
+        {
+            return m_bKeepTempDirectory;
+        }
+
+        /*
          * If set, all images without transparency will be converted to JPEG format. Otherwise
          * images will be saved as PNG files.
          * Default: false
@@ -101,12 +111,29 @@ namespace DATtoZIPConverter
             Console.WriteLine("ConvertToJpeg: " + m_bConvertToJpeg);
         }
 
+        public static string GetTempDirectory()
+        {
+            return m_sTempDirectory;
+        }
+
+        public static string GetOutputFileName()
+        {
+            return m_sZIPFileName;
+        }
+
+        public static string GetLastError()
+        {
+            return m_sLastError;
+        }
+
         /*
          * Main entry point. Call this with a valid DAT file name to create a ZIP file.
+         * Returns true if the conversion was successful.
          */
-        public static void ConvertDATFile(string sDATFileName)
+        public static bool ConvertDATFile(string sDATFileName)
         {
             DatFile m_DATFile = null;
+            bool bResult = false;
 
             try
             {
@@ -114,7 +141,7 @@ namespace DATtoZIPConverter
 
                 // Generate a new temporary path to make the conversion
                 m_sTempDirectory = Path.Combine(Path.GetDirectoryName(sDATFileName),
-                                    Path.GetFileNameWithoutExtension(sDATFileName)) + "_dat_to_zip\\";
+                                        Path.GetFileNameWithoutExtension(sDATFileName)) + "_dat_to_zip\\";
 
                 // If the temporary directory exists, delete it
                 if (Directory.Exists(m_sTempDirectory))
@@ -190,13 +217,20 @@ namespace DATtoZIPConverter
                     Directory.Delete(m_sTempDirectory, true);
                 else
                     Console.WriteLine("Kept temporary directory: " + m_sTempDirectory);
+                bResult = true;
             }
             catch (Exception e)
             {
+                m_sLastError = e.StackTrace;
                 Console.WriteLine("Error " + e + " when processing: " + sDATFileName);
-                Console.WriteLine(e.StackTrace);
+                Console.WriteLine(m_sLastError);
+                bResult = false;
+            }
+            finally
+            {
                 m_DATFile = null;
             }
+            return bResult;
         }
 
         static void Main(string[] args)
