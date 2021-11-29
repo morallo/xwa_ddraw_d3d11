@@ -650,15 +650,6 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 
-	if (g_b3DVisionEnabled) {
-		if (resources->_vision3DPost == nullptr ||
-			resources->_RTVvision3DPost == nullptr ||
-			resources->_simpleResizePS == nullptr) {
-			log_debug("[DBG] [3DV] Skipping barrelEffect2D due to NULL buffers");
-			return;
-		}
-	}
-
 	// Temporarily disable ZWrite: we won't need it for the barrel effect
 	D3D11_DEPTH_STENCIL_DESC desc;
 	ComPtr<ID3D11DepthStencilState> depthState;
@@ -8132,9 +8123,10 @@ HRESULT PrimarySurface::Flip(
 							D3D11_BOX box;
 							box.left = 0; box.right = resources->_backbufferWidth;
 							box.top = 0; box.bottom = resources->_backbufferHeight;
-							context->CopySubresourceRegion(resources->_backBuffer, 0, 0, 0, 0, resources->_vision3DStaging, 0, &box);
+							box.front = 0; box.back = 1;
+							context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DStaging, 0, &box);
 							// DEBUG: Just copy _vision3DPost (without the signature) to _offscreenBufferPost and resolve.
-							//context->CopySubresourceRegion(resources->_offscreenBufferPost, 0, 0, 0, 0, resources->_vision3DPost, 0, &box);
+							//context->CopySubresourceRegion(resources->_offscreenBufferPost, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DPost, 0, &box);
 							//context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 
 							if (g_bDumpSSAOBuffers) {
@@ -8998,9 +8990,10 @@ HRESULT PrimarySurface::Flip(
 							D3D11_BOX box;
 							box.left = 0; box.right = resources->_backbufferWidth;
 							box.top = 0; box.bottom = resources->_backbufferHeight;
-							context->CopySubresourceRegion(resources->_backBuffer, 0, 0, 0, 0, resources->_vision3DStaging, 0, &box);
+							box.front = 0; box.back = 1;
+							context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DStaging, 0, &box);
 							// DEBUG: Just copy _vision3DPost to _offscreenBufferPost and resolve.
-							//context->CopySubresourceRegion(resources->_offscreenBufferPost, 0, 0, 0, 0, resources->_vision3DPost, 0, &box);
+							//context->CopySubresourceRegion(resources->_offscreenBufferPost, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DPost, 0, &box);
 							//context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 
 							if (g_bDumpSSAOBuffers) {
