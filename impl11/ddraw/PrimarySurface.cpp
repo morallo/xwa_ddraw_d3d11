@@ -7672,23 +7672,51 @@ void PrimarySurface::Add3DVisionSignature()
 
 	if (SUCCEEDED(hr))
 	{
-		uint32_t LastRow = map.RowPitch * (resources->_backbufferHeight - 1);
+		uint32_t LastRow = map.RowPitch * resources->_backbufferHeight;
+		
+		DWORD dwWidth = resources->_backbufferWidth * 2;
+		DWORD dwHeight = resources->_backbufferHeight;
 		DWORD dwBPP = 32;
 		DWORD dwFlags = 0x02; // Side by Side
-		uint32_t signature[] = {
-			0x4433564e,						 // NVSTEREO_IMAGE_SIGNATURE
-			resources->_backbufferWidth * 2,
-			resources->_backbufferHeight,
-			dwBPP,
-			dwFlags,
-		};
 
-		if (g_bDumpSSAOBuffers)
-			log_debug("[DBG] [3DV] Add3DVisionSignature resources->backbuffer size: %d, %d", resources->_backbufferWidth * 2, resources->_backbufferHeight);
+		uint8_t *ptr;
+		uint8_t signature[] = {
+			0x4e, 0x56, 0x33, 0x44,	// NVSTEREO_IMAGE_SIGNATURE
+			0x00, 0x00, 0x00, 0x00, // Width
+			0x00, 0x00, 0x00, 0x00,	// Height
+			0x00, 0x00, 0x00, 0x00,	// BPP
+			0x00, 0x00, 0x00, 0x00,	// Flags
+		};
+		ptr = (uint8_t *)&dwWidth;
+		for (int i = 0; i < 4; i++)
+			signature[4 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwHeight;
+		for (int i = 0; i < 4; i++)
+			signature[8 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwBPP;
+		for (int i = 0; i < 4; i++)
+			signature[12 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwFlags;
+		for (int i = 0; i < 4; i++)
+			signature[16 + i] = ptr[i];
+
+		if (g_bDumpSSAOBuffers) {
+			log_debug("[DBG] [3DV] Add3DVisionSignature resources->backbuffer size: %d, %d",
+				resources->_backbufferWidth * 2, resources->_backbufferHeight);
+			int Ofs = 0;
+			log_debug("[DBG] [3DV] -----------------------------------");
+			for (int j = 0; j < 5; j++, Ofs += 4)
+				log_debug("[DBG] [3DV] 0x%02x, 0x%02x, 0x%02x, 0x%02x",
+					signature[Ofs], signature[Ofs+1], signature[Ofs+2], signature[Ofs+3]);
+			log_debug("[DBG] [3DV] ===================================");
+		}
 
 		// Debug: the following line draws a thin white line on the top of the image. I'm using
 		// this to verify that the signature is being added. We need to remove this line later.
-		memset(map.pData, 0xFF, 10 * 4 * resources->_backbufferWidth);
+		//memset(map.pData, 0xFF, 10 * 4 * resources->_backbufferWidth);
 		// Debug: the following line should write a white line on the last row of the image:
 		//memset((char *)((uint32_t)map.pData + LastRow), 0xFF, 4 * resources->_backbufferWidth);
 

@@ -1660,6 +1660,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_b3DVisionEnabled) {
 				step = "_vision3DPost";
 				desc.Width *= 2;
+				desc.Height++;
 				// offscreenBufferPost should be just like offscreenBuffer because it will be bound as a renderTarget
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_vision3DPost);
 				if (FAILED(hr)) {
@@ -1669,6 +1670,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 				log_debug("[DBG] [3DV] _vision3DPost created, size: %u, %u", desc.Width, desc.Height);
 				desc.Width /= 2;
+				desc.Height--;
 			}
 
 			step = "_DCTextMSAA";
@@ -2293,6 +2295,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				this->_backBuffer->GetDesc(&backBufferDesc);
 				backBufferDesc.Width *= 2;
+				backBufferDesc.Height++;
 
 				step = "_vision3DNoMSAA";
 				hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_vision3DNoMSAA);
