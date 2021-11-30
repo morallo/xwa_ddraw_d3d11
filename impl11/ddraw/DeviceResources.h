@@ -182,7 +182,7 @@ public:
 	D3D_FEATURE_LEVEL _d3dFeatureLevel;
 	ComPtr<ID3D11Device> _d3dDevice;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
-	ComPtr<IDXGISwapChain> _swapChain;
+	ComPtr<IDXGISwapChain> _swapChain = nullptr;
 	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;

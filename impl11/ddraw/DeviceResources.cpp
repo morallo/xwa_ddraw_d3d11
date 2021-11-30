@@ -1473,7 +1473,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	this->_backBuffer.Release();
+	// Exit Full-screen mode if necessary before releasing the swapchain
+	IDXGIOutput *pTarget = nullptr;
+	BOOL bFullScreen = FALSE;
+	if (this->_swapChain != nullptr && SUCCEEDED(this->_swapChain->GetFullscreenState(&bFullScreen, &pTarget))) {
+		if (bFullScreen)
+			this->_swapChain->SetFullscreenState(FALSE, NULL);
+		pTarget->Release();
+	}
 	this->_swapChain.Release();
+	this->_swapChain = nullptr;
 
 	this->_refreshRate = { 0, 1 };
 
@@ -1552,6 +1561,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (SUCCEEDED(hr))
 			{
 				DXGI_SWAP_CHAIN_DESC sd{};
+				if (g_b3DVisionEnabled)
+					this->_swapChain->SetFullscreenState(TRUE, NULL);
+
 				this->_swapChain->GetDesc(&sd);
 				//sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // I believe this is the original setting
 				//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
