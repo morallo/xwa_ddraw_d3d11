@@ -60,6 +60,7 @@ namespace DATtoZIPConverterGUI
             }
 
             // The file exists, do the conversion
+            Cursor.Current = Cursors.WaitCursor;
             if (Converter.ConvertDATFile(sFileName))
             {
                 // The conversion was successful
@@ -70,14 +71,16 @@ namespace DATtoZIPConverterGUI
                         "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 else
                     // No temporary directory, we're done.
-                    MessageBox.Show("File converted to:\n" + Converter.GetOutputFileName(), "Success",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-            } else
+                    MessageBox.Show("File converted to:\n" + Converter.GetOutputFileName(),
+                        "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
             {
                 // The file could not be converted.
                 MessageBox.Show("File " + sFileName + " could not be converted. Error:\n" + Converter.GetLastError(),
                     "Conversion Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            Cursor.Current = Cursors.Default;
         }
     }
 }

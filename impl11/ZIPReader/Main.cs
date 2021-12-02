@@ -255,14 +255,9 @@ namespace ZIPReader
             return true;
         }
 
-        /*
-         * Removes all the temp directories created when unzipping files
-         */
-        [DllExport(CallingConvention.Cdecl)]
-        public static void DeleteAllTempZIPDirectories()
+        static void DeleteTempZIPDirectoriesIn(string path)
         {
-            Trace.WriteLine("[DBG] [C#] Deleting all temporary directories...");
-            var sDirectories = Directory.EnumerateDirectories(".\\Effects\\");
+            var sDirectories = Directory.EnumerateDirectories(path);
             foreach (string sDirectory in sDirectories)
             {
                 if (sDirectory.EndsWith("_tmp_zip"))
@@ -271,6 +266,17 @@ namespace ZIPReader
                     Directory.Delete(sDirectory, true);
                 }
             }
+        }
+
+        /*
+         * Removes all the temp directories created when unzipping files
+         */
+        [DllExport(CallingConvention.Cdecl)]
+        public static void DeleteAllTempZIPDirectories()
+        {
+            Trace.WriteLine("[DBG] [C#] Deleting all temporary directories...");
+            DeleteTempZIPDirectoriesIn(".\\Effects\\");
+            DeleteTempZIPDirectoriesIn(".\\Resdata\\");
         }
 
     }
