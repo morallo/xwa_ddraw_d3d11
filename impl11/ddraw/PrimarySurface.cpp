@@ -21,9 +21,13 @@
 #include "globals.h"
 #include "commonVR.h"
 #include "VRConfig.h"
+#include "SharedMem.h"
 
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
+
+extern SharedDataProxy *g_pSharedData;
+extern SharedMem g_SharedMem;
 
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
@@ -4799,6 +4803,24 @@ void PrimarySurface::RenderExternalHUD()
 	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
+
+	g_ShadertoyBuffer.reticleMat.identity();
+	if (g_bCorrectedHeadTracking && g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
+		/*
+		 * When pose_corrected_headtracking is enabled. We need additional steps to fix the position of the
+		 * reticle, because the roll is now applied in the CockpitLook hook.
+		 */
+		float Yaw = 0.0f, Pitch = 0.0f, Roll = 0.0f;
+		Matrix4 rYp, rYn, rZ;
+
+		Yaw		= g_pSharedData->pSharedData->Yaw / DEG2RAD;
+		Pitch	= g_pSharedData->pSharedData->Pitch / DEG2RAD;
+		Roll		= g_pSharedData->pSharedData->Roll / DEG2RAD;
+		rYp.identity(); rYp.rotateY(Yaw);
+		rYn.identity(); rYn.rotateY(-Yaw);
+		rZ.identity(); rZ.rotateZ(Roll);
+		g_ShadertoyBuffer.reticleMat = rYp * rZ * rYn;
+	}
 
 	// DEBUG
 	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;

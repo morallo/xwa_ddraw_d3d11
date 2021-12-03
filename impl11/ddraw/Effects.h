@@ -66,7 +66,7 @@ extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 extern VertexShaderMatrixCB		g_VSMatrixCB;
 extern BloomPixelShaderCBuffer	g_BloomPSCBuffer;
 extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
-extern PSShadingSystemCB		g_ShadingSys_PSBuffer;
+extern PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer			g_ShadertoyBuffer;
 extern LaserPointerCBuffer		g_LaserPointerBuffer;
 
