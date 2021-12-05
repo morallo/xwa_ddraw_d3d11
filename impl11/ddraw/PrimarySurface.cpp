@@ -1581,8 +1581,6 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override   = -1.0f;
 	g_VSCBuffer.apply_uv_comp     =  g_bEnableVR;
-	g_VSCBuffer.bPreventTransform =  0.0f;
-	g_VSCBuffer.bFullTransform    =  0.0f;
 	if (g_bEnableVR) {
 		g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
 		g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
@@ -1593,8 +1591,10 @@ void PrimarySurface::DrawHUDVertices() {
 	}
 	// Reduce the scale for GUI elements, except for the HUD
 	g_VSCBuffer.viewportScale[3]  = g_fGUIElemsScale;
-	// Enable/Disable the fixed GUI
-	g_VSCBuffer.bFullTransform	  = g_bFixedGUI ? 1.0f : 0.0f;
+	// bPreventTransform: false
+	g_VSCBuffer.bPreventTransform = 0.0f;
+	// Enable/Disable the fixed GUI (default: true)
+	g_VSCBuffer.bFullTransform	  = g_bFixedGUI ? 1.0f : 0.0f; // g_bFixedGUI is true by default
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
@@ -4813,9 +4813,9 @@ void PrimarySurface::RenderExternalHUD()
 		float Yaw = 0.0f, Pitch = 0.0f, Roll = 0.0f;
 		Matrix4 rYp, rYn, rZ;
 
-		Yaw		= g_pSharedData->pSharedData->Yaw / DEG2RAD;
-		Pitch	= g_pSharedData->pSharedData->Pitch / DEG2RAD;
-		Roll		= g_pSharedData->pSharedData->Roll / DEG2RAD;
+		Yaw		= g_pSharedData->pSharedData->Yaw * RAD_TO_DEG;
+		Pitch	= g_pSharedData->pSharedData->Pitch * RAD_TO_DEG;
+		Roll		= g_pSharedData->pSharedData->Roll * RAD_TO_DEG;
 		rYp.identity(); rYp.rotateY(Yaw);
 		rYn.identity(); rYn.rotateY(-Yaw);
 		rZ.identity(); rZ.rotateZ(Roll);
@@ -7426,7 +7426,6 @@ void UpdateViewMatrix()
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
 
-
 		// DEBUG
 		if (g_bSteamVRYawPitchRollFromMouseLook)
 			GetFakeYawPitchRollFromMouseLook(&yaw, &pitch, &roll);
@@ -7444,9 +7443,8 @@ void UpdateViewMatrix()
 		// Compute the component matrices with the correct axis signs
 		rotMatrixYaw.rotateY(-yaw);
 		rotMatrixPitch.rotateX(-pitch);
-		posMatrix.translate(x, y, -z);
-		// In all cases we want the roll from the HMD pose as it is never applied in CockpitLook
 		rotMatrixRoll.rotateZ(roll);
+		posMatrix.translate(x, y, -z);
 
 		// Compose the full transformation matrix to use in the Vertex Shader.
 		viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
@@ -7454,6 +7452,19 @@ void UpdateViewMatrix()
 		if (g_bCorrectedHeadTracking) {
 			// If we want corrected tracking, we need to apply the full rotation+translation matrix in all cases
 			g_viewMatrix = viewMatrixFull;
+			// The following section applies the correct transform rule to the HUD.
+			// Apparently, the current yaw, pitch, roll values coming from GetSteamVRPositionalData don't work well for the
+			// HUD because we're using pose-corrected data. It looks like only the correction is applied to the HUD. So,
+			// instead we're using the current pose coming from the CockpitLook hook just for the HUD here.
+			if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
+				yaw = g_pSharedData->pSharedData->Yaw * RAD_TO_DEG;
+				pitch = g_pSharedData->pSharedData->Pitch * RAD_TO_DEG;
+				roll = g_pSharedData->pSharedData->Roll * RAD_TO_DEG;
+				rotMatrixYaw.rotateY(-yaw);
+				rotMatrixPitch.rotateX(-pitch);
+				rotMatrixRoll.rotateZ(-roll);
+				viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+			}
 		}
 		else {
 			g_viewMatrix = rotMatrixRoll;
