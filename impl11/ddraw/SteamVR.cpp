@@ -330,7 +330,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
 			m34_cockpitLookPose = g_lastPredictedHmdPose.mDeviceToAbsoluteTracking;
 
-			if (g_bCorrectedHeadTracking) {
+			// Corrected head tracking is only available when the CockpitLook is active, and that only happens
+			// when flying (when rendering 3D content)
+			if (g_bRendering3D && g_bCorrectedHeadTracking) {
 				// We need to apply the perspective correction between the pose predicted in the previous frame
 				// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
 				// and the actual pose just returned by WaitGetPoses() that will be used to do the D3D render
@@ -338,15 +340,15 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 				// In this mode, the full rotation is applied in CockpitLook, including roll
 				m4_UndoCockpitLook = HmdMatrix34toMatrix4(g_lastPredictedHmdPose.mDeviceToAbsoluteTracking).invertAffine();
 
-				//Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
+				// Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
 				m4_correctionMatrix = m4_hmdPose * m4_UndoCockpitLook;
 
 				Matrix4toHmdMatrix34(m4_correctionMatrix, m34_fullMatrix);  // This matrix contains all positional and rotational data.
-				//Store the prediction that will be used by CockpitLook for next frame.
+				// Store the prediction that will be used by CockpitLook for next frame.
 				g_lastPredictedHmdPose = trackedDevicePredictedPoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 			}
 			else
-			{	//Legacy headtracking. There is no pose prediction correction, we take the pose as it was returned by GetLastPoses() and used by CockpitLook.
+			{	// Legacy headtracking. There is no pose prediction correction, we take the pose as it was returned by GetLastPoses() and used by CockpitLook.
 				Matrix4toHmdMatrix34(m4_hmdPose, m34_fullMatrix);
 			}
 
@@ -361,9 +363,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			*y = m34_fullMatrix.m[1][3];
 			*z = m34_fullMatrix.m[2][3];
 		}
-		//else {
-			//log_debug("[DBG] HMD pose not valid");
-		//}
+		/*else {
+			log_debug("[DBG] HMD pose not valid");
+		}*/
 	}
 }
 
