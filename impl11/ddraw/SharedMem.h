@@ -11,9 +11,11 @@ struct SharedData {
 	// Offset added to the current POV when VR is active. This is controlled by ddraw
 	float POVOffsetX, POVOffsetY, POVOffsetZ;
 	void *pDataPtr;
-	// Euler angles for the current camera matrix coming from SteamVR. This is writen by
-	// CockpitLookHook:
+	// Euler angles, in degrees, for the current camera matrix coming from SteamVR. This is
+	// written by CockpitLookHook:
 	float Yaw, Pitch, Roll;
+	// Positional tracking data. Written by CockpitLookHook:
+	float X, Y, Z;
 };
 
 // This is a proxy to share data between the hook and ddraw.

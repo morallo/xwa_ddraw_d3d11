@@ -4813,9 +4813,9 @@ void PrimarySurface::RenderExternalHUD()
 		float Yaw = 0.0f, Pitch = 0.0f, Roll = 0.0f;
 		Matrix4 rYp, rYn, rZ;
 
-		Yaw		= g_pSharedData->pSharedData->Yaw * RAD_TO_DEG;
-		Pitch	= g_pSharedData->pSharedData->Pitch * RAD_TO_DEG;
-		Roll		= g_pSharedData->pSharedData->Roll * RAD_TO_DEG;
+		Yaw		= g_pSharedData->pSharedData->Yaw;
+		Pitch	= g_pSharedData->pSharedData->Pitch;
+		Roll		= g_pSharedData->pSharedData->Roll;
 		rYp.identity(); rYp.rotateY(Yaw);
 		rYn.identity(); rYn.rotateY(-Yaw);
 		rZ.identity(); rZ.rotateZ(Roll);
@@ -7457,12 +7457,17 @@ void UpdateViewMatrix()
 			// HUD because we're using pose-corrected data. It looks like only the correction is applied to the HUD. So,
 			// instead we're using the current pose coming from the CockpitLook hook just for the HUD here.
 			if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
-				yaw = g_pSharedData->pSharedData->Yaw * RAD_TO_DEG;
-				pitch = g_pSharedData->pSharedData->Pitch * RAD_TO_DEG;
-				roll = g_pSharedData->pSharedData->Roll * RAD_TO_DEG;
+				yaw		= g_pSharedData->pSharedData->Yaw;
+				pitch	= g_pSharedData->pSharedData->Pitch;
+				roll		= g_pSharedData->pSharedData->Roll;
+				x		= g_pSharedData->pSharedData->X;
+				y		= g_pSharedData->pSharedData->Y;
+				z		= g_pSharedData->pSharedData->Z;
+
 				rotMatrixYaw.rotateY(-yaw);
 				rotMatrixPitch.rotateX(-pitch);
 				rotMatrixRoll.rotateZ(-roll);
+				posMatrix.translate(-x, -y, z);
 				viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
 			}
 		}
