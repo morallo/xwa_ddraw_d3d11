@@ -11,7 +11,7 @@
 extern bool g_bYCenterHasBeenFixed;
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
-extern bool g_b3DVisionEnabled;
+extern bool g_b3DVisionEnabled, g_bForceFullScreen;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
 extern Vector4 g_LightVector[2];

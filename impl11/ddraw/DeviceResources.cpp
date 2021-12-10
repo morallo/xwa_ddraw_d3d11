@@ -1473,13 +1473,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	this->_backBuffer.Release();
-	// Exit Full-screen mode if necessary before releasing the swapchain
-	IDXGIOutput *pTarget = nullptr;
-	BOOL bFullScreen = FALSE;
-	if (this->_swapChain != nullptr && SUCCEEDED(this->_swapChain->GetFullscreenState(&bFullScreen, &pTarget))) {
-		if (bFullScreen)
-			this->_swapChain->SetFullscreenState(FALSE, NULL);
-		pTarget->Release();
+	if (g_b3DVisionEnabled && g_bForceFullScreen) {
+		// Exit Full-screen mode if necessary before releasing the swapchain
+		IDXGIOutput *pTarget = nullptr;
+		BOOL bFullScreen = FALSE;
+		if (this->_swapChain != nullptr && SUCCEEDED(this->_swapChain->GetFullscreenState(&bFullScreen, &pTarget))) {
+			if (bFullScreen)
+				this->_swapChain->SetFullscreenState(FALSE, NULL);
+			pTarget->Release();
+		}
 	}
 	this->_swapChain.Release();
 	this->_swapChain = nullptr;
@@ -1561,7 +1563,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (SUCCEEDED(hr))
 			{
 				DXGI_SWAP_CHAIN_DESC sd{};
-				if (g_b3DVisionEnabled)
+				if (g_b3DVisionEnabled && g_bForceFullScreen)
 					this->_swapChain->SetFullscreenState(TRUE, NULL);
 
 				this->_swapChain->GetDesc(&sd);

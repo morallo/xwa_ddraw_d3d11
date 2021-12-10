@@ -149,7 +149,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
-bool g_b3DVisionEnabled = false; // TODO: Enable this here guy. I want to load it from VRParams.cfg
+bool g_b3DVisionEnabled = false, g_bForceFullScreen = false;
 TrackerType g_TrackerType = TRACKER_NONE;
 bool g_bCorrectedHeadTracking = false;
 
@@ -507,6 +507,8 @@ next:
 	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
 
+	// Load the 3D Vision params
+	Load3DVisionParams();
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
@@ -521,8 +523,6 @@ next:
 	LoadSSAOParams();
 	// Load the Hyperspace params
 	LoadHyperParams();
-	// Load the 3D Vision params
-	Load3DVisionParams();
 	// Load FOV params
 	LoadFocalLength();
 	// Load the default global material
@@ -2574,7 +2574,6 @@ bool LoadHyperParams() {
 	return true;
 }
 
-/* Loads the Bloom parameters from bloom.cfg */
 bool Load3DVisionParams() {
 	log_debug("[DBG] Loading 3DVision params...");
 	FILE* file;
@@ -2609,10 +2608,17 @@ bool Load3DVisionParams() {
 
 			if (_stricmp(param, "enable_3D_vision") == 0) {
 				g_b3DVisionEnabled = (bool)fValue;
-				if (g_b3DVisionEnabled)
+				if (g_b3DVisionEnabled) {
 					log_debug("[DBG] [3DV] 3D Vision enabled");
+					// Force DirectSBS mode
+					g_bSteamVREnabled = false;
+					g_bEnableVR = true;
+					g_config.AspectRatioPreserved = true;
+				}
 			}
-
+			else if (_stricmp(param, "force_fullscreen") == 0) {
+				g_bForceFullScreen = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
