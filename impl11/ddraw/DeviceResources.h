@@ -152,6 +152,8 @@ public:
 	void DeleteRandomVectorTexture();
 	void CreateGrayNoiseTexture();
 	void DeleteGrayNoiseTexture();
+	void Create3DVisionSignatureTexture();
+	void Delete3DVisionTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -260,6 +262,8 @@ public:
 	ComPtr<ID3D11Texture2D> _vision3DNoMSAA;
 	// We use this buffer to add the 3D vision signature
 	ComPtr<ID3D11Texture2D> _vision3DStaging;
+	// This texture stores the 3D vision signature.
+	ComPtr<ID3D11Texture2D> _vision3DSignatureTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -351,6 +355,8 @@ public:
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 	// Generated/Procedural Textures SRVs
 	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
+	// 3D Vision
+	ComPtr<ID3D11ShaderResourceView> _vision3DSignatureSRV; // SRV for _vision3DSignature
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -407,6 +413,7 @@ public:
 	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
 	ComPtr<ID3D11PixelShader> _noGlassPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
+	ComPtr<ID3D11SamplerState> _noInterpolationSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

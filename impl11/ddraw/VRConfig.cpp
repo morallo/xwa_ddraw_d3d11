@@ -149,7 +149,7 @@ bool g_bOverrideAspectRatio = false;
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
 bool g_bEnableVR = true;
-bool g_b3DVisionEnabled = false, g_bForceFullScreen = false;
+bool g_b3DVisionEnabled = false, g_b3DVisionForceFullScreen = true;
 TrackerType g_TrackerType = TRACKER_NONE;
 bool g_bCorrectedHeadTracking = false;
 
@@ -2617,7 +2617,7 @@ bool Load3DVisionParams() {
 				}
 			}
 			else if (_stricmp(param, "force_fullscreen") == 0) {
-				g_bForceFullScreen = (bool)fValue;
+				g_b3DVisionForceFullScreen = (bool)fValue;
 			}
 		}
 	}

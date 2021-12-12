@@ -302,6 +302,8 @@ DeviceResources::DeviceResources()
 	this->_offscreenSurface = nullptr;
 	this->_grayNoiseTex = nullptr;
 	this->_grayNoiseSRV = nullptr;
+	this->_vision3DSignatureTex = nullptr;
+	this->_vision3DSignatureSRV = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -1016,6 +1018,8 @@ void DeviceResources::CreateGrayNoiseTexture() {
 	D3D11_SUBRESOURCE_DATA textureData = { 0 };
 	if (_grayNoiseTex != nullptr)
 		DeleteGrayNoiseTexture();
+	if (g_b3DVisionEnabled && _vision3DSignatureTex != nullptr)
+		Delete3DVisionTexture();
 
 	desc.Width = TEX_SIZE;
 	desc.Height = TEX_SIZE;
@@ -1095,6 +1099,149 @@ void DeviceResources::DeleteGrayNoiseTexture()
 	_grayNoiseTex = nullptr;
 	_grayNoiseSRV = nullptr;
 	_repeatSamplerState = nullptr;
+}
+
+void DeviceResources::Create3DVisionSignatureTexture() {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	DWORD dwWidth = this->_backbufferWidth * 2;
+	DWORD dwHeight = this->_backbufferHeight;
+	const int NUM_SAMPLES = dwWidth * (dwHeight + 1);
+	uint32_t *rawData = new uint32_t[NUM_SAMPLES];
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	if (_vision3DSignatureTex != nullptr)
+		Delete3DVisionTexture();
+
+	desc.Width = dwWidth;
+	desc.Height = dwHeight + 1;
+	desc.Format = BACKBUFFER_FORMAT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint32_t) * dwWidth;
+	textureData.SysMemSlicePitch = 0;
+	uint32_t LastRow = textureData.SysMemPitch * dwHeight;
+
+	// Clear rawData
+	memset(rawData, 0x0, NUM_SAMPLES);
+
+	// Add the signature to rawData
+	DWORD dwBPP = 32;
+	DWORD dwFlags = 0x02; // Side by Side
+
+	uint8_t *ptr;
+	uint8_t signature[] = {
+		0x4e, 0x56, 0x33, 0x44,	// NVSTEREO_IMAGE_SIGNATURE
+		0x00, 0x00, 0x00, 0x00, // Width
+		0x00, 0x00, 0x00, 0x00,	// Height
+		0x00, 0x00, 0x00, 0x00,	// BPP
+		0x00, 0x00, 0x00, 0x00,	// Flags
+	};
+	ptr = (uint8_t *)&dwWidth;
+	for (int i = 0; i < 4; i++)
+		signature[4 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwHeight;
+	for (int i = 0; i < 4; i++)
+		signature[8 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwBPP;
+	for (int i = 0; i < 4; i++)
+		signature[12 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwFlags;
+	for (int i = 0; i < 4; i++)
+		signature[16 + i] = ptr[i];
+
+	// DEBUG
+	/*
+	{
+		log_debug("[DBG] [3DV] Create3DVisionSignature resources->backbuffer size: %d, %d, dwWidth,Height: %d, %d",
+			this->_backbufferWidth * 2, this->_backbufferHeight, dwWidth, dwHeight);
+		int Ofs = 0;
+		log_debug("[DBG] [3DV] -----------------------------------");
+		for (int j = 0; j < 5; j++, Ofs += 4)
+			log_debug("[DBG] [3DV] 0x%02x, 0x%02x, 0x%02x, 0x%02x",
+				signature[Ofs], signature[Ofs + 1], signature[Ofs + 2], signature[Ofs + 3]);
+		log_debug("[DBG] [3DV] ===================================");
+	}
+	*/
+
+	// Debug: the following line draws a thin white line on the top of the image. I'm using
+	// this to verify that the signature is being added. We need to remove this line later.
+	memset(rawData, 0xFF, 10 * dwWidth);
+	// Debug: the following line should write a white line on the last row of the image:
+	//memset((char *)((uint32_t)map.pData + LastRow), 0xFF, 4 * resources->_backbufferWidth);
+
+	// Add the 3D vision signature to the last row of the image
+	memcpy((byte *)((uint32_t)rawData + LastRow), signature, 20);
+
+	// Now create the texture proper with the signature
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_vision3DSignatureTex))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateTexture2D on _vision3DSignatureTex, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	// Create the SRV for this texture
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+	if (FAILED(hr = device->CreateShaderResourceView(_vision3DSignatureTex, &shaderResourceViewDesc, &_vision3DSignatureSRV))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateShaderResourceView on 3D vision signature, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	D3D11_SAMPLER_DESC samplerDesc;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	samplerDesc.MaxAnisotropy = 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_noInterpolationSamplerState))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateSamplerState on 3D vision signature, hr: 0x%x", hr);
+		goto out;
+	}
+
+	// DEBUG
+	//hr = DirectX::SaveWICTextureToFile(context, _vision3DSignatureTex, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DSignature.png");
+	//log_debug("[DBG] [3DV] Dumped _vision3DSignature to file, hr: 0x%x", hr);
+	// DEBUG
+out:
+	delete[] rawData;
+}
+
+void DeviceResources::Delete3DVisionTexture()
+{
+	if (_vision3DSignatureSRV != nullptr) _vision3DSignatureSRV->Release();
+	if (_vision3DSignatureTex != nullptr) _vision3DSignatureTex->Release();
+	if (_noInterpolationSamplerState != nullptr) _noInterpolationSamplerState.Release();
+	_vision3DSignatureTex = nullptr;
+	_vision3DSignatureSRV = nullptr;
+	_noInterpolationSamplerState = nullptr;
 }
 
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
@@ -1473,7 +1620,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	this->_backBuffer.Release();
-	if (g_b3DVisionEnabled && g_bForceFullScreen) {
+	if (g_b3DVisionEnabled && g_b3DVisionForceFullScreen) {
 		// Exit Full-screen mode if necessary before releasing the swapchain
 		IDXGIOutput *pTarget = nullptr;
 		BOOL bFullScreen = FALSE;
@@ -1563,7 +1710,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (SUCCEEDED(hr))
 			{
 				DXGI_SWAP_CHAIN_DESC sd{};
-				if (g_b3DVisionEnabled && g_bForceFullScreen)
+				if (g_b3DVisionEnabled && g_b3DVisionForceFullScreen)
 					this->_swapChain->SetFullscreenState(TRUE, NULL);
 
 				this->_swapChain->GetDesc(&sd);
@@ -2713,6 +2860,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildSpeedVertexBuffer();
 		CreateRandomVectorTexture();
 		CreateGrayNoiseTexture();
+		if (g_b3DVisionEnabled)
+			Create3DVisionSignatureTexture();
 	}
 
 	/* RTVs */

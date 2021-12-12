@@ -7,9 +7,16 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+Texture2D signatureTex : register(t1);
+SamplerState signatureSamp : register(s1) =
+	sampler_state {
+		Filter = MIN_MAG_MIP_POINT; // No interpolation
+	};
+
 cbuffer ConstantBuffer : register(b0)
 {
-	float k1, k2, k3; // Unused, we might need these later to implement custom scaling.
+	float v; // The v coordinate where the signature must be added
+	float unused0, unused1, unused2; // Unused, we might need these later to implement custom scaling.
 };
 
 struct PixelShaderInput
@@ -21,7 +28,7 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 texPos = input.tex;
-	float scale = 0.5f;
+	const float scale = 0.5f;
 
 	if (texPos.x <= 0.5) {
 		float2 LC = { 0.25, 0.5 };
@@ -33,5 +40,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	}
 
 	float4 texelColor = texture0.Sample(sampler0, texPos);
-	return float4(texelColor.rgb, 1.0f);
+	if (input.tex.y < v)
+		return float4(texelColor.rgb, 1.0f);
+	else
+		//return float4(1, 0, 0, 1);
+		return signatureTex.Sample(signatureSamp, input.tex);
 }
