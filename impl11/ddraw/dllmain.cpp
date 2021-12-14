@@ -511,6 +511,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'G':
 				//g_bDumpLaserPointerDebugInfo = true;
 				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
+				if (g_bAutoGreeblesEnabled)
+					DisplayTimedMessage(3, 0, "Greebles Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Greebles Disabled");
 				return 0;
 				// DEBUG
 			case 'P':
