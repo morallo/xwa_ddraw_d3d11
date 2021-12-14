@@ -152,6 +152,8 @@ public:
 	void DeleteRandomVectorTexture();
 	void CreateGrayNoiseTexture();
 	void DeleteGrayNoiseTexture();
+	void Create3DVisionSignatureTexture();
+	void Delete3DVisionTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -182,7 +184,7 @@ public:
 	D3D_FEATURE_LEVEL _d3dFeatureLevel;
 	ComPtr<ID3D11Device> _d3dDevice;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
-	ComPtr<IDXGISwapChain> _swapChain;
+	ComPtr<IDXGISwapChain> _swapChain = nullptr;
 	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
@@ -253,7 +255,15 @@ public:
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 	// 3D Vision
+	// double-wide version of _offscreenBufferPost. We use this buffer to resize the _offscreenBuffer
+	// to double-wide size while doing the barrel effect
+	ComPtr<ID3D11Texture2D> _vision3DPost; 
+	// We use this buffer to resolve _vision3DPost into a Non-MSAA buffer:
+	ComPtr<ID3D11Texture2D> _vision3DNoMSAA;
+	// We use this buffer to add the 3D vision signature
 	ComPtr<ID3D11Texture2D> _vision3DStaging;
+	// This texture stores the 3D vision signature.
+	ComPtr<ID3D11Texture2D> _vision3DSignatureTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -298,6 +308,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
+	// 3D vision
+	ComPtr<ID3D11RenderTargetView> _RTVvision3DPost; // Used for the "barrel" effect in 3D vision
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
@@ -343,6 +355,8 @@ public:
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 	// Generated/Procedural Textures SRVs
 	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
+	// 3D Vision
+	ComPtr<ID3D11ShaderResourceView> _vision3DSignatureSRV; // SRV for _vision3DSignature
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -366,6 +380,7 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
 	ComPtr<ID3D11PixelShader> _steamVRMirrorPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
+	ComPtr<ID3D11PixelShader> _simpleResizePS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
@@ -398,6 +413,7 @@ public:
 	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
 	ComPtr<ID3D11PixelShader> _noGlassPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
+	ComPtr<ID3D11SamplerState> _noInterpolationSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;

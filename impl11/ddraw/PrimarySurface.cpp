@@ -699,32 +699,73 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	// Render the barrel effect
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width = screen_res_x;
-	viewport.Height = screen_res_y;
+	if (!g_b3DVisionEnabled) {
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
+	}
+	else {
+		viewport.Width = screen_res_x * 2.0f;
+		viewport.Height = screen_res_y + 1;
+	}
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_barrelPixelShader);
-	
-	// Set the lens distortion constants for the barrel shader
-	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+	if (!g_b3DVisionEnabled)
+		resources->InitPixelShader(resources->_barrelPixelShader);
+	else
+		resources->InitPixelShader(resources->_simpleResizePS);
 
-	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	ID3D11RenderTargetView *rtvs[5] = {
-		resources->_renderTargetViewPost.Get(),
-		NULL, NULL, NULL, NULL,
-	};
-	context->OMSetRenderTargets(5, rtvs, NULL);
-	//context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	if (!g_b3DVisionEnabled) {
+		// Set the lens distortion constants for the barrel shader
+		resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+	} 
+	else {
+		// When 3D vision is enabled, k1 is the v coordinate where the signature must be added
+		float v = 1.0f - 1.0f / viewport.Height;
+		resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), v, 0, 0);
+	}
+
+	if (!g_b3DVisionEnabled) {
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewPost.Get(),
+			NULL, NULL, NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
+	else {
+		context->ClearRenderTargetView(resources->_RTVvision3DPost, bgColor);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_RTVvision3DPost.Get(),
+			NULL, NULL, NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
 	resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	if (g_b3DVisionEnabled) {
+		context->PSSetShaderResources(1, 1, resources->_vision3DSignatureSRV.GetAddressOf());
+		context->PSSetSamplers(1, 1, resources->_noInterpolationSamplerState.GetAddressOf());
+		// To properly blend the signature in _vision3DSignature, we need to disable transparency:
+		resources->InitBlendState(resources->_mainBlendState, nullptr);
+	}
 
 	resources->InitViewport(&viewport);
 	context->Draw(6, 0);
 
 	// Restore the original rendertargetview
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(), this->_deviceResources->_depthStencilViewL.Get());
+	if (g_b3DVisionEnabled) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+		context->PSSetSamplers(1, 1, resources->_mainSamplerState.GetAddressOf());
+	}
 }
 
 /*
@@ -762,10 +803,16 @@ void PrimarySurface::barrelEffect3D() {
 
 	// Create a new viewport to render the offscreen buffer as a texture
 	D3D11_VIEWPORT viewport{};
-	viewport.TopLeftX = (float)0;
-	viewport.TopLeftY = (float)0;
-	viewport.Width = (float)screen_res_x;
-	viewport.Height = (float)screen_res_y;
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	if (!g_b3DVisionEnabled) {
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
+	}
+	else {
+		viewport.Width = screen_res_x * 2.0f;
+		viewport.Height = screen_res_y + 1;
+	}
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	
@@ -774,19 +821,45 @@ void PrimarySurface::barrelEffect3D() {
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_barrelPixelShader);
+	if (!g_b3DVisionEnabled)
+		resources->InitPixelShader(resources->_barrelPixelShader);
+	else
+		resources->InitPixelShader(resources->_simpleResizePS);
 	
-	// Set the lens distortion constants for the barrel shader
-	resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+	if (!g_b3DVisionEnabled) {
+		// Set the lens distortion constants for the barrel shader
+		resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), g_fLensK1, g_fLensK2, g_fLensK3);
+	}
+	else {
+		// When 3D vision is enabled, k1 is the v coordinate where the signature must be added
+		float v = 1.0f - 1.0f / viewport.Height;
+		resources->InitPSConstantBufferBarrel(resources->_barrelConstantBuffer.GetAddressOf(), v, 0, 0);
+	}
 
 	// Clear the render target
-	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-	ID3D11RenderTargetView *rtvs[5] = {
-		resources->_renderTargetViewPost.Get(),
-		NULL, NULL, NULL, NULL,
-	};
-	context->OMSetRenderTargets(5, rtvs, NULL);
+	if (!g_b3DVisionEnabled) {
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_renderTargetViewPost.Get(),
+			NULL, NULL, NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
+	else {
+		context->ClearRenderTargetView(resources->_RTVvision3DPost, bgColor);
+		ID3D11RenderTargetView *rtvs[5] = {
+			resources->_RTVvision3DPost.Get(),
+			NULL, NULL, NULL, NULL,
+		};
+		context->OMSetRenderTargets(5, rtvs, NULL);
+	}
 	context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+	if (g_b3DVisionEnabled) {
+		context->PSSetShaderResources(1, 1, resources->_vision3DSignatureSRV.GetAddressOf());
+		context->PSSetSamplers(1, 1, resources->_noInterpolationSamplerState.GetAddressOf());
+		// To properly blend the signature in _vision3DSignature, we need to disable transparency:
+		resources->InitBlendState(resources->_mainBlendState, nullptr);
+	}
 	resources->InitViewport(&viewport);
 	context->IASetInputLayout(resources->_mainInputLayout);
 	context->Draw(6, 0);
@@ -815,6 +888,16 @@ void PrimarySurface::barrelEffect3D() {
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(), 
 		this->_deviceResources->_depthStencilViewL.Get());
+	if (g_b3DVisionEnabled) {
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = screen_res_x;
+		viewport.Height = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+		context->PSSetSamplers(1, 1, resources->_mainSamplerState.GetAddressOf());
+	}
 }
 
 /*
@@ -7617,21 +7700,56 @@ void PrimarySurface::Add3DVisionSignature()
 
 	if (SUCCEEDED(hr))
 	{
-		uint32_t LastRow = map.RowPitch * (resources->_backbufferHeight - 1);
+		uint32_t LastRow = map.RowPitch * resources->_backbufferHeight;
+		
+		DWORD dwWidth = resources->_backbufferWidth * 2;
+		DWORD dwHeight = resources->_backbufferHeight;
 		DWORD dwBPP = 32;
 		DWORD dwFlags = 0x02; // Side by Side
-		uint32_t data[] = {
-			0x4433564e,						// NVSTEREO_IMAGE_SIGNATURE
-			resources->_backbufferWidth,
-			resources->_backbufferHeight,
-			dwBPP,
-			dwFlags,
-		};
 
+		uint8_t *ptr;
+		uint8_t signature[] = {
+			0x4e, 0x56, 0x33, 0x44,	// NVSTEREO_IMAGE_SIGNATURE
+			0x00, 0x00, 0x00, 0x00, // Width
+			0x00, 0x00, 0x00, 0x00,	// Height
+			0x00, 0x00, 0x00, 0x00,	// BPP
+			0x00, 0x00, 0x00, 0x00,	// Flags
+		};
+		ptr = (uint8_t *)&dwWidth;
+		for (int i = 0; i < 4; i++)
+			signature[4 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwHeight;
+		for (int i = 0; i < 4; i++)
+			signature[8 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwBPP;
+		for (int i = 0; i < 4; i++)
+			signature[12 + i] = ptr[i];
+
+		ptr = (uint8_t *)&dwFlags;
+		for (int i = 0; i < 4; i++)
+			signature[16 + i] = ptr[i];
+
+		if (g_bDumpSSAOBuffers) {
+			log_debug("[DBG] [3DV] Add3DVisionSignature resources->backbuffer size: %d, %d",
+				resources->_backbufferWidth * 2, resources->_backbufferHeight);
+			int Ofs = 0;
+			log_debug("[DBG] [3DV] -----------------------------------");
+			for (int j = 0; j < 5; j++, Ofs += 4)
+				log_debug("[DBG] [3DV] 0x%02x, 0x%02x, 0x%02x, 0x%02x",
+					signature[Ofs], signature[Ofs+1], signature[Ofs+2], signature[Ofs+3]);
+			log_debug("[DBG] [3DV] ===================================");
+		}
+
+		// Debug: the following line draws a thin white line on the top of the image. I'm using
+		// this to verify that the signature is being added. We need to remove this line later.
+		//memset(map.pData, 0xFF, 10 * 4 * resources->_backbufferWidth);
 		// Debug: the following line should write a white line on the last row of the image:
 		//memset((char *)((uint32_t)map.pData + LastRow), 0xFF, 4 * resources->_backbufferWidth);
 
-		memcpy((byte *)((uint32_t)map.pData + LastRow), data, 20);
+		// Add the 3D vision signature to the last row of the image
+		memcpy((byte *)((uint32_t)map.pData + LastRow), signature, 20);
 		context->Unmap(resources->_vision3DStaging, 0);
 	}
 	else {
@@ -7691,6 +7809,8 @@ HRESULT PrimarySurface::Flip(
 			context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		}
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
+		if (g_b3DVisionEnabled)
+			context->ClearRenderTargetView(resources->_RTVvision3DPost, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
 			if (!g_bHyperspaceFirstFrame) {
 				context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
@@ -8042,21 +8162,41 @@ HRESULT PrimarySurface::Flip(
 					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
-						// Barrel effect enabled for DirectSBS mode
+						// Barrel effect enabled for DirectSBS mode.
+						// If 3D vision is enabled, then we use a different shader that will expand _offscreenBuffer into
+						// _vision3DPost.
 						barrelEffect2D(i);
-						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+						if (g_b3DVisionEnabled) {
+							// Resolve _vision3DPost, which is MSAA, into _vision3DNoMSAA. We can't resolve _vision3DPost directly
+							// into _vision3DStaging because the flags used to create that last buffer won't allow it. So we need
+							// this intermediate buffer (_vision3DNoMSAA) to help us get the data into the staging buffer.
+							context->ResolveSubresource(resources->_vision3DNoMSAA, 0, resources->_vision3DPost, 0, BACKBUFFER_FORMAT);
+							//context->CopyResource(resources->_vision3DStaging, resources->_vision3DNoMSAA);
+							// Add the 3D vision signature to _vision3DStaging
+							//Add3DVisionSignature();
 
-						if (g_bEnable3DVision) {
-							// If 3D vision is enabled, copy the backbuffer to a staging buffer where we
-							// can add the control bits, then copy the staging buffer back to the backbuffer
-							// for display
-							context->CopyResource(resources->_vision3DStaging, resources->_backBuffer);
-							Add3DVisionSignature();
-							context->CopyResource(resources->_backBuffer, resources->_vision3DStaging);
+							// The staging buffer now has the signature, we can copy it to the backbuffer
+							D3D11_BOX box;
+							box.left = 0; box.right = resources->_backbufferWidth;
+							box.top = 0; box.bottom = resources->_backbufferHeight;
+							box.front = 0; box.back = 1;
+							context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DNoMSAA, 0, &box);
+							//context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DStaging, 0, &box);
+
+							// DEBUG: Just copy _vision3DPost (without the signature) to _offscreenBufferPost and resolve.
+							//context->CopySubresourceRegion(resources->_offscreenBufferPost, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DPost, 0, &box);
+							//context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+
 							if (g_bDumpSSAOBuffers) {
-								log_debug("[DBG] [3DV] Dumping _vision3DStaging...");
-								DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
+								log_debug("[DBG] [3DV] Dumping _vision3DNoMSAA...");
+								//DirectX::SaveWICTextureToFile(context, resources->_vision3DPost, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DPost.png");
+								DirectX::SaveWICTextureToFile(context, resources->_vision3DNoMSAA, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DNoMSAA.png");
+								DirectX::SaveDDSTextureToFile(context, resources->_vision3DNoMSAA, L"C:\\Temp\\_vision3DNoMSAA.dds");
+								//DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
 							}
+						}
+						else {
+							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 						}
 					}
 					else {
@@ -8896,22 +9036,40 @@ HRESULT PrimarySurface::Flip(
 				else { // Direct SBS mode
 					if (!g_bDisableBarrelEffect) {
 						barrelEffect3D();
-						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+						if (g_b3DVisionEnabled) {
+							// Resolve _vision3DPost, which is MSAA, into _vision3DNoMSAA. We can't resolve _vision3DPost directly
+							// into _vision3DStaging because the flags used to create that last buffer won't allow it. So we need
+							// this intermediate buffer (_vision3DNoMSAA) to help us get the data into the staging buffer.
+							context->ResolveSubresource(resources->_vision3DNoMSAA, 0, resources->_vision3DPost, 0, BACKBUFFER_FORMAT);
+							/*
+							context->CopyResource(resources->_vision3DStaging, resources->_vision3DNoMSAA);
+							// Add the 3D vision signature to _vision3DStaging
+							Add3DVisionSignature();
+							*/
+
+							// The staging buffer now has the signature, we can copy it to the backbuffer
+							D3D11_BOX box;
+							box.left = 0; box.right = resources->_backbufferWidth;
+							box.top = 0; box.bottom = resources->_backbufferHeight;
+							box.front = 0; box.back = 1;
+							context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DNoMSAA, 0, &box);
+							//context->CopySubresourceRegion(resources->_backBuffer, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DStaging, 0, &box);
+							// DEBUG: Just copy _vision3DPost to _offscreenBufferPost and resolve.
+							//context->CopySubresourceRegion(resources->_offscreenBufferPost, D3D11CalcSubresource(0, 0, 1), 0, 0, 0, resources->_vision3DPost, 0, &box);
+							//context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+
+							if (g_bDumpSSAOBuffers) {
+								log_debug("[DBG] [3DV] Dumping _vision3DNoMSAA...");
+								//DirectX::SaveWICTextureToFile(context, resources->_vision3DPost, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DPost.png");
+								DirectX::SaveDDSTextureToFile(context, resources->_vision3DNoMSAA, L"C:\\Temp\\_vision3DNoMSAA.dds");
+								DirectX::SaveWICTextureToFile(context, resources->_vision3DNoMSAA, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DNoMSAA.png");
+								//DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
+							}
+						}
+						else
+							context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					} else
 						context->ResolveSubresource(resources->_backBuffer, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-
-					if (g_bEnable3DVision) {
-						// If 3D vision is enabled, copy the backbuffer to a staging buffer where we
-						// can add the control bits, then copy the staging buffer back to the backbuffer
-						// for display
-						context->CopyResource(resources->_vision3DStaging, resources->_backBuffer);
-						Add3DVisionSignature();
-						context->CopyResource(resources->_backBuffer, resources->_vision3DStaging);
-						if (g_bDumpSSAOBuffers) {
-							log_debug("[DBG] [3DV] Dumping _vision3DStaging...");
-							DirectX::SaveWICTextureToFile(context, resources->_vision3DStaging, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DStaging.png");
-						}
-					}
 				}
 			}
 			else { // Non-VR mode

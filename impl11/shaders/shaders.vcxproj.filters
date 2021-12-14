@@ -74,6 +74,7 @@
     <FxCompile Include="PixelShaderNoGlass.hlsl" />
     <FxCompile Include="PixelShaderAnimLightMap.hlsl" />
     <FxCompile Include="PixelShaderGreeble.hlsl" />
+    <FxCompile Include="SimpleResizePS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
