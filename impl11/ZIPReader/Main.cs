@@ -206,13 +206,23 @@ namespace ZIPReader
         [DllExport(CallingConvention.Cdecl)]
         public static int GetZIPGroupImageCount(int GroupId)
         {
+            int result = 0;
             if (m_sTempPath == null)
             {
                 Trace.WriteLine("[DBG] [C#] Load a ZIP file first");
                 return 0;
             }
 
-            return Directory.EnumerateFiles(m_sTempPath + "\\" + GroupId).Count();
+            try
+            {
+                result = Directory.EnumerateFiles(m_sTempPath + "\\" + GroupId).Count();
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine("[DBG] [C#] Exception in GetZIPGroupImageCount: " + e.ToString());
+                result = 0;
+            }
+            return result;
         }
 
         protected static int GetImageIdFromImageName(string sImageName)
