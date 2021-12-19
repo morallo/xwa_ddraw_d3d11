@@ -151,7 +151,7 @@ true if either DirectSBS or SteamVR are enabled. false for original display mode
 bool g_bEnableVR = true;
 bool g_b3DVisionEnabled = false, g_b3DVisionForceFullScreen = true;
 TrackerType g_TrackerType = TRACKER_NONE;
-bool g_bCorrectedHeadTracking = false;
+bool g_bCorrectedHeadTracking = true;
 
 float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
