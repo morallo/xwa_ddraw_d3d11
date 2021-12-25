@@ -12,7 +12,7 @@ class Direct3DTexture;
 class TextureSurface : public IDirectDrawSurface
 {
 public:
-	TextureSurface(DeviceResources* deviceResources, bool allocOnLoad, DWORD width, DWORD height, DDPIXELFORMAT& pixelFormat, DWORD mipmapCount);
+	TextureSurface(DeviceResources* deviceResources, bool allocOnLoad, DWORD width, DWORD height, DDPIXELFORMAT& pixelFormat, DWORD mipmapCount, const char* name);
 
 	virtual ~TextureSurface();
 
@@ -102,6 +102,7 @@ public:
 	DWORD _height;
 	DDPIXELFORMAT _pixelFormat;
 	DWORD _mipmapCount;
+	std::string _name;
 
 	DWORD _bufferSize;
 	char* _buffer;

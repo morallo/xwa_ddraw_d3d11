@@ -347,7 +347,7 @@ HRESULT DirectDraw::CreateSurface(
 		bool allocOnLoad = (lpDDSurfaceDesc->ddsCaps.dwCaps & DDSCAPS_ALLOCONLOAD) != 0;
 		DWORD mipmapCount = (lpDDSurfaceDesc->dwFlags & DDSD_MIPMAPCOUNT) != 0 ? lpDDSurfaceDesc->dwMipMapCount : 1;
 
-		TextureSurface* textureSurface = new TextureSurface(this->_deviceResources, allocOnLoad, lpDDSurfaceDesc->dwWidth, lpDDSurfaceDesc->dwHeight, lpDDSurfaceDesc->ddpfPixelFormat, mipmapCount);
+		TextureSurface* textureSurface = new TextureSurface(this->_deviceResources, allocOnLoad, lpDDSurfaceDesc->dwWidth, lpDDSurfaceDesc->dwHeight, lpDDSurfaceDesc->ddpfPixelFormat, mipmapCount, (const char*)lpDDSurfaceDesc->dwReserved);
 		*lplpDDSurface = textureSurface;
 		textureSurface->_cname[0] = 0;
 		// TODO: Replace texture names with dynamically-allocated char*'s and release them after they are classified during Load()

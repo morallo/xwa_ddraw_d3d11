@@ -5,7 +5,7 @@
 #include "MipmapSurface.h"
 #include "Direct3DTexture.h"
 
-TextureSurface::TextureSurface(DeviceResources* deviceResources, bool allocOnLoad, DWORD width, DWORD height, DDPIXELFORMAT& pixelFormat, DWORD mipmapCount)
+TextureSurface::TextureSurface(DeviceResources* deviceResources, bool allocOnLoad, DWORD width, DWORD height, DDPIXELFORMAT& pixelFormat, DWORD mipmapCount, const char* name)
 {
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
@@ -16,6 +16,11 @@ TextureSurface::TextureSurface(DeviceResources* deviceResources, bool allocOnLoa
 	this->_height = height;
 	this->_pixelFormat = pixelFormat;
 	this->_mipmapCount = mipmapCount;
+
+	if (name != nullptr)
+	{
+		this->_name = name;
+	}
 
 	if (this->_allocOnLoad)
 	{
@@ -352,7 +357,7 @@ HRESULT TextureSurface::GetAttachedSurface(
 #endif
 
 			return DDERR_INVALIDOBJECT;
-		}
+	}
 
 		*lplpDDAttachedSurface = this->_mipmap.Get();
 		this->_mipmap->AddRef();
@@ -636,7 +641,7 @@ HRESULT TextureSurface::Lock(
 #endif
 
 			return DDERR_INVALIDPARAMS;
-		}
+	}
 
 		if (lpDestRect == nullptr)
 		{

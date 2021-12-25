@@ -197,6 +197,7 @@ public:
 	DeviceResources* _deviceResources;
 
 	TextureSurface* _surface;
+	std::string _name;
 
 	ComPtr<ID3D11ShaderResourceView> _textureView;
 };

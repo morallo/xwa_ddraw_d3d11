@@ -184,6 +184,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
+	this->_name = surface->_name;
 	this->DATImageId = -1;
 	this->DATGroupId = -1;
 	this->is_Tagged = false;
@@ -1332,6 +1333,7 @@ HRESULT Direct3DTexture::Load(
 
 	Direct3DTexture* d3dTexture = (Direct3DTexture*)lpD3DTexture;
 	TextureSurface* surface = d3dTexture->_surface;
+	this->_name = d3dTexture->_name;
 	//log_debug("[DBG] Loading %s", surface->name);
 	// The changes from Jeremy's commit fe50cc59e03225bb7e39ae2852e87d305e7c7891 to reduce
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
@@ -1424,6 +1426,7 @@ HRESULT Direct3DTexture::Load(
 	//}
 
 	// DEBUG
+
 	if (d3dTexture->_textureView)
 	{
 #if LOGGER
@@ -1578,7 +1581,7 @@ out:
 #endif
 
 		return D3DERR_TEXTURE_LOAD_FAILED;
-	}
+}
 
 	d3dTexture->_textureView->AddRef();
 	*&this->_textureView = d3dTexture->_textureView.Get();
