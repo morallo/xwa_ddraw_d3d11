@@ -36,6 +36,8 @@ PixelShaderInput main(VertexShaderInput input)
 	float sz = input.pos.z;
 	float w = 1.0 / input.pos.w;
 
+	// This Vertex Shader needs to be updated to work with the new D3DRendererHook
+
 	/*
 	float3 temp = input.pos.xyz;
 	// Normalize into the -0.5..0.5 range

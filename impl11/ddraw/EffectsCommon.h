@@ -165,12 +165,16 @@ typedef struct LaserPointerCBStruct {
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
-	float placeholder[4]; // Added to make space for new constants introduced in the D3DRendererHook
 	// 16 bytes
+	float s_V0x08B94CC;
+	float s_V0x05B46B4;
+	float unused1;
+	float unused2;
+	// 32 bytes
 	float aspect_ratio;
 	uint32_t apply_uv_comp;
 	float z_override, sz_override;
-	// 32 bytes
+	// 48 bytes
 	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 64 bytes
 } VertexShaderCBuffer;

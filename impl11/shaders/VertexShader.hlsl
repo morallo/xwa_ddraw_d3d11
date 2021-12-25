@@ -49,15 +49,60 @@ PixelShaderInput main(VertexShaderInput input)
 }
 */
 
+/*
+// This is the current VS by Jeremy after the D3DRendererHook, see commit 82f9a262ed3d5b7631798296f7a456f6ac821029
+PixelShaderInput main(VertexShaderInput input)
+{
+	PixelShaderInput output;
+
+	//output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+	//output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+	//output.pos.z = input.pos.z;
+	//output.pos.w = 1.0f;
+	//output.pos *= 1.0f / input.pos.w;
+
+	float st0 = input.pos.w;
+
+	if (input.pos.z == input.pos.w)
+	{
+		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
+		st0 = s_V0x08B94CC / z;
+	}
+
+	output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
+	output.pos.w = 1.0f;
+	output.pos.x = (input.pos.x * vpScale.x - 1.0f) * vpScale.z;
+	output.pos.y = (input.pos.y * vpScale.y + 1.0f) * vpScale.z;
+	output.pos *= 1.0f / input.pos.w;
+
+	output.color = input.color.zyxw;
+	output.tex = input.tex;
+	return output;
+}
+*/
+
 PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 	float w = 1.0 / input.pos.w;
+	float st0 = input.pos.w;
 	float3 temp = input.pos.xyz;
 
-	// Regular Vertex Shader
-	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	// New code needed for the D3DRendererHook
+	if (input.pos.z == input.pos.w)
+	{
+		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
+		st0 = s_V0x08B94CC / z;
+	}
+
+	// Regular Vertex Shader, before the D3DRendererHook
 	output.pos.z = input.pos.z;
+
+	// Regular Vertex Shader after the D3DRendererHook. This code will break this shader because the hook
+	// itself is missing. This code is disabled for now.
+	//output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
+
+	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
 	output.pos.w = 1.0f;
 
 	// DirectX divides by output.pos.w internally. We don't see that division; but it happens.
@@ -72,6 +117,8 @@ PixelShaderInput main(VertexShaderInput input)
 	output.normal = input.specular;
 	// Use the following line when not using the normals hook:
 	//output.normal = 0;
+
+	// The Back-projection into 3D space will most likely be different now with the D3DRendererHook!
 
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -1..1 range

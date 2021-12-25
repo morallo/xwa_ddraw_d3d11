@@ -3,7 +3,10 @@ cbuffer ConstantBuffer : register(b0)
 {
 	float4 vpScale;
 
-	float4 placeholder; // Added to make space for new constants introduced in the D3DRendererHook
+	float s_V0x08B94CC;
+	float s_V0x05B46B4;
+	float unused1;
+	float unused2;
 
 	float aspect_ratio;
 	uint apply_uv_comp;

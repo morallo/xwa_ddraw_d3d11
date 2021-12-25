@@ -23,6 +23,11 @@
     <FxCompile Include="MainPixelShaderBpp2ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp4ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp2ColorKey00.hlsl" />
+	<FxCompile Include="XwaD3dVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dPixelShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowPixelShader.hlsl" />
+    <FxCompile Include="XwaD3dCommon.hlsl" />
     <FxCompile Include="SBSVertexShader.hlsl" />
     <FxCompile Include="BarrelPixelShader.hlsl" />
     <FxCompile Include="SingleBarrelPixelShader.hlsl" />
