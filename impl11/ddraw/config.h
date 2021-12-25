@@ -46,6 +46,7 @@ public:
 	// Direct2D settings
 	bool Text2DRendererEnabled;
 	bool Radar2DRendererEnabled;
+	bool D3dRendererHookEnabled;
 	bool Text2DAntiAlias;
 	bool Geometry2DAntiAlias;
 	bool MusicSyncFix;
