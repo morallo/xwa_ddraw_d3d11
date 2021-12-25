@@ -367,6 +367,7 @@ float s_XwaHudScale = 1.0f;
 #include "Direct3DTexture.h"
 #include "BackbufferSurface.h"
 #include "ExecuteBufferDumper.h"
+#include "XwaD3dRendererHook.h"
 #include "PrimarySurface.h"
 // TODO: Remove later
 #include "TextureSurface.h"
@@ -652,6 +653,8 @@ public:
 	{
 		this->_deviceResources = deviceResources;
 
+		this->MonoRendering = FALSE;
+
 		this->TextureAddress = D3DTADDRESS_WRAP;
 
 		this->AlphaBlendEnabled = FALSE;
@@ -790,6 +793,16 @@ public:
 		return desc;
 	}
 
+	BOOL GetMonoRendering()
+	{
+		return this->MonoRendering;
+	}
+
+	inline void SetMonoRendering(BOOL monoRendering)
+	{
+		this->MonoRendering = monoRendering;
+	}
+
 	inline void SetTextureAddress(D3DTEXTUREADDRESS textureAddress)
 	{
 		this->TextureAddress = textureAddress;
@@ -846,6 +859,8 @@ public:
 
 public: // HACK: Return this to private after the Dynamic Cockpit is stable
 	DeviceResources* _deviceResources;
+
+	BOOL MonoRendering;
 
 	D3DTEXTUREADDRESS TextureAddress;
 
@@ -1175,6 +1190,7 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
 		}
 
+<<<<<<< HEAD
 		index = triangle->v3;
 		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
 		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
@@ -1183,13 +1199,16 @@ void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
 			v = g_OrigVerts[index];
 			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
 		}
+=======
+#if LOGGER_DUMP
+	DumpExecuteBuffer(executeBuffer);
+#endif
+>>>>>>> 39555f9 (Add XwaD3dRendererHook)
 
 		triangle++;
 	}
 }
 */
-
-
 
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
@@ -1256,8 +1275,6 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 	if (debug)
 		log_debug("[DBG] END Geom");
 }
-
-
 
 /*
 bool rayTriangleIntersect_old(
@@ -2734,6 +2751,24 @@ HRESULT Direct3DDevice::Execute(
 		}
 
 		//const float viewportScale[4] = { 2.0f / (float)this->_deviceResources->_displayWidth, -2.0f / (float)this->_deviceResources->_displayHeight, scale, 0 };
+		/*
+		// New constants added with the D3DRendererHook:
+		const float viewportScale[8] =
+		{
+			2.0f / (float)this->_deviceResources->_displayWidth,
+			-2.0f / (float)this->_deviceResources->_displayHeight,
+			scale,
+			0,
+			*(float*)0x08B94CC,
+			*(float*)0x05B46B4,
+			0,
+			0
+		};
+		*/
+
+		// New constants added with the D3DRendererHook:
+		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
+		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
 		if (g_bEnableVR) {
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
@@ -2907,6 +2942,12 @@ HRESULT Direct3DDevice::Execute(
 				{
 					switch (state->drstRenderStateType)
 					{
+					case D3DRENDERSTATE_MONOENABLE:
+					{
+						this->_renderStates->SetMonoRendering((BOOL)state->dwArg[0]);
+						break;
+					}
+
 					case D3DRENDERSTATE_TEXTUREHANDLE:
 					{
 						Direct3DTexture* texture = g_config.WireframeFillMode ? nullptr : (Direct3DTexture*)state->dwArg[0];
@@ -2976,6 +3017,13 @@ HRESULT Direct3DDevice::Execute(
 
 			case D3DOP_TRIANGLE:
 			{
+				// TODO
+				//if (this->_renderStates->GetMonoRendering())
+				//{
+				//	currentIndexLocation += 3 * instruction->wCount;
+				//	break;
+				//}
+
 				g_ExecuteTriangleCount++;
 				g_ExecuteIndexCount += instruction->wCount * 3;
 
@@ -5865,6 +5913,8 @@ HRESULT Direct3DDevice::Execute(
 			strcpy_s(text, step);
 			strcat_s(text, "\n");
 			strcat_s(text, _com_error(hr).ErrorMessage());
+			strcat_s(text, "\n");
+			strcat_s(text, _com_error(this->_deviceResources->_d3dDevice->GetDeviceRemovedReason()).ErrorMessage());
 
 			//MessageBox(nullptr, text, __FUNCTION__, MB_ICONERROR);
 			log_debug("[DBG] %s, %s", text, __FUNCTION__);
@@ -5886,7 +5936,7 @@ HRESULT Direct3DDevice::Execute(
 #endif
 
 	return D3D_OK;
-}
+	}
 
 HRESULT Direct3DDevice::AddViewport(
 	LPDIRECT3DVIEWPORT lpDirect3DViewport
@@ -6734,6 +6784,8 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 	}
 
+	D3dRendererSceneBegin(this->_deviceResources);
+
 	return D3D_OK;
 }
 
@@ -6751,6 +6803,8 @@ HRESULT Direct3DDevice::EndScene()
 	I can't render hyperspace here because it will break the display of the main menu after exiting a mission
 	Looks like even the menu uses EndScene and I'm messing it up even when using the "g_bRendering3D" flag!
 	*/
+
+	D3dRendererSceneEnd();
 
 	this->_deviceResources->sceneRendered = true;
 

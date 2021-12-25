@@ -17,6 +17,7 @@
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
+#include "xwa_structures.h"
 #include "effects.h"
 #include "globals.h"
 #include "commonVR.h"
@@ -56,6 +57,7 @@ void XwaVector3Transform(XwaVector3* A4, const XwaMatrix3x3* A8)
 	A4->z = A4_08;
 }
 
+/*
 void DumpXwaTransform(char *name, XwaTransform *t) {
 	log_debug("[DBG] ********************");
 	log_debug("[DBG] %s", name);
@@ -67,7 +69,9 @@ void DumpXwaTransform(char *name, XwaTransform *t) {
 	log_debug("[DBG] %0.3f, %0.3f, %0.3f", t->Position.x, t->Position.y, t->Position.z);
 	log_debug("[DBG] ********************");
 }
+*/
 
+/*
 void DumpGlobalLights()
 {
 	std::ostringstream str;
@@ -109,11 +113,13 @@ void DumpGlobalLights()
 
 	//LogText(str.str());
 }
+*/
 
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+/*
 void ShowXWAMatrix(const XwaTransform &m) {
 	log_debug("[DBG] -----------------------------");
 	log_debug("[DBG] %0.4f, %0.4f, %0.4f, %0.4f", m.Rotation._11, m.Rotation._12, m.Rotation._13, m.Position.x);
@@ -125,6 +131,7 @@ void ShowXWAMatrix(const XwaTransform &m) {
 void ShowXWAVector(char *msg, const XwaVector3 &v) {
 	log_debug("[DBG] %s [%0.4f, %0.4f, %0.4f]", msg, v.x, v.y, v.z);
 }
+*/
 
 /*
 void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
@@ -2152,13 +2159,13 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			if (g_bDumpSSAOBuffers)
 			{
 				log_debug("[DBG] light[%d], I: %0.3f: i: %0.3f, m1C: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)",
-					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].XwaGlobalLight_m1C,
+					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].m1C,
 					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
 				);
 				log_file("[DBG] light[%d], I: %0.3f: i: %0.3f, m1C: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)\n",
-					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].XwaGlobalLight_m1C,
+					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].m1C,
 					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z

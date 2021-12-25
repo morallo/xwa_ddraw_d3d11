@@ -141,6 +141,7 @@
     <ClCompile Include="TextureSurface.cpp" />
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="VRConfig.cpp" />
+    <ClCompile Include="XwaD3dRendererHook.cpp" />
     <ClCompile Include="XwaDrawBracketHook.cpp" />
     <ClCompile Include="XwaDrawRadarHook.cpp" />
     <ClCompile Include="XwaDrawTextHook.cpp" />
@@ -187,6 +188,7 @@
     <ClInclude Include="utils.h" />
     <ClInclude Include="Vectors.h" />
     <ClInclude Include="VRConfig.h" />
+    <ClInclude Include="XwaD3dRendererHook.h" />
     <ClInclude Include="XWAEnums.h" />
     <ClInclude Include="XWAFramework.h" />
     <ClInclude Include="XWAObject.h" />

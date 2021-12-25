@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "DeviceResources.h"
+#include "XwaD3dRendererHook.h"
 
 #include <ScreenGrab.h>
 #include <wincodec.h>
@@ -317,7 +318,9 @@ DeviceResources::DeviceResources()
 	this->_are16BppTexturesSupported = false;
 	this->_use16BppMainDisplayTexture = false;
 
-	const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	// TODO
+	//const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	memcpy(this->clearColor, &color, sizeof(color));
 
 	const float colorRGBA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -3324,6 +3327,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		hr = this->_d2d1Factory->CreateDrawingStateBlock(&this->_d2d1DrawingStateBlock);
 	}
 
+	if (SUCCEEDED(hr))
+	{
+		D3dRendererFlightStart();
+	}
+
 out:
 	if (FAILED(hr))
 	{
@@ -4017,6 +4025,17 @@ void DeviceResources::InitPixelShader(ID3D11PixelShader* pixelShader)
 	}
 }
 
+void DeviceResources::InitGeometryShader(ID3D11GeometryShader* geometryShader)
+{
+	static ID3D11GeometryShader* currentGeometryShader = nullptr;
+
+	if (geometryShader != currentGeometryShader)
+	{
+		currentGeometryShader = geometryShader;
+		this->_d3dDeviceContext->GSSetShader(geometryShader, nullptr, 0);
+	}
+}
+
 void DeviceResources::InitTopology(D3D_PRIMITIVE_TOPOLOGY topology)
 {
 	D3D_PRIMITIVE_TOPOLOGY currentTopology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
@@ -4039,15 +4058,18 @@ void DeviceResources::InitRasterizerState(ID3D11RasterizerState* state)
 	}
 }
 
-void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView)
+void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView, ID3D11ShaderResourceView* texView2)
 {
 	static ID3D11ShaderResourceView* currentTexView = nullptr;
+	static ID3D11ShaderResourceView* currentTexView2 = nullptr;
 
-	//if (texView != currentTexView) // Temporarily allow setting this all the time
+	//if (texView != currentTexView || texView2 != currentTexView2) // Temporarily allow setting this all the time
 	{
-		ID3D11ShaderResourceView* view = texView;
-		this->_d3dDeviceContext->PSSetShaderResources(0, 1, &view);
+		ID3D11ShaderResourceView* view[2] = { texView , texView2 };
+
+		this->_d3dDeviceContext->PSSetShaderResources(0, 2, view);
 		currentTexView = texView;
+		currentTexView2 = texView2;
 	}
 }
 
@@ -4056,7 +4078,7 @@ HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SA
 	static ID3D11SamplerState** currentSampler = nullptr;
 	static D3D11_SAMPLER_DESC currentDesc{};
 
-	if (sampler == nullptr)
+	if (sampler == nullptr && desc != nullptr)
 	{
 		if (memcmp(desc, &currentDesc, sizeof(D3D11_SAMPLER_DESC)) != 0)
 		{
@@ -4088,7 +4110,7 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	static ID3D11BlendState* currentBlend = nullptr;
 	static D3D11_BLEND_DESC currentDesc{};
 
-	if (blend == nullptr)
+	if (blend == nullptr && desc != nullptr)
 	{
 		if (memcmp(desc, &currentDesc, sizeof(D3D11_BLEND_DESC)) != 0)
 		{
@@ -4121,12 +4143,12 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	return S_OK;
 }
 
-HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc)
+HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc, UINT stencilReference)
 {
 	static ID3D11DepthStencilState* currentDepthState = nullptr;
 	static D3D11_DEPTH_STENCIL_DESC currentDesc{};
 
-	if (depthState == nullptr)
+	if (depthState == nullptr && desc != nullptr)
 	{
 		if (memcmp(desc, &currentDesc, sizeof(D3D11_DEPTH_STENCIL_DESC)) != 0)
 		{
@@ -4137,7 +4159,7 @@ HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthSta
 
 			currentDesc = *desc;
 			currentDepthState = tempDepthState;
-			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, 0);
+			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, stencilReference);
 		}
 	}
 	else
@@ -4146,7 +4168,7 @@ HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthSta
 		{
 			currentDesc = {};
 			currentDepthState = depthState;
-			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, 0);
+			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, stencilReference);
 		}
 	}
 
@@ -4160,7 +4182,11 @@ void DeviceResources::InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT
 	if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->IASetVertexBuffers(0, 1, buffer, stride, offset);
+
+		if (buffer)
+		{
+			this->_d3dDeviceContext->IASetVertexBuffers(0, 1, buffer, stride, offset);
+		}
 	}
 }
 
@@ -4171,7 +4197,11 @@ void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32)
 	if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->IASetIndexBuffer(buffer, isFormat32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, 0);
+
+		if (buffer)
+		{
+			this->_d3dDeviceContext->IASetIndexBuffer(buffer, isFormat32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, 0);
+		}
 	}
 }
 
