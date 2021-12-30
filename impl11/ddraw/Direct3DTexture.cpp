@@ -671,21 +671,21 @@ void Direct3DTexture::TagTexture() {
 		}
 #endif
 
-		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
+		if (strstr(surface->_cname, TRIANGLE_PTR_RESNAME) != NULL)
 			this->is_TrianglePointer = true;
-		if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+		if (strstr(surface->_cname, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		if (isInVector(surface->_name, Reticle_ResNames))
+		if (isInVector(surface->_cname, Reticle_ResNames))
 			this->is_Reticle = true; // Standard Reticle from Reticle_ResNames
-		if (isInVector(surface->_name, Text_ResNames))
+		if (isInVector(surface->_cname, Text_ResNames))
 			this->is_Text = true;
-		if (isInVector(surface->_name, ReticleCenter_ResNames)) {
+		if (isInVector(surface->_cname, ReticleCenter_ResNames)) {
 			this->is_ReticleCenter = true; // Standard Reticle Center
-			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_name);
+			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_cname);
 		}
-		if (isInVector(surface->_name, CustomReticleCenter_ResNames)) {
+		if (isInVector(surface->_cname, CustomReticleCenter_ResNames)) {
 			this->is_ReticleCenter = true; // Custom Reticle Center
-			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_name);
+			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_cname);
 			// Stop tagging this texture
 			this->is_Tagged = true;
 			this->TagCount = 0;
@@ -698,82 +698,82 @@ void Direct3DTexture::TagTexture() {
 		 * later. The custom reticle code puts the laserlock resname in g_sLaserLockedReticleResName, and
 		 * we're using that here to tag textures.
 		 */
-		if (strstr(surface->_name, "dat,12000,600,") != NULL ||
-			(g_sLaserLockedReticleResName[0] != 0 && strstr(surface->_name, g_sLaserLockedReticleResName) != NULL)
+		if (strstr(surface->_cname, "dat,12000,600,") != NULL ||
+			(g_sLaserLockedReticleResName[0] != 0 && strstr(surface->_cname, g_sLaserLockedReticleResName) != NULL)
 		   )
 		{
-			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_name);
+			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_cname);
 			this->is_HighlightedReticle = true;
 		}
 
 		// Reticle Warning Light textures
 		this->WarningLightType = NONE_WLIGHT;
-		if (strstr(surface->_name, "dat,12000,1500,") != NULL || strstr(surface->_name, "dat,12000,1900,") != NULL ||
-			isInVector(surface->_name, CustomWLight_LL_ResNames))
+		if (strstr(surface->_cname, "dat,12000,1500,") != NULL || strstr(surface->_cname, "dat,12000,1900,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_LL_ResNames))
 		{
-			log_debug("[DBG] [RET] %s is a LL Warning Light", surface->_name);
+			log_debug("[DBG] [RET] %s is a LL Warning Light", surface->_cname);
 			this->WarningLightType = RETICLE_LEFT_WLIGHT;
 		}
-		if (strstr(surface->_name, "dat,12000,1600,") != NULL || strstr(surface->_name, "dat,12000,2000,") != NULL ||
-			isInVector(surface->_name, CustomWLight_ML_ResNames))
+		if (strstr(surface->_cname, "dat,12000,1600,") != NULL || strstr(surface->_cname, "dat,12000,2000,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_ML_ResNames))
 		{
-			log_debug("[DBG] [RET] %s is a ML Warning Light", surface->_name);
+			log_debug("[DBG] [RET] %s is a ML Warning Light", surface->_cname);
 			this->WarningLightType = RETICLE_MID_LEFT_WLIGHT;
 		}
-		if (strstr(surface->_name, "dat,12000,1700,") != NULL || strstr(surface->_name, "dat,12000,2100,") != NULL ||
-			isInVector(surface->_name, CustomWLight_MR_ResNames))
+		if (strstr(surface->_cname, "dat,12000,1700,") != NULL || strstr(surface->_cname, "dat,12000,2100,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_MR_ResNames))
 		{
-			log_debug("[DBG] [RET] %s is a MR Warning Light", surface->_name);
+			log_debug("[DBG] [RET] %s is a MR Warning Light", surface->_cname);
 			this->WarningLightType = RETICLE_MID_RIGHT_WLIGHT;
 		}
-		if (strstr(surface->_name, "dat,12000,1800,") != NULL || strstr(surface->_name, "dat,12000,2200,") != NULL ||
-			isInVector(surface->_name, CustomWLight_RR_ResNames))
+		if (strstr(surface->_cname, "dat,12000,1800,") != NULL || strstr(surface->_cname, "dat,12000,2200,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_RR_ResNames))
 		{
-			log_debug("[DBG] [RET] %s is a RR Warning Light", surface->_name);
+			log_debug("[DBG] [RET] %s is a RR Warning Light", surface->_cname);
 			this->WarningLightType = RETICLE_RIGHT_WLIGHT;
 		}
 
-		if (isInVector(surface->_name, Floating_GUI_ResNames))
+		if (isInVector(surface->_cname, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
-		if (isInVector(surface->_name, LaserIonEnergy_ResNames))
+		if (isInVector(surface->_cname, LaserIonEnergy_ResNames))
 			this->is_LaserIonEnergy = true;
-		if (isInVector(surface->_name, GUI_ResNames))
+		if (isInVector(surface->_cname, GUI_ResNames))
 			this->is_GUI = true;
 
 		// Catch the engine glow and mark it
-		if (strstr(surface->_name, "dat,1000,1,") != NULL)
+		if (strstr(surface->_cname, "dat,1000,1,") != NULL)
 			this->is_EngineGlow = true;
 		// Catch the flat light effect
-		if (strstr(surface->_name, "dat,1000,2") != NULL)
+		if (strstr(surface->_cname, "dat,1000,2") != NULL)
 			this->is_FlatLightEffect = true;
 		// Catch the electricity textures and mark them
-		if (isInVector(surface->_name, Electricity_ResNames))
+		if (isInVector(surface->_cname, Electricity_ResNames))
 			this->is_Electricity = true;
 		// Catch the explosion textures and mark them
-		if (isInVector(surface->_name, Explosion_ResNames))
+		if (isInVector(surface->_cname, Explosion_ResNames))
 			this->is_Explosion = true;
-		if (isInVector(surface->_name, Smoke_ResNames))
+		if (isInVector(surface->_cname, Smoke_ResNames))
 			this->is_Smoke = true;
 		// Catch the lens flare and mark it
-		if (isInVector(surface->_name, LensFlare_ResNames))
+		if (isInVector(surface->_cname, LensFlare_ResNames))
 			this->is_LensFlare = true;
 		// Catch the hyperspace anim and mark it
-		if (strstr(surface->_name, "dat,3051,") != NULL)
+		if (strstr(surface->_cname, "dat,3051,") != NULL)
 			this->is_HyperspaceAnim = true;
 		// Catch the backdrup suns and mark them
-		if (isInVector(surface->_name, Sun_ResNames)) {
+		if (isInVector(surface->_cname, Sun_ResNames)) {
 			this->is_Sun = true;
 			//g_AuxTextureVector.push_back(this); // We're no longer tracking which textures are Sun-textures
 		}
 		// Catch the space debris
-		if (isInVector(surface->_name, SpaceDebris_ResNames))
+		if (isInVector(surface->_cname, SpaceDebris_ResNames))
 			this->is_Debris = true;
 		// Catch DAT files
-		if (strstr(surface->_name, "dat,") != NULL) {
+		if (strstr(surface->_cname, "dat,") != NULL) {
 			int GroupId, ImageId;
 			this->is_DAT = true;
 			// Check if this DAT image is a custom reticle
-			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
+			if (GetGroupIdImageIdFromDATName(surface->_cname, &GroupId, &ImageId)) {
 				this->DATGroupId = GroupId;
 				this->DATImageId = ImageId;
 				if (GroupId == 12000 && ImageId > 5000) {
@@ -792,68 +792,68 @@ void Direct3DTexture::TagTexture() {
 			}
 		}
 		// Catch blast marks
-		if (strstr(surface->_name, "dat,3050,") != NULL)
+		if (strstr(surface->_cname, "dat,3050,") != NULL)
 			this->is_BlastMark = true;
 		// Catch the trails
-		if (isInVector(surface->_name, Trails_ResNames))
+		if (isInVector(surface->_cname, Trails_ResNames))
 			this->is_Trail = true;
 		// Catch the sparks
-		if (isInVector(surface->_name, Sparks_ResNames))
+		if (isInVector(surface->_cname, Sparks_ResNames))
 			this->is_Spark = true;
-		if (strstr(surface->_name, "dat,22007,") != NULL)
+		if (strstr(surface->_cname, "dat,22007,") != NULL)
 			this->is_CockpitSpark = true;
-		if (strstr(surface->_name, "dat,5000,") != NULL)
+		if (strstr(surface->_cname, "dat,5000,") != NULL)
 			this->is_Chaff = true;
-		if (strstr(surface->_name, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
+		if (strstr(surface->_cname, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
 			this->is_DS2_Reactor_Explosion = true;
 		//if (strstr(surface->_name, "dat,17001,") != NULL) // DSII reactor core explosion animation textures
 		//	this->is_DS2_Energy_Field = true;
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-			if (stristr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 				this->is_DC_TargetCompSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((stristr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
-				(stristr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_cname, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_cname, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_LeftSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((stristr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
-				(stristr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_cname, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_cname, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_RightSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_SHIELDS_SRC_RESNAME) != NULL) {
 				this->is_DC_ShieldsSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_SolidMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_BorderMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_LaserBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_ION_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_IonBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_BeamBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopLeftSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopRightSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
@@ -865,8 +865,8 @@ void Direct3DTexture::TagTexture() {
 	OPTname.name[0] = 0;
 	{
 		// Capture the OPT name
-		char *start = strstr(surface->_name, "\\");
-		char *end = strstr(surface->_name, ".opt");
+		char *start = strstr(surface->_cname, "\\");
+		char *end = strstr(surface->_cname, ".opt");
 		char sFileName[180], sFileNameShort[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
@@ -881,9 +881,9 @@ void Direct3DTexture::TagTexture() {
 				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
 			}
 		}
-		else if (strstr(surface->_name, "dat,") != NULL) {
+		else if (strstr(surface->_cname, "dat,") != NULL) {
 			// For DAT images, OPTname.name is the full DAT name:
-			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_cname, strlen(surface->_cname));
 			DATNameToMATParamsFile(OPTname.name, sFileName, sFileNameShort, 180);
 			if (sFileName[0] != 0) {
 				// Load the regular DAT material:
@@ -903,29 +903,29 @@ void Direct3DTexture::TagTexture() {
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		// Catch the laser-related textures and mark them
-		if (strstr(surface->_name, "Laser") != NULL) {
+		if (strstr(surface->_cname, "Laser") != NULL) {
 			// Ignore "LaserBat.OPT"
-			if (strstr(surface->_name, "LaserBat") == NULL) {
+			if (strstr(surface->_cname, "LaserBat") == NULL) {
 				this->is_Laser = true;
 			}
 		}
 
 		// Tag all the missiles
 		// Flare
-		if (strstr(surface->_name, "Missile") != NULL || strstr(surface->_name, "Torpedo") != NULL ||
-			strstr(surface->_name, "SpaceBomb") != NULL || strstr(surface->_name, "Pulse") != NULL ||
-			strstr(surface->_name, "Rocket") != NULL || strstr(surface->_name, "Flare") != NULL) {
-			if (strstr(surface->_name, "Boat") == NULL) {
+		if (strstr(surface->_cname, "Missile") != NULL || strstr(surface->_cname, "Torpedo") != NULL ||
+			strstr(surface->_cname, "SpaceBomb") != NULL || strstr(surface->_cname, "Pulse") != NULL ||
+			strstr(surface->_cname, "Rocket") != NULL || strstr(surface->_cname, "Flare") != NULL) {
+			if (strstr(surface->_cname, "Boat") == NULL) {
 				//log_debug("[DBG] Missile texture: %s", surface->_name);
 				this->is_Missile = true;
 			}
 		}
 
-		if (strstr(surface->_name, "Turbo") != NULL) {
+		if (strstr(surface->_cname, "Turbo") != NULL) {
 			this->is_TurboLaser = true;
 		}
 
-		if (strstr(surface->_name, "Cockpit") != NULL) {
+		if (strstr(surface->_cname, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
 
 			// DEBUG
@@ -949,8 +949,8 @@ void Direct3DTexture::TagTexture() {
 				char CockpitName[128];
 				//strstr(surface->_name, "Gunner")  != NULL)  {
 				// Extract the name of the cockpit and put it in CockpitName
-				char *start = strstr(surface->_name, "\\");
-				char *end   = strstr(surface->_name, ".opt");
+				char *start = strstr(surface->_cname, "\\");
+				char *end   = strstr(surface->_cname, ".opt");
 				if (start != NULL && end != NULL) {
 					start += 1; // Skip the backslash
 					int size = end - start;
@@ -1012,16 +1012,16 @@ void Direct3DTexture::TagTexture() {
 			
 		}
 
-		if (strstr(surface->_name, "Gunner") != NULL) {
+		if (strstr(surface->_cname, "Gunner") != NULL) {
 			this->is_GunnerTex = true;
 		}
 
-		if (strstr(surface->_name, "Exterior") != NULL) {
+		if (strstr(surface->_cname, "Exterior") != NULL) {
 			this->is_Exterior = true;
 		}
 
 		// Catch light textures and mark them appropriately
-		if (strstr(surface->_name, ",light,") != NULL)
+		if (strstr(surface->_cname, ",light,") != NULL)
 			this->is_LightTexture = true;
 
 		// Link light and color textures:
@@ -1082,8 +1082,8 @@ void Direct3DTexture::TagTexture() {
 		*/
 
 		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
-		if (strstr(surface->_name, "Cielo") != NULL ||
-			strstr(surface->_name, "Skydome") != NULL)
+		if (strstr(surface->_cname, "Cielo") != NULL ||
+			strstr(surface->_cname, "Skydome") != NULL)
 		{
 			g_b3DSkydomePresent = true;
 			this->is_Skydome = true;
@@ -1095,8 +1095,8 @@ void Direct3DTexture::TagTexture() {
 		}
 
 		// 3D Sun is present in this scene: [opt, FlightModels\Planet3D_Sole_26Km.opt, TEX00001, color, 0]
-		if (strstr(surface->_name, "Sole") != NULL ||
-			strstr(surface->_name, "Star3D") != NULL) {
+		if (strstr(surface->_cname, "Sole") != NULL ||
+			strstr(surface->_cname, "Star3D") != NULL) {
 			g_b3DSunPresent = true;
 			this->is_3DSun = true;
 			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
@@ -1104,10 +1104,10 @@ void Direct3DTexture::TagTexture() {
 		
 		if (g_bDynCockpitEnabled) {
 			/* Process Dynamic Cockpit destination textures: */
-			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
+			int idx = isInVector(surface->_cname, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
 				// "light" and "color" textures are processed differently
-				if (strstr(surface->_name, ",color") != NULL) {
+				if (strstr(surface->_cname, ",color") != NULL) {
 					// This texture is a Dynamic Cockpit destination texture
 					this->is_DynCockpitDst = true;
 					// Make this texture "point back" to the right dc_element
@@ -1150,7 +1150,7 @@ void Direct3DTexture::TagTexture() {
 						}
 					}
 				}
-				else if (strstr(surface->_name, ",light") != NULL) {
+				else if (strstr(surface->_cname, ",light") != NULL) {
 					this->is_DynCockpitAlphaOverlay = true;
 				}
 			} // if (idx > -1)
@@ -1160,7 +1160,7 @@ void Direct3DTexture::TagTexture() {
 			if (this->is_CockpitTex && !this->is_LightTexture)
 			{
 				/* Process Active Cockpit destination textures: */
-				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
+				int idx = isInVector(surface->_cname, g_ACElements, g_iNumACElements);
 				if (idx > -1) {
 					// "Point back" into the right ac_element index:
 					this->ActiveCockpitIdx = idx;
@@ -1186,7 +1186,7 @@ void Direct3DTexture::TagTexture() {
 				else 
 				{
 					//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
-					char *start = strstr(surface->_name, ".opt");
+					char *start = strstr(surface->_cname, ".opt");
 					// Skip the ".opt," part
 					start += 5;
 					// Find the next comma
@@ -1392,7 +1392,7 @@ HRESULT Direct3DTexture::Load(
 	// during 3D rendering. This makes them available both in the hangar and after launching from
 	// the hangar.
 	//log_debug("[DBG] [DC] Load Copying name: [%s]", d3dTexture->_surface->_name);
-	strncpy_s(this->_surface->_name, d3dTexture->_surface->_name, MAX_TEXTURE_NAME);
+	strncpy_s(this->_surface->_cname, d3dTexture->_surface->_cname, MAX_TEXTURE_NAME);
 	// Dynamic Cockpit data
 	this->is_DynCockpitDst = d3dTexture->is_DynCockpitDst;
 	this->is_DynCockpitAlphaOverlay = d3dTexture->is_DynCockpitAlphaOverlay;

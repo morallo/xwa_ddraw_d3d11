@@ -2683,7 +2683,7 @@ void ReloadMaterials()
 
 	for (Direct3DTexture* texture : g_AuxTextureVector) {
 		OPTname.name[0] = 0;
-		surface_name = texture->_surface->_name;
+		surface_name = texture->_surface->_cname;
 		bIsDat = false;
 		//bIsDat = strstr(surface_name, "dat,") != NULL;
 

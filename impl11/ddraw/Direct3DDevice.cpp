@@ -4542,7 +4542,7 @@ HRESULT Direct3DDevice::Execute(
 						if (!lastTextureSelected->material.DATGroupImageIdParsed) {
 							// TODO: Maybe I can extract the group Id and image Id from the DAT's name during tagging and
 							// get rid of the DATGroupImageIdParsed field in the material property.
-							GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_name, &GroupId, &ImageId);
+							GetGroupIdImageIdFromDATName(lastTextureSelected->_surface->_cname, &GroupId, &ImageId);
 							lastTextureSelected->material.GroupId = GroupId;
 							lastTextureSelected->material.ImageId = ImageId;
 							lastTextureSelected->material.DATGroupImageIdParsed = true;
@@ -5370,11 +5370,11 @@ HRESULT Direct3DDevice::Execute(
 
 				// DEBUG: Dump an OBJ for the current cockpit
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit) {
-					log_debug("[DBG] Dumping OBJ (Cockpit): %s", lastTextureSelected->_surface->_name);
+					log_debug("[DBG] Dumping OBJ (Cockpit): %s", lastTextureSelected->_surface->_cname);
 					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation, g_iDumpOBJIdx);
 				}
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsLaser) {
-					log_debug("[DBG] Dumping OBJ (Laser): %s", lastTextureSelected->_surface->_name);
+					log_debug("[DBG] Dumping OBJ (Laser): %s", lastTextureSelected->_surface->_cname);
 					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation, g_iDumpLaserOBJIdx);
 				}
 
