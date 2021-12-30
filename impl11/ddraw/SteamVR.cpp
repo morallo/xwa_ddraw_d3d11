@@ -331,8 +331,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			m34_cockpitLookPose = g_lastPredictedHmdPose.mDeviceToAbsoluteTracking;
 
 			// Corrected head tracking is only available when the CockpitLook is active, and that only happens
-			// when flying (when rendering 3D content)
-			if (g_bRendering3D && g_bCorrectedHeadTracking) {
+			// when flying (when rendering 3D content). The CockpitLook is also not active in the hangar, so we
+			// must take the legacy path when in the hangar.
+			if (g_bRendering3D && g_bCorrectedHeadTracking && !*g_playerInHangar) {
 				// We need to apply the perspective correction between the pose predicted in the previous frame
 				// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
 				// and the actual pose just returned by WaitGetPoses() that will be used to do the D3D render

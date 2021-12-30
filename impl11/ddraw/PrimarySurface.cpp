@@ -7503,7 +7503,6 @@ void UpdateViewMatrix()
 
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
@@ -7532,7 +7531,9 @@ void UpdateViewMatrix()
 		// Compose the full transformation matrix to use in the Vertex Shader.
 		viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
 
-		if (g_bCorrectedHeadTracking) {
+		// Corrected head tracking is not available in the hangar, we need to take the
+		// legacy path in that case.
+		if (g_bCorrectedHeadTracking && !*g_playerInHangar) {
 			// If we want corrected tracking, we need to apply the full rotation+translation matrix in all cases
 			g_viewMatrix = viewMatrixFull;
 			// The following section applies the correct transform rule to the HUD.
@@ -7635,7 +7636,7 @@ void UpdateViewMatrix()
 	// mouse look hook.
 	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR) && *g_playerInHangar) {
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-		
+
 		// For the DirectSBS mode we need to invert the yaw:
 		if (g_TrackerType == TRACKER_FREEPIE)
 			yaw = -yaw;
