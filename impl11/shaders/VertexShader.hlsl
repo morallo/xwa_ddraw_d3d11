@@ -3,12 +3,7 @@
 // Extended for SSAO by Leo Reyes, 2019
 #include "shader_common.h"
 
-cbuffer ConstantBuffer : register(b0)
-{
-	float4 vpScale;
-	float aspect_ratio, cockpit_threshold, z_override, sz_override;
-	float mult_z_override, bPreventTransform, bFullTransform;
-};
+#include "VertexShaderCBuffer.h"
 
 /*
 cbuffer ConstantBuffer : register(b1)
@@ -37,6 +32,7 @@ struct PixelShaderInput
 };
 
 /*
+// This is the original VS by Jeremy before the new D3DRendererHook
 PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
