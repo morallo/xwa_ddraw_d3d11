@@ -194,6 +194,7 @@
     <ClInclude Include="XwaDrawBracketHook.h" />
     <ClInclude Include="XwaDrawRadarHook.h" />
     <ClInclude Include="XwaDrawTextHook.h" />
+    <ClInclude Include="xwa_structures.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ddraw.rc" />
