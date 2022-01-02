@@ -1,6 +1,7 @@
 #include "XwaD3dCommon.hlsl"
-#include "shader_common.h"
 #include "HSV.h"
+#include "shader_common.h"
+#include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
 
 Texture2D texture0 : register(t0); // This is the regular color texture
@@ -51,8 +52,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 pos3D  : COLOR2;
-	float4 normal : COLOR1;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
 };
@@ -78,33 +79,50 @@ PixelShaderOutput main(PixelShaderInput input)
 		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
 	float  alpha				= texelColor.w;
-	//float3 diffuse			= lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P					= input.pos3D.xyz;
 	float  SSAOAlpha			= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	uint   ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	// Zero-out the bloom mask and provide default output values
 	output.bloom		= 0;
-	output.color		= texelColor;
+	output.color		= output.color = float4(brightness * texelColor.xyz, texelColor.w);
 	output.pos3D		= float4(P, SSAOAlpha);
 	output.ssMask	= 0;
 
 	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	//float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = input.normal.xyz;
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
 
-	// SSAO Mask/Material, Glossiness, Spec_Intensity
-	// Glossiness is multiplied by 128 to compute the exponent
-	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
-	// ssaoMask.r: Material
-	// ssaoMask.g: Glossiness
-	// ssaoMask.b: Specular Intensity
+	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
-	//float4 c = texelColor * color;
+	// Process lasers (make them brighter in 32-bit mode)
+	if (renderType == 2)
+	{
+		// Do not write the 3D position
+		output.pos3D.a = 0;
+		// Do now write the normal
+		output.normal.a = 0;
+		//output.ssaoMask.a = 1; // Needed to write the emission material for lasers
+		output.ssaoMask.a = 0; // We should let the regular material properties on lasers so that they become emitters
+		output.ssMask.a = 0;
+		//output.diffuse = 0;
+		// This is a laser texture, process the bloom mask accordingly
+		float3 HSV = RGBtoHSV(texelColor.xyz);
+		HSV.y *= 1.5;
+		// Enhance the lasers in 32-bit mode
+		// Increase the saturation and lightness
+		HSV.z *= 2.0;
+		float3 color = HSVtoRGB(HSV);
+		output.color = float4(color, alpha);
+		output.bloom = float4(color, alpha);
+		output.bloom.rgb *= fBloomStrength;
+		return output;
+	}
 
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
 	// Here's the case where a lightmap has been provided:
@@ -113,9 +131,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		// We have a lightmap texture
 		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
 		
-		//c.xyz += texelColorIllum.xyz * texelColorIllum.w;
-		//c = saturate(c);
-
 		float3 color = texelColorIllum.rgb;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(color);
@@ -138,6 +153,25 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom.rgb *= fBloomStrength;
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
+		return output;
+	}
+
+	// The HUD is shadeless and has transparency. Some planets in the background are also 
+	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
+	// So glass is a non-shadeless surface with transparency:
+	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
+		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
+		&& alpha < 0.95 /* This texture has transparency */
+		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
+	{
+		// Change the material and do max glossiness and spec_intensity
+		output.ssaoMask.r = GLASS_MAT;
+		output.ssaoMask.gba = 1.0;
+		// Also write the normals of this surface over the current background
+		output.normal.a = 1.0;
+		output.ssMask.r = 0.0; // No normal mapping
+		output.ssMask.g = 1.0; // White specular value
+		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
 
 	return output;

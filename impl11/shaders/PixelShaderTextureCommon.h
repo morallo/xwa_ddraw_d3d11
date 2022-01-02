@@ -11,7 +11,7 @@ cbuffer ConstantBuffer : register(b9)
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
 	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint GreebleControl;		// Bitmask: 0x1 0000 -- Use Normal Map
+	uint GreebleControl;			// Bitmask: 0x1 0000 -- Use Normal Map
 								// 0x00F 1st Tex Blend Mode
 								// 0x0F0 2nd Tex Blend Mode
 								// 0xF00 3rd Tex Blend Mode
@@ -21,7 +21,7 @@ cbuffer ConstantBuffer : register(b9)
 	float fBloomStrength;		// General multiplier for the bloom effect
 	float fPosNormalAlpha;		// Override for pos3D and normal output alpha
 	float fSSAOMaskVal;			// SSAO mask value
-	float fSSAOAlphaOfs;		// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
+	float fSSAOAlphaOfs;			// Additional offset substracted from alpha when rendering SSAO. Helps prevent halos around transparent objects.
 	// 48 bytes
 
 	uint bIsShadeless;
@@ -33,7 +33,7 @@ cbuffer ConstantBuffer : register(b9)
 	float fAmbient;				// Only used in PixelShaderNoGlass and implemented as a "soft-shadeless" setting
 	// 80 bytes
 
-	float4 AuxColor;			// Used as tint for animated frames. Could also be used to apply tint to DC cover textures
+	float4 AuxColor;				// Used as tint for animated frames. Could also be used to apply tint to DC cover textures
 	// 96 bytes
 	float2 Offset;				// Used to offset the input UVs
 	float AspectRatio;			// Used to change the aspect ratio of the input UVs

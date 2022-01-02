@@ -53,8 +53,8 @@ PixelShaderInput main(VertexShaderInput input)
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 pos3D  : COLOR2;
-	float4 normal : COLOR1;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
 	float2 tex    : TEXCOORD;
 	//float4 color  : COLOR0;
 };

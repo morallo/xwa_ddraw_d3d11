@@ -3502,6 +3502,7 @@ HRESULT Direct3DDevice::Execute(
 					Special state management ends here
 				 *************************************************************************/
 
+				// Enable transparency for light textures when AO is disabled
 				if (!g_bAOEnabled && bIsLightTexture) {
 					// The EngineGlow texture is also used to render the smoke, so it will glow. I
 					// tried enabling the transparency when the engine glow is about to be rendered,
@@ -4262,24 +4263,6 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 				}
-
-				// Hide the text boxes for the X-Wing (this was a little experiment to see if this is possible)
-				/*
-				if (g_bToggleSkipDC && bLastTextureSelectedNotNULL &&
-					((strstr(lastTextureSelected->_surface->_name, "TEX00150") != NULL) ||
-					 (strstr(lastTextureSelected->_surface->_name, "TEX00151") != NULL) ||
-					 (strstr(lastTextureSelected->_surface->_name, "TEX00129") != NULL)
-				    )
-				   )
-				{
-					goto out;
-				}
-				*/
-
-				// DEBUG
-				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_3DSun)
-				//	goto out;
-				// DEBUG
 				
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
@@ -4352,12 +4335,6 @@ HRESULT Direct3DDevice::Execute(
 							//}
 					}
 				}
-
-				//if (bIsNoZWrite && _renderStates->GetZFunc() == D3DCMP_GREATER) {
-				//	goto out;
-					//log_debug("[DBG] NoZWrite, ZFunc: %d", _renderStates->GetZFunc());
-				//}
-
 
 				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR
@@ -4502,6 +4479,7 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_XWA_SHADOW;
 				}
 
+				// Set bits in the constant buffers for Smoke and Blast Marks
 				if (bLastTextureSelectedNotNULL) {
 					if (lastTextureSelected->is_Smoke) {
 						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
@@ -4525,10 +4503,6 @@ HRESULT Direct3DDevice::Execute(
 						//g_PSCBuffer.GreebleDist2 = g_fBlastMarkOfsY;
 					}
 				}
-
-				//if (bLastTextureSelectedNotNULL && lastTextureSelected->is_Spark) {
-				//	log_debug("[DBG] Spark: %s", lastTextureSelected->_surface->_name);
-				//}
 
 				if (bIsDS2CoreExplosion) {
 					g_iReactorExplosionCount++;
@@ -5522,14 +5496,6 @@ HRESULT Direct3DDevice::Execute(
 					// The targeted craft is about to be drawn! Clear both depth stencils?
 					//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 					//context->ClearDepthStencilView(this->_deviceResources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-				}
-				*/
-
-				// if (bIsSkyBox) was here originally.
-
-				/*
-				if (bIsTranspOrGlow) {
-					bModifiedShaders = true;
 				}
 				*/
 
