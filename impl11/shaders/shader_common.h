@@ -5,7 +5,7 @@
 
 Constant Buffer Registers
 
-PixelShaderCBuffer and several others : register(b0)
+Several buffers : register(b0)
 VertexShaderMatrixCB and several others : register(b1)
 BloomPixelShaderCBuffer : register(b2)
 SSAOPixelShaderCBuffer : register(b3)
@@ -14,6 +14,7 @@ ShadowMapVertexShaderMatrixCB : register(b5)
 MetricReconstructionCB : register(b6)
 ShadertoyCBuffer : register(b7)
 LaserPointerCBuffer : register(b8)
+PixelShaderCBuffer : register(b9) (Used to be b0, but the D3DRendererHook is using that now)
 
 */
 

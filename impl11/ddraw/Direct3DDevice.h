@@ -52,7 +52,7 @@ public:
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
 
 	void EnableTransparency();
 

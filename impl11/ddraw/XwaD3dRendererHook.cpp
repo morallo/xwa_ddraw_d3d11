@@ -1,4 +1,5 @@
 #include "common.h"
+#include "commonVR.h"
 #include "XwaD3dRendererHook.h"
 #include "DeviceResources.h"
 #include "Direct3DTexture.h"
@@ -166,6 +167,14 @@ static bool g_isInRenderLasers = false;
 static bool g_isInRenderMiniature = false;
 static bool g_isInRenderHyperspaceLines = false;
 
+// ****************************************************
+// External variables
+// ****************************************************
+extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;
+extern bool g_bExplosionsDisplayedOnCurrentFrame;
+extern float g_fSSAOAlphaOfs;
+extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+
 enum RendererType
 {
 	RendererType_Unknown,
@@ -182,15 +191,15 @@ public:
 	void SceneBegin(DeviceResources* deviceResources);
 	void SceneEnd();
 	void FlightStart();
-	void MainSceneHook(const SceneCompData* scene);
+	virtual void MainSceneHook(const SceneCompData* scene);
 	void HangarShadowSceneHook(const SceneCompData* scene);
-	void UpdateTextures(const SceneCompData* scene);
+	virtual void UpdateTextures(const SceneCompData* scene);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);
 	void UpdateVertexAndIndexBuffers(const SceneCompData* scene);
 	void UpdateConstantBuffer(const SceneCompData* scene);
-	void RenderScene();
+	virtual void RenderScene();
 	void BuildGlowMarks(SceneCompData* scene);
 	void RenderGlowMarks();
 	void Initialize();
@@ -200,7 +209,7 @@ public:
 	void GetViewport(D3D11_VIEWPORT* viewport);
 	void GetViewportScale(float* viewportScale);
 
-private:
+protected:
 	DeviceResources* _deviceResources;
 
 	int _totalVerticesCount;
@@ -1102,6 +1111,294 @@ void D3dRenderer::GetViewportScale(float* viewportScale)
 
 static D3dRenderer g_xwa_d3d_renderer;
 
+//************************************************************************
+// Effects Renderer
+//************************************************************************
+
+class EffectsRenderer : public D3dRenderer
+{
+private:
+	bool _bIsCockpit, _bIsGunner, _bIsReticle, _bIsBlastMark;
+
+public:
+	EffectsRenderer();
+	virtual void MainSceneHook(const SceneCompData* scene);
+	virtual void RenderScene();
+	virtual void UpdateTextures(const SceneCompData* scene);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
+};
+
+EffectsRenderer::EffectsRenderer() : D3dRenderer() {
+
+}
+
+void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
+{
+	const unsigned char ShipCategory_PlayerProjectile = 6;
+	const unsigned char ShipCategory_OtherProjectile = 7;
+	unsigned char category = scene->pObject->ShipCategory;
+	bool isProjectile = category == ShipCategory_PlayerProjectile || category == ShipCategory_OtherProjectile;
+
+	const auto XwaD3dTextureCacheUpdateOrAdd = (void(*)(XwaTextureSurface*))0x00597784;
+	const auto L00432750 = (short(*)(unsigned short, short, short))0x00432750;
+	const ExeEnableEntry* s_ExeEnableTable = (ExeEnableEntry*)0x005FB240;
+
+	XwaTextureSurface* surface = nullptr;
+	XwaTextureSurface* surface2 = nullptr;
+
+	_constants.renderType = 0;
+	_constants.renderTypeIllum = 0;
+
+	if (g_isInRenderLasers)
+	{
+		_constants.renderType = 2;
+	}
+
+	if (isProjectile)
+	{
+		_constants.renderType = 2;
+	}
+
+	if (scene->D3DInfo != nullptr)
+	{
+		surface = scene->D3DInfo->ColorMap[0];
+
+		if (scene->D3DInfo->LightMap[0] != nullptr)
+		{
+			surface2 = scene->D3DInfo->LightMap[0]; // surface2 is a lightmap
+			_constants.renderTypeIllum = 1;
+		}
+	}
+	else
+	{
+		// This is a lighting effect... I wonder which ones? Smoke perhaps?
+		const unsigned short ModelIndex_237_1000_0_ResData_LightingEffects = 237;
+		L00432750(ModelIndex_237_1000_0_ResData_LightingEffects, 0x02, 0x100);
+		XwaSpeciesTMInfo* esi = (XwaSpeciesTMInfo*)s_ExeEnableTable[ModelIndex_237_1000_0_ResData_LightingEffects].pData1;
+		surface = (XwaTextureSurface*)esi->pData;
+	}
+
+	XwaD3dTextureCacheUpdateOrAdd(surface);
+
+	if (surface2 != nullptr)
+	{
+		XwaD3dTextureCacheUpdateOrAdd(surface2);
+	}
+
+	Direct3DTexture* texture = (Direct3DTexture*)surface->D3dTexture.D3DTextureHandle;
+	Direct3DTexture* texture2 = surface2 == nullptr ? nullptr : (Direct3DTexture*)surface2->D3dTexture.D3DTextureHandle;
+	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
+
+	// ***************************************************************
+	// State management begins here
+	// ***************************************************************
+	// The following state variables will probably need to be pruned. I suspect we don't
+	// need to care about GUI/2D/HUD stuff here anymore.
+	// At this point, texture and texture2 have been selected, we can check their names to see if
+	// we need to apply effects. If there's a lightmap, it's going to be in texture2.
+	// Most of the local flags below should now be class members, but I'll be hand
+	Direct3DTexture *lastTextureSelected = texture;
+	const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
+	_bIsBlastMark = false;
+	_bIsCockpit = false;
+	_bIsGunner = false;
+	_bIsReticle = false;
+	bool bIsLaser = false, bIsText = false, bIsReticleCenter = false;
+	bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
+	bool bIsExterior = false, bIsDAT = false;
+	bool bIsActiveCockpit = false, bIsTargetHighlighted = false;
+	bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
+	bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
+	bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false;
+	bool bDCElemAlwaysVisible = false;
+	if (bLastTextureSelectedNotNULL) {
+		if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst)
+		{
+			int idx = lastTextureSelected->DCElementIndex;
+			if (idx >= 0 && idx < g_iNumDCElements) {
+				bIsHologram |= g_DCElements[idx].bHologram;
+				bIsNoisyHolo |= g_DCElements[idx].bNoisyHolo;
+				bIsTransparent |= g_DCElements[idx].bTransparent;
+				bDCElemAlwaysVisible |= g_DCElements[idx].bAlwaysVisible;
+			}
+		}
+
+		bIsLaser = lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser;
+		//bIsLightTexture = lastTextureSelected->is_LightTexture;
+		bIsText = lastTextureSelected->is_Text;
+		_bIsReticle = lastTextureSelected->is_Reticle;
+		bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
+		g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
+		//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
+		bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
+		if (bIsTargetHighlighted) g_GameEvent.TargetEvent = TGT_EVT_LASER_LOCK;
+		if (PlayerDataTable[*g_playerIndex].warheadArmed) {
+			char state = PlayerDataTable[*g_playerIndex].warheadLockState;
+			switch (state) {
+				// state == 0 warhead armed, no lock
+			case 2:
+				g_GameEvent.TargetEvent = TGT_EVT_WARHEAD_LOCKING;
+				break;
+			case 3:
+				g_GameEvent.TargetEvent = TGT_EVT_WARHEAD_LOCKED;
+				break;
+			}
+		}
+		//bIsGUI = lastTextureSelected->is_GUI;
+		//bIsLensFlare = lastTextureSelected->is_LensFlare;
+		//bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
+		//bIsSun = lastTextureSelected->is_Sun;
+		_bIsCockpit = lastTextureSelected->is_CockpitTex;
+		_bIsGunner = lastTextureSelected->is_GunnerTex;
+		//bIsExterior = lastTextureSelected->is_Exterior;
+		//bIsDAT = lastTextureSelected->is_DAT;
+		//bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
+		_bIsBlastMark = lastTextureSelected->is_BlastMark;
+		//bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
+		//bIsElectricity = lastTextureSelected->is_Electricity;
+		//bHasMaterial = lastTextureSelected->bHasMaterial;
+		//bIsExplosion = lastTextureSelected->is_Explosion;
+		if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
+	}
+	// ***************************************************************
+	// State management ends here
+	// ***************************************************************
+}
+
+void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
+{
+	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+
+	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
+
+	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	_deviceResources->InitRasterizerState(_rasterizerState);
+	_deviceResources->InitSamplerState(_samplerState.GetAddressOf(), nullptr);
+
+	if (scene->TextureAlphaMask == 0)
+	{
+		_deviceResources->InitBlendState(_solidBlendState, nullptr);
+		_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+	}
+	else
+	{
+		_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+		_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	}
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+	_deviceResources->InitPixelShader(_pixelShader);
+
+	UpdateTextures(scene);
+	UpdateMeshBuffers(scene);
+	UpdateVertexAndIndexBuffers(scene);
+	UpdateConstantBuffer(scene);
+	// The main 3D content is rendered here, that includes the cockpit and 3D models. But
+	// there's content that is still rendered in Direct3DDevice::Execute():
+	// - The backdrop, including the Suns
+	// - Engine Glow
+	// - The HUD, including the reticle
+	/*
+		We have an interesting mixture of Execute() calls and Hook calls. The sequence for
+		each frame, looks like this:
+		[11528][DBG] * ****************** PRESENT 3D
+		[11528][DBG] BeginScene <-- Old method
+		[11528][DBG] SceneBegin <-- New Hook
+		[11528][DBG] Execute(1) <-- Old method (the backdrop is probably rendered here)
+		[17076][DBG] EffectsRenderer::MainSceneHook
+		[17076][DBG] EffectsRenderer::MainSceneHook
+		... a bunch of calls to MainSceneHook. Most of the 3D content is rendered here ...
+		[17076][DBG] EffectsRenderer::MainSceneHook
+		[11528][DBG] Execute(1) <-- The engine glow might be rendered here (?)
+		[11528][DBG] Execute(1) <-- Maybe the HUD and reticle is rendered here (?)
+		[11528][DBG] EndScene   <-- Old method
+		[11528][DBG] SceneEnd   <-- New Hook
+		[11528][DBG] * ****************** PRESENT 3D
+	*/
+	g_PSCBuffer = { 0 };
+	g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
+	g_PSCBuffer.fBloomStrength	= 1.0f;
+	g_PSCBuffer.fPosNormalAlpha = 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult	= g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOMaskVal		= g_DefaultGlobalMaterial.Metallic * 0.5f;
+	g_PSCBuffer.fGlossiness		= g_DefaultGlobalMaterial.Glossiness;
+	g_PSCBuffer.fSpecInt			= g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity		= g_DefaultGlobalMaterial.NMIntensity;
+	g_PSCBuffer.AuxColor.x		= 1.0f;
+	g_PSCBuffer.AuxColor.y		= 1.0f;
+	g_PSCBuffer.AuxColor.z		= 1.0f;
+	g_PSCBuffer.AuxColor.w		= 1.0f;
+	g_PSCBuffer.AspectRatio		= 1.0f;
+
+	_deviceResources->InitPSConstantBuffer3D(_deviceResources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	RenderScene();
+
+	context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+#if LOGGER_DUMP
+	DumpConstants(_constants);
+	DumpVector3(scene->MeshVertices, *(int*)((int)scene->MeshVertices - 8));
+	DumpTextureVertices(scene->MeshTextureVertices, *(int*)((int)scene->MeshTextureVertices - 8));
+	DumpD3dVertices(_vertices.data(), _verticesCount);
+#endif
+}
+
+/*
+ If the game is rendering the hyperspace effect, this function will select shaderToyBuf
+ when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
+ */
+inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
+	auto& resources = this->_deviceResources;
+
+	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
+		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
+		return shadertoyRTV;
+	else
+		// Normal output buffer (_offscreenBuffer)
+		return regularRTV;
+}
+
+void EffectsRenderer::RenderScene()
+{
+	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+
+	ID3D11RenderTargetView *rtvs[6] = {
+		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner || _bIsReticle), // Select the main RTV
+		_deviceResources->_renderTargetViewBloomMask.Get(),
+		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
+		// The normals hook should not be allowed to write normals for light textures (not sure how to implement this in the new hook)
+		_deviceResources->_renderTargetViewNormBuf.Get(),
+		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSAOMask.Get(),
+		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSMask.Get(),
+	};
+	context->OMSetRenderTargets(6, rtvs, _deviceResources->_depthStencilViewL.Get());
+	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+}
+
+static EffectsRenderer g_effects_renderer;
+
+// TODO: Select the appropriate renderer depending on the current config
+static D3dRenderer &g_current_renderer = g_effects_renderer;
+
+//************************************************************************
+// Hooks
+//************************************************************************
+
 void D3dRendererSceneBegin(DeviceResources* deviceResources)
 {
 	if (!g_config.D3dRendererHookEnabled)
@@ -1109,7 +1406,7 @@ void D3dRendererSceneBegin(DeviceResources* deviceResources)
 		return;
 	}
 
-	g_xwa_d3d_renderer.SceneBegin(deviceResources);
+	g_current_renderer.SceneBegin(deviceResources);
 }
 
 void D3dRendererSceneEnd()
@@ -1119,7 +1416,7 @@ void D3dRendererSceneEnd()
 		return;
 	}
 
-	g_xwa_d3d_renderer.SceneEnd();
+	g_current_renderer.SceneEnd();
 }
 
 void D3dRendererFlightStart()
@@ -1129,7 +1426,7 @@ void D3dRendererFlightStart()
 		return;
 	}
 
-	g_xwa_d3d_renderer.FlightStart();
+	g_current_renderer.FlightStart();
 }
 
 void D3dRenderLasersHook(int A4)
@@ -1188,13 +1485,13 @@ void D3dRendererMainHook(SceneCompData* scene)
 	}
 
 	g_rendererType = RendererType_Main;
-	g_xwa_d3d_renderer.MainSceneHook(scene);
-	g_xwa_d3d_renderer.BuildGlowMarks(scene);
-	g_xwa_d3d_renderer.RenderGlowMarks();
+	g_current_renderer.MainSceneHook(scene);
+	g_current_renderer.BuildGlowMarks(scene);
+	g_current_renderer.RenderGlowMarks();
 }
 
 void D3dRendererShadowHook(SceneCompData* scene)
 {
 	g_rendererType = RendererType_Shadow;
-	g_xwa_d3d_renderer.HangarShadowSceneHook(scene);
+	g_current_renderer.HangarShadowSceneHook(scene);
 }

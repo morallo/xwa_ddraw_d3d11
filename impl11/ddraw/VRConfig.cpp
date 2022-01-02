@@ -36,7 +36,7 @@ const float DEFAULT_GUI_SCALE = 0.7f;
 const float GAME_SCALE_FACTOR = 60.0f; // Estimated empirically
 const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
 
-										 /*
+/*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
 const float DEFAULT_LENS_K3 = 0.0f;
@@ -51,7 +51,6 @@ const int DEFAULT_SKYBOX_INDEX = 2;
 const bool DEFAULT_BARREL_EFFECT_STATE = true;
 const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its own lens correction, only enable it if the user really wants it
 const float DEFAULT_BRIGHTNESS = 0.95f;
-const float MAX_BRIGHTNESS = 1.0f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
 const bool DEFAULT_DYNAMIC_COCKPIT_ENABLED = false;

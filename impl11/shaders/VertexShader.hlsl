@@ -88,7 +88,6 @@ PixelShaderInput main(VertexShaderInput input)
 	float st0 = input.pos.w;
 	float3 temp = input.pos.xyz;
 
-	// New code needed for the D3DRendererHook
 	if (input.pos.z == input.pos.w)
 	{
 		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
@@ -96,11 +95,10 @@ PixelShaderInput main(VertexShaderInput input)
 	}
 
 	// Regular Vertex Shader, before the D3DRendererHook
-	output.pos.z = input.pos.z;
+	//output.pos.z = input.pos.z;
 
-	// Regular Vertex Shader after the D3DRendererHook. This code will break this shader because the hook
-	// itself is missing. This code is disabled for now.
-	//output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
+	// Regular Vertex Shader after the D3DRendererHook.
+	output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
 
 	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
 	output.pos.w = 1.0f;

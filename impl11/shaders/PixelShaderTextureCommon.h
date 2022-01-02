@@ -1,5 +1,6 @@
-// PixelShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
+// PixelShaderCBuffer, used to be register(b0), but the new D3dRendererHook
+// is using that, so let's use another register: b9
+cbuffer ConstantBuffer : register(b9)
 {
 	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
 	uint DynCockpitSlots;		// (DC) How many DC slots will be used.

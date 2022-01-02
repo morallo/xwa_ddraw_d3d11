@@ -4422,7 +4422,7 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 		buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
+		this->_d3dDeviceContext->PSSetConstantBuffers(9, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_3D;
 }

@@ -2645,7 +2645,7 @@ HRESULT Direct3DDevice::Execute(
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio	  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_VSCBuffer.aspect_ratio		  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
 	g_VSCBuffer.z_override		  = -1.0f;
 	g_VSCBuffer.sz_override		  = -1.0f;
@@ -2654,6 +2654,8 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.bPreventTransform =  0.0f;
 	g_VSCBuffer.bFullTransform	  =  FullTransform;
 	g_VSCBuffer.scale_override    =  1.0f;
+	g_VSCBuffer.s_V0x08B94CC		  = *(float*)0x08B94CC;
+	g_VSCBuffer.s_V0x05B46B4		  = *(float*)0x05B46B4;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -3066,7 +3068,7 @@ HRESULT Direct3DDevice::Execute(
 
 				   The sequence of events goes like this:
 					  - Draw the Skybox with ZWrite disabled, this is done in the first few draw calls.
-					  - Draw 3D objects, including the cockpit.
+					  - Draw 3D objects, including the cockpit (this is now done in the D3dRenderHook)
 					  - Disable ZWrite to draw engine glow and brackets.
 					  - Disable ZWrite to draw the GUI elements.
 					  - Enable ZWrite to draw the targeting computer HUD.
@@ -5474,61 +5476,6 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
-
-					// Old screen-space shadow mapping code. Obsolete now that OBJs can be side-loaded
-					/*
-					if (g_ShadowMapping.Enabled && !g_ShadowMapping.UseShadowOBJ && bIsCockpit) 
-					{
-						Matrix4 T, Ry, Rx, S;
-						Rx.rotateX(g_fShadowMapAngleX);
-						Ry.rotateY(g_fShadowMapAngleY);
-						T.translate(0, 0, g_fShadowMapDepthTrans);
-
-						resources->InitViewport(&g_ShadowMapping.ViewPort);
-						
-						// Initialize the Constant Buffer
-						// T * R does rotation first, then translation: so the object rotates around the origin
-						// and then gets pushed away along the Z axis
-						//g_ShadowMapVSCBuffer.lightWorldMatrix = T * Rx * Ry * S;
-						g_ShadowMapVSCBuffer.lightWorldMatrix = Rx * Ry;
-						g_ShadowMapVSCBuffer.sm_aspect_ratio = g_VSCBuffer.aspect_ratio;
-						// Set the constant buffer
-						resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-
-						// Set the Vertex and Pixel Shaders
-						resources->InitVertexShader(resources->_shadowMapVS);
-						resources->InitPixelShader(resources->_shadowMapPS);
-
-						if (g_ShadowMapping.UseShadowOBJ) {
-							// Set the vertex and index buffers
-							UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
-							resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
-							resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
-						}
-
-						// Set the Shadow Map DSV
-						context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-						// Render the Shadow Map
-						if (g_ShadowMapping.UseShadowOBJ)
-							context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
-						else
-							context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
-
-						// Restore the previous viewport, etc
-						resources->InitViewport(&g_nonVRViewport);
-						resources->InitVertexShader(resources->_vertexShader);
-						resources->InitPixelShader(lastPixelShader);
-						context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
-
-						if (g_ShadowMapping.UseShadowOBJ) {
-							// Set the vertex and index buffers
-							UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
-							resources->InitVertexBuffer(this->_vertexBuffer.GetAddressOf(), &stride, &ofs);
-							resources->InitIndexBuffer(this->_indexBuffer.Get(), g_config.D3dHookExists);
-						}
-					}
-					*/
-
 					goto out;
 				}
 
@@ -6456,6 +6403,7 @@ HRESULT Direct3DDevice::BeginScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
+	//log_debug("[DBG] BeginScene");
 	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
 	bool bTransitionToHyperspace = false;
 	bPrevHyperspaceState = bCurHyperspaceState;
@@ -6798,6 +6746,8 @@ HRESULT Direct3DDevice::EndScene()
 #endif
 	auto& resources = this->_deviceResources;
 	auto& context = resources->_d3dDeviceContext;
+
+	//log_debug("[DBG] EndScene");
 
 	/*
 	I can't render hyperspace here because it will break the display of the main menu after exiting a mission
