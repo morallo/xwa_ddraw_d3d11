@@ -14,15 +14,16 @@ SamplerState sampler0 : register(s0);
 Texture2D    greebleTex0 : register(t9);
 SamplerState greebleSamp0 : register(s9);
 
-/*
+//#define ORIGINAL_D3D_RENDERER_SHADERS
+#ifdef ORIGINAL_D3D_RENDERER_SHADERS
 // This is the original PixelShaderInput used in the D3dRendererHook
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
+	float4 pos		: SV_POSITION;
 	float4 position : COLOR2;
-	float4 normal : COLOR1;
-	float2 tex : TEXCOORD;
-	float4 color : COLOR0;
+	float4 normal	: COLOR1;
+	float2 tex		: TEXCOORD;
+	float4 color		: COLOR0;
 };
 
 // This is the original Pixel shader used in the D3dRendererHook
@@ -45,10 +46,11 @@ float4 main(PixelShaderInput input) : SV_TARGET
 		c = saturate(c);
 	}
 
+	// DEBUG: Display normal data
+	c.rgb = (normalize(input.normal.xyz) + 1.0) * 0.5;
 	return c;
 }
-*/
-
+#else
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -74,14 +76,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	// This is the per-vertex Gouraud-shaded color coming from the VR:
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	uint   bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
+	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
+	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
 		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
 	float  alpha				= texelColor.w;
 	float3 P					= input.pos3D.xyz;
 	float  SSAOAlpha			= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
-	uint   ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	
 	// Zero-out the bloom mask and provide default output values
 	output.bloom		= 0;
 	output.color		= output.color = float4(brightness * texelColor.xyz, texelColor.w);
@@ -176,3 +179,4 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	return output;
 }
+#endif

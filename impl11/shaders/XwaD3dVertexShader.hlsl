@@ -10,7 +10,9 @@ struct VertexShaderInput
 	int4 index : POSITION;
 };
 
-/*
+
+//#define ORIGINAL_D3D_RENDERER_SHADERS
+#ifdef ORIGINAL_D3D_RENDERER_SHADERS
 // This is the original PixelShaderInput used with the D3DRendererHook
 struct PixelShaderInput
 {
@@ -35,7 +37,8 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos = TransformProjection(output.pos.xyz);
 
 	output.position = float4(v, 1.0f);
-	output.normal = mul(float4(n, 1.0f), transformWorldView);
+	//output.normal = mul(float4(n, 1.0f), transformWorldView); // Original version
+	output.normal = mul(float4(n, 0.0f), transformWorldView); // Fixed version
 	output.tex = t;
 
 	output.color = float4(1.0f, 1.0f, 1.0f, 0.0f);
@@ -48,8 +51,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 	return output;
 }
-*/
-
+#else
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -83,14 +85,6 @@ PixelShaderInput main(VertexShaderInput input)
 	output.tex = t;
 	//output.color = float4(1.0f, 1.0f, 1.0f, 0.0f);
 
-	/*
-	if (renderType == 0)
-	{
-		// Gouraud Shading, we're not going to use that in the Effects branch.
-		output.color = ComputeColorLight(v, n);
-	}
-	*/
-	// Note: All the other render types are probably shadeless
-
 	return output;
 }
+#endif

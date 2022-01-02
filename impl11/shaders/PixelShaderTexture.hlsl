@@ -253,6 +253,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	//output.color.b += 0.5;
 	
 	//if (ExclusiveMask == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;

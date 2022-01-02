@@ -48,4 +48,3 @@ cbuffer ConstantBuffer : register(b9)
 	float2 UVDispMapResolution;
 	// 144 bytes
 };
-

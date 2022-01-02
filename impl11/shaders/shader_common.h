@@ -56,6 +56,7 @@ PixelShaderCBuffer : register(b9) (Used to be b0, but the D3DRendererHook is usi
 #define SPECIAL_CONTROL_EXPLOSION	7
 #define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
+#define SPECIAL_CONTROL_DEBUG		10 // Generic debug flag. Only used when developing or testing features.
 // These are the bits used for exclusive special control flags
 #define SPECIAL_CONTROL_EXCLUSIVE_MASK 0x0FF
 // The following are bits in the special_control field. They need to be blended with the rest of the exclusive
