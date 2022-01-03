@@ -1,3 +1,27 @@
+/*
+ * List of known issues;
+ * - Lasers are obscured by capital ships (probably a depth buffer problem)
+ * - Switching ships in the hangar disables DC
+ * - Hyperspace shows through the DC elements
+ * - Faceted normal maps
+ * - Wrong illumination
+ * - Laser Lights are broken
+ * - The targeted craft doesn't get the edge effect in external view
+ * - Shadow Mapping is broken
+ * - Laser Lights
+ * - VR
+ * - The Sun flare is semi-broken
+ * - Animations
+ *
+ * New ideas that might be possible now:
+ *
+ * - Control the position of ships hypering in or out. Make them *snap* into place
+ * - Animate the 3D cockpit. Moving joysticks, targetting computer, etc
+ * - Aiming Reticle with lead
+ * - Global shadow mapping?
+ * - Ray-tracing? Do we have all the unculled, unclipped 3D data now?
+ * - Universal head tracking through the tranformWorldView matrix
+ */
 #include "common.h"
 #include "commonVR.h"
 #include "XwaD3dRendererHook.h"
@@ -175,6 +199,7 @@ extern bool g_bExplosionsDisplayedOnCurrentFrame;
 extern bool g_bIsScaleableGUIElem, g_bScaleableHUDStarted, g_bIsTrianglePointer;
 extern float g_fSSAOAlphaOfs;
 // Temporary, we may not need these here
+extern bool g_bPrevIsScaleableGUIElem, g_bStartedGUI;
 extern bool g_bIsFloating3DObject, g_bPrevIsFloatingGUI3DObject;
 extern bool g_bTargetCompDrawn;
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
@@ -1125,10 +1150,12 @@ private:
 	bool _bLastTextureSelectedNotNULL, _bIsLaser, _bTex2IsLightTexture, _bIsCockpit, _bIsGunner, _bIsReticle;
 	bool _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
-	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram;
+	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	Direct3DTexture *_lastTextureSelected = nullptr;
 
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
+	void EnableTransparency();
+	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
 
 public:
@@ -1167,6 +1194,39 @@ HRESULT EffectsRenderer::QuickSetZWriteEnabled(BOOL Enabled)
 	return hr;
 }
 
+inline void EffectsRenderer::EnableTransparency() {
+	auto& resources = _deviceResources;
+	D3D11_BLEND_DESC blendDesc{};
+
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
+inline void EffectsRenderer::EnableHoloTransparency() {
+	auto& resources = _deviceResources;
+	D3D11_BLEND_DESC blendDesc{};
+
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 {
@@ -1184,6 +1244,7 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 
 	_constants.renderType = 0;
 	_constants.renderTypeIllum = 0;
+	_bRenderingLightingEffect = false;
 
 	if (g_isInRenderLasers)
 	{
@@ -1208,6 +1269,8 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 	else
 	{
 		// This is a lighting effect... I wonder which ones? Smoke perhaps?
+		_bRenderingLightingEffect = true;
+		//log_debug("[DBG] Rendering Lighting Effect");
 		const unsigned short ModelIndex_237_1000_0_ResData_LightingEffects = 237;
 		L00432750(ModelIndex_237_1000_0_ResData_LightingEffects, 0x02, 0x100);
 		XwaSpeciesTMInfo* esi = (XwaSpeciesTMInfo*)s_ExeEnableTable[ModelIndex_237_1000_0_ResData_LightingEffects].pData1;
@@ -1272,11 +1335,10 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 		//bIsLightTexture = lastTextureSelected->is_LightTexture;
 		_bTex2IsLightTexture = texture2 != nullptr && _constants.renderTypeIllum == 1;
 		//bIsText = lastTextureSelected->is_Text;
-		_bIsReticle = _lastTextureSelected->is_Reticle;
+		_bIsReticle = _lastTextureSelected->is_Reticle; // I don't think the reticle is rendered in this path
 		//bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
 		g_bIsTargetHighlighted |= _lastTextureSelected->is_HighlightedReticle;
-		//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
-		//bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
+		_bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
 		if (_bIsTargetHighlighted) g_GameEvent.TargetEvent = TGT_EVT_LASER_LOCK;
 		if (PlayerDataTable[*g_playerIndex].warheadArmed) {
 			char state = PlayerDataTable[*g_playerIndex].warheadLockState;
@@ -1316,6 +1378,18 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 		!_lastTextureSelected->is_Text && !_lastTextureSelected->is_TrianglePointer &&
 		!_lastTextureSelected->is_Reticle && !_lastTextureSelected->is_Floating_GUI &&
 		!_lastTextureSelected->is_TargetingComp && !bIsLensFlare;
+
+	// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
+	// ... or not at all if we're in external view mode with nothing targeted.
+	//g_bPrevStartedGUI = g_bStartedGUI;
+	// Apr 10, 2020: g_bDisableDiffuse will make the reticle look white when the HUD is
+	// hidden. To prevent this, I added bIsAimingHUD to g_bStartedGUI; but I don't know
+	// if this breaks VR. If it does, then I need to add !bIsAimingHUD around line 6425,
+	// where I'm setting fDisableDiffuse = 1.0f
+	//g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsReticle;
+	// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
+	g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
+	g_bIsScaleableGUIElem = g_bStartedGUI && !g_bIsTrianglePointer && !bIsLensFlare;
 	// ***************************************************************
 	// State management ends here
 	// ***************************************************************
@@ -1484,7 +1558,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	}
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
-	if (g_isInRenderMiniature) {
+	if (g_isInRenderMiniature || g_bScaleableHUDStarted || g_bIsScaleableGUIElem) {
 		if (DCCaptureMiniature())
 			goto out;
 	}
@@ -1616,6 +1690,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (DCReplaceTextures())
 		goto out;
 
+	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
+	// Looks like the code to do this update in Execute() still works. So moving on for now
+
 	// Apply the changes to the vertex and pixel shaders
 	//if (bModifiedShaders) 
 	{
@@ -1627,7 +1704,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	RenderScene();
 
 out:
-	context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
 	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
 
@@ -1753,6 +1832,12 @@ bool EffectsRenderer::DCReplaceTextures()
 
 	int idx = _lastTextureSelected->DCElementIndex;
 
+	if (g_HyperspacePhaseFSM != HS_INIT_ST) {
+		// If we're in hyperspace, let's set the corresponding flag before rendering DC controls
+		_bModifiedShaders = true;
+		g_PSCBuffer.bInHyperspace = 1;
+	}
+
 	// Check if this idx is valid before rendering
 	if (idx >= 0 && idx < g_iNumDCElements) {
 		dc_element *dc_element = &g_DCElements[idx];
@@ -1828,12 +1913,12 @@ bool EffectsRenderer::DCReplaceTextures()
 		// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
 			if (g_PSCBuffer.DynCockpitSlots > 0) {
 				_bModifiedPixelShader = true;
-				//bModifiedBlendState = true;
-				// Holograms require alpha blending to be enabled, but we also need to save the current
-				// blending state so that it gets restored at the end of this draw call.
-				//SaveBlendState();
-				//EnableTransparency();
 				if (_bIsHologram) {
+					// Holograms require alpha blending to be enabled, but we also need to save the current
+					// blending state so that it gets restored at the end of this draw call.
+					//SaveBlendState();
+					EnableHoloTransparency();
+					_bModifiedBlendState = true;
 					uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
 					//log_debug("[DBG] hud_color, border, inside: 0x%x, 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
 					g_ShadertoyBuffer.iTime = g_fDCHologramTime;
@@ -1858,6 +1943,8 @@ out:
 void EffectsRenderer::RenderScene()
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+
+	// This method isn't called when we're in hyperspace
 
 	ID3D11RenderTargetView *rtvs[6] = {
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner || _bIsReticle), // Select the main RTV
@@ -1969,7 +2056,10 @@ void D3dRendererMainHook(SceneCompData* scene)
 
 	if (g_isInRenderHyperspaceLines)
 	{
-		L00480370(scene);
+		// The hyperspace effect is super slow for some reason. Let's disable it if we're rendering the new
+		// version
+		if (!g_bReshadeEnabled)
+			L00480370(scene);
 		return;
 	}
 

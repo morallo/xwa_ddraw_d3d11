@@ -4271,13 +4271,16 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio		=  g_fAspectRatio;
+
+		g_VSCBuffer.aspect_ratio			=  g_fAspectRatio;
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.apply_uv_comp       = false;
+		g_VSCBuffer.apply_uv_comp       =  false;
 		g_VSCBuffer.bPreventTransform	=  0.0f;
 		g_VSCBuffer.bFullTransform		=  0.0f;
+		g_VSCBuffer.s_V0x08B94CC			= *(float*)0x08B94CC;
+		g_VSCBuffer.s_V0x05B46B4			= *(float*)0x05B46B4;
 		if (g_bEnableVR) 
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
@@ -4293,12 +4296,13 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override  = 65535.0f;
-		g_VSCBuffer.scale_override = 1.0f;
+		g_VSCBuffer.z_override		= 65535.0f;
+		g_VSCBuffer.scale_override	= 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		//resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
@@ -4310,7 +4314,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			// The original (non-VR) code used _vertexShader:
 			resources->InitVertexShader(resources->_vertexShader);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+		
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -4437,6 +4441,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				NULL, // SSAO Mask
 			};
 			context->OMSetRenderTargets(5, rtvs, NULL);
+		}
+		if (g_bDumpSSAOBuffers) {
+			// This is the foreground of the hyperspace effect (the cockpit). We can dump this texture to check
+			// that the transparency is OK.
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"c:\\temp\\_hyperFG.dds");
 		}
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[3] = {
@@ -9316,7 +9325,8 @@ HRESULT PrimarySurface::Flip(
 //#ifdef HYPER_OVERRIDE
 			//g_fHyperTimeOverride += 0.025f;
 			if (g_bHyperDebugMode) {
-				g_fHyperTimeOverride = 1.0f;
+				//g_fHyperTimeOverride = 1.0f;
+				g_fHyperTimeOverride = 2.0f;
 				if (g_fHyperTimeOverride > 2.0f) // Use 2.0 for entry, 4.0 for tunnel, 2.0 for exit, 1.5 for post-hyper-exit
 					g_fHyperTimeOverride = 0.0f;
 			}

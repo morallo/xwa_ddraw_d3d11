@@ -316,6 +316,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.bloom = 0.15 * output.color;
 
 	// Verify this later:
-	if (bInHyperspace) output.color.a = 0.0;
+	//if (bInHyperspace) output.color.a = 1.0;
 	return output;
 }

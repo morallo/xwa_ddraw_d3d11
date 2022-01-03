@@ -2591,7 +2591,7 @@ HRESULT Direct3DDevice::Execute(
 	//g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
 //#ifdef HYPER_OVERRIDE
 	if (g_bHyperDebugMode)
-		g_HyperspacePhaseFSM = (HyperspacePhaseEnum )g_iHyperStateOverride;
+		g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
 //#endif
 	//g_iHyperExitPostFrames = 0;
 	// DEBUG
@@ -2784,7 +2784,7 @@ HRESULT Direct3DDevice::Execute(
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
-		g_VSCBuffer.aspect_ratio	  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_VSCBuffer.aspect_ratio		  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.z_override        = -1.0f;
@@ -3112,7 +3112,7 @@ HRESULT Direct3DDevice::Execute(
 				Vector2 SunCentroid2D;
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
-				bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
+				bool bIsGUI = false, bIsLensFlare = false, bIsSun = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
@@ -3137,7 +3137,6 @@ HRESULT Direct3DDevice::Execute(
 					bIsReticle = lastTextureSelected->is_Reticle;
 					bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
 					g_bIsTargetHighlighted |= lastTextureSelected->is_HighlightedReticle;
-					//g_bIsTargetHighlighted |= (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3);
 					bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
 					if (bIsTargetHighlighted) g_GameEvent.TargetEvent = TGT_EVT_LASER_LOCK;
 					if (PlayerDataTable[*g_playerIndex].warheadArmed) {
@@ -3154,7 +3153,6 @@ HRESULT Direct3DDevice::Execute(
 					}
 					bIsGUI = lastTextureSelected->is_GUI;
 					bIsLensFlare = lastTextureSelected->is_LensFlare;
-					bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
 					bIsSun = lastTextureSelected->is_Sun;
 					bIsCockpit = lastTextureSelected->is_CockpitTex;
 					bIsGunner = lastTextureSelected->is_GunnerTex;
@@ -3204,6 +3202,7 @@ HRESULT Direct3DDevice::Execute(
 					this->_renderStates->GetZFunc() == D3DCMP_ALWAYS;
 				const bool bIsXWAHangarShadow = *g_playerInHangar && bIsNoZWrite && !bLastTextureSelectedNotNULL &&
 					this->_renderStates->GetZFunc() == D3DCMP_GREATEREQUAL;
+
 				// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 				// ... or not at all if we're in external view mode with nothing targeted.
 				g_bPrevStartedGUI = g_bStartedGUI;
@@ -3318,6 +3317,7 @@ HRESULT Direct3DDevice::Execute(
 							g_fCockpitCameraYawOnFirstHyperFrame = g_fLastCockpitCameraYaw;
 							g_fCockpitCameraPitchOnFirstHyperFrame = g_fLastCockpitCameraPitch;
 							g_HyperspacePhaseFSM = HS_HYPER_ENTER_ST;
+							//log_debug("[DBG] [FSM] HS_INIT_ST --> HS_HYPER_ENTER_ST");
 							// Compute a new random seed for this hyperspace jump
 							g_fHyperspaceRand = (float)rand() / (float)RAND_MAX;
 							if (g_bLastFrameWasExterior)
@@ -3372,6 +3372,7 @@ HRESULT Direct3DDevice::Execute(
 
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 4) {
 							g_HyperspacePhaseFSM = HS_HYPER_TUNNEL_ST;
+							//log_debug("[DBG] [FSM] HS_HYPER_ENTER_ST --> HS_HYPER_TUNNEL_ST");
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperTunnelStrength;
 							// We're about to enter the hyperspace tunnel, change the color of the lights:
 							float fade = 1.0f;
@@ -3395,6 +3396,7 @@ HRESULT Direct3DDevice::Execute(
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_bHyperspaceTunnelLastFrame = true;
 							g_HyperspacePhaseFSM = HS_HYPER_EXIT_ST;
+							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_PSCBuffer.fBloomStrength = g_BloomConfig.fHyperStreakStrength;
 							// Restore the previous color of the lights
 							for (int i = 0; i < 2; i++) {
@@ -3420,9 +3422,9 @@ HRESULT Direct3DDevice::Execute(
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
-							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
+							//log_debug("[DBG] [FSM] HS_HYPER_EXIT_ST --> HS_POST_HYPER_EXIT_ST");
 							g_bHyperspaceLastFrame = true;
 							// Reset the Sun --> XWA light association every time we exit hyperspace
 							ResetXWALightInfo();
@@ -3433,16 +3435,19 @@ HRESULT Direct3DDevice::Execute(
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
-							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 							g_HyperspacePhaseFSM = HS_INIT_ST;
+							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
 						}
 						break;
 					}
 
 //#ifdef HYPER_OVERRIDE
 					// DEBUG
-					if (g_bHyperDebugMode)
+					if (g_bHyperDebugMode) {
+						bModifiedShaders = true;
 						g_HyperspacePhaseFSM = (HyperspacePhaseEnum)g_iHyperStateOverride;
+						g_PSCBuffer.bInHyperspace = 1;
+					}
 					// DEBUG
 //#endif
 				}
@@ -4727,6 +4732,7 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
+				// Procedural Lava
 				if (g_bProceduralLava && bLastTextureSelectedNotNULL && bHasMaterial && lastTextureSelected->material.IsLava)
 				{
 					static float iTime = 0.0f;
@@ -4913,7 +4919,7 @@ HRESULT Direct3DDevice::Execute(
 					 (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
-				{					
+				{	
 					// Looks like we don't need to restore the blend/depth state???
 					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
 					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();

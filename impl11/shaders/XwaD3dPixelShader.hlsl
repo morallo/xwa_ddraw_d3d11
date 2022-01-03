@@ -103,7 +103,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
-	// Process lasers (make them brighter in 32-bit mode)
+	// Process lasers
 	if (renderType == 2)
 	{
 		// Do not write the 3D position
