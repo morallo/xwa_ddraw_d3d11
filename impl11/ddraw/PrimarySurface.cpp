@@ -7400,7 +7400,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
 			// on the next frame
-			UpdateViewMatrix(); // VR in TechRoom
+			UpdateViewMatrix();
 #ifdef DISABLED
 			//if (g_bEnableVR)
 			{
@@ -7728,7 +7728,19 @@ HRESULT PrimarySurface::Flip(
 					}
 					else {
 						// In SteamVR mode this will display the left image:
-						if (g_bUseSteamVR) {
+						if (g_bUseSteamVR) {							
+							if (g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
+							{
+								vr::Texture_t overlay_texture;
+								overlay_texture.eType = vr::TextureType_DirectX;
+								overlay_texture.eColorSpace = vr::ColorSpace_Auto;
+								overlay_texture.handle = resources->_offscreenBuffer;
+								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
+								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
+								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+								g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+							}
+
 							resizeForSteamVR(0, true);
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
@@ -7755,11 +7767,11 @@ HRESULT PrimarySurface::Flip(
 					g_iDraw2DCounter = 0;				
 
 					if (g_bUseSteamVR) {
-						vr::EVRCompositorError error = vr::VRCompositorError_None;
+						/*vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);*/
 					}
 					
 					g_bRendering3D = false;
@@ -8923,6 +8935,9 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				ApplyCustomHUDColor();
+
+				g_pVROverlay->HideOverlay(g_VR2Doverlay);
+				g_pVRCompositor->FadeToColor(0.2f, 0.0f, 0.0f, 0.0f, 0.0f, false);
 			}
 			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
 			// the Holdo bug (but more changes may be needed).
