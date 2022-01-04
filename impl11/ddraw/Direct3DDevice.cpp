@@ -510,14 +510,14 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
 D3D11_VIEWPORT g_nonVRViewport{};
 
-VertexShaderMatrixCB g_VSMatrixCB;
-VertexShaderCBuffer  g_VSCBuffer;
-PixelShaderCBuffer   g_PSCBuffer;
-DCPixelShaderCBuffer g_DCPSCBuffer;
-ShadertoyCBuffer	 g_ShadertoyBuffer;
-LaserPointerCBuffer	 g_LaserPointerBuffer;
-ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;
-MetricReconstructionCB g_MetricRecCBuffer;
+VertexShaderMatrixCB				g_VSMatrixCB;
+VertexShaderCBuffer				g_VSCBuffer;
+PixelShaderCBuffer				g_PSCBuffer;
+DCPixelShaderCBuffer				g_DCPSCBuffer;
+ShadertoyCBuffer					g_ShadertoyBuffer;
+LaserPointerCBuffer				g_LaserPointerBuffer;
+ShadowMapVertexShaderMatrixCB	g_ShadowMapVSCBuffer;
+MetricReconstructionCB			g_MetricRecCBuffer;
 
 // In reality, there should be a different factor per in-game resolution; but for now this should be enough
 const float C = 1.0f, Z_FAR = 1.0f;
@@ -555,6 +555,10 @@ uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
 // Laser/Ion Cannon counting vars
 bool g_bLasersIonsNeedCounting = false;
 int g_iNumLaserCannons = 0, g_iNumIonCannons = 0;
+
+// Sun Colors, to be used to apply colors to the flares later
+float4 g_SunColors[MAX_SUN_FLARES];
+int g_iSunFlareCount = 0;
 
 /*
  * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
@@ -4679,13 +4683,24 @@ HRESULT Direct3DDevice::Execute(
 					int SunFlareIdx = g_ShadertoyBuffer.SunFlareCount;
 					// By default suns don't have any color. We specify that by setting the alpha component to 0:
 					g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 0.0f;
+					g_SunColors[SunFlareIdx].w = 0.0f;
 					// Use the material properties of this Sun -- if it has any associated with it
 					if (bHasMaterial) {
-						g_ShadertoyBuffer.SunColor[SunFlareIdx].x = lastTextureSelected->material.Light.x;
-						g_ShadertoyBuffer.SunColor[SunFlareIdx].y = lastTextureSelected->material.Light.y;
-						g_ShadertoyBuffer.SunColor[SunFlareIdx].z = lastTextureSelected->material.Light.z;
+						g_SunColors[SunFlareIdx].x = lastTextureSelected->material.Light.x;
+						g_SunColors[SunFlareIdx].y = lastTextureSelected->material.Light.y;
+						g_SunColors[SunFlareIdx].z = lastTextureSelected->material.Light.z;
 						// We have a color for this sun, let's set w to 1 to signal that
-						g_ShadertoyBuffer.SunColor[SunFlareIdx].w = 1.0f;
+						g_SunColors[SunFlareIdx].w = 1.0f;
+						// With the D3DRendererHook, the order of the draw calls is slightly different.
+						// In this pass, we render the Sun and store its color for later use. Originally,
+						// we stored the color directly in g_ShadertoyBuffer.SunColor. However, this same
+						// color is used for other things, so now it's overwritten with other stuff by
+						// the time we add the flare, in PrimarySurface::Flip(). We can't render the flare
+						// here because we need a fully-populated depth buffer, so that has to be added in
+						// post. So, we store the color in g_SunColors and then we copy those colors back
+						// into g_ShadertoyBuffer when rendering the flare. However, we still need the color
+						// here, to render the procedural sun.
+						g_ShadertoyBuffer.SunColor[SunFlareIdx] = g_SunColors[SunFlareIdx];
 					}
 
 					//if (ComputeCentroid(instruction, currentIndexLocation, &SunCentroid))
@@ -4693,6 +4708,7 @@ HRESULT Direct3DDevice::Execute(
 					{
 						// If the centroid is visible, then let's display the sun flare:
 						g_ShadertoyBuffer.SunFlareCount++;
+						g_iSunFlareCount = g_ShadertoyBuffer.SunFlareCount;
 						if (g_bEnableVR) {
 							//log_debug("[DBG] 3D centroid: %0.3f, %0.3f, %0.3f",
 							//	SunCentroid.x, SunCentroid.y, SunCentroid.z);

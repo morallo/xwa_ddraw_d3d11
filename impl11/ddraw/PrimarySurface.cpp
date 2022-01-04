@@ -6825,6 +6825,10 @@ void PrimarySurface::RenderSunFlare()
 	g_ShadertoyBuffer.VRmode = g_bEnableVR;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	// Apply the sun colors stored during previous draw calls
+	for (int i = 0; i < g_iSunFlareCount; i++)
+		g_ShadertoyBuffer.SunColor[i] = g_SunColors[i];
+	g_ShadertoyBuffer.SunFlareCount = g_iSunFlareCount;
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 	if (g_bEnableVR) {
 		float u, v;
@@ -6918,7 +6922,7 @@ void PrimarySurface::RenderSunFlare()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio		=  g_fAspectRatio;
+		g_VSCBuffer.aspect_ratio			=  g_fAspectRatio;
 		g_VSCBuffer.z_override			= -1.0f;
 		g_VSCBuffer.sz_override			= -1.0f;
 		g_VSCBuffer.mult_z_override		= -1.0f;

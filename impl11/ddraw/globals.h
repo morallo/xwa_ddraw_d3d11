@@ -212,3 +212,7 @@ extern int g_AltExplosionSelector[MAX_XWA_EXPLOSIONS];
 // current frame.
 extern bool g_bExplosionsDisplayedOnCurrentFrame;
 extern int g_iForceAltExplosion;
+
+// Sun Colors, to be used to apply colors to the flares later
+extern float4 g_SunColors[MAX_SUN_FLARES];
+extern int g_iSunFlareCount;
