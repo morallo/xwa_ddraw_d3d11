@@ -4768,6 +4768,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
+		//InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness, 0.0f); // Use 3D projection matrices
+		//InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness);
 	} 
 	else {
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't use 3D projection matrices when VR is disabled
@@ -4818,8 +4820,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		float screen_res_y = (float)this->_backbufferHeight;
 
 		if (!g_bEnableVR || bRenderToDC) {
-			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-			// We also render the CMD sub-component bracket here.
+			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
@@ -4875,9 +4876,13 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 
+		/*this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
+		*/
+		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+			g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			0.0f); // Do not use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
@@ -4902,11 +4907,17 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+		/*this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
 			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
+		*/
+		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+			g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			0.0f); // Do not use 3D projection matrices
+
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+		g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		if (g_bUseSteamVR)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());
