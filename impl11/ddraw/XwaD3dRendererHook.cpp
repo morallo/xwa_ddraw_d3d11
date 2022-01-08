@@ -22,16 +22,18 @@
  * - Ray-tracing? Do we have all the unculled, unclipped 3D data now?
  * - Universal head tracking through the tranformWorldView matrix
  */
-#include "common.h"
-#include "commonVR.h"
-#include "XwaD3dRendererHook.h"
-#include "DeviceResources.h"
-#include "Direct3DTexture.h"
 #include <vector>
 #include <map>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+
+#include "common.h"
+#include "commonVR.h"
+#include "XwaD3dRendererHook.h"
+#include "DeviceResources.h"
+#include "Direct3DTexture.h"
+#include "Matrices.h"
 
 #ifdef _DEBUG
 #include "../Debug/XwaD3dVertexShader.h"
@@ -198,11 +200,111 @@ extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;
 extern bool g_bExplosionsDisplayedOnCurrentFrame;
 extern bool g_bIsScaleableGUIElem, g_bScaleableHUDStarted, g_bIsTrianglePointer;
 extern float g_fSSAOAlphaOfs;
+
+// ****************************************************
+// Debug variables
+// ****************************************************
+extern bool g_bDumpSSAOBuffers;
+int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
+
+void IncreaseD3DExecuteCounterSkipHi(int Delta) {
+	g_iD3DExecuteCounterSkipHi += Delta;
+	if (g_iD3DExecuteCounterSkipHi < -1)
+		g_iD3DExecuteCounterSkipHi = -1;
+	log_debug("[DBG] g_iD3DExecuteCounterSkip, Lo: %d, Hi: %d", g_iD3DExecuteCounterSkipLo, g_iD3DExecuteCounterSkipHi);
+}
+
+void IncreaseD3DExecuteCounterSkipLo(int Delta) {
+	g_iD3DExecuteCounterSkipLo += Delta;
+	if (g_iD3DExecuteCounterSkipLo < -1)
+		g_iD3DExecuteCounterSkipLo = -1;
+	log_debug("[DBG] g_iD3DExecuteCounterSkip, Lo: %d, Hi: %d", g_iD3DExecuteCounterSkipLo, g_iD3DExecuteCounterSkipHi);
+}
+
+// ****************************************************
 // Temporary, we may not need these here
+// ****************************************************
 extern bool g_bPrevIsScaleableGUIElem, g_bStartedGUI;
 extern bool g_bIsFloating3DObject, g_bPrevIsFloatingGUI3DObject;
 extern bool g_bTargetCompDrawn;
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+
+// ****************************************************
+// Dump to OBJ
+// ****************************************************
+// Set the following flag to true to enable dumping the current scene to an OBJ file
+bool bD3DDumpOBJEnabled = false;
+FILE *D3DDumpOBJFile = NULL;
+int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DOBJGroup = 0;
+
+void OBJDump(XwaVector3 *vertices, int count)
+{
+	static int obj_idx = 1;
+	log_debug("[DBG] OBJDump, count: %d, obj_idx: %d", count, obj_idx);
+
+	fprintf(D3DDumpOBJFile, "o obj-%d\n", obj_idx++);
+	for (int index = 0; index < count; index++) {
+		XwaVector3 v = vertices[index];
+		fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", v.x, v.y, v.z);
+	}
+	fprintf(D3DDumpOBJFile, "\n");
+}
+
+void OBJDumpD3dVertices(const SceneCompData *scene)
+{
+	std::ostringstream str;
+	XwaVector3 *MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	static XwaVector3 *LastMeshVertices = nullptr;
+	static int LastMeshVerticesCount = 0;
+	const float OPTtoMeters = 1.0f / 40.96f;
+
+	if (D3DOBJGroup == 1)
+		LastMeshVerticesCount = 0;
+
+	if (LastMeshVertices != MeshVertices) {
+		// This is a new mesh, dump all the vertices.
+		log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, FacesCount: %d",
+			D3DOBJGroup, MeshVerticesCount, scene->FacesCount);
+		fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
+		
+		Matrix4 T(
+			scene->WorldViewTransform.Rotation._11, scene->WorldViewTransform.Rotation._12, scene->WorldViewTransform.Rotation._13, 0.0f,
+			scene->WorldViewTransform.Rotation._21, scene->WorldViewTransform.Rotation._22, scene->WorldViewTransform.Rotation._23, 0.0f,
+			scene->WorldViewTransform.Rotation._31, scene->WorldViewTransform.Rotation._32, scene->WorldViewTransform.Rotation._33, 0.0f,
+			scene->WorldViewTransform.Position.x, scene->WorldViewTransform.Position.y, scene->WorldViewTransform.Position.z, 1.0f
+		);
+		for (int i = 0; i < MeshVerticesCount; i++) {
+			XwaVector3 v = MeshVertices[i];
+			Vector4 V(v.x, v.y, v.z, 1.0f);
+			V = T * V;
+			// OPT to meters conversion:
+			V *= OPTtoMeters;
+			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+		}
+		fprintf(D3DDumpOBJFile, "\n");
+		D3DTotalVertices += LastMeshVerticesCount;
+		D3DOBJGroup++;
+
+		LastMeshVertices = MeshVertices;
+		LastMeshVerticesCount = MeshVerticesCount;
+	}
+
+	// The following works alright, but it's not how things are rendered.
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		std::string line = "f ";
+
+		for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+		{
+			// faceData.Vertex[vertexIndex] matches the vertex index data from the OPT
+			line += std::to_string(faceData.Vertex[vertexIndex] + D3DTotalVertices) + " ";
+		}
+		fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
+	}
+	fprintf(D3DDumpOBJFile, "\n");
+}
 
 enum RendererType
 {
@@ -637,6 +739,7 @@ void D3dRenderer::CreateDataScene(const SceneCompData* scene)
 
 		_verticesCount += edgesCount;
 
+		// This converts quads into 2 tris if necessary
 		for (int edge = 2; edge < edgesCount; edge++)
 		{
 			t->v1 = verticesIndex;
@@ -751,6 +854,7 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 		break;
 	}
 
+	// transformView only seems to be used when rendering shadows in the hangar.
 	_constants.transformView[0] = *(float*)0x007B4BEC;
 	_constants.transformView[1] = *(float*)0x007B6FF8;
 	_constants.transformView[2] = *(float*)0x007B33DC;
@@ -1162,7 +1266,7 @@ public:
 	EffectsRenderer();
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void RenderScene();
-	virtual void UpdateTextures(const SceneCompData* scene);
+	virtual void UpdateTextures(const SceneCompData* scene, 	Direct3DTexture **colortex_out, Direct3DTexture **lighttex_out);
 	// Returns true if the current draw call needs to be skipped
 	bool DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
@@ -1228,7 +1332,7 @@ inline void EffectsRenderer::EnableHoloTransparency() {
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
-void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
+void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture **colortex_out, Direct3DTexture **lighttex_out)
 {
 	const unsigned char ShipCategory_PlayerProjectile = 6;
 	const unsigned char ShipCategory_OtherProjectile = 7;
@@ -1246,12 +1350,7 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 	_constants.renderTypeIllum = 0;
 	_bRenderingLightingEffect = false;
 
-	if (g_isInRenderLasers)
-	{
-		_constants.renderType = 2;
-	}
-
-	if (isProjectile)
+	if (g_isInRenderLasers || isProjectile)
 	{
 		_constants.renderType = 2;
 	}
@@ -1288,6 +1387,9 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 	Direct3DTexture* texture2 = surface2 == nullptr ? nullptr : (Direct3DTexture*)surface2->D3dTexture.D3DTextureHandle;
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
 
+	*colortex_out = texture;
+	*lighttex_out = texture2;
+
 	// ***************************************************************
 	// State management begins here
 	// ***************************************************************
@@ -1313,9 +1415,7 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 	bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsActiveCockpit = false,
-	
 	bool bIsDS2CoreExplosion = false;
-	
 	bool bIsElectricity = false, bHasMaterial = false;
 	
 	if (_bLastTextureSelectedNotNULL) {
@@ -1399,6 +1499,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
+	Direct3DTexture *colortex = nullptr, *lighttex = nullptr;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
@@ -1431,10 +1532,46 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitPixelShader(_pixelShader);
 	ID3D11PixelShader *lastPixelShader = _pixelShader;
 
-	UpdateTextures(scene);
+	UpdateTextures(scene, &colortex, &lighttex);
 	UpdateMeshBuffers(scene);
 	UpdateVertexAndIndexBuffers(scene);
 	UpdateConstantBuffer(scene);
+
+	// DEBUG
+	// The scene pointer seems to be the same for every draw call, but the contents change.
+	// scene->TextureName seems to be NULL all the time.
+	// We can now have texture names associated with a specific ship instance. Meshes and faceData
+	// can be rendered multiple times per frame, but we object ID is unique. We also have access to
+	// the MobileObjectEntry and the CraftInstance. In other words: we can now apply effects on a
+	// per-ship, per-texture basis. See the example below...
+	//log_debug("[DBG] Rendering scene: 0x%x, faceData: 0x%x %s",
+	//	scene, scene->FaceIndices, g_isInRenderLasers ? "LASER" : "");
+	//MobileObjectEntry *pMobileObject = (MobileObjectEntry *)scene->pObject->pMobileObject;
+	//log_debug("[DBG] FaceData: 0x%x, Id: %d, Species: %d, Category: %d",
+	//	scene->FaceIndices, scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory);
+	/*
+	log_debug("[DBG] [%s]: Mesh: 0x%x, faceData: 0x%x, Matrix: 0x%x, Id: %d, Type: %d, Genus: %d, Player: %d",
+		colortex != nullptr ? colortex->_name.c_str() : "(null)", scene->MeshVertices, scene->FaceIndices, &(scene->WorldViewTransform.Rotation._11),
+		scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory, *g_playerIndex);
+	*/
+
+	/*
+	// The preybird cockpit re-uses the same mesh, but different faceData:
+	[500] [DBG] [opt,FlightModels\PreybirdFighterCockpit.opt,TEX00051,color,0]: Mesh: 0x183197a3, faceData: 0x18319bac, Id: 3, Type: 29, Genus: 0
+	[500] [DBG] [opt,FlightModels\PreybirdFighterCockpit.opt,TEX00052,color,0]: Mesh: 0x183197a3, faceData: 0x18319ddd, Id: 3, Type: 29, Genus: 0
+	[500] [DBG] [opt,FlightModels\PreybirdFighterCockpit.opt,TEX00054,color,0]: Mesh: 0x183197a3, faceData: 0x1831a00e, Id: 3, Type: 29, Genus: 0
+	[500] [DBG] [opt,FlightModels\PreybirdFighterCockpit.opt,TEX00053,color,0]: Mesh: 0x183197a3, faceData: 0x1831a23f, Id: 3, Type: 29, Genus: 0
+
+	// These are several different TIE Fighters: the faceData and Texname are repeated, but we see different IDs:
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dde3181, faceData : 0x1ddecd62, Id : 8,  Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dd3f0f2, faceData : 0x1dd698c0, Id : 11, Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dde3181, faceData : 0x1ddecd62, Id : 11, Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dd3f0f2, faceData : 0x1dd698c0, Id : 10, Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dde3181, faceData : 0x1ddecd62, Id : 10, Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dd3f0f2, faceData : 0x1dd698c0, Id : 12, Type : 5, Genus : 0
+	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dde3181, faceData : 0x1ddecd62, Id : 12, Type : 5, Genus : 0
+	*/
+
 	// The main 3D content is rendered here, that includes the cockpit and 3D models. But
 	// there's content that is still rendered in Direct3DDevice::Execute():
 	// - The backdrop, including the Suns
@@ -1701,6 +1838,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		if (g_PSCBuffer.DynCockpitSlots > 0)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 	}
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
+		// The coordinates are in Object space. Centered on the origin.
+		//OBJDump(scene->MeshVertices, *(int*)((int)scene->MeshVertices - 8));
+
+		// This function is called once per face group. Each face group is associated with a single texture.
+		// A single mesh can contain multiple face groups.
+		// An OPT contains multiple meshes
+		// _verticesCount has the number of vertices in the current face group
+		//log_debug("[DBG] _vertices.size(): %lu, _verticesCount: %d", _vertices.size(), _verticesCount);
+		OBJDumpD3dVertices(scene); // _vertices.data(), _verticesCount, _triangles.data(), _trianglesCount);
+	}
+
 	RenderScene();
 
 out:
@@ -1944,7 +2094,8 @@ void EffectsRenderer::RenderScene()
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 
-	// This method isn't called when we're in hyperspace
+	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
+	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner || _bIsReticle), // Select the main RTV
@@ -1958,7 +2109,19 @@ void EffectsRenderer::RenderScene()
 		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSMask.Get(),
 	};
 	context->OMSetRenderTargets(6, rtvs, _deviceResources->_depthStencilViewL.Get());
+
+	// DEBUG: Skip draw calls if we're debugging the process
+	/*
+	if (g_iD3DExecuteCounterSkipHi > -1 && g_iD3DExecuteCounter > g_iD3DExecuteCounterSkipHi)
+		goto out;
+	if (g_iD3DExecuteCounterSkipLo > -1 && g_iD3DExecuteCounter < g_iD3DExecuteCounterSkipLo)
+		goto out;
+	*/
+
 	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+
+//out:
+	g_iD3DExecuteCounter++;
 }
 
 static EffectsRenderer g_effects_renderer;
@@ -1983,6 +2146,19 @@ void D3dRendererSceneBegin(DeviceResources* deviceResources)
 	}
 
 	g_current_renderer.SceneBegin(deviceResources);
+
+	// Initialize the OBJ dump file for the current frame
+	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+		// Create the file if it doesn't exist
+		if (D3DDumpOBJFile == NULL) {
+			char sFileName[128];
+			sprintf_s(sFileName, 128, "d3dcapture-%d.obj", D3DOBJFileIdx);
+			fopen_s(&D3DDumpOBJFile, sFileName, "wt");
+		}
+		// Reset the vertex counter and group
+		D3DTotalVertices = 1;
+		D3DOBJGroup = 1;
+	}
 }
 
 void D3dRendererSceneEnd()
@@ -1993,6 +2169,13 @@ void D3dRendererSceneEnd()
 	}
 
 	g_current_renderer.SceneEnd();
+
+	// Close the OBJ dump file for the current frame
+	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;
+		log_debug("[DBG] OBJ file [d3dcapture-%d.obj] written", D3DOBJFileIdx);
+		D3DOBJFileIdx++;
+	}
 }
 
 void D3dRendererFlightStart()

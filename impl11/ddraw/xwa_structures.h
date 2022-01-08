@@ -30,14 +30,19 @@ struct ExeEnableEntry
 
 static_assert(sizeof(ExeEnableEntry) == 24, "size of ExeEnableEntry must be 24");
 
+// This is the same as ObjectEntry
 struct XwaObject
 {
-	short XwaObject_m00;
-	unsigned short ModelIndex;
-	unsigned char ShipCategory;
+	//short XwaObject_m00;
+	short ObjectId;
+
+	//unsigned short ModelIndex;
+	unsigned short ObjectSpecies; // Type enum ObjectTypeEnum
+
+	unsigned char ShipCategory; // ObjectGenus
 	unsigned char TieFlightGroupIndex;
 	unsigned char Region;
-	int PositionX;
+	int PositionX; // The actual position of this craft. We can use this to move the player or pretty much any ship, maybe.
 	int PositionY;
 	int PositionZ;
 	short HeadingXY;
@@ -47,7 +52,7 @@ struct XwaObject
 	short XwaObject_m1B;
 	unsigned char XwaObject_m1D[2];
 	int PlayerIndex;
-	int pMobileObject;
+	int pMobileObject; // This is the same as MobileObjectEntry *MobileObjectPtr;
 };
 
 static_assert(sizeof(XwaObject) == 39, "size of XwaObject must be 39");

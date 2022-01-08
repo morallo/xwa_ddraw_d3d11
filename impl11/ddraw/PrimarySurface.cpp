@@ -9188,6 +9188,7 @@ HRESULT PrimarySurface::Flip(
 				g_TriangleCentroid.x = g_TriangleCentroid.y = -1.0f;
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
+				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {

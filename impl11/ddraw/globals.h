@@ -216,3 +216,6 @@ extern int g_iForceAltExplosion;
 // Sun Colors, to be used to apply colors to the flares later
 extern float4 g_SunColors[MAX_SUN_FLARES];
 extern int g_iSunFlareCount;
+
+// D3DRendererHook draw call counter;
+extern int g_iD3DExecuteCounter;

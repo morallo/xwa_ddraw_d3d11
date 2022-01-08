@@ -65,21 +65,20 @@ PixelShaderInput main(VertexShaderInput input)
 {
 	PixelShaderInput output;
 
-	// Vertices in world coordinates (?)
+	// The vertices and normals are in the object OPT coordinate system
 	float3 v = g_vertices[input.index.x];
-	// Normals in world coordinates (?)
 	float3 n = g_normals[input.index.y];
 	float2 t = g_textureCoords[input.index.z];
 	//int c = input.index.w; // This isn't used even in the original code above
 
-	// The 3D coordinates are way too big. About 27.5 times too big, in fact. We need
-	// to compensate that somewhere, but we can't do it in the transformWorldView matrix
-	// because the depth calculations are done in the original coordinate system. In
-	// other words, the depth will be messed up. The compensation must be done later,
-	// when we write the coordinates to pos3D below
+	// The 3D coordinates we get here are in "OPT scale". The conversion factor from
+	// OPT to meters is 1/40.96. We need to compensate that somewhere, but we can't
+	// do it in the transformWorldView matrix because the depth calculations are done
+	// in the original (OPT) coordinate system. In other words, the depth will be messed
+	// up. The compensation must be done later, when we write the coordinates to pos3D below
 	output.pos3D = mul(float4(v, 1.0f), transformWorldView);
 	output.pos = TransformProjection(output.pos3D.xyz);
-	output.pos3D *= 0.0363636; // Approx 1/27.5
+	output.pos3D *= 0.024414; // 1/40.96, OPT to metric conversion factor
 
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
 	output.tex = t;

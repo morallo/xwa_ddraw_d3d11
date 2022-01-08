@@ -90,6 +90,8 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
+void IncreaseD3DExecuteCounterSkipHi(int Delta);
+void IncreaseD3DExecuteCounterSkipLo(int Delta);
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
@@ -653,6 +655,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl
 		if (CtrlKey && !AltKey && !ShiftKey) {
 			switch (wParam) {
+			/*
+			case 0xbb:
+				IncreaseD3DExecuteCounterSkipLo(1);
+				return 0;
+			case 0xbd:
+				IncreaseD3DExecuteCounterSkipLo(-1);
+				return 0;
+			*/
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
@@ -889,16 +899,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl + Shift
 		if (CtrlKey && !AltKey && ShiftKey) {
 			switch (wParam) {
-#if DBG_VR
-				/*
-				case 0xbb:
-					//IncreaseNoExecIndices(0, 1);
-					return 0;
-				case 0xbd:
-					//IncreaseNoExecIndices(0, -1);
-					return 0;
-				*/
-#endif
+			/*
+			case 0xbb:
+				//IncreaseNoExecIndices(0, 1);
+				IncreaseD3DExecuteCounterSkipHi(1);
+				return 0;
+			case 0xbd:
+				//IncreaseNoExecIndices(0, -1);
+				IncreaseD3DExecuteCounterSkipHi(-1);
+				return 0;
+			*/
 			// Ctrl+Shift+C: Reset the cockpit damage
 			case 'C':
 				g_bResetCockpitDamage = true;
