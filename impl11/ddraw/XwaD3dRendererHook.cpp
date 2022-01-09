@@ -1256,6 +1256,7 @@ private:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	Direct3DTexture *_lastTextureSelected = nullptr;
+	Direct3DTexture *_lastLightmapSelected = nullptr;
 
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
@@ -1266,11 +1267,17 @@ public:
 	EffectsRenderer();
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void RenderScene();
-	virtual void UpdateTextures(const SceneCompData* scene, 	Direct3DTexture **colortex_out, Direct3DTexture **lighttex_out);
+	virtual void UpdateTextures(const SceneCompData* scene);
+	// State Management
+	void DoStateManagement(const SceneCompData* scene);
+	void ApplyMaterialProperties();
+	void ApplySpecialMaterials();
+	void ApplyBloomSettings();
 	// Returns true if the current draw call needs to be skipped
 	bool DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
+	virtual void ExtraPreprocessing();
 };
 
 EffectsRenderer::EffectsRenderer() : D3dRenderer() {
@@ -1332,7 +1339,7 @@ inline void EffectsRenderer::EnableHoloTransparency() {
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
-void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture **colortex_out, Direct3DTexture **lighttex_out)
+void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
 {
 	const unsigned char ShipCategory_PlayerProjectile = 6;
 	const unsigned char ShipCategory_OtherProjectile = 7;
@@ -1386,10 +1393,12 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture
 	Direct3DTexture* texture = (Direct3DTexture*)surface->D3dTexture.D3DTextureHandle;
 	Direct3DTexture* texture2 = surface2 == nullptr ? nullptr : (Direct3DTexture*)surface2->D3dTexture.D3DTextureHandle;
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
+	_lastTextureSelected = texture;
+	_lastLightmapSelected = texture2;
+}
 
-	*colortex_out = texture;
-	*lighttex_out = texture2;
-
+void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
+{
 	// ***************************************************************
 	// State management begins here
 	// ***************************************************************
@@ -1398,7 +1407,6 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture
 	// At this point, texture and texture2 have been selected, we can check their names to see if
 	// we need to apply effects. If there's a lightmap, it's going to be in texture2.
 	// Most of the local flags below should now be class members, but I'll be hand
-	_lastTextureSelected = texture;
 	_bLastTextureSelectedNotNULL = (_lastTextureSelected != NULL);
 	_bIsBlastMark = false;
 	_bIsCockpit = false;
@@ -1417,7 +1425,7 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture
 	//bool bIsActiveCockpit = false,
 	bool bIsDS2CoreExplosion = false;
 	bool bIsElectricity = false, bHasMaterial = false;
-	
+
 	if (_bLastTextureSelectedNotNULL) {
 		if (g_bDynCockpitEnabled && _lastTextureSelected->is_DynCockpitDst)
 		{
@@ -1433,7 +1441,7 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture
 		//bIsLaser = lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser;
 		_bIsLaser = _constants.renderType == 2;
 		//bIsLightTexture = lastTextureSelected->is_LightTexture;
-		_bTex2IsLightTexture = texture2 != nullptr && _constants.renderTypeIllum == 1;
+		_bTex2IsLightTexture = _lastLightmapSelected != nullptr && _constants.renderTypeIllum == 1;
 		//bIsText = lastTextureSelected->is_Text;
 		_bIsReticle = _lastTextureSelected->is_Reticle; // I don't think the reticle is rendered in this path
 		//bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
@@ -1495,11 +1503,199 @@ void EffectsRenderer::UpdateTextures(const SceneCompData* scene, Direct3DTexture
 	// ***************************************************************
 }
 
+// Apply specific material properties for the current texture
+void EffectsRenderer::ApplyMaterialProperties()
+{
+	if (!_bHasMaterial)
+		return;
+
+	auto &resources = _deviceResources;
+
+	_bModifiedShaders = true;
+
+	if (_lastTextureSelected->material.IsShadeless)
+		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	else
+		g_PSCBuffer.fSSAOMaskVal	 = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+	g_PSCBuffer.fGlossiness		= _lastTextureSelected->material.Glossiness;
+	g_PSCBuffer.fSpecInt			= _lastTextureSelected->material.Intensity;
+	g_PSCBuffer.fNMIntensity		= _lastTextureSelected->material.NMIntensity;
+	g_PSCBuffer.fSpecVal			= _lastTextureSelected->material.SpecValue;
+	g_PSCBuffer.fAmbient			= _lastTextureSelected->material.Ambient;
+
+	if (_lastTextureSelected->material.AlphaToBloom) {
+		_bModifiedPixelShader = true;
+		_bModifiedShaders = true;
+		resources->InitPixelShader(resources->_alphaToBloomPS);
+		if (_lastTextureSelected->material.NoColorAlpha)
+			g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_NO_COLOR_ALPHA;
+		g_PSCBuffer.fBloomStrength = _lastTextureSelected->material.EffectBloom;
+	}
+
+	// lastTextureSelected can't be a lightmap anymore, so we don't need (?) to test bIsLightTexture
+	if (_lastTextureSelected->material.AlphaIsntGlass /* && !bIsLightTexture */) {
+		_bModifiedPixelShader = true;
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = 0.0f;
+		resources->InitPixelShader(resources->_noGlassPS);
+	}
+}
+
+// Apply the SSAO mask/Special materials, like lasers and HUD
+void EffectsRenderer::ApplySpecialMaterials()
+{
+	if (!_bLastTextureSelectedNotNULL)
+		return;
+
+	if (g_bIsScaleableGUIElem || /* bIsReticle || bIsText || */ g_bIsTrianglePointer ||
+		_lastTextureSelected->is_Debris || _lastTextureSelected->is_GenericSSAOMasked ||
+		_lastTextureSelected->is_Electricity || _bIsExplosion ||
+		_lastTextureSelected->is_Smoke)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fNMIntensity = 0.0f;
+		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.bIsShadeless = 1;
+
+		g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	}
+	else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
+		_lastTextureSelected->is_CockpitSpark || _lastTextureSelected->is_Spark ||
+		_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile
+		)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fNMIntensity = 0.0f;
+		g_PSCBuffer.fSpecVal = 0.0f;
+
+		g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	}
+	else if (_lastTextureSelected->is_Laser) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fNMIntensity = 0.0f;
+		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.bIsShadeless = 1;
+
+		g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	}
+}
+
+// Apply BLOOM flags and 32-bit mode enhancements
+void EffectsRenderer::ApplyBloomSettings()
+{
+	if (!_bLastTextureSelectedNotNULL)
+		return;
+
+	if (_bIsLaser) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = _lastTextureSelected->is_Laser ?
+			g_BloomConfig.fLasersStrength : g_BloomConfig.fTurboLasersStrength;
+		g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
+	}
+	// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
+	else if (_bTex2IsLightTexture) {
+		_bModifiedShaders = true;
+		int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+		g_PSCBuffer.fBloomStrength = _lastTextureSelected->is_CockpitTex ?
+			g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
+		// If this is an animated light map, then use the right intensity setting
+		// TODO: Make the following code more efficient
+		if (anim_idx > -1) {
+			AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
+			g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
+		}
+		g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
+	}
+	// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
+	else if (_lastTextureSelected->is_EngineGlow) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
+		g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
+	}
+	else if (_lastTextureSelected->is_Electricity || _bIsExplosion)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
+		g_PSCBuffer.bIsEngineGlow = g_config.EnhanceExplosions ? 2 : 1;
+	}
+	else if (_lastTextureSelected->is_LensFlare) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fLensFlareStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	/*
+	// I believe Suns are not rendered here
+	else if (bIsSun) {
+		bModifiedShaders = true;
+		// If there's a 3D sun in the scene, then we shouldn't apply bloom to Sun textures  they should be invisible
+		g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	} */
+	else if (_lastTextureSelected->is_Spark) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	else if (_lastTextureSelected->is_CockpitSpark) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitSparksStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	else if (_lastTextureSelected->is_Chaff)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	else if (_lastTextureSelected->is_Missile)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	else if (_lastTextureSelected->is_SkydomeLight) {
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
+		g_PSCBuffer.bIsEngineGlow = 1;
+	}
+	else if (!_bTex2IsLightTexture && _lastTextureSelected->material.GetCurrentATCIndex(NULL) > -1) {
+		_bModifiedShaders = true;
+		int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL);
+		// If this is an animated light map, then use the right intensity setting
+		// TODO: Make the following code more efficient
+		if (anim_idx > -1) {
+			AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
+			g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
+		}
+	}
+
+	// Remove Bloom for all textures with materials tagged as "NoBloom"
+	if (_bHasMaterial && _lastTextureSelected->material.NoBloom)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = 0.0f;
+		g_PSCBuffer.bIsEngineGlow = 0;
+	}
+}
+
+void EffectsRenderer::ExtraPreprocessing()
+{
+	// Extra processing before the draw call. VR-specific stuff, for instance
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
-	Direct3DTexture *colortex = nullptr, *lighttex = nullptr;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
@@ -1532,10 +1728,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitPixelShader(_pixelShader);
 	ID3D11PixelShader *lastPixelShader = _pixelShader;
 
-	UpdateTextures(scene, &colortex, &lighttex);
+	UpdateTextures(scene);
 	UpdateMeshBuffers(scene);
 	UpdateVertexAndIndexBuffers(scene);
 	UpdateConstantBuffer(scene);
+
+	// Effects Management starts here.
+	// Do the state management
+	DoStateManagement(scene);
 
 	// DEBUG
 	// The scene pointer seems to be the same for every draw call, but the contents change.
@@ -1549,12 +1749,11 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	//MobileObjectEntry *pMobileObject = (MobileObjectEntry *)scene->pObject->pMobileObject;
 	//log_debug("[DBG] FaceData: 0x%x, Id: %d, Species: %d, Category: %d",
 	//	scene->FaceIndices, scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory);
-	/*
-	log_debug("[DBG] [%s]: Mesh: 0x%x, faceData: 0x%x, Matrix: 0x%x, Id: %d, Type: %d, Genus: %d, Player: %d",
-		colortex != nullptr ? colortex->_name.c_str() : "(null)", scene->MeshVertices, scene->FaceIndices, &(scene->WorldViewTransform.Rotation._11),
-		scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory, *g_playerIndex);
-	*/
-
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+		log_debug("[DBG] [%s]: Mesh: 0x%x, faceData: 0x%x, Id: %d, Type: %d, Genus: %d, Player: %d",
+			_bLastTextureSelectedNotNULL ? _lastTextureSelected->_name.c_str() : "(null)", scene->MeshVertices, scene->FaceIndices,
+			scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory, *g_playerIndex);
+	
 	/*
 	// The preybird cockpit re-uses the same mesh, but different faceData:
 	[500] [DBG] [opt,FlightModels\PreybirdFighterCockpit.opt,TEX00051,color,0]: Mesh: 0x183197a3, faceData: 0x18319bac, Id: 3, Type: 29, Genus: 0
@@ -1618,81 +1817,10 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_bModifiedSamplerState	= false;
 
 	// Apply specific material properties for the current texture
-	if (_bHasMaterial) {
-		_bModifiedShaders = true;
-
-		if (_lastTextureSelected->material.IsShadeless)
-			g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-		else
-			g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
-		g_PSCBuffer.fGlossiness		= _lastTextureSelected->material.Glossiness;
-		g_PSCBuffer.fSpecInt			= _lastTextureSelected->material.Intensity;
-		g_PSCBuffer.fNMIntensity		= _lastTextureSelected->material.NMIntensity;
-		g_PSCBuffer.fSpecVal			= _lastTextureSelected->material.SpecValue;
-		g_PSCBuffer.fAmbient			= _lastTextureSelected->material.Ambient;
-
-		if (_lastTextureSelected->material.AlphaToBloom) {
-			_bModifiedPixelShader = true;
-			_bModifiedShaders = true;
-			resources->InitPixelShader(resources->_alphaToBloomPS);
-			if (_lastTextureSelected->material.NoColorAlpha)
-				g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_NO_COLOR_ALPHA;
-			g_PSCBuffer.fBloomStrength = _lastTextureSelected->material.EffectBloom;
-		}
-
-		// lastTextureSelected can't be a lightmap anymore, so we don't need (?) to test bIsLightTexture
-		if (_lastTextureSelected->material.AlphaIsntGlass /* && !bIsLightTexture */) {
-			_bModifiedPixelShader = true;
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = 0.0f;
-			resources->InitPixelShader(resources->_noGlassPS);
-		}
-	}
+	ApplyMaterialProperties();
 
 	// Apply the SSAO mask/Special materials, like lasers and HUD
-	if (_bLastTextureSelectedNotNULL)
-	{
-		if (g_bIsScaleableGUIElem || /* bIsReticle || bIsText || */ g_bIsTrianglePointer ||
-			_lastTextureSelected->is_Debris || _lastTextureSelected->is_GenericSSAOMasked ||
-			_lastTextureSelected->is_Electricity || _bIsExplosion ||
-			_lastTextureSelected->is_Smoke)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-			g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-			g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-			g_PSCBuffer.fNMIntensity = 0.0f;
-			g_PSCBuffer.fSpecVal = 0.0f;
-			g_PSCBuffer.bIsShadeless = 1;
-
-			g_PSCBuffer.fPosNormalAlpha = 0.0f;
-		}
-		else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
-			_lastTextureSelected->is_CockpitSpark || _lastTextureSelected->is_Spark ||
-			_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile
-			)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
-			g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-			g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-			g_PSCBuffer.fNMIntensity = 0.0f;
-			g_PSCBuffer.fSpecVal = 0.0f;
-
-			g_PSCBuffer.fPosNormalAlpha = 0.0f;
-		}
-		else if (_lastTextureSelected->is_Laser) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
-			g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-			g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-			g_PSCBuffer.fNMIntensity = 0.0f;
-			g_PSCBuffer.fSpecVal = 0.0f;
-			g_PSCBuffer.bIsShadeless = 1;
-
-			g_PSCBuffer.fPosNormalAlpha = 0.0f;
-		}
-	}
+	ApplySpecialMaterials();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_isInRenderMiniature || g_bScaleableHUDStarted || g_bIsScaleableGUIElem) {
@@ -1712,99 +1840,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Apply BLOOM flags and 32-bit mode enhancements
 	// TODO: This code expects either a lightmap or a regular texture, but now we can have both at the same time
 	// this will mess up all the animation logic when both the regular and lightmap layers have animations
-	if (_bLastTextureSelectedNotNULL)
-	{
-		if (_bIsLaser) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = _lastTextureSelected->is_Laser ?
-				g_BloomConfig.fLasersStrength : g_BloomConfig.fTurboLasersStrength;
-			g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
-		}
-		// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
-		else if (_bTex2IsLightTexture) {
-			_bModifiedShaders = true;
-			int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
-			g_PSCBuffer.fBloomStrength = _lastTextureSelected->is_CockpitTex ?
-				g_BloomConfig.fCockpitStrength : g_BloomConfig.fLightMapsStrength;
-			// If this is an animated light map, then use the right intensity setting
-			// TODO: Make the following code more efficient
-			if (anim_idx > -1) {
-				AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
-				g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
-			}
-			g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
-		}
-		// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
-		else if (_lastTextureSelected->is_EngineGlow) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
-			g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
-		}
-		else if (_lastTextureSelected->is_Electricity || _bIsExplosion)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
-			g_PSCBuffer.bIsEngineGlow = g_config.EnhanceExplosions ? 2 : 1;
-		}
-		else if (_lastTextureSelected->is_LensFlare) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fLensFlareStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		/*
-		// I believe Suns are not rendered here
-		else if (bIsSun) {
-			bModifiedShaders = true;
-			// If there's a 3D sun in the scene, then we shouldn't apply bloom to Sun textures  they should be invisible 
-			g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		} */
-		else if (_lastTextureSelected->is_Spark) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		else if (_lastTextureSelected->is_CockpitSpark) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitSparksStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		else if (_lastTextureSelected->is_Chaff)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		else if (_lastTextureSelected->is_Missile)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		else if (_lastTextureSelected->is_SkydomeLight) {
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
-			g_PSCBuffer.bIsEngineGlow = 1;
-		}
-		else if (!_bTex2IsLightTexture && _lastTextureSelected->material.GetCurrentATCIndex(NULL) > -1) {
-			_bModifiedShaders = true;
-			int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL);
-			// If this is an animated light map, then use the right intensity setting
-			// TODO: Make the following code more efficient
-			if (anim_idx > -1) {
-				AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
-				g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
-			}
-		}
-
-		// Remove Bloom for all textures with materials tagged as "NoBloom"
-		if (_bHasMaterial && _lastTextureSelected->material.NoBloom)
-		{
-			_bModifiedShaders = true;
-			g_PSCBuffer.fBloomStrength = 0.0f;
-			g_PSCBuffer.bIsEngineGlow = 0;
-		}
-	}
+	ApplyBloomSettings();
 
 	// TODO (Are brackets rendered here?) Apply BLOOM flags for textureless objects
 	/*
@@ -1830,6 +1866,10 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
 	// Looks like the code to do this update in Execute() still works. So moving on for now
 
+	// Additional processing for VR or similar. Not implemented in this class, but will be in
+	// other subclasses.
+	ExtraPreprocessing();
+
 	// Apply the changes to the vertex and pixel shaders
 	//if (bModifiedShaders) 
 	{
@@ -1839,8 +1879,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 	}
 
+	// Dump the current scene to an OBJ file
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
-		// The coordinates are in Object space. Centered on the origin.
+		// The coordinates are in Object (OPT) space and scale, centered on the origin.
 		//OBJDump(scene->MeshVertices, *(int*)((int)scene->MeshVertices - 8));
 
 		// This function is called once per face group. Each face group is associated with a single texture.
