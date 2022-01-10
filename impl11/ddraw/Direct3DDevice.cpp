@@ -3461,14 +3461,14 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					State management ends here, special state management starts
 				 *************************************************************************/
-				
+
 				// Resolve the depth buffers. Capture the current screen to shadertoyAuxBuf
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
 					g_bSwitchedToGUI = true;
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 
-					// Resolve the Depth Buffers (we have dual SSAO, so there are two depth buffers)
+					// Resolve the Depth Buffers
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
@@ -4824,54 +4824,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Apply specific material properties for the current texture
-				if (bHasMaterial) {
-					bModifiedShaders = true;
-					// DEBUG
-					/*
-					bool Debug = strstr(lastTextureSelected->_surface->_name, "CalamariLulsa") != NULL;
-					//if (strstr(lastTextureSelected->_surface->_name, "TieInterceptor") != NULL) {
-					if (Debug)
-					{
-						log_debug("[DBG] [MAT] Applying: [%s], %0.3f, %0.3f, %0.3f, %d",
-							lastTextureSelected->_surface->_name,
-							lastTextureSelected->material.Metallic,
-							lastTextureSelected->material.Glossiness,
-							lastTextureSelected->material.Intensity,
-							lastTextureSelected->material.IsShadeless
-						);
-					}
-					*/
-					// DEBUG
-
-					if (lastTextureSelected->material.IsShadeless)
-						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-					else
-						g_PSCBuffer.fSSAOMaskVal = lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
-					g_PSCBuffer.fGlossiness  = lastTextureSelected->material.Glossiness;
-					g_PSCBuffer.fSpecInt     = lastTextureSelected->material.Intensity;
-					g_PSCBuffer.fNMIntensity = lastTextureSelected->material.NMIntensity;
-					g_PSCBuffer.fSpecVal	 = lastTextureSelected->material.SpecValue;
-					g_PSCBuffer.fAmbient	 = lastTextureSelected->material.Ambient;
-
-					if (lastTextureSelected->material.AlphaToBloom) {
-						bModifiedPixelShader = true;
-						bModifiedShaders = true;
-						resources->InitPixelShader(resources->_alphaToBloomPS);
-						if (lastTextureSelected->material.NoColorAlpha)
-							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_NO_COLOR_ALPHA;
-						g_PSCBuffer.fBloomStrength = lastTextureSelected->material.EffectBloom;
-					}
-
-					if (lastTextureSelected->material.AlphaIsntGlass && !bIsLightTexture) {
-						bModifiedPixelShader = true;
-						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = 0.0f;
-						resources->InitPixelShader(resources->_noGlassPS);
-					}
-				}
+				// This is now implemented in ApplyMaterialProperties()
 
 				// Apply the SSAO mask/Special materials, like lasers and HUD
-				//if (g_bAOEnabled && bLastTextureSelectedNotNULL) 
 				if (bLastTextureSelectedNotNULL)
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 

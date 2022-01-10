@@ -193,6 +193,14 @@ static bool g_isInRenderLasers = false;
 static bool g_isInRenderMiniature = false;
 static bool g_isInRenderHyperspaceLines = false;
 
+struct DrawCommand {
+	Direct3DTexture *colortex, *lighttex;
+	ID3D11ShaderResourceView *vertexSRV, *normalsSRV, *texturesSRV;
+	ID3D11Buffer *vertexBuffer, *indexBuffer;
+	int trianglesCount;
+	D3dConstants constants;
+};
+
 // ****************************************************
 // External variables
 // ****************************************************
@@ -319,8 +327,8 @@ class D3dRenderer
 {
 public:
 	D3dRenderer();
-	void SceneBegin(DeviceResources* deviceResources);
-	void SceneEnd();
+	virtual void SceneBegin(DeviceResources* deviceResources);
+	virtual void SceneEnd();
 	void FlightStart();
 	virtual void MainSceneHook(const SceneCompData* scene);
 	void HangarShadowSceneHook(const SceneCompData* scene);
@@ -331,6 +339,7 @@ public:
 	void UpdateVertexAndIndexBuffers(const SceneCompData* scene);
 	void UpdateConstantBuffer(const SceneCompData* scene);
 	virtual void RenderScene();
+	virtual void RenderDeferredDrawCalls();
 	void BuildGlowMarks(SceneCompData* scene);
 	void RenderGlowMarks();
 	void Initialize();
@@ -342,6 +351,7 @@ public:
 
 protected:
 	DeviceResources* _deviceResources;
+	ID3D11Buffer *_lastVertexBuffer, *_lastIndexBuffer;
 
 	int _totalVerticesCount;
 	int _totalTrianglesCount;
@@ -807,6 +817,8 @@ void D3dRenderer::UpdateVertexAndIndexBuffers(const SceneCompData* scene)
 	_deviceResources->InitIndexBuffer(nullptr, true);
 	_deviceResources->InitIndexBuffer(indexBuffer, true);
 
+	_lastVertexBuffer = vertexBuffer;
+	_lastIndexBuffer = indexBuffer;
 	_verticesCount = verticesCount;
 	_trianglesCount = trianglesCount;
 
@@ -932,6 +944,11 @@ void D3dRenderer::RenderScene()
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 
 	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+}
+
+void D3dRenderer::RenderDeferredDrawCalls()
+{
+
 }
 
 void D3dRenderer::BuildGlowMarks(SceneCompData* scene)
@@ -1263,8 +1280,12 @@ private:
 	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
 
+	std::vector<DrawCommand> _LaserDrawCommands;
+
 public:
 	EffectsRenderer();
+	virtual void SceneBegin(DeviceResources* deviceResources);
+	virtual void SceneEnd();
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void RenderScene();
 	virtual void UpdateTextures(const SceneCompData* scene);
@@ -1278,10 +1299,44 @@ public:
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
 	virtual void ExtraPreprocessing();
+
+	void RenderDeferredDrawCalls();
 };
 
 EffectsRenderer::EffectsRenderer() : D3dRenderer() {
 
+}
+
+void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
+{
+	D3dRenderer::SceneBegin(deviceResources);
+
+	_LaserDrawCommands.clear();
+
+	// Initialize the OBJ dump file for the current frame
+	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+		// Create the file if it doesn't exist
+		if (D3DDumpOBJFile == NULL) {
+			char sFileName[128];
+			sprintf_s(sFileName, 128, "d3dcapture-%d.obj", D3DOBJFileIdx);
+			fopen_s(&D3DDumpOBJFile, sFileName, "wt");
+		}
+		// Reset the vertex counter and group
+		D3DTotalVertices = 1;
+		D3DOBJGroup = 1;
+	}
+}
+
+void EffectsRenderer::SceneEnd()
+{
+	D3dRenderer::SceneEnd();
+
+	// Close the OBJ dump file for the current frame
+	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;
+		log_debug("[DBG] OBJ file [d3dcapture-%d.obj] written", D3DOBJFileIdx);
+		D3DOBJFileIdx++;
+	}
 }
 
 /* Function to quickly enable/disable ZWrite. */
@@ -1892,6 +1947,41 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		OBJDumpD3dVertices(scene); // _vertices.data(), _verticesCount, _triangles.data(), _trianglesCount);
 	}
 
+	// There's a bug with the lasers: they are sometimes rendered at the start of the frame, causing them to be
+	// displayed *behind* the geometry. To fix this, we're going to save all the lasers in a list and then render
+	// them at the end of the frame.
+	if (_bIsLaser) {
+		// _bIsLaser is true if _constants.renderType == 2. This includes both projectiles and lasers
+
+		DrawCommand command;
+		// There's apparently a bug in the latest D3DRendererHook ddraw: the miniature does not set the proper
+		// viewport, so lasers and other projectiles that are rendered in the CMD also show in the bottom of the
+		// screen. This is not a fix, but a workaround: we're going to skip rendering any such objects if we've
+		// started rendering the CMD.
+		// Also, it looks like we can't use g_isInRenderMiniature for this check, since that doesn't seem to work
+		if (g_bStartedGUI)
+			goto out;
+
+		// Save the current draw commands and skip. We'll render the lasers later
+		// Save the textures
+		command.colortex			= _lastTextureSelected;
+		command.lighttex			= _lastLightmapSelected;
+		// Save the SRVs
+		command.vertexSRV		= _lastMeshVerticesView;
+		command.normalsSRV		= _lastMeshVertexNormalsView;
+		command.texturesSRV		= _lastMeshTextureVerticesView;
+		// Save the vertex and index buffers
+		command.vertexBuffer		= _lastVertexBuffer;
+		command.indexBuffer		= _lastIndexBuffer;
+		command.trianglesCount	= _trianglesCount;
+		// Save the constants
+		command.constants		= _constants;
+		// Add the command to the list of deferred commands
+		_LaserDrawCommands.push_back(command);
+
+		// Do not render the laser at this moment
+		goto out;
+	}
 	RenderScene();
 
 out:
@@ -2165,6 +2255,108 @@ void EffectsRenderer::RenderScene()
 	g_iD3DExecuteCounter++;
 }
 
+void EffectsRenderer::RenderDeferredDrawCalls()
+{
+	if (_LaserDrawCommands.size() == 0)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	//log_debug("[DBG] Rendering %d deferred draw calls", _LaserDrawCommands.size());
+
+	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
+
+	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersize and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+	_deviceResources->InitPixelShader(_pixelShader);
+	ID3D11PixelShader *lastPixelShader = _pixelShader;
+
+	g_PSCBuffer = { 0 };
+	g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
+	g_PSCBuffer.fBloomStrength	= 1.0f;
+	g_PSCBuffer.fPosNormalAlpha	= 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult	= g_fSSAOAlphaOfs;
+	g_PSCBuffer.AspectRatio		= 1.0f;
+
+	// Laser-specific stuff from ApplySpecialMaterials():
+	g_PSCBuffer.fSSAOMaskVal		= EMISSION_MAT;
+	g_PSCBuffer.fGlossiness		= DEFAULT_GLOSSINESS;
+	g_PSCBuffer.fSpecInt			= DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity		= 0.0f;
+	g_PSCBuffer.fSpecVal			= 0.0f;
+	g_PSCBuffer.bIsShadeless		= 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+	// Flags used in RenderScene():
+	_bIsCockpit		= false;
+	_bIsGunner		= false;
+	_bIsReticle		= false;
+	_bIsBlastMark	= false;
+
+	// Laser-specific stuff from ApplyBloomSettings():
+	g_PSCBuffer.fBloomStrength	= g_BloomConfig.fLasersStrength;
+	g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
+	
+	// Just in case we need to do anything for VR or other alternative display devices...
+	ExtraPreprocessing();
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	// Run the deferred commands
+	for (DrawCommand command : _LaserDrawCommands) {
+		// Set the textures
+		_deviceResources->InitPSShaderResourceView(command.colortex->_textureView.Get(),
+			command.lighttex == nullptr ? nullptr: command.lighttex->_textureView.Get());
+
+		// Set the mesh buffers
+		ID3D11ShaderResourceView* vsSSRV[3] = { command.vertexSRV, command.normalsSRV, command.texturesSRV };
+		context->VSSetShaderResources(0, 3, vsSSRV);
+
+		// Set the index and vertex buffers
+		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+		_deviceResources->InitVertexBuffer(&(command.vertexBuffer), &vertexBufferStride, &vertexBufferOffset);
+		_deviceResources->InitIndexBuffer(nullptr, true);
+		_deviceResources->InitIndexBuffer(command.indexBuffer, true);
+
+		// Set the constants buffer
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &(command.constants), 0, 0);
+
+		// Set the number of triangles
+		_trianglesCount = command.trianglesCount;
+
+		// Render the deferred commands
+		RenderScene();
+	}
+	// Clear the command list and restore the previous state
+	_LaserDrawCommands.clear();
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+	resources->InitPixelShader(lastPixelShader);
+}
+
 static EffectsRenderer g_effects_renderer;
 
 // TODO: Select the appropriate renderer depending on the current config
@@ -2174,6 +2366,10 @@ static D3dRenderer &g_current_renderer = g_xwa_d3d_renderer;
 #else
 static D3dRenderer &g_current_renderer = g_effects_renderer;
 #endif
+
+void RenderDeferredDrawCalls() {
+	g_current_renderer.RenderDeferredDrawCalls();
+}
 
 //************************************************************************
 // Hooks
@@ -2187,19 +2383,6 @@ void D3dRendererSceneBegin(DeviceResources* deviceResources)
 	}
 
 	g_current_renderer.SceneBegin(deviceResources);
-
-	// Initialize the OBJ dump file for the current frame
-	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
-		// Create the file if it doesn't exist
-		if (D3DDumpOBJFile == NULL) {
-			char sFileName[128];
-			sprintf_s(sFileName, 128, "d3dcapture-%d.obj", D3DOBJFileIdx);
-			fopen_s(&D3DDumpOBJFile, sFileName, "wt");
-		}
-		// Reset the vertex counter and group
-		D3DTotalVertices = 1;
-		D3DOBJGroup = 1;
-	}
 }
 
 void D3dRendererSceneEnd()
@@ -2210,13 +2393,6 @@ void D3dRendererSceneEnd()
 	}
 
 	g_current_renderer.SceneEnd();
-
-	// Close the OBJ dump file for the current frame
-	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
-		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;
-		log_debug("[DBG] OBJ file [d3dcapture-%d.obj] written", D3DOBJFileIdx);
-		D3DOBJFileIdx++;
-	}
 }
 
 void D3dRendererFlightStart()

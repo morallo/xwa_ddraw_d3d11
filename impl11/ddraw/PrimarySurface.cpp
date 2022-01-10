@@ -8373,6 +8373,9 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// Render any outstanding deferred calls
+			RenderDeferredDrawCalls();
+
 			// Clear the DC RTVs -- we should've done this during Execute(); but if the GUI was disabled
 			// then we didn't do it!
 			if (!g_bDCWasClearedOnThisFrame) {
