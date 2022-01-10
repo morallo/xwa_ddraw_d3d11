@@ -79,6 +79,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos3D = mul(float4(v, 1.0f), transformWorldView);
 	output.pos = TransformProjection(output.pos3D.xyz);
 	output.pos3D *= 0.024414; // 1/40.96, OPT to metric conversion factor
+	output.pos3D.y = -output.pos3D.y; // Further conversion of the coordinate system (Y+ is up)
 
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
 	output.tex = t;

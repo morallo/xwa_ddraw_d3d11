@@ -413,7 +413,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// hook_normals code. In this shader we zero-out the normal in the output, because this is
 	// a shadeless effect. However, we *do* need the Normal in this shader to compute parallax
 	// mapping.
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 

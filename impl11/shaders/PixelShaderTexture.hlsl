@@ -96,7 +96,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//N.z = -N.z;
 
 	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	// N *= input.normal.w; // Zero-out normals when w == 0 ?

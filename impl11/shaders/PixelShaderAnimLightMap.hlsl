@@ -55,7 +55,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
