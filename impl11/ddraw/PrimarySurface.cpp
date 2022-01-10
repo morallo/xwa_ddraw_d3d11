@@ -8373,6 +8373,9 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// If there's a targeted object, we probably already rendered all the deferred lasers draw calls.
+			// However, if the GUI is hidden, there may be some outstanding draw calls. Here we render those
+			// calls in that case. If there's nothing to draw, no harm done!
 			// Render any outstanding deferred calls
 			RenderDeferredDrawCalls();
 
@@ -8582,6 +8585,7 @@ HRESULT PrimarySurface::Flip(
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
+					DirectX::SaveDDSTextureToFile(context, resources->_depthStencilL, L"C:\\Temp\\_depthStencilL.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
 					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 						L"C:\\Temp\\_offscreenBuf.jpg");

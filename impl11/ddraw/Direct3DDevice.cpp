@@ -2571,6 +2571,13 @@ HRESULT Direct3DDevice::Execute(
 		g_bRunningStartAppliedOnThisFrame = true;
 	}
 */
+
+	// For the D3DRendererHook, the lasers are rendered in a deferred fashion (through a draw call list)
+	// The Execute() method is now called to render the background, the HUD and other stuff. So, if we reach
+	// this point, chances are we're about to render the HUD. We should render the lasers now, before we punch
+	// a hole in the depth stencil to draw the miniature; and if there's nothing to render yet, no harm done!
+	RenderDeferredDrawCalls();
+
 	g_ExecuteCount++;
 
 	//log_debug("[DBG] Execute (1)");
