@@ -219,6 +219,7 @@ extern int g_iSunFlareCount;
 
 // D3DRendererHook draw call counter;
 extern int g_iD3DExecuteCounter;
+constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 
 // *****************************************************
 // Global functions

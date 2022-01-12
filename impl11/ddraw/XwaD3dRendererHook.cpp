@@ -28,6 +28,7 @@
 #include <sstream>
 #include <iomanip>
 
+#include "globals.h"
 #include "common.h"
 #include "commonVR.h"
 #include "XwaD3dRendererHook.h"
@@ -189,10 +190,6 @@ void DumpD3dVertices(D3dVertex* vertices, int count)
 
 #endif
 
-static bool g_isInRenderLasers = false;
-static bool g_isInRenderMiniature = false;
-static bool g_isInRenderHyperspaceLines = false;
-
 struct DrawCommand {
 	Direct3DTexture *colortex, *lighttex;
 	ID3D11ShaderResourceView *vertexSRV, *normalsSRV, *texturesSRV;
@@ -201,11 +198,17 @@ struct DrawCommand {
 	D3dConstants constants;
 };
 
+static bool g_isInRenderLasers = false;
+static bool g_isInRenderMiniature = false;
+static bool g_isInRenderHyperspaceLines = false;
+
+bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v);
+
 // ****************************************************
 // External variables
 // ****************************************************
 extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;
-extern bool g_bExplosionsDisplayedOnCurrentFrame;
+extern bool g_bExplosionsDisplayedOnCurrentFrame, g_bEnableVR;
 extern bool g_bIsScaleableGUIElem, g_bScaleableHUDStarted, g_bIsTrianglePointer;
 extern float g_fSSAOAlphaOfs;
 
@@ -242,8 +245,9 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 // ****************************************************
 // Set the following flag to true to enable dumping the current scene to an OBJ file
 bool bD3DDumpOBJEnabled = false;
-FILE *D3DDumpOBJFile = NULL;
+FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
 int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DOBJGroup = 0;
+int D3DOBJLaserFileIdx = 0, D3DTotalLaserVertices = 0, D3DTotalLaserTextureVertices = 0, D3DOBJLaserGroup = 0;
 
 void OBJDump(XwaVector3 *vertices, int count)
 {
@@ -258,6 +262,26 @@ void OBJDump(XwaVector3 *vertices, int count)
 	fprintf(D3DDumpOBJFile, "\n");
 }
 
+inline Matrix4 XwaTransformToMatrix4(const XwaTransform &M)
+{
+	return Matrix4(
+		M.Rotation._11, M.Rotation._12, M.Rotation._13, 0.0f,
+		M.Rotation._21, M.Rotation._22, M.Rotation._23, 0.0f,
+		M.Rotation._31, M.Rotation._32, M.Rotation._33, 0.0f,
+		M.Position.x,   M.Position.y,   M.Position.z,   1.0f
+	);
+}
+
+inline Vector4 XwaVector3ToVector4(const XwaVector3 &V)
+{
+	return Vector4(V.x, V.y, V.z, 1.0f);
+}
+
+inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
+{
+	return Vector2(V.u, V.v);
+}
+
 void OBJDumpD3dVertices(const SceneCompData *scene)
 {
 	std::ostringstream str;
@@ -265,7 +289,6 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
 	static XwaVector3 *LastMeshVertices = nullptr;
 	static int LastMeshVerticesCount = 0;
-	const float OPTtoMeters = 1.0f / 40.96f;
 
 	if (D3DOBJGroup == 1)
 		LastMeshVerticesCount = 0;
@@ -276,18 +299,13 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 			D3DOBJGroup, MeshVerticesCount, scene->FacesCount);
 		fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
 		
-		Matrix4 T(
-			scene->WorldViewTransform.Rotation._11, scene->WorldViewTransform.Rotation._12, scene->WorldViewTransform.Rotation._13, 0.0f,
-			scene->WorldViewTransform.Rotation._21, scene->WorldViewTransform.Rotation._22, scene->WorldViewTransform.Rotation._23, 0.0f,
-			scene->WorldViewTransform.Rotation._31, scene->WorldViewTransform.Rotation._32, scene->WorldViewTransform.Rotation._33, 0.0f,
-			scene->WorldViewTransform.Position.x, scene->WorldViewTransform.Position.y, scene->WorldViewTransform.Position.z, 1.0f
-		);
+		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
 		for (int i = 0; i < MeshVerticesCount; i++) {
 			XwaVector3 v = MeshVertices[i];
 			Vector4 V(v.x, v.y, v.z, 1.0f);
 			V = T * V;
 			// OPT to meters conversion:
-			V *= OPTtoMeters;
+			V *= OPT_TO_METERS;
 			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
 		}
 		fprintf(D3DDumpOBJFile, "\n");
@@ -1299,6 +1317,7 @@ public:
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
 	virtual void ExtraPreprocessing();
+	void AddLaserLights(const SceneCompData* scene);
 
 	void RenderDeferredDrawCalls();
 };
@@ -1324,6 +1343,15 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		// Reset the vertex counter and group
 		D3DTotalVertices = 1;
 		D3DOBJGroup = 1;
+
+		if (D3DDumpLaserOBJFile == NULL) {
+			char sFileName[128];
+			sprintf_s(sFileName, 128, "d3dlasers-%d.obj", D3DOBJLaserFileIdx);
+			fopen_s(&D3DDumpLaserOBJFile, sFileName, "wt");
+		}
+		D3DTotalLaserVertices = 1;
+		D3DTotalLaserTextureVertices = 1;
+		D3DOBJLaserGroup = 1;
 	}
 }
 
@@ -1336,6 +1364,10 @@ void EffectsRenderer::SceneEnd()
 		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;
 		log_debug("[DBG] OBJ file [d3dcapture-%d.obj] written", D3DOBJFileIdx);
 		D3DOBJFileIdx++;
+
+		fclose(D3DDumpLaserOBJFile); D3DDumpLaserOBJFile = NULL;
+		log_debug("[DBG] OBJ file [d3dlasers-%d.obj] written", D3DOBJLaserFileIdx);
+		D3DOBJLaserFileIdx++;
 	}
 }
 
@@ -1493,8 +1525,8 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 			}
 		}
 
-		//bIsLaser = lastTextureSelected->is_Laser || lastTextureSelected->is_TurboLaser;
-		_bIsLaser = _constants.renderType == 2;
+		_bIsLaser = _lastTextureSelected->is_Laser || _lastTextureSelected->is_TurboLaser;
+		//_bIsLaser = _constants.renderType == 2;
 		//bIsLightTexture = lastTextureSelected->is_LightTexture;
 		_bTex2IsLightTexture = _lastLightmapSelected != nullptr && _constants.renderTypeIllum == 1;
 		//bIsText = lastTextureSelected->is_Text;
@@ -1747,6 +1779,94 @@ void EffectsRenderer::ExtraPreprocessing()
 	// Extra processing before the draw call. VR-specific stuff, for instance
 }
 
+void EffectsRenderer::AddLaserLights(const SceneCompData* scene)
+{
+	XwaVector3 *MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaTextureVertex *MeshTextureVertices = scene->MeshTextureVertices;
+	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
+	Vector4 tempv0, tempv1, tempv2, P;
+	Vector2 UV0, UV1, UV2, UV = _lastTextureSelected->material.LightUVCoordPos;
+	Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
+		// This is a new mesh, dump all the vertices.
+		log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, TexCount: %d, FacesCount: %d",
+			D3DOBJLaserGroup, MeshVerticesCount, MeshTextureVerticesCount, scene->FacesCount);
+		fprintf(D3DDumpLaserOBJFile, "o obj-%d\n", D3DOBJLaserGroup);
+
+		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
+		for (int i = 0; i < MeshVerticesCount; i++) {
+			XwaVector3 v = MeshVertices[i];
+			Vector4 V(v.x, v.y, v.z, 1.0f);
+			V = T * V;
+			// OPT to meters conversion:
+			V *= OPT_TO_METERS;
+			fprintf(D3DDumpLaserOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+		}
+		fprintf(D3DDumpLaserOBJFile, "\n");
+
+		for (int i = 0; i < MeshTextureVerticesCount; i++) {
+			XwaTextureVertex vt = MeshTextureVertices[i];
+			fprintf(D3DDumpLaserOBJFile, "vt %0.3f %0.3f\n", vt.u, vt.v);
+		}
+		fprintf(D3DDumpLaserOBJFile, "\n");
+
+		D3DOBJLaserGroup++;
+	}
+
+	// Here we look at the uv's of each face and see if the current triangle contains
+	// the uv coord we're looking for (the default is (0.1, 0.5)). If the uv is contained,
+	// then we compute the 3D point using its barycentric coords and add it to the list
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	{
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		// This converts quads into 2 tris if necessary
+		for (int edge = 2; edge < edgesCount; edge++)
+		{
+			D3dTriangle t;
+			t.v1 = 0;
+			t.v2 = edge - 1;
+			t.v3 = edge;
+
+			UV0 = XwaTextureVertexToVector2(MeshTextureVertices[faceData.TextureVertex[t.v1]]);
+			UV1 = XwaTextureVertexToVector2(MeshTextureVertices[faceData.TextureVertex[t.v2]]);
+			UV2 = XwaTextureVertexToVector2(MeshTextureVertices[faceData.TextureVertex[t.v3]]);
+			tempv0 = OPT_TO_METERS * T * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+			tempv1 = OPT_TO_METERS * T * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+			tempv2 = OPT_TO_METERS * T * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+
+			if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
+				fprintf(D3DDumpLaserOBJFile, "f %d/%d %d/%d %d/%d\n",
+					faceData.Vertex[t.v1] + D3DTotalLaserVertices, faceData.TextureVertex[t.v1] + D3DTotalLaserTextureVertices,
+					faceData.Vertex[t.v2] + D3DTotalLaserVertices, faceData.TextureVertex[t.v2] + D3DTotalLaserTextureVertices,
+					faceData.Vertex[t.v3] + D3DTotalLaserVertices, faceData.TextureVertex[t.v3] + D3DTotalLaserTextureVertices);
+			}
+
+			// Our coordinate system has the Y-axis inverted. See also XwaD3dVertexShader
+			tempv0.y = -tempv0.y;
+			tempv1.y = -tempv1.y;
+			tempv2.y = -tempv2.y;
+
+			float u, v;
+			if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
+				P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+				// Prevent lasers behind the camera: they will cause a very bright flash
+				if (P.z > 0.01)
+					g_LaserList.insert(Vector3(P.x, P.y, P.z), _lastTextureSelected->material.Light);
+				//log_debug("[DBG] LaserLight: %0.1f, %0.1f, %0.1f", P.x, P.y, P.z);
+			}
+		}
+	}
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
+		D3DTotalLaserVertices += MeshVerticesCount;
+		D3DTotalLaserTextureVertices += MeshTextureVerticesCount;
+		fprintf(D3DDumpLaserOBJFile, "\n");
+	}
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
@@ -1885,12 +2005,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	// Modify the state for both VR and regular game modes...
 
-	// Maintain the k-closest lasers to the camera
-	// TODO: This code needs to be updated to use the new vertex and index data
-	/*
-	if (g_bEnableLaserLights && bIsLaser && bHasMaterial)
-		AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
-	*/
+	// Maintain the k-closest lasers to the camera (but ignore the miniature lasers)
+	if (g_bEnableLaserLights && _bIsLaser && _bHasMaterial && !g_bStartedGUI)
+		AddLaserLights(scene);
 
 	// Apply BLOOM flags and 32-bit mode enhancements
 	// TODO: This code expects either a lightmap or a regular texture, but now we can have both at the same time
@@ -1951,8 +2068,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// displayed *behind* the geometry. To fix this, we're going to save all the lasers in a list and then render
 	// them at the end of the frame.
 	if (_bIsLaser) {
-		// _bIsLaser is true if _constants.renderType == 2. This includes both projectiles and lasers
-
 		DrawCommand command;
 		// There's apparently a bug in the latest D3DRendererHook ddraw: the miniature does not set the proper
 		// viewport, so lasers and other projectiles that are rendered in the CMD also show in the bottom of the
