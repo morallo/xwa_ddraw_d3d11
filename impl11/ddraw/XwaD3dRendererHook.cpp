@@ -1294,6 +1294,7 @@ private:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed;
+	bool _bShadowsRenderedInCurrentFrame;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
@@ -1341,9 +1342,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
 
+	// Reset any deferred-rendering variables here
 	_LaserDrawCommands.clear();
-
 	_bCockpitConstantsCaptured = false;
+	_bShadowsRenderedInCurrentFrame = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
@@ -2665,7 +2667,7 @@ void EffectsRenderer::RenderShadowMap()
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
 
-	if (!g_bShadowMapEnable || !_bCockpitConstantsCaptured)
+	if (!g_bShadowMapEnable || !_bCockpitConstantsCaptured || _bShadowsRenderedInCurrentFrame)
 		return;
 
 	auto &resources = _deviceResources;
@@ -2770,8 +2772,14 @@ void EffectsRenderer::RenderShadowMap()
 	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
 	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
 	resources->InitPixelShader(lastPixelShader);
+	_bShadowsRenderedInCurrentFrame = true;
 }
 
+/*
+ * This method is called from two places: in Direct3D::Execute() at the beginning of the HUD and
+ * in PrimarySurface::Flip() before we start rendering post-proc effects. Any calls placed in this
+ * method should be idempotent or they will render the same content twice.
+ */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
 	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
