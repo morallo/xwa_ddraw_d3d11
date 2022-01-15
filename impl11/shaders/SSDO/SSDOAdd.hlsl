@@ -432,7 +432,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
 	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D	          = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
@@ -519,8 +519,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (black_level > 0.95)
 				continue;
 			//float black_level = sm_black_level;
-			// Apply the same transform we applied to the geometry when computing the shadow map:
-			//float3 Q_bias = mul(lightWorldMatrix[i], float4(P_bias, 1.0)).xyz;
+			// Apply the same transform we applied to in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
 			//Q.z = Q_bias.z;
 

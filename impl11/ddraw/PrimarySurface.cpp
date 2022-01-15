@@ -2705,7 +2705,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	g_SSAO_PSCBuffer.screenSizeY   = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	g_SSAO_PSCBuffer.fn_enable     = g_bFNEnable;
-	//g_SSAO_PSCBuffer.shadow_enable = g_ShadowMapping.bEnabled;
 	g_SSAO_PSCBuffer.moire_offset  = g_fMoireOffsetDir;
 	//g_SSAO_PSCBuffer.debug		   = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
@@ -3379,7 +3378,6 @@ void PrimarySurface::DeferredPass() {
 	g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight;
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
-	//g_SSAO_PSCBuffer.shadow_enable = g_ShadowMapping.bEnabled;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
@@ -3560,8 +3558,8 @@ Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool inve
 	Vector4 T, B, N;
 	// Compute the full rotation
 	yaw   = PlayerDataTable[*g_playerIndex].Camera.CraftYaw   / 65536.0f * 360.0f;
-	pitch = PlayerDataTable[*g_playerIndex].Camera.CraftPitch/ 65536.0f * 360.0f;
-	roll  = PlayerDataTable[*g_playerIndex].Camera.CraftRoll / 65536.0f * 360.0f;
+	pitch = PlayerDataTable[*g_playerIndex].Camera.CraftPitch / 65536.0f * 360.0f;
+	roll  = PlayerDataTable[*g_playerIndex].Camera.CraftRoll  / 65536.0f * 360.0f;
 
 	// To test how (x,y,z) is aligned with either the Y+ or Z+ axis, just multiply rotMatrixPitch * rotMatrixYaw * (x,y,z)
 	//Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -3649,7 +3647,7 @@ Matrix4 GetCurrentHeadingViewMatrix() {
 		viewPitch = PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
 	}
 	else {
-		viewYaw   = PlayerDataTable[*g_playerIndex].MousePositionX   / 65536.0f * 360.0f;
+		viewYaw   = PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
 		viewPitch = PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
 	}
 	Matrix4 viewMatrixYaw, viewMatrixPitch;
@@ -5970,6 +5968,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitVertexShader(resources->_addGeomVS);
 
 	// Set the ViewMatrix
+	// TODO: Remove g_ShadowMapVSCBuffer.Camera and replace with the proper D3dRendererHook transform
 	g_ShadowMapVSCBuffer.Camera = ViewMatrix;
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
 	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -6183,7 +6182,7 @@ void PrimarySurface::RenderAdditionalGeometry()
  * ViewSpace coordinates so that the origin is now the current light looking at the
  * previous ViewSpace origin.
  */
-Matrix4 PrimarySurface::ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert)
+Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert)
 {
 	Matrix4 L;
 	L.identity();
@@ -6249,147 +6248,6 @@ void IncreaseSMZFactor(float Delta) {
 	g_ShadowMapVSCBuffer.sm_z_factor += Delta;
 	log_debug("[DBG] [SHW] sm_z_factor: %0.3f, FOVscale: %0.3f, FOVDist: %0.3f",
 		g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapVSCBuffer.sm_FOVscale, *g_fRawFOVDist);
-}
-
-/*
- * Using the current 3D box limits loaded in g_OBJLimits, compute the 2D/Z-Depth limits
- * needed to center the Shadow Map depth buffer.
- */
-Matrix4 PrimarySurface::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ) {
-	float minx = 100000.0f, maxx = -100000.0f;
-	float miny = 100000.0f, maxy = -100000.0f;
-	float minz = 100000.0f, maxz = -100000.0f;
-	float cx, cy, sx, sy;
-	Matrix4 S, T;
-	Vector4 P, Q;
-	//FILE *file = NULL;
-
-	//if (g_bDumpSSAOBuffers)
-	//	fopen_s(&file, "./Limits.OBJ", "wt");
-
-	for (Vector4 X : g_OBJLimits) {
-		// This transform chain should be the same we apply in ShadowMapVS.hlsl
-
-		// OBJ-3D to camera view
-		P = g_ShadowMapVSCBuffer.Camera * X;
-		
-		if (!g_bEnableVR) {
-			// Project the point. The P.z here is OBJ-3D plus Camera transform
-			P.x /= g_ShadowMapVSCBuffer.sm_aspect_ratio;
-			P.x = g_ShadowMapVSCBuffer.sm_FOVscale * (P.x / P.z);
-			P.y = g_ShadowMapVSCBuffer.sm_FOVscale * (P.y / P.z) + g_ShadowMapVSCBuffer.sm_y_center;
-
-			// The point is now in DirectX 2D coord sys (-1..1). The depth of the point is in P.z
-			// The OBJ-2D should match XWA 2D at this point. Let's back-project so that
-			// they're in the same coord sys
-
-			// Non-VR back-projection
-			P.x *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
-			P.y *= g_VSCBuffer.viewportScale[2] * g_ShadowMapVSCBuffer.sm_aspect_ratio;
-			P.z *= g_ShadowMapVSCBuffer.sm_z_factor;
-
-			Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST;
-			Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST;
-			Q.z = P.z;
-			Q.w = 1.0f;
-		}
-		else {
-			/*
-			// VR back-projection. The factor of 2.0 below is because in non-VR viewPortScale is multiplied by 2;
-			// but in VR mode, we multiply by 1, so we have to compensate for that.
-			P.x *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.viewportScale[3] / 2.0f * g_ShadowMapVSCBuffer.sm_aspect_ratio;
-			P.y *= g_VSCBuffer.viewportScale[2] * g_VSCBuffer.viewportScale[3] / 2.0f;
-			P.z *= g_ShadowMapVSCBuffer.sm_z_factor * g_fMetricMult;
-
-			// TODO: Verify that the use of DEFAULT_FOCAL_DIST didn't change the stereoscopy in VR
-			Q.x = P.z * P.x / (float)DEFAULT_FOCAL_DIST_VR;
-			Q.y = P.z * P.y / (float)DEFAULT_FOCAL_DIST_VR;
-			Q.z = P.z;
-			Q.w = 1.0f;
-			*/
-
-			// Remove the scale (1.64) we added when loading the OBJ since we need fully-metric
-			// coords for the VR path:
-			Q.x = P.x / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
-			Q.y = P.y / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
-			Q.z = P.z / g_MetricRecCBuffer.mr_shadow_OBJ_scale;
-			Q.w = 1.0f;
-		}
-
-		// The point is now in XWA 3D, with the POV at the origin.
-		// let's apply the light transform, but keep points in metric 3D
-		P = L * Q;
-
-		// Update the limits
-		if (P.x < minx) minx = P.x; 
-		if (P.y < miny) miny = P.y; 
-		if (P.z < minz) minz = P.z; 
-		
-		if (P.x > maxx) maxx = P.x;
-		if (P.y > maxy) maxy = P.y;
-		if (P.z > maxz) maxz = P.z;
-
-		//if (g_bDumpSSAOBuffers)
-		//	fprintf(file, "v %0.6f %0.6f %0.6f\n", P.x, P.y, P.z);
-	}
-	/*
-	if (g_bDumpSSAOBuffers) {
-		fprintf(file, "\n");
-		fprintf(file, "f 1 2 3\n");
-		fprintf(file, "f 1 3 4\n");
-
-		fprintf(file, "f 5 6 7\n");
-		fprintf(file, "f 5 7 8\n");
-		
-		fprintf(file, "f 1 5 6\n");
-		fprintf(file, "f 1 6 2\n");
-
-		fprintf(file, "f 4 8 7\n");
-		fprintf(file, "f 4 7 3\n");
-		fflush(file);
-		fclose(file);
-	}
-	*/
-	
-	// Compute the centroid
-	cx = (minx + maxx) / 2.0f;
-	cy = (miny + maxy) / 2.0f;
-	//cz = (minz + maxz) / 2.0f;
-	//cz = minz;
-	
-	// Compute the scale
-	sx = 1.95f / (maxx - minx); // Map to -0.975..0.975
-	sy = 1.95f / (maxy - miny); // Map to -0.975..0.975
-	// Having an anisotropic scale provides a better usage of the shadow map. However
-	// it also distorts the shadow map, making it harder to debug.
-	// release
-	float s = min(sx, sy);
-	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
-	//sz = 1.0f / (maxz - minz);
-
-	// We want to map xy to the origin; but we want to map Z to 0..0.98, so that Z = 1.0 is at infinity
-	// Translate the points so that the centroid is at the origin
-	T.translate(-cx, -cy, 0.0f);
-	// Scale around the origin so that the xyz limits are [-0.9..0.9]
-	if (g_ShadowMapping.bAnisotropicMapScale)
-		S.scale(sx, sy, 1.0f); // Anisotropic scale: better use of the shadow map
-	else
-		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
-
-	*OBJminZ = minz;
-	*OBJrange = maxz - minz;
-	
-	if (g_bDumpSSAOBuffers) {
-		log_debug("[DBG] [SHW] min-x,y,z: %0.3f, %0.3f, %0.3f, max-x,y,z: %0.3f, %0.3f, %0.3f",
-			minx, miny, minz, maxx, maxy, maxz);
-		log_debug("[DBG] [SHW] cx,cy: %0.3f, %0.3f, sx,sy,s: %0.3f, %0.3f, %0.3f",
-			cx, cy, sx, sy, s);
-		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
-			maxz, *OBJminZ, *OBJrange);
-		log_debug("[DBG] [SHW] sm_z_factor: %0.6f, FOVDistScale: %0.3f",
-			g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapping.FOVDistScale);
-	}
-	return S * T;
 }
 
 /*
@@ -6523,49 +6381,13 @@ void PrimarySurface::TagXWALights()
 				g_bCustomFOVApplied, g_iPresentCounter, g_bEnableVR);
 			ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
 		}
-
-		/*
-		// If the light is close enough to the center of the screen and hasn't been tagged
-		// then we know it's not a sun.
-		if (!g_XWALightInfo[LightIdx].bTagged && 
-			NumTagged < *s_XwaGlobalLightsCount - 1) // Keep at least one light as shadow caster
-		{
-			// dot_light_center_of_screen = dot([0,0,1], light) = light.z
-			// The following gives us the angle between the center of the screen and the light:
-			float light_rad = acos(light.z); // dot product of the light's dir and the forward view
-			//float light_ang = light_rad / DEG2RAD;
-			//log_debug("[DBG] [SHW] light_ang[%d]: %0.3f, dot: %0.3f", i, light_rad / DEG2RAD, light.z);
-			float MinRealFOV = min(g_fRealVertFOV, g_fRealHorzFOV);
-			const float range = 0.6f;
-			float RealHalfFOV = MinRealFOV / 2.0f * range;
-			// We divide by 2.0 because the angle is measured with respect to the screen's center. The other
-			// factor is added to make sure the light isn't too close to the edge of the screen (in this case,
-			// we want the light to be at least halfway into the center before comparing). If we compare
-			// the lights too close to the edges, we risk misclassifying true lights as non-Suns because
-			// there's a small error margin when comparing lights with sun centroids
-			// I've noticed that sometimes light_ang is exactly 0. This is just ridiculous and I think it's
-			// happening because the lights or the transform hasn't been set properly yet. To prevent
-			// false-tagging lights, I'm adding the "light_rad > 0.01f" test below.
-			if (light_rad / DEG2RAD < RealHalfFOV)
-			{
-				// If we reach this point, then the light hasn't been tagged, it's clearly visible 
-				// on the screen and it's not a sun:
-				g_XWALightInfo[LightIdx].bTagged = true;
-				g_XWALightInfo[LightIdx].bIsSun = false;
-				log_debug("[DBG] [SHW] Light: %d is *NOT* a Sun", LightIdx);
-				log_debug("[DBG] [SHW] MinRealFOV: %0.3f, light_ang: %0.3f, range: %0.3f",
-					MinRealFOV, light_rad / DEG2RAD, range);
-				log_debug("[DBG] [SHW] light: %0.3f, %0.3f, %0.3f", light.x, light.y, light.z);
-				log_debug("[DBG] [SHW] g_bCustomFOVApplied: %d, Frame: %d, VR mode: %d",
-					g_bCustomFOVApplied, g_iPresentCounter, g_bEnableVR);
-				ShowMatrix4(g_CurrentHeadingViewMatrix, "g_CurrentHeadingViewMatrix");
-			}
-		}
-		*/
 	} // for LightIdx
 }
 
-void PrimarySurface::RenderShadowMapOBJ()
+/*
+ * Calls TagXWALights and then fades the lights if necessary.
+ */
+void PrimarySurface::TagAndFadeXWALights()
 {
 	auto &resources = this->_deviceResources;
 	auto &device = resources->_d3dDevice;
@@ -6605,131 +6427,8 @@ void PrimarySurface::RenderShadowMapOBJ()
 		}
 	}
 
-	//Matrix4 T1, T2;
-	//Matrix4 S;
-	//T1.translate(0.0f, -g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
-	//T2.translate(0.0f,  g_ShadowMapVSCBuffer.sm_y_center, 0.0f);
-	//S.scale(1.0f/g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
-	//S.scale(g_ShadowMapVSCBuffer.sm_aspect_ratio, 1.0f, 1.0f);
-
-	// Enable ZWrite: we'll need it for the ShadowMap
-	D3D11_DEPTH_STENCIL_DESC desc;
-	ComPtr<ID3D11DepthStencilState> depthState;
-	desc.DepthEnable = TRUE;
-	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	desc.DepthFunc = D3D11_COMPARISON_LESS;
-	desc.StencilEnable = FALSE;
-	resources->InitDepthStencilState(depthState, &desc);
-
-	/*
-	// Set the rasterizer state to enable
-	D3D11_RASTERIZER_DESC rsDesc;
-	static ID3D11RasterizerState *rstate = NULL;
-	rsDesc.CullMode = D3D11_CULL_NONE;
-	rsDesc.FillMode = D3D11_FILL_SOLID;
-	rsDesc.FrontCounterClockwise = TRUE;
-	rsDesc.DepthBias = g_ShadowMapping.DepthBias;
-	rsDesc.DepthBiasClamp = g_ShadowMapping.DepthBiasClamp;
-	rsDesc.SlopeScaledDepthBias = g_ShadowMapping.SlopeScaledDepthBias;
-	rsDesc.DepthClipEnable = TRUE;
-	rsDesc.ScissorEnable = FALSE;
-	rsDesc.MultisampleEnable = FALSE;
-	rsDesc.AntialiasedLineEnable = FALSE;
-	if (rstate == NULL || g_bDumpSSAOBuffers) {
-		if (rstate != NULL)
-			rstate->Release();
-		device->CreateRasterizerState(&rsDesc, &rstate);
-	}
-	resources->InitRasterizerState(rstate);
-	*/
-
-	// Init the Viewport
-	resources->InitViewport(&g_ShadowMapping.ViewPort);
-
-	// Set the Vertex and Pixel Shaders
-	resources->InitVertexShader(resources->_shadowMapVS);
-	resources->InitPixelShader(resources->_shadowMapPS);
-
-	// Set the vertex and index buffers
-	UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
-	resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
-	resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
-
-	// Set the input layout
-	resources->InitInputLayout(resources->_inputLayout);
-	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	// TODO: Is the HeadingMatrix and H the same thing? Looks like the answer is "Not really!"
-	//       Even transposing HeadMatrix doesn't return the same matrix as GetCurrentHeadingViewMatrix
-	// Compute the OBJ-to-ViewSpace ViewMatrix
-	g_ShadowMapVSCBuffer.Camera = ComputeAddGeomViewMatrix(&HeadingMatrix, &CockpitMatrix);
-	// TODO: Should I use y_center here? The lights don't seem to rotate quite well...
-	// Use the heading matrix to move the lights
-	//Matrix4 H = GetCurrentHeadingViewMatrix();
-
-	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio; // g_VSCBuffer.aspect_ratio;
-	g_ShadowMapVSCBuffer.sm_FOVscale = g_ShadertoyBuffer.FOVscale;
-	g_ShadowMapVSCBuffer.sm_y_center = g_ShadertoyBuffer.y_center;
-	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
-	g_ShadowMapVSCBuffer.sm_z_factor = g_ShadowMapping.FOVDistScale / *g_fRawFOVDist;
-	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
-	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
-	// Select either the SW or HW bias depending on which setting is enabled
-	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
-	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
-	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
-	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
-
-	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
-	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
-	{
-		float range, minZ;
-		// Don't bother computing shadow maps for lights with a high black
-		// level
-		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
-			continue;
-
-		// Compute the LightView (Parallel Projection) Matrix
-		Matrix4 L = ComputeLightViewMatrix(idx, g_CurrentHeadingViewMatrix, false);
-		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
-
-		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * Rx * Ry * CockpitMatrix.transpose();
-		////g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L * CockpitMatrix.transpose();
-		//g_ShadowMapVSCBuffer.lightWorldMatrix = T * S * L;
-		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
-		g_ShadowMapVSCBuffer.OBJrange[idx] = range;
-		g_ShadowMapVSCBuffer.OBJminZ[idx] = minZ;
-
-		// Render each light to its own shadow map
-		g_ShadowMapVSCBuffer.light_index = idx;
-
-		// Initialize the Constant Buffer
-		// T * R does rotation first, then translation: so the object rotates around the origin
-		// and then gets pushed away along the Z axis
-		/*
-		S.scale(g_fShadowMapScale, g_fShadowMapScale, 1.0f);
-		Rx.rotateX(g_fShadowMapAngleX);
-		Ry.rotateY(g_fShadowMapAngleY);
-		T.translate(0, 0, g_fShadowMapDepthTrans);
-		*/
-		
-		// Set the constant buffer
-		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-
-		// Clear the Shadow Map DSV (I may have to update this later for the hyperspace state)
-		context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
-		// Set the Shadow Map DSV
-		context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-		// Render the Shadow Map
-		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
-
-		// Copy the shadow map to the right slot in the array
-		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, idx, 1), 0, 0, 0, 
-			resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
-	}
-
-	// Set the Shadow Mapping Constant Buffer for the Pixel Shader as well
-	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+	// We do not render the shadowmap in this path if the D3dRendererHook is enabled. See
+	// XwaD3dRendererHook:RenderShadowMap()
 }
 
 /*
@@ -8450,7 +8149,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && 
 				!bExternalCamera && bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
-				RenderShadowMapOBJ();
+				TagAndFadeXWALights();
 
 				// Restore the previous viewport, etc
 				resources->InitViewport(&g_nonVRViewport);
@@ -8640,21 +8339,6 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
-					if (g_ShadowMapping.bEnabled) {
-						//context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
-						wchar_t wFileName[80];
-						for (int i = 0; i < *s_XwaGlobalLightsCount; i++) {
-							context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
-								resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
-							swprintf_s(wFileName, 80, L"c:\\Temp\\_shadowMap%d.dds", i);
-							DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, wFileName);
-						}
-						
-						/*
-						context->CopyResource(resources->_shadowMapDebug, resources->_shadowMap);
-						DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"c:\\Temp\\_shadowMap.dds");
-						*/
-					}
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 				}

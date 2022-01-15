@@ -1,4 +1,3 @@
-
 #include "XwaD3dCommon.hlsl"
 
 Buffer<float3> g_vertices : register(t0);
@@ -80,6 +79,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos = TransformProjection(output.pos3D.xyz);
 	output.pos3D *= 0.024414; // 1/40.96, OPT to metric conversion factor
 	output.pos3D.y = -output.pos3D.y; // Further conversion of the coordinate system (Y+ is up)
+	// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z+ is forward (away from the camera)
 
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
 	output.tex = t;

@@ -114,13 +114,11 @@ public:
 
 	void RenderAdditionalGeometry();
 
-	Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
-
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
 	void TagXWALights();
 
-	void RenderShadowMapOBJ();
+	void TagAndFadeXWALights();
 
 	void RenderSpeedEffect();
 

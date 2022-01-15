@@ -17,7 +17,7 @@ cbuffer ConstantBuffer : register(b1)
 struct VertexShaderInput
 {
 	float4 pos		: POSITION;
-	float4 color	: COLOR0;
+	float4 color		: COLOR0;
 	float4 normal   : COLOR1;
 	float2 tex		: TEXCOORD;
 };
@@ -25,7 +25,7 @@ struct VertexShaderInput
 struct PixelShaderInput
 {
 	float4 pos		: SV_POSITION;
-	float4 color	: COLOR0;
+	float4 color		: COLOR0;
 	float4 normal	: COLOR1;
 	float2 tex		: TEXCOORD;
 };

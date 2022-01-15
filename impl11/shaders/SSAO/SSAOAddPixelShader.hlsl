@@ -290,7 +290,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Skip lights that won't project black-enough shadows:
 			if (black_level > 0.95)
 				continue;
-			// Apply the same transform we applied to the geometry when computing the shadow map:
+			// Apply the same transform we applied in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
 
 			// shadow_factor: 1 -- No shadow

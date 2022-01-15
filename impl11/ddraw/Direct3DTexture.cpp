@@ -64,12 +64,18 @@ bool Direct3DTexture::LoadShadowOBJ(char* sFileName) {
 		if (line[0] == 'v') {
 			D3DTLVERTEX v;
 			float x, y, z;
-			sscanf_s(line, "v %f %f %f", &x, &y, &z);
+			// With the D3dRendererHook, we're going to use transform matrices that work on OPT
+			// coordinates, so we need to convert OBJ coords into OPT coords. To do that, we need
+			// to swap Y and Z, because that's what the OPT coordinate system uses, and we need
+			// to multiply by 40.96 for the same reason. In the line below, we read X, Z, Y to
+			// swap the axes: THIS IS NOT A MISTAKE!
+			sscanf_s(line, "v %f %f %f", &x, &z, &y);
+			// And now we add the 40.96 scale factor.
 			// g_ShadowMapping.shadow_map_mult_x/y/z are supposed to be either 1 or -1
-			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE;
-			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE;
-			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE;
-
+			x *= g_ShadowMapping.shadow_map_mult_x * METERS_TO_OPT;
+			y *= g_ShadowMapping.shadow_map_mult_y * METERS_TO_OPT;
+			z *= g_ShadowMapping.shadow_map_mult_z * METERS_TO_OPT;
+			
 			v.sx = x;
 			v.sy = y;
 			v.sz = z;

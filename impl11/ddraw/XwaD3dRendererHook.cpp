@@ -27,6 +27,8 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <ScreenGrab.h>
+#include <wincodec.h>
 
 #include "globals.h"
 #include "common.h"
@@ -239,6 +241,8 @@ extern bool g_bPrevIsScaleableGUIElem, g_bStartedGUI;
 extern bool g_bIsFloating3DObject, g_bPrevIsFloatingGUI3DObject;
 extern bool g_bTargetCompDrawn;
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
+
+Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 
 // ****************************************************
 // Dump to OBJ
@@ -1290,15 +1294,19 @@ private:
 	bool _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
+	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed;
+	D3dConstants _CockpitConstants;
+	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
+	std::vector<DrawCommand> _LaserDrawCommands;
 
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
+	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
-	std::vector<DrawCommand> _LaserDrawCommands;
 
 public:
 	EffectsRenderer();
@@ -1319,6 +1327,9 @@ public:
 	virtual void ExtraPreprocessing();
 	void AddLaserLights(const SceneCompData* scene);
 
+	// Deferred rendering
+	void RenderLasers();
+	void RenderShadowMap();
 	void RenderDeferredDrawCalls();
 };
 
@@ -1331,6 +1342,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	D3dRenderer::SceneBegin(deviceResources);
 
 	_LaserDrawCommands.clear();
+
+	_bCockpitConstantsCaptured = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
@@ -1505,6 +1518,9 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsHologram = false;
 	_bIsNoisyHolo = false;
 	_bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
+	_bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
+
 	_bIsTargetHighlighted = false;
 	//bool bIsText = false, bIsReticleCenter = false;
 	bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
@@ -2038,6 +2054,27 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
 	// Looks like the code to do this update in Execute() still works. So moving on for now
 
+	if (g_bShadowMapEnable) {
+		if (!_bCockpitConstantsCaptured && _bIsCockpit)
+		{
+			_bCockpitConstantsCaptured = true;
+			_CockpitConstants = _constants;
+			_CockpitWorldView = scene->WorldViewTransform;
+			/*
+			XwaTransform M = g_CockpitWorldView;
+			log_debug("[DBG] Cockpit WorldViewTransform captured:");
+			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+				M.Rotation._11, M.Rotation._12, M.Rotation._13, 0.0f);
+			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+				M.Rotation._21, M.Rotation._22, M.Rotation._23, 0.0f);
+			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+				M.Rotation._31, M.Rotation._32, M.Rotation._33, 0.0f);
+			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+				M.Position.x, M.Position.y, M.Position.z, 1.0f);
+			*/
+		}
+	}
+
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
 	ExtraPreprocessing();
@@ -2153,8 +2190,7 @@ bool EffectsRenderer::DCCaptureMiniature()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	
-	const bool bExternalCamera = (bool)PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-	const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled);
+	const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || _bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled);
 	// The reticle isn't rendered in this path
 	//if ((!g_bDCManualActivate && !bExternalCamera) || (!g_bDynCockpitEnabled && !g_bReshadeEnabled) || !bRenderToDynCockpitBuffer)
 	if (!bRenderToDynCockpitBuffer)
@@ -2370,7 +2406,7 @@ void EffectsRenderer::RenderScene()
 	g_iD3DExecuteCounter++;
 }
 
-void EffectsRenderer::RenderDeferredDrawCalls()
+void EffectsRenderer::RenderLasers()
 {
 	if (_LaserDrawCommands.size() == 0)
 		return;
@@ -2470,6 +2506,248 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
 	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
 	resources->InitPixelShader(lastPixelShader);
+}
+
+/*
+ * Using the current 3D box limits loaded in g_OBJLimits, compute the 2D/Z-Depth limits
+ * needed to center the Shadow Map depth buffer. This version uses the transforms in
+ * g_CockpitConstants
+ */
+Matrix4 EffectsRenderer::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ) {
+	float minx = 100000.0f, maxx = -100000.0f;
+	float miny = 100000.0f, maxy = -100000.0f;
+	float minz = 100000.0f, maxz = -100000.0f;
+	float cx, cy, sx, sy;
+	Matrix4 S, T;
+	Vector4 P, Q;
+	Matrix4 WorldView = XwaTransformToMatrix4(_CockpitWorldView);
+	FILE *file = NULL;
+
+	if (g_bDumpSSAOBuffers) {
+		fopen_s(&file, "./Limits.OBJ", "wt");
+
+		XwaTransform M = _CockpitWorldView;
+		log_debug("[DBG] -----------------------------------------------");
+		log_debug("[DBG] GetShadowMapLimits WorldViewTransform:");
+		log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+			M.Rotation._11, M.Rotation._12, M.Rotation._13, 0.0f);
+		log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+			M.Rotation._21, M.Rotation._22, M.Rotation._23, 0.0f);
+		log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+			M.Rotation._31, M.Rotation._32, M.Rotation._33, 0.0f);
+		log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
+			M.Position.x, M.Position.y, M.Position.z, 1.0f);
+		log_debug("[DBG] -----------------------------------------------");
+	}
+
+	for (Vector4 X : g_OBJLimits) {
+		// This transform chain should be the same we apply in ShadowMapVS.hlsl
+
+		// OPT to camera view transform. First transform object space into view space:
+		Q = WorldView * X;
+		// Now, transform OPT coords to meters:
+		Q *= OPT_TO_METERS;
+		// Invert the Y-axis since our coordinate system has Y+ pointing up
+		Q.y = -Q.y;
+		// Just make sure w = 1
+		Q.w = 1.0f;
+
+		// The point is now in metric 3D, with the POV at the origin.
+		// Apply the light transform, keep the points in metric 3D.
+		P = L * Q;
+
+		// Update the limits
+		if (P.x < minx) minx = P.x;
+		if (P.y < miny) miny = P.y;
+		if (P.z < minz) minz = P.z;
+
+		if (P.x > maxx) maxx = P.x;
+		if (P.y > maxy) maxy = P.y;
+		if (P.z > maxz) maxz = P.z;
+
+		if (g_bDumpSSAOBuffers)
+			fprintf(file, "v %0.6f %0.6f %0.6f\n", P.x, P.y, P.z);
+	}
+
+	if (g_bDumpSSAOBuffers) {
+		fprintf(file, "\n");
+		fprintf(file, "f 1 2 3\n");
+		fprintf(file, "f 1 3 4\n");
+
+		fprintf(file, "f 5 6 7\n");
+		fprintf(file, "f 5 7 8\n");
+
+		fprintf(file, "f 1 5 6\n");
+		fprintf(file, "f 1 6 2\n");
+
+		fprintf(file, "f 4 8 7\n");
+		fprintf(file, "f 4 7 3\n");
+		fflush(file);
+		fclose(file);
+	}
+
+	// Compute the centroid
+	cx = (minx + maxx) / 2.0f;
+	cy = (miny + maxy) / 2.0f;
+
+	// Compute the scale
+	sx = 1.95f / (maxx - minx); // Map to -0.975..0.975
+	sy = 1.95f / (maxy - miny); // Map to -0.975..0.975
+	// Having an anisotropic scale provides a better usage of the shadow map. However
+	// it also distorts the shadow map, making it harder to debug.
+	// release
+	float s = min(sx, sy);
+	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
+	//sz = 1.0f / (maxz - minz);
+
+	// We want to map xy to the origin; but we want to map Z to 0..0.98, so that Z = 1.0 is at infinity
+	// Translate the points so that the centroid is at the origin
+	T.translate(-cx, -cy, 0.0f);
+	// Scale around the origin so that the xyz limits are [-0.9..0.9]
+	if (g_ShadowMapping.bAnisotropicMapScale)
+		S.scale(sx, sy, 1.0f); // Anisotropic scale: better use of the shadow map
+	else
+		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
+
+	*OBJminZ = minz;
+	*OBJrange = maxz - minz;
+
+	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [SHW] min-x,y,z: %0.3f, %0.3f, %0.3f, max-x,y,z: %0.3f, %0.3f, %0.3f",
+			minx, miny, minz, maxx, maxy, maxz);
+		log_debug("[DBG] [SHW] cx,cy: %0.3f, %0.3f, sx,sy,s: %0.3f, %0.3f, %0.3f",
+			cx, cy, sx, sy, s);
+		log_debug("[DBG] [SHW] maxz: %0.3f, OBJminZ: %0.3f, OBJrange: %0.3f",
+			maxz, *OBJminZ, *OBJrange);
+		log_debug("[DBG] [SHW] sm_z_factor: %0.6f, FOVDistScale: %0.3f",
+			g_ShadowMapVSCBuffer.sm_z_factor, g_ShadowMapping.FOVDistScale);
+	}
+	return S * T;
+}
+
+void EffectsRenderer::RenderShadowMap()
+{
+	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
+	// the ShadowMap.
+
+	if (!g_bShadowMapEnable || !_bCockpitConstantsCaptured)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
+
+	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+
+	// Enable ZWrite: we'll need it for the ShadowMap
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = TRUE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	desc.DepthFunc = D3D11_COMPARISON_LESS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+	// Solid blend state, no transparency
+	resources->InitBlendState(_solidBlendState, nullptr);
+
+	// Init the Viewport. This viewport has the dimensions of the shadowmap texture
+	_deviceResources->InitViewport(&g_ShadowMapping.ViewPort);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+
+	_deviceResources->InitVertexShader(resources->_shadowMapVS);
+	_deviceResources->InitPixelShader(resources->_shadowMapPS);
+	ID3D11PixelShader *lastPixelShader = _pixelShader;
+
+	// Set the vertex and index buffers
+	UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
+	resources->InitVertexBuffer(resources->_shadowVertexBuffer.GetAddressOf(), &stride, &ofs);
+	resources->InitIndexBuffer(resources->_shadowIndexBuffer.Get(), false);
+
+	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
+	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
+	// Select either the SW or HW bias depending on which setting is enabled
+	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
+
+	// Set the constant buffer for the VS and PS.
+	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+	// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+	// Set the transform matrix
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &(_CockpitConstants), 0, 0);
+
+	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
+	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
+	{
+		float range, minZ;
+		// Don't bother computing shadow maps for lights with a high black level
+		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
+			continue;
+
+		// Compute the LightView (Parallel Projection) Matrix
+		Matrix4 L = ComputeLightViewMatrix(idx, g_CurrentHeadingViewMatrix, false);
+		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
+
+		g_ShadowMapVSCBuffer.lightWorldMatrix[idx] = ST * L;
+		g_ShadowMapVSCBuffer.OBJrange[idx] = range;
+		g_ShadowMapVSCBuffer.OBJminZ[idx] = minZ;
+
+		// Render each light to its own shadow map
+		g_ShadowMapVSCBuffer.light_index = idx;
+
+		// Clear the Shadow Map DSV (I may have to update this later for the hyperspace state)
+		context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		// Set the Shadow Map DSV
+		context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+		// Render the Shadow Map
+		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
+
+		// Copy the shadow map to the right slot in the array
+		context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, idx, 1), 0, 0, 0,
+			resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
+	}
+
+	if (g_bDumpSSAOBuffers) {
+		wchar_t wFileName[80];
+		for (int i = 0; i < *s_XwaGlobalLightsCount; i++) {
+			context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
+				resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
+			swprintf_s(wFileName, 80, L"c:\\Temp\\_shadowMap%d.dds", i);
+			DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, wFileName);
+		}
+	}
+
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+	resources->InitPixelShader(lastPixelShader);
+}
+
+void EffectsRenderer::RenderDeferredDrawCalls()
+{
+	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
+	// Maybe also disable it if the cockpit is hidden
+	if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ &&
+		!_bExternalCamera && _bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
+	{
+		// Render the Shadow Map
+		RenderShadowMap();
+	}
+	RenderLasers();
 }
 
 static EffectsRenderer g_effects_renderer;

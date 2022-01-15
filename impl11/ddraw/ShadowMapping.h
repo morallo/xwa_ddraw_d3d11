@@ -96,7 +96,7 @@ public:
 
 		this->shadow_map_mult_x = 1.0f;
 		this->shadow_map_mult_y = 1.0f;
-		this->shadow_map_mult_z = -1.0f;
+		this->shadow_map_mult_z = 1.0f;
 
 		this->DepthBias = 0;
 		this->DepthBiasClamp = 0.0f;

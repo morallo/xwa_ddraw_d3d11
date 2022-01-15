@@ -25,7 +25,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 144 bytes
 	float4 vpScale;
 	// 160 bytes
-	uint shadow_enable;
+	uint ssao_unused;
 	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 };
