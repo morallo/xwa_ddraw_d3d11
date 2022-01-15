@@ -4755,48 +4755,6 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 				}
 
-				// Procedural Lava
-				if (g_bProceduralLava && bLastTextureSelectedNotNULL && bHasMaterial && lastTextureSelected->material.IsLava)
-				{
-					static float iTime = 0.0f;
-					iTime = g_HiResTimer.global_time_s * lastTextureSelected->material.LavaSpeed;
-
-					bModifiedShaders = true;
-					bModifiedPixelShader = true;
-					bModifiedSamplerState = true;
-
-					g_ShadertoyBuffer.iTime = iTime;
-					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.LavaTiling;
-					g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
-					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
-					// SunColor[0] --> Color
-					g_ShadertoyBuffer.SunColor[0].x = lastTextureSelected->material.LavaColor.x;
-					g_ShadertoyBuffer.SunColor[0].y = lastTextureSelected->material.LavaColor.y;
-					g_ShadertoyBuffer.SunColor[0].z = lastTextureSelected->material.LavaColor.z;
-					/*
-					// SunColor[1] --> LavaNormalMult
-					g_ShadertoyBuffer.SunColor[1].x = lastTextureSelected->material.LavaNormalMult.x;
-					g_ShadertoyBuffer.SunColor[1].y = lastTextureSelected->material.LavaNormalMult.y;
-					g_ShadertoyBuffer.SunColor[1].z = lastTextureSelected->material.LavaNormalMult.z;
-					// SunColor[2] --> LavaPosMult
-					g_ShadertoyBuffer.SunColor[2].x = lastTextureSelected->material.LavaPosMult.x;
-					g_ShadertoyBuffer.SunColor[2].y = lastTextureSelected->material.LavaPosMult.y;
-					g_ShadertoyBuffer.SunColor[2].z = lastTextureSelected->material.LavaPosMult.z;
-
-					g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.LavaTranspose;
-					*/
-
-					resources->InitPixelShader(resources->_lavaPS);
-					// Set the noise texture and sampler state with wrap/repeat enabled.
-					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
-					// bModifiedSamplerState restores this sampler state at the end of this instruction.
-					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
-
-					// Set the constant buffer
-					// TODO (?): Set the g_PSCBuffer
-					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-				}
-
 				// Do not render pos3D or normal outputs for specific objects (used for SSAO)
 				// If these outputs are not disabled, then the aiming HUD gets AO as well!
 				if (g_bStartedGUI || g_bIsSkyBox || bIsBracket /* || bIsSkyDome */) {

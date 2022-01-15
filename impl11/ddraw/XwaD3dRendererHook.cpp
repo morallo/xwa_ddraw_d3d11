@@ -1,17 +1,13 @@
 /*
- * List of known issues;
- * - Lasers are obscured by capital ships (probably a depth buffer problem)
+ * List of known issues:
+ * - Weird bloom in some spots on the ISDII
  * - Switching ships in the hangar disables DC
- * - Hyperspace shows through the DC elements
- * - Faceted normal maps
- * - Wrong illumination
- * - Laser Lights are broken
+ * - Faceted normal maps --> Not an issue with ddraw, OPTs have the wrong normals.
  * - The targeted craft doesn't get the edge effect in external view
- * - Shadow Mapping is broken
- * - Laser Lights
  * - VR
- * - The Sun flare is semi-broken
  * - Animations
+ * - Animated Explosions (do they even work now?)
+ * - Greebles
  *
  * New ideas that might be possible now:
  *
@@ -20,7 +16,10 @@
  * - Aiming Reticle with lead
  * - Global shadow mapping?
  * - Ray-tracing? Do we have all the unculled, unclipped 3D data now?
+ *		Use Intel Embree to build the BVH, one ray per pixel to compute global shadows
+ *		outside the cockpit.
  * - Universal head tracking through the tranformWorldView matrix
+ * - Parallax mapping: we have the OPT -> Viewspace transform matrix now!
  */
 #include <vector>
 #include <map>
@@ -210,7 +209,7 @@ bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, floa
 // External variables
 // ****************************************************
 extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;
-extern bool g_bExplosionsDisplayedOnCurrentFrame, g_bEnableVR;
+extern bool g_bExplosionsDisplayedOnCurrentFrame, g_bEnableVR, g_bProceduralLava;
 extern bool g_bIsScaleableGUIElem, g_bScaleableHUDStarted, g_bIsTrianglePointer;
 extern float g_fSSAOAlphaOfs;
 
@@ -1326,6 +1325,7 @@ public:
 	bool DCReplaceTextures();
 	virtual void ExtraPreprocessing();
 	void AddLaserLights(const SceneCompData* scene);
+	void ApplyProceduralLava();
 
 	// Deferred rendering
 	void RenderLasers();
@@ -1883,6 +1883,48 @@ void EffectsRenderer::AddLaserLights(const SceneCompData* scene)
 	}
 }
 
+void EffectsRenderer::ApplyProceduralLava()
+{
+	static float iTime = 0.0f;
+	auto &context = _deviceResources->_d3dDeviceContext;
+	iTime = g_HiResTimer.global_time_s * _lastTextureSelected->material.LavaSpeed;
+
+	_bModifiedShaders = true;
+	_bModifiedPixelShader = true;
+	_bModifiedSamplerState = true;
+
+	g_ShadertoyBuffer.iTime = iTime;
+	g_ShadertoyBuffer.bDisneyStyle   = _lastTextureSelected->material.LavaTiling;
+	g_ShadertoyBuffer.iResolution[0] = _lastTextureSelected->material.LavaSize;
+	g_ShadertoyBuffer.iResolution[1] = _lastTextureSelected->material.EffectBloom;
+	// SunColor[0] --> Color
+	g_ShadertoyBuffer.SunColor[0].x = _lastTextureSelected->material.LavaColor.x;
+	g_ShadertoyBuffer.SunColor[0].y = _lastTextureSelected->material.LavaColor.y;
+	g_ShadertoyBuffer.SunColor[0].z = _lastTextureSelected->material.LavaColor.z;
+	/*
+	// SunColor[1] --> LavaNormalMult
+	g_ShadertoyBuffer.SunColor[1].x = lastTextureSelected->material.LavaNormalMult.x;
+	g_ShadertoyBuffer.SunColor[1].y = lastTextureSelected->material.LavaNormalMult.y;
+	g_ShadertoyBuffer.SunColor[1].z = lastTextureSelected->material.LavaNormalMult.z;
+	// SunColor[2] --> LavaPosMult
+	g_ShadertoyBuffer.SunColor[2].x = lastTextureSelected->material.LavaPosMult.x;
+	g_ShadertoyBuffer.SunColor[2].y = lastTextureSelected->material.LavaPosMult.y;
+	g_ShadertoyBuffer.SunColor[2].z = lastTextureSelected->material.LavaPosMult.z;
+
+	g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.LavaTranspose;
+	*/
+
+	_deviceResources->InitPixelShader(_deviceResources->_lavaPS);
+	// Set the noise texture and sampler state with wrap/repeat enabled.
+	context->PSSetShaderResources(1, 1, _deviceResources->_grayNoiseSRV.GetAddressOf());
+	// bModifiedSamplerState restores this sampler state at the end of this instruction.
+	context->PSSetSamplers(1, 1, _deviceResources->_repeatSamplerState.GetAddressOf());
+
+	// Set the constant buffer
+	_deviceResources->InitPSConstantBufferHyperspace(
+		_deviceResources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
@@ -2054,26 +2096,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
 	// Looks like the code to do this update in Execute() still works. So moving on for now
 
+	// Capture the cockpit OPT -> View transform for use in ShadowMapping later on
 	if (g_bShadowMapEnable) {
 		if (!_bCockpitConstantsCaptured && _bIsCockpit)
 		{
 			_bCockpitConstantsCaptured = true;
 			_CockpitConstants = _constants;
 			_CockpitWorldView = scene->WorldViewTransform;
-			/*
-			XwaTransform M = g_CockpitWorldView;
-			log_debug("[DBG] Cockpit WorldViewTransform captured:");
-			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
-				M.Rotation._11, M.Rotation._12, M.Rotation._13, 0.0f);
-			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
-				M.Rotation._21, M.Rotation._22, M.Rotation._23, 0.0f);
-			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
-				M.Rotation._31, M.Rotation._32, M.Rotation._33, 0.0f);
-			log_debug("[DBG] %0.3f, %0.3f, %0.3f, %0.3f",
-				M.Position.x, M.Position.y, M.Position.z, 1.0f);
-			*/
 		}
 	}
+
+	// Procedural Lava
+	if (g_bProceduralLava && _bLastTextureSelectedNotNULL && _bHasMaterial && _lastTextureSelected->material.IsLava)
+		ApplyProceduralLava();
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
