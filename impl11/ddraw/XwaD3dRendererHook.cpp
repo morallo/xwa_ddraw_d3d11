@@ -1297,8 +1297,8 @@ static D3dRenderer g_xwa_d3d_renderer;
 class EffectsRenderer : public D3dRenderer
 {
 private:
-	bool _bLastTextureSelectedNotNULL, _bIsLaser, _bTex2IsLightTexture, _bIsCockpit, _bIsGunner, _bIsReticle;
-	bool _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bIsTransparent, _bDCElemAlwaysVisible;
+	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit;
+	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed;
@@ -1334,6 +1334,7 @@ public:
 	virtual void ExtraPreprocessing();
 	void AddLaserLights(const SceneCompData* scene);
 	void ApplyProceduralLava();
+	void ApplyGreebles();
 
 	// Deferred rendering
 	void RenderLasers();
@@ -1517,10 +1518,10 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	// we need to apply effects. If there's a lightmap, it's going to be in texture2.
 	// Most of the local flags below should now be class members, but I'll be hand
 	_bLastTextureSelectedNotNULL = (_lastTextureSelected != NULL);
+	_bLastLightmapSelectedNotNULL = (_lastLightmapSelected != NULL);
 	_bIsBlastMark = false;
 	_bIsCockpit = false;
 	_bIsGunner = false;
-	_bIsReticle = false;
 	_bIsExplosion = false;
 	_bIsTransparent = false;
 	_bDCElemAlwaysVisible = false;
@@ -1553,9 +1554,8 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		_bIsLaser = _lastTextureSelected->is_Laser || _lastTextureSelected->is_TurboLaser;
 		//_bIsLaser = _constants.renderType == 2;
 		//bIsLightTexture = lastTextureSelected->is_LightTexture;
-		_bTex2IsLightTexture = _lastLightmapSelected != nullptr && _constants.renderTypeIllum == 1;
 		//bIsText = lastTextureSelected->is_Text;
-		_bIsReticle = _lastTextureSelected->is_Reticle; // I don't think the reticle is rendered in this path
+		//_bIsReticle = _lastTextureSelected->is_Reticle; // I don't think the reticle is rendered in this path
 		//bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
 		g_bIsTargetHighlighted |= _lastTextureSelected->is_HighlightedReticle;
 		_bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
@@ -1715,7 +1715,8 @@ void EffectsRenderer::ApplyBloomSettings()
 		g_PSCBuffer.bIsLaser = g_config.EnhanceLasers ? 2 : 1;
 	}
 	// Send the flag for light textures (enhance them in 32-bit mode, apply bloom)
-	else if (_bTex2IsLightTexture) {
+	// TODO: Check if the animation for light textures still works
+	else if (_bLastLightmapSelectedNotNULL) {
 		_bModifiedShaders = true;
 		int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
 		g_PSCBuffer.fBloomStrength = _lastTextureSelected->is_CockpitTex ?
@@ -1780,8 +1781,9 @@ void EffectsRenderer::ApplyBloomSettings()
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSkydomeLightStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	}
-	else if (!_bTex2IsLightTexture && _lastTextureSelected->material.GetCurrentATCIndex(NULL) > -1) {
+	else if (!_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL) > -1) {
 		_bModifiedShaders = true;
+		// TODO: Check if this animation still works
 		int anim_idx = _lastTextureSelected->material.GetCurrentATCIndex(NULL);
 		// If this is an animated light map, then use the right intensity setting
 		// TODO: Make the following code more efficient
@@ -1933,6 +1935,82 @@ void EffectsRenderer::ApplyProceduralLava()
 	// Set the constant buffer
 	_deviceResources->InitPSConstantBufferHyperspace(
 		_deviceResources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+}
+
+void EffectsRenderer::ApplyGreebles()
+{
+	if (!g_bAutoGreeblesEnabled || !_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx == -1)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = _deviceResources->_d3dDeviceContext;
+	Material *material = &(_lastTextureSelected->material);
+	GreebleData *greeble_data = &(g_GreebleData[material->GreebleDataIdx]);
+
+	bool bIsRegularGreeble = (!_bLastLightmapSelectedNotNULL && greeble_data->GreebleTexIndex[0] != -1);
+	bool bIsLightmapGreeble = (_bLastLightmapSelectedNotNULL && greeble_data->GreebleLightMapIndex[0] != -1);
+	if (bIsRegularGreeble || bIsLightmapGreeble) {
+		// 0x1: This greeble will use normal mapping
+		// 0x2: This is a lightmap greeble
+		// See PixelShaderGreeble for a full list of bits used in this effect
+		uint32_t GreebleControlBits = bIsLightmapGreeble ? 0x2 : 0x0;
+		_bModifiedShaders = true;
+		_bModifiedPixelShader = true;
+
+		resources->InitPixelShader(resources->_pixelShaderGreeble);
+		if (bIsRegularGreeble) {
+			g_PSCBuffer.GreebleMix1 = greeble_data->GreebleMix[0];
+			g_PSCBuffer.GreebleMix2 = greeble_data->GreebleMix[1];
+
+			g_PSCBuffer.GreebleDist1 = greeble_data->GreebleDist[0];
+			g_PSCBuffer.GreebleDist2 = greeble_data->GreebleDist[1];
+
+			g_PSCBuffer.GreebleScale1 = greeble_data->GreebleScale[0];
+			g_PSCBuffer.GreebleScale2 = greeble_data->GreebleScale[1];
+
+			uint32_t blendMask1 = greeble_data->GreebleTexIndex[0] != -1 ? greeble_data->greebleBlendMode[0] : 0x0;
+			uint32_t blendMask2 = greeble_data->GreebleTexIndex[1] != -1 ? greeble_data->greebleBlendMode[1] : 0x0;
+			if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+				blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+				GreebleControlBits |= 0x1;
+			if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+				blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+				g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;
+			g_PSCBuffer.GreebleControl = (GreebleControlBits << 16) | (blendMask2 << 4) | blendMask1;
+
+			// Load regular greebles...
+			if (greeble_data->GreebleTexIndex[0] != -1)
+				context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[0]]));
+			if (greeble_data->GreebleTexIndex[1] != -1)
+				context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleTexIndex[1]]));
+		}
+		else if (bIsLightmapGreeble) {
+			g_PSCBuffer.GreebleMix1 = greeble_data->GreebleLightMapMix[0];
+			g_PSCBuffer.GreebleMix2 = greeble_data->GreebleLightMapMix[1];
+
+			g_PSCBuffer.GreebleDist1 = greeble_data->GreebleLightMapDist[0];
+			g_PSCBuffer.GreebleDist2 = greeble_data->GreebleLightMapDist[1];
+
+			g_PSCBuffer.GreebleScale1 = greeble_data->GreebleLightMapScale[0];
+			g_PSCBuffer.GreebleScale2 = greeble_data->GreebleLightMapScale[1];
+
+			uint32_t blendMask1 = greeble_data->GreebleLightMapIndex[0] != -1 ? greeble_data->greebleLightMapBlendMode[0] : 0x0;
+			uint32_t blendMask2 = greeble_data->GreebleLightMapIndex[1] != -1 ? greeble_data->greebleLightMapBlendMode[1] : 0x0;
+			if (blendMask1 == GBM_NORMAL_MAP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+				blendMask2 == GBM_NORMAL_MAP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+				GreebleControlBits |= 0x1;
+			if (blendMask1 == GBM_UV_DISP || blendMask1 == GBM_UV_DISP_AND_NORMAL_MAP ||
+				blendMask2 == GBM_UV_DISP || blendMask2 == GBM_UV_DISP_AND_NORMAL_MAP)
+				g_PSCBuffer.UVDispMapResolution = greeble_data->UVDispMapResolution;
+			g_PSCBuffer.GreebleControl = (GreebleControlBits << 16) | (blendMask2 << 4) | blendMask1;
+
+			// ... or load lightmap greebles
+			if (greeble_data->GreebleLightMapIndex[0] != -1)
+				context->PSSetShaderResources(10, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[0]]));
+			if (greeble_data->GreebleLightMapIndex[1] != -1)
+				context->PSSetShaderResources(11, 1, &(resources->_extraTextures[greeble_data->GreebleLightMapIndex[1]]));
+		}
+	}
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -2119,6 +2197,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Procedural Lava
 	if (g_bProceduralLava && _bLastTextureSelectedNotNULL && _bHasMaterial && _lastTextureSelected->material.IsLava)
 		ApplyProceduralLava();
+
+	ApplyGreebles();
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
@@ -2411,7 +2491,7 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
-		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner || _bIsReticle), // Select the main RTV
+		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV
 		_deviceResources->_renderTargetViewBloomMask.Get(),
 		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
 		// The normals hook should not be allowed to write normals for light textures. This is now implemented
@@ -2486,7 +2566,6 @@ void EffectsRenderer::RenderLasers()
 	// Flags used in RenderScene():
 	_bIsCockpit		= false;
 	_bIsGunner		= false;
-	_bIsReticle		= false;
 	_bIsBlastMark	= false;
 
 	// Laser-specific stuff from ApplyBloomSettings():

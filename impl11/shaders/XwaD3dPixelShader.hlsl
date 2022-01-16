@@ -8,12 +8,6 @@ Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 
-// Texture slot 9 (and above) seem to be free. We might be able to use other slots, but I don't
-// want to break something by doing that. Will have to come back later and check if it's possible
-// to save some slots
-Texture2D    greebleTex0 : register(t9);
-SamplerState greebleSamp0 : register(s9);
-
 //#define ORIGINAL_D3D_RENDERER_SHADERS
 #ifdef ORIGINAL_D3D_RENDERER_SHADERS
 // This is the original PixelShaderInput used in the D3dRendererHook
