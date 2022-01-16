@@ -11,6 +11,12 @@
 
 /*
 
+How to fix the videos in VR, from Jeremy:
+
+	You can take a look at the method Repaint in mfplayer.player.cpp. The video is painted with the
+	method RepaintVideo on the m_pVideoDisplay object. You can retrieve the video frame with the method
+	GetCurrentImage on the m_pVideoDisplay object.
+
 Mission Index:
 	Skirmish: 0
 	PPG: 6 (looks like this is complicated in TFTC).
@@ -3242,7 +3248,7 @@ HRESULT Direct3DDevice::Execute(
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
 					// We're about to render the scaleable HUD, time to clear the dynamic cockpit textures
-					if (g_bDynCockpitEnabled || g_bReshadeEnabled) 
+					if ((g_bDynCockpitEnabled || g_bReshadeEnabled) && !g_bDCWasClearedOnThisFrame)
 					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
@@ -4395,24 +4401,6 @@ HRESULT Direct3DDevice::Execute(
 				bModifiedBlendState   = false;
 				bModifiedSamplerState = false;
 
-				// Skip rendering light textures in VR or bind the light texture if we're rendering the color tex
-#ifdef DISABLED
-				if (false && g_bEnableVR && bLastTextureSelectedNotNULL) {
-					if (bIsLightTexture)
-						goto out;
-					else {
-						// Bind the light texture too
-						if (lastTextureSelected->lightTexture != nullptr) {
-							bModifiedShaders = true;
-							lastTextureSelected->lightTexture->_refCount++;
-							context->PSSetShaderResources(1, 1, lastTextureSelected->lightTexture->_textureView.GetAddressOf());
-							lastTextureSelected->lightTexture->_refCount--;
-							g_PSCBuffer.bLightTextureAvailable = 1;
-						}
-					}
-				}
-#endif DISABLED
-
 				// DEBUG
 				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
 				/*if (bIsActiveCockpit && lastTextureSelected->ActiveCockpitIdx == 9)
@@ -4856,16 +4844,6 @@ HRESULT Direct3DDevice::Execute(
 					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
 				{	
-					// Looks like we don't need to restore the blend/depth state???
-					//D3D11_BLEND_DESC curBlendDesc = _renderStates->GetBlendDesc();
-					//D3D11_DEPTH_STENCIL_DESC curDepthDesc = _renderStates->GetDepthStencilDesc();
-					//if (!g_bPrevIsFloatingGUI3DObject && g_bIsFloating3DObject) {
-					//	// The targeted craft is about to be drawn! Clear both depth stencils?
-					//	context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
-					//}
-					
-					//log_debug("[DBG] RENDER to DC RTV");
-
 					// Restore the non-VR dimensions:
 					g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 					g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
@@ -4905,6 +4883,8 @@ HRESULT Direct3DDevice::Execute(
 						}
 					}
 					// Enable Z-Buffer if we're drawing the targeted craft
+					// The targeted craft is no longer rendered in this path when the D3DRendererHook is
+					// enabled. See XwaD3dRendererHook::DCCaptureMiniature instead.
 					if (g_bIsFloating3DObject) {
 						//log_debug("[DBG] Render 3D Floating OBJ to DC RTV");
 						QuickSetZWriteEnabled(TRUE);
@@ -6302,6 +6282,13 @@ nochange:
 	// _renderTargetView, so there isn't an InitRenderTargetView() function -- there's no need since
 	// this RTV is always going to be set. If we break that assumption here, things will stop working.
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+	
+	// This method may be called multiple times per frame, because the Execute() method may be called
+	// multiple times per frame, depending on how many lighting effects are rendered. For instance,
+	// laser impacts or the beam effect on the current ship are apparently rendered in Execute(). If
+	// multiple such effects are rendered per frame, we'll end up here multiple times too. That's fine,
+	// we just need to prevent applying this effect multiple times.
+	g_bEdgeEffectApplied = true;
 }
 
 HRESULT Direct3DDevice::BeginScene()

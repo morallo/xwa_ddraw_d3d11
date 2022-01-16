@@ -1,13 +1,19 @@
 /*
  * List of known issues:
- * - Weird bloom in some spots on the ISDII
  * - Switching ships in the hangar disables DC
  * - Faceted normal maps --> Not an issue with ddraw, OPTs have the wrong normals.
- * - The targeted craft doesn't get the edge effect in external view
  * - VR
- * - Animations
+ * - Animations (including Debris)
  * - Animated Explosions (do they even work now?)
+ * - Explosion Variants
  * - Greebles
+ * - Transparency: All transparent layers must be rendered at the end of the frame
+ *		Shield hit effects don't always show, maybe related?
+ * - Cockpit Damage (for testing). Ctrl+C no longer works?
+ * - The Map is broken.
+ * - (According to Angel): Lasers are still not being drawn sometimes when firing at
+ *	 ships. Sometimes works, sometimes doesn't.
+ * - Check the DS2 explosion and core effect
  *
  * New ideas that might be possible now:
  *
@@ -200,6 +206,8 @@ struct DrawCommand {
 };
 
 static bool g_isInRenderLasers = false;
+// The following flag cannot be used reliably to tell when the miniature is being rendered: it's
+// false if we're in External Camera mode even if a craft is targeted.
 static bool g_isInRenderMiniature = false;
 static bool g_isInRenderHyperspaceLines = false;
 
@@ -1320,8 +1328,7 @@ public:
 	void ApplyMaterialProperties();
 	void ApplySpecialMaterials();
 	void ApplyBloomSettings();
-	// Returns true if the current draw call needs to be skipped
-	bool DCCaptureMiniature();
+	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
 	virtual void ExtraPreprocessing();
@@ -1587,6 +1594,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	//const bool bIsFloatingGUI = _bLastTextureSelectedNotNULL && _lastTextureSelected->is_Floating_GUI;
 	// Hysteresis detection (state is about to switch to render something different, like the HUD)
 	g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
+	// Do *not* use g_isInRenderMiniature here, it's not reliable.
 	g_bIsFloating3DObject = g_bTargetCompDrawn && _bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Text && !_lastTextureSelected->is_TrianglePointer &&
 		!_lastTextureSelected->is_Reticle && !_lastTextureSelected->is_Floating_GUI &&
@@ -2058,9 +2066,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplySpecialMaterials();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
-	if (g_isInRenderMiniature || g_bScaleableHUDStarted || g_bIsScaleableGUIElem) {
-		if (DCCaptureMiniature())
-			goto out;
+	if (g_bIsFloating3DObject && g_bDynCockpitEnabled) {
+		DCCaptureMiniature();
+		goto out;
 	}
 
 	// Modify the state for both VR and regular game modes...
@@ -2147,8 +2155,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// viewport, so lasers and other projectiles that are rendered in the CMD also show in the bottom of the
 		// screen. This is not a fix, but a workaround: we're going to skip rendering any such objects if we've
 		// started rendering the CMD.
-		// Also, it looks like we can't use g_isInRenderMiniature for this check, since that doesn't seem to work
-		if (g_bStartedGUI)
+		// Also, it looks like we can't use g_isInRenderMiniature for this check, since that doesn't seem to work,
+		// we need to use g_bIsFloating3DObject instead.
+		if (g_bStartedGUI || g_bIsFloating3DObject)
 			goto out;
 
 		// Save the current draw commands and skip. We'll render the lasers later
@@ -2221,20 +2230,10 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMa
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
-bool EffectsRenderer::DCCaptureMiniature()
+void EffectsRenderer::DCCaptureMiniature()
 {
-	bool bSkip = false;
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-	
-	const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || _bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled);
-	// The reticle isn't rendered in this path
-	//if ((!g_bDCManualActivate && !bExternalCamera) || (!g_bDynCockpitEnabled && !g_bReshadeEnabled) || !bRenderToDynCockpitBuffer)
-	if (!bRenderToDynCockpitBuffer)
-	{
-		bSkip = false;
-		goto out;
-	}
 	
 	// Restore the non-VR dimensions:
 	//float displayWidth = (float)resources->_displayWidth;
@@ -2278,11 +2277,6 @@ bool EffectsRenderer::DCCaptureMiniature()
 	// Restore the Pixel Shader constant buffers:
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-
-	bSkip = true;
-
-out:
-	return bSkip;
 }
 
 bool EffectsRenderer::DCReplaceTextures()

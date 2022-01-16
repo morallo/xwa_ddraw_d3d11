@@ -131,8 +131,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		// We have a lightmap texture
 		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
-		
 		float3 color = texelColorIllum.rgb;
+		float alpha = texelColorIllum.a;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(color);
 		float val = HSV.z;
