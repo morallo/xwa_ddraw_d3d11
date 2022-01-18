@@ -197,6 +197,7 @@ extern SharedDataProxy *g_pSharedData;
 
 // Custom HUD colors
 extern uint32_t g_iHUDInnerColor, g_iHUDBorderColor;
+extern uint32_t g_iOriginalHUDInnerColor, g_iOriginaHUDBorderColor;
 // Laser/Ion Cannon counting vars
 extern bool g_bLasersIonsNeedCounting;
 extern int g_iNumLaserCannons, g_iNumIonCannons;

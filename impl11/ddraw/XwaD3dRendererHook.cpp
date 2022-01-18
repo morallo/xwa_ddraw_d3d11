@@ -1,6 +1,5 @@
 /*
  * List of known issues:
- * - Switching ships in the hangar disables DC
  * - Faceted normal maps --> Not an issue with ddraw, OPTs have the wrong normals.
  * - VR
  * - Animations (including Debris)
@@ -9,10 +8,12 @@
  * - Transparency: All transparent layers must be rendered at the end of the frame
  *		Shield hit effects don't always show, maybe related?
  * - Cockpit Damage (for testing). Ctrl+C no longer works?
- * - The Map is broken.
  * - (According to Angel): Lasers are still not being drawn sometimes when firing at
  *	 ships. Sometimes works, sometimes doesn't.
  * - Check the DS2 explosion and core effect
+ * - The Map was semi-fixed apparently as a side-effect of fixing the artifacts in the CMD.
+ *   Turns out the map lines were being captured in the Dynamic Cockpit FG buffer, probably
+ *   because we didn't detect the miniature being rendered when in map mode.
  *
  * New ideas that might be possible now:
  *
@@ -1355,6 +1356,9 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_LaserDrawCommands.clear();
 	_bCockpitConstantsCaptured = false;
 	_bShadowsRenderedInCurrentFrame = false;
+
+	if (PlayerDataTable->missionTime == 0)
+		ApplyCustomHUDColor();
 
 	// Initialize the OBJ dump file for the current frame
 	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {

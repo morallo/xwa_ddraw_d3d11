@@ -557,6 +557,7 @@ bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false;
 
 // Custom HUD colors
 uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
+uint32_t g_iOriginalHUDInnerColor = 0, g_iOriginaHUDBorderColor = 0;
 
 // Laser/Ion Cannon counting vars
 bool g_bLasersIonsNeedCounting = false;

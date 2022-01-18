@@ -746,6 +746,8 @@ bool LoadHUDColorFromIniFile()
 	uint32_t color = 0x0;
 	g_iHUDInnerColor = 0;
 	g_iHUDBorderColor = 0;
+	//g_iHUDInnerColor = g_iOriginalHUDInnerColor;
+	//g_iHUDBorderColor = g_iOriginaHUDBorderColor;
 
 	// In order to parse the .ini file, we need a finite state machine so that we can
 	// tell when we see the [Section] we're interested in, and when we exit that same
