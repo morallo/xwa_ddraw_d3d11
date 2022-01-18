@@ -44,6 +44,7 @@ extern int g_KeySet;
 //extern float g_fMetricMult, 
 extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
+extern bool g_bEnableAnimations;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -534,6 +535,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
+				if (g_bEnableAnimations)
+					DisplayTimedMessage(3, 0, "Bloom Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Bloom Disabled");
+				/*
+				g_bEnableAnimations = !g_bEnableAnimations;
+				if (g_bEnableAnimations)
+					DisplayTimedMessage(3, 0, "Animations Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Animations Disabled");
+				*/
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
@@ -651,14 +663,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl
 		if (CtrlKey && !AltKey && !ShiftKey) {
 			switch (wParam) {
-			/*
 			case 0xbb:
 				IncreaseD3DExecuteCounterSkipLo(1);
 				return 0;
 			case 0xbd:
 				IncreaseD3DExecuteCounterSkipLo(-1);
 				return 0;
-			*/
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
@@ -895,7 +905,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl + Shift
 		if (CtrlKey && !AltKey && ShiftKey) {
 			switch (wParam) {
-			/*
 			case 0xbb:
 				//IncreaseNoExecIndices(0, 1);
 				IncreaseD3DExecuteCounterSkipHi(1);
@@ -904,7 +913,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//IncreaseNoExecIndices(0, -1);
 				IncreaseD3DExecuteCounterSkipHi(-1);
 				return 0;
-			*/
 			// Ctrl+Shift+C: Reset the cockpit damage
 			case 'C':
 				g_bResetCockpitDamage = true;

@@ -264,6 +264,12 @@ typedef struct PixelShaderCBStruct {
 	float GreebleMix1, GreebleMix2;
 	float2 UVDispMapResolution;
 	// 144 bytes
+
+	float4 AuxColorLight;
+	// 160 bytes
+	special_control_bitfield special_control_light;
+	float unused0, unused1, unused2;
+	// 176 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

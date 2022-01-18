@@ -47,4 +47,9 @@ cbuffer ConstantBuffer : register(b9)
 	float GreebleMix1, GreebleMix2;
 	float2 UVDispMapResolution;
 	// 144 bytes
+	float4 AuxColorLight;
+	// 160 bytes
+	uint special_control_light;
+	float3 unusedPS0;
+	// 176 bytes
 };

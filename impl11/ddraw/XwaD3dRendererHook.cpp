@@ -6,7 +6,6 @@
  * - Animations (including Debris)
  * - Animated Explosions (do they even work now?)
  * - Explosion Variants
- * - Greebles
  * - Transparency: All transparent layers must be rendered at the end of the frame
  *		Shield hit effects don't always show, maybe related?
  * - Cockpit Damage (for testing). Ctrl+C no longer works?
@@ -247,6 +246,7 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 extern bool g_bPrevIsScaleableGUIElem, g_bStartedGUI;
 extern bool g_bIsFloating3DObject, g_bPrevIsFloatingGUI3DObject;
 extern bool g_bTargetCompDrawn;
+bool g_bEnableAnimations = true;
 extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 
 Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
@@ -1335,6 +1335,7 @@ public:
 	void AddLaserLights(const SceneCompData* scene);
 	void ApplyProceduralLava();
 	void ApplyGreebles();
+	void ApplyAnimatedTextures();
 
 	// Deferred rendering
 	void RenderLasers();
@@ -1532,7 +1533,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 
 	_bIsTargetHighlighted = false;
-	//bool bIsText = false, bIsReticleCenter = false;
 	bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsActiveCockpit = false,
@@ -1553,10 +1553,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 
 		_bIsLaser = _lastTextureSelected->is_Laser || _lastTextureSelected->is_TurboLaser;
 		//_bIsLaser = _constants.renderType == 2;
-		//bIsLightTexture = lastTextureSelected->is_LightTexture;
-		//bIsText = lastTextureSelected->is_Text;
-		//_bIsReticle = _lastTextureSelected->is_Reticle; // I don't think the reticle is rendered in this path
-		//bIsReticleCenter = lastTextureSelected->is_ReticleCenter;
 		g_bIsTargetHighlighted |= _lastTextureSelected->is_HighlightedReticle;
 		_bIsTargetHighlighted = g_bIsTargetHighlighted || g_bPrevIsTargetHighlighted;
 		if (_bIsTargetHighlighted) g_GameEvent.TargetEvent = TGT_EVT_LASER_LOCK;
@@ -1572,10 +1568,8 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 				break;
 			}
 		}
-		//bIsGUI = lastTextureSelected->is_GUI;
 		//bIsLensFlare = lastTextureSelected->is_LensFlare;
 		//bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
-		//bIsSun = lastTextureSelected->is_Sun;
 		_bIsCockpit = _lastTextureSelected->is_CockpitTex;
 		_bIsGunner = _lastTextureSelected->is_GunnerTex;
 		//bIsExterior = lastTextureSelected->is_Exterior;
@@ -2013,6 +2007,104 @@ void EffectsRenderer::ApplyGreebles()
 	}
 }
 
+void EffectsRenderer::ApplyAnimatedTextures()
+{
+	// Do not apply animations if there's no material or there's a greeble in the current
+	// texture
+	if (!_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx != -1)
+		return;
+
+	//if ((_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
+	//	(!_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
+
+	bool bIsDamageTex = false;
+	int TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDamageTex, TEXTURE_ATC_IDX);
+	int LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+	// If there's no texture animation and no lightmap animation, then there's nothing to do here
+	if (TexATCIndex == -1 && LightATCIndex == -1)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = _deviceResources->_d3dDeviceContext;
+	const bool bRenderingDC = g_PSCBuffer.DynCockpitSlots > 0;
+
+	_bModifiedShaders = true;
+	_bModifiedPixelShader = true;
+
+	// If we reach this point then one of LightMapATCIndex or TextureATCIndex must be > -1 or both!
+	// If we're rendering a DC element, we don't want to replace the shader
+	if (!bRenderingDC)
+		resources->InitPixelShader(resources->_pixelShaderAnim);
+
+	g_PSCBuffer.AuxColor.x = 1.0f;
+	g_PSCBuffer.AuxColor.y = 1.0f;
+	g_PSCBuffer.AuxColor.z = 1.0f;
+	g_PSCBuffer.AuxColor.w = 1.0f;
+
+	g_PSCBuffer.AuxColorLight.x = 1.0f;
+	g_PSCBuffer.AuxColorLight.y = 1.0f;
+	g_PSCBuffer.AuxColorLight.z = 1.0f;
+	g_PSCBuffer.AuxColorLight.w = 1.0f;
+
+	int extraTexIdx = -1, extraLightIdx = -1;
+	if (TexATCIndex > -1) {
+		AnimatedTexControl *atc = &(g_AnimatedMaterials[TexATCIndex]);
+		int idx = atc->AnimIdx;
+		extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+		if (atc->BlackToAlpha)
+			g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+		else if (atc->AlphaIsBloomMask)
+			g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+		else
+			g_PSCBuffer.special_control.ExclusiveMask = 0;
+		g_PSCBuffer.AuxColor = atc->Tint;
+		g_PSCBuffer.Offset = atc->Offset;
+		g_PSCBuffer.AspectRatio = atc->AspectRatio;
+		g_PSCBuffer.Clamp = atc->Clamp;
+		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+	}
+
+	if (LightATCIndex > -1) {
+		AnimatedTexControl *atc = &(g_AnimatedMaterials[LightATCIndex]);
+		int idx = atc->AnimIdx;
+		extraLightIdx = atc->Sequence[idx].ExtraTextureIndex;
+		if (atc->BlackToAlpha)
+			g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+		else if (atc->AlphaIsBloomMask)
+			g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+		else
+			g_PSCBuffer.special_control_light.ExclusiveMask = 0;
+		g_PSCBuffer.AuxColorLight = atc->Tint;
+		// TODO: We might need two of these settings below, one for the regular tex and one for the lightmap
+		g_PSCBuffer.Offset = atc->Offset;
+		g_PSCBuffer.AspectRatio = atc->AspectRatio;
+		g_PSCBuffer.Clamp = atc->Clamp;
+		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+	}
+
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
+	//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
+	
+	if (extraTexIdx > -1) {
+		// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+		// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+		// the DC foreground SRV
+		context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+
+		// Force the use of damage textures if DC is on. This makes damage textures visible
+		// even when no cover texture is available:
+		if (bRenderingDC)
+			g_DCPSCBuffer.use_damage_texture = bIsDamageTex;
+	}
+	// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses
+	// that slot for something else
+	if (extraLightIdx > -1 && !bRenderingDC) {
+		// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+		context->PSSetShaderResources(1, 1, &(resources->_extraTextures[extraLightIdx]));
+	}
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
@@ -2144,7 +2236,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplySpecialMaterials();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
-	if (g_bIsFloating3DObject && g_bDynCockpitEnabled) {
+	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
 		DCCaptureMiniature();
 		goto out;
 	}
@@ -2159,14 +2251,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: This code expects either a lightmap or a regular texture, but now we can have both at the same time
 	// this will mess up all the animation logic when both the regular and lightmap layers have animations
 	ApplyBloomSettings();
-
-	// TODO (Are brackets rendered here?) Apply BLOOM flags for textureless objects
-	/*
-	if (_bIsBracket) {
-		bModifiedShaders = true;
-		g_PSCBuffer.fBloomStrength = g_BloomConfig.fBracketStrength;
-	}
-	*/
 
 	// Transparent textures are currently used with DC to render floating text. However, if the erase region
 	// commands are being ignored, then this will cause the text messages to be rendered twice. To avoid
@@ -2199,6 +2283,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		ApplyProceduralLava();
 
 	ApplyGreebles();
+
+	if (g_bEnableAnimations)
+		ApplyAnimatedTextures();
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
@@ -2235,9 +2322,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// viewport, so lasers and other projectiles that are rendered in the CMD also show in the bottom of the
 		// screen. This is not a fix, but a workaround: we're going to skip rendering any such objects if we've
 		// started rendering the CMD.
-		// Also, it looks like we can't use g_isInRenderMiniature for this check, since that doesn't seem to work,
-		// we need to use g_bIsFloating3DObject instead.
-		if (g_bStartedGUI || g_bIsFloating3DObject)
+		// Also, it looks like we can't use g_isInRenderMiniature for this check, since that doesn't seem to work
+		// in some cases; we need to use g_bIsFloating3DObject instead.
+		if (g_bStartedGUI || g_bIsFloating3DObject || g_isInRenderMiniature)
 			goto out;
 
 		// Save the current draw commands and skip. We'll render the lasers later
@@ -2314,7 +2401,12 @@ void EffectsRenderer::DCCaptureMiniature()
 {
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-	
+
+	// The viewport for the miniature is not properly set at the moment. So lasers and
+	// projectiles (?) and maybe other objects show outside the CMD. We need to avoid
+	// capturing them.
+	if (_bIsLaser || _lastTextureSelected->is_Missile) return;
+
 	// Restore the non-VR dimensions:
 	//float displayWidth = (float)resources->_displayWidth;
 	//float displayHeight = (float)resources->_displayHeight;

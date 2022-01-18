@@ -110,7 +110,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		coverAlpha = HSV.z;
 
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly
-	//const float coverAlpha = 0.0;
+	//coverAlpha = 0.0;
 	// DEBUG
 	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	//output.diffuse = float4(diffuse, 1);

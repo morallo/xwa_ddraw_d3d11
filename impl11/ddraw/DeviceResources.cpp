@@ -71,7 +71,7 @@
 #include "../Debug/ExplosionShader.h"
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
-#include "../Debug/PixelShaderAnimLightMap.h"
+#include "../Debug/PixelShaderAnim.h"
 #include "../Debug/PixelShaderGreeble.h"
 #else
 #include "../Release/MainVertexShader.h"
@@ -132,7 +132,7 @@
 #include "../Release/ExplosionShader.h"
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
-#include "../Release/PixelShaderAnimLightMap.h"
+#include "../Release/PixelShaderAnim.h"
 #include "../Release/PixelShaderGreeble.h"
 #endif
 
@@ -3667,7 +3667,7 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimLightMap, sizeof(g_PixelShaderAnimLightMap), nullptr, &_pixelShaderAnimLightMap)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnim, sizeof(g_PixelShaderAnim), nullptr, &_pixelShaderAnim)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))
@@ -3932,8 +3932,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 144;
-	static_assert(sizeof(PixelShaderCBuffer) == 144, "sizeof(PixelShaderCBuffer) must be 144");
+	constantBufferDesc.ByteWidth = 176;
+	static_assert(sizeof(PixelShaderCBuffer) == 176, "sizeof(PixelShaderCBuffer) must be 176");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 
