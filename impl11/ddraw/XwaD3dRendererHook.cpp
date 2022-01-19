@@ -203,6 +203,12 @@ struct DrawCommand {
 	ID3D11Buffer *vertexBuffer, *indexBuffer;
 	int trianglesCount;
 	D3dConstants constants;
+	// Extra fields needed for transparent layers
+	ID3D11ShaderResourceView *SRVs[2];
+	PixelShaderCBuffer PSCBuffer;
+	DCPixelShaderCBuffer DCPSCBuffer;
+	bool bIsCockpit, bIsGunner, bIsBlastMark;
+	ComPtr<ID3D11PixelShader> pixelShader;
 };
 
 static bool g_isInRenderLasers = false;
@@ -1299,16 +1305,17 @@ class EffectsRenderer : public D3dRenderer
 {
 private:
 	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit;
-	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bIsTransparent, _bDCElemAlwaysVisible;
+	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
-	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed;
+	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
 	bool _bShadowsRenderedInCurrentFrame;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
 	std::vector<DrawCommand> _LaserDrawCommands;
+	std::vector<DrawCommand> _TransparentDrawCommands;
 
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
@@ -1340,6 +1347,7 @@ public:
 
 	// Deferred rendering
 	void RenderLasers();
+	void RenderTransparency();
 	void RenderShadowMap();
 	void RenderDeferredDrawCalls();
 };
@@ -1354,6 +1362,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	// Reset any deferred-rendering variables here
 	_LaserDrawCommands.clear();
+	_TransparentDrawCommands.clear();
 	_bCockpitConstantsCaptured = false;
 	_bShadowsRenderedInCurrentFrame = false;
 
@@ -1528,7 +1537,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsCockpit = false;
 	_bIsGunner = false;
 	_bIsExplosion = false;
-	_bIsTransparent = false;
+	_bDCIsTransparent = false;
 	_bDCElemAlwaysVisible = false;
 	_bIsHologram = false;
 	_bIsNoisyHolo = false;
@@ -1550,7 +1559,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 			if (idx >= 0 && idx < g_iNumDCElements) {
 				_bIsHologram |= g_DCElements[idx].bHologram;
 				_bIsNoisyHolo |= g_DCElements[idx].bNoisyHolo;
-				_bIsTransparent |= g_DCElements[idx].bTransparent;
+				_bDCIsTransparent |= g_DCElements[idx].bTransparent;
 				_bDCElemAlwaysVisible |= g_DCElements[idx].bAlwaysVisible;
 			}
 		}
@@ -2131,11 +2140,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	{
 		_deviceResources->InitBlendState(_solidBlendState, nullptr);
 		_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+		_bIsTransparentCall = false;
 	}
 	else
 	{
 		_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 		_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+		_bIsTransparentCall = true;
 	}
 
 	_deviceResources->InitViewport(&_viewport);
@@ -2262,7 +2273,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// not being applied.
 	// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
 	// transparent layer will remain visible even when the HUD is displayed.
-	if (g_bDCManualActivate && g_bDynCockpitEnabled && _bIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
+	if (g_bDCManualActivate && g_bDynCockpitEnabled && _bDCIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
 		goto out;
 
 	// Dynamic Cockpit: Replace textures at run-time. Returns true if we need to skip the current draw call
@@ -2320,6 +2331,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// There's a bug with the lasers: they are sometimes rendered at the start of the frame, causing them to be
 	// displayed *behind* the geometry. To fix this, we're going to save all the lasers in a list and then render
 	// them at the end of the frame.
+	// TODO: Instead of storing draw calls, use a deferred context to record the calls and then execute it later
 	if (_bIsLaser) {
 		DrawCommand command;
 		// There's apparently a bug in the latest D3DRendererHook ddraw: the miniature does not set the proper
@@ -2331,7 +2343,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		if (g_bStartedGUI || g_bIsFloating3DObject || g_isInRenderMiniature)
 			goto out;
 
-		// Save the current draw commands and skip. We'll render the lasers later
+		// Save the current draw command and skip. We'll render the lasers later
 		// Save the textures
 		command.colortex			= _lastTextureSelected;
 		command.lighttex			= _lastLightmapSelected;
@@ -2351,6 +2363,45 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// Do not render the laser at this moment
 		goto out;
 	}
+
+	// Transparent polygons are sometimes rendered in the middle of a frame, causing them to appear
+	// behind other geometry. We need to store those draw calls and render them later, near the end
+	// of the frame.
+	// TODO: Instead of storing draw calls, use a deferred context to record the calls and then execute it later
+	if (_bIsTransparentCall) {
+		DrawCommand command;
+		// Save the current draw command and skip. We'll render the transparency later
+
+		// Save the textures. The following will increase the refcount on the SRVs, we need
+		// to decrease it later to avoid memory leaks
+		for (int i = 0; i < 2; i++)
+			command.SRVs[i] = nullptr;
+		context->PSGetShaderResources(0, 2, command.SRVs);
+		// Save the Vertex, Normal and UVs SRVs
+		command.vertexSRV = _lastMeshVerticesView;
+		command.normalsSRV = _lastMeshVertexNormalsView;
+		command.texturesSRV = _lastMeshTextureVerticesView;
+		// Save the vertex and index buffers
+		command.vertexBuffer = _lastVertexBuffer;
+		command.indexBuffer = _lastIndexBuffer;
+		command.trianglesCount = _trianglesCount;
+		// Save the constants
+		command.constants = _constants;
+		// Save extra data
+		command.PSCBuffer = g_PSCBuffer;
+		command.DCPSCBuffer = g_DCPSCBuffer;
+		command.bIsCockpit = _bIsCockpit;
+		command.bIsGunner = _bIsGunner;
+		command.bIsBlastMark = _bIsBlastMark;
+		// The following increases the refcount of the pixel shader, we need to release it later
+		// to avoid memory leaks
+		context->PSGetShader(&(command.pixelShader), nullptr, nullptr);
+		// Add the command to the list of deferred commands
+		_TransparentDrawCommands.push_back(command);
+
+		goto out;
+	}
+
 	RenderScene();
 
 out:
@@ -2508,7 +2559,7 @@ bool EffectsRenderer::DCReplaceTextures()
 				g_DCPSCBuffer.src[numCoords] = uv_src;
 				g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
 				g_DCPSCBuffer.noisy_holo = _bIsNoisyHolo;
-				g_DCPSCBuffer.transparent = _bIsTransparent;
+				g_DCPSCBuffer.transparent = _bDCIsTransparent;
 				g_DCPSCBuffer.use_damage_texture = false;
 				if (_bWarheadLocked)
 					g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
@@ -2706,6 +2757,98 @@ void EffectsRenderer::RenderLasers()
 	}
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+	resources->InitPixelShader(lastPixelShader);
+}
+
+void EffectsRenderer::RenderTransparency()
+{
+	if (_TransparentDrawCommands.size() == 0)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
+
+	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersize and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+	ID3D11PixelShader *lastPixelShader = _pixelShader;
+
+	// Just in case we need to do anything for VR or other alternative display devices...
+	ExtraPreprocessing();
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	// Run the deferred commands
+	for (DrawCommand command : _TransparentDrawCommands) {
+		g_PSCBuffer = command.PSCBuffer;
+		g_DCPSCBuffer = command.DCPSCBuffer;
+
+		// Flags used in RenderScene():
+		_bIsCockpit = command.bIsCockpit;
+		_bIsGunner = command.bIsGunner;
+		_bIsBlastMark = command.bIsBlastMark;
+
+		// Apply the VS and PS constants
+		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+		//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		if (g_PSCBuffer.DynCockpitSlots > 0)
+			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+
+		// Set the textures
+		_deviceResources->InitPSShaderResourceView(command.SRVs[0], command.SRVs[1]);
+
+		// Set the mesh buffers
+		ID3D11ShaderResourceView* vsSSRV[3] = { command.vertexSRV, command.normalsSRV, command.texturesSRV };
+		context->VSSetShaderResources(0, 3, vsSSRV);
+
+		// Set the index and vertex buffers
+		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+		_deviceResources->InitVertexBuffer(&(command.vertexBuffer), &vertexBufferStride, &vertexBufferOffset);
+		_deviceResources->InitIndexBuffer(nullptr, true);
+		_deviceResources->InitIndexBuffer(command.indexBuffer, true);
+
+		// Set the constants buffer
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &(command.constants), 0, 0);
+
+		// Set the number of triangles
+		_trianglesCount = command.trianglesCount;
+
+		// Set the right pixel shader
+		_deviceResources->InitPixelShader(command.pixelShader);
+
+		// Render the deferred commands
+		RenderScene();
+
+		// Decrease the refcount of the textures and the pixel shader to avoid memory leaks
+		command.pixelShader.Release();
+		for (int i = 0; i < 2; i++)
+			if (command.SRVs[i] != nullptr) command.SRVs[i]->Release();
+	}
+
+	// Clear the command list and restore the previous state
+	_TransparentDrawCommands.clear();
 	// The hyperspace effect needs the current VS constants to work properly
 	if (g_HyperspacePhaseFSM == HS_INIT_ST)
 		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
@@ -2960,6 +3103,7 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 		RenderShadowMap();
 	}
 	RenderLasers();
+	RenderTransparency();
 }
 
 static EffectsRenderer g_effects_renderer;
