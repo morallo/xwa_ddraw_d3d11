@@ -2204,6 +2204,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// - The backdrop, including the Suns
 	// - Engine Glow
 	// - The HUD, including the reticle
+	// - Explosions, including the DS2 core explosion
 	/*
 		We have an interesting mixture of Execute() calls and Hook calls. The sequence for
 		each frame, looks like this:

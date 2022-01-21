@@ -4563,9 +4563,9 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedSamplerState = true;
 						resources->InitPixelShader(resources->_explosionPS);
 						// Set the noise texture and sampler state with wrap/repeat enabled.
-						context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
+						context->PSSetShaderResources(9, 1, resources->_grayNoiseSRV.GetAddressOf());
 						// bModifiedSamplerState restores this sampler state at the end of this instruction.
-						context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+						context->PSSetSamplers(9, 1, resources->_repeatSamplerState.GetAddressOf());
 
 						int GroupId = 0, ImageId = 0;
 						if (!lastTextureSelected->material.DATGroupImageIdParsed) {

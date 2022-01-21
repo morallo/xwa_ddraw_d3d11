@@ -29,8 +29,8 @@ Texture2D    texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
 // Gray noise texture
-Texture2D	 noiseTex  : register(t1);
-SamplerState noiseSamp : register(s1);
+Texture2D	 noiseTex  : register(t9);
+SamplerState noiseSamp : register(s9);
 
 
 // pos3D/Depth buffer has the following coords:
