@@ -771,7 +771,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
 		// calculate the attenuation
-		const float depth_attenuation_A = smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
+		const float depth_attenuation_A = 0.15 * smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
 		const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
 		const float depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
 		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);

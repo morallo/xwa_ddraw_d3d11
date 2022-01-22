@@ -2476,12 +2476,6 @@ inline void Direct3DDevice::RestoreBlendState() {
 	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
 }
 
-inline void Direct3DDevice::RestoreSamplerState() {
-	auto& resources = this->_deviceResources;
-	auto& context = resources->_d3dDeviceContext;
-	context->PSSetSamplers(1, 1, resources->_mainSamplerState.GetAddressOf());
-}
-
 inline void UpdateDCHologramState() {
 	if (!g_bDCHologramsVisiblePrev && g_bDCHologramsVisible) {
 		g_fDCHologramFadeIn = 0.0f;
@@ -2579,12 +2573,6 @@ HRESULT Direct3DDevice::Execute(
 	}
 */
 
-	// For the D3DRendererHook, the lasers are rendered in a deferred fashion (through a draw call list)
-	// The Execute() method is now called to render the background, the HUD and other stuff. So, if we reach
-	// this point, chances are we're about to render the HUD. We should render the lasers now, before we punch
-	// a hole in the depth stencil to draw the miniature; and if there's nothing to render yet, no harm done!
-	RenderDeferredDrawCalls();
-
 	g_ExecuteCount++;
 
 	//log_debug("[DBG] Execute (1)");
@@ -2659,7 +2647,7 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false, bModifiedSamplerState = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -3482,6 +3470,12 @@ HRESULT Direct3DDevice::Execute(
 					// We're about to start rendering *ALL* the GUI: including the triangle pointer and text
 					// This is where we can capture the current frame for post-processing effects
 
+					// For the D3DRendererHook, the lasers are rendered in a deferred fashion (through a draw call list)
+					// The Execute() method is now called to render the background, the HUD and other stuff. So, if we reach
+					// this point, we're about to render the HUD. We should render the lasers now, before we punch a hole in
+					// the depth stencil to draw the miniature; and if there's nothing to render yet, no harm done!
+					RenderDeferredDrawCalls();
+
 					// Resolve the Depth Buffers
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
@@ -3561,6 +3555,7 @@ HRESULT Direct3DDevice::Execute(
 				//	log_debug("[DBG] [DC] debugTexture->is_DC_LeftSensorSrc: %d", debugTexture->is_DC_LeftSensorSrc);
 				//}
 
+				// Update the state of the warning lights
 				if (bLastTextureSelectedNotNULL && lastTextureSelected->WarningLightType != NONE_WLIGHT) {
 					uint32_t color = GetWarningLightColor(instruction, currentIndexLocation, lastTextureSelected);
 					switch (lastTextureSelected->WarningLightType) {
@@ -4400,7 +4395,6 @@ HRESULT Direct3DDevice::Execute(
 				bModifiedShaders      = false;
 				bModifiedPixelShader  = false;
 				bModifiedBlendState   = false;
-				bModifiedSamplerState = false;
 
 				// DEBUG
 				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
@@ -4528,12 +4522,10 @@ HRESULT Direct3DDevice::Execute(
 
 					bModifiedShaders = true;
 					bModifiedPixelShader = true;
-					bModifiedSamplerState = true;
 					resources->InitPixelShader(resources->_explosionPS);
 					// Set the noise texture and sampler state with wrap/repeat enabled.
-					context->PSSetShaderResources(1, 1, resources->_grayNoiseSRV.GetAddressOf());
-					// bModifiedSamplerState restores this sampler state at the end of this instruction.
-					context->PSSetSamplers(1, 1, resources->_repeatSamplerState.GetAddressOf());
+					context->PSSetShaderResources(9, 1, resources->_grayNoiseSRV.GetAddressOf());
+					context->PSSetSamplers(9, 1, resources->_repeatSamplerState.GetAddressOf());
 					
 					g_ShadertoyBuffer.iTime = iTime;
 					//g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
@@ -4560,11 +4552,9 @@ HRESULT Direct3DDevice::Execute(
 
 						bModifiedShaders = true;
 						bModifiedPixelShader = true;
-						bModifiedSamplerState = true;
 						resources->InitPixelShader(resources->_explosionPS);
 						// Set the noise texture and sampler state with wrap/repeat enabled.
 						context->PSSetShaderResources(9, 1, resources->_grayNoiseSRV.GetAddressOf());
-						// bModifiedSamplerState restores this sampler state at the end of this instruction.
 						context->PSSetSamplers(9, 1, resources->_repeatSamplerState.GetAddressOf());
 
 						int GroupId = 0, ImageId = 0;
@@ -4925,8 +4915,7 @@ HRESULT Direct3DDevice::Execute(
 				// Modify the state for both VR and regular game modes...
 
 				// Maintain the k-closest lasers to the camera
-				if (g_bEnableLaserLights && bIsLaser && bHasMaterial)
-					AddLaserLights(instruction, currentIndexLocation, lastTextureSelected);
+				// No longer done here, look in XwaD3dRendererHook
 
 				// Apply BLOOM flags and 32-bit mode enhancements
 				if (bLastTextureSelectedNotNULL)
@@ -5037,113 +5026,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitDst &&
-					// We should never render lightmap textures with the DC pixel shader:
-					!lastTextureSelected->is_DynCockpitAlphaOverlay)
-				{
-					int idx = lastTextureSelected->DCElementIndex;
-					//log_debug("[DBG] Replacing cockpit textures with DC");
-
-					// Check if this idx is valid before rendering
-					if (idx >= 0 && idx < g_iNumDCElements) {
-						dc_element *dc_element = &g_DCElements[idx];
-						if (dc_element->bActive) {
-							bModifiedShaders = true;
-							g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitStrength;
-							int numCoords = 0;
-							for (int i = 0; i < dc_element->coords.numCoords; i++)
-							{
-								int src_slot = dc_element->coords.src_slot[i];
-								// Skip invalid src slots
-								if (src_slot < 0)
-									continue;
-
-								if (src_slot >= (int)g_DCElemSrcBoxes.src_boxes.size()) {
-									//log_debug("[DBG] [DC] src_slot: %d bigger than src_boxes.size! %d",
-									//	src_slot, g_DCElemSrcBoxes.src_boxes.size());
-									continue;
-								}
-
-								DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[src_slot];
-								// Skip src boxes that haven't been computed yet
-								if (!src_box->bComputed)
-									continue;
-
-								uvfloat4 uv_src;
-								uv_src.x0 = src_box->coords.x0; uv_src.y0 = src_box->coords.y0;
-								uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
-								g_DCPSCBuffer.src[numCoords] = uv_src;
-								g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
-								g_DCPSCBuffer.noisy_holo = bIsNoisyHolo;
-								g_DCPSCBuffer.transparent = bIsTransparent;
-								g_DCPSCBuffer.use_damage_texture = false;
-								if (bWarheadLocked)
-									g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
-								else
-									g_DCPSCBuffer.bgColor[numCoords] = bIsTargetHighlighted ? dc_element->coords.uHGColor[i] : dc_element->coords.uBGColor[i];
-								// The hologram property will make *all* uvcoords in this DC element
-								// holographic as well:
-								//bIsHologram |= (dc_element->bHologram);
-								numCoords++;
-							} // for
-							// g_bDCHologramsVisible is a hard switch, let's use g_fDCHologramFadeIn instead to
-							// provide a softer ON/OFF animation
-							if (bIsHologram && g_fDCHologramFadeIn <= 0.01f) goto out;
-							g_PSCBuffer.DynCockpitSlots = numCoords;
-							//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
-							g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
-							
-							// slot 0 is the cover texture
-							// slot 1 is the HUD offscreen buffer
-							// slot 2 is the text buffer
-							context->PSSetShaderResources(1, 1, resources->_offscreenAsInputDynCockpitSRV.GetAddressOf());
-							context->PSSetShaderResources(2, 1, resources->_DCTextSRV.GetAddressOf());
-							// Set the cover texture:
-							if (g_PSCBuffer.bUseCoverTexture) {
-								//log_debug("[DBG] [DC] Setting coverTexture: 0x%x", resources->dc_coverTexture[idx].GetAddressOf());
-								//context->PSSetShaderResources(0, 1, dc_element->coverTexture.GetAddressOf());
-								//context->PSSetShaderResources(0, 1, &dc_element->coverTexture);
-								context->PSSetShaderResources(0, 1, resources->dc_coverTexture[idx].GetAddressOf());
-								//resources->InitPSShaderResourceView(resources->dc_coverTexture[idx].Get());
-							} else
-								context->PSSetShaderResources(0, 1, lastTextureSelected->_textureView.GetAddressOf());
-								//resources->InitPSShaderResourceView(lastTextureSelected->_textureView.Get());
-							// No need for an else statement, slot 0 is already set to:
-							// context->PSSetShaderResources(0, 1, texture->_textureView.GetAddressOf());
-							// See D3DRENDERSTATE_TEXTUREHANDLE, where lastTextureSelected is set.
-							if (g_PSCBuffer.DynCockpitSlots > 0) {
-								bModifiedPixelShader = true;
-								//bModifiedBlendState = true;
-								// Holograms require alpha blending to be enabled, but we also need to save the current
-								// blending state so that it gets restored at the end of this draw call.
-								//SaveBlendState();
-								//EnableTransparency();
-								if (bIsHologram) {
-									uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
-									//log_debug("[DBG] hud_color, border, inside: 0x%x, 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
-									g_ShadertoyBuffer.iTime = g_fDCHologramTime;
-									g_ShadertoyBuffer.twirl = g_fDCHologramFadeIn;
-									// Override the background color if the current DC element is a hologram:
-									g_DCPSCBuffer.bgColor[0] = hud_color;
-									resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-								}
-								resources->InitPixelShader(bIsHologram ? resources->_pixelShaderDCHolo : resources->_pixelShaderDC);
-							}
-							else if (g_PSCBuffer.bUseCoverTexture) {
-								bModifiedPixelShader = true;
-								resources->InitPixelShader(resources->_pixelShaderEmptyDC);
-							}
-						} // if dc_element->bActive
-					}
-					// TODO: I should probably put an assert here since this shouldn't happen
-					/*else if (idx >= (int)g_DCElements.size()) {
-						log_debug("[DBG] [DC] ****** idx: %d outside the bounds of g_DCElements (%d)", idx, g_DCElements.size());
-					}*/
-				}
-
-				// Count the number of *actual* DC commands sent to the GPU:
-				//if (g_PSCBuffer.bUseCoverTexture != 0 || g_PSCBuffer.DynCockpitSlots > 0)
-				//	g_iDCElementsRendered++;
+				// No longer done here, look in XwaD3dRendererHook
 
 				// Don't render the first hyperspace frame: use all the buffers from the previous frame instead. Otherwise
 				// the craft will jerk or blink because XWA resets the cockpit camera and the craft's orientation on this
@@ -5537,11 +5420,6 @@ HRESULT Direct3DDevice::Execute(
 				if (bModifiedBlendState) {
 					RestoreBlendState();
 					bModifiedBlendState = false;
-				}
-
-				if (bModifiedSamplerState) {
-					RestoreSamplerState();
-					bModifiedSamplerState = false;
 				}
 
 				currentIndexLocation += 3 * instruction->wCount;

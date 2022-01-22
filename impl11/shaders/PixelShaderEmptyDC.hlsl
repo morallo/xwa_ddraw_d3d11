@@ -95,9 +95,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float brightness = ct_brightness;
 	if (HSV.z * alpha >= 0.8) {
 		// The cover texture is bright enough, go shadeless and make it brighter
-		//diffuse = float3(1, 1, 1);
 		// Increase the brightness:
-		//HSV = RGBtoHSV(texelColor.xyz); // Redundant line
 		HSV.z *= 1.2;
 		texelColor.xyz = HSVtoRGB(HSV);
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 1);

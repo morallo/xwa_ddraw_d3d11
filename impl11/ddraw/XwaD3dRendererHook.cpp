@@ -1317,12 +1317,38 @@ private:
 	std::vector<DrawCommand> _LaserDrawCommands;
 	std::vector<DrawCommand> _TransparentDrawCommands;
 
+	VertexShaderCBuffer _oldVSCBuffer;
+	PixelShaderCBuffer _oldPSCBuffer;
+	DCPixelShaderCBuffer _oldDCPSCBuffer;
+	ComPtr<ID3D11Buffer> _oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> _oldVSSRV[3];
+	ComPtr<ID3D11ShaderResourceView> _oldPSSRV[13];
+	ComPtr<ID3D11VertexShader> _oldVertexShader;
+	ComPtr<ID3D11PixelShader> _oldPixelShader;
+	ComPtr<ID3D11SamplerState> _oldPSSamplers[2];
+	ComPtr<ID3D11RenderTargetView> _oldRTVs[8];
+	ComPtr<ID3D11DepthStencilView> _oldDSV;
+	ComPtr<ID3D11DepthStencilState> _oldDepthStencilState;
+	ComPtr<ID3D11BlendState> _oldBlendState;
+	ComPtr<ID3D11InputLayout> _oldInputLayout;
+	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
+	UINT _oldStencilRef, _oldSampleMask;
+	FLOAT _oldBlendFactor[4];
+	UINT _oldStride, _oldOffset, _oldIOffset;
+	DXGI_FORMAT _oldFormat;
+	D3D11_VIEWPORT _oldViewports[2];
+	UINT _oldNumViewports = 2;
+
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
+	void SaveContext();
+	void RestoreContext();
 
 public:
 	EffectsRenderer();
@@ -1461,6 +1487,101 @@ inline void EffectsRenderer::EnableHoloTransparency() {
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	resources->InitBlendState(nullptr, &blendDesc);
+}
+
+void EffectsRenderer::SaveContext()
+{
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	_oldVSCBuffer = g_VSCBuffer;
+	_oldPSCBuffer = g_PSCBuffer;
+	_oldDCPSCBuffer = g_DCPSCBuffer;
+
+	context->VSGetConstantBuffers(0, 1, _oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, _oldPSConstantBuffer.GetAddressOf());
+
+	context->VSGetShaderResources(0, 3, _oldVSSRV[0].GetAddressOf());
+	context->PSGetShaderResources(0, 13, _oldPSSRV[0].GetAddressOf());
+
+	context->VSGetShader(_oldVertexShader.GetAddressOf(), nullptr, nullptr);
+	context->PSGetShader(_oldPixelShader.GetAddressOf(), nullptr, nullptr);
+
+	context->PSGetSamplers(0, 2, _oldPSSamplers[0].GetAddressOf());
+
+	context->OMGetRenderTargets(8, _oldRTVs[0].GetAddressOf(), _oldDSV.GetAddressOf());
+	context->OMGetDepthStencilState(_oldDepthStencilState.GetAddressOf(), &_oldStencilRef);
+	context->OMGetBlendState(_oldBlendState.GetAddressOf(), _oldBlendFactor, &_oldSampleMask);
+
+	context->IAGetInputLayout(_oldInputLayout.GetAddressOf());
+	context->IAGetPrimitiveTopology(&_oldTopology);
+	context->IAGetVertexBuffers(0, 1, _oldVertexBuffer.GetAddressOf(), &_oldStride, &_oldOffset);
+	context->IAGetIndexBuffer(_oldIndexBuffer.GetAddressOf(), &_oldFormat, &_oldIOffset);
+
+	_oldNumViewports = 2;
+	context->RSGetViewports(&_oldNumViewports, _oldViewports);
+}
+
+void EffectsRenderer::RestoreContext()
+{
+	auto &resources = _deviceResources;
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	// Restore a previously-saved context
+	g_VSCBuffer = _oldVSCBuffer;
+	g_PSCBuffer = _oldPSCBuffer;
+	g_DCPSCBuffer = _oldDCPSCBuffer;
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, _oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _oldPSConstantBuffer.GetAddressOf());
+
+	context->VSSetShaderResources(0, 3, _oldVSSRV[0].GetAddressOf());
+	context->PSSetShaderResources(0, 13, _oldPSSRV[0].GetAddressOf());
+
+	// It's important to use the Init*Shader methods here, or the shaders won't be
+	// applied sometimes.
+	resources->InitVertexShader(_oldVertexShader);
+	resources->InitPixelShader(_oldPixelShader);
+
+	context->PSSetSamplers(0, 2, _oldPSSamplers[0].GetAddressOf());
+	context->OMSetRenderTargets(8, _oldRTVs[0].GetAddressOf(), _oldDSV.Get());
+	context->OMSetDepthStencilState(_oldDepthStencilState.Get(), _oldStencilRef);
+	context->OMSetBlendState(_oldBlendState.Get(), _oldBlendFactor, _oldSampleMask);
+
+	resources->InitInputLayout(_oldInputLayout);
+	resources->InitTopology(_oldTopology);
+	context->IASetVertexBuffers(0, 1, _oldVertexBuffer.GetAddressOf(), &_oldStride, &_oldOffset);
+	context->IASetIndexBuffer(_oldIndexBuffer.Get(), _oldFormat, _oldIOffset);
+
+	context->RSSetViewports(_oldNumViewports, _oldViewports);
+
+	// Release everything. Previous calls to *Get* increase the refcount
+	_oldVSConstantBuffer.Release();
+	_oldPSConstantBuffer.Release();
+
+	for (int i = 0; i < 3; i++)
+		_oldVSSRV[i].Release();
+	for (int i = 0; i < 13; i++)
+		_oldPSSRV[i].Release();
+
+	_oldVertexShader.Release();
+	_oldPixelShader.Release();
+
+	for (int i = 0; i < 2; i++)
+		_oldPSSamplers[i].Release();
+
+	for (int i = 0; i < 8; i++)
+		_oldRTVs[i].Release();
+	_oldDSV.Release();
+	_oldDepthStencilState.Release();
+	_oldBlendState.Release();
+	_oldInputLayout.Release();
+	_oldVertexBuffer.Release();
+	_oldIndexBuffer.Release();
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -2415,15 +2536,17 @@ out:
 	if (_bModifiedPixelShader)
 		resources->InitPixelShader(lastPixelShader);
 
+	// Decrease the refcount of all the objects we queried at the prologue. (Is this
+	// really necessary? They live on the stack, so maybe they are auto-released?)
+	oldVSConstantBuffer.Release();
+	oldPSConstantBuffer.Release();
+	for (int i = 0; i < 3; i++)
+		oldVSSRV[i].Release();
+
 	/*
 	if (bModifiedBlendState) {
 		RestoreBlendState();
 		bModifiedBlendState = false;
-	}
-
-	if (bModifiedSamplerState) {
-		RestoreSamplerState();
-		bModifiedSamplerState = false;
 	}
 	*/
 
@@ -2505,6 +2628,10 @@ void EffectsRenderer::DCCaptureMiniature()
 	// Restore the Pixel Shader constant buffers:
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	if (g_bDumpSSAOBuffers) {
+		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input-Raw.jpg");
+	}
 }
 
 bool EffectsRenderer::DCReplaceTextures()
@@ -2674,14 +2801,8 @@ void EffectsRenderer::RenderLasers()
 	auto &context = resources->_d3dDeviceContext;
 	//log_debug("[DBG] Rendering %d deferred draw calls", _LaserDrawCommands.size());
 
-	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
-	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
-	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
-
-	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
-
+	SaveContext();
+	
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersize and depth stencil states for transparency
@@ -2693,7 +2814,6 @@ void EffectsRenderer::RenderLasers()
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
 	_deviceResources->InitPixelShader(_pixelShader);
-	ID3D11PixelShader *lastPixelShader = _pixelShader;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness		= MAX_BRIGHTNESS;
@@ -2710,15 +2830,14 @@ void EffectsRenderer::RenderLasers()
 	g_PSCBuffer.fSpecVal			= 0.0f;
 	g_PSCBuffer.bIsShadeless		= 1;
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	// Laser-specific stuff from ApplyBloomSettings():
+	g_PSCBuffer.fBloomStrength	= g_BloomConfig.fLasersStrength;
+	//g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 
 	// Flags used in RenderScene():
 	_bIsCockpit		= false;
 	_bIsGunner		= false;
 	_bIsBlastMark	= false;
-
-	// Laser-specific stuff from ApplyBloomSettings():
-	g_PSCBuffer.fBloomStrength	= g_BloomConfig.fLasersStrength;
-	g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 	
 	// Just in case we need to do anything for VR or other alternative display devices...
 	ExtraPreprocessing();
@@ -2730,7 +2849,6 @@ void EffectsRenderer::RenderLasers()
 	// Other stuff that is common in the loop below
 	UINT vertexBufferStride = sizeof(D3dVertex);
 	UINT vertexBufferOffset = 0;
-
 	// Run the deferred commands
 	for (DrawCommand command : _LaserDrawCommands) {
 		// Set the textures
@@ -2756,14 +2874,10 @@ void EffectsRenderer::RenderLasers()
 		// Render the deferred commands
 		RenderScene();
 	}
+
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
-	// The hyperspace effect needs the current VS constants to work properly
-	if (g_HyperspacePhaseFSM == HS_INIT_ST)
-		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
-	resources->InitPixelShader(lastPixelShader);
+	RestoreContext();
 }
 
 void EffectsRenderer::RenderTransparency()
@@ -2774,13 +2888,7 @@ void EffectsRenderer::RenderTransparency()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
-	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
-	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
-	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
-
-	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
@@ -2850,12 +2958,7 @@ void EffectsRenderer::RenderTransparency()
 
 	// Clear the command list and restore the previous state
 	_TransparentDrawCommands.clear();
-	// The hyperspace effect needs the current VS constants to work properly
-	if (g_HyperspacePhaseFSM == HS_INIT_ST)
-		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
-	resources->InitPixelShader(lastPixelShader);
+	RestoreContext();
 }
 
 /*
@@ -2980,20 +3083,17 @@ void EffectsRenderer::RenderShadowMap()
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
 
-	if (!g_bShadowMapEnable || !_bCockpitConstantsCaptured || _bShadowsRenderedInCurrentFrame)
+	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
+	// Maybe also disable it if the cockpit is hidden
+	if (!g_ShadowMapping.bEnabled || !g_bShadowMapEnable || !g_ShadowMapping.bUseShadowOBJ || _bExternalCamera ||
+		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
+		_bShadowsRenderedInCurrentFrame)
 		return;
 
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-
-	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
-	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
-	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
-
-	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
-
+	SaveContext();
+	
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 
@@ -3015,7 +3115,6 @@ void EffectsRenderer::RenderShadowMap()
 
 	_deviceResources->InitVertexShader(resources->_shadowMapVS);
 	_deviceResources->InitPixelShader(resources->_shadowMapPS);
-	ID3D11PixelShader *lastPixelShader = _pixelShader;
 
 	// Set the vertex and index buffers
 	UINT stride = sizeof(D3DTLVERTEX), ofs = 0;
@@ -3078,13 +3177,8 @@ void EffectsRenderer::RenderShadowMap()
 			DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, wFileName);
 		}
 	}
-
-	// The hyperspace effect needs the current VS constants to work properly
-	if (g_HyperspacePhaseFSM == HS_INIT_ST)
-		context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
-	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
-	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
-	resources->InitPixelShader(lastPixelShader);
+	
+	RestoreContext();
 	_bShadowsRenderedInCurrentFrame = true;
 }
 
@@ -3095,14 +3189,7 @@ void EffectsRenderer::RenderShadowMap()
  */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
-	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
-	// Maybe also disable it if the cockpit is hidden
-	if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ &&
-		!_bExternalCamera && _bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
-	{
-		// Render the Shadow Map
-		RenderShadowMap();
-	}
+	RenderShadowMap();
 	RenderLasers();
 	RenderTransparency();
 }

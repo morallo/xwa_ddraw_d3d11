@@ -62,8 +62,6 @@ public:
 
 	void RestoreBlendState();
 
-	void RestoreSamplerState();
-
 	uint32_t GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT currentIndexLocation, Direct3DTexture * lastTextureSelected);
 
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);

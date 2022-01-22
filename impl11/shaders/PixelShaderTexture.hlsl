@@ -41,11 +41,6 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
-inline float4 overlay(float4 a, float4 b)
-{
-	return (a < 0.5) ? 2.0 * a * b : 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
-}
-
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -134,6 +129,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	*/
 
 	// Process lasers (make them brighter in 32-bit mode)
+	/*
 	if (bIsLaser) {
 		output.pos3D.a = 0;
 		output.normal.a = 0;
@@ -161,8 +157,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom.rgb *= fBloomStrength;
 		return output;
 	}
+	*/
 
 	// Process light textures (make them brighter in 32-bit mode)
+	/*
 	if (bIsLightTexture) {
 		output.normal.a = 0;
 		//output.ssaoMask.r = SHADELESS_MAT;
@@ -202,6 +200,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		return output;
 	}
+	*/
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue. The engine glow is also used to render smoke, so that's why the smoke
@@ -217,7 +216,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		if (bIsEngineGlow > 1) {
 			// Enhance the glow in 32-bit mode
 			float3 HSV = RGBtoHSV(color);
-			//HSV.y *= 1.15;
 			HSV.y *= 1.25;
 			HSV.z *= 1.25;
 			color = HSVtoRGB(HSV);

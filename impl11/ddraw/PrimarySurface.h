@@ -68,10 +68,6 @@ public:
 
 	void DrawHUDVertices();
 
-	void ComputeNormalsPass(float fZoomFactor);
-
-	//void SmoothNormalsPass(float fZoomFactor);
-
 	void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);
@@ -114,7 +110,7 @@ public:
 
 	void RenderAdditionalGeometry();
 
-	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
+	//Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
 	void TagXWALights();
 
