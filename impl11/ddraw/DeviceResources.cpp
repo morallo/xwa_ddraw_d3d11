@@ -3996,7 +3996,7 @@ void DeviceResources::InitInputLayout(ID3D11InputLayout* inputLayout)
 {
 	static ID3D11InputLayout* currentInputLayout = nullptr;
 
-	if (inputLayout != currentInputLayout)
+	//if (inputLayout != currentInputLayout)
 	{
 		currentInputLayout = inputLayout;
 		this->_d3dDeviceContext->IASetInputLayout(inputLayout);
@@ -4007,7 +4007,7 @@ void DeviceResources::InitVertexShader(ID3D11VertexShader* vertexShader)
 {
 	static ID3D11VertexShader* currentVertexShader = nullptr;
 
-	if (vertexShader != currentVertexShader)
+	//if (vertexShader != currentVertexShader)
 	{
 		currentVertexShader = vertexShader;
 		this->_d3dDeviceContext->VSSetShader(vertexShader, nullptr, 0);
@@ -4018,7 +4018,7 @@ void DeviceResources::InitPixelShader(ID3D11PixelShader* pixelShader)
 {
 	static ID3D11PixelShader* currentPixelShader = nullptr;
 
-	if (pixelShader != currentPixelShader)
+	//if (pixelShader != currentPixelShader)
 	{
 		currentPixelShader = pixelShader;
 		this->_d3dDeviceContext->PSSetShader(pixelShader, nullptr, 0);
@@ -4040,7 +4040,7 @@ void DeviceResources::InitTopology(D3D_PRIMITIVE_TOPOLOGY topology)
 {
 	D3D_PRIMITIVE_TOPOLOGY currentTopology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-	if (topology != currentTopology)
+	//if (topology != currentTopology)
 	{
 		currentTopology = topology;
 		this->_d3dDeviceContext->IASetPrimitiveTopology(topology);
@@ -4051,7 +4051,7 @@ void DeviceResources::InitRasterizerState(ID3D11RasterizerState* state)
 {
 	static ID3D11RasterizerState* currentState = nullptr;
 
-	if (state != currentState)
+	//if (state != currentState)
 	{
 		currentState = state;
 		this->_d3dDeviceContext->RSSetState(state);
@@ -4060,16 +4060,16 @@ void DeviceResources::InitRasterizerState(ID3D11RasterizerState* state)
 
 void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView, ID3D11ShaderResourceView* texView2)
 {
-	static ID3D11ShaderResourceView* currentTexView = nullptr;
-	static ID3D11ShaderResourceView* currentTexView2 = nullptr;
+	//static ID3D11ShaderResourceView* currentTexView = nullptr;
+	//static ID3D11ShaderResourceView* currentTexView2 = nullptr;
 
 	//if (texView != currentTexView || texView2 != currentTexView2) // Temporarily allow setting this all the time
 	{
 		ID3D11ShaderResourceView* view[2] = { texView , texView2 };
 
 		this->_d3dDeviceContext->PSSetShaderResources(0, 2, view);
-		currentTexView = texView;
-		currentTexView2 = texView2;
+		//currentTexView = texView;
+		//currentTexView2 = texView2;
 	}
 }
 
@@ -4080,7 +4080,7 @@ HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SA
 
 	if (sampler == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_SAMPLER_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_SAMPLER_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11SamplerState> tempSampler;
@@ -4094,7 +4094,7 @@ HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SA
 	}
 	else
 	{
-		if (sampler != currentSampler)
+		//if (sampler != currentSampler)
 		{
 			currentDesc = {};
 			currentSampler = sampler;
@@ -4112,7 +4112,7 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 
 	if (blend == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_BLEND_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_BLEND_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11BlendState> tempBlend;
@@ -4129,7 +4129,7 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	}
 	else
 	{
-		if (blend != currentBlend)
+		//if (blend != currentBlend)
 		{
 			currentDesc = {};
 			currentBlend = blend;
@@ -4150,7 +4150,7 @@ HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthSta
 
 	if (depthState == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_DEPTH_STENCIL_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_DEPTH_STENCIL_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11DepthStencilState> tempDepthState;
@@ -4164,7 +4164,7 @@ HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthSta
 	}
 	else
 	{
-		if (depthState != currentDepthState)
+		//if (depthState != currentDepthState)
 		{
 			currentDesc = {};
 			currentDepthState = depthState;
@@ -4179,7 +4179,7 @@ void DeviceResources::InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
 
-	if (buffer != currentBuffer)
+	//if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
 
@@ -4194,7 +4194,7 @@ void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32)
 {
 	static ID3D11Buffer* currentBuffer = nullptr;
 
-	if (buffer != currentBuffer)
+	//if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
 
@@ -4221,32 +4221,14 @@ void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 
 void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static VertexShaderCBuffer currentVSConstants = { 0 };
-	static int sizeof_constants = sizeof(VertexShaderCBuffer);
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		memcmp(vsCBuffer, &currentVSConstants, sizeof_constants) != 0)
-	{
-		memcpy(&currentVSConstants, vsCBuffer, sizeof_constants);
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	}
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_3D;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer)
 {
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
+	this->_d3dDeviceContext->VSSetConstantBuffers(2, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer)
@@ -4256,67 +4238,33 @@ void DeviceResources::InitPSConstantShadingSystem(ID3D11Buffer** buffer, const P
 }
 
 void DeviceResources::InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspectRatio, const float scale, const float brightness, const float use_3D)
+	const float aspect_ratio, const float scale, const float brightness, const float use_3D)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_2D ||
-		g_MSCBuffer.parallax != parallax ||
-		g_MSCBuffer.aspectRatio != aspectRatio ||
-		g_MSCBuffer.scale != scale ||
-		g_MSCBuffer.brightness != brightness ||
-		g_MSCBuffer.use_3D != use_3D)
-	{
-		g_MSCBuffer.parallax = parallax;
-		g_MSCBuffer.aspectRatio = aspectRatio;
-		g_MSCBuffer.scale = scale;
-		g_MSCBuffer.brightness = brightness;
-		g_MSCBuffer.use_3D = use_3D;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
-	}
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_2D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_2D;
+	g_MSCBuffer.scale = scale;
+	g_MSCBuffer.aspect_ratio = aspect_ratio;
+	g_MSCBuffer.parallax = parallax;
+	g_MSCBuffer.brightness = brightness;
+	g_MSCBuffer.use_3D = use_3D;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(3, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
-	/*
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static ShadertoyCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-	*/
-
-	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
-	this->_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspectRatio, const float scale, const float brightness, float inv_scale)
+	const float aspect_ratio, const float scale, const float brightness, float inv_scale)
 {
-	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
-		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_2D ||
-		g_MSCBuffer.parallax != parallax ||
-		g_MSCBuffer.aspectRatio != aspectRatio ||
-		g_MSCBuffer.scale != scale ||
-		g_MSCBuffer.brightness != brightness || 
-		g_MSCBuffer.inv_scale != inv_scale)
-	{
-		g_MSCBuffer.parallax = parallax;
-		g_MSCBuffer.aspectRatio = aspectRatio;
-		g_MSCBuffer.scale = scale;
-		g_MSCBuffer.brightness = brightness;
-		g_MSCBuffer.inv_scale = inv_scale;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
-		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_2D;
+	g_MSCBuffer.scale = scale;
+	g_MSCBuffer.aspect_ratio = aspect_ratio;
+	g_MSCBuffer.parallax = parallax;
+	g_MSCBuffer.brightness = brightness;
+	g_MSCBuffer.inv_scale = inv_scale;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
+	_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3)
@@ -4388,20 +4336,12 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 
 void DeviceResources::InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static ShadertoyCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static LaserPointerCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(8, 1, buffer);
 }

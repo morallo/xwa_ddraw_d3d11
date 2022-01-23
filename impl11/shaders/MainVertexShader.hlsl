@@ -2,7 +2,8 @@
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
 
-cbuffer ConstantBuffer : register(b0)
+// MainShadersCBStruct
+cbuffer ConstantBuffer : register(b3)
 {
 	float scale;
 	float aspect_ratio;
@@ -13,7 +14,7 @@ cbuffer ConstantBuffer : register(b0)
 };
 
 // VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b1)
+cbuffer ConstantBuffer : register(b2)
 {
 	matrix projEyeMatrix;
 	matrix viewMatrix;

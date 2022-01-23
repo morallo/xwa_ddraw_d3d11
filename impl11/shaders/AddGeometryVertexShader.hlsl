@@ -7,7 +7,7 @@
 #include "metric_common.h"
 
 // VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b1)
+cbuffer ConstantBuffer : register(b2)
 {
 	matrix projEyeMatrix;
 	matrix viewMatrix;

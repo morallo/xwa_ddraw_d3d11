@@ -294,7 +294,7 @@ typedef struct DCPixelShaderCBStruct {
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
-	float scale, aspectRatio, parallax, brightness;
+	float scale, aspect_ratio, parallax, brightness;
 	float use_3D, inv_scale, unused1, unused2;
 } MainShadersCBuffer;
 

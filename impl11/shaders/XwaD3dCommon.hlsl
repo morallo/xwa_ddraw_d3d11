@@ -11,6 +11,7 @@ struct D3dLocalLight
 	float4 color;
 };
 
+// D3dConstants
 cbuffer ConstantBuffer : register(b0)
 {
 	float4 vpScale;

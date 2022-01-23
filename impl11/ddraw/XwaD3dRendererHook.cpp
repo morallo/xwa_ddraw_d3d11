@@ -1667,10 +1667,10 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 
 	_bIsTargetHighlighted = false;
-	bool bIsGUI = false, bIsLensFlare = false, bIsHyperspaceTunnel = false, bIsSun = false;
+	bool bIsGUI = false, bIsLensFlare = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsActiveCockpit = false,
-	bool bIsDS2CoreExplosion = false;
+	//bool bIsDS2CoreExplosion = false;
 	bool bIsElectricity = false, bHasMaterial = false;
 
 	if (_bLastTextureSelectedNotNULL) {

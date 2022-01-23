@@ -44,14 +44,6 @@ SamplerState depthSampler : register(s1);
 #define scale 2.0
 // DEBUG
 
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b1)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
-};
-
 /*
 	// saturation test:
 

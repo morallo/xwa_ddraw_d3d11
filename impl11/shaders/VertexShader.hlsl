@@ -5,15 +5,6 @@
 
 #include "VertexShaderCBuffer.h"
 
-/*
-cbuffer ConstantBuffer : register(b1)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
-};
-*/
-
 struct VertexShaderInput
 {
 	float4 pos      : POSITION;

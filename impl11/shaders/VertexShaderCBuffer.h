@@ -1,5 +1,5 @@
 // VertexShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
+cbuffer ConstantBuffer : register(b1)
 {
 	float4 vpScale;
 
