@@ -2170,6 +2170,10 @@ void EffectsRenderer::ApplyAnimatedTextures()
 	if (!bRenderingDC)
 		resources->InitPixelShader(resources->_pixelShaderAnim);
 
+	// We're not updating the Hyperspace FSM in the D3DRendererHook, we still do it in
+	// Direct3DDevice::Execute. That means that we may reach this point without knowing
+	// we've entered hyperspace. Let's provide a quick update here:
+	g_PSCBuffer.bInHyperspace = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0 || g_HyperspacePhaseFSM != HS_INIT_ST;
 	g_PSCBuffer.AuxColor.x = 1.0f;
 	g_PSCBuffer.AuxColor.y = 1.0f;
 	g_PSCBuffer.AuxColor.z = 1.0f;

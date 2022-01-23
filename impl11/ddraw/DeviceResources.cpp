@@ -4209,7 +4209,10 @@ void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 {
 	static D3D11_VIEWPORT currentViewport{};
 
-	if (memcmp(viewport, &currentViewport, sizeof(D3D11_VIEWPORT)) != 0)
+	// For the D3dRendererHook we're now switching between the old and new methods, but sometimes
+	// the viewport isn't set properly. I'm disabling this check now to ensure that we always
+	// set the viewport
+	//if (memcmp(viewport, &currentViewport, sizeof(D3D11_VIEWPORT)) != 0)
 	{
 		currentViewport = *viewport;
 		this->_d3dDeviceContext->RSSetViewports(1, viewport);

@@ -199,14 +199,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		// We don't have an alpha overlay texture anymore; but we can fake it by disabling shading
 		// on areas with a high lightness value
 
-		// coverColor is the cover_texture right now
-		//float3 HSV = RGBtoHSV(coverColor.xyz);
+		// coverColor is the cover_texture now
 		float brightness = ct_brightness;
 		// The cover texture is bright enough, go shadeless and make it brighter
 		if (HSV.z * coverAlpha >= 0.8) {
-			//diffuse = 1;
 			// Increase the brightness:
-			//HSV = RGBtoHSV(coverColor.xyz); // Redundant
 			HSV.z *= 1.2;
 			coverColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);

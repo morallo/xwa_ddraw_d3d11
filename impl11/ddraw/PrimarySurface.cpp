@@ -8458,7 +8458,6 @@ HRESULT PrimarySurface::Flip(
 			 * and the new 2D renderer is enabled.
 			 */
 			//if (!(*g_playerInHangar && bExteriorCamera))
-			//if (true)
 			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
 				// If we're not in external view, then clear everything we don't want to display from the HUD
@@ -8478,7 +8477,13 @@ HRESULT PrimarySurface::Flip(
 				// HUD regions were erased
 				//DrawHUDVertices(num_regions_erased < MAX_DC_REGIONS - 1);
 
-				DrawHUDVertices();
+				// If we jump into hyperspace while the external camera is activated, the cockpit will be displayed
+				// but bExternalCamera will remain true. When this happens, we won't capture the HUD background, because
+				// we don't do that when the external camera is active. This places us in a weird situation, because
+				// we have the HUD text, without background and the cockpit behind. Let's avoid displaying the HUD
+				// altogether in this edge case
+				if (!bExternalCamera || g_HyperspacePhaseFSM == HS_INIT_ST)
+					DrawHUDVertices();
 			}
 
 			// I should probably render the laser pointer before the HUD; but if I do that, then the

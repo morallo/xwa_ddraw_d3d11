@@ -75,6 +75,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
+	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
+	// the background through it, so we mix it with a black color
+	if (bInHyperspace) output.color = float4(lerp(float3(0,0,0), output.color.rgb, alpha), 1);
+
 	if (renderTypeIllum == 1)
 	{
 		// This is a light texture, process the bloom mask accordingly
@@ -99,8 +103,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.ssaoMask = lerp(float4(0, 0, 0, 1), float4(output.ssaoMask.rgb, alphaLight), alphaLight);
 			output.ssMask = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alphaLight), alphaLight);
 		}
-		if (bInHyperspace && output.bloom.a < 0.5)
-			discard;
+		// The following line needs to be updated, it was originally
+		// intended to remove the lightmap layer, but keep the regular
+		// layer. Doing discard now will remove both layers!
+		//if (bInHyperspace && output.bloom.a < 0.5)
+		//	discard;
 	}
 
 	return output;
