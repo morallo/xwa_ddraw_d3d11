@@ -193,14 +193,6 @@ extern bool g_bYCenterHasBeenFixed;
 
 void ResetXWALightInfo();
 
-/* The different types of Constant Buffers used in the Vertex Shader: */
-typedef enum {
-	VS_CONSTANT_BUFFER_NONE,
-	VS_CONSTANT_BUFFER_2D,
-	VS_CONSTANT_BUFFER_3D,
-} VSConstantBufferType;
-VSConstantBufferType g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_NONE;
-
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
 	PS_CONSTANT_BUFFER_NONE,
@@ -3984,6 +3976,12 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_mainShadersConstantBuffer)))
 		return hr;
 
+	// Create the constant buffer for the main pixel shader
+	constantBufferDesc.ByteWidth = 64;
+	static_assert(sizeof(OPTMeshTransformCBuffer) == 64, "sizeof(OPTMeshTransformCBuffer) must be 64");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_OPTMeshTransformCB)))
+		return hr;
+
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
 	InitCraftMaterials();
@@ -4253,6 +4251,12 @@ void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 {
 	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
+}
+
+void DeviceResources::InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer * vsConstants)
+{
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,

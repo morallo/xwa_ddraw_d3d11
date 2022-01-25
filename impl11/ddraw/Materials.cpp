@@ -1281,6 +1281,24 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		PrintGreebleData(greeble_data);
 	}
 	
+	if (_stricmp(param, "JoystickRoot") == 0) {
+		curMaterial->IsJoystick = true;
+		LoadLightColor(buf, &(curMaterial->JoystickRoot));
+		// This coordinate must be scaled to the OPT coord sys
+		curMaterial->JoystickRoot *= METERS_TO_OPT;
+		/*float temp = curMaterial->JoystickRoot.z;
+		curMaterial->JoystickRoot.z = curMaterial->JoystickRoot.y;
+		curMaterial->JoystickRoot.y = temp;*/
+		log_debug("[DBG] [MAT] JoystickRoot: %0.3f, %0.3f, %0.3f",
+			curMaterial->JoystickRoot.x, curMaterial->JoystickRoot.y, curMaterial->JoystickRoot.z);
+	}
+	else if (_stricmp(param, "JoystickMaxYaw") == 0) {
+		curMaterial->JoystickMaxYaw = fValue;
+	}
+	else if (_stricmp(param, "JoystickMaxPitch") == 0) {
+		curMaterial->JoystickMaxPitch = fValue;
+	}
+
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));

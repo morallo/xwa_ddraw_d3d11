@@ -69,6 +69,7 @@ extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
 extern PSShadingSystemCB			g_ShadingSys_PSBuffer;
 extern ShadertoyCBuffer			g_ShadertoyBuffer;
 extern LaserPointerCBuffer		g_LaserPointerBuffer;
+extern OPTMeshTransformCBuffer	g_OPTMeshTransformCB;
 
 extern D3DTLVERTEX* g_OrigVerts;
 extern uint32_t* g_OrigIndex;

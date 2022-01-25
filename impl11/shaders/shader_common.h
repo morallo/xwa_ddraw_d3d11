@@ -23,6 +23,7 @@ MainShadersCBStruct : register(b3)
 ShadowMapVertexShaderMatrixCB : register(b5)
 MetricReconstructionCB : register(b6)
 ShadertoyCBuffer : register(b7)
+OPTMeshTransformCBuffer : register(b8)
 
 */
 

@@ -139,6 +139,11 @@ typedef struct ShadertoyCBStruct {
 	// 336 bytes
 } ShadertoyCBuffer;
 
+typedef struct OPTMeshTransformCBufferStruct {
+	Matrix4 MeshTransform;
+	// 64 bytes
+} OPTMeshTransformCBuffer;
+
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...

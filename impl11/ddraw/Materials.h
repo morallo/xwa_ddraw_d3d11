@@ -329,6 +329,11 @@ typedef struct MaterialStruct {
 	//GreebleData GreebleData;
 	int GreebleDataIdx;
 
+	bool IsJoystick;
+	Vector3 JoystickRoot;
+	float JoystickMaxYaw;
+	float JoystickMaxPitch;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -370,25 +375,6 @@ typedef struct MaterialStruct {
 		GroupId = 0;
 		ImageId = 0;
 
-		/*TextureATCIndex = -1;
-		TgtEvtSelectedATCIndex = -1;
-		TgtEvtLaserLockedATCIndex = -1;
-		TgtEvtWarheadLockingATCIndex = -1;
-		TgtEvtWarheadLockedATCIndex = -1;
-
-		CptEvtBrokenCMDIndex = -1;
-		CptEvtBrokenLaserIonIndex = -1;
-		CptEvtBrokenBeamWeaponIndex = -1;
-		CptEvtBrokenShieldsIndex = -1;
-		CptEvtBrokenThrottleIndex = -1;
-		CptEvtBrokenSensorsIndex = -1;
-		CptEvtBrokenThrottleIndex = -1;
-		CptEvtBrokenLaserRechargeIndex = -1;
-		CptEvtBrokenEnginePowerIndex = -1;
-		CptEvtBrokenShieldRechargeIndex = -1;
-		CptEvtBrokenBeamRechargeIndex = -1;
-		*/
-
 		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_GAME_EVT; i++)
 				TextureATCIndices[j][i] = -1;
@@ -398,6 +384,11 @@ typedef struct MaterialStruct {
 		for (int i = 0; i < MAX_ALT_EXPLOSIONS; i++)
 			AltExplosionIdx[i] = -1;
 		DS2ExplosionIdx = -1;
+
+		IsJoystick = false;
+		JoystickRoot = Vector3(0, 0, 0);
+		JoystickMaxYaw = 10.0f;
+		JoystickMaxPitch = -10.0f;
 
 		/*
 		// DEBUG properties, remove later

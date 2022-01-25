@@ -8,9 +8,11 @@
 #include <xinput.h>
 
 #include "XWAObject.h"
+#include "SharedMem.h"
 #include "joystick.h"
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
+extern SharedDataProxy *g_pSharedData;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -307,5 +309,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
 	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
+	// Normalize each axis to the range -1..1:
+	float normYaw = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
+	float normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
+	if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
+		g_pSharedData->pSharedData->JoystickYaw = normYaw;
+		g_pSharedData->pSharedData->JoystickPitch = normPitch;
+	}
+
 	return JOYERR_NOERROR;
 }

@@ -5,12 +5,6 @@
  * - Animations (including Debris)
  * - Animated Explosions (do they even work now?)
  * - Explosion Variants
- * - Transparency: All transparent layers must be rendered at the end of the frame
- *		Shield hit effects don't always show, maybe related?
- * - Cockpit Damage (for testing). Ctrl+C no longer works?
- * - (According to Angel): Lasers are still not being drawn sometimes when firing at
- *	 ships. Sometimes works, sometimes doesn't.
- * - Check the DS2 explosion and core effect
  * - The Map was semi-fixed apparently as a side-effect of fixing the artifacts in the CMD.
  *   Turns out the map lines were being captured in the Dynamic Cockpit FG buffer, probably
  *   because we didn't detect the miniature being rendered when in map mode.
@@ -42,6 +36,7 @@
 #include "DeviceResources.h"
 #include "Direct3DTexture.h"
 #include "Matrices.h"
+#include "joystick.h"
 
 #ifdef _DEBUG
 #include "../Debug/XwaD3dVertexShader.h"
@@ -1309,13 +1304,14 @@ private:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
 	std::vector<DrawCommand> _LaserDrawCommands;
 	std::vector<DrawCommand> _TransparentDrawCommands;
+	Matrix4 _joystickMeshTransform;
 
 	VertexShaderCBuffer _oldVSCBuffer;
 	PixelShaderCBuffer _oldPSCBuffer;
@@ -1391,6 +1387,12 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_TransparentDrawCommands.clear();
 	_bCockpitConstantsCaptured = false;
 	_bShadowsRenderedInCurrentFrame = false;
+	// Initialize the joystick mesh transform on this frame
+	_bJoystickTransformReady = false;
+	_joystickMeshTransform.identity();
+	g_OPTMeshTransformCB.MeshTransform.identity();
+	_deviceResources->InitVSConstantOPTMeshTransform(
+		_deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
@@ -1780,6 +1782,40 @@ void EffectsRenderer::ApplyMaterialProperties()
 		g_PSCBuffer.fBloomStrength = 0.0f;
 		resources->InitPixelShader(resources->_noGlassPS);
 	}
+
+	if (_lastTextureSelected->material.IsJoystick) {
+		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
+			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
+			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
+			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
+			Matrix4 T, R;
+
+			// Translate the JoystickRoot to the origin
+			T.identity(); T.translate(-JoystickRoot);
+			_joystickMeshTransform = T;
+
+			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(JoystickRoot);
+			_joystickMeshTransform = T * _joystickMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_joystickMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bJoystickTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
+	}
+	else
+		g_OPTMeshTransformCB.MeshTransform.identity();
+	// Set the current mesh transform, regardless of what type of mesh type we're rendering
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 }
 
 // Apply the SSAO mask/Special materials, like lasers and HUD

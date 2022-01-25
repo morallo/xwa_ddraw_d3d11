@@ -4,6 +4,12 @@ Buffer<float3> g_vertices : register(t0);
 Buffer<float3> g_normals : register(t1);
 Buffer<float2> g_textureCoords : register(t2);
 
+// OPTMeshTransformCBuffer
+cbuffer ConstantBuffer : register(b8) {
+	matrix MeshTransform;
+	// 64 bytes
+};
+
 struct VertexShaderInput
 {
 	int4 index : POSITION;
@@ -75,6 +81,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// do it in the transformWorldView matrix because the depth calculations are done
 	// in the original (OPT) coordinate system. In other words, the depth will be messed
 	// up. The compensation must be done later, when we write the coordinates to pos3D below
+	v = mul(float4(v, 1.0f), MeshTransform).xyz;
 	output.pos3D = mul(float4(v, 1.0f), transformWorldView);
 	output.pos = TransformProjection(output.pos3D.xyz);
 	output.pos3D *= 0.024414; // 1/40.96, OPT to metric conversion factor
