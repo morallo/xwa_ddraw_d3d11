@@ -341,7 +341,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
-	char temp[512];
+	constexpr int MAX_TEMP_LEN = 2048;
+	char temp[MAX_TEMP_LEN];
 	char *s = NULL, *t = NULL, texname[80], sDATZIPFileName[128], sOptionalArgs[128];
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false, IsZIPFile = false, bEllipsis = false;
@@ -355,7 +356,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	
 	// Remove any parentheses from the line
 	int i = 0, j = 0;
-	while (buf[i] && j < 511) {
+	while (buf[i] && j < MAX_TEMP_LEN - 1) {
 		if (buf[i] != '(' && buf[i] != ')')
 			temp[j++] = buf[i];
 		i++;
@@ -918,7 +919,8 @@ void PrintGreebleData(GreebleData *greeble_data) {
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
-	char param[256], svalue[512];
+	constexpr int MAX_SVALUE_LEN = 2048;
+	char param[256], svalue[MAX_SVALUE_LEN];
 	float fValue = 0.0f;
 
 	// Skip comments and blank lines
@@ -928,7 +930,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		return;
 
 	// Read the parameter
-	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
+	if (sscanf_s(buf, "%s = %s", param, 256, svalue, MAX_SVALUE_LEN) > 0) {
 		fValue = (float)atof(svalue);
 	}
 
@@ -1339,7 +1341,8 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 
 	if (verbose) log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
-	char buf[512], param[256], svalue[512]; // texname[MAX_TEXNAME];
+	constexpr int MAX_BUF_LEN = 3000;
+	char buf[MAX_BUF_LEN], param[256], svalue[MAX_BUF_LEN]; // texname[MAX_TEXNAME];
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
 	float fValue = 0.0f;
@@ -1400,7 +1403,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// We always start the craft material with one material: the default material in slot 0
 	bool MaterialSaved = true;
 	texnameList.clear();
-	while (fgets(buf, 512, file) != NULL) {
+	while (fgets(buf, MAX_BUF_LEN, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
 		if (buf[0] == ';' || buf[0] == '#')
@@ -1408,7 +1411,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 		if (strlen(buf) == 0)
 			continue;
 		
-		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
+		if (sscanf_s(buf, "%s = %s", param, 256, svalue, MAX_BUF_LEN) > 0) {
 			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
