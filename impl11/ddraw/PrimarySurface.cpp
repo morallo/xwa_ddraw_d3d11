@@ -7508,6 +7508,11 @@ HRESULT PrimarySurface::Flip(
 			/* Present Concourse, ESC Screen Menu */
 			if (this->_deviceResources->_swapChain)
 			{
+				// If we're in the Tech Room, chances are the ship displayed has a cockpit with transparency.
+				// In that case, we'd have stored all those draw calls for deferred rendering. This is where
+				// we can finally execute those calls.
+				RenderDeferredDrawCalls();
+
 				/*
 				// Resolve the bloom mask
 				if (g_bBloomEnabled) {
