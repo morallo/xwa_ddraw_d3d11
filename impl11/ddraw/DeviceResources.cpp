@@ -339,6 +339,8 @@ DeviceResources::DeviceResources()
 		this->dc_coverTexture[i] = nullptr;
 
 	_extraTextures.clear();
+
+	this->_currentPixelShader = nullptr;
 }
 
 HRESULT DeviceResources::Initialize()
@@ -4014,13 +4016,16 @@ void DeviceResources::InitVertexShader(ID3D11VertexShader* vertexShader)
 
 void DeviceResources::InitPixelShader(ID3D11PixelShader* pixelShader)
 {
-	static ID3D11PixelShader* currentPixelShader = nullptr;
-
-	//if (pixelShader != currentPixelShader)
+	//if (pixelShader != _currentPixelShader)
 	{
-		currentPixelShader = pixelShader;
+		_currentPixelShader = pixelShader;
 		this->_d3dDeviceContext->PSSetShader(pixelShader, nullptr, 0);
 	}
+}
+
+ID3D11PixelShader *DeviceResources::GetCurrentPixelShader()
+{
+	return _currentPixelShader;
 }
 
 void DeviceResources::InitGeometryShader(ID3D11GeometryShader* geometryShader)

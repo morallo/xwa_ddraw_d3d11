@@ -6013,7 +6013,6 @@ HRESULT Direct3DDevice::BeginScene()
 	str << this << " " << __FUNCTION__;
 	LogText(str.str());
 #endif
-	//log_debug("[DBG] BeginScene");
 	static bool bPrevHyperspaceState = false, bCurHyperspaceState = false;
 	bool bTransitionToHyperspace = false;
 	bPrevHyperspaceState = bCurHyperspaceState;

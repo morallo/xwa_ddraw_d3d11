@@ -111,6 +111,7 @@ public:
 	void InitInputLayout(ID3D11InputLayout* inputLayout);
 	void InitVertexShader(ID3D11VertexShader* vertexShader);
 	void InitPixelShader(ID3D11PixelShader* pixelShader);
+	ID3D11PixelShader *GetCurrentPixelShader();
 	void InitGeometryShader(ID3D11GeometryShader* geometryShader);
 	void InitTopology(D3D_PRIMITIVE_TOPOLOGY topology);
 	void InitRasterizerState(ID3D11RasterizerState* state);
@@ -408,6 +409,11 @@ public:
 	ComPtr<ID3D11PixelShader> _explosionPS;
 	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
 	ComPtr<ID3D11PixelShader> _noGlassPS;
+	// The following is not a mistake. We need an ID3D11PixelShader *, not a
+	// ComPtr<ID3D11PixelShader>. Not entirely sure why, but I believe using
+	// the ComPtr inadvertently messes up the refcount and causes a crash when
+	// starting the game. Just as quickly as InitPixelShader() is called.
+	ID3D11PixelShader *_currentPixelShader;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
 	ComPtr<ID3D11SamplerState> _noInterpolationSamplerState;
 	

@@ -58,7 +58,7 @@ typedef enum GameEventEnum {
 	EVT_NONE = 0,				// Play when no other event is active
 	TGT_EVT_SELECTED,			// Something has been targeted
 	TGT_EVT_LASER_LOCK,			// Laser is "locked"
-	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
+	TGT_EVT_WARHEAD_LOCKING,		// Warhead is locking (yellow)
 	TGT_EVT_WARHEAD_LOCKED,		// Warhead is locked (red)
 	// Cockpit Instrument Damage Events
 	CPT_EVT_BROKEN_CMD,

@@ -11,7 +11,8 @@
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
 
-Texture2D    texture0 : register(t0);
+Texture2D texture0 : register(t0); // This is the regular color texture
+Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 
 // pos3D/Depth buffer has the following coords:
@@ -39,6 +40,7 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
+// TODO: This shader probably doesn't need to pay attention to special_control, or use AuxColor anymore.
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;

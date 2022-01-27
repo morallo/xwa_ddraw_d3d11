@@ -1749,7 +1749,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 // Apply specific material properties for the current texture
 void EffectsRenderer::ApplyMaterialProperties()
 {
-	if (!_bHasMaterial)
+	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
 		return;
 
 	auto &resources = _deviceResources;
@@ -2281,7 +2281,7 @@ void EffectsRenderer::ApplyAnimatedTextures()
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
-	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
@@ -2315,7 +2315,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
 	_deviceResources->InitPixelShader(_pixelShader);
-	ID3D11PixelShader *lastPixelShader = _pixelShader;
+	ComPtr<ID3D11PixelShader> lastPixelShader = _pixelShader;
 
 	UpdateTextures(scene);
 	UpdateMeshBuffers(scene);
@@ -2555,9 +2555,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.bIsCockpit = _bIsCockpit;
 		command.bIsGunner = _bIsGunner;
 		command.bIsBlastMark = _bIsBlastMark;
-		// The following increases the refcount of the pixel shader, we need to release it later
-		// to avoid memory leaks
-		context->PSGetShader(&(command.pixelShader), nullptr, nullptr);
+		command.pixelShader = resources->GetCurrentPixelShader();
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
 
@@ -2800,7 +2798,7 @@ out:
 
 void EffectsRenderer::RenderScene()
 {
-	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+	auto &context = _deviceResources->_d3dDeviceContext;
 
 	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
 	// (unknown, maybe RenderMain?) path is taken instead.
@@ -2940,7 +2938,6 @@ void EffectsRenderer::RenderTransparency()
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-	ID3D11PixelShader *lastPixelShader = _pixelShader;
 
 	// Just in case we need to do anything for VR or other alternative display devices...
 	ExtraPreprocessing();
@@ -2990,8 +2987,7 @@ void EffectsRenderer::RenderTransparency()
 		// Render the deferred commands
 		RenderScene();
 
-		// Decrease the refcount of the textures and the pixel shader to avoid memory leaks
-		command.pixelShader.Release();
+		// Decrease the refcount of the textures
 		for (int i = 0; i < 2; i++)
 			if (command.SRVs[i] != nullptr) command.SRVs[i]->Release();
 	}
