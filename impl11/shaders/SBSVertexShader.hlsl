@@ -66,7 +66,7 @@ PixelShaderInput main(VertexShaderInput input)
 	float FOVscaleZ = mr_FOVscale / temp.z;
 
 	// Normalize into the 0.0..1.0 range
-	temp.xy *= float2(2.0 * vpScale.x, -2.0 * vpScale.y);
+	temp.xy *= float2(2.0 * viewportScale.x, -2.0 * viewportScale.y);
 	temp.xy += float2(-1.0, 1.0);
 	// temp.xy is now in the range [-1..1]
 

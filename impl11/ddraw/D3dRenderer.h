@@ -95,8 +95,8 @@ public:
 	void RenderGlowMarks();
 	void Initialize();
 	void CreateConstantBuffer();
-	void CreateStates();
-	void CreateShaders();
+	virtual void CreateStates();
+	virtual void CreateShaders();
 	void GetViewport(D3D11_VIEWPORT* viewport);
 	void GetViewportScale(float* viewportScale);
 

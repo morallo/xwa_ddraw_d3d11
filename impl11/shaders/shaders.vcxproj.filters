@@ -79,6 +79,7 @@
     <FxCompile Include="PixelShaderGreeble.hlsl" />
     <FxCompile Include="SimpleResizePS.hlsl" />
     <FxCompile Include="PixelShaderAnim.hlsl" />
+    <FxCompile Include="XwaD3dVRVertexShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

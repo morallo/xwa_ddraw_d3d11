@@ -21,7 +21,7 @@
 extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;
 extern bool g_bExplosionsDisplayedOnCurrentFrame, g_bEnableVR, g_bProceduralLava;
 extern bool g_bIsScaleableGUIElem, g_bScaleableHUDStarted, g_bIsTrianglePointer;
-extern float g_fSSAOAlphaOfs;
+extern float g_fSSAOAlphaOfs, g_fFloatingGUIObjDepth;
 
 // ****************************************************
 // Debug variables
@@ -43,7 +43,7 @@ Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 
 class EffectsRenderer : public D3dRenderer
 {
-private:
+protected:
 	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit;
 	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
@@ -85,7 +85,7 @@ private:
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye=false);
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
 	void SaveContext();
@@ -117,6 +117,15 @@ public:
 	void RenderTransparency();
 	void RenderShadowMap();
 	void RenderDeferredDrawCalls();
+};
+
+//************************************************************************
+// Generic VR Renderer
+//************************************************************************
+
+class VRRenderer : public EffectsRenderer {
+public:
+	virtual void ExtraPreprocessing();
 };
 
 extern EffectsRenderer g_effects_renderer;

@@ -249,6 +249,8 @@ void EffectsRenderer::SaveContext()
 	context->PSGetShaderResources(0, 13, _oldPSSRV[0].GetAddressOf());
 
 	context->VSGetShader(_oldVertexShader.GetAddressOf(), nullptr, nullptr);
+	// TODO: Use GetCurrentPixelShader here instead of PSGetShader and do *not* Release()
+	// _oldPixelShader in RestoreContext
 	context->PSGetShader(_oldPixelShader.GetAddressOf(), nullptr, nullptr);
 
 	context->PSGetSamplers(0, 2, _oldPSSamplers[0].GetAddressOf());
@@ -1343,7 +1345,7 @@ out:
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
+inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye) {
 	auto& resources = this->_deviceResources;
 
 	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
@@ -1569,7 +1571,7 @@ void EffectsRenderer::RenderScene()
 
 	context->DrawIndexed(_trianglesCount * 3, 0, 0);
 
-	//out:
+//out:
 	g_iD3DExecuteCounter++;
 }
 
@@ -1971,4 +1973,21 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderShadowMap();
 	RenderLasers();
 	RenderTransparency();
+}
+
+//************************************************************************
+// Generic VR Renderer
+//************************************************************************
+
+/*
+ * Extra pre-processing before the Render() call needed for all VR
+ * implementations.
+ */
+void VRRenderer::ExtraPreprocessing()
+{
+	// Add extra depth to Floating GUI elements
+	if (g_bIsFloating3DObject) {
+		_bModifiedShaders = true;
+		g_VSCBuffer.z_override += g_fFloatingGUIObjDepth;
+	}
 }

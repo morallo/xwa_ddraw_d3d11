@@ -284,6 +284,7 @@ bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 
 float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
+#include "SteamVRRenderer.h"
 
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
@@ -426,6 +427,8 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
+					// TODO: This is not enough to properly enable the SteamVR renderer!
+					g_current_renderer = g_steamvr_renderer;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");

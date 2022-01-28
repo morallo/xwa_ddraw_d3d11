@@ -91,7 +91,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Regular Vertex Shader after the D3DRendererHook.
 	output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
 
-	output.pos.xy = (input.pos.xy * vpScale.xy + float2(-1.0, 1.0)) * vpScale.z;
+	output.pos.xy = (input.pos.xy * viewportScale.xy + float2(-1.0, 1.0)) * viewportScale.z;
 	output.pos.w = 1.0f;
 
 	// DirectX divides by output.pos.w internally. We don't see that division; but it happens.
@@ -111,7 +111,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 	// Back-project into 3D space (this is necessary to compute the normal map and enable effects like AO):
 	// Normalize into the -1..1 range
-	temp.xy *= vpScale.xy;
+	temp.xy *= viewportScale.xy;
 	temp.xy += float2(-1.0, 1.0); 
 	// We use (-1.0, 1.0) above to place the center of the screen at the origin because 
 	// the code adds a factor of 2 in Execute() for the non-VR case.
@@ -119,7 +119,7 @@ PixelShaderInput main(VertexShaderInput input)
 	// Apply the scale in 2D coordinates before back-projecting. This is
 	// either g_fGlobalScale or g_fGUIElemScale (used to zoom-out the HUD
 	// so that it's readable)
-	temp.xy *= vpScale.z * float2(aspect_ratio, 1);
+	temp.xy *= viewportScale.z * float2(aspect_ratio, 1);
 	temp.z = METRIC_SCALE_FACTOR * w; // This value was determined empirically
 	// temp.z = w; // This setting provides a really nice depth for distant objects; but the cockpit is messed up
 	// Override the depth of this element if z_override is set

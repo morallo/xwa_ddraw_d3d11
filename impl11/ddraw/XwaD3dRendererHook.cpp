@@ -28,6 +28,7 @@
 
 #include "XwaD3dRendererHook.h"
 #include "EffectsRenderer.h"
+#include "SteamVRRenderer.h"
 
 #ifdef _DEBUG
 #include "../Debug/XwaD3dVertexShader.h"
@@ -1008,6 +1009,9 @@ D3dRenderer g_xwa_d3d_renderer;
 static D3dRenderer &g_current_renderer = g_xwa_d3d_renderer;
 #else
 D3dRenderer &g_current_renderer = g_effects_renderer;
+// TODO: The following line hard-codes the renderer and breaks the non-VR path.
+//		 This is currently the only way to enable SteamVR!
+//D3dRenderer &g_current_renderer = g_steamvr_renderer;
 #endif
 
 void RenderDeferredDrawCalls() {

@@ -1,7 +1,7 @@
 // VertexShaderCBuffer
 cbuffer ConstantBuffer : register(b1)
 {
-	float4 vpScale;
+	float4 viewportScale;
 
 	float s_V0x08B94CC;
 	float s_V0x05B46B4;
