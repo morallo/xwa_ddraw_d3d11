@@ -123,6 +123,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="DynamicCockpit.cpp" />
     <ClCompile Include="Effects.cpp" />
+    <ClCompile Include="EffectsRenderer.cpp" />
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
@@ -153,6 +154,7 @@
     <ClInclude Include="commonVR.h" />
     <ClInclude Include="ComPtr.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="D3dRenderer.h" />
     <ClInclude Include="DepthSurface.h" />
     <ClInclude Include="DeviceResources.h" />
     <ClInclude Include="Direct3D.h" />
@@ -166,6 +168,7 @@
     <ClInclude Include="DynamicCockpit.h" />
     <ClInclude Include="Effects.h" />
     <ClInclude Include="EffectsCommon.h" />
+    <ClInclude Include="EffectsRenderer.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
