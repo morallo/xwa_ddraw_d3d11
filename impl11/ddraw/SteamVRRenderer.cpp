@@ -2,7 +2,7 @@
  * TODO:
  * - There's (apparently) no disparity between the left and right images
  * - Hangar shadows need a custom render method
- * - The only way to enable SteamVR is by hard-coding the current renderer in XwaD3dRendererHook.cpp
+ * - The aspect ratio looks wrong
  */
 #include "SteamVRRenderer.h"
 

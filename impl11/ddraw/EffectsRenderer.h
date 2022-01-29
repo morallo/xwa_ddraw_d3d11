@@ -130,4 +130,4 @@ public:
 
 extern EffectsRenderer g_effects_renderer;
 
-extern D3dRenderer &g_current_renderer;
+extern D3dRenderer *g_current_renderer;

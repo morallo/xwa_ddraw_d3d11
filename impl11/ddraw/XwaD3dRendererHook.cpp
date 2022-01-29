@@ -1007,15 +1007,10 @@ D3dRenderer g_xwa_d3d_renderer;
 //#define ORIGINAL_D3D_RENDERER_SHADERS
 #ifdef ORIGINAL_D3D_RENDERER_SHADERS
 static D3dRenderer &g_current_renderer = g_xwa_d3d_renderer;
-#else
-D3dRenderer &g_current_renderer = g_effects_renderer;
-// TODO: The following line hard-codes the renderer and breaks the non-VR path.
-//		 This is currently the only way to enable SteamVR!
-//D3dRenderer &g_current_renderer = g_steamvr_renderer;
 #endif
 
 void RenderDeferredDrawCalls() {
-	g_current_renderer.RenderDeferredDrawCalls();
+	g_current_renderer->RenderDeferredDrawCalls();
 }
 
 //************************************************************************
@@ -1029,7 +1024,7 @@ void D3dRendererSceneBegin(DeviceResources* deviceResources)
 		return;
 	}
 
-	g_current_renderer.SceneBegin(deviceResources);
+	g_current_renderer->SceneBegin(deviceResources);
 }
 
 void D3dRendererSceneEnd()
@@ -1039,7 +1034,7 @@ void D3dRendererSceneEnd()
 		return;
 	}
 
-	g_current_renderer.SceneEnd();
+	g_current_renderer->SceneEnd();
 }
 
 void D3dRendererFlightStart()
@@ -1049,7 +1044,7 @@ void D3dRendererFlightStart()
 		return;
 	}
 
-	g_current_renderer.FlightStart();
+	g_current_renderer->FlightStart();
 }
 
 void D3dRenderLasersHook(int A4)
@@ -1111,13 +1106,13 @@ void D3dRendererMainHook(SceneCompData* scene)
 	}
 
 	g_rendererType = RendererType_Main;
-	g_current_renderer.MainSceneHook(scene);
-	g_current_renderer.BuildGlowMarks(scene);
-	g_current_renderer.RenderGlowMarks();
+	g_current_renderer->MainSceneHook(scene);
+	g_current_renderer->BuildGlowMarks(scene);
+	g_current_renderer->RenderGlowMarks();
 }
 
 void D3dRendererShadowHook(SceneCompData* scene)
 {
 	g_rendererType = RendererType_Shadow;
-	g_current_renderer.HangarShadowSceneHook(scene);
+	g_current_renderer->HangarShadowSceneHook(scene);
 }
