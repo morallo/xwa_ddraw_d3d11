@@ -293,7 +293,7 @@ Direct3DTexture::~Direct3DTexture()
 HRESULT Direct3DTexture::QueryInterface(
 	REFIID riid,
 	LPVOID* obp
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -1489,7 +1489,7 @@ HRESULT Direct3DTexture::Load(
 #endif
 
 		d3dTexture->_textureView->AddRef();
-		*&this->_textureView = d3dTexture->_textureView.Get();
+		this->_textureView = d3dTexture->_textureView.Get();
 
 		return D3D_OK;
 	}
@@ -1502,6 +1502,7 @@ HRESULT Direct3DTexture::Load(
 #if LOGGER
 	str.str("");
 	str << "\t" << surface->_pixelFormat.dwRGBBitCount;
+	str << " " << surface->_width << "x" << surface->_height;
 	str << " " << (void*)surface->_pixelFormat.dwRBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwGBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwBBitMask;
@@ -1535,10 +1536,10 @@ HRESULT Direct3DTexture::Load(
 		}
 	}
 
-	D3D11_TEXTURE2D_DESC textureDesc;
+	D3D11_TEXTURE2D_DESC textureDesc{};
 	textureDesc.Width = surface->_width;
 	textureDesc.Height = surface->_height;
-	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT ? format : BACKBUFFER_FORMAT;
+	textureDesc.Format = (this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT) ? format : BACKBUFFER_FORMAT;
 	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	textureDesc.CPUAccessFlags = 0;
 	textureDesc.MiscFlags = 0;
@@ -1555,7 +1556,7 @@ HRESULT Direct3DTexture::Load(
 
 	if (useBuffers)
 	{
-		buffers = new char*[textureDesc.MipLevels];
+		buffers = new char* [textureDesc.MipLevels];
 		buffers[0] = convertFormat(surface->_buffer, surface->_width, surface->_height, format);
 	}
 
@@ -1613,11 +1614,6 @@ out:
 
 		messageShown = true;
 
-#if LOGGER
-		str.str("\tD3DERR_TEXTURE_LOAD_FAILED");
-		LogText(str.str());
-#endif
-
 		return D3DERR_TEXTURE_LOAD_FAILED;
 	}
 
@@ -1638,7 +1634,7 @@ out:
 }
 
 	d3dTexture->_textureView->AddRef();
-	*&this->_textureView = d3dTexture->_textureView.Get();
+	this->_textureView = d3dTexture->_textureView.Get();
 
 	return D3D_OK;
 }

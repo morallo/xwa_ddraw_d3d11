@@ -240,7 +240,7 @@ void close_error_file() {
 		fclose(g_DebugFile);
 }
 
-void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
+void log_err_desc(const char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("TEXTURE2D_DESC:\n");
@@ -259,7 +259,7 @@ void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc)
 	log_err("Sample Quality: %d\n", desc.SampleDesc.Quality);
 }
 
-void log_shaderres_view(char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
+void log_shaderres_view(const char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("SHADER_RESOURCE_VIEW_DESC:\n");
@@ -358,10 +358,7 @@ HRESULT DeviceResources::Initialize()
 		//D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
-		D3D_FEATURE_LEVEL_10_0,
-		D3D_FEATURE_LEVEL_9_3,
-		D3D_FEATURE_LEVEL_9_2,
-		D3D_FEATURE_LEVEL_9_1
+		D3D_FEATURE_LEVEL_10_0
 	};
 
 	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
@@ -455,6 +452,7 @@ HRESULT DeviceResources::Initialize()
 
 void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	HRESULT hr;
+
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
@@ -1383,7 +1381,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 * When 3D content is displayed, dwWidth,dwHeight = in-game resolution (1280x1024, 1600x1200, etc)
 	 */
 	HRESULT hr;
-	char* step = "";
+	const char* step = "";
 	DXGI_FORMAT oldFormat;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
@@ -4447,7 +4445,7 @@ void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	D3D11_MAPPED_SUBRESOURCE displayMap;
 	DWORD pitchDelta;
@@ -4966,7 +4964,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 HRESULT DeviceResources::RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	memset(buffer, 0, width * height * bpp);
 
