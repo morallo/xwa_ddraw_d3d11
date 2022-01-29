@@ -11,7 +11,6 @@ public:
 	virtual void RenderScene();
 	virtual void ExtraPreprocessing();
 	virtual void CreateShaders();
-	virtual void CreateStates();
 
 protected:
 	ComPtr<ID3D11VertexShader> _VRVertexShader;

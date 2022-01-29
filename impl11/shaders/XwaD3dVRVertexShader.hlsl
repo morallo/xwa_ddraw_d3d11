@@ -58,7 +58,9 @@ PixelShaderInput main(VertexShaderInput input)
 	v = mul(float4(v, 1.0f), MeshTransform).xyz;
 	output.pos3D = mul(float4(v, 1.0f), transformWorldView);
 	// Original non-VR 3D -> 2D projection. We still need this to have a depth buffer that is
-	// consistent with the D3DRendererHook
+	// consistent with the D3DRendererHook.
+	// TODO: Optimization opportunity. We only need the zw components here, not a full matrix
+	//		 transform.
 	float4 Q = TransformProjection(output.pos3D.xyz);
 	// Convert pos3D from OPT scale to metric scale
 	output.pos3D *= 0.024414; // 1/40.96, OPT to metric conversion factor
@@ -83,24 +85,24 @@ PixelShaderInput main(VertexShaderInput input)
 	P.z = -P.z;
 
 	// Apply the head position and project 3D --> 2D
-	if (bPreventTransform < 0.5f) {
-		if (bFullTransform < 0.5f)
-			output.pos = mul(viewMatrix, float4(P, 1));
-		else
-			output.pos = mul(fullViewMatrix, float4(P, 1));
-	}
+	if (bFullTransform < 0.5f)
+		output.pos = mul(viewMatrix, float4(P, 1));
+	else
+		output.pos = mul(fullViewMatrix, float4(P, 1));
 	output.pos = mul(projEyeMatrix, output.pos);
 
-	/*
-	// Use the original sz; but compensate with the new w so that it stays perspective-correct:
-	output.pos.z = sz * output.pos.w;
+	// We need the original depth to be consistent with the rest of the draw calls in Execute().
+	// Use the original Depth; but compensate with the new w so that it stays perspective-correct:
+
+	// The original depth value would be Q.z/Q.w because the fixed pipeline always divides by w
+	// even if we don't see it. For that same reason, we multiply by output.pos.w so that we keep
+	// Q.z/Q.w after the pipeline divides by w.
+	output.pos.z = (Q.z/Q.w) * output.pos.w;
+
 	// NOTE: The use of this w coming from the perspective matrix may have fixed the ghosting effect
 	//		 in the Pimax. Better not to use the original w coming from the game.
 	if (sz_override > -0.1)
-		output.pos.z = sz_override;
-	*/
-	// Use the original zw to stay consistent with the depth buffer used in the D3DRendererHook
-	output.pos.zw = Q.zw;
+		output.pos.z = sz_override * output.pos.w;
 
 	return output;
 }

@@ -1,8 +1,10 @@
 /*
  * TODO:
- * - There's (apparently) no disparity between the left and right images
  * - Hangar shadows need a custom render method
- * - The aspect ratio looks wrong
+ * - The brackets are apparently not placed in the right spot
+ * - Do we need to pay extra attention to all the deferred calls? (transparency, lasers...)
+ * - Does the hyperspace effect work?
+ * - Tech Room?
  */
 #include "SteamVRRenderer.h"
 
@@ -35,13 +37,6 @@ void SteamVRRenderer::CreateShaders()
 	device->CreateVertexShader(g_XwaD3dVRVertexShader, sizeof(g_XwaD3dVRVertexShader), nullptr, &_VRVertexShader);
 }
 
-void SteamVRRenderer::CreateStates()
-{
-	ID3D11Device* device = _deviceResources->_d3dDevice;
-
-	VRRenderer::CreateStates();
-}
-
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	VRRenderer::SceneBegin(deviceResources);
@@ -62,6 +57,15 @@ void SteamVRRenderer::MainSceneHook(const SceneCompData* scene)
 	auto &resources = _deviceResources;
 
 	VRRenderer::MainSceneHook(scene);
+}
+
+void SteamVRRenderer::RenderScene()
+{
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	// TODO: Implement instanced rendering so that we issue only one draw call to
+	// render both eyes.
 
 	D3D11_VIEWPORT viewport;
 	viewport.Width = (float)resources->_backbufferWidth;
@@ -72,15 +76,6 @@ void SteamVRRenderer::MainSceneHook(const SceneCompData* scene)
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	resources->InitVertexShader(_VRVertexShader);
-}
-
-void SteamVRRenderer::RenderScene()
-{
-	auto &resources = _deviceResources;
-	auto &context = resources->_d3dDeviceContext;
-
-	// TODO: Implement instanced rendering so that we issue only one draw call to
-	// render both eyes.
 
 	// ****************************************************************************
 	// Render the left image
