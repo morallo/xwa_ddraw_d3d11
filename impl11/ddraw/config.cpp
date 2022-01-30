@@ -73,6 +73,7 @@ Config::Config()
 	this->MusicSyncFix = false;
 
 	this->D3dRendererHookEnabled = true;
+	this->HangarShadowsEnabled = true;
 
 	if (ifstream("Hook_D3d.dll") && HookD3D_IsHookD3DEnabled())
 	{
@@ -234,6 +235,10 @@ Config::Config()
 			else if (name == "D3dRendererHookEnabled")
 			{
 				this->D3dRendererHookEnabled = stoi(value) != 0;
+			}
+			else if (name == "HangarShadowsEnabled")
+			{
+				this->HangarShadowsEnabled = stoi(value) != 0;
 			}
 		}
 	}

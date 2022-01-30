@@ -1985,9 +1985,4 @@ void EffectsRenderer::RenderDeferredDrawCalls()
  */
 void VRRenderer::ExtraPreprocessing()
 {
-	// Add extra depth to Floating GUI elements
-	if (g_bIsFloating3DObject) {
-		_bModifiedShaders = true;
-		g_VSCBuffer.z_override += g_fFloatingGUIObjDepth;
-	}
 }

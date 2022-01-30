@@ -27,11 +27,11 @@ struct D3dConstants
 	float cameraPositionX;
 	float cameraPositionY;
 	float hangarShadowAccStartEnd;
-	float s_V0x0662814;
-	float s_V0x064D1A4;
-	float s_V0x06626F4;
-	float s_V0x063D194;
-	float transformView[16];
+	float sx1;
+	float sx2;
+	float sy1;
+	float sy2;
+	float hangarShadowView[16];
 	float transformWorldView[16];
 	int globalLightsCount;
 	int localLightsCount;
@@ -82,7 +82,7 @@ public:
 	virtual void SceneEnd();
 	void FlightStart();
 	virtual void MainSceneHook(const SceneCompData* scene);
-	void HangarShadowSceneHook(const SceneCompData* scene);
+	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);

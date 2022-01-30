@@ -8,6 +8,15 @@ class DeviceResources;
 
 #pragma pack(pop)
 
+enum RendererType
+{
+	RendererType_Unknown,
+	RendererType_Main,
+	RendererType_Shadow,
+};
+
+extern RendererType g_rendererType;
+
 void D3dRendererSceneBegin(DeviceResources* deviceResources);
 void D3dRendererSceneEnd();
 void D3dRendererFlightStart();

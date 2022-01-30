@@ -49,7 +49,9 @@ public:
 	bool D3dRendererHookEnabled;
 	bool Text2DAntiAlias;
 	bool Geometry2DAntiAlias;
+
 	bool MusicSyncFix;
+	bool HangarShadowsEnabled;
 };
 
 extern Config g_config;

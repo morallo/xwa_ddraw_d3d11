@@ -15,9 +15,11 @@
 #include "SteamVRRenderer.h"
 
 #ifdef _DEBUG
-#include "../Debug/XwaD3dVRVertexShader.h"
+#include "../Debug/XwaD3dVertexShaderVR.h"
+#include "../Debug/XwaD3dShadowVertexShaderVR.h"
 #else
-#include "../Release/XwaD3dVRVertexShader.h"
+#include "../Release/XwaD3dVertexShaderVR.h"
+#include "../Release/XwaD3dShadowVertexShaderVR.h"
 #endif
 
 
@@ -40,7 +42,8 @@ void SteamVRRenderer::CreateShaders()
 
 	VRRenderer::CreateShaders();
 
-	device->CreateVertexShader(g_XwaD3dVRVertexShader, sizeof(g_XwaD3dVRVertexShader), nullptr, &_VRVertexShader);
+	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
+	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
 }
 
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
@@ -61,6 +64,16 @@ void SteamVRRenderer::RenderScene()
 	// TODO: Implement instanced rendering so that we issue only one draw call to
 	// render both eyes.
 
+	if (g_rendererType == RendererType_Shadow) {
+		if (!g_config.HangarShadowsEnabled)
+			// Skip hangar shadows in VR
+			return;
+		else
+			resources->InitVertexShader(_shadowVertexShaderVR);
+	} else
+		// Regular VR path
+		resources->InitVertexShader(_vertexShaderVR);
+
 	D3D11_VIEWPORT viewport;
 	viewport.Width = (float)resources->_backbufferWidth;
 	viewport.Height = (float)resources->_backbufferHeight;
@@ -69,12 +82,16 @@ void SteamVRRenderer::RenderScene()
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
-	resources->InitVertexShader(_VRVertexShader);
 
 	// Ensure that we're not overriding regular depth in this path
 	g_VSCBuffer.z_override = -1.0f;
 	g_VSCBuffer.sz_override = -1.0f;
 	g_VSCBuffer.mult_z_override = -1.0f;
+	// Add extra depth to Floating GUI elements
+	if (g_bIsFloating3DObject) {
+		_bModifiedShaders = true;
+		g_VSCBuffer.z_override += g_fFloatingGUIObjDepth;
+	}
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 
 	// ****************************************************************************

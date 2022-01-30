@@ -130,14 +130,7 @@ bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
 
-enum RendererType
-{
-	RendererType_Unknown,
-	RendererType_Main,
-	RendererType_Shadow,
-};
-
-static RendererType g_rendererType = RendererType_Unknown;
+RendererType g_rendererType = RendererType_Unknown;
 
 D3dRenderer::D3dRenderer()
 {
@@ -601,30 +594,32 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 		_constants.cameraPositionX = (float)(*(int*)(0x08B94E0 + *(int*)0x08C1CC8 * 0xBCF + 0xB48 + 0x00));
 		_constants.cameraPositionY = (float)(*(int*)(0x08B94E0 + *(int*)0x08C1CC8 * 0xBCF + 0xB48 + 0x04));
 		_constants.hangarShadowAccStartEnd = *(short*)0x0686B38 != 0 ? 1.0f : 0.0f;
-		_constants.s_V0x0662814 = *(float*)0x0662814;
-		_constants.s_V0x064D1A4 = *(float*)0x064D1A4;
-		_constants.s_V0x06626F4 = *(float*)0x06626F4;
-		_constants.s_V0x063D194 = *(float*)0x063D194;
+		_constants.sx1 = *(float*)0x0662814;
+		_constants.sx2 = *(float*)0x064D1A4;
+		_constants.sy1 = *(float*)0x06626F4;
+		_constants.sy2 = *(float*)0x063D194;
 		break;
 	}
 
-	// transformView only seems to be used when rendering shadows in the hangar.
-	_constants.transformView[0] = *(float*)0x007B4BEC;
-	_constants.transformView[1] = *(float*)0x007B6FF8;
-	_constants.transformView[2] = *(float*)0x007B33DC;
-	_constants.transformView[3] = 0.0f;
-	_constants.transformView[4] = *(float*)0x007B4BE8;
-	_constants.transformView[5] = *(float*)0x007B6FF0;
-	_constants.transformView[6] = *(float*)0x007B33D8;
-	_constants.transformView[7] = 0.0f;
-	_constants.transformView[8] = *(float*)0x007B4BF4;
-	_constants.transformView[9] = *(float*)0x007B33D4;
-	_constants.transformView[10] = *(float*)0x007B4BE4;
-	_constants.transformView[11] = 0.0f;
-	_constants.transformView[12] = 0.0f;
-	_constants.transformView[13] = 0.0f;
-	_constants.transformView[14] = 0.0f;
-	_constants.transformView[15] = 1.0f;
+	// This matrix is probably used to transform the objects in the hangar so that
+	// they lie "top-down". Shadows seem to be produced by flattening the objects
+	// and then projecting them to the camera plane
+	_constants.hangarShadowView[0] = *(float*)0x007B4BEC;
+	_constants.hangarShadowView[1] = *(float*)0x007B6FF8;
+	_constants.hangarShadowView[2] = *(float*)0x007B33DC;
+	_constants.hangarShadowView[3] = 0.0f;
+	_constants.hangarShadowView[4] = *(float*)0x007B4BE8;
+	_constants.hangarShadowView[5] = *(float*)0x007B6FF0;
+	_constants.hangarShadowView[6] = *(float*)0x007B33D8;
+	_constants.hangarShadowView[7] = 0.0f;
+	_constants.hangarShadowView[8] = *(float*)0x007B4BF4;
+	_constants.hangarShadowView[9] = *(float*)0x007B33D4;
+	_constants.hangarShadowView[10] = *(float*)0x007B4BE4;
+	_constants.hangarShadowView[11] = 0.0f;
+	_constants.hangarShadowView[12] = 0.0f;
+	_constants.hangarShadowView[13] = 0.0f;
+	_constants.hangarShadowView[14] = 0.0f;
+	_constants.hangarShadowView[15] = 1.0f;
 
 	_constants.transformWorldView[0] = scene->WorldViewTransform.Rotation._11;
 	_constants.transformWorldView[1] = scene->WorldViewTransform.Rotation._21;

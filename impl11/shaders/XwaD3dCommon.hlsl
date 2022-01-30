@@ -23,11 +23,12 @@ cbuffer ConstantBuffer : register(b0)
 	float cameraPositionX;
 	float cameraPositionY;
 	float hangarShadowAccStartEnd;
-	float s_V0x0662814;
-	float s_V0x064D1A4;
-	float s_V0x06626F4;
-	float s_V0x063D194;
-	matrix transformView;
+	// Limits of the hangar. Used to clip the shadows
+	float sx1;
+	float sx2;
+	float sy1;
+	float sy2;
+	matrix hangarShadowView;
 	matrix transformWorldView;
 	int globalLightsCount;
 	int localLightsCount;
