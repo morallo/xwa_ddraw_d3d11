@@ -3721,12 +3721,17 @@ void ComputeHeadingDifference(const Matrix4 &H, Vector4 Fs, Vector4 Us, float fC
 */
 
 /*
-Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
-	   _shaderToyBuf (already resolved): Contains the foreground (only the cockpit) when exiting hyperspace.
-					 Unused in all other circumstances.
-Output: Renders over _offscreenBufferPost and copies to _offscreenBuffer.
-		Overwrites _offscreenBufferAsInputShaderResourceView
-*/
+ * Input: _shaderToyAuxBuf (already resolved): Should hold the background (everything minus the cockpit)
+ *		  _shaderToyBuf (already resolved): Contains the foreground (only the cockpit) when exiting hyperspace.
+ *		  (Probably) unused in all other circumstances.
+ * Output: Renders over _offscreenBufferPost and copies to _offscreenBuffer.
+ *		   Overwrites _offscreenBufferAsInputShaderResourceView
+ *
+ * When rendering regular 3D content, we capture the cockpit to the shadertoyBuffers using SelectOffscreenBuffer().
+ * These buffers are resolved before this method is called. Here we render the hyperspace effect on a distant,
+ * flat screen, and then compose the cockpit, in the form of a flat image (or 2 for the VR path) on top of it.
+ * Hyperzoom is computed first when needed.
+ */
 void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
@@ -7959,20 +7964,25 @@ HRESULT PrimarySurface::Flip(
 				if (g_HyperspacePhaseFSM != HS_INIT_ST)
 				{
 					UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-					// Preconditions: shadertoyAuxBuf has a copy of the offscreen buffer (the background, if applicable)
-					//				  shadertoyBuf has a copy of the cockpit
+					// Preconditions:
+					//		shadertoyBufMSAA has a copy of the cockpit.
+					//		shadertoyAuxBufMSAA has a copy of the offscreen buffer (the background, if applicable).
+					// When we're in hyperspace, the cockpit should be rendered to shadertoyBufMSAA through shadertoyRTV.
+					// This happens in SelectOffscreenBuffer() when we pass the relevant flags. Here, we resolve shaderToyBufMSAA
+					// to shadertoyBuf. This is later used in PrimarySurface::RenderHyperspaceEffect() to compose the cockpit,
+					// in the form of left/right 2D images on top of the the hyperspace effect itself.
 					if (resources->_useMultisampling) {
 						context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
 						if (g_bUseSteamVR)
 							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
 					}
 
-					/*
 					if (g_bDumpSSAOBuffers) {
 						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"C:\\Temp\\_shadertoyBuf.dds");
-						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
+						//DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
+						if (g_bUseSteamVR)
+							DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBufR, L"C:\\Temp\\_shadertoyBufR.dds");
 					}
-					*/
 
 					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
 					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.

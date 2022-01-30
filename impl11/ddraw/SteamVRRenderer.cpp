@@ -1,9 +1,15 @@
 /*
  * TODO:
- * - Hangar shadows need a custom render method
- * - The brackets are apparently not placed in the right spot
+ * - Hangar shadows need a custom render method.
+ * - The hangar is very broken: transparency is messed up, the background "swims" sometimes.
+ *	 Maybe the backdrops swim when cockpit roll happens?
  * - Do we need to pay extra attention to all the deferred calls? (transparency, lasers...)
- * - Does the hyperspace effect work?
+ * - Engine Glow (Z-Fighting)
+ * - There are no explosions! (Z-Fighting?)
+ * - Shadows are messed up when there's camera roll, this is probably also true for the pancake version
+ * - External camera is kind of broken
+ * - Sometimes the background "swims" while in the hangar
+ * - Some HUD elements "swim", including the brackets, but not sure when -- seems to happen con cockpit camera roll
  * - Tech Room?
  */
 #include "SteamVRRenderer.h"
@@ -47,18 +53,6 @@ void SteamVRRenderer::SceneEnd()
 	VRRenderer::SceneEnd();
 }
 
-void SteamVRRenderer::ExtraPreprocessing()
-{
-	VRRenderer::ExtraPreprocessing();
-}
-
-void SteamVRRenderer::MainSceneHook(const SceneCompData* scene)
-{
-	auto &resources = _deviceResources;
-
-	VRRenderer::MainSceneHook(scene);
-}
-
 void SteamVRRenderer::RenderScene()
 {
 	auto &resources = _deviceResources;
@@ -76,6 +70,12 @@ void SteamVRRenderer::RenderScene()
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	resources->InitVertexShader(_VRVertexShader);
+
+	// Ensure that we're not overriding regular depth in this path
+	g_VSCBuffer.z_override = -1.0f;
+	g_VSCBuffer.sz_override = -1.0f;
+	g_VSCBuffer.mult_z_override = -1.0f;
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 
 	// ****************************************************************************
 	// Render the left image
