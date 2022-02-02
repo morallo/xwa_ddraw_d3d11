@@ -1025,10 +1025,12 @@ void PrimarySurface::barrelEffectSteamVR() {
  * When rendering for SteamVR, we may be rendering at a resolution that is different
  * from the current screen resolution, so some stretching will happen in the mirror
  * window. We need to resize the offscreenBuffer before presenting it.
+ * Also, in 2D we need to generate a buffer with the proper aspect to copy into the VR overlay
  * Bonus points: Adjust the FOV to the original (~50) to avoid showing the distortion
  * caused by the larger FOV used in most headsets.
  * Input: _offscreenBuffer
  * Output: _steamVRPresentBuffer
+ * Output: _steamVROverlayBuffer
  */
 void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	/*
@@ -1099,6 +1101,10 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	}
 #endif
 
+	/*******************************************************************************/
+	/************** Resize to _steamVRPresentBuffer for the mirror window **********/
+	/*******************************************************************************/
+
 	// The viewport has to be in the range (0,0)-(g_steamVRWidth,g_steamVRHeight) or the image
 	// will be cropped. This is because the backbuffer has those same dimensions.
 	viewport.TopLeftX = 0.0f;
@@ -1148,7 +1154,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	}
 	else
 		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
-		aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		// aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		aspect_ratio = (1.0f / g_fConcourseAspectRatio);
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
@@ -1169,6 +1176,26 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	}
 	context->DrawIndexed(6, 0, 0);
+
+
+	/*******************************************************************************/
+	/********* Resize to _steamVROverlayBuffer for the VR overlay in the HMD *******/
+	/*******************************************************************************/
+	{
+		if (!g_bRendering3D) // Only render for 2D content, no need to waste resources in 3D
+		{
+			aspect_ratio = g_fConcourseAspectRatio;			
+			scale = 1.0f/aspect_ratio;
+			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
+			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
+
+			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
+				resources->_depthStencilViewL.Get());
+			context->DrawIndexed(6, 0, 0);
+		}
+	}
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -8208,7 +8235,7 @@ HRESULT PrimarySurface::Flip(
 								vr::Texture_t overlay_texture;
 								overlay_texture.eType = vr::TextureType_DirectX;
 								overlay_texture.eColorSpace = vr::ColorSpace_Auto;
-								overlay_texture.handle = resources->_offscreenBuffer;
+								overlay_texture.handle = resources->_steamVROverlayBuffer;
 								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
 								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
 								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
