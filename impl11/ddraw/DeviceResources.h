@@ -209,7 +209,9 @@ public:
 	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
-	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR
+	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented in the monitor mirror window for SteamVR
+	ComPtr<ID3D11Texture2D> _steamVROverlayBuffer; // This is the buffer that will be presented as a VR overlay.
+
 	// ShaderToy effects
 	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;
 	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;
@@ -281,7 +283,9 @@ public:
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used to resize the image before presenting it in the monitor window.
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVROverlayResize; // Used to resize the image before copying it to the VR overlay to present 2D mode images.
+
 	// ShaderToy
 	ComPtr<ID3D11RenderTargetView> _shadertoyRTV;
 	ComPtr<ID3D11RenderTargetView> _shadertoyRTV_R;

@@ -1383,6 +1383,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	HRESULT hr;
 	const char* step = "";
 	DXGI_FORMAT oldFormat;
+	UINT oldDescWidth, oldDescHeight;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
 
@@ -1454,7 +1455,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewR.Release();
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
+		this->_steamVROverlayBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_renderTargetViewSteamVROverlayResize.Release();
 		if (this->_useMultisampling)
 			this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
@@ -1900,6 +1903,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
+
+				step = "_steamVRPOverlayBuffer";
+				// This buffer will contain the Concourse, loading screen menu and ESC menu with the right aspect ratio (4:3) to show in VR overlay.
+				oldDescWidth = desc.Width;
+				oldDescHeight = desc.Height;
+				desc.Width = dwWidth;
+				desc.Height = dwHeight;
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVROverlayBuffer);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				desc.Width = oldDescWidth;
+				desc.Height = oldDescHeight;
 			}
 
 			// Shading System, Bloom Mask, Normals Buffer, etc
@@ -2922,6 +2940,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			step = "renderTargetViewSteamVRResize";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVRResize);
+			if (FAILED(hr)) goto out;
+
+			step = "renderTargetViewSteamVRResizeOverlay";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVROverlayBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVROverlayResize);
 			if (FAILED(hr)) goto out;
 
 			step = "_shadertoyRTV_R";
