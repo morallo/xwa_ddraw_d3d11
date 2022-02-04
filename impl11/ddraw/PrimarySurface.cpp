@@ -1115,7 +1115,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
-	//float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+	float mirrorWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
 	// If the display window has height > width, we can't make the the y axis smaller to compensate.
@@ -1133,29 +1133,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	if (g_bRendering3D) {
 		if (g_fSteamVRMirrorWindowAspectRatio > 0.01f)
 			aspect_ratio = g_fSteamVRMirrorWindowAspectRatio;
-		else
-			// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
+		else			
 			aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
-		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
-		/*
-		if (!g_config.AspectRatioPreserved) {
-			float RealWindowAspectRatio = steamVR_aspect_ratio;
-			if (RealWindowAspectRatio > g_fCurInGameAspectRatio)
-				// The display window is going to stretch the image horizontally, so we need
-				// to shrink the x axis:
-				// Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
-				aspect_ratio *= RealWindowAspectRatio > 1.0f ? g_fCurInGameAspectRatio / RealWindowAspectRatio : RealWindowAspectRatio / g_fCurInGameAspectRatio;
-			else
-				// The display window is going to stretch the image vertically, so we need
-				// to shrink the y axis:
-				aspect_ratio *= g_fCurInGameAspectRatio > 1.0f ? RealWindowAspectRatio / g_fCurInGameAspectRatio : g_fCurInGameAspectRatio / RealWindowAspectRatio;
-		}
-		*/
 	}
 	else
-		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
-		// aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
-		aspect_ratio = (1.0f / g_fConcourseAspectRatio);
+		// The 2D image is rendered stretched over the full backbuffer (steamVR), but the aspect ratio will be modified when the backbuffer
+		// gets squeezed into the window (usually 16:9). So effectively the 2D image will have Window aspect ratio.
+		// We need to undo it and that's why we add (1/window aspect ratio) below:
+		aspect_ratio = (1.0f / mirrorWindowAspectRatio) * (g_fConcourseAspectRatio);
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
@@ -7893,6 +7878,11 @@ HRESULT PrimarySurface::Flip(
 				g_MetricRecCBuffer.mr_y_center = 0.0f;
 				g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
 				g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+				if (g_bSteamVREnabled) {
+					// Compensate the distortion that happens when rendering the 3D craft over the 2D background in the tech room. 
+					g_MetricRecCBuffer.mr_aspect_ratio = ((float)g_WindowHeight / (float)g_WindowWidth) * g_fConcourseAspectRatio * ((float)g_steamVRHeight / (float)g_steamVRWidth);
+					//g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio * (((float)g_WindowHeight / (float)g_WindowWidth) * (4.0f / 3.0f));
+				}
 				g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 				g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 
