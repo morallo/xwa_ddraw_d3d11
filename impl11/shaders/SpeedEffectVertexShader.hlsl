@@ -2,16 +2,9 @@
 // Licensed under the MIT license. See LICENSE.txt
 // This shader is used to render the speed effect particles
 #include "VertexShaderCBuffer.h"
+#include "VertexShaderMatrixCB.h"
 #include "ShadertoyCBuffer.h"
 #include "metric_common.h"
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
-};
 
 struct VertexShaderInput
 {

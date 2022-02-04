@@ -3,6 +3,7 @@
 // Extended for VR by Leo Reyes, 2019
 #include "XwaD3dCommon.hlsl"
 #include "VertexShaderCBuffer.h"
+#include "VertexShaderMatrixCB.h"
 #include "shader_common.h"
 #include "metric_common.h"
 
@@ -19,14 +20,6 @@ cbuffer ConstantBuffer : register(b8) {
 struct VertexShaderInput
 {
 	int4 index : POSITION;
-};
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
 };
 
 struct PixelShaderInput

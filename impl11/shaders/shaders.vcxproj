@@ -504,6 +504,7 @@
     <ClInclude Include="shadow_mapping_common.h" />
     <ClInclude Include="SSAOPSConstantBuffer.h" />
     <ClInclude Include="VertexShaderCBuffer.h" />
+    <ClInclude Include="VertexShaderMatrixCB.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

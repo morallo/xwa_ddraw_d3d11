@@ -8,18 +8,9 @@
 // be rendered with this shader.
 #include "XwaD3dCommon.hlsl"
 #include "VertexShaderCBuffer.h"
+#include "VertexShaderMatrixCB.h"
 #include "shader_common.h"
 #include "metric_common.h"
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
-	float Znear, Zfar, DeltaX, DeltaY;
-	float4 origViewport;
-};
 
 struct VertexShaderInput
 {
@@ -42,11 +33,11 @@ float3 InverseTransformProjectionScreen(float4 input)
 {
 	float3 P;
 	// input.xy is in screen coords (0,0)-(W,H), convert to normalized DirectX: -1..1
-	P.x = (input.x * origViewport.x) - 1.0f;
-	P.y = (input.y * origViewport.y) + 1.0f;
+	P.x = (input.x * viewportScale.x) - 1.0f;
+	P.y = (input.y * viewportScale.y) + 1.0f;
 	// input.xy is now in the range -1..1, invert the formulas in TransformProjection:
-	P.x = (P.x / origViewport.z + 1.0f) / origViewport.x;
-	P.y = (P.y / origViewport.z - 1.0f) / origViewport.y;
+	P.x = (P.x / viewportScale.z + 1.0f) / viewportScale.x;
+	P.y = (P.y / viewportScale.z - 1.0f) / viewportScale.y;
 	// Special case when w == z:
 	P.z = Zfar / input.w - Zfar;
 	// We can now continue inverting the formulas in TransformProjection

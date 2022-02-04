@@ -191,8 +191,6 @@ typedef struct VertexShaderMatrixCBStruct {
 	// 192 bytes
 	float Znear, Zfar, DeltaX, DeltaY;
 	// 208 bytes
-	float origViewport[4];
-	// 224 bytes
 } VertexShaderMatrixCB;
 
 typedef struct PSShadingSystemCBStruct {

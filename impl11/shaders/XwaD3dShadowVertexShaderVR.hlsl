@@ -8,6 +8,7 @@
  */
 #include "XwaD3dCommon.hlsl"
 #include "VertexShaderCBuffer.h"
+#include "VertexShaderMatrixCB.h"
 #include "shader_common.h"
 #include "metric_common.h"
 
@@ -27,14 +28,6 @@ struct PixelShaderInput
 	//float4 normal : COLOR1;
 	//float2 tex : TEXCOORD;
 	//float4 color : COLOR0;
-};
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
 };
 
 PixelShaderInput main(VertexShaderInput input)

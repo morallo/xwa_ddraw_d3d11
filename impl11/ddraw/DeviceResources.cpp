@@ -3132,7 +3132,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		depthStencilDesc.Height = this->_backbufferHeight;
 		depthStencilDesc.MipLevels = 1;
 		depthStencilDesc.ArraySize = 1;
-		depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
 		depthStencilDesc.SampleDesc.Count = this->_sampleDesc.Count;
 		depthStencilDesc.SampleDesc.Quality = this->_sampleDesc.Quality;
 		depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -3913,9 +3913,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 224; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	// 192 bytes is 3 matrices
-	static_assert(sizeof(VertexShaderMatrixCB) == 224, "sizeof(VertexShaderMatrixCB) must be 224");
+	constantBufferDesc.ByteWidth = 208; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	// 192 bytes is 3 matrices + 16 bytes for extra information
+	static_assert(sizeof(VertexShaderMatrixCB) == 208, "sizeof(VertexShaderMatrixCB) must be 208");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 

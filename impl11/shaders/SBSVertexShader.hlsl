@@ -3,18 +3,9 @@
 // Extended for VR by Leo Reyes, 2019
 #include "XwaD3dCommon.hlsl"
 #include "VertexShaderCBuffer.h"
+#include "VertexShaderMatrixCB.h"
 #include "shader_common.h"
 #include "metric_common.h"
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
-	float Znear, Zfar, DeltaX, DeltaY;
-	float4 origViewport;
-};
 
 struct VertexShaderInput
 {
@@ -32,78 +23,6 @@ struct PixelShaderInput
 	float4 pos3D    : COLOR1;
 	float4 normal   : NORMAL; // hook_normals.dll populates this field
 };
-
-/*
-float4 TransformProjection(float3 input)
-{
-	const float Znear = 688.844543;
-	const float Zfar = 64.0f;
-	const float pDeltaX = 576.0f;
-	const float pDeltaY = 356.0f;
-
-	const float3 vScale = float3(0.001736f, -0.002315f, 1.0f);
-	float4 pos;
-	// st0 = Znear / input.z == pos.w
-	float st0 = Znear / input.z;
-	pos.x = input.x * st0 + pDeltaX;
-	pos.y = input.y * st0 + pDeltaY;
-	// pos.z = (st0 * Zfar/32) / (abs(st0) * Zfar/32 + Znear/3) * 0.5
-	pos.z = (st0 * Zfar / 32) / (abs(st0) * Zfar / 32 + Znear / 3) * 0.5f;
-	pos.w = 1.0f;
-	pos.x = (pos.x * vScale.x - 1.0f) * vScale.z;
-	pos.y = (pos.y * vScale.y + 1.0f) * vScale.z;
-	// We previously did pos.w = 1. After the next line, pos.w = 1 / st0, that implies
-	// that pos.w == rhw and st0 == w
-	pos *= 1.0f / st0;
-	return pos;
-}
-
-float3 InverseTransformProjectionScreen(float4 input)
-{
-	//const float Znear = projectionValue1;
-	//const float Zfar = projectionValue2;
-	const float Znear = 688.844543;
-	const float Zfar = 64.0f;
-	const float pDeltaX = 576.0f;
-	const float pDeltaY = 356.0f;
-	const float3 vScale = float3(0.001736f, -0.002315f, 1.0f);
-	float3 P;
-
-	// input.xy is in screen coords (0,0)-(W,H), convert to normalized DirectX: -1..1
-	P.x = (input.x * vScale.x) - 1.0f;
-	P.y = (input.y * vScale.y) + 1.0f;
-	// input.xy is now in the range -1..1, invert the formulas in TransformProjection:
-	P.x = (P.x / vScale.z + 1.0f) / vScale.x;
-	P.y = (P.y / vScale.z - 1.0f) / vScale.y;
-	// Special case when w == z:
-	P.z = Zfar / input.w - Zfar;
-	// We can now continue inverting the formulas in TransformProjection
-	float st0 = Znear / P.z;
-	P.x = (P.x - pDeltaX) / st0;
-	P.y = (P.y - pDeltaY) / st0;
-	// P is now OPT-scale
-	return P;
-}
-*/
-
-float3 InverseTransformProjectionScreen(float4 input)
-{
-	float3 P;
-	// input.xy is in screen coords (0,0)-(W,H), convert to normalized DirectX: -1..1
-	P.x = (input.x * origViewport.x) - 1.0f;
-	P.y = (input.y * origViewport.y) + 1.0f;
-	// input.xy is now in the range -1..1, invert the formulas in TransformProjection:
-	P.x = (P.x / origViewport.z + 1.0f) / origViewport.x;
-	P.y = (P.y / origViewport.z - 1.0f) / origViewport.y;
-	// Special case when w == z:
-	P.z = Zfar / input.w - Zfar;
-	// We can now continue inverting the formulas in TransformProjection
-	float st0 = Znear / P.z;
-	P.x = (P.x - DeltaX) / st0;
-	P.y = (P.y - DeltaY) / st0;
-	// P is now OPT-scale
-	return P;
-}
 
 PixelShaderInput main(VertexShaderInput input)
 {

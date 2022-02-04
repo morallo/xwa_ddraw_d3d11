@@ -1,6 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
+#include "VertexShaderMatrixCB.h"
 
 // MainShadersCBStruct
 cbuffer ConstantBuffer : register(b3)
@@ -11,14 +12,6 @@ cbuffer ConstantBuffer : register(b3)
 	float brightness; // This isn't used in the vertex shader
 
 	float use_3D; // Use the 3D projection matrix or not
-};
-
-// VertexShaderMatrixCB
-cbuffer ConstantBuffer : register(b2)
-{
-	matrix projEyeMatrix;
-	matrix viewMatrix;
-	matrix fullViewMatrix;
 };
 
 struct VertexShaderInput

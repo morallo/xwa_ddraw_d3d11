@@ -2603,9 +2603,6 @@ void Direct3DDevice::UpdateReconstructionConstants()
 	g_VSMatrixCB.Zfar = *(float*)0x05B46B4; // Zfar
 	g_VSMatrixCB.DeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
 	g_VSMatrixCB.DeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
-	// TODO: The following are redundant, we can remove them
-	for (int i = 0; i < 4; i++)
-		g_VSMatrixCB.origViewport[i] = g_VSCBuffer.viewportScale[i];
 
 	/*
 	log_debug("[DBG]   Znear,far: %0.3f, %0.3f, DeltaX,Y: %0.3f, %0.3f",
@@ -2615,7 +2612,6 @@ void Direct3DDevice::UpdateReconstructionConstants()
 		g_VSMatrixCB.origViewport[0], g_VSMatrixCB.origViewport[1], g_VSMatrixCB.origViewport[2]);
 	*/
 }
-
 
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
