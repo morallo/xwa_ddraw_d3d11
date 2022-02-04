@@ -98,6 +98,7 @@ public:
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void RenderScene();
 	virtual void UpdateTextures(const SceneCompData* scene);
+	
 	// State Management
 	void DoStateManagement(const SceneCompData* scene);
 	void ApplyMaterialProperties();

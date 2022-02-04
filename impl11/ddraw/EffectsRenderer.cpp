@@ -8,6 +8,168 @@ bool g_bEnableAnimations = true;
 
 EffectsRenderer g_effects_renderer;
 
+float4 TransformProjection(float3 input)
+{
+	float vpScaleX = g_VSCBuffer.viewportScale[0];
+	float vpScaleY = g_VSCBuffer.viewportScale[1];
+	float vpScaleZ = g_VSCBuffer.viewportScale[2];
+	float projectionValue1 = *(float*)0x08B94CC; // Znear
+	float projectionValue2 = *(float*)0x05B46B4; // Zfar
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+
+	float4 pos;
+	// st0 = Znear / input.z == pos.w
+	float st0 = projectionValue1 / input.z; // st0 = Znear / MetricZ
+	pos.x = input.x * st0 + projectionDeltaX;
+	pos.y = input.y * st0 + projectionDeltaY;
+	// pos.z = (st0 * Zfar/32) / (abs(st0) * Zfar/32 + Znear/3) * 0.5
+	pos.z = (st0 * projectionValue2 / 32) / (abs(st0) * projectionValue2 / 32 + projectionValue1 / 3) * 0.5f;
+	pos.w = 1.0f;
+	pos.x = (pos.x * vpScaleX - 1.0f) * vpScaleZ;
+	pos.y = (pos.y * vpScaleY + 1.0f) * vpScaleZ;
+	// We previously did pos.w = 1. After the next line, pos.w = 1 / st0, that implies
+	// that pos.w == rhw and st0 == w
+	pos.x *= 1.0f / st0;
+	pos.y *= 1.0f / st0;
+	pos.z *= 1.0f / st0;
+	pos.w *= 1.0f / st0;
+
+	return pos;
+}
+
+/*
+ * Same as TransformProjection, but returns screen coordinates + depth buffer
+ */
+float4 TransformProjectionScreen(float3 input)
+{
+	float4 pos = TransformProjection(input);
+	float w = pos.w;
+	// Apply the division by w that DirectX does implicitly
+	pos.x = pos.x / w;
+	pos.y = pos.y / w;
+	//pos.z = pos.z / w;
+	//pos.w = 1.0f;
+	// pos.xy is now in the range -1..1, convert to screen coords
+	// TODO: What should I do with vpScaleZ?
+	pos.x = (pos.x + 1.0f) / g_VSCBuffer.viewportScale[0];
+	pos.y = (pos.y - 1.0f) / g_VSCBuffer.viewportScale[1];
+	return pos;
+}
+
+/*
+ * Back-projects a 2D point in normalized DirectX coordinates (-1..1) into an OPT-scale 3D point
+ */
+float3 InverseTransformProjection(float4 input)
+{
+	float3 pos;
+	float vpScaleX = g_VSCBuffer.viewportScale[0];
+	float vpScaleY = g_VSCBuffer.viewportScale[1];
+	float vpScaleZ = g_VSCBuffer.viewportScale[2];
+	float projectionValue1 = *(float*)0x08B94CC; // Znear
+	//float projectionValue2 = *(float*)0x05B46B4; // Zfar
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+
+	float st0 = 1.0f / input.w;
+	// input.w = 1 / st0 = pos.z / projectionValue1
+	// input.w = pos.z / projectionValue1
+	// input.w * projectionValue1 = pos.z
+	pos.z = projectionValue1 * input.w;
+	// pos.z is now OPT-scale
+
+	// Reverse the premultiplication by w:
+	pos.x = input.x * st0;
+	pos.y = input.y * st0;
+
+	// Convert from screen coords to normalized coords
+	pos.x = (pos.x / vpScaleZ + 1.0f) / vpScaleX;
+	pos.y = (pos.y / vpScaleZ - 1.0f) / vpScaleY;
+
+	pos.x = (pos.x - projectionDeltaX) / st0;
+	pos.y = (pos.y - projectionDeltaY) / st0;
+	// input.xyz is now OPT-scale
+
+	return pos;
+}
+
+/*
+ * Converts 2D into metric 3D at OPT-scale (you get 100% metric 3D by multiplying with OPT_TO_METERS after this)
+ * The formulas used here work with the engine glow and with the explosions because w == z in that case.
+ * It may not work in other cases.
+ * Confirmed cases: Engine glow, Explosions.
+ */
+float3 InverseTransformProjectionScreen(float4 input)
+{
+	float Znear = *(float *)0x08B94CC;
+	float Zfar = *(float *)0x05B46B4;
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+	//float st0 = input.w;
+	// st0 = Znear / MetricZ == pos.w
+
+	// depthZ = (st0 * Zfar / 32.0f) / (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 0.5f;
+	// depthZ * 2.0f = (st0 * Zfar / 32.0f) / (abs(st0) * Zfar / 32.0f + Znear / 3.0f);
+	// depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) = st0 * Zfar / 32.0f;
+	// depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 32.0f = st0 * Zfar;
+	// depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 32.0f / Zfar = st0;
+	// st0 = depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 32.0f / Zfar;
+
+	// The engine glow has z = w!!! So we must also do:
+	// st0 = Znear / (Zfar / input.pos.w - Zfar);
+	// Znear / st0 = Zfar / input.pos.w - Zfar
+	// Znear / st0 + Zfar = Zfar / input.pos.w
+	// Zfar / (Znear / st0 + Zfar) = input.pos.w
+	// input.pos.w = Zfar / (Znear / st0 + Zfar)
+
+	// Znear / MetricZ = depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 32.0f / Zfar;
+	// MetricZ = Znear / (depthZ * 2.0f * (abs(st0) * Zfar / 32.0f + Znear / 3.0f) * 32.0f / Zfar);
+
+	float vpScaleX = g_VSCBuffer.viewportScale[0];
+	float vpScaleY = g_VSCBuffer.viewportScale[1];
+	float vpScaleZ = g_VSCBuffer.viewportScale[2];
+	// input.xy is in screen coords (0,0)-(W,H), convert to normalized DirectX: -1..1
+	input.x = (input.x * vpScaleX) - 1.0f;
+	input.y = (input.y * vpScaleY) + 1.0f;
+	// input.xy is now in the range -1..1, invert the formulas in TransformProjection:
+	input.x = (input.x / vpScaleZ + 1.0f) / vpScaleX;
+	input.y = (input.y / vpScaleZ - 1.0f) / vpScaleY;
+
+	/*
+	The next step, in TransformProjection() is to recover metric Z from sz (depthZ).
+	However, in this case we must make a detour. From the VertexShader, we see this:
+
+	if (input.pos.z == input.pos.w)
+	{
+		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
+		st0 = s_V0x08B94CC / z;
+	}
+
+	The engine glow has w == z, so we must use those formulas. Also, that temporary z is the
+	Metric Z we're looking for, so the formula is straightforward now:
+	*/
+	float3 P;
+	if (input.z == input.w)
+		P.z = Zfar / input.w - Zfar;
+	else
+		// For the regular case, when w != z, we can probably just invert st0 from TransformProjection():
+		P.z = Znear / input.w;
+		//P.z = Znear * input.w;
+		//P.z = input.w;
+
+	// We can now continue inverting the formulas in TransformProjection
+	float st0 = Znear / P.z;
+
+	// Continue inverting the formulas in TransformProjection:
+	// input.x = P.x * st0 + projectionDeltaX;
+	// input.y = P.y * st0 + projectionDeltaY;
+	P.x = (input.x - projectionDeltaX) / st0;
+	P.y = (input.y - projectionDeltaY) / st0;
+	// P is now metric * OPT-scale
+	return P;
+}
+
+
 void IncreaseD3DExecuteCounterSkipHi(int Delta) {
 	g_iD3DExecuteCounterSkipHi += Delta;
 	if (g_iD3DExecuteCounterSkipHi < -1)
@@ -75,10 +237,19 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 	if (D3DOBJGroup == 1)
 		LastMeshVerticesCount = 0;
 
+	float *Znear = (float *)0x08B94CC;
+	float *Zfar = (float *)0x05B46B4;
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+	fprintf(D3DDumpOBJFile, "# (Znear) 0x08B94CC: %0.6f, (Zfar) 0x05B46B4: %0.6f\n", *Znear, *Zfar);
+	fprintf(D3DDumpOBJFile, "# projDeltaX,Y: %0.6f, %0.6f\n", projectionDeltaX, projectionDeltaY);
+	fprintf(D3DDumpOBJFile, "# viewportScale: %0.6f, %0.6f %0.6f\n",
+		g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2]);
+
 	if (LastMeshVertices != MeshVertices) {
 		// This is a new mesh, dump all the vertices.
-		log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, FacesCount: %d",
-			D3DOBJGroup, MeshVerticesCount, scene->FacesCount);
+		//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, FacesCount: %d",
+		//	D3DOBJGroup, MeshVerticesCount, scene->FacesCount);
 		fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
 
 		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
@@ -86,6 +257,30 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 			XwaVector3 v = MeshVertices[i];
 			Vector4 V(v.x, v.y, v.z, 1.0f);
 			V = T * V;
+
+			// Enable the following block to debug InverseTransformProjection
+#define EXTRA_DEBUG 1
+#if EXTRA_DEBUG == 1
+			{
+				float3 P;
+				P.x = V.x;
+				P.y = V.y;
+				P.z = V.z;
+				float4 Q = TransformProjectionScreen(P);
+				float3 R = InverseTransformProjectionScreen(Q);
+				R.x *= OPT_TO_METERS;
+				R.y *= OPT_TO_METERS;
+				R.z *= OPT_TO_METERS;
+				fprintf(D3DDumpOBJFile, "# Q %0.3f %0.3f %0.6f %0.6f\n", Q.x, Q.y, Q.z, Q.w);
+				fprintf(D3DDumpOBJFile, "# R %0.3f %0.3f %0.6f\n", R.x, R.y, R.z);
+
+				//float4 Q = TransformProjection(P);
+				//float3 R = InverseTransformProjection(Q);
+				//fprintf(D3DDumpOBJFile, "# Q %0.3f %0.3f %0.6f %0.6f\n", Q.x, Q.y, Q.z, Q.w);
+				//fprintf(D3DDumpOBJFile, "# R %0.3f %0.3f %0.3f\n", R.x, R.y, R.z);
+				//fprintf(D3DDumpOBJFile, "# V %0.3f %0.3f %0.3f\n", V.x, V.y, V.z);
+			}
+#endif
 			// OPT to meters conversion:
 			V *= OPT_TO_METERS;
 			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
@@ -412,6 +607,8 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 	_bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
+	// If we reach this path, we're no longer rendering the skybox.
+	g_bSkyBoxJustFinished = true;
 
 	_bIsTargetHighlighted = false;
 	bool bIsGUI = false, bIsLensFlare = false;
@@ -486,9 +683,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 	g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
 	g_bIsScaleableGUIElem = g_bStartedGUI && !g_bIsTrianglePointer && !bIsLensFlare;
-	// ***************************************************************
-	// State management ends here
-	// ***************************************************************
 }
 
 // Apply specific material properties for the current texture
@@ -728,8 +922,8 @@ void EffectsRenderer::AddLaserLights(const SceneCompData* scene)
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled) {
 		// This is a new mesh, dump all the vertices.
-		log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, TexCount: %d, FacesCount: %d",
-			D3DOBJLaserGroup, MeshVerticesCount, MeshTextureVerticesCount, scene->FacesCount);
+		//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, TexCount: %d, FacesCount: %d",
+		//	D3DOBJLaserGroup, MeshVerticesCount, MeshTextureVerticesCount, scene->FacesCount);
 		fprintf(D3DDumpLaserOBJFile, "o obj-%d\n", D3DOBJLaserGroup);
 
 		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
@@ -1083,10 +1277,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	//MobileObjectEntry *pMobileObject = (MobileObjectEntry *)scene->pObject->pMobileObject;
 	//log_debug("[DBG] FaceData: 0x%x, Id: %d, Species: %d, Category: %d",
 	//	scene->FaceIndices, scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory);
+	// Show extra debug information on the current mesh:
+	/*
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 		log_debug("[DBG] [%s]: Mesh: 0x%x, faceData: 0x%x, Id: %d, Type: %d, Genus: %d, Player: %d",
 			_bLastTextureSelectedNotNULL ? _lastTextureSelected->_name.c_str() : "(null)", scene->MeshVertices, scene->FaceIndices,
 			scene->pObject->ObjectId, scene->pObject->ObjectSpecies, scene->pObject->ShipCategory, *g_playerIndex);
+	*/
 
 	/*
 	// The preybird cockpit re-uses the same mesh, but different faceData:
@@ -1758,7 +1955,7 @@ Matrix4 EffectsRenderer::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *O
 	FILE *file = NULL;
 
 	if (g_bDumpSSAOBuffers) {
-		fopen_s(&file, "./Limits.OBJ", "wt");
+		fopen_s(&file, "./ShadowMapLimits.OBJ", "wt");
 
 		XwaTransform M = _CockpitWorldView;
 		log_debug("[DBG] -----------------------------------------------");

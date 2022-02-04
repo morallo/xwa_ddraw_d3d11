@@ -390,7 +390,7 @@ float s_XwaHudScale = 1.0f;
 #include "SteamVR.h"
 #include "DirectSBS.h"
 #include "VRConfig.h"
-
+#include "EffectsRenderer.h"
 #include "Matrices.h"
 
 #include "XWAObject.h"
@@ -415,7 +415,7 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(UINT index, Vector3 *P);
 inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
-
+float3 InverseTransformProjectionScreen(float4 pos);
 
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
@@ -568,26 +568,28 @@ float4 g_SunColors[MAX_SUN_FLARES];
 int g_iSunFlareCount = 0;
 
 /*
- * Converts a metric depth value to in-game (sz, rhw) values, copying the behavior of the game
+ * Converts a metric (OPT-scale?) depth value to in-game (sz, rhw) values, copying the behavior of the game.
+ * This is the old formula. Jeremy modified it to improve the precision, but it's still a good reference
+ * because this is what the game did originally.
  */
 void ZToDepthRHW(float Z, float *sz_out, float *rhw_out)
 {
-	float sz = Z;
+	float rhw = Z;
 	float *Znear = (float *)0x08B94CC;
 	float *Zfar = (float *)0x05B46B4;
 	//log_debug("[DBG] nearZ: %0.3f, farZ: %0.3f", *nearZ, *farZ);
-	if (sz < 0.0f)
-		sz = *Znear;
+	if (rhw < 0.0f)
+		rhw = *Znear;
 	
-	float rhw = (sz * *Zfar) / (sz * *Zfar + *Znear);
+	float sz = (rhw * *Zfar) / (rhw * *Zfar + *Znear);
 
-	if (rhw < 1.52590219E-05f)
-		rhw = 1.52590219E-05f;
+	if (sz < 1.52590219E-05f)
+		sz = 1.52590219E-05f;
 
 	// s_V0x064D1A8[s_V0x06628E0].z = st1;
-	*sz_out = rhw;
+	*sz_out = sz;
 	//s_V0x064D1A8[s_V0x06628E0].rhw = st0;
-	*rhw_out = sz;
+	*rhw_out = rhw;
 }
 
 /*
@@ -1146,7 +1148,7 @@ void DumpOrigVertices(FILE *file, int numVerts)
 }
 #endif
 
-/* Function to quickly enable/disable ZWrite. Currently only used for brackets */
+/* Function to quickly enable/disable ZWrite. */
 HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 	HRESULT hr;
 	D3D11_DEPTH_STENCIL_DESC desc = this->_renderStates->GetDepthStencilDesc();
@@ -1525,6 +1527,18 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P) {
 // into OBJ METRIC 3D
 inline void backProjectMetric(UINT index, Vector3 *P) {
 	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
+}
+
+inline void InverseTransformProjectionScreen(UINT index, Vector3 *P) {
+	float4 input;
+	input.x = g_OrigVerts[index].sx;
+	input.y = g_OrigVerts[index].sy;
+	input.z = g_OrigVerts[index].sz;
+	input.w = g_OrigVerts[index].rhw;
+	float3 pos = InverseTransformProjectionScreen(input);
+	P->x = pos.x * OPT_TO_METERS;
+	P->y = pos.y * OPT_TO_METERS;
+	P->z = pos.z * OPT_TO_METERS;
 }
 
 /*
@@ -1930,7 +1944,7 @@ FILE *g_DumpOBJFile = NULL, *g_DumpLaserFile = NULL;
 int g_iOBJFileIdx = 0;
 int g_iDumpOBJIdx = 1, g_iDumpLaserOBJIdx = 1;
 
-void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx)
+void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx, char *name=nullptr)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
@@ -1946,7 +1960,23 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		return;
 	}
 
+#define METRIC 1
+
 	// Start a new object
+	if (name != nullptr) fprintf(file, "# %s\n", name);
+	float *Znear = (float *)0x08B94CC;
+	float *Zfar = (float *)0x05B46B4;
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+#if METRIC == 1
+	fprintf(file, "# NEW DDRAW, METRIC\n");
+#else
+	fprintf(file, "# NEW DDRAW, RAW\n");
+#endif
+	fprintf(file, "# (Znear) 0x08B94CC: %0.6f, (Zfar) 0x05B46B4: %0.6f\n", *Znear, *Zfar);
+	fprintf(file, "# projDeltaX,Y: %0.6f, %0.6f\n", projectionDeltaX, projectionDeltaY);
+	fprintf(file, "# viewportScale: %0.6f, %0.6f, %0.6f\n",
+		g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2]);
 	fprintf(file, "o obj_%d\n", OBJIdx);
 	indices.clear();
 	for (uint32_t i = 0; i < instruction->wCount; i++)
@@ -1954,21 +1984,36 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		//v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy; w0 = 1.0f / g_OrigVerts[index].rhw;
-		backProjectMetric(index, &tempv0);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v0.x, v0.y, w0);
+#if METRIC == 1
+		//backProjectMetric(index, &tempv0);
+		InverseTransformProjectionScreen(index, &tempv0);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		//v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy; w1 = 1.0f / g_OrigVerts[index].rhw;
-		backProjectMetric(index, &tempv1);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v1.x, v1.y, w1);
+#if METRIC == 1
+		//backProjectMetric(index, &tempv1);
+		InverseTransformProjectionScreen(index, &tempv1);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		//v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy; w2 = 1.0f / g_OrigVerts[index].rhw;
-		backProjectMetric(index, &tempv2);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v2.x, v2.y, w2);
+#if METRIC == 1
+		//backProjectMetric(index, &tempv2);
+		InverseTransformProjectionScreen(index, &tempv2);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		if (!g_config.D3dHookExists) triangle++;
 
@@ -2550,6 +2595,28 @@ void CountLasersAndIons(CraftInstance *craftInstance) {
 	g_bLasersIonsNeedCounting = false;
 }
 
+void Direct3DDevice::UpdateReconstructionConstants()
+{
+	auto &resources = _deviceResources;
+
+	g_VSMatrixCB.Znear = *(float*)0x08B94CC; // Znear, we know because g_fRawFOVDist is this exact same value!
+	g_VSMatrixCB.Zfar = *(float*)0x05B46B4; // Zfar
+	g_VSMatrixCB.DeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	g_VSMatrixCB.DeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+	// TODO: The following are redundant, we can remove them
+	for (int i = 0; i < 4; i++)
+		g_VSMatrixCB.origViewport[i] = g_VSCBuffer.viewportScale[i];
+
+	/*
+	log_debug("[DBG]   Znear,far: %0.3f, %0.3f, DeltaX,Y: %0.3f, %0.3f",
+		g_VSMatrixCB.Znear, g_VSMatrixCB.Zfar,
+		g_VSMatrixCB.DeltaX, g_VSMatrixCB.DeltaY);
+	log_debug("[DBG]   vpScale: %0.6f, %0.6f, %0.6f", 
+		g_VSMatrixCB.origViewport[0], g_VSMatrixCB.origViewport[1], g_VSMatrixCB.origViewport[2]);
+	*/
+}
+
+
 HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
@@ -2647,7 +2714,8 @@ HRESULT Direct3DDevice::Execute(
 	float scale;
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
-	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false, bModifiedBlendState = false;
+	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
+	bool bModifiedBlendState = false, bModifiedVertexShader = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -3123,7 +3191,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
-				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false;
+				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false, bIsEngineGlow = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -3172,6 +3240,7 @@ HRESULT Direct3DDevice::Execute(
 					bHasMaterial = lastTextureSelected->bHasMaterial;
 					bIsExplosion = lastTextureSelected->is_Explosion;
 					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
+					bIsEngineGlow = lastTextureSelected->is_EngineGlow;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -4395,6 +4464,7 @@ HRESULT Direct3DDevice::Execute(
 				bModifiedShaders      = false;
 				bModifiedPixelShader  = false;
 				bModifiedBlendState   = false;
+				bModifiedVertexShader = false;
 
 				// DEBUG
 				//if (bIsActiveCockpit && strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL)
@@ -4759,7 +4829,7 @@ HRESULT Direct3DDevice::Execute(
 					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
 					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
 					// Send the skybox to infinity:
-					g_VSCBuffer.sz_override = 0.01f;
+					g_VSCBuffer.sz_override = 1.52590219E-05f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
@@ -5035,6 +5105,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// DEBUG: Dump an OBJ for the current cockpit
+				/*
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit) {
 					log_debug("[DBG] Dumping OBJ (Cockpit): %s", lastTextureSelected->_surface->_cname);
 					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation, g_iDumpOBJIdx);
@@ -5042,6 +5113,17 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsLaser) {
 					log_debug("[DBG] Dumping OBJ (Laser): %s", lastTextureSelected->_surface->_cname);
 					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation, g_iDumpLaserOBJIdx);
+				}
+				*/
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsEngineGlow) {
+					log_debug("[DBG] Dumping OBJ (EngineGlow): obj_%d, %s", g_iDumpOBJIdx, lastTextureSelected->_surface->_cname);
+					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation,
+						g_iDumpOBJIdx, lastTextureSelected->_surface->_cname);
+				}
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsExplosion) {
+					log_debug("[DBG] Dumping OBJ (bIsExplosion): obj_%d, %s", g_iDumpLaserOBJIdx, lastTextureSelected->_surface->_cname);
+					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation,
+						g_iDumpLaserOBJIdx, lastTextureSelected->_surface->_cname);
 				}
 
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
@@ -5182,9 +5264,16 @@ HRESULT Direct3DDevice::Execute(
 					bModifiedShaders = true;
 					g_VSCBuffer.z_override = g_fTextDepth;
 				}
+				
+				if (bIsEngineGlow || bIsExplosion /* || bIsDS2CoreExplosion? */ ) {
+					bModifiedVertexShader = true;
+					UpdateReconstructionConstants();
+					resources->InitVertexShader(resources->_datVertexShaderVR);
+				}
 
 				// Apply the changes to the vertex and pixel shaders
-				if (bModifiedShaders) {
+				//if (bModifiedShaders)
+				{
 					resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 					resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 					if (g_PSCBuffer.DynCockpitSlots > 0)
@@ -5203,10 +5292,6 @@ HRESULT Direct3DDevice::Execute(
 				// Render the left image
 				// ****************************************************************************
 				{
-					// SteamVR probably requires independent ZBuffers; for non-Steam we can get away
-					// with just using one, though... but why would we use just one? To make AO 
-					// computation faster? On the other hand, having always 2 z-buffers makes the code
-					// easier.
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
@@ -5416,6 +5501,13 @@ HRESULT Direct3DDevice::Execute(
 
 				if (bModifiedPixelShader)
 					resources->InitPixelShader(lastPixelShader);
+
+				if (bModifiedVertexShader) {
+					if (g_bEnableVR)
+						resources->InitVertexShader(resources->_sbsVertexShader);
+					else
+						resources->InitVertexShader(resources->_vertexShader);
+				}
 
 				if (bModifiedBlendState) {
 					RestoreBlendState();

@@ -575,8 +575,8 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 	{
 	case RendererType_Main:
 	default:
-		_constants.projectionValue1 = *(float*)0x08B94CC;
-		_constants.projectionValue2 = *(float*)0x05B46B4;
+		_constants.projectionValue1 = *(float*)0x08B94CC; // Znear
+		_constants.projectionValue2 = *(float*)0x05B46B4; // Zfar
 		_constants.projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
 		_constants.projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
 		_constants.floorLevel = 0.0f;

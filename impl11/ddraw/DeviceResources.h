@@ -440,6 +440,7 @@ public:
 
 	ComPtr<ID3D11VertexShader> _vertexShader;
 	ComPtr<ID3D11VertexShader> _sbsVertexShader;
+	ComPtr<ID3D11VertexShader> _datVertexShaderVR;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
 	ComPtr<ID3D11VertexShader> _addGeomVS;

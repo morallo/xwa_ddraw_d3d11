@@ -1,7 +1,6 @@
 /*
  * TODO:
- * - Hangar shadows need a custom render method.
- * - The hangar is very broken: transparency is messed up, the background "swims" sometimes.
+ * - The hangar backdrop "swims" sometimes.
  *	 Maybe the backdrops swim when cockpit roll happens?
  * - Do we need to pay extra attention to all the deferred calls? (transparency, lasers...)
  * - Engine Glow (Z-Fighting)
@@ -11,6 +10,7 @@
  * - Sometimes the background "swims" while in the hangar
  * - Some HUD elements "swim", including the brackets, but not sure when -- seems to happen con cockpit camera roll
  * - Tech Room?
+ * - The DS2 mission is messed up...
  */
 #include "SteamVRRenderer.h"
 

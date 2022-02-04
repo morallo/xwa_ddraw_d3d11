@@ -188,6 +188,11 @@ typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 projEye;
 	Matrix4 viewMat;
 	Matrix4 fullViewMat;
+	// 192 bytes
+	float Znear, Zfar, DeltaX, DeltaY;
+	// 208 bytes
+	float origViewport[4];
+	// 224 bytes
 } VertexShaderMatrixCB;
 
 typedef struct PSShadingSystemCBStruct {

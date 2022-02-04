@@ -25,6 +25,7 @@
 #include "../Debug/VertexShader.h"
 #include "../Debug/PassthroughVertexShader.h"
 #include "../Debug/SBSVertexShader.h"
+#include "../Debug/DATVertexShaderVR.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
 #include "../Debug/PixelShaderDCHolo.h"
@@ -86,6 +87,7 @@
 #include "../Release/VertexShader.h"
 #include "../Release/PassthroughVertexShader.h"
 #include "../Release/SBSVertexShader.h"
+#include "../Release/DATVertexShaderVR.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
 #include "../Release/PixelShaderDCHolo.h"
@@ -3641,6 +3643,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_PassthroughVertexShader, sizeof(g_PassthroughVertexShader), nullptr, &_passthroughVertexShader)))
 		return hr;
 
@@ -3656,6 +3661,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_SBSVertexShader, sizeof(g_SBSVertexShader), &_inputLayout)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), &_inputLayout)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
@@ -3905,9 +3913,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 192; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	constantBufferDesc.ByteWidth = 224; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
 	// 192 bytes is 3 matrices
-	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(VertexShaderMatrixCB) must be 192");
+	static_assert(sizeof(VertexShaderMatrixCB) == 224, "sizeof(VertexShaderMatrixCB) must be 224");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 

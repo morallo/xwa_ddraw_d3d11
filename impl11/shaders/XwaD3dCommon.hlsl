@@ -38,16 +38,28 @@ cbuffer ConstantBuffer : register(b0)
 	D3dLocalLight localLights[8];
 };
 
+// TransformProjection
+//		input: OPT-scale data (i.e. meters * 40.96)
+//		output: pos
+// where:
+//		pos.x = normalized (?) screen coords
+//		pos.y = normalized (?) screen coords
+//		pos.z = Depth buffer value
+//		pos.w = input.z / Znear
 float4 TransformProjection(float3 input)
 {
 	float4 pos;
+	// st0 = Znear / input.z == pos.w
 	float st0 = projectionValue1 / input.z;
 	pos.x = input.x * st0 + projectionDeltaX;
 	pos.y = input.y * st0 + projectionDeltaY;
+	// pos.z = (st0 * Zfar/32) / (abs(st0) * Zfar/32 + Znear/3) * 0.5
 	pos.z = (st0 * projectionValue2 / 32) / (abs(st0) * projectionValue2 / 32 + projectionValue1 / 3) * 0.5f;
 	pos.w = 1.0f;
 	pos.x = (pos.x * vpScale.x - 1.0f) * vpScale.z;
 	pos.y = (pos.y * vpScale.y + 1.0f) * vpScale.z;
+	// We previously did pos.w = 1. After the next line, pos.w = 1 / st0, that implies
+	// that pos.w == rhw and st0 == w
 	pos *= 1.0f / st0;
 	return pos;
 }
