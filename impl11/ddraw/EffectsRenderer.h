@@ -49,7 +49,7 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady, _bThrottleTransformReady;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
@@ -57,6 +57,7 @@ protected:
 	std::vector<DrawCommand> _LaserDrawCommands;
 	std::vector<DrawCommand> _TransparentDrawCommands;
 	Matrix4 _joystickMeshTransform;
+	Matrix4 _throttleMeshTransform;
 
 	VertexShaderCBuffer _oldVSCBuffer;
 	PixelShaderCBuffer _oldPSCBuffer;

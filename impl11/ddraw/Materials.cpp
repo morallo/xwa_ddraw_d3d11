@@ -1284,13 +1284,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	
 	if (_stricmp(param, "JoystickRoot") == 0) {
-		curMaterial->IsJoystick = true;
+		curMaterial->DiegeticMesh = DM_JOYSTICK;
 		LoadLightColor(buf, &(curMaterial->JoystickRoot));
-		// This coordinate must be scaled to the OPT coord sys
+		// This point must be scaled to match the OPT coord sys
 		curMaterial->JoystickRoot *= METERS_TO_OPT;
-		/*float temp = curMaterial->JoystickRoot.z;
-		curMaterial->JoystickRoot.z = curMaterial->JoystickRoot.y;
-		curMaterial->JoystickRoot.y = temp;*/
 		log_debug("[DBG] [MAT] JoystickRoot: %0.3f, %0.3f, %0.3f",
 			curMaterial->JoystickRoot.x, curMaterial->JoystickRoot.y, curMaterial->JoystickRoot.z);
 	}
@@ -1299,6 +1296,35 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	else if (_stricmp(param, "JoystickMaxPitch") == 0) {
 		curMaterial->JoystickMaxPitch = fValue;
+	}
+
+	if (_stricmp(param, "ThrottleRotXAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_X;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleRotYAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_Y;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleRotZAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_Z;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleMaxAngle") == 0) {
+		curMaterial->ThrottleMaxAngle = fValue;
+	}
+	else if (_stricmp(param, "`ThrottleStart") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleEnd") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
 	}
 
 	/*

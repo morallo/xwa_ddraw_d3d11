@@ -2265,11 +2265,9 @@ bool LoadSSAOParams() {
 			}
 			*/
 
-			/*
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;
 			}
-			*/
 			else if (_stricmp(param, "HDR_enabled") == 0) {
 				g_bHDREnabled = (bool)fValue;
 				g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;

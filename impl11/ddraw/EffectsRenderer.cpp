@@ -327,6 +327,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_bShadowsRenderedInCurrentFrame = false;
 	// Initialize the joystick mesh transform on this frame
 	_bJoystickTransformReady = false;
+	_bThrottleTransformReady = false;
 	_joystickMeshTransform.identity();
 	g_OPTMeshTransformCB.MeshTransform.identity();
 	_deviceResources->InitVSConstantOPTMeshTransform(
@@ -722,7 +723,12 @@ void EffectsRenderer::ApplyMaterialProperties()
 		resources->InitPixelShader(resources->_noGlassPS);
 	}
 
-	if (_lastTextureSelected->material.IsJoystick) {
+	DiegeticMeshType DiegeticMesh = _lastTextureSelected->material.DiegeticMesh;
+	switch (DiegeticMesh) {
+	case DM_JOYSTICK: {
+		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
+		// true as soon as one mesh computes it, so that we don't compute it several times per
+		// frame.
 		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
 			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
 			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
@@ -750,9 +756,83 @@ void EffectsRenderer::ApplyMaterialProperties()
 			_bJoystickTransformReady = true;
 		}
 		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
+		break;
 	}
-	else
+	case DM_THR_ROT_X:
+	case DM_THR_ROT_Y:
+	case DM_THR_ROT_Z:
+	{
+		if (!_bThrottleTransformReady) {
+			// Fetch the current throttle value
+			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
+			if (craftInstance == NULL) {
+				_throttleMeshTransform.identity();
+				break;
+			}
+			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
+
+			// Build the transform matrix
+			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
+			float ThrottleMaxAngle = _lastTextureSelected->material.ThrottleMaxAngle;
+			Matrix4 T, R;
+
+			// Translate the root to the origin
+			T.identity(); T.translate(-ThrottleRoot);
+			_throttleMeshTransform = T;
+
+			// Apply the rotation
+			R.identity();
+			if (DiegeticMesh == DM_THR_ROT_X) R.rotateX(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Y) R.rotateY(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Z) R.rotateZ(throttle * ThrottleMaxAngle);
+			_throttleMeshTransform = R * _throttleMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(ThrottleRoot);
+			_throttleMeshTransform = T * _throttleMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	}
+	case DM_THR_TRANS:
+		if (!_bThrottleTransformReady) {
+			// Fetch the current throttle value
+			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
+			if (craftInstance == NULL) {
+				_throttleMeshTransform.identity();
+				break;
+			}
+			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
+
+			// Build the transform matrix
+			Matrix4 T, R;
+			Vector3 ThrottleStart = _lastTextureSelected->material.ThrottleStart;
+			Vector3 ThrottleEnd = _lastTextureSelected->material.ThrottleEnd;
+			Vector3 Dir = ThrottleEnd - ThrottleStart;
+			Dir.normalize();
+
+			// Apply the rotation
+			Dir *= throttle;
+			T.translate(Dir);
+			_throttleMeshTransform = T;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	default:
 		g_OPTMeshTransformCB.MeshTransform.identity();
+	}
 	// Set the current mesh transform, regardless of what type of mesh type we're rendering
 	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 }

@@ -28,6 +28,15 @@ typedef enum GreebleBlendModeEnum {
 
 extern char *g_sGreebleBlendModes[GBM_MAX_MODES - 1];
 
+typedef enum DiegeticMeshEnum {
+	DM_NONE,
+	DM_JOYSTICK,
+	DM_THR_ROT_X,
+	DM_THR_ROT_Y,
+	DM_THR_ROT_Z,
+	DM_THR_TRANS,
+} DiegeticMeshType;
+
 /*
 
 How to add support for a new event:
@@ -329,10 +338,20 @@ typedef struct MaterialStruct {
 	//GreebleData GreebleData;
 	int GreebleDataIdx;
 
-	bool IsJoystick;
+	DiegeticMeshType DiegeticMesh;
+	// If DiegeticMesh == DM_JOYSTICK then the following should be populated:
 	Vector3 JoystickRoot;
 	float JoystickMaxYaw;
 	float JoystickMaxPitch;
+
+	// If DiegeticMesh == DM_THR_ROT_*, then the following should be populated:
+	Vector3 ThrottleRoot;
+	float ThrottleMinAngle;
+	float ThrottleMaxAngle;
+
+	// If DiegeticMesh == DM_THR_TRANS, then the following should be populated
+	Vector3 ThrottleStart;
+	Vector3 ThrottleEnd;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -385,7 +404,7 @@ typedef struct MaterialStruct {
 			AltExplosionIdx[i] = -1;
 		DS2ExplosionIdx = -1;
 
-		IsJoystick = false;
+		DiegeticMesh = DM_NONE;
 		JoystickRoot = Vector3(0, 0, 0);
 		JoystickMaxYaw = 10.0f;
 		JoystickMaxPitch = -10.0f;
