@@ -50,7 +50,7 @@ PixelShaderInput main(VertexShaderInput input)
 		// Project to 2D
 		output.pos = mul(projEyeMatrix, P);
 	} else { // Use this for the original 2D version of the game:
-		output.pos = float4((input.pos.x + parallax) * scale * aspect_ratio, input.pos.y * scale, 0.5f, 1.0f);
+		output.pos = float4((input.pos.x) * scale * aspect_ratio, input.pos.y * scale, parallax, 1.0f);
 	}
 	output.tex = input.tex;
 
