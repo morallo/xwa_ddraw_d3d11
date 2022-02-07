@@ -1896,18 +1896,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				step = "_steamVRPOverlayBuffer";
 				// This buffer will contain the Concourse, loading screen menu and ESC menu with the right aspect ratio (4:3) to show in VR overlay.
-				oldDescWidth = desc.Width;
-				oldDescHeight = desc.Height;
-				desc.Width = dwWidth;
-				desc.Height = dwHeight;
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVROverlayBuffer);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
-				desc.Width = oldDescWidth;
-				desc.Height = oldDescHeight;
 			}
 
 			// Shading System, Bloom Mask, Normals Buffer, etc
