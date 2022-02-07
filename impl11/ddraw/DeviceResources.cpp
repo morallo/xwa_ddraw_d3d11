@@ -4934,8 +4934,24 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
 		*/
+
+		float parallax = 1;
+		if (g_iDraw2DCounter > 0)		
+		{
+			D3D11_DEPTH_STENCIL_DESC desc;
+			ComPtr<ID3D11DepthStencilState> depthState;
+			desc.DepthEnable = FALSE;
+			desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+			desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+			desc.StencilEnable = FALSE;
+			this->InitDepthStencilState(depthState, &desc);
+			parallax = 0;
+
+		}
+
 		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			1, 1, 1, g_fBrightness,
 			0.0f); // Do not use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
@@ -4967,7 +4983,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			1.0f); // Use 3D projection matrices
 		*/
 		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			1, 1, 1, g_fBrightness,
 			0.0f); // Do not use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
