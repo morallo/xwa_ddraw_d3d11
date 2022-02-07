@@ -1176,7 +1176,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	{
 		if (!g_bRendering3D) // Only render for 2D content, no need to waste resources in 3D
 		{
-			aspect_ratio = g_fConcourseAspectRatio;			
+			aspect_ratio = g_fConcourseAspectRatio * (1.0f/ steamVR_aspect_ratio);
 			scale = 1.0f/aspect_ratio;
 			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
