@@ -8953,8 +8953,10 @@ HRESULT PrimarySurface::Flip(
 
 				ApplyCustomHUDColor();
 
-				g_pVROverlay->HideOverlay(g_VR2Doverlay);
-				g_pVRCompositor->FadeToColor(0.2f, 0.0f, 0.0f, 0.0f, 0.0f, false);
+				if (g_bUseSteamVR) {
+					g_pVROverlay->HideOverlay(g_VR2Doverlay);
+					g_pVRCompositor->FadeToColor(0.2f, 0.0f, 0.0f, 0.0f, 0.0f, false);
+				}
 			}
 			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
 			// the Holdo bug (but more changes may be needed).

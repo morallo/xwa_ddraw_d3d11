@@ -1383,7 +1383,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	HRESULT hr;
 	const char* step = "";
 	DXGI_FORMAT oldFormat;
-	UINT oldDescWidth, oldDescHeight;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
 
