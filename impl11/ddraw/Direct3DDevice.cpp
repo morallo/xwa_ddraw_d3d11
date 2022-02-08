@@ -1902,7 +1902,7 @@ FILE *g_DumpOBJFile = NULL, *g_DumpLaserFile = NULL;
 int g_iOBJFileIdx = 0;
 int g_iDumpOBJIdx = 1, g_iDumpLaserOBJIdx = 1;
 
-void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx)
+void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx, char *name = nullptr)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
@@ -1918,7 +1918,23 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		return;
 	}
 
+#define METRIC 0
+
 	// Start a new object
+	if (name != nullptr) fprintf(file, "# %s\n", name);
+	float *Znear = (float *)0x08B94CC;
+	float *Zfar = (float *)0x05B46B4;
+	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
+	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
+#if METRIC == 1
+	fprintf(file, "# OLD ddraw, METRIC reconstruction\n");
+#else
+	fprintf(file, "# OLD ddraw, RAW data\n");
+#endif
+	fprintf(file, "# (Znear) 0x08B94CC: %0.6f, (Zfar) 0x05B46B4: %0.6f\n", *Znear, *Zfar);
+	fprintf(file, "# projDeltaX,Y: %0.6f, %0.6f\n", projectionDeltaX, projectionDeltaY);
+	fprintf(file, "# viewportScale: %0.6f, %0.6f %0.6f\n",
+		g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2]);
 	fprintf(file, "o obj_%d\n", OBJIdx);
 	indices.clear();
 	for (uint32_t i = 0; i < instruction->wCount; i++)
@@ -1926,21 +1942,36 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		// Back-project the vertices of the triangle into metric 3D space:
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
 		//v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy; w0 = 1.0f / g_OrigVerts[index].rhw;
+#if METRIC == 1
 		backProjectMetric(index, &tempv0);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v0.x, v0.y, w0);
+		//InverseTransformProjectionScreen(index, &tempv0);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
 		//v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy; w1 = 1.0f / g_OrigVerts[index].rhw;
+#if METRIC == 1
 		backProjectMetric(index, &tempv1);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v1.x, v1.y, w1);
+		//InverseTransformProjectionScreen(index, &tempv1);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
 		//v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy; w2 = 1.0f / g_OrigVerts[index].rhw;
+#if METRIC == 1
 		backProjectMetric(index, &tempv2);
-		//fprintf(file, "# %0.3f %0.3f %0.6f\n", v2.x, v2.y, w2);
+		//InverseTransformProjectionScreen(index, &tempv2);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
+#else
+		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
+			g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].sz, g_OrigVerts[index].rhw);
+#endif
 
 		if (!g_config.D3dHookExists) triangle++;
 
@@ -3067,7 +3098,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
-				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false;
+				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false, bIsEngineGlow = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -3118,6 +3149,7 @@ HRESULT Direct3DDevice::Execute(
 					bHasMaterial = lastTextureSelected->bHasMaterial;
 					bIsExplosion = lastTextureSelected->is_Explosion;
 					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
+					bIsEngineGlow = lastTextureSelected->is_EngineGlow;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -5369,6 +5401,7 @@ HRESULT Direct3DDevice::Execute(
 					goto out;
 
 				// DEBUG: Dump an OBJ for the current cockpit
+				/*
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsCockpit) {
 					log_debug("[DBG] Dumping OBJ (Cockpit): %s", lastTextureSelected->_surface->_name);
 					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation, g_iDumpOBJIdx);
@@ -5376,6 +5409,17 @@ HRESULT Direct3DDevice::Execute(
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsLaser) {
 					log_debug("[DBG] Dumping OBJ (Laser): %s", lastTextureSelected->_surface->_name);
 					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation, g_iDumpLaserOBJIdx);
+				}
+				*/
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsEngineGlow) {
+					log_debug("[DBG] Dumping OBJ (EngineGlow): obj_%d, %s", g_iDumpOBJIdx, lastTextureSelected->_surface->_name);
+					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation,
+						g_iDumpOBJIdx, lastTextureSelected->_surface->_name);
+				}
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsExplosion) {
+					log_debug("[DBG] Dumping OBJ (Explosion): %s", g_iDumpLaserOBJIdx, lastTextureSelected->_surface->_name);
+					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation,
+						g_iDumpLaserOBJIdx, lastTextureSelected->_surface->_name);
 				}
 
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
