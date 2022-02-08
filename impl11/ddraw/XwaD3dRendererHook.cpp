@@ -126,6 +126,83 @@ void DumpD3dVertices(D3dVertex* vertices, int count)
 
 #endif
 
+#ifdef DISABLED
+struct Vertex3 {
+	float x;
+	float y;
+	float z;
+
+	Vertex3() {
+		x = y = z = 0.0f;
+	}
+
+	Vertex3(float x, float y, float z) {
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
+	Vertex3(XwaVector3 V) {
+		this->x = V.x;
+		this->y = V.y;
+		this->z = V.z;
+	}
+
+	Vertex3(Vector3 V) {
+		this->x = V.x;
+		this->y = V.y;
+		this->z = V.z;
+	}
+
+	inline Vertex3& Vertex3::normalize() {
+		float xxyyzz = x * x + y * y + z * z;
+
+		float invLength = 1.0f / sqrtf(xxyyzz);
+		x *= invLength;
+		y *= invLength;
+		z *= invLength;
+		return *this;
+	}
+
+	auto as_tuple() const {
+		return std::tie(x, y, z);
+	}
+
+	std::string to_string() {
+		std::stringstream ss;
+		ss.precision(3);
+		ss << "(" << std::fixed << x << ", " << y << ", " << z << ")";
+		return ss.str();
+	}
+};
+
+std::string hash_value(const Vertex3 &V) {
+	int *X = (int *)&(V.x);
+	int *Y = (int *)&(V.y);
+	int *Z = (int *)&(V.z);
+	char buf[80];
+	sprintf_s(buf, 80, "%x%x%x", *X, *Y, *Z);
+	return std::string(buf);
+}
+
+class VertexMap {
+private:
+	//std::unordered_map<int, Vertex3> _map;
+	std::map<std::string, Vertex3> _map;
+	void _adjustPrecision(Vertex3 &Vertex);
+
+public:
+	~VertexMap();
+	void set(const Vertex3 &Vertex, const Vertex3 &Normal);
+	void insert(const Vertex3 &Vertex, const Vertex3 &Normal);
+	void insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal);
+	void insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal, bool &alreadyInMap);
+	bool find(const Vertex3 &Vertex, Vertex3 &Normal);
+	inline size_t size() { return _map.size(); }
+	
+};
+#endif
+
 bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
@@ -333,6 +410,108 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 	Direct3DTexture* texture2 = surface2 == nullptr ? nullptr : (Direct3DTexture*)surface2->D3dTexture.D3DTextureHandle;
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
 }
+
+#ifdef DISABLED
+void D3dRenderer::SmoothNormals(SceneCompData* scene, float threshold, XwaVector3 **normals_out)
+{
+	XwaVector3 *vertices = scene->MeshVertices;
+	XwaVector3 *normals = scene->MeshVertexNormals;
+	int verticesCount = *(int*)((int)vertices - 8);
+	int normalsCount = *(int*)((int)normals - 8);
+	VertexMap *vertexMap = new VertexMap();
+	int notfound = 0;
+
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+
+		// Compute a new normal for this face. If it's a quad, add both triangles
+		Vector3 FaceNormal(0, 0, 0);
+		for (int edge = 2; edge < edgesCount; edge++)
+		{
+			D3dTriangle t;
+			t.v1 = 0;
+			t.v2 = edge - 1;
+			t.v3 = edge;
+
+			XwaVector3 p1 = scene->MeshVertices[faceData.Vertex[t.v1]];
+			XwaVector3 p2 = scene->MeshVertices[faceData.Vertex[t.v2]];
+			XwaVector3 p3 = scene->MeshVertices[faceData.Vertex[t.v3]];
+
+			Vector3 q1(p1.x, p1.y, p1.z);
+			Vector3 q2(p2.x, p2.y, p2.z);
+			Vector3 q3(p3.x, p3.y, p3.z);
+
+			Vector3 N = (q2 - q1).cross(q3 - q2);
+			N.normalize();
+			FaceNormal += N;
+		}
+		FaceNormal.normalize();
+
+		for (int i = 0; i < edgesCount; i++) {
+			int vertexIdx = faceData.Vertex[i];
+			//int normalIdx = faceData.VertexNormal[i];
+
+			vertexMap->insert_or_add(Vertex3(vertices[vertexIdx]), Vertex3(FaceNormal));
+		}
+
+		// Basic verification
+		notfound = 0;
+		for (int i = 0; i < edgesCount; i++) {
+			int vertexIdx = faceData.Vertex[i];
+			Vertex3 N;
+			if (!vertexMap->find(Vertex3(vertices[vertexIdx]), N))
+				notfound++;
+		}
+	}
+
+	// Populate all the per-vertex normals and normalize them
+	Vector3 Centroid(0, 0, 0);
+	notfound = 0;
+	for (int i = 0; i < verticesCount; i++) {
+		XwaVector3 XV = vertices[i];
+		Vertex3 V(XV), N;
+		Centroid.x += XV.x;
+		Centroid.y += XV.y;
+		Centroid.z += XV.z;
+		if (vertexMap->find(V, N))
+			N.normalize();
+		else {
+			N.x = N.y = N.z = 0.0f;
+			notfound++;
+		}
+		vertexMap->set(V, N);
+	}
+	if (notfound) log_debug("[DBG] WARNING (1): %d vertex normals NOT FOUND, total verts: %d",
+		notfound, verticesCount);
+
+	notfound = 0;
+	(*normals_out) = new XwaVector3[verticesCount];
+	for (int i = 0; i < verticesCount; i++) {
+		XwaVector3 V = vertices[i];
+		Vertex3 N;
+		if (!vertexMap->find(Vertex3(V), N))
+			notfound++;
+
+		XwaVector3 XN;
+		XN.x = N.x;
+		XN.y = N.y;
+		XN.z = N.z;
+		(*normals_out)[i] = XN;
+	}
+	if (notfound) log_debug("[DBG] WARNING (2): %d vertex normals NOT found", notfound);
+
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+
+		for (int i = 0; i < edgesCount; i++)
+			scene->FaceIndices[faceIndex].VertexNormal[i] = faceData.Vertex[i];
+	}
+
+	delete vertexMap;
+}
+#endif
 
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
@@ -1111,3 +1290,84 @@ void D3dRendererShadowHook(SceneCompData* scene)
 	g_rendererType = RendererType_Shadow;
 	g_current_renderer->HangarShadowSceneHook(scene);
 }
+
+#ifdef DISABLED
+//***************************************************************
+// VertexMap implementation
+//***************************************************************
+VertexMap::~VertexMap()
+{
+	_map.clear();
+}
+
+// Returns false if Vertex isn't in the map. Otherwise returns
+// true and Normal is also populated
+bool VertexMap::find(const Vertex3 &Vertex, Vertex3 &Normal)
+{
+	Vertex3 V = Vertex;
+	_adjustPrecision(V);
+	std::string hash = hash_value(V);
+	auto it = _map.find(hash);
+	if (it == _map.end())
+		return false;
+	Normal = _map[hash];
+	return true;
+}
+
+void VertexMap::_adjustPrecision(Vertex3 &Vertex)
+{
+	constexpr float precision = 1000.0f;
+	float X = Vertex.x * precision;
+	float Y = Vertex.y * precision;
+	float Z = Vertex.z * precision;
+	X = (float)floor(X);
+	Y = (float)floor(Y);
+	Z = (float)floor(Z);
+	Vertex.x = X / precision;
+	Vertex.y = Y / precision;
+	Vertex.z = Z / precision;
+}
+
+void VertexMap::insert(const Vertex3 &Vertex, const Vertex3 &Normal)
+{
+	Vertex3 V, temp;
+	V = Vertex;
+	_adjustPrecision(V);
+	if (find(V, temp))
+		return;
+
+	_map[hash_value(V)] = Normal;
+}
+
+void VertexMap::insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal)
+{
+	bool alreadyInMap;
+	insert_or_add(Vertex, Normal, alreadyInMap);
+}
+
+void VertexMap::insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal, bool &alreadyInMap)
+{
+	Vertex3 V, temp;
+	V = Vertex;
+	_adjustPrecision(V);
+	if (find(V, temp)) {
+		temp.x += Normal.x;
+		temp.y += Normal.y;
+		temp.z += Normal.z;
+		_map[hash_value(V)] = temp;
+		alreadyInMap = true;
+		return;
+	}
+
+	_map[hash_value(V)] = Normal;
+	alreadyInMap = false;
+}
+
+void VertexMap::set(const Vertex3 &Vertex, const Vertex3 &Normal)
+{
+	Vertex3 V, temp;
+	V = Vertex;
+	_adjustPrecision(V);
+	_map[hash_value(V)] = Normal;
+}
+#endif

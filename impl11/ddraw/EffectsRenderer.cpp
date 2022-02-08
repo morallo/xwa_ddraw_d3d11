@@ -190,7 +190,7 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 // Set the following flag to true to enable dumping the current scene to an OBJ file
 bool bD3DDumpOBJEnabled = false;
 FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
-int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DOBJGroup = 0;
+int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DTotalNormals = 0, D3DOBJGroup = 0;
 int D3DOBJLaserFileIdx = 0, D3DTotalLaserVertices = 0, D3DTotalLaserTextureVertices = 0, D3DOBJLaserGroup = 0;
 
 void OBJDump(XwaVector3 *vertices, int count)
@@ -231,11 +231,15 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 	std::ostringstream str;
 	XwaVector3 *MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaVector3* MeshNormals = scene->MeshVertexNormals;
+	int MeshNormalsCount = *(int*)((int)MeshNormals - 8);
 	static XwaVector3 *LastMeshVertices = nullptr;
-	static int LastMeshVerticesCount = 0;
+	static int LastMeshVerticesCount = 0, LastMeshNormalsCount = 0;
 
-	if (D3DOBJGroup == 1)
+	if (D3DOBJGroup == 1) {
 		LastMeshVerticesCount = 0;
+		LastMeshNormalsCount = 0;
+	}
 
 	float *Znear = (float *)0x08B94CC;
 	float *Zfar = (float *)0x05B46B4;
@@ -248,8 +252,8 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 
 	if (LastMeshVertices != MeshVertices) {
 		// This is a new mesh, dump all the vertices.
-		//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, FacesCount: %d",
-		//	D3DOBJGroup, MeshVerticesCount, scene->FacesCount);
+		//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, NormalsCount: %d, FacesCount: %d",
+		//	D3DOBJGroup, MeshVerticesCount, MeshNormalsCount, scene->FacesCount);
 		fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
 
 		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
@@ -259,7 +263,7 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 			V = T * V;
 
 			// Enable the following block to debug InverseTransformProjection
-#define EXTRA_DEBUG 1
+#define EXTRA_DEBUG 0
 #if EXTRA_DEBUG == 1
 			{
 				float3 P;
@@ -286,11 +290,21 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
 		}
 		fprintf(D3DDumpOBJFile, "\n");
+
+		// Dump the normals
+		for (int i = 0; i < MeshNormalsCount; i++) {
+			XwaVector3 N = MeshNormals[i];
+			fprintf(D3DDumpOBJFile, "vn %0.6f %0.6f %0.6f\n", N.x, N.y, N.z);
+		}
+		fprintf(D3DDumpOBJFile, "\n");
+
 		D3DTotalVertices += LastMeshVerticesCount;
+		D3DTotalNormals += LastMeshNormalsCount;
 		D3DOBJGroup++;
 
 		LastMeshVertices = MeshVertices;
 		LastMeshVerticesCount = MeshVerticesCount;
+		LastMeshNormalsCount = MeshNormalsCount;
 	}
 
 	// The following works alright, but it's not how things are rendered.
@@ -302,7 +316,8 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 		for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
 		{
 			// faceData.Vertex[vertexIndex] matches the vertex index data from the OPT
-			line += std::to_string(faceData.Vertex[vertexIndex] + D3DTotalVertices) + " ";
+			line += std::to_string(faceData.Vertex[vertexIndex] + D3DTotalVertices) + "//" +
+					std::to_string(faceData.VertexNormal[vertexIndex] + D3DTotalNormals) + " ";
 		}
 		fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
 	}
@@ -346,6 +361,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		}
 		// Reset the vertex counter and group
 		D3DTotalVertices = 1;
+		D3DTotalNormals = 1;
 		D3DOBJGroup = 1;
 
 		if (D3DDumpLaserOBJFile == NULL) {
