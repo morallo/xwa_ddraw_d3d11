@@ -11,6 +11,8 @@
 extern vr::IVRSystem* g_pHMD;
 extern vr::IVRChaperone* g_pChaperone;
 extern vr::IVRCompositor* g_pVRCompositor;
+extern vr::IVROverlay* g_pVROverlay;
+extern vr::VROverlayHandle_t g_VR2Doverlay; // Handle to the specific overlay displaying the 2D rendered scenes.
 extern vr::IVRScreenshots* g_pVRScreenshots;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 extern uint32_t g_steamVRWidth, g_steamVRHeight; // The resolution recommended by SteamVR is stored here

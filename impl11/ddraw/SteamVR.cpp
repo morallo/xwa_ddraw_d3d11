@@ -14,6 +14,8 @@ vr::IVRSystem* g_pHMD = NULL;
 vr::IVRChaperone* g_pChaperone = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
 vr::IVRScreenshots* g_pVRScreenshots = NULL;
+vr::IVROverlay* g_pVROverlay = NULL;
+vr::VROverlayHandle_t g_VR2Doverlay = vr::k_ulOverlayHandleInvalid;
 vr::TrackedDevicePose_t g_rTrackedDevicePose;
 uint32_t g_steamVRWidth = 0, g_steamVRHeight = 0; // The resolution recommended by SteamVR is stored here
 bool g_bSteamVREnabled = false; // The user sets this flag to true to request support for SteamVR.
@@ -206,6 +208,26 @@ bool InitSteamVR()
 			left, right, top, bottom);
 		fclose(file);
 	}
+
+	// Set a black background to draw the overlay over
+	g_pVRCompositor->FadeGrid(2.0f, false);
+	g_pVRCompositor->FadeToColor(2.0f, 0.0f, 0.0f, 0.0f, 1.0, 0);
+
+	// Create Overlay to draw 2D content fixed in space
+	g_pVROverlay = vr::VROverlay();
+	if (g_pVROverlay != NULL) {
+		log_debug("[DBG] SteamVR Overlay system initialized");
+	}
+	vr::HmdMatrix34_t overlay_transform;
+	// This transform matrix puts the overlay at 5m in front of the user POV
+	overlay_transform = {
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, -5.0f
+	};
+	g_pVROverlay->CreateOverlay("xwa_2d_window", "X-Wing Alliance VR", &g_VR2Doverlay);
+	g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 5); // Make the overlay 5 meters wide.
+	g_pVROverlay->SetOverlayTransformAbsolute(g_VR2Doverlay, vr::TrackingUniverseSeated, &overlay_transform);
 
 out:
 	g_bSteamVRInitialized = result;

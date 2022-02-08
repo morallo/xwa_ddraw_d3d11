@@ -1373,6 +1373,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	HRESULT hr;
 	char* step = "";
 	DXGI_FORMAT oldFormat;
+	UINT oldDescWidth, oldDescHeight;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
 
@@ -1444,7 +1445,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewR.Release();
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
+		this->_steamVROverlayBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_renderTargetViewSteamVROverlayResize.Release();
 		if (this->_useMultisampling)
 			this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
@@ -1885,6 +1888,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				step = "_steamVRPresentBuffer";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVRPresentBuffer);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_steamVRPOverlayBuffer";
+				// This buffer will contain the Concourse, loading screen menu and ESC menu with the right aspect ratio (4:3) to show in VR overlay.
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVROverlayBuffer);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -2912,6 +2924,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			step = "renderTargetViewSteamVRResize";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVRResize);
+			if (FAILED(hr)) goto out;
+
+			step = "renderTargetViewSteamVRResizeOverlay";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVROverlayBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVROverlayResize);
 			if (FAILED(hr)) goto out;
 
 			step = "_shadertoyRTV_R";
@@ -4768,6 +4784,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
+		//InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness, 0.0f); // Use 3D projection matrices
+		//InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness);
 	} 
 	else {
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't use 3D projection matrices when VR is disabled
@@ -4818,8 +4836,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		float screen_res_y = (float)this->_backbufferHeight;
 
 		if (!g_bEnableVR || bRenderToDC) {
-			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-			// We also render the CMD sub-component bracket here.
+			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
@@ -4875,9 +4892,29 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 
+		/*this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
+		*/
+
+		float parallax = 1;
+		if (g_iDraw2DCounter > 0)		
+		{
+			D3D11_DEPTH_STENCIL_DESC desc;
+			ComPtr<ID3D11DepthStencilState> depthState;
+			desc.DepthEnable = FALSE;
+			desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+			desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+			desc.StencilEnable = FALSE;
+			this->InitDepthStencilState(depthState, &desc);
+			parallax = 0;
+
+		}
+
+		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			1, 1, 1, g_fBrightness,
+			0.0f); // Do not use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
@@ -4902,11 +4939,18 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+		/*this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
 			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
+		*/
+		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
+			1, 1, 1, g_fBrightness,
+			0.0f); // Do not use 3D projection matrices
+
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+		g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		if (g_bUseSteamVR)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());

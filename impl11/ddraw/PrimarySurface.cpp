@@ -1025,10 +1025,12 @@ void PrimarySurface::barrelEffectSteamVR() {
  * When rendering for SteamVR, we may be rendering at a resolution that is different
  * from the current screen resolution, so some stretching will happen in the mirror
  * window. We need to resize the offscreenBuffer before presenting it.
+ * Also, in 2D we need to generate a buffer with the proper aspect to copy into the VR overlay
  * Bonus points: Adjust the FOV to the original (~50) to avoid showing the distortion
  * caused by the larger FOV used in most headsets.
  * Input: _offscreenBuffer
  * Output: _steamVRPresentBuffer
+ * Output: _steamVROverlayBuffer
  */
 void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	/*
@@ -1099,6 +1101,10 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	}
 #endif
 
+	/*******************************************************************************/
+	/************** Resize to _steamVRPresentBuffer for the mirror window **********/
+	/*******************************************************************************/
+
 	// The viewport has to be in the range (0,0)-(g_steamVRWidth,g_steamVRHeight) or the image
 	// will be cropped. This is because the backbuffer has those same dimensions.
 	viewport.TopLeftX = 0.0f;
@@ -1109,7 +1115,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
 	
-	//float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+	float mirrorWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
 	// If the display window has height > width, we can't make the the y axis smaller to compensate.
@@ -1127,28 +1133,14 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	if (g_bRendering3D) {
 		if (g_fSteamVRMirrorWindowAspectRatio > 0.01f)
 			aspect_ratio = g_fSteamVRMirrorWindowAspectRatio;
-		else
-			// The loading mission screen will take this path, so it will render with the wrong aspect ratio. I have no idea how to fix this :P
+		else			
 			aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
-		// Looks like the Reticle gets stretched when PreserveAspectRatio = 0... but only in the mirror window?
-		/*
-		if (!g_config.AspectRatioPreserved) {
-			float RealWindowAspectRatio = steamVR_aspect_ratio;
-			if (RealWindowAspectRatio > g_fCurInGameAspectRatio)
-				// The display window is going to stretch the image horizontally, so we need
-				// to shrink the x axis:
-				// Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
-				aspect_ratio *= RealWindowAspectRatio > 1.0f ? g_fCurInGameAspectRatio / RealWindowAspectRatio : RealWindowAspectRatio / g_fCurInGameAspectRatio;
-			else
-				// The display window is going to stretch the image vertically, so we need
-				// to shrink the y axis:
-				aspect_ratio *= g_fCurInGameAspectRatio > 1.0f ? RealWindowAspectRatio / g_fCurInGameAspectRatio : g_fCurInGameAspectRatio / RealWindowAspectRatio;
-		}
-		*/
 	}
 	else
-		// The 2D image is already rendered with g_fConcourseAspectRatio. We need to undo it and that's why we add 1/g_fConcourseAspectRatio below:
-		aspect_ratio = (1.0f / g_fConcourseAspectRatio) * g_fCurInGameAspectRatio / steamVR_aspect_ratio * window_factor_x * window_factor_y;
+		// The 2D image is rendered stretched over the full backbuffer (steamVR), but the aspect ratio will be modified when the backbuffer
+		// gets squeezed into the window (usually 16:9). So effectively the 2D image will have Window aspect ratio.
+		// We need to undo it and that's why we add (1/window aspect ratio) below:
+		aspect_ratio = (1.0f / mirrorWindowAspectRatio) * (g_fConcourseAspectRatio);
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
@@ -1169,6 +1161,26 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	}
 	context->DrawIndexed(6, 0, 0);
+
+
+	/*******************************************************************************/
+	/********* Resize to _steamVROverlayBuffer for the VR overlay in the HMD *******/
+	/*******************************************************************************/
+	{
+		if (!g_bRendering3D) // Only render for 2D content, no need to waste resources in 3D
+		{
+			aspect_ratio = g_fConcourseAspectRatio * (1.0f/ steamVR_aspect_ratio);
+			scale = 1.0f/aspect_ratio;
+			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
+			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
+
+			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
+				resources->_depthStencilViewL.Get());
+			context->DrawIndexed(6, 0, 0);
+		}
+	}
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {
@@ -7866,6 +7878,11 @@ HRESULT PrimarySurface::Flip(
 				g_MetricRecCBuffer.mr_y_center = 0.0f;
 				g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
 				g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+				if (g_bSteamVREnabled) {
+					// Compensate the distortion that happens when rendering the 3D craft over the 2D background in the tech room. 
+					g_MetricRecCBuffer.mr_aspect_ratio = ((float)g_WindowHeight / (float)g_WindowWidth) * g_fConcourseAspectRatio * ((float)g_steamVRHeight / (float)g_steamVRWidth);
+					//g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio * (((float)g_WindowHeight / (float)g_WindowWidth) * (4.0f / 3.0f));
+				}
 				g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
 				g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
 
@@ -7879,7 +7896,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Read yaw,pitch,roll from SteamVR/FreePIE and apply the rotation to the 2D content
 			// on the next frame
-			UpdateViewMatrix(); // VR in TechRoom
+			UpdateViewMatrix();
 #ifdef DISABLED
 			//if (g_bEnableVR)
 			{
@@ -8202,7 +8219,19 @@ HRESULT PrimarySurface::Flip(
 					}
 					else {
 						// In SteamVR mode this will display the left image:
-						if (g_bUseSteamVR) {
+						if (g_bUseSteamVR) {							
+							if (g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
+							{
+								vr::Texture_t overlay_texture;
+								overlay_texture.eType = vr::TextureType_DirectX;
+								overlay_texture.eColorSpace = vr::ColorSpace_Auto;
+								overlay_texture.handle = resources->_steamVROverlayBuffer;
+								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
+								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
+								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+								g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+							}
+
 							resizeForSteamVR(0, true);
 							context->ResolveSubresource(resources->_backBuffer, 0, resources->_steamVRPresentBuffer, 0, BACKBUFFER_FORMAT);
 						}
@@ -8229,11 +8258,11 @@ HRESULT PrimarySurface::Flip(
 					g_iDraw2DCounter = 0;				
 
 					if (g_bUseSteamVR) {
-						vr::EVRCompositorError error = vr::VRCompositorError_None;
+						/*vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
-						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);
+						error = g_pVRCompositor->Submit(vr::Eye_Right, &rightEyeTexture);*/
 					}
 					
 					g_bRendering3D = false;
@@ -9409,6 +9438,9 @@ HRESULT PrimarySurface::Flip(
 				}
 
 				ApplyCustomHUDColor();
+
+				g_pVROverlay->HideOverlay(g_VR2Doverlay);
+				g_pVRCompositor->FadeToColor(0.2f, 0.0f, 0.0f, 0.0f, 0.0f, false);
 			}
 			// Make sure the hyperspace effect is off if we're back in the hangar. This is necessary to fix
 			// the Holdo bug (but more changes may be needed).
