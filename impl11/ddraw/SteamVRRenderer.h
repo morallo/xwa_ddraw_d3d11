@@ -2,7 +2,7 @@
 
 #include "EffectsRenderer.h"
 
-class SteamVRRenderer : public VRRenderer {
+class SteamVRRenderer : public EffectsRenderer {
 public:
 	SteamVRRenderer();
 	virtual void SceneBegin(DeviceResources* deviceResources);

@@ -45,6 +45,7 @@ extern int g_KeySet;
 extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
 extern bool g_bEnableAnimations;
+extern bool g_bFadeLights;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -499,7 +500,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bShowSSAODebug = !g_bShowSSAODebug;
+				g_bFadeLights = !g_bFadeLights;
+				//g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			// Toggle FXAA

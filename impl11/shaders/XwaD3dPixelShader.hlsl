@@ -119,6 +119,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
+	// DEBUG: Remove textures to display shading only
+	//output.color.rgb = 0.75;
+	//return output;
+
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
 	// Here's the case where a lightmap has been provided:
 	if (renderTypeIllum == 1)

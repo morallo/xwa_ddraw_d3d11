@@ -33,14 +33,14 @@
 
 SteamVRRenderer g_steamvr_renderer;
 
-SteamVRRenderer::SteamVRRenderer() : VRRenderer() {
+SteamVRRenderer::SteamVRRenderer() : EffectsRenderer() {
 }
 
 void SteamVRRenderer::CreateShaders()
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
-	VRRenderer::CreateShaders();
+	EffectsRenderer::CreateShaders();
 
 	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
 	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
@@ -48,12 +48,12 @@ void SteamVRRenderer::CreateShaders()
 
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
 {
-	VRRenderer::SceneBegin(deviceResources);
+	EffectsRenderer::SceneBegin(deviceResources);
 }
 
 void SteamVRRenderer::SceneEnd()
 {
-	VRRenderer::SceneEnd();
+	EffectsRenderer::SceneEnd();
 }
 
 void SteamVRRenderer::RenderScene()

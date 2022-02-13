@@ -121,15 +121,6 @@ public:
 	void RenderDeferredDrawCalls();
 };
 
-//************************************************************************
-// Generic VR Renderer
-//************************************************************************
-
-class VRRenderer : public EffectsRenderer {
-public:
-	virtual void ExtraPreprocessing();
-};
-
 extern EffectsRenderer g_effects_renderer;
 
 extern D3dRenderer *g_current_renderer;

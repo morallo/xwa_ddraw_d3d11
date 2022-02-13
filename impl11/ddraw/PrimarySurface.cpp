@@ -1922,9 +1922,13 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			col.y = value + g_fXWALightsSaturation * (col.y - value);
 			col.z = value + g_fXWALightsSaturation * (col.z - value);
 
-			g_ShadingSys_PSBuffer.LightColor[i].x = g_fXWALightsIntensity * col.x;
-			g_ShadingSys_PSBuffer.LightColor[i].y = g_fXWALightsIntensity * col.y;
-			g_ShadingSys_PSBuffer.LightColor[i].z = g_fXWALightsIntensity * col.z;
+			float Lightness = g_bFadeLights ?
+				max(g_fMinLightIntensity, 1.0f - g_ShadowMapVSCBuffer.sm_black_levels[i]) :
+				1.0f;
+
+			g_ShadingSys_PSBuffer.LightColor[i].x = Lightness * g_fXWALightsIntensity * col.x;
+			g_ShadingSys_PSBuffer.LightColor[i].y = Lightness * g_fXWALightsIntensity * col.y;
+			g_ShadingSys_PSBuffer.LightColor[i].z = Lightness * g_fXWALightsIntensity * col.z;
 			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
 
 			if (g_ShadingSys_PSBuffer.HDREnabled) {
@@ -2054,7 +2058,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		g_ShadingSys_PSBuffer.num_lasers = 0;
 	
-	/*
 	if (g_bDumpSSAOBuffers) 
 	{
 		log_debug("[DBG] LightCount: %d, maxIdx: %d", g_ShadingSys_PSBuffer.LightCount, maxIdx);
@@ -2066,7 +2069,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			);
 		}
 	}
-	*/
 
 	// TODO:
 	g_ShadingSys_PSBuffer.ambient = *g_playerInHangar ? g_fHangarAmbient : g_fGlobalAmbient;

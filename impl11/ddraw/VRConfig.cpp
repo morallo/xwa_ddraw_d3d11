@@ -209,9 +209,10 @@ float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lightsf
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
+float g_fMinLightIntensity = 0.1f; // When lights are faded, this is the minimum intensity they will get
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false, g_bProceduralLava = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bFadeLights = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
@@ -1900,7 +1901,7 @@ bool LoadSSAOParams() {
 
 	// Default values for the shading system CB
 	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
-	g_ShadingSys_PSBuffer.spec_bloom_intensity = 1.25f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = 0.9f;
 	g_ShadingSys_PSBuffer.glossiness = 128.0f;
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
@@ -2379,6 +2380,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "lightness_boost") == 0) {
 				g_ShadingSys_PSBuffer.lightness_boost = fValue;
+			}
+			else if (_stricmp(param, "min_light_intensity_after_fade") == 0) {
+				g_fMinLightIntensity = fValue;
 			}
 			else if (_stricmp(param, "saturation_boost") == 0) {
 				g_ShadingSys_PSBuffer.saturation_boost = fValue;

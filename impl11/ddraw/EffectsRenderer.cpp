@@ -2267,15 +2267,3 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderLasers();
 	RenderTransparency();
 }
-
-//************************************************************************
-// Generic VR Renderer
-//************************************************************************
-
-/*
- * Extra pre-processing before the Render() call needed for all VR
- * implementations.
- */
-void VRRenderer::ExtraPreprocessing()
-{
-}
