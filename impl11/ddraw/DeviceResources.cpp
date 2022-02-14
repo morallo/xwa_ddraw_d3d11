@@ -4439,6 +4439,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	}
 	*/
 
+	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
+
 	if (SUCCEEDED(hr))
 	{
 		if ((width == this->_displayWidth) && (height == this->_displayHeight) && (bpp == this->_mainDisplayTextureBpp))
@@ -4809,7 +4811,11 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		if (!g_bEnableVR || bRenderToDC) {
 			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+			// The map lines (both the grid and the vertical lines) are drawn here
 			// We also render the CMD sub-component bracket here.
+			if (bMapMode)
+				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
@@ -4870,6 +4876,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			1.0f); // Use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+		// When the map is active, all the lines are rendered here
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
