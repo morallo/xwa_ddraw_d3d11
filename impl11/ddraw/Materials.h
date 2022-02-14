@@ -30,11 +30,20 @@ extern char *g_sGreebleBlendModes[GBM_MAX_MODES - 1];
 
 typedef enum DiegeticMeshEnum {
 	DM_NONE,
+
 	DM_JOYSTICK,
+
 	DM_THR_ROT_X,
 	DM_THR_ROT_Y,
 	DM_THR_ROT_Z,
 	DM_THR_TRANS,
+	DM_THR_ROT_ANY,
+
+	DM_HYPER_ROT_X,
+	DM_HYPER_ROT_Y,
+	DM_HYPER_ROT_Z,
+	DM_HYPER_TRANS,
+	DM_HYPER_ROT_ANY,
 } DiegeticMeshType;
 
 /*
@@ -353,6 +362,12 @@ typedef struct MaterialStruct {
 	Vector3 ThrottleStart;
 	Vector3 ThrottleEnd;
 
+	// Rotation matrix helper around an arbitrary axis. This matrix will align
+	// ThrottleEnd - ThrottleStart with the Z+ axis
+	Matrix4 RotAxisToZPlus;
+	// If this flag is set, then RotAxisToZPlus has been computed and cached
+	bool bRotAxisToZPlusReady;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -408,6 +423,8 @@ typedef struct MaterialStruct {
 		JoystickRoot = Vector3(0, 0, 0);
 		JoystickMaxYaw = 10.0f;
 		JoystickMaxPitch = -10.0f;
+		RotAxisToZPlus.identity();
+		bRotAxisToZPlusReady = false;
 
 		/*
 		// DEBUG properties, remove later

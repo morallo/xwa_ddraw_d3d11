@@ -8,6 +8,8 @@ bool g_bEnableAnimations = true;
 
 EffectsRenderer g_effects_renderer;
 
+Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+
 float4 TransformProjection(float3 input)
 {
 	float vpScaleX = g_VSCBuffer.viewportScale[0];
@@ -343,6 +345,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	// Initialize the joystick mesh transform on this frame
 	_bJoystickTransformReady = false;
 	_bThrottleTransformReady = false;
+	_bThrottleRotAxisToZPlusReady = false;
 	_joystickMeshTransform.identity();
 	g_OPTMeshTransformCB.MeshTransform.identity();
 	_deviceResources->InitVSConstantOPTMeshTransform(
@@ -738,119 +741,6 @@ void EffectsRenderer::ApplyMaterialProperties()
 		g_PSCBuffer.fBloomStrength = 0.0f;
 		resources->InitPixelShader(resources->_noGlassPS);
 	}
-
-	DiegeticMeshType DiegeticMesh = _lastTextureSelected->material.DiegeticMesh;
-	switch (DiegeticMesh) {
-	case DM_JOYSTICK: {
-		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
-		// true as soon as one mesh computes it, so that we don't compute it several times per
-		// frame.
-		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
-			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
-			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
-			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
-			Matrix4 T, R;
-
-			// Translate the JoystickRoot to the origin
-			T.identity(); T.translate(-JoystickRoot);
-			_joystickMeshTransform = T;
-
-			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
-			_joystickMeshTransform = R * _joystickMeshTransform;
-
-			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
-			_joystickMeshTransform = R * _joystickMeshTransform;
-
-			// Return the system to its original position
-			T.identity(); T.translate(JoystickRoot);
-			_joystickMeshTransform = T * _joystickMeshTransform;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_joystickMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bJoystickTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
-		break;
-	}
-	case DM_THR_ROT_X:
-	case DM_THR_ROT_Y:
-	case DM_THR_ROT_Z:
-	{
-		if (!_bThrottleTransformReady) {
-			// Fetch the current throttle value
-			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
-			if (craftInstance == NULL) {
-				_throttleMeshTransform.identity();
-				break;
-			}
-			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
-
-			// Build the transform matrix
-			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
-			float ThrottleMaxAngle = _lastTextureSelected->material.ThrottleMaxAngle;
-			Matrix4 T, R;
-
-			// Translate the root to the origin
-			T.identity(); T.translate(-ThrottleRoot);
-			_throttleMeshTransform = T;
-
-			// Apply the rotation
-			R.identity();
-			if (DiegeticMesh == DM_THR_ROT_X) R.rotateX(throttle * ThrottleMaxAngle);
-			if (DiegeticMesh == DM_THR_ROT_Y) R.rotateY(throttle * ThrottleMaxAngle);
-			if (DiegeticMesh == DM_THR_ROT_Z) R.rotateZ(throttle * ThrottleMaxAngle);
-			_throttleMeshTransform = R * _throttleMeshTransform;
-
-			// Return the system to its original position
-			T.identity(); T.translate(ThrottleRoot);
-			_throttleMeshTransform = T * _throttleMeshTransform;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_throttleMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
-		break;
-	}
-	case DM_THR_TRANS:
-		if (!_bThrottleTransformReady) {
-			// Fetch the current throttle value
-			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
-			if (craftInstance == NULL) {
-				_throttleMeshTransform.identity();
-				break;
-			}
-			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
-
-			// Build the transform matrix
-			Matrix4 T, R;
-			Vector3 ThrottleStart = _lastTextureSelected->material.ThrottleStart;
-			Vector3 ThrottleEnd = _lastTextureSelected->material.ThrottleEnd;
-			Vector3 Dir = ThrottleEnd - ThrottleStart;
-			Dir.normalize();
-
-			// Apply the rotation
-			Dir *= throttle;
-			T.translate(Dir);
-			_throttleMeshTransform = T;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_throttleMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
-		break;
-	default:
-		g_OPTMeshTransformCB.MeshTransform.identity();
-	}
-	// Set the current mesh transform, regardless of what type of mesh type we're rendering
-	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 }
 
 // Apply the SSAO mask/Special materials, like lasers and HUD
@@ -899,6 +789,190 @@ void EffectsRenderer::ApplySpecialMaterials()
 
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
+}
+
+void EffectsRenderer::ApplyDiegeticCockpit()
+{
+	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
+		return;
+
+	auto &resources = _deviceResources;
+
+	auto GetThrottle = []() {
+		CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
+		if (craftInstance == NULL) return 0.0f;
+		return craftInstance->EngineThrottleInput / 65535.0f;
+	};
+
+	auto GetHyperThrottle = []() {
+		float timeInHyperspace = (float)PlayerDataTable[*g_playerIndex].timeInHyperspace;
+		switch (g_HyperspacePhaseFSM) {
+		case HS_INIT_ST:
+			return 0.0f;
+		case HS_HYPER_ENTER_ST:
+			return min(1.0f, timeInHyperspace / 550.0f);
+		case HS_HYPER_TUNNEL_ST:
+			return 1.0f;
+		case HS_HYPER_EXIT_ST:
+			return max(0.0f, 1.0f - timeInHyperspace / 190.0f);
+		}
+		return 0.0f;
+	};
+
+	DiegeticMeshType DiegeticMesh = _lastTextureSelected->material.DiegeticMesh;
+	switch (DiegeticMesh) {
+	case DM_JOYSTICK: {
+		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
+		// true as soon as one mesh computes it, so that we don't compute it several times per
+		// frame.
+		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
+			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
+			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
+			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
+			Matrix4 T, R;
+
+			// Translate the JoystickRoot to the origin
+			T.identity(); T.translate(-JoystickRoot);
+			_joystickMeshTransform = T;
+
+			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(JoystickRoot);
+			_joystickMeshTransform = T * _joystickMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_joystickMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bJoystickTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
+		break;
+	}
+	case DM_THR_ROT_X:
+	case DM_THR_ROT_Y:
+	case DM_THR_ROT_Z:
+	case DM_HYPER_ROT_X:
+	case DM_HYPER_ROT_Y:
+	case DM_HYPER_ROT_Z:
+	{
+		if (!_bThrottleTransformReady) {
+			float throttle = (DiegeticMesh == DM_THR_ROT_X || DM_THR_ROT_Y || DM_THR_ROT_Z) ?
+				GetThrottle() : GetHyperThrottle();
+
+			// Build the transform matrix
+			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
+			float ThrottleMaxAngle = _lastTextureSelected->material.ThrottleMaxAngle;
+			Matrix4 T, R;
+
+			// Translate the root to the origin
+			T.identity(); T.translate(-ThrottleRoot);
+			_throttleMeshTransform = T;
+
+			// Apply the rotation
+			R.identity();
+			if (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_HYPER_ROT_X) R.rotateX(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Y || DiegeticMesh == DM_HYPER_ROT_Y) R.rotateY(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Z || DiegeticMesh == DM_HYPER_ROT_Z) R.rotateZ(throttle * ThrottleMaxAngle);
+			_throttleMeshTransform = R * _throttleMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(ThrottleRoot);
+			_throttleMeshTransform = T * _throttleMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	}
+	case DM_THR_TRANS:
+	case DM_HYPER_TRANS:
+		if (!_bThrottleTransformReady) {
+			float throttle = DiegeticMesh == DM_THR_TRANS ? GetThrottle() : GetHyperThrottle();
+
+			// Build the transform matrix
+			Matrix4 T, R;
+			Vector3 ThrottleStart = _lastTextureSelected->material.ThrottleStart;
+			Vector3 ThrottleEnd = _lastTextureSelected->material.ThrottleEnd;
+			Vector3 Dir = ThrottleEnd - ThrottleStart;
+			Dir.normalize();
+
+			// Apply the rotation
+			Dir *= throttle;
+			T.translate(Dir);
+			_throttleMeshTransform = T;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	case DM_THR_ROT_ANY:
+	case DM_HYPER_ROT_ANY:
+		if (!_bThrottleRotAxisToZPlusReady) {
+			float throttle = DiegeticMesh == DM_THR_ROT_ANY ? GetThrottle() : GetHyperThrottle();
+			Material *material = &(_lastTextureSelected->material);
+
+			float ThrottleMaxAngle = material->ThrottleMaxAngle;
+			Vector3 ThrottleStart = material->ThrottleStart;
+			Vector3 ThrottleEnd = material->ThrottleEnd;
+			if (!material->bRotAxisToZPlusReady) {
+				// Cache RotAxisToZPlus so that we don't have to compute it on every frame
+				Vector4 Dir;
+				Dir.x = ThrottleEnd.x - ThrottleStart.x;
+				Dir.y = ThrottleEnd.y - ThrottleStart.y;
+				Dir.z = ThrottleEnd.z - ThrottleStart.z;
+				Dir.w = 0;
+				material->RotAxisToZPlus = GetSimpleDirectionMatrix(Dir, false);
+				material->bRotAxisToZPlusReady = true;
+			}
+			Matrix4 RotAxisToZPlus = material->RotAxisToZPlus;
+
+			Matrix4 T, R;
+			// Translate the root to the origin
+			T.identity(); T.translate(-ThrottleStart);
+			_throttleMeshTransform = T;
+
+			// Align with Z+
+			_throttleMeshTransform = RotAxisToZPlus * _throttleMeshTransform;
+
+			// Apply the rotation
+			R.identity();
+			R.rotateZ(throttle * ThrottleMaxAngle);
+			_throttleMeshTransform = R * _throttleMeshTransform;
+
+			// Invert Z+ alignment
+			RotAxisToZPlus.transpose();
+			_throttleMeshTransform = RotAxisToZPlus * _throttleMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(ThrottleStart);
+			_throttleMeshTransform = T * _throttleMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			_bThrottleRotAxisToZPlusReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	default:
+		g_OPTMeshTransformCB.MeshTransform.identity();
+	}
+	// Set the current mesh transform, regardless of what type of mesh type we're rendering
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
@@ -1450,6 +1524,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Apply the SSAO mask/Special materials, like lasers and HUD
 	ApplySpecialMaterials();
 
+	// Animate the Diegetic Cockpit (joystick, throttle, hyper-throttle, etc)
+	ApplyDiegeticCockpit();
+
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
 		DCCaptureMiniature();
@@ -1840,6 +1917,10 @@ void EffectsRenderer::RenderScene()
 
 	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
 	// (unknown, maybe RenderMain?) path is taken instead.
+
+	// Skip hangar shadows if configured:
+	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
+		return;
 
 	ID3D11RenderTargetView *rtvs[6] = {
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV

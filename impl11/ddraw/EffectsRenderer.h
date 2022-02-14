@@ -49,7 +49,7 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady, _bThrottleTransformReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady, _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
@@ -105,6 +105,7 @@ public:
 	void ApplyMaterialProperties();
 	void ApplySpecialMaterials();
 	void ApplyBloomSettings();
+	void ApplyDiegeticCockpit();
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
