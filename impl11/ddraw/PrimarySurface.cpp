@@ -1697,6 +1697,9 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSCBuffer.bPreventTransform = 0.0f;
 	// Enable/Disable the fixed GUI (default: true)
 	g_VSCBuffer.bFullTransform	  = g_bFixedGUI ? 1.0f : 0.0f; // g_bFixedGUI is true by default
+	
+	// Apply view transform to the HUD to fix it in space. It needs the inverse of the fullViewMat that contains the headtracking pose.
+	g_VSMatrixCB.fullViewMat.invert();
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
@@ -3667,6 +3670,14 @@ void GetCraftViewMatrix(Matrix4 *result) {
 		GetGunnerTurretViewMatrix(result);
 	else
 		GetCockpitViewMatrix(result);
+
+	// Apply the head pose matrix to the view matrix to fix the reticle and other 2D elements positioning.
+	// With the current CockpitLook headtracking mode, MousePositionX,Y = 0 so the reticle is fixed to the camera
+	// It should stay aligned with the craft heading instead.
+	if (g_bUseSteamVR) {
+		*result = g_VSMatrixCB.fullViewMat * (*result);
+	}
+
 }
 
 /*
@@ -4711,24 +4722,6 @@ void PrimarySurface::RenderExternalHUD()
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
-	g_ShadertoyBuffer.reticleMat.identity();
-	if (g_bCorrectedHeadTracking && g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
-		/*
-		 * When pose_corrected_headtracking is enabled. We need additional steps to fix the position of the
-		 * reticle, because the roll is now applied in the CockpitLook hook.
-		 */
-		float Yaw = 0.0f, Pitch = 0.0f, Roll = 0.0f;
-		Matrix4 rYp, rYn, rZ;
-
-		Yaw		= g_pSharedData->pSharedData->Yaw;
-		Pitch	= g_pSharedData->pSharedData->Pitch;
-		Roll		= g_pSharedData->pSharedData->Roll;
-		rYp.identity(); rYp.rotateY(Yaw);
-		rYn.identity(); rYn.rotateY(-Yaw);
-		rZ.identity(); rZ.rotateZ(Roll);
-		g_ShadertoyBuffer.reticleMat = rYp * rZ * rYn;
-	}
-
 	// DEBUG
 	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
 	//resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
@@ -5242,9 +5235,14 @@ void PrimarySurface::RenderSpeedEffect()
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
-	// Apply the roll in VR mode:
+	// Apply the headtracking transform to the ViewMatrix
 	if (g_bEnableVR)
-		ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
+		if (g_bUseSteamVR) {
+			ViewMatrix = g_VSMatrixCB.fullViewMat * ViewMatrix;
+		}
+		else {
+			ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
+		}
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -5780,7 +5778,10 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitVertexShader(resources->_addGeomVS);
 
 	// Set the ViewMatrix
-	// TODO: Remove g_ShadowMapVSCBuffer.Camera and replace with the proper D3dRendererHook transform
+	if (g_bUseSteamVR)
+	{
+		ViewMatrix = g_VSMatrixCB.fullViewMat * ViewMatrix;
+	}
 	g_ShadowMapVSCBuffer.Camera = ViewMatrix;
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
 	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -7036,7 +7037,8 @@ void UpdateViewMatrix()
 
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z);
+		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull );
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
@@ -7049,31 +7051,29 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
-		rotMatrixYaw.identity();
-		rotMatrixPitch.identity();
-		posMatrix.identity();
-		rotMatrixRoll.identity();
-		
-		// Compute the component matrices with the correct axis signs
-		rotMatrixYaw.rotateY(-yaw);
-		rotMatrixPitch.rotateX(-pitch);
-		rotMatrixRoll.rotateZ(roll);
-		posMatrix.translate(x, y, -z);
-
-		// Compose the full transformation matrix to use in the Vertex Shader.
-		viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
-
-		// Corrected head tracking is not available in the hangar, we need to take the
-		// legacy path in that case.
-		if (g_bCorrectedHeadTracking && !*g_playerInHangar) {
+		if (g_bCorrectedHeadTracking) {
 			// If we want corrected tracking, we need to apply the full rotation+translation matrix in all cases
+
+			rotMatrixYaw.identity();
+			rotMatrixPitch.identity();
+			posMatrix.identity();
+			rotMatrixRoll.identity();
+
+			// Compute the component matrices with the correct axis signs
+			rotMatrixYaw.rotateY(-yaw);
+			rotMatrixPitch.rotateX(-pitch);
+			rotMatrixRoll.rotateZ(roll);
+			posMatrix.translate(x, y, -z);
+
+			// Compose the full transformation matrix to use in the Vertex Shader.
+			viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
+
 			g_viewMatrix = viewMatrixFull;
 			// The following section applies the correct transform rule to the HUD.
 			// Apparently, the current yaw, pitch, roll values coming from GetSteamVRPositionalData don't work well for the
 			// HUD because we're using pose-corrected data. It looks like only the correction is applied to the HUD. So,
 			// instead we're using the current pose coming from the CockpitLook hook just for the HUD here.
-			if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
+			/*if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
 				yaw		= g_pSharedData->pSharedData->Yaw;
 				pitch	= g_pSharedData->pSharedData->Pitch;
 				roll		= g_pSharedData->pSharedData->Roll;
@@ -7086,10 +7086,12 @@ void UpdateViewMatrix()
 				rotMatrixRoll.rotateZ(-roll);
 				posMatrix.translate(-x, -y, z);
 				viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
-			}
+			}*/
 		}
 		else {
-			g_viewMatrix = rotMatrixRoll;
+			// If we don't need corrected headtracking, there is no rotation to apply
+			// since the full rotation+translation is applied in CockpitLook now.
+			g_viewMatrix.identity();
 		}
 
 		g_VSMatrixCB.viewMat = g_viewMatrix;
@@ -7164,10 +7166,11 @@ void UpdateViewMatrix()
 		g_bResetHeadCenter = false;
 
 	// At this point, yaw, pitch, roll contain the data read from either SteamVR or FreePIE.
-	// We can use these values to apply head tracking to the hangar.
+	// We can use these values to apply head tracking to the hangar
+	// This is not needed for SteamVR tracking
 	// The reason we have to do this here is because the hangar does not activate the regular
 	// mouse look hook.
-	if ((g_TrackerType == TRACKER_FREEPIE || g_TrackerType == TRACKER_STEAMVR) && *g_playerInHangar) {
+	if ((g_TrackerType == TRACKER_FREEPIE) && *g_playerInHangar) {
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 
 		// For the DirectSBS mode we need to invert the yaw:

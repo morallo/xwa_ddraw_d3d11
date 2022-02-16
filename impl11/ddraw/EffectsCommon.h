@@ -135,8 +135,6 @@ typedef struct ShadertoyCBStruct {
 	// 208 bytes
 	float4 SunColor[MAX_SUN_FLARES];
 	// 272 bytes
-	Matrix4 reticleMat;
-	// 336 bytes
 } ShadertoyCBuffer;
 
 typedef struct OPTMeshTransformCBufferStruct {
