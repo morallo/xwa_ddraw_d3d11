@@ -309,7 +309,7 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
@@ -327,13 +327,14 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		//vr::TrackedDevicePose_t g_lastPredictedhmdPose; // HMD pose predicted in last frame used by CockpitLook.
 		vr::HmdMatrix34_t m34_fullMatrix;
 		vr::HmdMatrix34_t m34_cockpitLookPose;
-		Matrix4 m4_hmdPose;
+		//Matrix4 m4_hmdPose;
 		Matrix4 m4_UndoCockpitLook;
 		Matrix4 m4_correctionMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		if (g_bRendering3D && !(*g_playerInHangar) && !g_bCorrectedHeadTracking) {
+		//if (g_bRendering3D && !(*g_playerInHangar) && !g_bCorrectedHeadTracking) {
+		if (g_bRendering3D && !g_bCorrectedHeadTracking) {
 			// For legacy/stable tracking, WaitGetPoses() is run in CockpitLook. Get the last tracking pose obtained then.
 			// This pose was just used to render the current frame in xwingaliance.exe and will provide consistent tracking.			
 			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
@@ -349,13 +350,14 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
-			m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
+			*m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
 			m34_cockpitLookPose = g_lastPredictedHmdPose.mDeviceToAbsoluteTracking;
 
 			// Corrected head tracking is only available when the CockpitLook is active, and that only happens
 			// when flying (when rendering 3D content). The CockpitLook is also not active in the hangar, so we
 			// must take the legacy path when in the hangar.
-			if (g_bRendering3D && g_bCorrectedHeadTracking && !*g_playerInHangar) {
+			//if (g_bRendering3D && g_bCorrectedHeadTracking && !*g_playerInHangar) {
+			if (g_bRendering3D && g_bCorrectedHeadTracking) {
 				// We need to apply the perspective correction between the pose predicted in the previous frame
 				// (used by CockpitLook in this frame and implicitly in the 2D->3D retroprojection)
 				// and the actual pose just returned by WaitGetPoses() that will be used to do the D3D render
@@ -364,7 +366,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 				m4_UndoCockpitLook = HmdMatrix34toMatrix4(g_lastPredictedHmdPose.mDeviceToAbsoluteTracking).invertAffine();
 
 				// Compose it with the transformation matrix for the actual HMD pose in the current frame (this is the correct view space for rendering, including roll)
-				m4_correctionMatrix = m4_hmdPose * m4_UndoCockpitLook;
+				m4_correctionMatrix = *m4_hmdPose * m4_UndoCockpitLook;
 
 				Matrix4toHmdMatrix34(m4_correctionMatrix, m34_fullMatrix);  // This matrix contains all positional and rotational data.
 				// Store the prediction that will be used by CockpitLook for next frame.
@@ -372,7 +374,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			}
 			else
 			{	// Legacy headtracking. There is no pose prediction correction, we take the pose as it was returned by GetLastPoses() and used by CockpitLook.
-				Matrix4toHmdMatrix34(m4_hmdPose, m34_fullMatrix);
+				Matrix4toHmdMatrix34(*m4_hmdPose, m34_fullMatrix);
 			}
 
 			// DEBUG: 
