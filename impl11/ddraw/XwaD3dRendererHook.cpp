@@ -764,6 +764,7 @@ void D3dRenderer::BuildGlowMarks(SceneCompData* scene)
 					v.x += scene->WorldViewTransform.Position.x;
 					v.y += scene->WorldViewTransform.Position.y;
 					v.z += scene->WorldViewTransform.Position.z;
+					v.z += g_fGlowMarkZOfs;
 
 					float st0 = _constants.projectionValue1 / v.z;
 					v.x = v.x * st0 + _constants.projectionDeltaX;
@@ -799,6 +800,9 @@ void D3dRenderer::RenderGlowMarks()
 	{
 		return;
 	}
+
+	if (!g_bDisplayGlowMarks)
+		return;
 
 	const auto XwaD3dExecuteBufferLock = (char(*)())0x00595006;
 	const auto XwaD3dExecuteBufferAddVertices = (char(*)(void*, int))0x00595095;

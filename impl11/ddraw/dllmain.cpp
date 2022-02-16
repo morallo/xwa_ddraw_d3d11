@@ -404,6 +404,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsY -= 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
 					break;
+				case 14:
+					g_fGlowMarkZOfs += 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
+					break;
 				}
 
 				return 0;
@@ -444,6 +448,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 13:
 					g_fBlastMarkOfsY += 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
+				case 14:
+					g_fGlowMarkZOfs -= 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
 					break;
 				}
 
@@ -501,6 +509,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Toggle Debug buffers
 			case 'D':
 				g_bFadeLights = !g_bFadeLights;
+				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
+				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
 				//g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;

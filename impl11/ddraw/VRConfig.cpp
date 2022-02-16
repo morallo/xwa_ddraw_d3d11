@@ -212,12 +212,13 @@ float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSatura
 float g_fMinLightIntensity = 0.1f; // When lights are faded, this is the minimum intensity they will get
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false, g_bProceduralLava = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bFadeLights = true;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bFadeLights = true, g_bDisplayGlowMarks = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
 bool g_bOverrideLightPos = false, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
+float g_fGlowMarkZOfs = -1.0f; // Small offset to make the hit effects more visible (avoids Z-Fighting a little bit)
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
