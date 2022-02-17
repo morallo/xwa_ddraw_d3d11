@@ -347,9 +347,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_bThrottleTransformReady = false;
 	_bThrottleRotAxisToZPlusReady = false;
 	_joystickMeshTransform.identity();
+	// Initialize the mesh transform for this frame
 	g_OPTMeshTransformCB.MeshTransform.identity();
-	_deviceResources->InitVSConstantOPTMeshTransform(
-		_deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+	deviceResources->InitVSConstantOPTMeshTransform(
+		deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
@@ -793,6 +794,9 @@ void EffectsRenderer::ApplySpecialMaterials()
 
 void EffectsRenderer::ApplyDiegeticCockpit()
 {
+	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
+	// the beginning of MainSceneHook(). So if we just return from this function, no
+	// transform will be applied to the current mesh
 	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
 		return;
 
@@ -968,11 +972,22 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		}
 		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
 		break;
-	default:
-		g_OPTMeshTransformCB.MeshTransform.identity();
 	}
-	// Set the current mesh transform, regardless of what type of mesh type we're rendering
-	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+}
+
+void EffectsRenderer::ApplyMeshTransform()
+{
+	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
+	// the beginning of MainSceneHook(). So if we just return from this function, no
+	// transform will be applied to the current mesh
+	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL || !_lastTextureSelected->material.meshTransform.bDoTransform)
+		return;
+
+	auto &resources = _deviceResources;
+	Material *material = &(_lastTextureSelected->material);
+	
+	material->meshTransform.UpdateTransform();
+	g_OPTMeshTransformCB.MeshTransform = material->meshTransform.ComputeTransform();
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
@@ -1510,6 +1525,11 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AuxColor.w = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
 
+	// Initialize the mesh transform for each mesh. During MainSceneHook,
+	// this transform may be modified to apply an animation. See
+	// ApplyDiegeticCockpit() and ApplyMeshTransform()
+	g_OPTMeshTransformCB.MeshTransform.identity();
+
 	// We will be modifying the regular render state from this point on. The state and the Pixel/Vertex
 	// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
 	// so that we can restore the state at the end of the draw call.
@@ -1526,6 +1546,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	// Animate the Diegetic Cockpit (joystick, throttle, hyper-throttle, etc)
 	ApplyDiegeticCockpit();
+
+	// Animate the current mesh (if applicable)
+	ApplyMeshTransform();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
@@ -1590,6 +1613,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		if (g_PSCBuffer.DynCockpitSlots > 0)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+		// Set the current mesh transform
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 	}
 
 	// Dump the current scene to an OBJ file
@@ -1634,6 +1659,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.trianglesCount = _trianglesCount;
 		// Save the constants
 		command.constants = _constants;
+		command.meshTransformMatrix.identity();
 		// Add the command to the list of deferred commands
 		_LaserDrawCommands.push_back(command);
 
@@ -1671,6 +1697,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.bIsGunner = _bIsGunner;
 		command.bIsBlastMark = _bIsBlastMark;
 		command.pixelShader = resources->GetCurrentPixelShader();
+		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
 
@@ -1991,6 +2018,8 @@ void EffectsRenderer::RenderLasers()
 	g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
 	//g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 
+	g_OPTMeshTransformCB.MeshTransform.identity();
+
 	// Flags used in RenderScene():
 	_bIsCockpit = false;
 	_bIsGunner = false;
@@ -2002,6 +2031,7 @@ void EffectsRenderer::RenderLasers()
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	// Other stuff that is common in the loop below
 	UINT vertexBufferStride = sizeof(D3dVertex);
@@ -2078,6 +2108,9 @@ void EffectsRenderer::RenderTransparency()
 		// Apply the VS and PS constants
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		g_OPTMeshTransformCB.MeshTransform = command.meshTransformMatrix;
+		resources->InitVSConstantOPTMeshTransform(
+			resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 		if (g_PSCBuffer.DynCockpitSlots > 0)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 
@@ -2291,6 +2324,9 @@ void EffectsRenderer::RenderShadowMap()
 	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 	// Set the transform matrix
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &(_CockpitConstants), 0, 0);
+
+	// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
+	// mesh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)

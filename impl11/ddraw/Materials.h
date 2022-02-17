@@ -305,6 +305,25 @@ typedef struct GreebleDataStruct {
 	}
 } GreebleData;
 
+// Used to animate sections of an OPT
+class MeshTransform {
+public:
+	Vector3 Center;
+	float CurRotX, CurRotY, CurRotZ;
+	float RotXDelta, RotYDelta, RotZDelta;
+	bool bDoTransform;
+
+	MeshTransform()
+	{
+		CurRotX = CurRotY = CurRotZ = 0.0f;
+		RotXDelta = RotYDelta = RotZDelta = 0.0f;
+		bDoTransform = false;
+	}
+
+	Matrix4 ComputeTransform();
+	void UpdateTransform();
+};
+
 // Materials
 typedef struct MaterialStruct {
 	float Metallic;
@@ -367,6 +386,8 @@ typedef struct MaterialStruct {
 	Matrix4 RotAxisToZPlus;
 	// If this flag is set, then RotAxisToZPlus has been computed and cached
 	bool bRotAxisToZPlusReady;
+
+	MeshTransform meshTransform;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;

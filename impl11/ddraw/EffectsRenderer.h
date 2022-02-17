@@ -106,6 +106,7 @@ public:
 	void ApplySpecialMaterials();
 	void ApplyBloomSettings();
 	void ApplyDiegeticCockpit();
+	void ApplyMeshTransform();
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();

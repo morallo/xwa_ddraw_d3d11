@@ -4268,8 +4268,13 @@ void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 
 void DeviceResources::InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer * vsConstants)
 {
-	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
-	_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+	//static OPTMeshTransformCBuffer OPTMeshTransform{};
+	//if (memcmp(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer)) != 0)
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
+		_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,

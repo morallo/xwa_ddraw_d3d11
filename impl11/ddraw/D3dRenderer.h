@@ -72,6 +72,7 @@ struct DrawCommand {
 	DCPixelShaderCBuffer DCPSCBuffer;
 	bool bIsCockpit, bIsGunner, bIsBlastMark;
 	ComPtr<ID3D11PixelShader> pixelShader;
+	Matrix4 meshTransformMatrix;
 };
 
 class D3dRenderer
