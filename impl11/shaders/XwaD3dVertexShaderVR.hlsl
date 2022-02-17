@@ -40,6 +40,7 @@ PixelShaderInput main(VertexShaderInput input)
 	float3 n = g_normals[input.index.y];
 	float2 t = g_textureCoords[input.index.z];
 
+	n = mul(float4(n, 0.0f), MeshTransform).xyz;
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
 	output.tex = t;
 
