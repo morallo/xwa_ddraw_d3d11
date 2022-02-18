@@ -2268,8 +2268,19 @@ Matrix4 EffectsRenderer::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *O
 
 void EffectsRenderer::RenderShadowMap()
 {
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
+	
+	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
+	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
+	g_ShadowMapping.bEnabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	// The post-proc shaders (SSDOAddPixel, SSAOAddPixel) use sm_enabled to compute shadows,
+	// we must set the PS constants here even if we're not rendering shadows at all
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
 	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
 	// Maybe also disable it if the cockpit is hidden
@@ -2277,9 +2288,7 @@ void EffectsRenderer::RenderShadowMap()
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
 		return;
-
-	auto &resources = _deviceResources;
-	auto &context = resources->_d3dDeviceContext;
+	
 	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
@@ -2318,15 +2327,8 @@ void EffectsRenderer::RenderShadowMap()
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
 
-	// Set the constant buffer for the VS and PS.
-	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-	// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
-	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-	// Set the transform matrix
+	// Set the cockpit transform matrix and other shading-related constants
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &(_CockpitConstants), 0, 0);
-
-	// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
-	// mesh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
@@ -2336,7 +2338,11 @@ void EffectsRenderer::RenderShadowMap()
 		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
 			continue;
 
+		// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
+		// m	esh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
+
 		// Compute the LightView (Parallel Projection) Matrix
+		// g_CurrentHeadingViewMatrix needs to have the correct data from SteamVR, including roll
 		Matrix4 L = ComputeLightViewMatrix(idx, g_CurrentHeadingViewMatrix, false);
 		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
 
@@ -2346,6 +2352,11 @@ void EffectsRenderer::RenderShadowMap()
 
 		// Render each light to its own shadow map
 		g_ShadowMapVSCBuffer.light_index = idx;
+
+		// Set the constant buffer for the VS and PS.
+		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+		// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
+		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
 		// Clear the Shadow Map DSV (I may have to update this later for the hyperspace state)
 		context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -2361,6 +2372,8 @@ void EffectsRenderer::RenderShadowMap()
 
 	if (g_bDumpSSAOBuffers) {
 		wchar_t wFileName[80];
+		
+		//DirectX::SaveDDSTextureToFile(context, resources->_shadowMapArray, L"c:\\temp\\_shadowMaps.dds");
 		for (int i = 0; i < *s_XwaGlobalLightsCount; i++) {
 			context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
 				resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);

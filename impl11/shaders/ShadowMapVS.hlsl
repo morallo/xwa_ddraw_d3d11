@@ -65,7 +65,7 @@ SHADOW_PS_INPUT main(VertexShaderInput input)
 	// We have transformed from OPT 3D to metric 3D, with the POV at the origin.
 	// let's apply the light transform and project it from the light's point of view.
 
-	// When computing shadows in SSDOAdd/SSAOAdd, we start at this point
+	// When computing shadows in SSDOAdd/SSAOAdd, the transformation rule starts at this point
 	P = mul(lightWorldMatrix[light_index], P);
 
 	// xy: Parallel projection

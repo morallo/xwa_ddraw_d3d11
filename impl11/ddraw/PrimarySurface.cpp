@@ -7934,30 +7934,10 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
-			//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
-			g_ShadowMapping.bEnabled = g_bShadowMapEnable;
-			g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
-			// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
-			// Maybe also disable it if the cockpit is hidden
-			// Render the Shadow Map
-			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && 
-				!bExternalCamera && bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
+			// Here we're only tagging and fading lights, the shadowmap is now rendered in EffectsRenderer::RenderShadowMap()
+			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				TagAndFadeXWALights();
-
-				// Restore the previous viewport, etc
-				resources->InitViewport(&g_nonVRViewport);
-				resources->InitVertexShader(resources->_vertexShader);
-				//resources->InitPixelShader(lastPixelShader);
-				// Restore the previous index and vertex buffers?
-				context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
-				resources->InitRasterizerState(resources->_rasterizerState);
-			}
-			else {
-				// We need to tell the pixel shaders not to sample the shadow map if it wasn't rendered:
-				g_ShadowMapVSCBuffer.sm_enabled = false;
-				resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 			}
 
 			// Render the hyperspace effect if necessary
