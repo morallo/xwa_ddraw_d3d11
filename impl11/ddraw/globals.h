@@ -16,6 +16,7 @@ extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bGlobalSpecToggle, g_bToggleSkipDC, g_bFadeLights, g_bDisplayGlowMarks;
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll, g_fMinLightIntensity, g_fGlowMarkZOfs;
+extern int g_iDelayedDumpDebugBuffers;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 

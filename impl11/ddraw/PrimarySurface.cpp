@@ -1961,6 +1961,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		}
 		if (g_bDumpSSAOBuffers)
 			log_file("[DBG] maxIdx: %d, maxIntensity: %0.3f\n\n", maxIdx, maxIntensity);
+		if (*g_playerInHangar) maxLights = 2;
 		g_ShadingSys_PSBuffer.LightCount  = maxLights;
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
@@ -8927,6 +8928,12 @@ HRESULT PrimarySurface::Flip(
 			//	log_debug("[DBG] Exited Hangar, resetting g_iPresentCounter and HUD regions");
 			//}
 			//bPrevPlayerInHangar = *g_playerInHangar;
+
+			if (g_iDelayedDumpDebugBuffers) {
+				g_iDelayedDumpDebugBuffers--;
+				if (g_iDelayedDumpDebugBuffers == 0)
+					g_bDumpSSAOBuffers = true;
+			}
 
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))

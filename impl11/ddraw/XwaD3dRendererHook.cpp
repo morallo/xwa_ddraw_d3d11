@@ -186,6 +186,7 @@ void D3dRenderer::FlightStart()
 	_vertexBuffers.clear();
 	_triangleBuffers.clear();
 	_vertexCounters.clear();
+	_AABBs.clear();
 }
 
 void D3dRenderer::MainSceneHook(const SceneCompData* scene)
@@ -369,7 +370,13 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			ID3D11ShaderResourceView* meshVerticesView;
 			device->CreateShaderResourceView(meshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, verticesCount), &meshVerticesView);
 
+			AABB aabb;
+			aabb.SetInfinity();
+			for (int i = 0; i < verticesCount; i++)
+				aabb.Expand(vertices[i]);
+
 			_meshVerticesViews.insert(std::make_pair((int)vertices, meshVerticesView));
+			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
 		}
 	}

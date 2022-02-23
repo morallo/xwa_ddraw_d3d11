@@ -5,7 +5,7 @@
 #include <vector>
 #include "../shaders/shader_common.h"
 
-#define SHADOW_MAP_SIZE 1024
+#define SHADOW_MAP_SIZE 2048
 
 // Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
 typedef struct ShadowMapVertexShaderMatrixCBStruct {
@@ -64,7 +64,6 @@ public:
 
 	ShadowMappingData() {
 		this->bEnabled = false;
-		this->bAnisotropicMapScale = true;
 		this->bAllLightsTagged = false;
 		this->bMultipleSuns = false;
 		this->bUseShadowOBJ = false;

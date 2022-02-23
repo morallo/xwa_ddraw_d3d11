@@ -611,7 +611,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			
 			case 'W':
-				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
+				g_iDelayedDumpDebugBuffers = 30;
+				log_debug("[DBG] Delayed debug dump set");
+				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
 				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;

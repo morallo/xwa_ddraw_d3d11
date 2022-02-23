@@ -82,6 +82,7 @@
     <FxCompile Include="XwaD3dShadowVertexShaderVR.hlsl" />
     <FxCompile Include="XwaD3dVertexShaderVR.hlsl" />
     <FxCompile Include="DATVertexShaderVR.hlsl" />
+    <FxCompile Include="HangarShadowMapVS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

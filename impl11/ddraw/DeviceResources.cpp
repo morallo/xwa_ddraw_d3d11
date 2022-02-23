@@ -74,6 +74,7 @@
 #include "../Debug/PixelShaderNoGlass.h"
 #include "../Debug/PixelShaderAnim.h"
 #include "../Debug/PixelShaderGreeble.h"
+#include "../Debug/HangarShadowMapVS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -136,6 +137,7 @@
 #include "../Release/PixelShaderNoGlass.h"
 #include "../Release/PixelShaderAnim.h"
 #include "../Release/PixelShaderGreeble.h"
+#include "../Release/HangarShadowMapVS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3444,6 +3446,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
@@ -3769,6 +3774,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))

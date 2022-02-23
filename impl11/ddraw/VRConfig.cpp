@@ -222,6 +222,7 @@ float g_fGlowMarkZOfs = -1.0f; // Small offset to make the hit effects more visi
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
 // white_point = 1 --> OK
