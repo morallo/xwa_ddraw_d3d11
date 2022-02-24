@@ -412,8 +412,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_bHangarShadowsRenderedInCurrentFrame = false;
 	// Initialize the joystick mesh transform on this frame
 	_bJoystickTransformReady = false;
-	_bThrottleTransformReady = false;
-	_bThrottleRotAxisToZPlusReady = false;
+	//_bThrottleTransformReady = false;
+	//_bThrottleRotAxisToZPlusReady = false;
 	_joystickMeshTransform.identity();
 	// Initialize the mesh transform for this frame
 	g_OPTMeshTransformCB.MeshTransform.identity();
@@ -948,7 +948,10 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 	case DM_HYPER_ROT_Y:
 	case DM_HYPER_ROT_Z:
 	{
-		if (!_bThrottleTransformReady) {
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleTransformReady)
+		{
 			float throttle = (DiegeticMesh == DM_THR_ROT_X || DM_THR_ROT_Y || DM_THR_ROT_Z) ?
 				GetThrottle() : GetHyperThrottle();
 
@@ -976,14 +979,17 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 			// matrix in this format
 			_throttleMeshTransform.transpose();
 			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
+			//_bThrottleTransformReady = true;
 		}
 		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
 		break;
 	}
 	case DM_THR_TRANS:
 	case DM_HYPER_TRANS:
-		if (!_bThrottleTransformReady) {
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleTransformReady)
+		{
 			float throttle = DiegeticMesh == DM_THR_TRANS ? GetThrottle() : GetHyperThrottle();
 
 			// Build the transform matrix
@@ -1002,13 +1008,16 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 			// matrix in this format
 			_throttleMeshTransform.transpose();
 			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
+			//_bThrottleTransformReady = true;
 		}
 		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
 		break;
 	case DM_THR_ROT_ANY:
 	case DM_HYPER_ROT_ANY:
-		if (!_bThrottleRotAxisToZPlusReady) {
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleRotAxisToZPlusReady)
+		{
 			float throttle = DiegeticMesh == DM_THR_ROT_ANY ? GetThrottle() : GetHyperThrottle();
 			Material *material = &(_lastTextureSelected->material);
 
@@ -1051,7 +1060,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 			// We need to transpose the matrix because the Vertex Shader is expecting the
 			// matrix in this format
 			_throttleMeshTransform.transpose();
-			_bThrottleRotAxisToZPlusReady = true;
+			//_bThrottleRotAxisToZPlusReady = true;
 		}
 		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
 		break;
@@ -2529,6 +2538,12 @@ void EffectsRenderer::RenderHangarShadowMap()
 		return;
 	}
 
+	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
+	if (!g_ShadowMapping.bUseShadowOBJ)
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = 1.0f;
+	// Make hangar shadows darker, as in the original version
+	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
+
 	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
 	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
 	g_ShadowMapping.bEnabled = g_bShadowMapEnable;
@@ -2642,8 +2657,8 @@ void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
 {
 	// Jump to the original version of this hook and return: this disables the new effect.
 	// There are some artifacts that need to be fixed before going live with this version.
-	D3dRenderer::HangarShadowSceneHook(scene);
-	return;
+	//D3dRenderer::HangarShadowSceneHook(scene);
+	//return;
 
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;

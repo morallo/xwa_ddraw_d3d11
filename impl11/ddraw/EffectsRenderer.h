@@ -49,7 +49,7 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady, _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
 	bool _bHangarShadowsRenderedInCurrentFrame;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
