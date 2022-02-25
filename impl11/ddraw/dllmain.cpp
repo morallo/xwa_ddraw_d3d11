@@ -509,6 +509,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Toggle Debug buffers
 			case 'D':
 				g_bFadeLights = !g_bFadeLights;
+				log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
 				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
 				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
 				//g_bShowSSAODebug = !g_bShowSSAODebug;
@@ -730,13 +731,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
+				log_debug("[DBG] mouseLook: %d", *mouseLook);
 				return 0;
 			}
 
+			// Ctrl+R
 			case 'R': {
 				//g_bResetDC = true;
 				//g_bProceduralSuns = !g_bProceduralSuns;
-				g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_bShadowMapDebug = !g_bShadowMapDebug;
+				g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
+				log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
@@ -747,6 +752,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//}
 			case 'S': {
 				g_bShadowMapEnable = !g_bShadowMapEnable;
+				log_debug("[DBG] g_bShadowMapEnable: %d", g_bShadowMapEnable);
 				return 0;
 			}
 			//case 'E': {

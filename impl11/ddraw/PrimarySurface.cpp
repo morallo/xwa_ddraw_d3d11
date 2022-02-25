@@ -1922,7 +1922,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			col.y = value + g_fXWALightsSaturation * (col.y - value);
 			col.z = value + g_fXWALightsSaturation * (col.z - value);
 
-			float Lightness = g_bFadeLights ?
+			// We should not fade the lights while we're in the hangar. The lighting doesn't match
+			// the suns anyway.
+			float Lightness = g_bFadeLights && !*g_playerInHangar ?
 				max(g_fMinLightIntensity, 1.0f - g_ShadowMapVSCBuffer.sm_black_levels[i]) :
 				1.0f;
 

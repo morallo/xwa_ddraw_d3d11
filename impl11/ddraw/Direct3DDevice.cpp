@@ -602,6 +602,8 @@ void ResetXWALightInfo()
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++) {
 		g_XWALightInfo[i].Reset();
 		g_ShadowMapVSCBuffer.sm_black_levels[i] = g_ShadowMapping.black_level;
+		g_ShadowMapVSCBuffer.sm_minZ[i] = 0.0f;
+		g_ShadowMapVSCBuffer.sm_maxZ[i] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z; // Regular range for the cockpit
 	}
 }
 

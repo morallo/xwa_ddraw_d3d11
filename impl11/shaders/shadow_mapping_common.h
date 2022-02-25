@@ -20,6 +20,8 @@ cbuffer ConstantBuffer : register(b5)
 	float4 sm_black_levels[MAX_XWA_LIGHTS / 4];
 	float4 OBJrange[MAX_XWA_LIGHTS / 4];
 	float4 OBJminZ[MAX_XWA_LIGHTS / 4];
+	float4 sm_minZ[MAX_XWA_LIGHTS / 4];
+	float4 sm_maxZ[MAX_XWA_LIGHTS / 4];
 };
 
 inline float get_OBJrange(uint idx) {
@@ -50,4 +52,13 @@ inline float DepthToMetricZ(uint idx, float z) {
 inline float get_black_level(uint idx)
 {
 	return sm_black_levels[idx >> 2][idx & 0x03];
+}
+
+inline void get_black_level_and_minmaxZ(uint idx, out float black_level, out float minZ, out float maxZ)
+{
+	const uint i = idx >> 2;
+	const uint j = idx & 0x03;
+	black_level = sm_black_levels[i][j];
+	minZ = sm_minZ[i][j];
+	maxZ = sm_maxZ[i][j];
 }

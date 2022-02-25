@@ -286,21 +286,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		for (uint i = 0; i < LightCount; i++)
 		{
 			float shadow_factor = 1.0;
-			float black_level = get_black_level(i);
-			// Skip lights that won't project black-enough shadows:
-			if (black_level > 0.95)
+			float black_level, minZ, maxZ;
+			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			// Skip lights that won't project black-enough shadows, and skip
+			// lights that are out-of-range.
+			if (black_level > 0.95 || P.z < minZ || P.z > maxZ)
 				continue;
-			// Apply the same transform we applied in ShadowMapVS.hlsl
+			// Apply the same transform we applied to in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
-
+			// Distant objects require more bias, here we're using maxZ as a proxy to tell us
+			// how distant is the shadow map and we use that to compensate the bias
+			float bias = sm_bias - 1.0 * step(50.0f, maxZ);
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
-			/*if (sm_PCSS_enabled == 1)
-				// PCSS
-				shadow_factor = PCSS(i, Q);
-			else*/
-				// PCF
-				shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
+			shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
 			// Limit how black the shadows can be to a minimum of black_level
 			shadow_factor = max(shadow_factor, black_level);
 

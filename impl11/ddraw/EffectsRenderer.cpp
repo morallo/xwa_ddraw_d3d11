@@ -2477,6 +2477,10 @@ void EffectsRenderer::RenderCockpitShadowMap()
 		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
 			continue;
 
+		// Reset the range for each active light
+		g_ShadowMapVSCBuffer.sm_minZ[idx] = 0.0f;
+		g_ShadowMapVSCBuffer.sm_maxZ[idx] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z; // Regular range for the cockpit
+
 		// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
 		// m	esh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
 
@@ -2539,10 +2543,19 @@ void EffectsRenderer::RenderHangarShadowMap()
 	}
 
 	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
-	if (!g_ShadowMapping.bUseShadowOBJ)
+	if (!g_ShadowMapping.bUseShadowOBJ || _bExternalCamera)
 		g_ShadowMapVSCBuffer.sm_black_levels[0] = 1.0f;
+	else 
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;
 	// Make hangar shadows darker, as in the original version
 	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
+
+	// Adjust the range for the shadow maps. The first light is only for the cockpit:
+	g_ShadowMapVSCBuffer.sm_minZ[0] = 0.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[0] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z;
+	// The second light is for the hangar:
+	g_ShadowMapVSCBuffer.sm_minZ[1] = _bExternalCamera ? 0.0f : DEFAULT_COCKPIT_SHADOWMAP_MAX_Z - DEFAULT_COCKPIT_SHADOWMAP_MAX_Z / 2.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[1] = DEFAULT_HANGAR_SHADOWMAP_MAX_Z;
 
 	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
 	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
@@ -2655,10 +2668,12 @@ void EffectsRenderer::RenderHangarShadowMap()
 
 void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
 {
-	// Jump to the original version of this hook and return: this disables the new effect.
-	// There are some artifacts that need to be fixed before going live with this version.
-	//D3dRenderer::HangarShadowSceneHook(scene);
-	//return;
+	if (!g_config.EnableSoftHangarShadows) {
+		// Jump to the original version of this hook and return: this disables the new effect.
+		// There are some artifacts that need to be fixed before going live with this version.
+		D3dRenderer::HangarShadowSceneHook(scene);
+		return;
+	}
 
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;

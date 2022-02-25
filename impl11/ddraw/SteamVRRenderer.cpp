@@ -64,15 +64,14 @@ void SteamVRRenderer::RenderScene()
 	// TODO: Implement instanced rendering so that we issue only one draw call to
 	// render both eyes.
 
-	if (g_rendererType == RendererType_Shadow) {
-		if (!g_config.HangarShadowsEnabled)
-			// Skip hangar shadows in VR
-			return;
-		else
-			resources->InitVertexShader(_shadowVertexShaderVR);
-	} else
-		// Regular VR path
-		resources->InitVertexShader(_vertexShaderVR);
+	if (g_rendererType == RendererType_Shadow)
+		// Using the _shadowVertexShaderVR is too expensive: we end up rendering the same scene 4 times.
+		// Instead, let's do nothing here and just use the new hangar soft shadow system.
+		// resources->InitVertexShader(_shadowVertexShaderVR);
+		return;
+	
+	// Regular VR path
+	resources->InitVertexShader(_vertexShaderVR);
 
 	D3D11_VIEWPORT viewport;
 	viewport.Width = (float)resources->_backbufferWidth;

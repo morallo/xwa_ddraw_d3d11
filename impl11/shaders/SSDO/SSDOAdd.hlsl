@@ -514,60 +514,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		for (uint i = 0; i < LightCount; i++) 
 		{
 			float shadow_factor = 1.0;
-			float black_level = get_black_level(i);
-			// Skip lights that won't project black-enough shadows:
-			if (black_level > 0.95)
+			float black_level, minZ, maxZ;
+			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			// Skip lights that won't project black-enough shadows, and skip
+			// lights that are out-of-range.
+			if (black_level > 0.95 || P.z < minZ || P.z > maxZ)
 				continue;
-			//float black_level = sm_black_level;
 			// Apply the same transform we applied to in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
-			//Q.z = Q_bias.z;
-
+			// Distant objects require more bias, here we're using maxZ as a proxy to tell us
+			// how distant is the shadow map and we use that to compensate the bias
+			float bias = sm_bias - 1.0 * step(50.0f, maxZ);
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
-			/*
-			if (sm_PCSS_enabled == 1) {
-				// PCSS
-				shadow_factor = PCSS(i, Q);
-			}
-			else {
-				if (sm_debug) {
-					// Convert to texture coords: this maps -1..1 to 0..1:
-					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-					// Sample the shadow map and compare
-					float sm_Z = texShadowMap.SampleLevel(sampPos, // samplerShadowMap, 
-						float3(sm_pos, i), 0).x;
-					// Early exit: red color for points "at infinity"
-					if (sm_Z > 0.98) {
-						output.color = float4(1, 0, 0, 1);
-						return output;
-					}
-					// Now convert the depth-stencil coord (0..1) to metric Z:
-					//sm_Z = (sm_Z - 0.5) * OBJrange;
-					sm_Z = DepthToMetricZ(i, sm_Z);
-					// sm_Z is now in metric space, we can compare it with P.z
-					//shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
-					shadow_factor = sm_Z > Q.z ? 1.0 : 0.0;
-				}
-				else {
-					// PCF
-					if (sm_hardware_pcf)
-						shadow_factor = ShadowMapPCF_HW(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_pcss_samples, sm_pcss_radius);
-					else
-					*/
-						shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
-
-					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(Q.xy, i), MetricZToDepth(i, Q.z + sm_bias));
-					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, Q.xy, MetricZToDepth(1, Q.z + sm_bias));
-					/*
-					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-					shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(sm_pos, i), MetricZToDepth(i, Q.z + sm_bias));
-					shadow_factor = saturate(shadow_factor);
-					*/
-					//output.color = float4(shadow_factor, shadow_factor, shadow_factor, 1.0);
-					//return output;
-				/*}
-			}*/
+			shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
 			// Limit how black the shadows can be to a minimum of black_level
 			shadow_factor = max(shadow_factor, black_level);
 
@@ -744,10 +704,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			color * diffuse +
 			global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
-			//emissionMask);
 		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
-		
 	}
 	output.bloom = tmp_bloom;
 

@@ -6,29 +6,42 @@
 #include "../shaders/shader_common.h"
 
 #define SHADOW_MAP_SIZE 2048
+#define DEFAULT_COCKPIT_SHADOWMAP_MAX_Z 7.0f
+#define DEFAULT_HANGAR_SHADOWMAP_MAX_Z 300.0f
 
 // Vertex Shader constant buffer used in ShadowMapVS.hlsl, register b5
 typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	Matrix4 Camera;
 	Matrix4 lightWorldMatrix[MAX_XWA_LIGHTS];
-	// 128 bytes
+	// 576 bytes
 
 	uint32_t sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
+	// 592 bytes
 
 	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
-
+	// 608 bytes
 	Vector3 POV;
 	float sm_resolution;
+	// 624
 
 	int light_index;
 	float sm_FOVscale, sm_y_center, sm_z_factor;
+	// 640
 
 	uint32_t sm_PCSS_enabled, sm_pcss_samples, sm_hardware_pcf, sm_VR_mode;
+	// 656
 
 	float sm_black_levels[MAX_XWA_LIGHTS]; // 8 levels: 2 16-byte rows
+	// 688
 	float OBJrange[MAX_XWA_LIGHTS]; // 8 ranges: 2 16-byte rows
+	// 720
 	float OBJminZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
+	// 752
+	float sm_minZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
+	// 784
+	float sm_maxZ[MAX_XWA_LIGHTS]; // 8 values: 2 16-byte rows
+	// 816 bytes
 } ShadowMapVertexShaderMatrixCB;
 
 extern ShadowMapVertexShaderMatrixCB g_ShadowMapVSCBuffer;

@@ -74,6 +74,7 @@ Config::Config()
 
 	this->D3dRendererHookEnabled = true;
 	this->HangarShadowsEnabled = true;
+	this->EnableSoftHangarShadows = true;
 
 	if (ifstream("Hook_D3d.dll") && HookD3D_IsHookD3DEnabled())
 	{
@@ -239,6 +240,10 @@ Config::Config()
 			else if (name == "HangarShadowsEnabled")
 			{
 				this->HangarShadowsEnabled = stoi(value) != 0;
+			}
+			else if (name == "EnableSoftHangarShadows")
+			{
+				this->EnableSoftHangarShadows = stoi(value) != 0;
 			}
 		}
 	}

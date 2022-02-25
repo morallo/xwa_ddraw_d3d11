@@ -52,6 +52,7 @@ public:
 
 	bool MusicSyncFix;
 	bool HangarShadowsEnabled;
+	bool EnableSoftHangarShadows;
 };
 
 extern Config g_config;
