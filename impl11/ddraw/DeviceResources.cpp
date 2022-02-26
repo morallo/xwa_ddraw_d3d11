@@ -4442,6 +4442,17 @@ void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const
 	this->_d3dDeviceContext->PSSetConstantBuffers(METRIC_REC_CB_SLOT, 1, buffer);
 }
 
+void DeviceResources::InitScissorRect(D3D11_RECT* rect)
+{
+	static D3D11_RECT currentRect{};
+
+	if (memcmp(rect, &currentRect, sizeof(D3D11_RECT)) != 0)
+	{
+		currentRect = *rect;
+		this->_d3dDeviceContext->RSSetScissorRects(1, rect);
+	}
+}
+
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)
 {
 	HRESULT hr = S_OK;

@@ -2031,14 +2031,32 @@ out:
 
 void EffectsRenderer::RenderScene()
 {
-	auto &context = _deviceResources->_d3dDeviceContext;
-
-	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
-	// (unknown, maybe RenderMain?) path is taken instead.
+	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
+	{
+		return;
+	}
 
 	// Skip hangar shadows if configured:
 	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
 		return;
+
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	_deviceResources->InitScissorRect(&scissor);
+
+	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
+	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV

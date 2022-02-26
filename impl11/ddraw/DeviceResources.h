@@ -167,6 +167,7 @@ public:
 	void ResetActiveCockpit();
 
 	void ResetExtraTextures();
+	void InitScissorRect(D3D11_RECT* rect);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 

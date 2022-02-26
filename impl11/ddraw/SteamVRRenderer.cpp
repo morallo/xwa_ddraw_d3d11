@@ -58,17 +58,35 @@ void SteamVRRenderer::SceneEnd()
 
 void SteamVRRenderer::RenderScene()
 {
-	auto &resources = _deviceResources;
-	auto &context = resources->_d3dDeviceContext;
-
-	// TODO: Implement instanced rendering so that we issue only one draw call to
-	// render both eyes.
+	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
+	{
+		return;
+	}
 
 	if (g_rendererType == RendererType_Shadow)
 		// Using the _shadowVertexShaderVR is too expensive: we end up rendering the same scene 4 times.
 		// Instead, let's do nothing here and just use the new hangar soft shadow system.
 		// resources->InitVertexShader(_shadowVertexShaderVR);
 		return;
+
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	_deviceResources->InitScissorRect(&scissor);
+
+	// TODO: Implement instanced rendering so that we issue only one draw call to
+	// render both eyes.
 	
 	// Regular VR path
 	resources->InitVertexShader(_vertexShaderVR);
