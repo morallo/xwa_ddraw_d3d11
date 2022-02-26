@@ -197,7 +197,7 @@ protected:
 	std::vector<XwaD3dTriangle> _glowMarksTriangles;
 
 	bool _isInitialized;
-	UINT _meshBufferInitialCount;
+	//UINT _meshBufferInitialCount;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshVerticesViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshNormalsViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTextureCoordsViews;

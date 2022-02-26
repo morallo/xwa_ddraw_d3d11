@@ -453,9 +453,6 @@ void EffectsRenderer::SceneEnd()
 {
 	D3dRenderer::SceneEnd();
 
-	auto &resources = _deviceResources;
-	auto &context = resources->_d3dDeviceContext;
-
 	// Close the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
 		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;

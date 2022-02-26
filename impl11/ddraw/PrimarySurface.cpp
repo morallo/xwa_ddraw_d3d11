@@ -7754,6 +7754,8 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
+					g_bResetCachedMeshes = false;
+					g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 					if (g_bDumpSSAOBuffers) {
 						/*
 						if (colorFile != NULL) {
@@ -8671,6 +8673,7 @@ HRESULT PrimarySurface::Flip(
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
+				g_bResetCachedMeshes = false;
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {

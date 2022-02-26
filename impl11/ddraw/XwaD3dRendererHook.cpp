@@ -130,12 +130,14 @@ bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
 
+bool g_bResetCachedMeshes = false;
+
 RendererType g_rendererType = RendererType_Unknown;
 
 D3dRenderer::D3dRenderer()
 {
 	_isInitialized = false;
-	_meshBufferInitialCount = 65536;
+	//_meshBufferInitialCount = 65536; // Not actually used anywhere at all
 	_lastMeshVertices = nullptr;
 	_lastMeshVerticesView = nullptr;
 	_lastMeshVertexNormals = nullptr;
@@ -172,10 +174,22 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	GetViewport(&_viewport);
 	GetViewportScale(_constants.viewportScale);
+
+	if (g_bResetCachedMeshes)
+		FlightStart();
 }
 
 void D3dRenderer::SceneEnd()
 {
+	static int PrevD3DExecuteCounter = 0;
+	// Reset the mesh cache if we're in the Tech Room every time the draw counter
+	// changes. This isn't a perfect fix, because if the draw call count stays
+	// the same after switching to a new ship, then we won't reset the meshes,
+	// but it helps.
+	if (g_bInTechRoom && g_iD3DExecuteCounter != PrevD3DExecuteCounter) {
+		PrevD3DExecuteCounter = g_iD3DExecuteCounter;
+		FlightStart();
+	}
 }
 
 void D3dRenderer::FlightStart()
