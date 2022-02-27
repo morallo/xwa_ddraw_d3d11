@@ -6,6 +6,7 @@
 
 #include "materials.h"
 #include "DeviceResources.h"
+#include <map>
 
 class TextureSurface;
 
@@ -175,6 +176,10 @@ public:
 	STDMETHOD(GetHandle)(THIS_ LPDIRECT3DDEVICE, LPD3DTEXTUREHANDLE);
 	
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
+
+	std::string GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId);
+	bool GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
+	void AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView *srv);
 
 	void LoadAnimatedTextures(int ATCIndex);
 

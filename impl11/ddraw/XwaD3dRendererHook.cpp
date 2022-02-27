@@ -201,6 +201,7 @@ void D3dRenderer::FlightStart()
 	_triangleBuffers.clear();
 	_vertexCounters.clear();
 	_AABBs.clear();
+	ClearCachedSRVs();
 }
 
 void D3dRenderer::MainSceneHook(const SceneCompData* scene)

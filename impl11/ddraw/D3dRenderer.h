@@ -235,3 +235,5 @@ extern bool g_isInRenderMiniature;
 extern bool g_isInRenderHyperspaceLines;
 
 extern D3dRenderer g_xwa_d3d_renderer;
+
+void ClearCachedSRVs();
