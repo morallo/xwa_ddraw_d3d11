@@ -225,6 +225,7 @@ protected:
 	ComPtr<ID3D11PixelShader> _pixelShader;
 	ComPtr<ID3D11VertexShader> _shadowVertexShader;
 	ComPtr<ID3D11PixelShader> _shadowPixelShader;
+	ComPtr<ID3D11PixelShader> _techRoomPixelShader;
 	D3D11_VIEWPORT _viewport;
 };
 

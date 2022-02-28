@@ -7358,7 +7358,7 @@ HRESULT PrimarySurface::Flip(
 			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
-			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
+			//if (g_bInTechRoom) log_debug("[DBG] IN TECH ROOM");
 			// If we don't have the metric params ready by the time the Tech Room is presented,
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.

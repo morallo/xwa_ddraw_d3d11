@@ -35,11 +35,13 @@
 #include "../Debug/XwaD3dPixelShader.h"
 #include "../Debug/XwaD3dShadowVertexShader.h"
 #include "../Debug/XwaD3dShadowPixelShader.h"
+#include "../Debug/XwaD3DTechRoomPixelShader.h"
 #else
 #include "../Release/XwaD3dVertexShader.h"
 #include "../Release/XwaD3dPixelShader.h"
 #include "../Release/XwaD3dShadowVertexShader.h"
 #include "../Release/XwaD3dShadowPixelShader.h"
+#include "../Release/XwaD3DTechRoomPixelShader.h"
 #endif
 
 #undef LOGGER_DUMP
@@ -669,10 +671,26 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 
 	for (int i = 0; i < 8; i++)
 	{
-		_constants.globalLights[i].direction[0] = s_XwaGlobalLights[i].DirectionX;
-		_constants.globalLights[i].direction[1] = s_XwaGlobalLights[i].DirectionY;
-		_constants.globalLights[i].direction[2] = s_XwaGlobalLights[i].DirectionZ;
-		_constants.globalLights[i].direction[3] = 1.0f;
+		if (!g_bInTechRoom) {
+			_constants.globalLights[i].direction[0] = s_XwaGlobalLights[i].DirectionX;
+			_constants.globalLights[i].direction[1] = s_XwaGlobalLights[i].DirectionY;
+			_constants.globalLights[i].direction[2] = s_XwaGlobalLights[i].DirectionZ;
+			_constants.globalLights[i].direction[3] = 1.0f;
+		}
+		else {
+			// In the Tech Room, global lights are "attached" to the ship, so that they rotate
+			// along with it. I don't think that's terribly useful, so I'm inverting the
+			// World transform to fix the lights instead.
+			Vector4 L = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
+			Matrix4 W = Matrix4(_constants.transformWorldView);
+			W = W.transpose(); // This is effectively an inverse of W
+			L = W * L;
+			// The coordinate system in the XwaD3DTechRoomPixelShader has YZ inverted, let's do it here as well:
+			_constants.globalLights[i].direction[0] =  L.x;
+			_constants.globalLights[i].direction[1] = -L.y;
+			_constants.globalLights[i].direction[2] = -L.z;
+			_constants.globalLights[i].direction[3] =  0.0f;
+		}
 
 		_constants.globalLights[i].color[0] = s_XwaGlobalLights[i].ColorR;
 		_constants.globalLights[i].color[1] = s_XwaGlobalLights[i].ColorG;
@@ -954,6 +972,7 @@ void D3dRenderer::CreateShaders()
 	device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_XwaD3dVertexShader, sizeof(g_XwaD3dVertexShader), &_inputLayout);
 
 	device->CreatePixelShader(g_XwaD3dPixelShader, sizeof(g_XwaD3dPixelShader), nullptr, &_pixelShader);
+	device->CreatePixelShader(g_XwaD3DTechRoomPixelShader, sizeof(g_XwaD3DTechRoomPixelShader), nullptr, &_techRoomPixelShader);
 
 	device->CreateVertexShader(g_XwaD3dShadowVertexShader, sizeof(g_XwaD3dShadowVertexShader), nullptr, &_shadowVertexShader);
 	device->CreatePixelShader(g_XwaD3dShadowPixelShader, sizeof(g_XwaD3dShadowPixelShader), nullptr, &_shadowPixelShader);

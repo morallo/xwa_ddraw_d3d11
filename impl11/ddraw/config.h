@@ -53,6 +53,7 @@ public:
 	bool MusicSyncFix;
 	bool HangarShadowsEnabled;
 	bool EnableSoftHangarShadows;
+	bool OnlyGrayscaleInTechRoom;
 };
 
 extern Config g_config;

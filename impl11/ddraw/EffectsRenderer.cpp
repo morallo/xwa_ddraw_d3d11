@@ -1527,8 +1527,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-	_deviceResources->InitPixelShader(_pixelShader);
-	ComPtr<ID3D11PixelShader> lastPixelShader = _pixelShader;
+	ComPtr<ID3D11PixelShader> lastPixelShader = g_bInTechRoom ? _techRoomPixelShader : _pixelShader;
+	_deviceResources->InitPixelShader(lastPixelShader);
 
 	UpdateTextures(scene);
 	UpdateMeshBuffers(scene);
@@ -1613,6 +1613,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AuxColor.z = 1.0f;
 	g_PSCBuffer.AuxColor.w = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
+	if (g_bInTechRoom && g_config.OnlyGrayscaleInTechRoom)
+		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
 
 	// Initialize the mesh transform for each mesh. During MainSceneHook,
 	// this transform may be modified to apply an animation. See
@@ -2063,6 +2065,7 @@ void EffectsRenderer::RenderScene()
 
 //out:
 	g_iD3DExecuteCounter++;
+	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 }
 
 void EffectsRenderer::RenderLasers()
