@@ -887,8 +887,14 @@ void D3dRenderer::CreateStates()
 
 	D3D11_RASTERIZER_DESC rsDesc{};
 	rsDesc.FillMode = g_config.WireframeFillMode ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
-	rsDesc.CullMode = D3D11_CULL_NONE;
-	rsDesc.FrontCounterClockwise = FALSE;
+	
+	// Original settings by Jeremy: no culling!
+	//rsDesc.CullMode = D3D11_CULL_NONE;
+	//rsDesc.FrontCounterClockwise = FALSE;
+	// New settings: let's cull back faces!
+	rsDesc.CullMode = D3D11_CULL_BACK;
+	rsDesc.FrontCounterClockwise = TRUE;
+
 	rsDesc.DepthBias = 0;
 	rsDesc.DepthBiasClamp = 0.0f;
 	rsDesc.SlopeScaledDepthBias = 0.0f;
