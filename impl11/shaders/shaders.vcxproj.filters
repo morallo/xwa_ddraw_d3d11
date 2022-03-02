@@ -84,6 +84,7 @@
     <FxCompile Include="DATVertexShaderVR.hlsl" />
     <FxCompile Include="HangarShadowMapVS.hlsl" />
     <FxCompile Include="XwaD3DTechRoomPixelShader.hlsl" />
+    <FxCompile Include="PixelShaderAnimDAT.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

@@ -1469,8 +1469,8 @@ void EffectsRenderer::ApplyAnimatedTextures()
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 	}
 
-	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
+	//if (g_bDumpSSAOBuffers)
+	//	log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
 	//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
 
 	if (extraTexIdx > -1) {

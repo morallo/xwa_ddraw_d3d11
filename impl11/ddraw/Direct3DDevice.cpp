@@ -5096,6 +5096,82 @@ HRESULT Direct3DDevice::Execute(
 				// Dynamic Cockpit: Replace textures at run-time:
 				// No longer done here, look in XwaD3dRendererHook
 
+				// Animated Light Maps/Textures (DAT-related animations)
+				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx == -1) {
+					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
+					{
+						bool bIsDamageTex = false;
+						bModifiedShaders = true;
+						bModifiedPixelShader = true;
+						int TexATCIndex = lastTextureSelected->material.GetCurrentATCIndex(&bIsDamageTex, TEXTURE_ATC_IDX);
+						int LightATCIndex = lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+
+						// This path doesn't render any DC elements. So, compared with EffectsRenderer::ApplyAnimatedTextures(),
+						// this code lacks all the DC-related checks (we assume bRenderingDC is false)
+
+						// If we reach this point then one of LightMapATCIndex or TextureATCIndex must be > -1 or both!
+						// If we're rendering a DC element, we don't want to replace the shader
+						resources->InitPixelShader(resources->_pixelShaderAnimDAT);
+
+						// Let's do a quick update of the hyperspace flags here:
+						g_PSCBuffer.bInHyperspace = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0 || g_HyperspacePhaseFSM != HS_INIT_ST;
+						g_PSCBuffer.AuxColor.x = 1.0f;
+						g_PSCBuffer.AuxColor.y = 1.0f;
+						g_PSCBuffer.AuxColor.z = 1.0f;
+						g_PSCBuffer.AuxColor.w = 1.0f;
+
+						g_PSCBuffer.AuxColorLight.x = 1.0f;
+						g_PSCBuffer.AuxColorLight.y = 1.0f;
+						g_PSCBuffer.AuxColorLight.z = 1.0f;
+						g_PSCBuffer.AuxColorLight.w = 1.0f;
+
+						int extraTexIdx = -1, extraLightIdx = -1;
+						if (TexATCIndex > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[TexATCIndex]);
+							int idx = atc->AnimIdx;
+							extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+							if (atc->BlackToAlpha)
+								g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+							else if (atc->AlphaIsBloomMask)
+								g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+							else
+								g_PSCBuffer.special_control.ExclusiveMask = 0;
+							g_PSCBuffer.AuxColor = atc->Tint;
+							g_PSCBuffer.Offset = atc->Offset;
+							g_PSCBuffer.AspectRatio = atc->AspectRatio;
+							g_PSCBuffer.Clamp = atc->Clamp;
+							g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+							g_current_renderer->SetRenderTypeIllum(0);
+							// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+							// the DC foreground SRV
+							context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+						}
+
+						if (LightATCIndex > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[LightATCIndex]);
+							int idx = atc->AnimIdx;
+							extraLightIdx = atc->Sequence[idx].ExtraTextureIndex;
+							if (atc->BlackToAlpha)
+								g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+							else if (atc->AlphaIsBloomMask)
+								g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+							else
+								g_PSCBuffer.special_control_light.ExclusiveMask = 0;
+							g_PSCBuffer.AuxColorLight = atc->Tint;
+							// TODO: We might need two of these settings below, one for the regular tex and one for the lightmap
+							g_PSCBuffer.Offset = atc->Offset;
+							g_PSCBuffer.AspectRatio = atc->AspectRatio;
+							g_PSCBuffer.Clamp = atc->Clamp;
+							g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+							g_current_renderer->SetRenderTypeIllum(1);
+							// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+							// the DC foreground SRV
+							context->PSSetShaderResources(1, 1, &(resources->_extraTextures[extraLightIdx]));
+						}
+					}
+				}
+
 				// Don't render the first hyperspace frame: use all the buffers from the previous frame instead. Otherwise
 				// the craft will jerk or blink because XWA resets the cockpit camera and the craft's orientation on this
 				// frame.

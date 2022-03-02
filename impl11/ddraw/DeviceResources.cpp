@@ -73,6 +73,7 @@
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
 #include "../Debug/PixelShaderAnim.h"
+#include "../Debug/PixelShaderAnimDAT.h"
 #include "../Debug/PixelShaderGreeble.h"
 #include "../Debug/HangarShadowMapVS.h"
 #else
@@ -136,6 +137,7 @@
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
 #include "../Release/PixelShaderAnim.h"
+#include "../Release/PixelShaderAnimDAT.h"
 #include "../Release/PixelShaderGreeble.h"
 #include "../Release/HangarShadowMapVS.h"
 #endif
@@ -1356,7 +1358,13 @@ void DeviceResources::ResetExtraTextures() {
 
 	for (uint32_t i = 0; i < _extraTextures.size(); i++)
 		if (_extraTextures[i] != nullptr) {
-			_extraTextures[i]->Release();
+			int count = 0;
+			// TODO: Cached SRVs increase the refcounts and rely on this code
+			// to release everything. This might not be the proper solution,
+			// but it seems to work.
+			do {
+				count = _extraTextures[i]->Release();
+			} while (count > 0);
 			_extraTextures[i] = nullptr;
 		}
 	_extraTextures.clear();
@@ -3675,6 +3683,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnim, sizeof(g_PixelShaderAnim), nullptr, &_pixelShaderAnim)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimDAT, sizeof(g_PixelShaderAnimDAT), nullptr, &_pixelShaderAnimDAT)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))

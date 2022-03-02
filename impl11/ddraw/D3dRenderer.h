@@ -178,6 +178,7 @@ public:
 	virtual void CreateShaders();
 	void GetViewport(D3D11_VIEWPORT* viewport);
 	void GetViewportScale(float* viewportScale);
+	void SetRenderTypeIllum(int type);
 
 protected:
 	DeviceResources* _deviceResources;

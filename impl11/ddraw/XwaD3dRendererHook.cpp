@@ -1047,6 +1047,13 @@ void D3dRenderer::GetViewportScale(float* viewportScale)
 	viewportScale[3] = 0.0f;
 }
 
+void D3dRenderer::SetRenderTypeIllum(int type)
+{
+	auto context = _deviceResources->_d3dDeviceContext;
+	_constants.renderTypeIllum = type;
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_constants, 0, 0);
+}
+
 D3dRenderer g_xwa_d3d_renderer;
 
 // TODO: Select the appropriate renderer depending on the current config
