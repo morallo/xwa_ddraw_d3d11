@@ -3758,6 +3758,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	D3D11_VIEWPORT viewport{};
 
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
+
 	// Prevent rendering the hyperspace effect multiple times per frame:
 	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
 		return;
@@ -4460,6 +4463,8 @@ void PrimarySurface::RenderStarDebug()
 
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_starDebugPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -4806,6 +4811,8 @@ void PrimarySurface::RenderExternalHUD()
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_externalHUDPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -6373,6 +6380,8 @@ void PrimarySurface::RenderSunFlare()
 			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 	// Set the shadertoy constant buffer:
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_sunFlareShaderPS);

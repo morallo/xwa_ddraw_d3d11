@@ -1362,9 +1362,12 @@ void DeviceResources::ResetExtraTextures() {
 			// TODO: Cached SRVs increase the refcounts and rely on this code
 			// to release everything. This might not be the proper solution,
 			// but it seems to work.
-			do {
-				count = _extraTextures[i]->Release();
-			} while (count > 0);
+			//do {
+			//	count = _extraTextures[i]->Release();
+			//} while (count > 0);
+			// TODO: Cached SRVs increase the refcounts... what to do about it?
+			// The previous code still crashed, so... reverting the code.
+			_extraTextures[i]->Release();
 			_extraTextures[i] = nullptr;
 		}
 	_extraTextures.clear();

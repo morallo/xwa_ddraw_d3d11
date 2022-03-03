@@ -6130,6 +6130,8 @@ nochange:
 		resources->InitInputLayout(resources->_inputLayout);
 		resources->InitVertexShader(resources->_vertexShader);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		// We need this to ensure backface culling is disabled
+		resources->InitRasterizerState(resources->_rasterizerState);
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
