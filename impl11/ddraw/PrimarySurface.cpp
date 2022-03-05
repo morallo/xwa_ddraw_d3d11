@@ -32,6 +32,7 @@ extern SharedMem g_SharedMem;
 
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
+void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
 void DisplayBox(char *name, Box box);
 Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
@@ -1908,8 +1909,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 
 			light = g_CurrentHeadingViewMatrix * xwaLight;
 			light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			// Forward: -Z, Up: +Y, Right: +X
 			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
-			//	s_XwaGlobalLights[i].Intensity, light[0].x, light[0].y, light[0].z);
+			//	s_XwaGlobalLights[i].Intensity, light.x, light.y, light.z);
 			g_ShadingSys_PSBuffer.LightVector[i].x = light.x;
 			g_ShadingSys_PSBuffer.LightVector[i].y = light.y;
 			g_ShadingSys_PSBuffer.LightVector[i].z = light.z;
@@ -1990,8 +1992,25 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			Vector4 headLightDir(0.0, 0.0, 1.0, 0.0);
 			Vector4 headLightPos(g_HeadLightsPosition.x, g_HeadLightsPosition.y, g_HeadLightsPosition.z, 1.0);
 			Matrix4 ViewMatrix;
-			// TODO: I think we also need to transform the position of the light...
-			GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+			if (g_bEnableVR) {
+				// Apply the headtracking transform to the ViewMatrix
+				ViewMatrix = g_VSMatrixCB.fullViewMat;
+				ViewMatrix.invert();
+				if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
+					Matrix4 GunnerMatrix;
+					Matrix4 S = Matrix4().scale(1, 1, -1);
+					GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
+					ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
+				}
+				else {
+					Matrix4 S = Matrix4().scale(1, 1, -1);
+					ViewMatrix = S * g_VSMatrixCB.fullViewMat * S;
+				}
+			}
+			else {
+				GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+			}
+
 			// We're going to need another vector for the headlights direction... let's shift all
 			// the light vectors one spot to the right and place the direction on the first slot
 			for (int i = 0; i < maxLights; i++)
@@ -3444,6 +3463,23 @@ Matrix4 GetCurrentHeadingViewMatrix() {
 	Vector4 Rs, Us, Fs;
 	Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, false, false);
 
+	if (g_bEnableVR) {
+		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
+		// Apply the headtracking transform to the ViewMatrix
+		ViewMatrix.invert();
+		if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
+			Matrix4 GunnerMatrix;
+			Matrix4 S = Matrix4().scale(1, 1, -1);
+			GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
+			ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
+		}
+		else {
+			Matrix4 S = Matrix4().scale(1, 1, -1);
+			ViewMatrix = S * g_VSMatrixCB.fullViewMat * S * H;
+		}
+		return ViewMatrix;
+	}
+
 	float viewYaw, viewPitch;
 	if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
 		viewYaw   = PlayerDataTable[*g_playerIndex].Camera.Yaw   / 65536.0f * 360.0f;
@@ -3608,9 +3644,55 @@ void GetGunnerTurretViewMatrix(Matrix4 *result) {
 }
 
 /*
+ * Returns the current camera or external matrix for the hyperspace effect.
+ */
+void PrimarySurface::GetHyperspaceEffectMatrix(Matrix4 *result) {
+	Matrix4 rotMatrixFull;
+
+	// SteamVR and DirectSBS use a new tracking system that require a different transform chain
+	if (g_bEnableVR) {
+		if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
+			Matrix4 viewMat;
+			GetGunnerTurretViewMatrix(&viewMat);
+			*result = viewMat * Matrix4().scale(1, -1, 1) * g_VSMatrixCB.fullViewMat * Matrix4().scale(1, -1, 1);
+		} else {
+			GetCockpitViewMatrix(result);
+			*result = g_VSMatrixCB.fullViewMat * (*result);
+		}
+		return;
+	}
+
+	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
+	{
+		GetGunnerTurretViewMatrixSpeedEffect(&rotMatrixFull);
+	}
+	else
+	{
+		float yaw, pitch;
+
+		if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
+		}
+		else {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
+		}
+
+		Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	}
+
+	*result = rotMatrixFull;
+}
+
+/*
  * Returns the gunner turret view matrix for the speed effect shaders
  */
-void PrimarySurface::GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
+void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
 	// This is what the matrix looks like when looking forward:
 	// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
 	float factor = 32768.0f;
@@ -3674,10 +3756,20 @@ void GetCraftViewMatrix(Matrix4 *result) {
 	// Apply the head pose matrix to the view matrix to fix the reticle and other 2D elements positioning.
 	// With the current CockpitLook headtracking mode, MousePositionX,Y = 0 so the reticle is fixed to the camera
 	// It should stay aligned with the craft heading instead.
-	if (g_bUseSteamVR) {
-		*result = g_VSMatrixCB.fullViewMat * (*result);
+	if (g_bEnableVR) {
+		if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
+			Matrix4 viewMatrix;
+			GetCockpitViewMatrix(&viewMatrix);
+			
+			// This fixes the position of the reticle in the gunner turrets. This is why:
+			// The reticle is now always fixed to the center of the screen. When we turn
+			// our heads, we use g_VSMatrixCB.fullViewMat to place the reticle in the right
+			// position. The same logic applies for the gunner turret.
+			*result = g_VSMatrixCB.fullViewMat * viewMatrix;
+		} 
+		else
+			*result = g_VSMatrixCB.fullViewMat * (*result);
 	}
-
 }
 
 /*
@@ -3946,7 +4038,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// DEBUG
 	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat);
+	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat); // Original version
+	GetHyperspaceEffectMatrix(&g_ShadertoyBuffer.viewMat); // New version for SteamVR
+
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -5234,15 +5328,23 @@ void PrimarySurface::RenderSpeedEffect()
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 ViewMatrix, HeadingMatrix = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
-	GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
-	// Apply the headtracking transform to the ViewMatrix
-	if (g_bEnableVR)
-		if (g_bUseSteamVR) {
-			ViewMatrix = g_VSMatrixCB.fullViewMat * ViewMatrix;
+	if (g_bEnableVR) {
+		// Apply the headtracking transform to the ViewMatrix
+		ViewMatrix = g_VSMatrixCB.fullViewMat;
+		ViewMatrix.invert();
+		if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
+			Matrix4 GunnerMatrix;
+			Matrix4 S = Matrix4().scale(1, 1, -1);
+			GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
+			ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
 		}
 		else {
-			ViewMatrix = g_VSMatrixCB.viewMat * ViewMatrix;
+			Matrix4 S = Matrix4().scale(-1, -1, 1);
+			ViewMatrix = S * ViewMatrix * S;
 		}
+	}
+	else
+		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, false);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
@@ -5692,6 +5794,24 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 	T = *HeadingMatrix * T; // The heading matrix is needed to convert the translation into the correct frame
 	Translation.translate(-T.x, -T.y, -T.z);
 	ViewMatrix = ViewMatrix * Translation;
+
+	if (g_bEnableVR)
+	{
+		Matrix4 S = Matrix4().scale(-1, -1, 1);
+		Matrix4 trackingMat = g_VSMatrixCB.fullViewMat;
+
+		// Get the translation vector
+		const float *m = trackingMat.get();
+		Vector4 t(m[12], m[13], m[14], 1.0f);
+		Matrix4 T = Matrix4().translate(-t.x, -t.y, t.z);
+
+		// Zero-out the translation component
+		Vector4 Zero(0, 0, 0, 1);
+		trackingMat.setColumn(3, Zero);
+
+		trackingMat.invert();
+		ViewMatrix = S * trackingMat * S * T * ViewMatrix;
+	}
 	return ViewMatrix;
 }
 
@@ -5778,10 +5898,6 @@ void PrimarySurface::RenderAdditionalGeometry()
 	resources->InitVertexShader(resources->_addGeomVS);
 
 	// Set the ViewMatrix
-	if (g_bUseSteamVR)
-	{
-		ViewMatrix = g_VSMatrixCB.fullViewMat * ViewMatrix;
-	}
 	g_ShadowMapVSCBuffer.Camera = ViewMatrix;
 	g_ShadowMapVSCBuffer.sm_aspect_ratio = g_fCurInGameAspectRatio;
 	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -7111,9 +7227,8 @@ void UpdateViewMatrix()
 				g_bResetHeadCenter = false;
 			}
 			yaw   =  (g_FreePIEData.yaw   - home_yaw)   * g_fYawMultiplier;
-			pitch = -(g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
+			pitch =  (g_FreePIEData.pitch - home_pitch) * g_fPitchMultiplier;
 			roll  =  (g_FreePIEData.roll  - home_roll)  * g_fRollMultiplier;
-
 		}
 
 		if (g_bYawPitchFromMouseOverride) {
@@ -7123,42 +7238,21 @@ void UpdateViewMatrix()
 		}
 
 		if (g_bEnableVR) {
-			// If we're rendering 2D, then the PlayerDataTable camera will not be updated by the mouse hook,
-			// so we need to use the yaw,pitch,roll coming from FreePIE. But if we're doing 3D rendering, then
-			// the hook should've updated the cockpit/external camera and we can read it here:
-			if (g_bRendering3D && !(*g_playerInHangar)) {
-				if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
-					yaw   = (float)PlayerDataTable[*g_playerIndex].Camera.Yaw / 65536.0f * 360.0f;
-					pitch = (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
-				}
-				else {
-					yaw   = (float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
-					pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
-				}
-			}
-
 			// Compute the rotation matrices with the current yaw, pitch, roll:
-			Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
-			rotMatrixFull.identity();
-			rotMatrixYaw.identity();   rotMatrixYaw.rotateY(-yaw);
-			rotMatrixPitch.identity(); rotMatrixPitch.rotateX(-pitch);
-			rotMatrixRoll.identity();  rotMatrixRoll.rotateZ(roll);
-
-			// For the fixed GUI, yaw has to be like this:
-			rotMatrixFull.rotateY(yaw);
-			rotMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixFull;
-			rotMatrixYaw  = rotMatrixPitch * rotMatrixYaw;
-			// Can we avoid computing the matrix inverse?
-			// rotMatrixYaw.invert(); // I don't think we need to invert this matrix anymore: it's not used after this point.
+			Matrix4 rotMatrixFull, rY, rX, rZ;
+			rY.rotateY(-yaw);
+			rX.rotateX(-pitch);
+			rZ.rotateZ(-roll);
+			// This is the same transform chain we have in cockpitlook.cpp::DoRotationPitchHook()
+			rotMatrixFull = rY * rX * rZ;
 
 			g_viewMatrix.identity();
-			g_viewMatrix.rotateZ(roll);
-			//g_viewMatrix.rotateZ(roll + 30.0f * headPosFromKeyboard[0]); // HACK to enable roll-through keyboard
-
-			// viewMat is not a full transform matrix: it's only RotZ + Translation
-			// because the cockpit hook already applies the yaw/pitch rotation
-			g_VSMatrixCB.viewMat = g_viewMatrix;
+			g_VSMatrixCB.viewMat.identity();
 			g_VSMatrixCB.fullViewMat = rotMatrixFull;
+
+			// When rendering the concourse, menus, etc, we need the inverse of rotMatrixFull
+			if (!g_bUseSteamVR && !g_bRendering3D)
+				g_VSMatrixCB.fullViewMat.transpose();
 		}
 	}
 
@@ -7166,26 +7260,6 @@ void UpdateViewMatrix()
 		g_bResetHeadCenter = false;
 
 	// At this point, yaw, pitch, roll contain the data read from either SteamVR or FreePIE.
-	// We can use these values to apply head tracking to the hangar
-	// This is not needed for SteamVR tracking
-	// The reason we have to do this here is because the hangar does not activate the regular
-	// mouse look hook.
-	if ((g_TrackerType == TRACKER_FREEPIE) && *g_playerInHangar) {
-		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-
-		// For the DirectSBS mode we need to invert the yaw:
-		if (g_TrackerType == TRACKER_FREEPIE)
-			yaw = -yaw;
-
-		if (bExternalCamera) {
-			PlayerDataTable[*g_playerIndex].Camera.Yaw = -(short )((yaw / 360.0f) * 65535.0f);
-			PlayerDataTable[*g_playerIndex].Camera.Pitch = (short)((pitch / 360.0f) * 65535.0f);
-		}
-		else {
-			PlayerDataTable[*g_playerIndex].MousePositionX = -(short)((yaw / 360.0f) * 65535.0f);
-			PlayerDataTable[*g_playerIndex].MousePositionY = (short)((pitch / 360.0f) * 65535.0f);
-		}
-	}
 
 	/*
 	// Read the controller's position from FreePIE

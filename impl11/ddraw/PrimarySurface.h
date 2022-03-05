@@ -84,11 +84,11 @@ public:
 
 	//void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
+	void GetHyperspaceEffectMatrix(Matrix4 *result);
+
 	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
 	//void GetGunnerTurretViewMatrix(Matrix4 * result);
-
-	void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
 
 	//void GetCraftViewMatrix(Matrix4 *result);
 

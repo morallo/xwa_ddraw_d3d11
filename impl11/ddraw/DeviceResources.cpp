@@ -4862,6 +4862,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;
 
+		bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
+
 		if (!g_bEnableVR || bRenderToDC) {
 			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
 			// The map lines (both the grid and the vertical lines) are drawn here
@@ -4923,12 +4925,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		/*this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
-			1.0f); // Use 3D projection matrices
-		*/
-
-		float parallax = 1;
+		
 		if (g_iDraw2DCounter > 0)		
 		{
 			D3D11_DEPTH_STENCIL_DESC desc;
@@ -4938,24 +4935,24 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
 			desc.StencilEnable = FALSE;
 			this->InitDepthStencilState(depthState, &desc);
-			parallax = 0;
-
 		}
-
-		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
-			1, 1, 1, g_fBrightness,
-			0.0f); // Do not use 3D projection matrices
-
+		
+		if (bDirectSBS) {
+			this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+				g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
+				1.0f); // Use 3D projection matrices
+		}
+		else {
+			this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+				1, 1, 1, g_fBrightness,
+				0.0f); // Do not use 3D projection matrices
+		}
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		// When the map is active, all the lines are rendered here
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		if (g_bUseSteamVR)
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-		else
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
 		// Right viewport
@@ -4971,18 +4968,22 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		/*this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
-			1.0f); // Use 3D projection matrices
-		*/
-		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
-			//g_fTechLibraryParallax * g_iDraw2DCounter, 1, 1, g_fBrightness,
-			1, 1, 1, g_fBrightness,
-			0.0f); // Do not use 3D projection matrices
-
+		if (bDirectSBS) {
+			this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+				g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
+				1.0f); // Use 3D projection matrices
+		}
+		else {
+			this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+				1, 1, 1, g_fBrightness,
+				0.0f); // Do not use 3D projection matrices
+		}
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
 		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-		g_VSMatrixCB.fullViewMat.identity();
+		// In SteamVR mode, we need to clear fullViewMat or the ships in the Tech Room
+		// will float all over the place.
+		if (!bDirectSBS)
+			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		if (g_bUseSteamVR)
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());

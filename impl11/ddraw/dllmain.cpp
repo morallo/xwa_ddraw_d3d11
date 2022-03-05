@@ -626,10 +626,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				}
 				*/
 				return 0;
+			// Ctrl+Alt+E is used by the Custom OpenVR driver to toggle emulation modes
+			/*
 			case 'E':
 				//g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
 				g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
 				return 0;
+			*/
 			/*
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
@@ -769,10 +772,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			case 'W': {
 				// DEBUG: Toggle keyboard joystick emulation
-				if (g_config.KbdSensitivity > 0.0f)
+				if (g_config.KbdSensitivity > 0.0f) {
 					g_config.KbdSensitivity = 0.0f;
-				else
+					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+				}
+				else {
 					g_config.KbdSensitivity = 1.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
+				}
 				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				return 0;
 			}
