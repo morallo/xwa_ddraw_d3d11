@@ -1171,60 +1171,6 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
-/*
-// Should this function be inlined?
-// See:
-// xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
-// For a working implementation of the index buffer read (spoiler alert: it's the same we have here)
-void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
-	float *minX, float *minY, float *maxX, float *maxY, bool debug) {
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX v;
-	WORD index;
-	//int aux_idx = curIndex;
-	float px, py;
-	*maxX = -1; *maxY = -1;
-	*minX = 1000000; *minY = 1000000;
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		index = triangle->v1;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-
-		index = triangle->v2;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-
-<<<<<<< HEAD
-		index = triangle->v3;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-=======
-#if LOGGER_DUMP
-	DumpExecuteBuffer(executeBuffer);
-#endif
->>>>>>> 39555f9 (Add XwaD3dRendererHook)
-
-		triangle++;
-	}
-}
-*/
-
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
 	float *minU, float *minV, float *maxU, float *maxV,
