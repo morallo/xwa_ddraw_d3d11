@@ -78,9 +78,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
+	// We might have a problem here, the following comment applies for regular OPT animations:
+	// we need to remove transparency while in hyperspace. But for DAT animations (ie: the reticle)
+	// we need transparency!
 	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
 	// the background through it, so we mix it with a black color
-	if (bInHyperspace) output.color = float4(lerp(float3(0, 0, 0), output.color.rgb, alpha), 1);
+	//if (bInHyperspace) output.color = float4(lerp(float3(0, 0, 0), output.color.rgb, alpha), 1);
 
 	if (renderTypeIllum == 1)
 	{
