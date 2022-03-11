@@ -77,7 +77,9 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
 	// the background through it, so we mix it with a black color
-	if (bInHyperspace) output.color = float4(lerp(float3(0,0,0), output.color.rgb, alpha), 1);
+	// Update: looks like we don't need to do this anymore (?) In fact, enabling this line will
+	// cause the cockpit glass to go black if it's damaged before jumping into hyperspace
+	//if (bInHyperspace) output.color = float4(lerp(float3(0,0,0), output.color.rgb, alpha), 1);
 
 	if (renderTypeIllum == 1)
 	{

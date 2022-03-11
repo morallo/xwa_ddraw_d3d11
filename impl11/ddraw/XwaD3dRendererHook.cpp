@@ -906,12 +906,18 @@ void D3dRenderer::CreateStates()
 	D3D11_RASTERIZER_DESC rsDesc{};
 	rsDesc.FillMode = g_config.WireframeFillMode ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
 	
-	// Original settings by Jeremy: no culling!
-	//rsDesc.CullMode = D3D11_CULL_NONE;
-	//rsDesc.FrontCounterClockwise = FALSE;
-	// New settings: let's cull back faces!
-	rsDesc.CullMode = D3D11_CULL_BACK;
-	rsDesc.FrontCounterClockwise = TRUE;
+	// Original settings by Jeremy: no culling.
+	// Turns out that some people have reported gaps in the cockpits when culling is on. So, for now
+	// I'm re-enabling no culling as the default setting. This can now be toggled in DDraw.cfg.
+	if (!g_config.CullBackFaces) {
+		rsDesc.CullMode = D3D11_CULL_NONE;
+		rsDesc.FrontCounterClockwise = FALSE;
+	}
+	else {
+		// New settings: let's cull back faces!
+		rsDesc.CullMode = D3D11_CULL_BACK;
+		rsDesc.FrontCounterClockwise = TRUE;
+	}
 
 	rsDesc.DepthBias = 0;
 	rsDesc.DepthBiasClamp = 0.0f;
