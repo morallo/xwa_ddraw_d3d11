@@ -72,6 +72,7 @@ void SteamVRRenderer::RenderScene()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
+	/*
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
 	unsigned short scissorTop = *(unsigned short*)0x07CA354;
 	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
@@ -83,7 +84,19 @@ void SteamVRRenderer::RenderScene()
 	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
 	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
 	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
-	_deviceResources->InitScissorRect(&scissor);
+	*/
+	/*
+	// The scissor rect needs more work in StemVR mode. It's in screen coords, so
+	// It must use the dimensions of the SteamVR viewport, but it must also clip
+	// the CMD when rendering the miniature. So the following won't really fix all
+	// the cases:
+	D3D11_RECT scissor{};
+	scissor.left = 0; scissor.top = 0;
+	scissor.right = g_steamVRWidth;
+	scissor.bottom = g_steamVRHeight;
+	*/
+
+	//_deviceResources->InitScissorRect(&scissor);
 
 	// TODO: Implement instanced rendering so that we issue only one draw call to
 	// render both eyes.

@@ -923,7 +923,8 @@ void D3dRenderer::CreateStates()
 	rsDesc.DepthBiasClamp = 0.0f;
 	rsDesc.SlopeScaledDepthBias = 0.0f;
 	rsDesc.DepthClipEnable = TRUE;
-	rsDesc.ScissorEnable = TRUE;
+	// Disable the scissor rect in VR mode. More work is needed for a proper fix
+	rsDesc.ScissorEnable = g_bEnableVR ? FALSE : TRUE;
 	rsDesc.MultisampleEnable = FALSE;
 	rsDesc.AntialiasedLineEnable = FALSE;
 	device->CreateRasterizerState(&rsDesc, &_rasterizerState);

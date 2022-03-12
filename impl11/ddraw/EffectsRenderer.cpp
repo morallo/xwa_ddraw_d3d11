@@ -2049,6 +2049,7 @@ void EffectsRenderer::RenderScene()
 	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
 	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
 	D3D11_RECT scissor{};
+	// The scissor is in screen coordinates.
 	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
 	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
 	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
