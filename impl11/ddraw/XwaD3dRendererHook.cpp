@@ -183,14 +183,16 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 
 void D3dRenderer::SceneEnd()
 {
-	static int PrevD3DExecuteCounter = 0;
+	static int PrevD3DExecuteCounter = -1;
 	// Reset the mesh cache if we're in the Tech Room every time the draw counter
 	// changes. This isn't a perfect fix, because if the draw call count stays
 	// the same after switching to a new ship, then we won't reset the meshes,
 	// but it helps.
 	if (g_bInTechRoom && g_iD3DExecuteCounter != PrevD3DExecuteCounter) {
+		// Set the signal to reset the meshes on the next frame. Resetting them here may
+		// cause a crash in SteamVR mode.
+		g_bResetCachedMeshes = true;
 		PrevD3DExecuteCounter = g_iD3DExecuteCounter;
-		FlightStart();
 	}
 }
 
@@ -204,6 +206,9 @@ void D3dRenderer::FlightStart()
 	_vertexCounters.clear();
 	_AABBs.clear();
 	ClearCachedSRVs();
+	// This should be the only place where this flag is set to false. Here's
+	// where we actually reset the meshes.
+	g_bResetCachedMeshes = false;
 }
 
 void D3dRenderer::MainSceneHook(const SceneCompData* scene)
