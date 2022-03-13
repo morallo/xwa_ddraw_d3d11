@@ -2789,7 +2789,8 @@ HRESULT Direct3DDevice::Execute(
 		// New constants added with the D3DRendererHook:
 		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
 		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
-		if (g_bEnableVR) {
+		if (g_bEnableVR && !g_bInTechRoom) {
+			// The Tech Room needs the regular viewportscale below in VR
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
 		} else {
