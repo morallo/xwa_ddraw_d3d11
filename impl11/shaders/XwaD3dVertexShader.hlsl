@@ -88,6 +88,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.pos3D.y = -output.pos3D.y; // Further conversion of the coordinate system (Y+ is up)
 	// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z+ is forward (away from the camera)
 
+	n = mul(float4(n, 0.0f), MeshTransform).xyz;
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
 	output.tex = t;
 	//output.color = float4(1.0f, 1.0f, 1.0f, 0.0f);

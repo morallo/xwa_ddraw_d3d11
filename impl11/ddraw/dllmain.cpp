@@ -45,6 +45,7 @@ extern int g_KeySet;
 extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
 extern bool g_bEnableAnimations;
+extern bool g_bFadeLights;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -403,6 +404,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsY -= 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
 					break;
+				case 14:
+					g_fGlowMarkZOfs += 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
+					break;
 				}
 
 				return 0;
@@ -443,6 +448,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 13:
 					g_fBlastMarkOfsY += 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
+				case 14:
+					g_fGlowMarkZOfs -= 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
 					break;
 				}
 
@@ -499,7 +508,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bShowSSAODebug = !g_bShowSSAODebug;
+				g_bFadeLights = !g_bFadeLights;
+				log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
+				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
+				//g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			// Toggle FXAA
@@ -599,7 +612,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			
 			case 'W':
-				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
+				g_iDelayedDumpDebugBuffers = 30;
+				log_debug("[DBG] Delayed debug dump set");
+				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
 				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;
@@ -716,13 +731,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
+				log_debug("[DBG] mouseLook: %d", *mouseLook);
 				return 0;
 			}
 
+			// Ctrl+R
 			case 'R': {
 				//g_bResetDC = true;
 				//g_bProceduralSuns = !g_bProceduralSuns;
-				g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
+				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
+				g_bResetCachedMeshes = true;
+				log_debug("[DBG] g_bResetCachedMeshes = true");
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
@@ -733,6 +754,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//}
 			case 'S': {
 				g_bShadowMapEnable = !g_bShadowMapEnable;
+				log_debug("[DBG] g_bShadowMapEnable: %d", g_bShadowMapEnable);
 				return 0;
 			}
 			//case 'E': {

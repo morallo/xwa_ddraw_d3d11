@@ -1922,9 +1922,15 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			col.y = value + g_fXWALightsSaturation * (col.y - value);
 			col.z = value + g_fXWALightsSaturation * (col.z - value);
 
-			g_ShadingSys_PSBuffer.LightColor[i].x = g_fXWALightsIntensity * col.x;
-			g_ShadingSys_PSBuffer.LightColor[i].y = g_fXWALightsIntensity * col.y;
-			g_ShadingSys_PSBuffer.LightColor[i].z = g_fXWALightsIntensity * col.z;
+			// We should not fade the lights while we're in the hangar. The lighting doesn't match
+			// the suns anyway.
+			float Lightness = g_bFadeLights && !*g_playerInHangar ?
+				max(g_fMinLightIntensity, 1.0f - g_ShadowMapVSCBuffer.sm_black_levels[i]) :
+				1.0f;
+
+			g_ShadingSys_PSBuffer.LightColor[i].x = Lightness * g_fXWALightsIntensity * col.x;
+			g_ShadingSys_PSBuffer.LightColor[i].y = Lightness * g_fXWALightsIntensity * col.y;
+			g_ShadingSys_PSBuffer.LightColor[i].z = Lightness * g_fXWALightsIntensity * col.z;
 			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
 
 			if (g_ShadingSys_PSBuffer.HDREnabled) {
@@ -1957,6 +1963,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		}
 		if (g_bDumpSSAOBuffers)
 			log_file("[DBG] maxIdx: %d, maxIntensity: %0.3f\n\n", maxIdx, maxIntensity);
+		if (*g_playerInHangar) maxLights = 2;
 		g_ShadingSys_PSBuffer.LightCount  = maxLights;
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
@@ -2054,7 +2061,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	else
 		g_ShadingSys_PSBuffer.num_lasers = 0;
 	
-	/*
 	if (g_bDumpSSAOBuffers) 
 	{
 		log_debug("[DBG] LightCount: %d, maxIdx: %d", g_ShadingSys_PSBuffer.LightCount, maxIdx);
@@ -2066,7 +2072,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			);
 		}
 	}
-	*/
 
 	// TODO:
 	g_ShadingSys_PSBuffer.ambient = *g_playerInHangar ? g_fHangarAmbient : g_fGlobalAmbient;
@@ -3753,6 +3758,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	D3D11_VIEWPORT viewport{};
 
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
+
 	// Prevent rendering the hyperspace effect multiple times per frame:
 	if (g_bHyperspaceEffectRenderedOnCurrentFrame)
 		return;
@@ -4455,6 +4463,8 @@ void PrimarySurface::RenderStarDebug()
 
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_starDebugPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -4801,6 +4811,8 @@ void PrimarySurface::RenderExternalHUD()
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_externalHUDPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -6368,6 +6380,8 @@ void PrimarySurface::RenderSunFlare()
 			//log_debug("[DBG] QL: %0.3f, %0.3f", QL[i].x, QL[i].y);
 		}
 	}
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
 	// Set the shadertoy constant buffer:
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(resources->_sunFlareShaderPS);
@@ -7353,7 +7367,7 @@ HRESULT PrimarySurface::Flip(
 			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
-			//if (bInTechRoom) log_debug("[DBG] IN TECH ROOM");
+			//if (g_bInTechRoom) log_debug("[DBG] IN TECH ROOM");
 			// If we don't have the metric params ready by the time the Tech Room is presented,
 			// then nothing will show up, so it's better to initialize the params (with default
 			// values) just in case we go into the tech room before we load any mission.
@@ -7749,6 +7763,7 @@ HRESULT PrimarySurface::Flip(
 					}
 					
 					g_bRendering3D = false;
+					g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 					if (g_bDumpSSAOBuffers) {
 						/*
 						if (colorFile != NULL) {
@@ -7932,30 +7947,10 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
-			//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
-			g_ShadowMapping.bEnabled = g_bShadowMapEnable;
-			g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
-			// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
-			// Maybe also disable it if the cockpit is hidden
-			// Render the Shadow Map
-			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && 
-				!bExternalCamera && bCockpitDisplayed && g_HyperspacePhaseFSM == HS_INIT_ST)
+			// Here we're only tagging and fading lights, the shadowmap is now rendered in EffectsRenderer::RenderShadowMap()
+			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				TagAndFadeXWALights();
-
-				// Restore the previous viewport, etc
-				resources->InitViewport(&g_nonVRViewport);
-				resources->InitVertexShader(resources->_vertexShader);
-				//resources->InitPixelShader(lastPixelShader);
-				// Restore the previous index and vertex buffers?
-				context->OMSetRenderTargets(0, 0, resources->_depthStencilViewL.Get());
-				resources->InitRasterizerState(resources->_rasterizerState);
-			}
-			else {
-				// We need to tell the pixel shaders not to sample the shadow map if it wasn't rendered:
-				g_ShadowMapVSCBuffer.sm_enabled = false;
-				resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 			}
 
 			// Render the hyperspace effect if necessary
@@ -8945,6 +8940,12 @@ HRESULT PrimarySurface::Flip(
 			//	log_debug("[DBG] Exited Hangar, resetting g_iPresentCounter and HUD regions");
 			//}
 			//bPrevPlayerInHangar = *g_playerInHangar;
+
+			if (g_iDelayedDumpDebugBuffers) {
+				g_iDelayedDumpDebugBuffers--;
+				if (g_iDelayedDumpDebugBuffers == 0)
+					g_bDumpSSAOBuffers = true;
+			}
 
 			// This is Jeremy's code:
 			//if (FAILED(hr = this->_deviceResources->_swapChain->Present(g_config.VSyncEnabled ? 1 : 0, 0)))

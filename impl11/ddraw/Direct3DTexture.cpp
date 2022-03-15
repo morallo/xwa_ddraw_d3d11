@@ -24,6 +24,8 @@ namespace fs = std::filesystem;
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
 
+std::map<std::string, ID3D11ShaderResourceView *> DATImageMap;
+
 #ifdef DBG_VR
 /*
 void DumpTexture(ID3D11DeviceContext *context, ID3D11Resource *texture, int index) {
@@ -291,7 +293,7 @@ Direct3DTexture::~Direct3DTexture()
 HRESULT Direct3DTexture::QueryInterface(
 	REFIID riid,
 	LPVOID* obp
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -410,6 +412,41 @@ HRESULT Direct3DTexture::PaletteChanged(
 #endif
 
 	return DDERR_UNSUPPORTED;
+}
+
+std::string Direct3DTexture::GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId)
+{
+	return std::string(sDATZIPFileName) + "-" + std::to_string(GroupId) + "-" + std::to_string(ImageId);
+}
+
+bool Direct3DTexture::GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
+{
+	std::string hash = GetDATImageHash(sDATZIPFileName, GroupId, ImageId);
+	auto it = DATImageMap.find(hash);
+	if (it == DATImageMap.end()) {
+		*srv = nullptr;
+		//log_debug("[DBG] Cached image not found [%s]", hash);
+		return false;
+	}
+	*srv = it->second;
+	// This AddRef gets taken care of in DeviceResources::ResetExtraTextures()
+	(*srv)->AddRef();
+	//log_debug("[DBG] Using cached image [%s]", hash);
+	return true;
+}
+
+void Direct3DTexture::AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView *srv)
+{
+	std::string hash = GetDATImageHash(sDATZIPFileName, GroupId, ImageId);
+	DATImageMap.insert(std::make_pair(hash, srv));
+	// This AddRef gets taken care of in DeviceResources::ResetExtraTextures()
+	srv->AddRef();
+	//log_debug("[DBG] Cached image [%s]", hash);
+}
+
+void ClearCachedSRVs()
+{
+	DATImageMap.clear();
 }
 
 void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
@@ -582,6 +619,9 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 	HRESULT res = -1;
 	*srv = nullptr;
 
+	if (GetCachedSRV(sDATFileName, GroupId, ImageId, srv))
+		return S_OK;
+
 	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
 		return res;
 
@@ -610,6 +650,9 @@ HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int Image
 		log_debug("[DBG] [C++] Failed to read image data");
 
 	if (buf != nullptr) delete[] buf;
+	// Cache this image for future use
+	if (res == S_OK)
+		AddCachedSRV(sDATFileName, GroupId, ImageId, *srv);
 	return res;
 }
 
@@ -623,6 +666,9 @@ HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int Image
 	// Initialize the output to null/failure by default:
 	HRESULT res = -1;
 	*srv = nullptr;
+
+	if (GetCachedSRV(sZIPFileName, GroupId, ImageId, srv))
+		return S_OK;
 
 	if (!InitZIPReader()) // This call is idempotent and should do nothing when ZIPReader is already loaded
 		return res;
@@ -647,6 +693,8 @@ HRESULT Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int Image
 	mbstowcs_s(&len, wTexName, MAX_TEX_SEQ_NAME, sActualFileName, MAX_TEX_SEQ_NAME);
 	res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, srv);
 	
+	if (res == S_OK)
+		AddCachedSRV(sZIPFileName, GroupId, ImageId, *srv);
 	return res;
 }
 
@@ -1441,7 +1489,7 @@ HRESULT Direct3DTexture::Load(
 #endif
 
 		d3dTexture->_textureView->AddRef();
-		*&this->_textureView = d3dTexture->_textureView.Get();
+		this->_textureView = d3dTexture->_textureView.Get();
 
 		return D3D_OK;
 	}
@@ -1454,6 +1502,7 @@ HRESULT Direct3DTexture::Load(
 #if LOGGER
 	str.str("");
 	str << "\t" << surface->_pixelFormat.dwRGBBitCount;
+	str << " " << surface->_width << "x" << surface->_height;
 	str << " " << (void*)surface->_pixelFormat.dwRBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwGBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwBBitMask;
@@ -1487,10 +1536,10 @@ HRESULT Direct3DTexture::Load(
 		}
 	}
 
-	D3D11_TEXTURE2D_DESC textureDesc;
+	D3D11_TEXTURE2D_DESC textureDesc{};
 	textureDesc.Width = surface->_width;
 	textureDesc.Height = surface->_height;
-	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT ? format : BACKBUFFER_FORMAT;
+	textureDesc.Format = (this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT) ? format : BACKBUFFER_FORMAT;
 	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	textureDesc.CPUAccessFlags = 0;
 	textureDesc.MiscFlags = 0;
@@ -1507,7 +1556,7 @@ HRESULT Direct3DTexture::Load(
 
 	if (useBuffers)
 	{
-		buffers = new char*[textureDesc.MipLevels];
+		buffers = new char* [textureDesc.MipLevels];
 		buffers[0] = convertFormat(surface->_buffer, surface->_width, surface->_height, format);
 	}
 
@@ -1565,11 +1614,6 @@ out:
 
 		messageShown = true;
 
-#if LOGGER
-		str.str("\tD3DERR_TEXTURE_LOAD_FAILED");
-		LogText(str.str());
-#endif
-
 		return D3DERR_TEXTURE_LOAD_FAILED;
 	}
 
@@ -1590,7 +1634,7 @@ out:
 }
 
 	d3dTexture->_textureView->AddRef();
-	*&this->_textureView = d3dTexture->_textureView.Get();
+	this->_textureView = d3dTexture->_textureView.Get();
 
 	return D3D_OK;
 }

@@ -8,6 +8,8 @@ bool g_bEnableAnimations = true;
 
 EffectsRenderer g_effects_renderer;
 
+Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+
 float4 TransformProjection(float3 input)
 {
 	float vpScaleX = g_VSCBuffer.viewportScale[0];
@@ -189,6 +191,7 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 // ****************************************************
 // Set the following flag to true to enable dumping the current scene to an OBJ file
 bool bD3DDumpOBJEnabled = false;
+bool bHangarDumpOBJEnabled = false;
 FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
 int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DTotalNormals = 0, D3DOBJGroup = 0;
 int D3DOBJLaserFileIdx = 0, D3DTotalLaserVertices = 0, D3DTotalLaserTextureVertices = 0, D3DOBJLaserGroup = 0;
@@ -226,7 +229,37 @@ inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
 	return Vector2(V.u, V.v);
 }
 
-void OBJDumpD3dVertices(const SceneCompData *scene)
+/*
+ * Dump the current Limits to an OBJ file.
+ * Before calling this method, make sure you call UpdateLimits() to convert the internal aabb into
+ * a list of vertices and then call TransformLimits() with the appropriate transform matrix.
+ */
+void AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset)
+{
+	fprintf(D3DDumpOBJFile, "o aabb-%d\n", OBJGroupId);
+	for (uint32_t i = 0; i < Limits.size(); i++) {
+		Vector4 V = Limits[i];
+		fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	}
+
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 1);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 2);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 3);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 0);
+
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 4, VerticesCountOffset + 5);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 5, VerticesCountOffset + 6);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 6, VerticesCountOffset + 7);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 7, VerticesCountOffset + 4);
+
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 4);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 5);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 6);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 7);
+	fprintf(D3DDumpOBJFile, "\n");
+}
+
+void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
 {
 	std::ostringstream str;
 	XwaVector3 *MeshVertices = scene->MeshVertices;
@@ -235,6 +268,7 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 	int MeshNormalsCount = *(int*)((int)MeshNormals - 8);
 	static XwaVector3 *LastMeshVertices = nullptr;
 	static int LastMeshVerticesCount = 0, LastMeshNormalsCount = 0;
+	bool bShadowDump = g_rendererType == RendererType_Shadow;
 
 	if (D3DOBJGroup == 1) {
 		LastMeshVerticesCount = 0;
@@ -249,18 +283,49 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 	fprintf(D3DDumpOBJFile, "# projDeltaX,Y: %0.6f, %0.6f\n", projectionDeltaX, projectionDeltaY);
 	fprintf(D3DDumpOBJFile, "# viewportScale: %0.6f, %0.6f %0.6f\n",
 		g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2]);
+	if (bShadowDump) {
+		fprintf(D3DDumpOBJFile, "# Hangar Shadow Render, Floor: %0.3f, hangarShadowAccStartEnd: %0.3f, "
+			"sx1,sy1: (%0.3f, %0.3f), sx2,sy2:(%0.3f, %0.3f)\n",
+			_constants.floorLevel, _constants.hangarShadowAccStartEnd,
+			_constants.sx1, _constants.sy1,
+			_constants.sx2, _constants.sy2);
+		fprintf(D3DDumpOBJFile, "# Camera: %0.3f, %0.3f\n",
+			_constants.cameraPositionX, _constants.cameraPositionY);
+	}
 
 	if (LastMeshVertices != MeshVertices) {
 		// This is a new mesh, dump all the vertices.
+		Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+		Matrix4 L, S1, S2;
+		L.identity();
+		S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+		S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
+		if (g_rendererType == RendererType_Shadow)
+			// See HangarShadowSceneHook for an explanation of why L looks like this:
+			L = A * S1 * Matrix4(_constants.hangarShadowView) * S2;
+
+#define DUMP_AABBS 0
+#if DUMP_AABBS == 1
+		auto it = _AABBs.find((int)(scene->MeshVertices));
+		if (it != _AABBs.end())
+		{
+			AABB aabb = it->second;
+			aabb.UpdateLimits();
+			aabb.TransformLimits(L * S1 * W);
+			aabb.DumpLimitsToOBJ(D3DDumpOBJFile, D3DOBJGroup, D3DTotalVertices + LastMeshVerticesCount);
+			D3DTotalVertices += aabb.Limits.size();
+		}
+		else
+			fprintf(D3DDumpOBJFile, "# No AABB found for this mesh\n");
+#endif
+
 		//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, NormalsCount: %d, FacesCount: %d",
 		//	D3DOBJGroup, MeshVerticesCount, MeshNormalsCount, scene->FacesCount);
-		fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
-
-		Matrix4 T = XwaTransformToMatrix4(scene->WorldViewTransform);
+		fprintf(D3DDumpOBJFile, "o %s-%d\n", bShadowDump ? "shw" : "obj", D3DOBJGroup);
 		for (int i = 0; i < MeshVerticesCount; i++) {
 			XwaVector3 v = MeshVertices[i];
 			Vector4 V(v.x, v.y, v.z, 1.0f);
-			V = T * V;
+			V = W * V;
 
 			// Enable the following block to debug InverseTransformProjection
 #define EXTRA_DEBUG 0
@@ -286,7 +351,8 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 			}
 #endif
 			// OPT to meters conversion:
-			V *= OPT_TO_METERS;
+			//V *= OPT_TO_METERS;
+			V = L * S1 * V;
 			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
 		}
 		fprintf(D3DDumpOBJFile, "\n");
@@ -329,6 +395,8 @@ void OBJDumpD3dVertices(const SceneCompData *scene)
 //************************************************************************
 
 EffectsRenderer::EffectsRenderer() : D3dRenderer() {
+	_hangarShadowMapRotation.identity();
+	_hangarShadowMapRotation.rotateX(180.0f);
 }
 
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
@@ -338,21 +406,27 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	// Reset any deferred-rendering variables here
 	_LaserDrawCommands.clear();
 	_TransparentDrawCommands.clear();
+	_ShadowMapDrawCommands.clear();
 	_bCockpitConstantsCaptured = false;
 	_bShadowsRenderedInCurrentFrame = false;
+	_bHangarShadowsRenderedInCurrentFrame = false;
 	// Initialize the joystick mesh transform on this frame
 	_bJoystickTransformReady = false;
-	_bThrottleTransformReady = false;
+	//_bThrottleTransformReady = false;
+	//_bThrottleRotAxisToZPlusReady = false;
 	_joystickMeshTransform.identity();
+	// Initialize the mesh transform for this frame
 	g_OPTMeshTransformCB.MeshTransform.identity();
-	_deviceResources->InitVSConstantOPTMeshTransform(
-		_deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+	deviceResources->InitVSConstantOPTMeshTransform(
+		deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+	// Initialize the hangar AABB
+	_hangarShadowAABB.SetInfinity();
 
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
 
 	// Initialize the OBJ dump file for the current frame
-	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
 		// Create the file if it doesn't exist
 		if (D3DDumpOBJFile == NULL) {
 			char sFileName[128];
@@ -380,7 +454,7 @@ void EffectsRenderer::SceneEnd()
 	D3dRenderer::SceneEnd();
 
 	// Close the OBJ dump file for the current frame
-	if (bD3DDumpOBJEnabled && g_bDumpSSAOBuffers) {
+	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
 		fclose(D3DDumpOBJFile); D3DDumpOBJFile = NULL;
 		log_debug("[DBG] OBJ file [d3dcapture-%d.obj] written", D3DOBJFileIdx);
 		D3DOBJFileIdx++;
@@ -388,6 +462,16 @@ void EffectsRenderer::SceneEnd()
 		fclose(D3DDumpLaserOBJFile); D3DDumpLaserOBJFile = NULL;
 		log_debug("[DBG] OBJ file [d3dlasers-%d.obj] written", D3DOBJLaserFileIdx);
 		D3DOBJLaserFileIdx++;
+
+		if (!_hangarShadowAABB.IsInvalid() && bHangarDumpOBJEnabled) {
+			FILE *ShadowMapFile = NULL;
+			fopen_s(&ShadowMapFile, ".\\HangarShadowMapLimits.OBJ", "wt");
+			_hangarShadowAABB.UpdateLimits();
+			// The hangar AABB should already be in metric space and in the light view frame. There's no need
+			// to apply additional transforms here.
+			_hangarShadowAABB.DumpLimitsToOBJ(ShadowMapFile, 1, 1);
+			fclose(ShadowMapFile);
+		}
 	}
 }
 
@@ -738,119 +822,6 @@ void EffectsRenderer::ApplyMaterialProperties()
 		g_PSCBuffer.fBloomStrength = 0.0f;
 		resources->InitPixelShader(resources->_noGlassPS);
 	}
-
-	DiegeticMeshType DiegeticMesh = _lastTextureSelected->material.DiegeticMesh;
-	switch (DiegeticMesh) {
-	case DM_JOYSTICK: {
-		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
-		// true as soon as one mesh computes it, so that we don't compute it several times per
-		// frame.
-		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
-			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
-			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
-			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
-			Matrix4 T, R;
-
-			// Translate the JoystickRoot to the origin
-			T.identity(); T.translate(-JoystickRoot);
-			_joystickMeshTransform = T;
-
-			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
-			_joystickMeshTransform = R * _joystickMeshTransform;
-
-			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
-			_joystickMeshTransform = R * _joystickMeshTransform;
-
-			// Return the system to its original position
-			T.identity(); T.translate(JoystickRoot);
-			_joystickMeshTransform = T * _joystickMeshTransform;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_joystickMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bJoystickTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
-		break;
-	}
-	case DM_THR_ROT_X:
-	case DM_THR_ROT_Y:
-	case DM_THR_ROT_Z:
-	{
-		if (!_bThrottleTransformReady) {
-			// Fetch the current throttle value
-			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
-			if (craftInstance == NULL) {
-				_throttleMeshTransform.identity();
-				break;
-			}
-			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
-
-			// Build the transform matrix
-			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
-			float ThrottleMaxAngle = _lastTextureSelected->material.ThrottleMaxAngle;
-			Matrix4 T, R;
-
-			// Translate the root to the origin
-			T.identity(); T.translate(-ThrottleRoot);
-			_throttleMeshTransform = T;
-
-			// Apply the rotation
-			R.identity();
-			if (DiegeticMesh == DM_THR_ROT_X) R.rotateX(throttle * ThrottleMaxAngle);
-			if (DiegeticMesh == DM_THR_ROT_Y) R.rotateY(throttle * ThrottleMaxAngle);
-			if (DiegeticMesh == DM_THR_ROT_Z) R.rotateZ(throttle * ThrottleMaxAngle);
-			_throttleMeshTransform = R * _throttleMeshTransform;
-
-			// Return the system to its original position
-			T.identity(); T.translate(ThrottleRoot);
-			_throttleMeshTransform = T * _throttleMeshTransform;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_throttleMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
-		break;
-	}
-	case DM_THR_TRANS:
-		if (!_bThrottleTransformReady) {
-			// Fetch the current throttle value
-			CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
-			if (craftInstance == NULL) {
-				_throttleMeshTransform.identity();
-				break;
-			}
-			float throttle = craftInstance->EngineThrottleInput / 65535.0f;
-
-			// Build the transform matrix
-			Matrix4 T, R;
-			Vector3 ThrottleStart = _lastTextureSelected->material.ThrottleStart;
-			Vector3 ThrottleEnd = _lastTextureSelected->material.ThrottleEnd;
-			Vector3 Dir = ThrottleEnd - ThrottleStart;
-			Dir.normalize();
-
-			// Apply the rotation
-			Dir *= throttle;
-			T.translate(Dir);
-			_throttleMeshTransform = T;
-
-			// We need to transpose the matrix because the Vertex Shader is expecting the
-			// matrix in this format
-			_throttleMeshTransform.transpose();
-			// Avoid computing the transform above more than once per frame:
-			_bThrottleTransformReady = true;
-		}
-		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
-		break;
-	default:
-		g_OPTMeshTransformCB.MeshTransform.identity();
-	}
-	// Set the current mesh transform, regardless of what type of mesh type we're rendering
-	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 }
 
 // Apply the SSAO mask/Special materials, like lasers and HUD
@@ -899,6 +870,213 @@ void EffectsRenderer::ApplySpecialMaterials()
 
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
+}
+
+void EffectsRenderer::ApplyDiegeticCockpit()
+{
+	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
+	// the beginning of MainSceneHook(). So if we just return from this function, no
+	// transform will be applied to the current mesh
+	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
+		return;
+
+	auto &resources = _deviceResources;
+
+	auto GetThrottle = []() {
+		CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
+		if (craftInstance == NULL) return 0.0f;
+		return craftInstance->EngineThrottleInput / 65535.0f;
+	};
+
+	auto GetHyperThrottle = []() {
+		float timeInHyperspace = (float)PlayerDataTable[*g_playerIndex].timeInHyperspace;
+		switch (g_HyperspacePhaseFSM) {
+		case HS_INIT_ST:
+			return 0.0f;
+		case HS_HYPER_ENTER_ST:
+			return min(1.0f, timeInHyperspace / 550.0f);
+		case HS_HYPER_TUNNEL_ST:
+			return 1.0f;
+		case HS_HYPER_EXIT_ST:
+			return max(0.0f, 1.0f - timeInHyperspace / 190.0f);
+		}
+		return 0.0f;
+	};
+
+	DiegeticMeshType DiegeticMesh = _lastTextureSelected->material.DiegeticMesh;
+	switch (DiegeticMesh) {
+	case DM_JOYSTICK: {
+		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
+		// true as soon as one mesh computes it, so that we don't compute it several times per
+		// frame.
+		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
+			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
+			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
+			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
+			Matrix4 T, R;
+
+			// Translate the JoystickRoot to the origin
+			T.identity(); T.translate(-JoystickRoot);
+			_joystickMeshTransform = T;
+
+			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
+			_joystickMeshTransform = R * _joystickMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(JoystickRoot);
+			_joystickMeshTransform = T * _joystickMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_joystickMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			_bJoystickTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _joystickMeshTransform;
+		break;
+	}
+	case DM_THR_ROT_X:
+	case DM_THR_ROT_Y:
+	case DM_THR_ROT_Z:
+	case DM_HYPER_ROT_X:
+	case DM_HYPER_ROT_Y:
+	case DM_HYPER_ROT_Z:
+	{
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleTransformReady)
+		{
+			float throttle = (DiegeticMesh == DM_THR_ROT_X || DM_THR_ROT_Y || DM_THR_ROT_Z) ?
+				GetThrottle() : GetHyperThrottle();
+
+			// Build the transform matrix
+			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
+			float ThrottleMaxAngle = _lastTextureSelected->material.ThrottleMaxAngle;
+			Matrix4 T, R;
+
+			// Translate the root to the origin
+			T.identity(); T.translate(-ThrottleRoot);
+			_throttleMeshTransform = T;
+
+			// Apply the rotation
+			R.identity();
+			if (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_HYPER_ROT_X) R.rotateX(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Y || DiegeticMesh == DM_HYPER_ROT_Y) R.rotateY(throttle * ThrottleMaxAngle);
+			if (DiegeticMesh == DM_THR_ROT_Z || DiegeticMesh == DM_HYPER_ROT_Z) R.rotateZ(throttle * ThrottleMaxAngle);
+			_throttleMeshTransform = R * _throttleMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(ThrottleRoot);
+			_throttleMeshTransform = T * _throttleMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			//_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	}
+	case DM_THR_TRANS:
+	case DM_HYPER_TRANS:
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleTransformReady)
+		{
+			float throttle = DiegeticMesh == DM_THR_TRANS ? GetThrottle() : GetHyperThrottle();
+
+			// Build the transform matrix
+			Matrix4 T, R;
+			Vector3 ThrottleStart = _lastTextureSelected->material.ThrottleStart;
+			Vector3 ThrottleEnd = _lastTextureSelected->material.ThrottleEnd;
+			Vector3 Dir = ThrottleEnd - ThrottleStart;
+			Dir.normalize();
+
+			// Apply the rotation
+			Dir *= throttle;
+			T.translate(Dir);
+			_throttleMeshTransform = T;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			// Avoid computing the transform above more than once per frame:
+			//_bThrottleTransformReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	case DM_THR_ROT_ANY:
+	case DM_HYPER_ROT_ANY:
+		// Caching the transform may not work well when both the throttle and the hyper
+		// throttle are present.
+		//if (!_bThrottleRotAxisToZPlusReady)
+		{
+			float throttle = DiegeticMesh == DM_THR_ROT_ANY ? GetThrottle() : GetHyperThrottle();
+			Material *material = &(_lastTextureSelected->material);
+
+			float ThrottleMaxAngle = material->ThrottleMaxAngle;
+			Vector3 ThrottleStart = material->ThrottleStart;
+			Vector3 ThrottleEnd = material->ThrottleEnd;
+			if (!material->bRotAxisToZPlusReady) {
+				// Cache RotAxisToZPlus so that we don't have to compute it on every frame
+				Vector4 Dir;
+				Dir.x = ThrottleEnd.x - ThrottleStart.x;
+				Dir.y = ThrottleEnd.y - ThrottleStart.y;
+				Dir.z = ThrottleEnd.z - ThrottleStart.z;
+				Dir.w = 0;
+				material->RotAxisToZPlus = GetSimpleDirectionMatrix(Dir, false);
+				material->bRotAxisToZPlusReady = true;
+			}
+			Matrix4 RotAxisToZPlus = material->RotAxisToZPlus;
+
+			Matrix4 T, R;
+			// Translate the root to the origin
+			T.identity(); T.translate(-ThrottleStart);
+			_throttleMeshTransform = T;
+
+			// Align with Z+
+			_throttleMeshTransform = RotAxisToZPlus * _throttleMeshTransform;
+
+			// Apply the rotation
+			R.identity();
+			R.rotateZ(throttle * ThrottleMaxAngle);
+			_throttleMeshTransform = R * _throttleMeshTransform;
+
+			// Invert Z+ alignment
+			RotAxisToZPlus.transpose();
+			_throttleMeshTransform = RotAxisToZPlus * _throttleMeshTransform;
+
+			// Return the system to its original position
+			T.identity(); T.translate(ThrottleStart);
+			_throttleMeshTransform = T * _throttleMeshTransform;
+
+			// We need to transpose the matrix because the Vertex Shader is expecting the
+			// matrix in this format
+			_throttleMeshTransform.transpose();
+			//_bThrottleRotAxisToZPlusReady = true;
+		}
+		g_OPTMeshTransformCB.MeshTransform = _throttleMeshTransform;
+		break;
+	}
+}
+
+void EffectsRenderer::ApplyMeshTransform()
+{
+	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
+	// the beginning of MainSceneHook(). So if we just return from this function, no
+	// transform will be applied to the current mesh
+	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL || !_lastTextureSelected->material.meshTransform.bDoTransform)
+		return;
+
+	auto &resources = _deviceResources;
+	Material *material = &(_lastTextureSelected->material);
+	
+	material->meshTransform.UpdateTransform();
+	g_OPTMeshTransformCB.MeshTransform = material->meshTransform.ComputeTransform();
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
@@ -1291,8 +1469,8 @@ void EffectsRenderer::ApplyAnimatedTextures()
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 	}
 
-	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
+	//if (g_bDumpSSAOBuffers)
+	//	log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
 	//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
 
 	if (extraTexIdx > -1) {
@@ -1349,8 +1527,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-	_deviceResources->InitPixelShader(_pixelShader);
-	ComPtr<ID3D11PixelShader> lastPixelShader = _pixelShader;
+	ComPtr<ID3D11PixelShader> lastPixelShader = g_bInTechRoom ? _techRoomPixelShader : _pixelShader;
+	_deviceResources->InitPixelShader(lastPixelShader);
 
 	UpdateTextures(scene);
 	UpdateMeshBuffers(scene);
@@ -1435,6 +1613,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AuxColor.z = 1.0f;
 	g_PSCBuffer.AuxColor.w = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
+	if (g_bInTechRoom && g_config.OnlyGrayscaleInTechRoom)
+		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
+
+	// Initialize the mesh transform for each mesh. During MainSceneHook,
+	// this transform may be modified to apply an animation. See
+	// ApplyDiegeticCockpit() and ApplyMeshTransform()
+	g_OPTMeshTransformCB.MeshTransform.identity();
 
 	// We will be modifying the regular render state from this point on. The state and the Pixel/Vertex
 	// shaders are already set by this point; but if we modify them, we'll set bModifiedShaders to true
@@ -1449,6 +1634,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	// Apply the SSAO mask/Special materials, like lasers and HUD
 	ApplySpecialMaterials();
+
+	// Animate the Diegetic Cockpit (joystick, throttle, hyper-throttle, etc)
+	ApplyDiegeticCockpit();
+
+	// Animate the current mesh (if applicable)
+	ApplyMeshTransform();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
@@ -1513,6 +1704,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		if (g_PSCBuffer.DynCockpitSlots > 0)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+		// Set the current mesh transform
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 	}
 
 	// Dump the current scene to an OBJ file
@@ -1525,7 +1718,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// An OPT contains multiple meshes
 		// _verticesCount has the number of vertices in the current face group
 		//log_debug("[DBG] _vertices.size(): %lu, _verticesCount: %d", _vertices.size(), _verticesCount);
-		OBJDumpD3dVertices(scene); // _vertices.data(), _verticesCount, _triangles.data(), _trianglesCount);
+		OBJDumpD3dVertices(scene, Matrix4().identity());
 	}
 
 	// There's a bug with the lasers: they are sometimes rendered at the start of the frame, causing them to be
@@ -1557,6 +1750,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.trianglesCount = _trianglesCount;
 		// Save the constants
 		command.constants = _constants;
+		command.meshTransformMatrix.identity();
 		// Add the command to the list of deferred commands
 		_LaserDrawCommands.push_back(command);
 
@@ -1594,6 +1788,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.bIsGunner = _bIsGunner;
 		command.bIsBlastMark = _bIsBlastMark;
 		command.pixelShader = resources->GetCurrentPixelShader();
+		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
 
@@ -1836,7 +2031,30 @@ out:
 
 void EffectsRenderer::RenderScene()
 {
+	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
+	{
+		return;
+	}
+
+	// Skip hangar shadows if configured:
+	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
+		return;
+
 	auto &context = _deviceResources->_d3dDeviceContext;
+
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	// The scissor is in screen coordinates.
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	_deviceResources->InitScissorRect(&scissor);
 
 	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
 	// (unknown, maybe RenderMain?) path is taken instead.
@@ -1866,6 +2084,7 @@ void EffectsRenderer::RenderScene()
 
 //out:
 	g_iD3DExecuteCounter++;
+	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 }
 
 void EffectsRenderer::RenderLasers()
@@ -1910,6 +2129,8 @@ void EffectsRenderer::RenderLasers()
 	g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
 	//g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 
+	g_OPTMeshTransformCB.MeshTransform.identity();
+
 	// Flags used in RenderScene():
 	_bIsCockpit = false;
 	_bIsGunner = false;
@@ -1921,6 +2142,7 @@ void EffectsRenderer::RenderLasers()
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	// Other stuff that is common in the loop below
 	UINT vertexBufferStride = sizeof(D3dVertex);
@@ -1997,6 +2219,9 @@ void EffectsRenderer::RenderTransparency()
 		// Apply the VS and PS constants
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		g_OPTMeshTransformCB.MeshTransform = command.meshTransformMatrix;
+		resources->InitVSConstantOPTMeshTransform(
+			resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 		if (g_PSCBuffer.DynCockpitSlots > 0)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 
@@ -2152,10 +2377,68 @@ Matrix4 EffectsRenderer::GetShadowMapLimits(Matrix4 L, float *OBJrange, float *O
 	return S * T;
 }
 
-void EffectsRenderer::RenderShadowMap()
+/*
+ * Using the given 3D box Limits, compute the 2D/Z-Depth limits needed to center the Shadow Map depth
+ * buffer. This version expects the AABB to be in the lightview coordinate system
+ */
+Matrix4 EffectsRenderer::GetShadowMapLimits(const AABB &aabb, float *range, float *minZ) {
+	float cx, cy, sx, sy;
+	Matrix4 S, T;
+	Vector4 P, Q;
+
+	// Compute the centroid
+	cx = (aabb.min.x + aabb.max.x) / 2.0f;
+	cy = (aabb.min.y + aabb.max.y) / 2.0f;
+
+	// Compute the scale
+	sx = 1.95f / (aabb.max.x - aabb.min.x); // Map to -0.975..0.975
+	sy = 1.95f / (aabb.max.y - aabb.min.y); // Map to -0.975..0.975
+	// Having an anisotropic scale provides a better usage of the shadow map. However
+	// it also distorts the shadow map, making it harder to debug.
+	// release
+	float s = min(sx, sy);
+	//sz = 1.8f / (maxz - minz); // Map to -0.9..0.9
+	//sz = 1.0f / (maxz - minz);
+
+	// We want to map xy to the origin; but we want to map Z to 0..0.98, so that Z = 1.0 is at infinity
+	// Translate the points so that the centroid is at the origin
+	T.translate(-cx, -cy, 0.0f);
+	// Scale around the origin so that the xyz limits are [-0.9..0.9]
+	if (g_ShadowMapping.bAnisotropicMapScale)
+		S.scale(sx, sy, 1.0f); // Anisotropic scale: better use of the shadow map
+	else
+		S.scale(s, s, 1.0f); // Isotropic scale: better for debugging.
+
+	*minZ = aabb.min.z;
+	*range = aabb.max.z - aabb.min.z;
+
+	if (g_bDumpSSAOBuffers) {
+		log_debug("[DBG] [HNG] min-x,y,z: %0.3f, %0.3f, %0.3f, max-x,y,z: %0.3f, %0.3f, %0.3f",
+			aabb.min.x, aabb.min.y, aabb.min.z,
+			aabb.max.x, aabb.max.y, aabb.max.z);
+		log_debug("[DBG] [HNG] cx,cy: %0.3f, %0.3f, sx,sy,s: %0.3f, %0.3f, %0.3f",
+			cx, cy, sx, sy, s);
+		log_debug("[DBG] [HNG] maxZ: %0.3f, minZ: %0.3f, range: %0.3f",
+			aabb.max.z, *minZ, *range);
+	}
+	return S * T;
+}
+
+void EffectsRenderer::RenderCockpitShadowMap()
 {
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
+
+	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
+	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
+	g_ShadowMapping.bEnabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	// The post-proc shaders (SSDOAddPixel, SSAOAddPixel) use sm_enabled to compute shadows,
+	// we must set the PS constants here even if we're not rendering shadows at all
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
 	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
 	// Maybe also disable it if the cockpit is hidden
@@ -2163,9 +2446,7 @@ void EffectsRenderer::RenderShadowMap()
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
 		return;
-
-	auto &resources = _deviceResources;
-	auto &context = resources->_d3dDeviceContext;
+			
 	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
@@ -2204,11 +2485,7 @@ void EffectsRenderer::RenderShadowMap()
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
 
-	// Set the constant buffer for the VS and PS.
-	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-	// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
-	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-	// Set the transform matrix
+	// Set the cockpit transform matrix and other shading-related constants
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &(_CockpitConstants), 0, 0);
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
@@ -2219,7 +2496,15 @@ void EffectsRenderer::RenderShadowMap()
 		if (g_ShadowMapVSCBuffer.sm_black_levels[idx] > 0.95f)
 			continue;
 
+		// Reset the range for each active light
+		g_ShadowMapVSCBuffer.sm_minZ[idx] = 0.0f;
+		g_ShadowMapVSCBuffer.sm_maxZ[idx] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z; // Regular range for the cockpit
+
+		// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
+		// m	esh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
+
 		// Compute the LightView (Parallel Projection) Matrix
+		// g_CurrentHeadingViewMatrix needs to have the correct data from SteamVR, including roll
 		Matrix4 L = ComputeLightViewMatrix(idx, g_CurrentHeadingViewMatrix, false);
 		Matrix4 ST = GetShadowMapLimits(L, &range, &minZ);
 
@@ -2229,6 +2514,11 @@ void EffectsRenderer::RenderShadowMap()
 
 		// Render each light to its own shadow map
 		g_ShadowMapVSCBuffer.light_index = idx;
+
+		// Set the constant buffer for the VS and PS.
+		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+		// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
+		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
 		// Clear the Shadow Map DSV (I may have to update this later for the hyperspace state)
 		context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -2244,6 +2534,7 @@ void EffectsRenderer::RenderShadowMap()
 
 	if (g_bDumpSSAOBuffers) {
 		wchar_t wFileName[80];
+		
 		for (int i = 0; i < *s_XwaGlobalLightsCount; i++) {
 			context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
 				resources->_shadowMapArray, D3D11CalcSubresource(0, i, 1), NULL);
@@ -2256,6 +2547,243 @@ void EffectsRenderer::RenderShadowMap()
 	_bShadowsRenderedInCurrentFrame = true;
 }
 
+void EffectsRenderer::RenderHangarShadowMap()
+{
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	if (!*g_playerInHangar)
+		return;
+
+	if (!g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 || _bHangarShadowsRenderedInCurrentFrame ||
+		g_HyperspacePhaseFSM != HS_INIT_ST) {
+		_ShadowMapDrawCommands.clear();
+		return;
+	}
+
+	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
+	if (!g_ShadowMapping.bUseShadowOBJ || _bExternalCamera)
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = 1.0f;
+	else 
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;
+	// Make hangar shadows darker, as in the original version
+	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
+
+	// Adjust the range for the shadow maps. The first light is only for the cockpit:
+	g_ShadowMapVSCBuffer.sm_minZ[0] = 0.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[0] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z;
+	// The second light is for the hangar:
+	g_ShadowMapVSCBuffer.sm_minZ[1] = _bExternalCamera ? 0.0f : DEFAULT_COCKPIT_SHADOWMAP_MAX_Z - DEFAULT_COCKPIT_SHADOWMAP_MAX_Z / 2.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[1] = DEFAULT_HANGAR_SHADOWMAP_MAX_Z;
+
+	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
+	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
+	g_ShadowMapping.bEnabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	// The post-proc shaders (SSDOAddPixel, SSAOAddPixel) use sm_enabled to compute shadows,
+	// we must set the PS constants here even if we're not rendering shadows at all
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+
+	// Enable ZWrite: we'll need it for the ShadowMap
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = TRUE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	desc.DepthFunc = D3D11_COMPARISON_LESS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+	// Solid blend state, no transparency
+	resources->InitBlendState(_solidBlendState, nullptr);
+
+	// Init the Viewport. This viewport has the dimensions of the shadowmap texture
+	_deviceResources->InitViewport(&g_ShadowMapping.ViewPort);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+
+	_deviceResources->InitVertexShader(resources->_hangarShadowMapVS);
+	_deviceResources->InitPixelShader(resources->_shadowMapPS);
+
+	g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
+	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
+	// Select either the SW or HW bias depending on which setting is enabled
+	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	// Shadow map limits
+	float range, minZ;
+	Matrix4 ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
+
+	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
+	int ShadowMapIdx = 1; // Shadow maps for the hangar are always located at index 1
+	g_ShadowMapVSCBuffer.OBJrange[ShadowMapIdx] = range;
+	g_ShadowMapVSCBuffer.OBJminZ[ShadowMapIdx] = minZ;
+
+	// Clear the Shadow Map DSV
+	context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	// Set the Shadow Map DSV
+	context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
+	Matrix4 S1, S2;
+	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+	S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
+
+	for (DrawCommand command : _ShadowMapDrawCommands) {
+		// Set the mesh buffers
+		ID3D11ShaderResourceView* vsSSRV[1] = { command.vertexSRV };
+		context->VSSetShaderResources(0, 1, vsSSRV);
+
+		// Set the index and vertex buffers
+		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+		_deviceResources->InitVertexBuffer(&(command.vertexBuffer), &vertexBufferStride, &vertexBufferOffset);
+		_deviceResources->InitIndexBuffer(nullptr, true);
+		_deviceResources->InitIndexBuffer(command.indexBuffer, true);
+
+		// Compute the LightView (Parallel Projection) Matrix
+		// See HangarShadowSceneHook for an explanation of why L looks like this:
+		Matrix4 L = _hangarShadowMapRotation * S1 * Matrix4(command.constants.hangarShadowView) * S2;
+		g_ShadowMapVSCBuffer.lightWorldMatrix[ShadowMapIdx] = ST * L;
+		g_ShadowMapVSCBuffer.light_index = ShadowMapIdx;
+
+		// Set the constants buffer
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &(command.constants), 0, 0);
+
+		// Set the number of triangles
+		_trianglesCount = command.trianglesCount;
+
+		// Set the constant buffer for the VS and PS.
+		resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+		// The pixel shader is empty for the shadow map, but the SSAO/SSDO/Deferred PS do use these constants later
+		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+		// Render the Shadow Map
+		context->DrawIndexed(_trianglesCount * 3, 0, 0);
+	}
+
+	// Copy the shadow map to the right slot in the array
+	context->CopySubresourceRegion(resources->_shadowMapArray, D3D11CalcSubresource(0, ShadowMapIdx, 1), 0, 0, 0,
+		resources->_shadowMap, D3D11CalcSubresource(0, 0, 1), NULL);
+
+	if (g_bDumpSSAOBuffers) {
+		context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
+			resources->_shadowMapArray, D3D11CalcSubresource(0, ShadowMapIdx, 1), NULL);
+		DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"c:\\Temp\\_shadowMapHangar.dds");
+	}
+
+	RestoreContext();
+	_bHangarShadowsRenderedInCurrentFrame = true;
+	_ShadowMapDrawCommands.clear();
+}
+
+void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
+{
+	if (!g_config.EnableSoftHangarShadows) {
+		// Jump to the original version of this hook and return: this disables the new effect.
+		// There are some artifacts that need to be fixed before going live with this version.
+		D3dRenderer::HangarShadowSceneHook(scene);
+		return;
+	}
+
+	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+	auto &resources = _deviceResources;
+
+	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
+
+	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	_deviceResources->InitRasterizerState(_rasterizerState);
+	_deviceResources->InitSamplerState(_samplerState.GetAddressOf(), nullptr);
+
+	UpdateTextures(scene);
+	UpdateMeshBuffers(scene);
+	UpdateVertexAndIndexBuffers(scene);
+	UpdateConstantBuffer(scene);
+
+	int ShadowMapIdx = 1;
+	Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+	Matrix4 S1, S2;
+	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+	S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
+	// The transform chain here looks a bit odd, but it makes sense. Here's the explanation.
+	// XWA uses:
+	//
+	//     V = _constants.hangarShadowView * WorldViewTransform * V
+	//
+	// To transform from the OPT system to the world view and then to the light's point of view
+	// in the hangar. But this transform chain only works when transforming from OPT coordinates.
+	// Meanwhile, the transform rule in XwaD3DPixelShader looks like this:
+	//
+	//     output.pos3D = scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS) * transformWorldView * V
+	//
+	// or:
+	//
+	//     output.pos3D = S * W * V
+	//
+	// We need pos3D, because that's what we use for shadow mapping. But we need to apply
+	// hangarShadowView before we apply the OPT_TO_METERS scale matrix or the transform won't work.
+	// So this is how I solved this problem:
+	// Transform V into metric 3D, so that we get a valid pos3D, but then invert the scale matrix
+	// so that we get OPT scale back again and then we can apply the hangarShadowView in a valid
+	// coordinate system. Finally, apply the scale matrix once more to get metric coordinates and
+	// project. Unfortunately, after using hangarShadowView, things will be "upside down" in the
+	// shadow map, so we have to rotate things by 180 degrees. In other words, we do this:
+	//
+	//    V = (RotX180 * S * hangarShadowView * S') * S * W * V
+	//
+	// where L = (RotX180 * S * hangarShadowView * S') is our light view transform:
+	// (BTW, we need to use this same rule in HangarShadowMapVS)
+	Matrix4 L = _hangarShadowMapRotation * S1 * Matrix4(_constants.hangarShadowView) * S2;
+
+	// Compute the AABB for the hangar to use later when rendering the shadow map
+	auto it = _AABBs.find((int)(scene->MeshVertices));
+	if (it != _AABBs.end())
+	{
+		AABB aabb = it->second;
+		aabb.UpdateLimits();
+		aabb.TransformLimits(L * S1 * W);
+		_hangarShadowAABB.Expand(aabb.Limits);
+	}
+
+	// Dump the current scene to an OBJ file
+	if (g_bDumpSSAOBuffers && (bHangarDumpOBJEnabled || bD3DDumpOBJEnabled))
+		OBJDumpD3dVertices(scene, _hangarShadowMapRotation);
+
+	// The hangar shadow map must be rendered as a post-processing effect. The main reason is that
+	// we don't know the size of the AABB for the hangar until we're done rendering it. So, we're
+	// going to store the commands to use later.
+	DrawCommand command;
+	// Save the Vertex SRV
+	command.vertexSRV = _lastMeshVerticesView;
+	// Save the vertex and index buffers
+	command.vertexBuffer = _lastVertexBuffer;
+	command.indexBuffer = _lastIndexBuffer;
+	command.trianglesCount = _trianglesCount;
+	// Save the constants
+	command.constants = _constants;
+	// Add the command to the list of deferred commands
+	_ShadowMapDrawCommands.push_back(command);
+
+	context->VSSetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
+	context->VSSetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
+}
+
 /*
  * This method is called from two places: in Direct3D::Execute() at the beginning of the HUD and
  * in PrimarySurface::Flip() before we start rendering post-proc effects. Any calls placed in this
@@ -2263,19 +2791,8 @@ void EffectsRenderer::RenderShadowMap()
  */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
-	RenderShadowMap();
+	RenderCockpitShadowMap();
+	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-}
-
-//************************************************************************
-// Generic VR Renderer
-//************************************************************************
-
-/*
- * Extra pre-processing before the Render() call needed for all VR
- * implementations.
- */
-void VRRenderer::ExtraPreprocessing()
-{
 }

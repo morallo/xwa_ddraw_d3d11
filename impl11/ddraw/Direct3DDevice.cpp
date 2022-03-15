@@ -602,6 +602,8 @@ void ResetXWALightInfo()
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++) {
 		g_XWALightInfo[i].Reset();
 		g_ShadowMapVSCBuffer.sm_black_levels[i] = g_ShadowMapping.black_level;
+		g_ShadowMapVSCBuffer.sm_minZ[i] = 0.0f;
+		g_ShadowMapVSCBuffer.sm_maxZ[i] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z; // Regular range for the cockpit
 	}
 }
 
@@ -905,7 +907,7 @@ Direct3DDevice::~Direct3DDevice()
 HRESULT Direct3DDevice::QueryInterface(
 	REFIID riid,
 	LPVOID* obp
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -969,7 +971,7 @@ HRESULT Direct3DDevice::Initialize(
 	LPDIRECT3D lpd3d,
 	LPGUID lpGUID,
 	LPD3DDEVICEDESC lpd3ddvdesc
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -988,7 +990,7 @@ HRESULT Direct3DDevice::Initialize(
 HRESULT Direct3DDevice::GetCaps(
 	LPD3DDEVICEDESC lpD3DHWDevDesc,
 	LPD3DDEVICEDESC lpD3DHELDevDesc
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -1007,7 +1009,7 @@ HRESULT Direct3DDevice::GetCaps(
 HRESULT Direct3DDevice::SwapTextureHandles(
 	LPDIRECT3DTEXTURE lpD3DTex1,
 	LPDIRECT3DTEXTURE lpD3DTex2
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -1025,9 +1027,9 @@ HRESULT Direct3DDevice::SwapTextureHandles(
 
 HRESULT Direct3DDevice::CreateExecuteBuffer(
 	LPD3DEXECUTEBUFFERDESC lpDesc,
-	LPDIRECT3DEXECUTEBUFFER *lplpDirect3DExecuteBuffer,
-	IUnknown *pUnkOuter
-	)
+	LPDIRECT3DEXECUTEBUFFER* lplpDirect3DExecuteBuffer,
+	IUnknown* pUnkOuter
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -1107,7 +1109,7 @@ HRESULT Direct3DDevice::CreateExecuteBuffer(
 
 HRESULT Direct3DDevice::GetStats(
 	LPD3DSTATS lpD3DStats
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -1168,60 +1170,6 @@ HRESULT Direct3DDevice::QuickSetZWriteEnabled(BOOL Enabled) {
 inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
-
-/*
-// Should this function be inlined?
-// See:
-// xwa_ddraw_d3d11-sm4\impl11\ddraw-May-6-2019-Functionality-Complete\Direct3DDevice.cpp
-// For a working implementation of the index buffer read (spoiler alert: it's the same we have here)
-void Direct3DDevice::GetBoundingBox(LPD3DINSTRUCTION instruction, UINT curIndex,
-	float *minX, float *minY, float *maxX, float *maxY, bool debug) {
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX v;
-	WORD index;
-	//int aux_idx = curIndex;
-	float px, py;
-	*maxX = -1; *maxY = -1;
-	*minX = 1000000; *minY = 1000000;
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		index = triangle->v1;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-
-		index = triangle->v2;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-
-<<<<<<< HEAD
-		index = triangle->v3;
-		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		if (px < *minX) *minX = px; if (px > *maxX) *maxX = px;
-		if (py < *minY) *minY = py; if (py > *maxY) *maxY = py;
-		if (debug) {
-			v = g_OrigVerts[index];
-			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", v.sx, v.sy, v.sz, v.rhw, v.tu, v.tv);
-		}
-=======
-#if LOGGER_DUMP
-	DumpExecuteBuffer(executeBuffer);
-#endif
->>>>>>> 39555f9 (Add XwaD3dRendererHook)
-
-		triangle++;
-	}
-}
-*/
 
 void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curIndex,
 	float *minX, float *minY, float *maxX, float *maxY, 
@@ -2617,7 +2565,7 @@ HRESULT Direct3DDevice::Execute(
 	LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer,
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
 	DWORD dwFlags
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -2746,7 +2694,7 @@ HRESULT Direct3DDevice::Execute(
 	g_DCPSCBuffer.ct_brightness	= g_fCoverTextureBrightness;
 	g_DCPSCBuffer.dc_brightness = g_fDCBrightness;
 
-	char* step = "";
+	const char* step = "";
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
@@ -2831,8 +2779,8 @@ HRESULT Direct3DDevice::Execute(
 			-2.0f / (float)this->_deviceResources->_displayHeight,
 			scale,
 			0,
-			*(float*)0x08B94CC,
-			*(float*)0x05B46B4,
+			_IsXwaExe ? *(float*)0x08B94CC : 0,
+			_IsXwaExe ? *(float*)0x05B46B4 : 0,
 			0,
 			0
 		};
@@ -2841,7 +2789,8 @@ HRESULT Direct3DDevice::Execute(
 		// New constants added with the D3DRendererHook:
 		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
 		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
-		if (g_bEnableVR) {
+		if (g_bEnableVR && !g_bInTechRoom) {
+			// The Tech Room needs the regular viewportscale below in VR
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 			g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
 		} else {
@@ -5094,6 +5043,82 @@ HRESULT Direct3DDevice::Execute(
 				// Dynamic Cockpit: Replace textures at run-time:
 				// No longer done here, look in XwaD3dRendererHook
 
+				// Animated Light Maps/Textures (DAT-related animations)
+				if (bHasMaterial && lastTextureSelected->material.GreebleDataIdx == -1) {
+					if ((bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
+						(!bIsLightTexture && lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
+					{
+						bool bIsDamageTex = false;
+						bModifiedShaders = true;
+						bModifiedPixelShader = true;
+						int TexATCIndex = lastTextureSelected->material.GetCurrentATCIndex(&bIsDamageTex, TEXTURE_ATC_IDX);
+						int LightATCIndex = lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+
+						// This path doesn't render any DC elements. So, compared with EffectsRenderer::ApplyAnimatedTextures(),
+						// this code lacks all the DC-related checks (we assume bRenderingDC is false)
+
+						// If we reach this point then one of LightMapATCIndex or TextureATCIndex must be > -1 or both!
+						// If we're rendering a DC element, we don't want to replace the shader
+						resources->InitPixelShader(resources->_pixelShaderAnimDAT);
+
+						// Let's do a quick update of the hyperspace flags here:
+						g_PSCBuffer.bInHyperspace = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0 || g_HyperspacePhaseFSM != HS_INIT_ST;
+						g_PSCBuffer.AuxColor.x = 1.0f;
+						g_PSCBuffer.AuxColor.y = 1.0f;
+						g_PSCBuffer.AuxColor.z = 1.0f;
+						g_PSCBuffer.AuxColor.w = 1.0f;
+
+						g_PSCBuffer.AuxColorLight.x = 1.0f;
+						g_PSCBuffer.AuxColorLight.y = 1.0f;
+						g_PSCBuffer.AuxColorLight.z = 1.0f;
+						g_PSCBuffer.AuxColorLight.w = 1.0f;
+
+						int extraTexIdx = -1, extraLightIdx = -1;
+						if (TexATCIndex > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[TexATCIndex]);
+							int idx = atc->AnimIdx;
+							extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+							if (atc->BlackToAlpha)
+								g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+							else if (atc->AlphaIsBloomMask)
+								g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+							else
+								g_PSCBuffer.special_control.ExclusiveMask = 0;
+							g_PSCBuffer.AuxColor = atc->Tint;
+							g_PSCBuffer.Offset = atc->Offset;
+							g_PSCBuffer.AspectRatio = atc->AspectRatio;
+							g_PSCBuffer.Clamp = atc->Clamp;
+							g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+							g_current_renderer->SetRenderTypeIllum(0);
+							// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+							// the DC foreground SRV
+							context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+						}
+
+						if (LightATCIndex > -1) {
+							AnimatedTexControl *atc = &(g_AnimatedMaterials[LightATCIndex]);
+							int idx = atc->AnimIdx;
+							extraLightIdx = atc->Sequence[idx].ExtraTextureIndex;
+							if (atc->BlackToAlpha)
+								g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
+							else if (atc->AlphaIsBloomMask)
+								g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK;
+							else
+								g_PSCBuffer.special_control_light.ExclusiveMask = 0;
+							g_PSCBuffer.AuxColorLight = atc->Tint;
+							// TODO: We might need two of these settings below, one for the regular tex and one for the lightmap
+							g_PSCBuffer.Offset = atc->Offset;
+							g_PSCBuffer.AspectRatio = atc->AspectRatio;
+							g_PSCBuffer.Clamp = atc->Clamp;
+							g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+							g_current_renderer->SetRenderTypeIllum(1);
+							// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+							// the DC foreground SRV
+							context->PSSetShaderResources(1, 1, &(resources->_extraTextures[extraLightIdx]));
+						}
+					}
+				}
+
 				// Don't render the first hyperspace frame: use all the buffers from the previous frame instead. Otherwise
 				// the craft will jerk or blink because XWA resets the cockpit camera and the craft's orientation on this
 				// frame.
@@ -5574,11 +5599,11 @@ HRESULT Direct3DDevice::Execute(
 #endif
 
 	return D3D_OK;
-	}
+}
 
 HRESULT Direct3DDevice::AddViewport(
 	LPDIRECT3DVIEWPORT lpDirect3DViewport
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5596,7 +5621,7 @@ HRESULT Direct3DDevice::AddViewport(
 
 HRESULT Direct3DDevice::DeleteViewport(
 	LPDIRECT3DVIEWPORT lpDirect3DViewport
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5614,9 +5639,9 @@ HRESULT Direct3DDevice::DeleteViewport(
 
 HRESULT Direct3DDevice::NextViewport(
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
-	LPDIRECT3DVIEWPORT *lplpDirect3DViewport,
+	LPDIRECT3DVIEWPORT* lplpDirect3DViewport,
 	DWORD dwFlags
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5637,7 +5662,7 @@ HRESULT Direct3DDevice::Pick(
 	LPDIRECT3DVIEWPORT lpDirect3DViewport,
 	DWORD dwFlags,
 	LPD3DRECT lpRect
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5656,7 +5681,7 @@ HRESULT Direct3DDevice::Pick(
 HRESULT Direct3DDevice::GetPickRecords(
 	LPDWORD lpCount,
 	LPD3DPICKRECORD lpD3DPickRec
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5675,7 +5700,7 @@ HRESULT Direct3DDevice::GetPickRecords(
 HRESULT Direct3DDevice::EnumTextureFormats(
 	LPD3DENUMTEXTUREFORMATSCALLBACK lpd3dEnumTextureProc,
 	LPVOID lpArg
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5765,7 +5790,7 @@ HRESULT Direct3DDevice::EnumTextureFormats(
 
 HRESULT Direct3DDevice::CreateMatrix(
 	LPD3DMATRIXHANDLE lpD3DMatHandle
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5784,7 +5809,7 @@ HRESULT Direct3DDevice::CreateMatrix(
 HRESULT Direct3DDevice::SetMatrix(
 	D3DMATRIXHANDLE d3dMatHandle,
 	LPD3DMATRIX lpD3DMatrix
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5803,7 +5828,7 @@ HRESULT Direct3DDevice::SetMatrix(
 HRESULT Direct3DDevice::GetMatrix(
 	D3DMATRIXHANDLE d3dMatHandle,
 	LPD3DMATRIX lpD3DMatrix
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -5821,7 +5846,7 @@ HRESULT Direct3DDevice::GetMatrix(
 
 HRESULT Direct3DDevice::DeleteMatrix(
 	D3DMATRIXHANDLE d3dMatHandle
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -6052,6 +6077,8 @@ nochange:
 		resources->InitInputLayout(resources->_inputLayout);
 		resources->InitVertexShader(resources->_vertexShader);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		// We need this to ensure backface culling is disabled
+		resources->InitRasterizerState(resources->_rasterizerState);
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
@@ -6480,8 +6507,8 @@ HRESULT Direct3DDevice::EndScene()
 }
 
 HRESULT Direct3DDevice::GetDirect3D(
-	LPDIRECT3D *lplpD3D
-	)
+	LPDIRECT3D* lplpD3D
+)
 {
 #if LOGGER
 	std::ostringstream str;

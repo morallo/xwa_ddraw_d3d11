@@ -311,10 +311,22 @@ struct SceneCompData
 	int FaceListCount;
 	int VertListCount;
 	int EdgeListCount;
-	int MeshDescriptor;
+	int MeshDescriptor; // See below
 	int GlowMarksCount;
 	XwaGlowMark* GlowMarks[16];
 };
+
+/*
+The MeshDescriptor looks like this in JeremyAnsel.Xwa.Opt:
+		public MeshType MeshType { get; set; } MainHull, Engine, Wing, etc
+		public ExplosionTypes ExplosionType { get; set; }
+		public Vector Span { get; set; }
+		public Vector Center { get; set; }
+		public Vector Min { get; set; }
+		public Vector Max { get; set; }
+		public int TargetId { get; set; }
+		public Vector Target { get; set; }
+*/
 
 static_assert(sizeof(SceneCompData) == 284, "size of SceneCompData must be 284");
 

@@ -1326,6 +1326,74 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
 		curMaterial->ThrottleEnd *= METERS_TO_OPT;
 	}
+	else if (_stricmp(param, "ThrottleAxis0") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleAxis1") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+	
+
+	if (_stricmp(param, "HyperRotXAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_X;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperRotYAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_Y;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperRotZAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_Z;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperMaxAngle") == 0) {
+		curMaterial->ThrottleMaxAngle = fValue;
+	}
+	else if (_stricmp(param, "HyperStart") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperEnd") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperAxis0") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperAxis1") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+
+	if (_stricmp(param, "TransformCenter") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		LoadLightColor(buf, &(curMaterial->meshTransform.Center));
+		curMaterial->meshTransform.Center *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "TransformRotX") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotXDelta = fValue;
+	}
+	else if (_stricmp(param, "TransformRotY") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotYDelta = fValue;
+	}
+	else if (_stricmp(param, "TransformRotZ") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotZDelta = fValue;
+	}
 
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
@@ -1831,4 +1899,46 @@ void UpdateEventsFired() {
 
 bool EventFired(GameEvent Event) {
 	return bEventsFired[Event];
+}
+
+Matrix4 MeshTransform::ComputeTransform()
+{
+	Matrix4 T, R, Transform;
+
+	// Translate the center to the origin
+	T.identity(); T.translate(-Center);
+	Transform = T;
+
+	R.identity(); R.rotateX(CurRotX);
+	Transform = R * Transform;
+
+	R.identity(); R.rotateY(CurRotY);
+	Transform = R * Transform;
+
+	R.identity(); R.rotateZ(CurRotZ);
+	Transform = R * Transform;
+
+	// Return the system to its original position
+	T.identity(); T.translate(Center);
+	Transform = T * Transform;
+
+	// We need to transpose the matrix because XwaD3dVertexShader is expecting the
+	// matrix in this format
+	Transform.transpose();
+	return Transform;
+}
+
+void MeshTransform::UpdateTransform()
+{
+	CurRotX += RotXDelta;
+	CurRotY += RotYDelta;
+	CurRotZ += RotZDelta;
+
+	while (CurRotX > 360.0f) CurRotX -= 360.0f;
+	while (CurRotY > 360.0f) CurRotY -= 360.0f;
+	while (CurRotZ > 360.0f) CurRotZ -= 360.0f;
+
+	while (CurRotX < 0.0f) CurRotX += 360.0f;
+	while (CurRotY < 0.0f) CurRotY += 360.0f;
+	while (CurRotZ < 0.0f) CurRotZ += 360.0f;
 }

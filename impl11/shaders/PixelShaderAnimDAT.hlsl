@@ -1,4 +1,6 @@
 // Copyright (c) 2021 Leo Reyes
+// This shader is a copy of PixelShaderAnim.hlsl, but the PixelShaderInput
+// is different.
 // This shader is used to display both animated textures & light maps.
 // Transparent areas won't change the previous contents; but this shader
 // can be used to render solid areas just like the regular pixel shader.
@@ -12,17 +14,18 @@
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
 
+// TODO: Verify that lightmap animations work properly
 Texture2D    texture0 : register(t0);
-Texture2D	 texture1 : register(t1); // If present, this is the light texture
+Texture2D	 texture1 : register(t1); // If present, this is the light texture 
 SamplerState sampler0 : register(s0);
 
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
-	float2 tex	  : TEXCOORD;
-	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -75,11 +78,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
 
-	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
-	// the background through it, so we mix it with a black color
-	// Update: looks like we don't need to do this anymore (?) In fact, enabling this line will
-	// cause the cockpit glass to go black if it's damaged before jumping into hyperspace
-	//if (bInHyperspace) output.color = float4(lerp(float3(0,0,0), output.color.rgb, alpha), 1);
+	// Looks like we don't need to blend with a black background anymore.
+	//if (bInHyperspace) output.color = float4(lerp(float3(0, 0, 0), output.color.rgb, alpha), 1);
 
 	if (renderTypeIllum == 1)
 	{
@@ -88,7 +88,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		HSVLight.z *= 1.25;
 		//alpha *= 10.0; <-- Main difference with XwaD3dPixelShader
 		colorLight = saturate(HSVtoRGB(HSVLight)); // <-- Difference wrt XwaD3dPixelShader
-		
+
 		float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:

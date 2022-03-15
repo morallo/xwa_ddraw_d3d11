@@ -73,7 +73,9 @@
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
 #include "../Debug/PixelShaderAnim.h"
+#include "../Debug/PixelShaderAnimDAT.h"
 #include "../Debug/PixelShaderGreeble.h"
+#include "../Debug/HangarShadowMapVS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -135,7 +137,9 @@
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
 #include "../Release/PixelShaderAnim.h"
+#include "../Release/PixelShaderAnimDAT.h"
 #include "../Release/PixelShaderGreeble.h"
+#include "../Release/HangarShadowMapVS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -236,7 +240,7 @@ void close_error_file() {
 		fclose(g_DebugFile);
 }
 
-void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
+void log_err_desc(const char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("TEXTURE2D_DESC:\n");
@@ -255,7 +259,7 @@ void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc)
 	log_err("Sample Quality: %d\n", desc.SampleDesc.Quality);
 }
 
-void log_shaderres_view(char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
+void log_shaderres_view(const char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("SHADER_RESOURCE_VIEW_DESC:\n");
@@ -354,10 +358,7 @@ HRESULT DeviceResources::Initialize()
 		//D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
-		D3D_FEATURE_LEVEL_10_0,
-		D3D_FEATURE_LEVEL_9_3,
-		D3D_FEATURE_LEVEL_9_2,
-		D3D_FEATURE_LEVEL_9_1
+		D3D_FEATURE_LEVEL_10_0
 	};
 
 	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
@@ -451,6 +452,7 @@ HRESULT DeviceResources::Initialize()
 
 void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	HRESULT hr;
+
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
@@ -1354,6 +1356,15 @@ void DeviceResources::ResetExtraTextures() {
 
 	for (uint32_t i = 0; i < _extraTextures.size(); i++)
 		if (_extraTextures[i] != nullptr) {
+			int count = 0;
+			// TODO: Cached SRVs increase the refcounts and rely on this code
+			// to release everything. This might not be the proper solution,
+			// but it seems to work.
+			//do {
+			//	count = _extraTextures[i]->Release();
+			//} while (count > 0);
+			// TODO: Cached SRVs increase the refcounts... what to do about it?
+			// The previous code still crashed, so... reverting the code.
 			_extraTextures[i]->Release();
 			_extraTextures[i] = nullptr;
 		}
@@ -1370,7 +1381,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 * When 3D content is displayed, dwWidth,dwHeight = in-game resolution (1280x1024, 1600x1200, etc)
 	 */
 	HRESULT hr;
-	char* step = "";
+	const char* step = "";
 	DXGI_FORMAT oldFormat;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
@@ -3444,6 +3455,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
 		return hr;
 
@@ -3672,6 +3686,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnim, sizeof(g_PixelShaderAnim), nullptr, &_pixelShaderAnim)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimDAT, sizeof(g_PixelShaderAnimDAT), nullptr, &_pixelShaderAnimDAT)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))
 		return hr;
 	
@@ -3769,6 +3786,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
@@ -3919,8 +3939,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 752; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 752, "sizeof(ShadowMapVertexShaderMatrixCB) must be 752");
+	constantBufferDesc.ByteWidth = 816; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 816, "sizeof(ShadowMapVertexShaderMatrixCB) must be 816");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
@@ -4268,8 +4288,13 @@ void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, con
 
 void DeviceResources::InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer * vsConstants)
 {
-	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
-	_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+	//static OPTMeshTransformCBuffer OPTMeshTransform{};
+	//if (memcmp(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer)) != 0)
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
+		_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
@@ -4417,10 +4442,21 @@ void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const
 	this->_d3dDeviceContext->PSSetConstantBuffers(METRIC_REC_CB_SLOT, 1, buffer);
 }
 
+void DeviceResources::InitScissorRect(D3D11_RECT* rect)
+{
+	static D3D11_RECT currentRect{};
+
+	if (memcmp(rect, &currentRect, sizeof(D3D11_RECT)) != 0)
+	{
+		currentRect = *rect;
+		this->_d3dDeviceContext->RSSetScissorRects(1, rect);
+	}
+}
+
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	D3D11_MAPPED_SUBRESOURCE displayMap;
 	DWORD pitchDelta;
@@ -4438,6 +4474,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		}
 	}
 	*/
+
+	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
 
 	if (SUCCEEDED(hr))
 	{
@@ -4809,7 +4847,11 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		if (!g_bEnableVR || bRenderToDC) {
 			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+			// The map lines (both the grid and the vertical lines) are drawn here
 			// We also render the CMD sub-component bracket here.
+			if (bMapMode)
+				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
@@ -4870,6 +4912,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			1.0f); // Use 3D projection matrices
 
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+		// When the map is active, all the lines are rendered here
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
 		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4932,7 +4975,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 HRESULT DeviceResources::RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	memset(buffer, 0, width * height * bpp);
 

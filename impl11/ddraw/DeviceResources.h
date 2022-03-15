@@ -167,6 +167,7 @@ public:
 	void ResetActiveCockpit();
 
 	void ResetExtraTextures();
+	void InitScissorRect(D3D11_RECT* rect);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
@@ -447,6 +448,7 @@ public:
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11VertexShader> _shadowMapVS;
+	ComPtr<ID3D11VertexShader> _hangarShadowMapVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
@@ -456,6 +458,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11PixelShader> _pixelShaderAnim;
+	ComPtr<ID3D11PixelShader> _pixelShaderAnimDAT;
 	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless

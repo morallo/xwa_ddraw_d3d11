@@ -13,9 +13,10 @@ extern bool g_bYCenterHasBeenFixed;
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
 extern bool g_b3DVisionEnabled, g_b3DVisionForceFullScreen;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
+extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bGlobalSpecToggle, g_bToggleSkipDC, g_bFadeLights, g_bDisplayGlowMarks;
 extern Vector4 g_LightVector[2];
-extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll, g_fMinLightIntensity, g_fGlowMarkZOfs;
+extern int g_iDelayedDumpDebugBuffers;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
@@ -222,6 +223,7 @@ extern int g_iSunFlareCount;
 extern int g_iD3DExecuteCounter;
 constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 constexpr float METERS_TO_OPT = 40.96f;
+extern bool g_bResetCachedMeshes;
 
 // *****************************************************
 // Global functions

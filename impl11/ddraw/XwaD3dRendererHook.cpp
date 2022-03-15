@@ -35,11 +35,13 @@
 #include "../Debug/XwaD3dPixelShader.h"
 #include "../Debug/XwaD3dShadowVertexShader.h"
 #include "../Debug/XwaD3dShadowPixelShader.h"
+#include "../Debug/XwaD3DTechRoomPixelShader.h"
 #else
 #include "../Release/XwaD3dVertexShader.h"
 #include "../Release/XwaD3dPixelShader.h"
 #include "../Release/XwaD3dShadowVertexShader.h"
 #include "../Release/XwaD3dShadowPixelShader.h"
+#include "../Release/XwaD3DTechRoomPixelShader.h"
 #endif
 
 #undef LOGGER_DUMP
@@ -126,93 +128,18 @@ void DumpD3dVertices(D3dVertex* vertices, int count)
 
 #endif
 
-#ifdef DISABLED
-struct Vertex3 {
-	float x;
-	float y;
-	float z;
-
-	Vertex3() {
-		x = y = z = 0.0f;
-	}
-
-	Vertex3(float x, float y, float z) {
-		this->x = x;
-		this->y = y;
-		this->z = z;
-	}
-
-	Vertex3(XwaVector3 V) {
-		this->x = V.x;
-		this->y = V.y;
-		this->z = V.z;
-	}
-
-	Vertex3(Vector3 V) {
-		this->x = V.x;
-		this->y = V.y;
-		this->z = V.z;
-	}
-
-	inline Vertex3& Vertex3::normalize() {
-		float xxyyzz = x * x + y * y + z * z;
-
-		float invLength = 1.0f / sqrtf(xxyyzz);
-		x *= invLength;
-		y *= invLength;
-		z *= invLength;
-		return *this;
-	}
-
-	auto as_tuple() const {
-		return std::tie(x, y, z);
-	}
-
-	std::string to_string() {
-		std::stringstream ss;
-		ss.precision(3);
-		ss << "(" << std::fixed << x << ", " << y << ", " << z << ")";
-		return ss.str();
-	}
-};
-
-std::string hash_value(const Vertex3 &V) {
-	int *X = (int *)&(V.x);
-	int *Y = (int *)&(V.y);
-	int *Z = (int *)&(V.z);
-	char buf[80];
-	sprintf_s(buf, 80, "%x%x%x", *X, *Y, *Z);
-	return std::string(buf);
-}
-
-class VertexMap {
-private:
-	//std::unordered_map<int, Vertex3> _map;
-	std::map<std::string, Vertex3> _map;
-	void _adjustPrecision(Vertex3 &Vertex);
-
-public:
-	~VertexMap();
-	void set(const Vertex3 &Vertex, const Vertex3 &Normal);
-	void insert(const Vertex3 &Vertex, const Vertex3 &Normal);
-	void insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal);
-	void insert_or_add(const Vertex3 &Vertex, const Vertex3 &Normal, bool &alreadyInMap);
-	bool find(const Vertex3 &Vertex, Vertex3 &Normal);
-	inline size_t size() { return _map.size(); }
-	
-};
-#endif
-
 bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
+
+bool g_bResetCachedMeshes = false;
 
 RendererType g_rendererType = RendererType_Unknown;
 
 D3dRenderer::D3dRenderer()
 {
 	_isInitialized = false;
-	_meshBufferInitialCount = 65536;
+	//_meshBufferInitialCount = 65536; // Not actually used anywhere at all
 	_lastMeshVertices = nullptr;
 	_lastMeshVerticesView = nullptr;
 	_lastMeshVertexNormals = nullptr;
@@ -249,10 +176,24 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	GetViewport(&_viewport);
 	GetViewportScale(_constants.viewportScale);
+
+	if (g_bResetCachedMeshes)
+		FlightStart();
 }
 
 void D3dRenderer::SceneEnd()
 {
+	static int PrevD3DExecuteCounter = -1;
+	// Reset the mesh cache if we're in the Tech Room every time the draw counter
+	// changes. This isn't a perfect fix, because if the draw call count stays
+	// the same after switching to a new ship, then we won't reset the meshes,
+	// but it helps.
+	if (g_bInTechRoom && g_iD3DExecuteCounter != PrevD3DExecuteCounter) {
+		// Set the signal to reset the meshes on the next frame. Resetting them here may
+		// cause a crash in SteamVR mode.
+		g_bResetCachedMeshes = true;
+		PrevD3DExecuteCounter = g_iD3DExecuteCounter;
+	}
 }
 
 void D3dRenderer::FlightStart()
@@ -263,6 +204,11 @@ void D3dRenderer::FlightStart()
 	_vertexBuffers.clear();
 	_triangleBuffers.clear();
 	_vertexCounters.clear();
+	_AABBs.clear();
+	ClearCachedSRVs();
+	// This should be the only place where this flag is set to false. Here's
+	// where we actually reset the meshes.
+	g_bResetCachedMeshes = false;
 }
 
 void D3dRenderer::MainSceneHook(const SceneCompData* scene)
@@ -411,108 +357,6 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
 }
 
-#ifdef DISABLED
-void D3dRenderer::SmoothNormals(SceneCompData* scene, float threshold, XwaVector3 **normals_out)
-{
-	XwaVector3 *vertices = scene->MeshVertices;
-	XwaVector3 *normals = scene->MeshVertexNormals;
-	int verticesCount = *(int*)((int)vertices - 8);
-	int normalsCount = *(int*)((int)normals - 8);
-	VertexMap *vertexMap = new VertexMap();
-	int notfound = 0;
-
-	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
-		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
-		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-
-		// Compute a new normal for this face. If it's a quad, add both triangles
-		Vector3 FaceNormal(0, 0, 0);
-		for (int edge = 2; edge < edgesCount; edge++)
-		{
-			D3dTriangle t;
-			t.v1 = 0;
-			t.v2 = edge - 1;
-			t.v3 = edge;
-
-			XwaVector3 p1 = scene->MeshVertices[faceData.Vertex[t.v1]];
-			XwaVector3 p2 = scene->MeshVertices[faceData.Vertex[t.v2]];
-			XwaVector3 p3 = scene->MeshVertices[faceData.Vertex[t.v3]];
-
-			Vector3 q1(p1.x, p1.y, p1.z);
-			Vector3 q2(p2.x, p2.y, p2.z);
-			Vector3 q3(p3.x, p3.y, p3.z);
-
-			Vector3 N = (q2 - q1).cross(q3 - q2);
-			N.normalize();
-			FaceNormal += N;
-		}
-		FaceNormal.normalize();
-
-		for (int i = 0; i < edgesCount; i++) {
-			int vertexIdx = faceData.Vertex[i];
-			//int normalIdx = faceData.VertexNormal[i];
-
-			vertexMap->insert_or_add(Vertex3(vertices[vertexIdx]), Vertex3(FaceNormal));
-		}
-
-		// Basic verification
-		notfound = 0;
-		for (int i = 0; i < edgesCount; i++) {
-			int vertexIdx = faceData.Vertex[i];
-			Vertex3 N;
-			if (!vertexMap->find(Vertex3(vertices[vertexIdx]), N))
-				notfound++;
-		}
-	}
-
-	// Populate all the per-vertex normals and normalize them
-	Vector3 Centroid(0, 0, 0);
-	notfound = 0;
-	for (int i = 0; i < verticesCount; i++) {
-		XwaVector3 XV = vertices[i];
-		Vertex3 V(XV), N;
-		Centroid.x += XV.x;
-		Centroid.y += XV.y;
-		Centroid.z += XV.z;
-		if (vertexMap->find(V, N))
-			N.normalize();
-		else {
-			N.x = N.y = N.z = 0.0f;
-			notfound++;
-		}
-		vertexMap->set(V, N);
-	}
-	if (notfound) log_debug("[DBG] WARNING (1): %d vertex normals NOT FOUND, total verts: %d",
-		notfound, verticesCount);
-
-	notfound = 0;
-	(*normals_out) = new XwaVector3[verticesCount];
-	for (int i = 0; i < verticesCount; i++) {
-		XwaVector3 V = vertices[i];
-		Vertex3 N;
-		if (!vertexMap->find(Vertex3(V), N))
-			notfound++;
-
-		XwaVector3 XN;
-		XN.x = N.x;
-		XN.y = N.y;
-		XN.z = N.z;
-		(*normals_out)[i] = XN;
-	}
-	if (notfound) log_debug("[DBG] WARNING (2): %d vertex normals NOT found", notfound);
-
-	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
-		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
-		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-
-		for (int i = 0; i < edgesCount; i++)
-			scene->FaceIndices[faceIndex].VertexNormal[i] = faceData.Vertex[i];
-	}
-
-	delete vertexMap;
-}
-#endif
-
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -548,7 +392,13 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			ID3D11ShaderResourceView* meshVerticesView;
 			device->CreateShaderResourceView(meshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, verticesCount), &meshVerticesView);
 
+			AABB aabb;
+			aabb.SetInfinity();
+			for (int i = 0; i < verticesCount; i++)
+				aabb.Expand(vertices[i]);
+
 			_meshVerticesViews.insert(std::make_pair((int)vertices, meshVerticesView));
+			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
 		}
 	}
@@ -826,10 +676,26 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 
 	for (int i = 0; i < 8; i++)
 	{
-		_constants.globalLights[i].direction[0] = s_XwaGlobalLights[i].DirectionX;
-		_constants.globalLights[i].direction[1] = s_XwaGlobalLights[i].DirectionY;
-		_constants.globalLights[i].direction[2] = s_XwaGlobalLights[i].DirectionZ;
-		_constants.globalLights[i].direction[3] = 1.0f;
+		if (!g_bInTechRoom) {
+			_constants.globalLights[i].direction[0] = s_XwaGlobalLights[i].DirectionX;
+			_constants.globalLights[i].direction[1] = s_XwaGlobalLights[i].DirectionY;
+			_constants.globalLights[i].direction[2] = s_XwaGlobalLights[i].DirectionZ;
+			_constants.globalLights[i].direction[3] = 1.0f;
+		}
+		else {
+			// In the Tech Room, global lights are "attached" to the ship, so that they rotate
+			// along with it. I don't think that's terribly useful, so I'm inverting the
+			// World transform to fix the lights instead.
+			Vector4 L = Vector4(s_XwaGlobalLights[i].DirectionX, s_XwaGlobalLights[i].DirectionY, s_XwaGlobalLights[i].DirectionZ, 0.0f);
+			Matrix4 W = Matrix4(_constants.transformWorldView);
+			W = W.transpose(); // This is effectively an inverse of W
+			L = W * L;
+			// The coordinate system in the XwaD3DTechRoomPixelShader has YZ inverted, let's do it here as well:
+			_constants.globalLights[i].direction[0] =  L.x;
+			_constants.globalLights[i].direction[1] = -L.y;
+			_constants.globalLights[i].direction[2] = -L.z;
+			_constants.globalLights[i].direction[3] =  0.0f;
+		}
 
 		_constants.globalLights[i].color[0] = s_XwaGlobalLights[i].ColorR;
 		_constants.globalLights[i].color[1] = s_XwaGlobalLights[i].ColorG;
@@ -857,7 +723,25 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 
 void D3dRenderer::RenderScene()
 {
+	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
+	{
+		return;
+	}
+
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	_deviceResources->InitScissorRect(&scissor);
 
 	context->DrawIndexed(_trianglesCount * 3, 0, 0);
 }
@@ -943,6 +827,7 @@ void D3dRenderer::BuildGlowMarks(SceneCompData* scene)
 					v.x += scene->WorldViewTransform.Position.x;
 					v.y += scene->WorldViewTransform.Position.y;
 					v.z += scene->WorldViewTransform.Position.z;
+					v.z += g_fGlowMarkZOfs;
 
 					float st0 = _constants.projectionValue1 / v.z;
 					v.x = v.x * st0 + _constants.projectionDeltaX;
@@ -978,6 +863,9 @@ void D3dRenderer::RenderGlowMarks()
 	{
 		return;
 	}
+
+	if (!g_bDisplayGlowMarks)
+		return;
 
 	const auto XwaD3dExecuteBufferLock = (char(*)())0x00595006;
 	const auto XwaD3dExecuteBufferAddVertices = (char(*)(void*, int))0x00595095;
@@ -1022,13 +910,26 @@ void D3dRenderer::CreateStates()
 
 	D3D11_RASTERIZER_DESC rsDesc{};
 	rsDesc.FillMode = g_config.WireframeFillMode ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
-	rsDesc.CullMode = D3D11_CULL_NONE;
-	rsDesc.FrontCounterClockwise = FALSE;
+	
+	// Original settings by Jeremy: no culling.
+	// Turns out that some people have reported gaps in the cockpits when culling is on. So, for now
+	// I'm re-enabling no culling as the default setting. This can now be toggled in DDraw.cfg.
+	if (!g_config.CullBackFaces) {
+		rsDesc.CullMode = D3D11_CULL_NONE;
+		rsDesc.FrontCounterClockwise = FALSE;
+	}
+	else {
+		// New settings: let's cull back faces!
+		rsDesc.CullMode = D3D11_CULL_BACK;
+		rsDesc.FrontCounterClockwise = TRUE;
+	}
+
 	rsDesc.DepthBias = 0;
 	rsDesc.DepthBiasClamp = 0.0f;
 	rsDesc.SlopeScaledDepthBias = 0.0f;
 	rsDesc.DepthClipEnable = TRUE;
-	rsDesc.ScissorEnable = FALSE;
+	// Disable the scissor rect in VR mode. More work is needed for a proper fix
+	rsDesc.ScissorEnable = g_bEnableVR ? FALSE : TRUE;
 	rsDesc.MultisampleEnable = FALSE;
 	rsDesc.AntialiasedLineEnable = FALSE;
 	device->CreateRasterizerState(&rsDesc, &_rasterizerState);
@@ -1107,6 +1008,7 @@ void D3dRenderer::CreateShaders()
 	device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_XwaD3dVertexShader, sizeof(g_XwaD3dVertexShader), &_inputLayout);
 
 	device->CreatePixelShader(g_XwaD3dPixelShader, sizeof(g_XwaD3dPixelShader), nullptr, &_pixelShader);
+	device->CreatePixelShader(g_XwaD3DTechRoomPixelShader, sizeof(g_XwaD3DTechRoomPixelShader), nullptr, &_techRoomPixelShader);
 
 	device->CreateVertexShader(g_XwaD3dShadowVertexShader, sizeof(g_XwaD3dShadowVertexShader), nullptr, &_shadowVertexShader);
 	device->CreatePixelShader(g_XwaD3dShadowPixelShader, sizeof(g_XwaD3dShadowPixelShader), nullptr, &_shadowPixelShader);
@@ -1173,6 +1075,13 @@ void D3dRenderer::GetViewportScale(float* viewportScale)
 	viewportScale[1] = -2.0f / (float)_deviceResources->_displayHeight;
 	viewportScale[2] = scale;
 	viewportScale[3] = 0.0f;
+}
+
+void D3dRenderer::SetRenderTypeIllum(int type)
+{
+	auto context = _deviceResources->_d3dDeviceContext;
+	_constants.renderTypeIllum = type;
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_constants, 0, 0);
 }
 
 D3dRenderer g_xwa_d3d_renderer;

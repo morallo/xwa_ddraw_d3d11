@@ -49,15 +49,19 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady, _bThrottleTransformReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
+	bool _bHangarShadowsRenderedInCurrentFrame;
 	D3dConstants _CockpitConstants;
 	XwaTransform _CockpitWorldView;
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
 	std::vector<DrawCommand> _LaserDrawCommands;
 	std::vector<DrawCommand> _TransparentDrawCommands;
+	std::vector<DrawCommand> _ShadowMapDrawCommands;
 	Matrix4 _joystickMeshTransform;
 	Matrix4 _throttleMeshTransform;
+	AABB _hangarShadowAABB;
+	Matrix4 _hangarShadowMapRotation;
 
 	VertexShaderCBuffer _oldVSCBuffer;
 	PixelShaderCBuffer _oldPSCBuffer;
@@ -83,11 +87,13 @@ protected:
 	D3D11_VIEWPORT _oldViewports[2];
 	UINT _oldNumViewports = 2;
 
+	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye=false);
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
+	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 
 	void SaveContext();
 	void RestoreContext();
@@ -97,6 +103,7 @@ public:
 	virtual void SceneBegin(DeviceResources* deviceResources);
 	virtual void SceneEnd();
 	virtual void MainSceneHook(const SceneCompData* scene);
+	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void RenderScene();
 	virtual void UpdateTextures(const SceneCompData* scene);
 	
@@ -105,6 +112,8 @@ public:
 	void ApplyMaterialProperties();
 	void ApplySpecialMaterials();
 	void ApplyBloomSettings();
+	void ApplyDiegeticCockpit();
+	void ApplyMeshTransform();
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
@@ -117,17 +126,9 @@ public:
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
-	void RenderShadowMap();
+	void RenderCockpitShadowMap();
+	void RenderHangarShadowMap();
 	void RenderDeferredDrawCalls();
-};
-
-//************************************************************************
-// Generic VR Renderer
-//************************************************************************
-
-class VRRenderer : public EffectsRenderer {
-public:
-	virtual void ExtraPreprocessing();
 };
 
 extern EffectsRenderer g_effects_renderer;

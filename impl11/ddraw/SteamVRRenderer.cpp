@@ -33,14 +33,14 @@
 
 SteamVRRenderer g_steamvr_renderer;
 
-SteamVRRenderer::SteamVRRenderer() : VRRenderer() {
+SteamVRRenderer::SteamVRRenderer() : EffectsRenderer() {
 }
 
 void SteamVRRenderer::CreateShaders()
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
-	VRRenderer::CreateShaders();
+	EffectsRenderer::CreateShaders();
 
 	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
 	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
@@ -48,31 +48,61 @@ void SteamVRRenderer::CreateShaders()
 
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
 {
-	VRRenderer::SceneBegin(deviceResources);
+	EffectsRenderer::SceneBegin(deviceResources);
 }
 
 void SteamVRRenderer::SceneEnd()
 {
-	VRRenderer::SceneEnd();
+	EffectsRenderer::SceneEnd();
 }
 
 void SteamVRRenderer::RenderScene()
 {
+	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
+	{
+		return;
+	}
+
+	if (g_rendererType == RendererType_Shadow)
+		// Using the _shadowVertexShaderVR is too expensive: we end up rendering the same scene 4 times.
+		// Instead, let's do nothing here and just use the new hangar soft shadow system.
+		// resources->InitVertexShader(_shadowVertexShaderVR);
+		return;
+
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
+	/*
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	*/
+	/*
+	// The scissor rect needs more work in StemVR mode. It's in screen coords, so
+	// It must use the dimensions of the SteamVR viewport, but it must also clip
+	// the CMD when rendering the miniature. So the following won't really fix all
+	// the cases:
+	D3D11_RECT scissor{};
+	scissor.left = 0; scissor.top = 0;
+	scissor.right = g_steamVRWidth;
+	scissor.bottom = g_steamVRHeight;
+	*/
+
+	//_deviceResources->InitScissorRect(&scissor);
+
 	// TODO: Implement instanced rendering so that we issue only one draw call to
 	// render both eyes.
-
-	if (g_rendererType == RendererType_Shadow) {
-		if (!g_config.HangarShadowsEnabled)
-			// Skip hangar shadows in VR
-			return;
-		else
-			resources->InitVertexShader(_shadowVertexShaderVR);
-	} else
-		// Regular VR path
-		resources->InitVertexShader(_vertexShaderVR);
+	
+	// Regular VR path
+	resources->InitVertexShader(_vertexShaderVR);
 
 	D3D11_VIEWPORT viewport;
 	viewport.Width = (float)resources->_backbufferWidth;
