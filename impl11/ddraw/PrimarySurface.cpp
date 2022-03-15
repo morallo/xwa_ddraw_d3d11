@@ -4038,8 +4038,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	// DEBUG
 	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	//GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat); // Original version
-	GetHyperspaceEffectMatrix(&g_ShadertoyBuffer.viewMat); // New version for SteamVR
+	if (g_bEnableVR)
+		GetHyperspaceEffectMatrix(&g_ShadertoyBuffer.viewMat); // New version for SteamVR
+	else
+		GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat); // Original version
 
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
