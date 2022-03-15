@@ -155,7 +155,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec3 v = vec3(p, -FOVscale);
 	v = mul(viewMat, vec4(v, 0.0)).xyz;
 	// This line is needed to fix the reticle when pose_corrected_headtracking is set
-	v = mul(reticleMat, vec4(v, 0.0)).xyz;
+	//v = mul(reticleMat, vec4(v, 0.0)).xyz;
 
 	/*
 	float d, dm = 0.0;
