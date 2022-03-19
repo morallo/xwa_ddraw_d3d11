@@ -7897,6 +7897,7 @@ HRESULT PrimarySurface::Flip(
 						g_bDumpSSAOBuffers = false;
 					}
 
+					SetPresentCounter(g_iPresentCounter + 1);
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D
@@ -9050,8 +9051,6 @@ HRESULT PrimarySurface::Flip(
 				g_HyperspacePhaseFSM = HS_INIT_ST;
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
-			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
-			// stays around 45 in my system
 			SetPresentCounter(g_iPresentCounter + 1);
 
 			if (g_iDelayedDumpDebugBuffers) {
@@ -9070,6 +9069,8 @@ HRESULT PrimarySurface::Flip(
 			// If SteamVR is on, we do NOT want to do VSync with the monitor as well: that'll kill the performance.
 			if (g_bUseSteamVR)
 				bEnableVSync = false;
+			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
+			// stays around 45 in my system
 			//log_debug("[DBG] ******************* PRESENT 3D");
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
