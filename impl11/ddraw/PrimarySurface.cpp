@@ -45,6 +45,13 @@ bool rayTriangleIntersect(
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
 
+void SetPresentCounter(int val) {
+	g_iPresentCounter = val;
+	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
+		g_pSharedData->pSharedData->PresentCounter = g_iPresentCounter;
+	}
+}
+
 // S0x0000001
 // L00439B30
 void XwaVector3Transform(XwaVector3* A4, const XwaMatrix3x3* A8)
@@ -8792,7 +8799,7 @@ HRESULT PrimarySurface::Flip(
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
-					g_iPresentCounter = 0;
+					SetPresentCounter(0);
 					log_debug("[DBG] EXITED HANGAR");
 				}
 				g_bPrevPlayerInHangar = *g_playerInHangar;
@@ -9045,14 +9052,7 @@ HRESULT PrimarySurface::Flip(
 			g_bRendering3D = true;
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
-			g_iPresentCounter++;
-			//static bool bPrevPlayerInHangar = false;
-			//if (bPrevPlayerInHangar && !*g_playerInHangar) {
-			//	// We just exited the hanger, let's reset the present counter
-			//	g_iPresentCounter = 0;
-			//	log_debug("[DBG] Exited Hangar, resetting g_iPresentCounter and HUD regions");
-			//}
-			//bPrevPlayerInHangar = *g_playerInHangar;
+			SetPresentCounter(g_iPresentCounter + 1);
 
 			if (g_iDelayedDumpDebugBuffers) {
 				g_iDelayedDumpDebugBuffers--;
