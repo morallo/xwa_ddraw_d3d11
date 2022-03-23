@@ -19,6 +19,8 @@ struct SharedData {
 	// Joystick's position, written by the joystick hook, or by the joystick emulation code.
 	// These values are normalized in the range -1..1
 	float JoystickYaw, JoystickPitch;
+	// Present() counter, written by ddraw
+	int PresentCounter;
 };
 
 // This is a proxy to share data between the hook and ddraw.
