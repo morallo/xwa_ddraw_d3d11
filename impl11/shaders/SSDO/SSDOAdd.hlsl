@@ -148,7 +148,8 @@ inline float3 getPosition(in float2 uv, in float level) {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
-float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity /*, out float diff */)
+/*
+float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
 	float nm_scale = fn_scale * nm_intensity;
@@ -194,6 +195,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	return normalize(n1 * dot(n1, n2) - n1.z * n2);
 	//return n1 * dot(n1, n2) - n1.z * n2;
 }
+*/
 
 #ifdef DISABLED
 // (Sorry, don't remember very well) I think this function projects a 3D point back
@@ -500,7 +502,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
-	float3 N = normalize(Normal.xyz);
+	//float3 N = normalize(Normal.xyz);
+	float3 N = Normal.xyz;
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
@@ -559,17 +562,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	//ssdoInd = lerp(ssdoInd, 0, mask);
 
 	// Compute normal mapping
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	float3 FakeNormal = 0;
+	//float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
+	//float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
 	//nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
+	/*
 	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask /*, diffuse_difference */);
+		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask);
 		// After the normals have blended, we should restore the length of the bent normal:
 		// it should be weighed by AO, which is now in ssdo.y
 		//bentN = ssdo.y * blend_normals(bentN, FakeNormal);
 		N = blend_normals(N, FakeNormal);
 	}
+	*/
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 	
 	// ************************************************************************************************

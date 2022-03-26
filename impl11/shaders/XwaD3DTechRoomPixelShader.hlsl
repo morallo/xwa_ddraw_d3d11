@@ -150,10 +150,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	// This is the per-vertex Gouraud-shaded color coming from the VR:
 	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
-	uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
-	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
+	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
+	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
@@ -188,8 +188,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	// SS Mask: unused-formerly-NMIntensity, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// DEBUG: Display the normal map
 	/*

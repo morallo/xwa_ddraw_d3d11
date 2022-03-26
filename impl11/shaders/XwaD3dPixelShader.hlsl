@@ -7,6 +7,8 @@
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
+// Normal Map, slot 13
+Texture2D normalMap : register(t13);
 
 //#define ORIGINAL_D3D_RENDERER_SHADERS
 #ifdef ORIGINAL_D3D_RENDERER_SHADERS
@@ -71,6 +73,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// This is the per-vertex Gouraud-shaded color coming from the VR:
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
 	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
 	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
@@ -89,17 +92,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-	output.normal = float4(N, SSAOAlpha);
 
 	// Replicate the same transforms we're applying to the normal N
 	float3 T = normalize(input.tangent.xyz);
 	T.y = -T.y;
 	T.z = -T.z;
+	const float3 B = cross(T, N);
+	const float3x3 TBN = float3x3(T, B, N);
+	if (bDoNormalMapping) {
+		const float3 NM = normalize(mul(0.5 * (normalMapColor - 0.5), TBN));
+		N = lerp(N, NM, fNMIntensity);
+	}
+	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// Process lasers
 	if (renderType == 2)
