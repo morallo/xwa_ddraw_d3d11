@@ -1492,6 +1492,24 @@ void EffectsRenderer::ApplyAnimatedTextures()
 	}
 }
 
+void EffectsRenderer::ApplyNormalMapping()
+{
+	if (!g_bFNEnable || !_bHasMaterial || !_lastTextureSelected->material.NormalMapLoaded ||
+		_lastTextureSelected->NormalMapIdx == -1)
+		return;
+
+	auto &resources = _deviceResources;
+	auto &context = _deviceResources->_d3dDeviceContext;
+	Material *material = &(_lastTextureSelected->material);
+	_bModifiedShaders = true;
+
+	// Enable normal mapping and make sure the proper intensity is set
+	g_PSCBuffer.bDoNormalMapping = 1;
+	g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;
+	// Set the normal map
+	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -1635,6 +1653,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Apply the SSAO mask/Special materials, like lasers and HUD
 	ApplySpecialMaterials();
 
+	ApplyNormalMapping();
+
 	// Animate the Diegetic Cockpit (joystick, throttle, hyper-throttle, etc)
 	ApplyDiegeticCockpit();
 
@@ -1743,6 +1763,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// Save the SRVs
 		command.vertexSRV = _lastMeshVerticesView;
 		command.normalsSRV = _lastMeshVertexNormalsView;
+		command.tangentsSRV = _lastMeshVertexTangentsView;
 		command.texturesSRV = _lastMeshTextureVerticesView;
 		// Save the vertex and index buffers
 		command.vertexBuffer = _lastVertexBuffer;
@@ -1774,6 +1795,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// Save the Vertex, Normal and UVs SRVs
 		command.vertexSRV = _lastMeshVerticesView;
 		command.normalsSRV = _lastMeshVertexNormalsView;
+		command.tangentsSRV = _lastMeshVertexTangentsView;
 		command.texturesSRV = _lastMeshTextureVerticesView;
 		// Save the vertex and index buffers
 		command.vertexBuffer = _lastVertexBuffer;
@@ -2154,8 +2176,8 @@ void EffectsRenderer::RenderLasers()
 			command.lighttex == nullptr ? nullptr : command.lighttex->_textureView.Get());
 
 		// Set the mesh buffers
-		ID3D11ShaderResourceView* vsSSRV[3] = { command.vertexSRV, command.normalsSRV, command.texturesSRV };
-		context->VSSetShaderResources(0, 3, vsSSRV);
+		ID3D11ShaderResourceView* vsSSRV[4] = { command.vertexSRV, command.normalsSRV, command.texturesSRV, command.tangentsSRV };
+		context->VSSetShaderResources(0, 4, vsSSRV);
 
 		// Set the index and vertex buffers
 		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
@@ -2229,8 +2251,8 @@ void EffectsRenderer::RenderTransparency()
 		_deviceResources->InitPSShaderResourceView(command.SRVs[0], command.SRVs[1]);
 
 		// Set the mesh buffers
-		ID3D11ShaderResourceView* vsSSRV[3] = { command.vertexSRV, command.normalsSRV, command.texturesSRV };
-		context->VSSetShaderResources(0, 3, vsSSRV);
+		ID3D11ShaderResourceView* vsSSRV[4] = { command.vertexSRV, command.normalsSRV, command.texturesSRV, command.tangentsSRV };
+		context->VSSetShaderResources(0, 4, vsSSRV);
 
 		// Set the index and vertex buffers
 		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);

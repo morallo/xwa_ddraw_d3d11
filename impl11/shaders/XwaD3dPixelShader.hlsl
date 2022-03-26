@@ -52,6 +52,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
+	float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput
@@ -89,6 +90,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
+
+	// Replicate the same transforms we're applying to the normal N
+	float3 T = normalize(input.tangent.xyz);
+	T.y = -T.y;
+	T.z = -T.z;
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);

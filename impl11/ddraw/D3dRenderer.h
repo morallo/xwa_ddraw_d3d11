@@ -140,7 +140,7 @@ public:
 
 struct DrawCommand {
 	Direct3DTexture *colortex, *lighttex;
-	ID3D11ShaderResourceView *vertexSRV, *normalsSRV, *texturesSRV;
+	ID3D11ShaderResourceView *vertexSRV, *normalsSRV, *texturesSRV, *tangentsSRV;
 	ID3D11Buffer *vertexBuffer, *indexBuffer;
 	int trianglesCount;
 	D3dConstants constants;
@@ -201,12 +201,14 @@ protected:
 	//UINT _meshBufferInitialCount;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshVerticesViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshNormalsViews;
+	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTangentsViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTextureCoordsViews;
 	std::map<int, AABB> _AABBs;
 	XwaVector3* _lastMeshVertices;
 	ID3D11ShaderResourceView* _lastMeshVerticesView;
 	XwaVector3* _lastMeshVertexNormals;
 	ID3D11ShaderResourceView* _lastMeshVertexNormalsView;
+	ID3D11ShaderResourceView* _lastMeshVertexTangentsView;
 	XwaTextureVertex* _lastMeshTextureVertices;
 	ID3D11ShaderResourceView* _lastMeshTextureVerticesView;
 	std::map<int, ComPtr<ID3D11Buffer>> _vertexBuffers;

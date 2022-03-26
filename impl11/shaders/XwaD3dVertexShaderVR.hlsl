@@ -10,6 +10,7 @@
 Buffer<float3> g_vertices : register(t0);
 Buffer<float3> g_normals : register(t1);
 Buffer<float2> g_textureCoords : register(t2);
+Buffer<float3> g_tangents : register(t3);
 
 // OPTMeshTransformCBuffer
 cbuffer ConstantBuffer : register(b8) {
@@ -29,6 +30,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex    : TEXCOORD;
 	//float4 color  : COLOR0;
+	float4 tangent : TANGENT;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -39,9 +41,12 @@ PixelShaderInput main(VertexShaderInput input)
 	float3 v = g_vertices[input.index.x];
 	float3 n = g_normals[input.index.y];
 	float2 t = g_textureCoords[input.index.z];
+	float3 T = g_normals[input.index.y];
 
 	n = mul(float4(n, 0.0f), MeshTransform).xyz;
+	T = mul(float4(T, 0.0f), MeshTransform).xyz;
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
+	output.tangent = mul(float4(T, 0.0f), transformWorldView);
 	output.tex = t;
 
 	// The 3D coordinates we get here are in "OPT scale". The conversion factor from

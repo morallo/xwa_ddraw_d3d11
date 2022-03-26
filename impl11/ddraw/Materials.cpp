@@ -954,7 +954,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	else if (_stricmp(param, "Shadeless") == 0) {
 		curMaterial->IsShadeless = (bool)fValue;
-		log_debug("[DBG] Shadeless texture loaded");
+		//log_debug("[DBG] Shadeless texture loaded");
 	}
 	else if (_stricmp(param, "Light") == 0) {
 		LoadLightColor(buf, &(curMaterial->Light));
@@ -1282,6 +1282,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		greeble_data->GreebleLightMapScale[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
+
+	else if (_stricmp(param, "NormalMap") == 0) {
+		strcpy_s(curMaterial->NormalMapName, MAX_NORMALMAP_NAME, svalue);
+		curMaterial->NormalMapLoaded = false;
+		//log_debug("[DBG] [MAT] NormalMap set to %s", svalue);
+	}
 	
 	if (_stricmp(param, "JoystickRoot") == 0) {
 		curMaterial->DiegeticMesh = DM_JOYSTICK;
@@ -1570,7 +1576,10 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 				if (!bIsExplosion) {
 					//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
 					curMaterialTexDef.texname[0] = 0;
-					curMaterialTexDef.material = g_DefaultGlobalMaterial;
+					// For new materials, use the Default material defined for this ship
+					curMaterialTexDef.material = craftMat.MaterialList[0].material;
+					// For new materials, use the default global material;
+					//curMaterialTexDef.material = g_DefaultGlobalMaterial;
 				}
 				MaterialSaved = false;
 			}

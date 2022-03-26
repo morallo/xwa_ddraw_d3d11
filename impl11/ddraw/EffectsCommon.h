@@ -274,7 +274,8 @@ typedef struct PixelShaderCBStruct {
 	float4 AuxColorLight;
 	// 160 bytes
 	special_control_bitfield special_control_light;
-	float unused0, unused1, unused2;
+	uint32_t bDoNormalMapping;
+	float unused0, unused1;
 	// 176 bytes
 } PixelShaderCBuffer;
 

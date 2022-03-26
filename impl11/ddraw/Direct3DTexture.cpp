@@ -261,6 +261,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->material.Metallic   = DEFAULT_METALLIC;
 
 	this->GreebleTexIdx = -1;
+	this->NormalMapIdx = -1;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -547,6 +548,42 @@ int Direct3DTexture::LoadGreebleTexture(char *GreebleDATZIPGroupIdImageId, short
 	this->GreebleTexIdx = resources->_extraTextures.size() - 1;
 	log_debug("[DBG] Loaded Greeble texture at index: %d", this->GreebleTexIdx);
 	return this->GreebleTexIdx;
+}
+
+int Direct3DTexture::LoadNormalMap(char *DATZIPGroupIdImageId, short *Width, short *Height)
+{
+	auto &resources = this->_deviceResources;
+	ID3D11ShaderResourceView *texSRV = nullptr;
+	int GroupId = -1, ImageId = -1;
+	HRESULT res = S_OK;
+	char *substr_dat = stristr(DATZIPGroupIdImageId, ".dat");
+	char *substr_zip = stristr(DATZIPGroupIdImageId, ".zip");
+	bool bIsDATFile = substr_dat != NULL;
+	char *substr = bIsDATFile ? substr_dat : substr_zip;
+	if (substr == NULL) return -1;
+	// Skip the ".dat/.zip" token and terminate the string
+	substr += 4;
+	*substr = 0;
+	// Advance to the next substring, we should now have a string of the form
+	// <GroupId>-<ImageId>
+	substr++;
+	//log_debug("[DBG] Loading NormalMap: %s, GroupId-ImageId: %s", DATZIPGroupIdImageId, substr);
+	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
+
+	// Load the greeble texture
+	if (bIsDATFile)
+		res = LoadDATImage(DATZIPGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
+	else
+		res = LoadZIPImage(DATZIPGroupIdImageId, GroupId, ImageId, &texSRV, Width, Height);
+	if (FAILED(res)) {
+		log_debug("[DBG] Could not load NormalMap %s", DATZIPGroupIdImageId);
+		return -1;
+	}
+	resources->_extraTextures.push_back(texSRV);
+	// Link the new texture as a greeble of the current texture
+	this->NormalMapIdx = resources->_extraTextures.size() - 1;
+	//log_debug("[DBG] Loaded NormalMap texture at index: %d", this->NormalMapIdx);
+	return this->NormalMapIdx;
 }
 
 ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
@@ -1350,6 +1387,13 @@ void Direct3DTexture::TagTexture() {
 					}
 				}
 
+				// Load the Normal Maps here...
+				if (this->material.NormalMapName[0] != 0 && !(this->material.NormalMapLoaded)) {
+					short Width, Height; // These variables are not used
+					this->NormalMapIdx = LoadNormalMap(this->material.NormalMapName, &Width, &Height);
+					this->material.NormalMapLoaded = true;
+				}
+
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
@@ -1471,6 +1515,7 @@ HRESULT Direct3DTexture::Load(
 	//this->lightTexture = d3dTexture->lightTexture;
 
 	this->GreebleTexIdx = d3dTexture->GreebleTexIdx;
+	this->NormalMapIdx = d3dTexture->NormalMapIdx;
 
 	// DEBUG
 	// Looks like we always tag the color texture before the light texture.

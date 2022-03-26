@@ -50,6 +50,7 @@ cbuffer ConstantBuffer : register(b9)
 	float4 AuxColorLight;
 	// 160 bytes
 	uint special_control_light;
-	float3 unusedPS0;
+	uint bDoNormalMapping;
+	float2 unusedPS0;
 	// 176 bytes
 };

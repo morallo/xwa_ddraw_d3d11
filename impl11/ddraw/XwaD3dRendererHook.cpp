@@ -136,6 +136,33 @@ bool g_bResetCachedMeshes = false;
 
 RendererType g_rendererType = RendererType_Unknown;
 
+bool LoadTangentMap(uint32_t ID, uint32_t &NumTangents, XwaVector3 **Tangents) {
+	// This mesh may have a tangent map. Let's try and load it here.
+	char sTanFile[256];
+	sprintf_s(sTanFile, 256, "Effects\\TangentMaps\\%x.tan", ID);
+	
+	NumTangents = 0;
+	*Tangents = nullptr;
+
+	FILE *file = nullptr;
+	fopen_s(&file, sTanFile, "rb");
+	if (file == nullptr)
+		return false;
+	
+	fread_s(&NumTangents, sizeof(uint32_t), sizeof(uint32_t), 1, file);
+	//log_debug("[DBG] Tangent Id: %x, NumTangents: %u", ID, NumTangents);
+	
+	float *buffer = new float[NumTangents * 3];
+	fread_s(buffer, NumTangents * sizeof(float) * 3, sizeof(float), NumTangents * 3, file);
+
+	*Tangents = (XwaVector3 *)buffer;
+	//delete[] buffer;
+
+	fclose(file);
+
+	return true;
+}
+
 D3dRenderer::D3dRenderer()
 {
 	_isInitialized = false;
@@ -144,6 +171,7 @@ D3dRenderer::D3dRenderer()
 	_lastMeshVerticesView = nullptr;
 	_lastMeshVertexNormals = nullptr;
 	_lastMeshVertexNormalsView = nullptr;
+	_lastMeshVertexTangentsView = nullptr;
 	_lastMeshTextureVertices = nullptr;
 	_lastMeshTextureVerticesView = nullptr;
 	_constants = {};
@@ -171,6 +199,7 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 	_lastMeshVerticesView = nullptr;
 	_lastMeshVertexNormals = nullptr;
 	_lastMeshVertexNormalsView = nullptr;
+	_lastMeshVertexTangentsView = nullptr;
 	_lastMeshTextureVertices = nullptr;
 	_lastMeshTextureVerticesView = nullptr;
 
@@ -200,6 +229,7 @@ void D3dRenderer::FlightStart()
 {
 	_meshVerticesViews.clear();
 	_meshNormalsViews.clear();
+	_meshTangentsViews.clear();
 	_meshTextureCoordsViews.clear();
 	_vertexBuffers.clear();
 	_triangleBuffers.clear();
@@ -433,6 +463,51 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 	}
 
+	{
+		// The key for the tangent map is going to be the same key we use for the normals.
+		// We do this because the scene object does not have a tangent map.
+		auto it_tan = _meshTangentsViews.find((int)normals);
+		// Tangent maps are optional, so in this case, we default to nullptr
+		_lastMeshVertexTangentsView = nullptr;
+		if (it_tan != _meshTangentsViews.end()) {
+			_lastMeshVertexTangentsView = it_tan->second;
+		}
+		else {
+			int normalsCount = *(int*)((int)normals - 8);
+			XwaVector3 *tangents = nullptr;
+
+			// Here's the plan: we'll use scene->pMeshDescriptor->TargetId to encode the OPT id
+			// and the mesh idx. The upper 16 bits are the OPT id and the lower 16 bits
+			// is the mesh index, and a value of TargetId == 0 means the field is unused.
+			// Either way, we can use TargetId as a unique Id for the current mesh and side-load
+			// stuff, like pre-computed tangent maps or BVHs.
+			uint32_t NumTangents;
+			if (scene->pMeshDescriptor->TargetId != 0 &&
+				LoadTangentMap(scene->pMeshDescriptor->TargetId, NumTangents, &tangents) &&
+				tangents != nullptr && NumTangents == (uint32_t)normalsCount)
+			{
+				D3D11_SUBRESOURCE_DATA initialData;
+				initialData.pSysMem = tangents;
+				initialData.SysMemPitch = 0;
+				initialData.SysMemSlicePitch = 0;
+
+				ComPtr<ID3D11Buffer> meshTangentsBuffer;
+				device->CreateBuffer(&CD3D11_BUFFER_DESC(normalsCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &meshTangentsBuffer);
+
+				ID3D11ShaderResourceView* meshTangentsView;
+				device->CreateShaderResourceView(meshTangentsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(meshTangentsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normalsCount), &meshTangentsView);
+
+				_meshTangentsViews.insert(std::make_pair((int)normals, meshTangentsView));
+				_lastMeshVertexTangentsView = meshTangentsView;
+
+				// Reset the TargetId to its default value? Doing this disables normal mapping for
+				// some reason (?)
+				//scene->pMeshDescriptor->TargetId = 0;
+				delete[] tangents;
+			}
+		}
+	}
+
 	if (textureCoords != _lastMeshTextureVertices)
 	{
 		_lastMeshTextureVertices = textureCoords;
@@ -463,8 +538,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 	}
 
-	ID3D11ShaderResourceView* vsSSRV[3] = { _lastMeshVerticesView, _lastMeshVertexNormalsView, _lastMeshTextureVerticesView };
-	context->VSSetShaderResources(0, 3, vsSSRV);
+	ID3D11ShaderResourceView* vsSSRV[4] = { _lastMeshVerticesView, _lastMeshVertexNormalsView, _lastMeshTextureVerticesView, _lastMeshVertexTangentsView };
+	context->VSSetShaderResources(0, 4, vsSSRV);
 }
 
 void D3dRenderer::ResizeDataVector(const SceneCompData* scene)
