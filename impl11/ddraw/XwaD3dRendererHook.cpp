@@ -482,7 +482,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			// Either way, we can use TargetId as a unique Id for the current mesh and side-load
 			// stuff, like pre-computed tangent maps or BVHs.
 			uint32_t NumTangents;
-			if (scene->pMeshDescriptor->TargetId != 0 &&
+			if (scene->pMeshDescriptor != nullptr &&
+				scene->pMeshDescriptor->TargetId != 0 &&
 				LoadTangentMap(scene->pMeshDescriptor->TargetId, NumTangents, &tangents) &&
 				tangents != nullptr && NumTangents == (uint32_t)normalsCount)
 			{
