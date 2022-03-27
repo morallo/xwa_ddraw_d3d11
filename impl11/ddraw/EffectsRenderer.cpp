@@ -2457,7 +2457,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
 	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
 	g_ShadowMapping.bEnabled = g_bShadowMapEnable;
-	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable && g_ShadowMapping.bUseShadowOBJ;
 	// The post-proc shaders (SSDOAddPixel, SSAOAddPixel) use sm_enabled to compute shadows,
 	// we must set the PS constants here even if we're not rendering shadows at all
 	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
@@ -2468,7 +2468,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
 		return;
-			
+
 	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
