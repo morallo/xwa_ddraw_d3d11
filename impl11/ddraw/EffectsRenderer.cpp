@@ -2813,6 +2813,8 @@ void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
  */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
+	// All the calls below should be rendered with RendererType_Main
+	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
 	RenderLasers();
