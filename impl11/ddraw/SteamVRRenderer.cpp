@@ -176,4 +176,5 @@ void SteamVRRenderer::RenderScene()
 
 //out:
 	g_iD3DExecuteCounter++;
+	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 }

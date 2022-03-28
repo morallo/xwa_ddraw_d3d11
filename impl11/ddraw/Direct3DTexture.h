@@ -151,6 +151,9 @@ public:
 
 	// **** Greebles
 	int GreebleTexIdx;
+
+	// **** Normal Mapping
+	int NormalMapIdx;
 		
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
@@ -184,6 +187,8 @@ public:
 	void LoadAnimatedTextures(int ATCIndex);
 
 	int LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width=nullptr, short *Height=nullptr);
+
+	int LoadNormalMap(char * DATZIPGroupIdImageId, short * Width, short * Height);
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 

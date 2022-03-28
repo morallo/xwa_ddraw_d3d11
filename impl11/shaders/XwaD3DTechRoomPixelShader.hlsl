@@ -12,6 +12,8 @@
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
+// Normal Map, slot 13
+Texture2D normalMap : register(t13);
 
 struct PixelShaderInput
 {
@@ -20,6 +22,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
+	float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput
@@ -147,14 +150,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	// This is the per-vertex Gouraud-shaded color coming from the VR:
 	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
-	uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
-	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
+	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
+	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
-
-	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE)
-		texelColor = float4(0.7, 0.7, 0.7, 1.0);
 
 	float  alpha = texelColor.w;
 	float3 P = input.pos3D.xyz;
@@ -167,15 +168,46 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	float3 N = normalize(input.normal.xyz);
-	float3 normal = N;
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
 
+	float3 T = normalize(input.tangent.xyz);
+	T.y = -T.y; // Invert the Y axis, originally Y+ is down
+	T.z = -T.z;
+	float3 B = cross(T, N);
+	float3x3 TBN = float3x3(T, B, N);
+
+	if (bDoNormalMapping) {
+		const float3 NM = normalize(mul(0.5 * (normalMapColor - 0.5), TBN));
+		N = lerp(N, NM, fNMIntensity);
+	}
+
+	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE)
+		texelColor = float4(0.7, 0.7, 0.7, 1.0);
+
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	// SS Mask: unused-formerly-NMIntensity, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
+
+	// DEBUG: Display the normal map
+	/*
+	if (bDoNormalMapping)
+	{
+		output.color = float4(normalMapColor, 1);
+		return output;
+	}
+	*/
+	// DEBUG: Display the tangent map
+	/*
+	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE) {
+		output.color = float4(T, 1.0);
+		//output.color = float4(input.tex.xy, 0, 1);
+		return output;
+	}
+	*/
+	// DEBUG
 
 	const float exposure = 1.0;
 	//float glossiness = output.ssaoMask.g + 0.5;

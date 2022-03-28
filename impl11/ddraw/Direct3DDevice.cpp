@@ -3284,14 +3284,11 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				const bool bRenderToDynCockpitBuffer = (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					(bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem);
-				bool bRenderToDynCockpitBGBuffer = false;
-
+				const bool bRenderToDynCockpitBuffer = g_bDynCockpitEnabled &&
+					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				// Render HUD backgrounds to their own layer (HUD BG)
-				if ((g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					(bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc))
-					bRenderToDynCockpitBGBuffer = true;
+				const bool bRenderToDynCockpitBGBuffer = g_bDynCockpitEnabled &&
+					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc;
 
 				/*
 				Justagai shared the following information. Some phases are extremely quick and may not
@@ -4923,9 +4920,8 @@ HRESULT Direct3DDevice::Execute(
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
 				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle; // && !bExternalCamera;
-				if (
-					 (g_bDCManualActivate || bExternalCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
-					 (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
+				if (g_bDynCockpitEnabled &&
+					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
 				{	
 					// Restore the non-VR dimensions:

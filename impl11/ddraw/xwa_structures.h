@@ -280,6 +280,18 @@ struct XwaObject3D
 
 static_assert(sizeof(XwaObject3D) == 24, "size of XwaObject3D must be 24");
 
+// See JeremyAnsel.Xwa.Opt for more details
+struct MeshDescriptor {
+	DWORD MeshType;		 // MainHull, Engine, Wing, etc
+	DWORD ExplosionType; // ExplosionTypes
+	XwaVector3 Span;
+	XwaVector3 Center;
+	XwaVector3 Min;
+	XwaVector3 Max;
+	DWORD TargetId;
+	XwaVector3 Target;
+};
+
 struct SceneCompData
 {
 	XwaObject* pObject;
@@ -311,22 +323,10 @@ struct SceneCompData
 	int FaceListCount;
 	int VertListCount;
 	int EdgeListCount;
-	int MeshDescriptor; // See below
+	MeshDescriptor *pMeshDescriptor;
 	int GlowMarksCount;
 	XwaGlowMark* GlowMarks[16];
 };
-
-/*
-The MeshDescriptor looks like this in JeremyAnsel.Xwa.Opt:
-		public MeshType MeshType { get; set; } MainHull, Engine, Wing, etc
-		public ExplosionTypes ExplosionType { get; set; }
-		public Vector Span { get; set; }
-		public Vector Center { get; set; }
-		public Vector Min { get; set; }
-		public Vector Max { get; set; }
-		public int TargetId { get; set; }
-		public Vector Target { get; set; }
-*/
 
 static_assert(sizeof(SceneCompData) == 284, "size of SceneCompData must be 284");
 

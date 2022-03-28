@@ -13,6 +13,7 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 constexpr auto MAX_CANNONS = 8;
 constexpr auto MAX_GREEBLE_NAME = 80;
 constexpr auto MAX_GREEBLE_LEVELS = 2;
+constexpr auto MAX_NORMALMAP_NAME = 80;
 
 typedef enum GreebleBlendModeEnum {
 	GBM_MULTIPLY = 1,
@@ -389,6 +390,9 @@ typedef struct MaterialStruct {
 
 	MeshTransform meshTransform;
 
+	char NormalMapName[MAX_NORMALMAP_NAME];
+	bool NormalMapLoaded;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -446,6 +450,9 @@ typedef struct MaterialStruct {
 		JoystickMaxPitch = -10.0f;
 		RotAxisToZPlus.identity();
 		bRotAxisToZPlusReady = false;
+
+		NormalMapName[0] = 0;
+		NormalMapLoaded = false;
 
 		/*
 		// DEBUG properties, remove later

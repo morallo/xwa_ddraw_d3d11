@@ -770,7 +770,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				CycleFOVSetting();
 				return 0;
 			}
+			// Ctrl+W
 			case 'W': {
+				if (g_bInTechRoom) {
+					g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
+					if (g_config.OnlyGrayscaleInTechRoom)
+						log_debug("[DBG] Displaying Normals");
+					else
+						log_debug("[DBG] Displaying Tangents");
+				}
+
 				// DEBUG: Toggle keyboard joystick emulation
 				if (g_config.KbdSensitivity > 0.0f) {
 					g_config.KbdSensitivity = 0.0f;

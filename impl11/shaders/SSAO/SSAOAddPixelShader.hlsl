@@ -102,6 +102,7 @@ inline float3 getPosition(in float2 uv, in float level) {
  * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
  * (Used with permission from the author)
  */
+/*
 float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 {
 	float3 offset_swiz = float3(offset.xy, 0);
@@ -129,9 +130,11 @@ float3 get_normal_from_color(float2 uv, float2 offset, float nm_intensity)
 
 	return normalize(normal);
 }
+*/
 
 // n1: base normal
 // n2: detail normal
+/*
 float3 blend_normals(float3 n1, float3 n2)
 {
 	// I got this from Pascal Gilcher; but there's more details here:
@@ -145,6 +148,7 @@ float3 blend_normals(float3 n1, float3 n2)
 	n2.xy = -n2.xy;
 	return normalize(n1 * dot(n1, n2) - n1.z * n2);
 }
+*/
 
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
 /*
@@ -308,7 +312,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	//float2 offset = float2(pixelSizeX, pixelSizeY);
+	/*
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
@@ -317,6 +321,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
 		N = blend_normals(N, FakeNormal);
 	}
+	*/
 
 	// ************************************************************************************************
 	// MATERIAL PROPERTIES

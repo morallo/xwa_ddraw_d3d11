@@ -10,6 +10,8 @@
 Texture2D	 texture0 : register(t0);
 Texture2D	 texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
+// Normal Map, slot 13
+Texture2D normalMap : register(t13);
 
 // Texture slot 9 (and above) seem to be free. We might be able to use other slots, but I don't
 // want to break something by doing that. I'll check that later
@@ -45,6 +47,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
+	float4 tangent : TANGENT;
 };
 
 
@@ -192,7 +195,8 @@ void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
 	float  alpha = texelColor.w;
 	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
@@ -221,12 +225,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
+
+	// Replicate the same transforms we're applying to the normal N
+	float3 T = normalize(input.tangent.xyz);
+	T.y = -T.y;
+	T.z = -T.z;
+	const float3 B = cross(T, N);
+	const float3x3 TBN = float3x3(T, B, N);
+	if (bDoNormalMapping) {
+		const float3 NM = normalize(mul(0.5 * (normalMapColor - 0.5), TBN));
+		N = lerp(N, NM, fNMIntensity);
+	}
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// We shouldn't call this shader for smoke, lasers or engine glow
 	

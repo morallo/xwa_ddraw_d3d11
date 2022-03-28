@@ -122,6 +122,7 @@ public:
 	void ApplyProceduralLava();
 	void ApplyGreebles();
 	void ApplyAnimatedTextures();
+	void ApplyNormalMapping();
 
 	// Deferred rendering
 	void RenderLasers();

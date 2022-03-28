@@ -152,7 +152,7 @@
 
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
-void SetPresentCounter(int);
+void SetPresentCounter(int, int);
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -1404,7 +1404,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	// Reset the present counter
-	SetPresentCounter(0);
+	SetPresentCounter(0, 0);
 	g_bPrevPlayerInHangar = false;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
