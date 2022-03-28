@@ -152,7 +152,7 @@
 
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
-void SetPresentCounter(int, int);
+void SetPresentCounter(int val, int b_resetReticle);
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -1403,8 +1403,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		log_debug("[DBG] Using SteamVR settings: %u, %u", dwWidth, dwHeight);
 	}
 
-	// Reset the present counter
-	SetPresentCounter(0, 0);
+	// Reset the present counter and the reticle status
+	SetPresentCounter(0, 1);
 	g_bPrevPlayerInHangar = false;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;

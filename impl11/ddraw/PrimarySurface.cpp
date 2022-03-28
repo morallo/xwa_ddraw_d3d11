@@ -45,10 +45,10 @@ bool rayTriangleIntersect(
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
 
-void SetPresentCounter(int val, int InFlight) {
+void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
-	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
-		g_pSharedData->pSharedData->InFlight = InFlight;
+	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL && bResetReticle) {
+		g_pSharedData->pSharedData->bIsReticleSetup = 0;
 	}
 }
 
@@ -7868,7 +7868,7 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					SetPresentCounter(0, g_bInTechRoom ? 1 : 0);
+					SetPresentCounter(0, 0);
 					if (g_bUseSteamVR) {
 						/*vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
@@ -8799,7 +8799,7 @@ HRESULT PrimarySurface::Flip(
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
-					SetPresentCounter(0, 1);
+					SetPresentCounter(0, 0);
 					log_debug("[DBG] EXITED HANGAR");
 				}
 				g_bPrevPlayerInHangar = *g_playerInHangar;
@@ -9050,7 +9050,7 @@ HRESULT PrimarySurface::Flip(
 				g_HyperspacePhaseFSM = HS_INIT_ST;
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
-			SetPresentCounter(g_iPresentCounter + 1, 1);
+			SetPresentCounter(g_iPresentCounter + 1, 0);
 
 			if (g_iDelayedDumpDebugBuffers) {
 				g_iDelayedDumpDebugBuffers--;
