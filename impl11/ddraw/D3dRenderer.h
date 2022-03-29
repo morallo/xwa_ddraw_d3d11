@@ -163,6 +163,7 @@ public:
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
+	XwaVector3 *ComputeTangents(const SceneCompData * scene);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);

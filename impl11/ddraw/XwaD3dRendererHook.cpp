@@ -136,6 +136,21 @@ bool g_bResetCachedMeshes = false;
 
 RendererType g_rendererType = RendererType_Unknown;
 
+XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
+{
+	float x = v0.y * v1.z - v0.z * v1.y;
+	float y = v0.z * v1.x - v0.x * v1.z;
+	float z = v0.x * v1.y - v0.y * v1.x;
+
+	return XwaVector3(x, y, z);
+}
+
+static XwaVector3 orthogonalize(XwaVector3 N, XwaVector3 T)
+{
+	XwaVector3 B = cross(T, N);
+	return cross(N, B);
+}
+
 bool LoadTangentMap(uint32_t ID, uint32_t &NumTangents, XwaVector3 **Tangents) {
 	// This mesh may have a tangent map. Let's try and load it here.
 	char sTanFile[256];
@@ -387,6 +402,123 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
 }
 
+XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
+{
+	XwaVector3* vertices = scene->MeshVertices;
+	XwaVector3* normals = scene->MeshVertexNormals;
+	XwaTextureVertex* textureCoords = scene->MeshTextureVertices;
+	XwaVector3 v0, v1, v2;
+	XwaTextureVertex uv0, uv1, uv2;
+
+	int verticesCount = *(int*)((int)vertices - 8);
+	int textureCoordsCount = *(int*)((int)textureCoords - 8);
+	int normalsCount = *(int*)((int)normals - 8);
+	XwaVector3 *tangents = new XwaVector3[normalsCount];
+	bool *tags = new bool[normalsCount];
+	if (tangents == nullptr || tags == nullptr)
+		return nullptr;
+
+	for (int i = 0; i < normalsCount; i++)
+		tags[i] = false;
+
+	//log_debug("[DBG] %s", scene->TextureName); // Always (null), might be used to tag this mesh facegroup
+	//log_debug("[DBG] id: %d\n", scene->D3DInfo->Id); // Always 0, apparently
+	//log_debug("[DBG] D3DInfo: 0x%x", scene->D3DInfo);
+	// scene->FaceListCount always 0
+	// scene->FaceListIndex always 0
+
+	// Compute a tangent for each face
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	{
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		const int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		XwaVector3 T;
+		// This converts quads into 2 tris if necessary
+		//for (int edge = 2; edge < edgesCount; edge++)
+		//int edge = 2;
+		if (false)
+		{
+			//D3dTriangle t;
+			//t.v1 = 0;
+			//t.v2 = edge - 1;
+			//t.v3 = edge;
+
+			//////////////////////////////////////////////////
+			// Compute the tangent for this face
+			/*
+			uv0 = textureCoords[faceData.TextureVertex[t.v1]];
+			uv1 = textureCoords[faceData.TextureVertex[t.v2]];
+			uv2 = textureCoords[faceData.TextureVertex[t.v3]];
+			v0 = vertices[faceData.Vertex[t.v1]];
+			v1 = vertices[faceData.Vertex[t.v2]];
+			v2 = vertices[faceData.Vertex[t.v3]];
+			*/
+			uv0 = textureCoords[faceData.TextureVertex[0]];
+			uv1 = textureCoords[faceData.TextureVertex[1]];
+			uv2 = textureCoords[faceData.TextureVertex[2]];
+			v0 = vertices[faceData.Vertex[0]];
+			v1 = vertices[faceData.Vertex[1]];
+			v2 = vertices[faceData.Vertex[2]];
+
+			XwaVector3 deltaPos1 = v1 - v0;
+			XwaVector3 deltaPos2 = v2 - v0;
+			XwaVector3 deltaUV1(uv1.u - uv0.u, uv1.v - uv0.v, 0);
+			XwaVector3 deltaUV2(uv2.u - uv0.u, uv2.v - uv0.v, 0);
+
+			// We're not going to worry about a division by zero here. If that happens, we have either
+			// a collapsed triangle or a triangle with collapsed UVs. If it's a collapsed triangle, we
+			// won't see it as it will render as a line. If it's collapsed UVs, then the modeller must
+			// fix the UVs anyway.
+			float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+			T = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+			T.normalize();
+			//////////////////////////////////////////////////
+		}
+
+		// T has the "flat" tangent for the current face, we can now write it to the
+		// tangent list.
+		for (int i = 0; i < edgesCount; i++)
+		//for (int edge = 2; edge < edgesCount; edge++)
+		{
+			/*
+			D3dTriangle t;
+			t.v1 = 0;
+			t.v2 = edge - 1;
+			t.v3 = edge;
+
+			int n1 = faceData.VertexNormal[t.v1];
+			int n2 = faceData.VertexNormal[t.v2];
+			int n3 = faceData.VertexNormal[t.v3];
+			tangents[n1] = normals[n1];
+			tangents[n2] = normals[n2];
+			tangents[n3] = normals[n3];
+			*/
+
+			int idx = faceData.VertexNormal[i];
+			// Let's assume that this mesh already has smoothed normals. In that case,
+			// we can "transfer" the smooth groups to the tangent map by re-orthogonalizing
+			// T with N (doing the cross product with N twice).
+			if (idx < normalsCount) {
+				//tangents[idx] = orthogonalize(normals[idx], T);
+				tangents[idx] = normals[idx];
+				tags[idx] = true;
+			}
+			else {
+				log_debug("[DBG] Invalid access. idx: %d, normalsCount: %d", idx, normalsCount);
+			}
+		}
+	}
+
+	int counter = 0;
+	for (int i = 0; i < normalsCount; i++)
+		if (tags[i]) counter++;
+
+	//log_debug("[DBG] 0x%x, counter: %d, verts: %d, texcoords: %d normals: %d", normals, counter,
+	//	verticesCount, textureCoordsCount, normalsCount);
+	delete[] tags;
+	return tangents;
+}
+
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -475,6 +607,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		else {
 			int normalsCount = *(int*)((int)normals - 8);
 			XwaVector3 *tangents = nullptr;
+			//XwaVector3 *tangents = ComputeTangents(scene);
 
 			// Here's the plan: we'll use scene->pMeshDescriptor->TargetId to encode the OPT id
 			// and the mesh idx. The upper 16 bits are the OPT id and the lower 16 bits
@@ -486,6 +619,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				scene->pMeshDescriptor->TargetId != 0 &&
 				LoadTangentMap(scene->pMeshDescriptor->TargetId, NumTangents, &tangents) &&
 				tangents != nullptr && NumTangents == (uint32_t)normalsCount)
+			//if (tangents != nullptr)
 			{
 				D3D11_SUBRESOURCE_DATA initialData;
 				initialData.pSysMem = tangents;

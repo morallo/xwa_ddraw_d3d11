@@ -127,6 +127,41 @@ struct XwaVector3
 	float x;
 	float y;
 	float z;
+
+	XwaVector3() {
+		x = y = z = 0.0f;
+	}
+
+	XwaVector3(float x, float y, float z) {
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
+	friend XwaVector3 operator-(XwaVector3 lhs, const XwaVector3& rhs)
+	{
+		lhs.x -= rhs.x;
+		lhs.y -= rhs.y;
+		lhs.z -= rhs.z;
+		return lhs;
+	}
+
+	friend XwaVector3 operator*(XwaVector3 lhs, const float rhs)
+	{
+		lhs.x *= rhs;
+		lhs.y *= rhs;
+		lhs.z *= rhs;
+		return lhs;
+	}
+
+	XwaVector3 normalize() {
+		float L = sqrt(x*x + y * y + z * z);
+		x /= L;
+		y /= L;
+		z /= L;
+		return *this;
+	}
+
 };
 
 static_assert(sizeof(XwaVector3) == 12, "size of XwaVector3 must be 12");
