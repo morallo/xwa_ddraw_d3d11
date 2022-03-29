@@ -163,7 +163,7 @@ public:
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
-	XwaVector3 *ComputeTangents(const SceneCompData * scene);
+	bool ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);
@@ -203,6 +203,7 @@ protected:
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshVerticesViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshNormalsViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTangentsViews;
+	std::map<int, std::tuple<XwaVector3*, bool*>> _tangentMap;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTextureCoordsViews;
 	std::map<int, AABB> _AABBs;
 	XwaVector3* _lastMeshVertices;

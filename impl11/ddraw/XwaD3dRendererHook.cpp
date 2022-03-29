@@ -25,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <tuple>
 
 #include "XwaD3dRendererHook.h"
 #include "EffectsRenderer.h"
@@ -250,6 +251,7 @@ void D3dRenderer::FlightStart()
 	_triangleBuffers.clear();
 	_vertexCounters.clear();
 	_AABBs.clear();
+	_tangentMap.clear();
 	ClearCachedSRVs();
 	// This should be the only place where this flag is set to false. Here's
 	// where we actually reset the meshes.
@@ -402,7 +404,8 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 	_deviceResources->InitPSShaderResourceView(texture->_textureView, texture2 == nullptr ? nullptr : texture2->_textureView.Get());
 }
 
-XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
+// Returns true if all the tangents for the current mesh have been computed.
+bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags)
 {
 	XwaVector3* vertices = scene->MeshVertices;
 	XwaVector3* normals = scene->MeshVertexNormals;
@@ -410,22 +413,7 @@ XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
 	XwaVector3 v0, v1, v2;
 	XwaTextureVertex uv0, uv1, uv2;
 
-	int verticesCount = *(int*)((int)vertices - 8);
-	int textureCoordsCount = *(int*)((int)textureCoords - 8);
 	int normalsCount = *(int*)((int)normals - 8);
-	XwaVector3 *tangents = new XwaVector3[normalsCount];
-	bool *tags = new bool[normalsCount];
-	if (tangents == nullptr || tags == nullptr)
-		return nullptr;
-
-	for (int i = 0; i < normalsCount; i++)
-		tags[i] = false;
-
-	//log_debug("[DBG] %s", scene->TextureName); // Always (null), might be used to tag this mesh facegroup
-	//log_debug("[DBG] id: %d\n", scene->D3DInfo->Id); // Always 0, apparently
-	//log_debug("[DBG] D3DInfo: 0x%x", scene->D3DInfo);
-	// scene->FaceListCount always 0
-	// scene->FaceListIndex always 0
 
 	// Compute a tangent for each face
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
@@ -433,26 +421,8 @@ XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
 		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
 		const int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
 		XwaVector3 T;
-		// This converts quads into 2 tris if necessary
-		//for (int edge = 2; edge < edgesCount; edge++)
-		//int edge = 2;
-		if (false)
-		{
-			//D3dTriangle t;
-			//t.v1 = 0;
-			//t.v2 = edge - 1;
-			//t.v3 = edge;
 
-			//////////////////////////////////////////////////
-			// Compute the tangent for this face
-			/*
-			uv0 = textureCoords[faceData.TextureVertex[t.v1]];
-			uv1 = textureCoords[faceData.TextureVertex[t.v2]];
-			uv2 = textureCoords[faceData.TextureVertex[t.v3]];
-			v0 = vertices[faceData.Vertex[t.v1]];
-			v1 = vertices[faceData.Vertex[t.v2]];
-			v2 = vertices[faceData.Vertex[t.v3]];
-			*/
+		{
 			uv0 = textureCoords[faceData.TextureVertex[0]];
 			uv1 = textureCoords[faceData.TextureVertex[1]];
 			uv2 = textureCoords[faceData.TextureVertex[2]];
@@ -477,34 +447,14 @@ XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
 
 		// T has the "flat" tangent for the current face, we can now write it to the
 		// tangent list.
-		for (int i = 0; i < edgesCount; i++)
-		//for (int edge = 2; edge < edgesCount; edge++)
-		{
-			/*
-			D3dTriangle t;
-			t.v1 = 0;
-			t.v2 = edge - 1;
-			t.v3 = edge;
-
-			int n1 = faceData.VertexNormal[t.v1];
-			int n2 = faceData.VertexNormal[t.v2];
-			int n3 = faceData.VertexNormal[t.v3];
-			tangents[n1] = normals[n1];
-			tangents[n2] = normals[n2];
-			tangents[n3] = normals[n3];
-			*/
-
+		for (int i = 0; i < edgesCount; i++) {
 			int idx = faceData.VertexNormal[i];
 			// Let's assume that this mesh already has smoothed normals. In that case,
 			// we can "transfer" the smooth groups to the tangent map by re-orthogonalizing
 			// T with N (doing the cross product with N twice).
 			if (idx < normalsCount) {
-				//tangents[idx] = orthogonalize(normals[idx], T);
-				tangents[idx] = normals[idx];
+				tangents[idx] = orthogonalize(normals[idx], T);
 				tags[idx] = true;
-			}
-			else {
-				log_debug("[DBG] Invalid access. idx: %d, normalsCount: %d", idx, normalsCount);
 			}
 		}
 	}
@@ -513,10 +463,8 @@ XwaVector3 *D3dRenderer::ComputeTangents(const SceneCompData* scene)
 	for (int i = 0; i < normalsCount; i++)
 		if (tags[i]) counter++;
 
-	//log_debug("[DBG] 0x%x, counter: %d, verts: %d, texcoords: %d normals: %d", normals, counter,
-	//	verticesCount, textureCoordsCount, normalsCount);
-	delete[] tags;
-	return tangents;
+	// Return true if all tangents have been tagged
+	return counter == normalsCount;
 }
 
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
@@ -596,49 +544,66 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	}
 
 	{
+		// Tangent maps are optional, so in this case, we default to nullptr
+		_lastMeshVertexTangentsView = nullptr;
 		// The key for the tangent map is going to be the same key we use for the normals.
 		// We do this because the scene object does not have a tangent map.
 		auto it_tan = _meshTangentsViews.find((int)normals);
-		// Tangent maps are optional, so in this case, we default to nullptr
-		_lastMeshVertexTangentsView = nullptr;
 		if (it_tan != _meshTangentsViews.end()) {
 			_lastMeshVertexTangentsView = it_tan->second;
 		}
 		else {
+			// Tangents aren't ready
 			int normalsCount = *(int*)((int)normals - 8);
 			XwaVector3 *tangents = nullptr;
-			//XwaVector3 *tangents = ComputeTangents(scene);
+			bool *tags = nullptr;
 
-			// Here's the plan: we'll use scene->pMeshDescriptor->TargetId to encode the OPT id
-			// and the mesh idx. The upper 16 bits are the OPT id and the lower 16 bits
-			// is the mesh index, and a value of TargetId == 0 means the field is unused.
-			// Either way, we can use TargetId as a unique Id for the current mesh and side-load
-			// stuff, like pre-computed tangent maps or BVHs.
-			uint32_t NumTangents;
-			if (scene->pMeshDescriptor != nullptr &&
-				scene->pMeshDescriptor->TargetId != 0 &&
-				LoadTangentMap(scene->pMeshDescriptor->TargetId, NumTangents, &tangents) &&
-				tangents != nullptr && NumTangents == (uint32_t)normalsCount)
-			//if (tangents != nullptr)
+			auto it_tanmap = _tangentMap.find((int)normals);
+			if (it_tanmap == _tangentMap.end()) {
+				tangents = new XwaVector3[normalsCount];
+				tags = new bool[normalsCount];
+				for (int i = 0; i < normalsCount; i++)
+					tags[i] = false;
+				_tangentMap.insert(std::make_pair((int)normals,
+					std::make_tuple(tangents, tags)));
+			}
+			else {
+				// Existing entry, fetch the data
+				tangents = std::get<0>(it_tanmap->second);
+				tags = std::get<1>(it_tanmap->second);
+			}
+			
+			if (tangents != nullptr && tags != nullptr)
 			{
-				D3D11_SUBRESOURCE_DATA initialData;
-				initialData.pSysMem = tangents;
-				initialData.SysMemPitch = 0;
-				initialData.SysMemSlicePitch = 0;
+				if (ComputeTangents(scene, tangents, tags)) {
+					D3D11_SUBRESOURCE_DATA initialData;
+					initialData.pSysMem = tangents;
+					initialData.SysMemPitch = 0;
+					initialData.SysMemSlicePitch = 0;
 
-				ComPtr<ID3D11Buffer> meshTangentsBuffer;
-				device->CreateBuffer(&CD3D11_BUFFER_DESC(normalsCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &meshTangentsBuffer);
+					ComPtr<ID3D11Buffer> meshTangentsBuffer;
+					device->CreateBuffer(&CD3D11_BUFFER_DESC(normalsCount * sizeof(XwaVector3),
+						D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
+						&initialData, &meshTangentsBuffer);
 
-				ID3D11ShaderResourceView* meshTangentsView;
-				device->CreateShaderResourceView(meshTangentsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(meshTangentsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normalsCount), &meshTangentsView);
+					ID3D11ShaderResourceView* meshTangentsView;
+					device->CreateShaderResourceView(meshTangentsBuffer,
+						&CD3D11_SHADER_RESOURCE_VIEW_DESC(meshTangentsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normalsCount),
+						&meshTangentsView);
+					_meshTangentsViews.insert(std::make_pair((int)normals, meshTangentsView));
+					_lastMeshVertexTangentsView = meshTangentsView;
 
-				_meshTangentsViews.insert(std::make_pair((int)normals, meshTangentsView));
-				_lastMeshVertexTangentsView = meshTangentsView;
-
-				// Reset the TargetId to its default value? Doing this disables normal mapping for
-				// some reason (?)
-				//scene->pMeshDescriptor->TargetId = 0;
-				delete[] tangents;
+					delete[] tangents;
+					tangents = nullptr;
+					delete[] tags;
+					tags = nullptr;
+					std::get<0>(it_tanmap->second) = tangents;
+					std::get<1>(it_tanmap->second) = tags;
+				}
+				else {
+					std::get<0>(it_tanmap->second) = tangents;
+					std::get<1>(it_tanmap->second) = tags;
+				}
 			}
 		}
 	}
