@@ -45,10 +45,10 @@ bool rayTriangleIntersect(
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
 
-void SetPresentCounter(int val, int InFlight) {
+void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
-	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
-		g_pSharedData->pSharedData->InFlight = InFlight;
+	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL && bResetReticle) {
+		g_pSharedData->pSharedData->bIsReticleSetup = 0;
 	}
 }
 
@@ -7176,48 +7176,8 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		if (g_bCorrectedHeadTracking) {
-			// If we want corrected tracking, we need to apply the full rotation+translation matrix in all cases
-
-			rotMatrixYaw.identity();
-			rotMatrixPitch.identity();
-			posMatrix.identity();
-			rotMatrixRoll.identity();
-
-			// Compute the component matrices with the correct axis signs
-			rotMatrixYaw.rotateY(-yaw);
-			rotMatrixPitch.rotateX(-pitch);
-			rotMatrixRoll.rotateZ(roll);
-			posMatrix.translate(x, y, -z);
-
-			// Compose the full transformation matrix to use in the Vertex Shader.
-			viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
-
-			g_viewMatrix = viewMatrixFull;
-			// The following section applies the correct transform rule to the HUD.
-			// Apparently, the current yaw, pitch, roll values coming from GetSteamVRPositionalData don't work well for the
-			// HUD because we're using pose-corrected data. It looks like only the correction is applied to the HUD. So,
-			// instead we're using the current pose coming from the CockpitLook hook just for the HUD here.
-			/*if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL) {
-				yaw		= g_pSharedData->pSharedData->Yaw;
-				pitch	= g_pSharedData->pSharedData->Pitch;
-				roll		= g_pSharedData->pSharedData->Roll;
-				x		= g_pSharedData->pSharedData->X;
-				y		= g_pSharedData->pSharedData->Y;
-				z		= g_pSharedData->pSharedData->Z;
-
-				rotMatrixYaw.rotateY(-yaw);
-				rotMatrixPitch.rotateX(-pitch);
-				rotMatrixRoll.rotateZ(-roll);
-				posMatrix.translate(-x, -y, z);
-				viewMatrixFull = rotMatrixRoll * rotMatrixPitch * rotMatrixYaw * posMatrix;
-			}*/
-		}
-		else {
-			// If we don't need corrected headtracking, there is no rotation to apply
-			// since the full rotation+translation is applied in CockpitLook now.
+		// There is no rotation to applynce the full rotation+translation is applied in CockpitLook now.
 			g_viewMatrix.identity();
-		}
 
 		g_VSMatrixCB.viewMat = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
@@ -7487,7 +7447,8 @@ HRESULT PrimarySurface::Flip(
 				g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
 				if (g_bSteamVREnabled) {
 					// Compensate the distortion that happens when rendering the 3D craft over the 2D background in the tech room. 
-					g_MetricRecCBuffer.mr_aspect_ratio = ((float)g_WindowHeight / (float)g_WindowWidth) * g_fConcourseAspectRatio * ((float)g_steamVRHeight / (float)g_steamVRWidth);
+					//g_MetricRecCBuffer.mr_aspect_ratio = ((float)g_WindowHeight / (float)g_WindowWidth) * g_fConcourseAspectRatio * ((float)g_steamVRHeight / (float)g_steamVRWidth);
+					g_MetricRecCBuffer.mr_aspect_ratio = 0.5f;
 					//g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio * (((float)g_WindowHeight / (float)g_WindowWidth) * (4.0f / 3.0f));
 				}
 				g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
@@ -7868,7 +7829,7 @@ HRESULT PrimarySurface::Flip(
 
 					// Reset the 2D draw counter -- that'll help us increase the parallax for the Tech Library
 					g_iDraw2DCounter = 0;				
-					SetPresentCounter(0, g_bInTechRoom ? 1 : 0);
+					SetPresentCounter(0, 0);
 					if (g_bUseSteamVR) {
 						/*vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
@@ -8799,7 +8760,7 @@ HRESULT PrimarySurface::Flip(
 
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
-					SetPresentCounter(0, 1);
+					SetPresentCounter(0, 0);
 					log_debug("[DBG] EXITED HANGAR");
 				}
 				g_bPrevPlayerInHangar = *g_playerInHangar;
@@ -9050,7 +9011,7 @@ HRESULT PrimarySurface::Flip(
 				g_HyperspacePhaseFSM = HS_INIT_ST;
 			// We're about to show 3D content, so let's set the corresponding flag
 			g_bRendering3D = true;
-			SetPresentCounter(g_iPresentCounter + 1, 1);
+			SetPresentCounter(g_iPresentCounter + 1, 0);
 
 			if (g_iDelayedDumpDebugBuffers) {
 				g_iDelayedDumpDebugBuffers--;

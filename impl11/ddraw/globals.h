@@ -174,7 +174,6 @@ extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
 
 extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
 extern TrackerType g_TrackerType;
-extern bool g_bCorrectedHeadTracking;
 
 extern bool g_bAOEnabled;
 
