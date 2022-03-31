@@ -41,7 +41,7 @@ PixelShaderInput main(VertexShaderInput input)
 	float3 v = g_vertices[input.index.x];
 	float3 n = g_normals[input.index.y];
 	float2 t = g_textureCoords[input.index.z];
-	float3 T = g_normals[input.index.y];
+	float3 T = g_tangents[input.index.y];
 
 	n = mul(float4(n, 0.0f), MeshTransform).xyz;
 	T = mul(float4(T, 0.0f), MeshTransform).xyz;
