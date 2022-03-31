@@ -124,6 +124,7 @@
     <ClCompile Include="DirectDraw.cpp" />
     <ClCompile Include="DirectDraw2.cpp" />
     <ClCompile Include="DirectSBS.cpp" />
+    <ClCompile Include="DirectSBSRenderer.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="DynamicCockpit.cpp" />
     <ClCompile Include="Effects.cpp" />
@@ -170,6 +171,7 @@
     <ClInclude Include="DirectDraw.h" />
     <ClInclude Include="DirectDraw2.h" />
     <ClInclude Include="DirectSBS.h" />
+    <ClInclude Include="DirectSBSRenderer.h" />
     <ClInclude Include="DynamicCockpit.h" />
     <ClInclude Include="Effects.h" />
     <ClInclude Include="EffectsCommon.h" />
