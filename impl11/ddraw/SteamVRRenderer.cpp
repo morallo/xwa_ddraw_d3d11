@@ -1,16 +1,10 @@
 /*
  * TODO:
- * - The hangar backdrop "swims" sometimes.
- *	 Maybe the backdrops swim when cockpit roll happens?
- * - Do we need to pay extra attention to all the deferred calls? (transparency, lasers...)
- * - Engine Glow (Z-Fighting)
- * - There are no explosions! (Z-Fighting?)
- * - Shadows are messed up when there's camera roll, this is probably also true for the pancake version
- * - External camera is kind of broken
- * - Sometimes the background "swims" while in the hangar
- * - Some HUD elements "swim", including the brackets, but not sure when -- seems to happen con cockpit camera roll
- * - Tech Room?
- * - The DS2 mission is messed up...
+ * - The hangar backdrop "swims" when the external camera is activated. This happens with
+ *	 camera roll only.
+ *	 Probable fix: remove the backdrop altogether and substitute with an environment map.
+ *	 Make the environment map respond to head tracking motion.
+ * - Disable head tracking while rendering the miniature.
  */
 #include "SteamVRRenderer.h"
 
