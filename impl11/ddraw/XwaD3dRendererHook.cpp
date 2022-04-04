@@ -245,6 +245,10 @@ void D3dRenderer::SceneEnd()
 
 void D3dRenderer::FlightStart()
 {
+	_lastMeshVertices = nullptr;
+	_lastMeshVertexNormals = nullptr;
+	_lastMeshTextureVertices = nullptr;
+
 	_meshVerticesViews.clear();
 	_meshNormalsViews.clear();
 	_meshTangentsViews.clear();
@@ -1375,6 +1379,14 @@ void D3dRendererShadowHook(SceneCompData* scene)
 {
 	g_rendererType = RendererType_Shadow;
 	g_current_renderer->HangarShadowSceneHook(scene);
+}
+
+void D3dRendererOptLoadHook(int handle)
+{
+	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
+	GetSizeFromHandle(handle);
+
+	D3dRendererFlightStart();
 }
 
 #ifdef DISABLED
