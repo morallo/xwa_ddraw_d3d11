@@ -148,6 +148,8 @@ XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
 
 static XwaVector3 orthogonalize(XwaVector3 N, XwaVector3 T)
 {
+	// Another way to orthogonalize T would be:
+	// T = normalize(T - N * dot(N, T));
 	XwaVector3 B = cross(T, N);
 	return cross(N, B);
 }

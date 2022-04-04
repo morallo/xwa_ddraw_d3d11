@@ -11,7 +11,7 @@ Texture2D	 texture0 : register(t0);
 Texture2D	 texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
-Texture2D normalMap : register(t13);
+Texture2D	 normalMap : register(t13);
 
 // Texture slot 9 (and above) seem to be free. We might be able to use other slots, but I don't
 // want to break something by doing that. I'll check that later
@@ -73,7 +73,7 @@ inline float4 screen(float4 a, float4 b)
 
 // Apply greebles to color and/or normal.
 // color can be either a regular texture or a lightmap texture.
-void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P)
+void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P, in float3x3 TBN)
 {
 	/*
 	uint GreebleControl;
@@ -99,11 +99,11 @@ void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P
 	//uint BlendingMode3 = (GreebleControl >> 8) & 0xF;
 	bool bUsesNormalMap = (GreebleControl & 0x10000) != 0x0;
 	bool bIsLightmapGreeble = (GreebleControl & 0x20000) != 0x0;
-	float3x3 TBN;
+	//float3x3 TBN;
 
 	// Compute the TBN matrix if any of our blending modes require normal mapping
-	if (bUsesNormalMap)
-		TBN = cotangent_frame(normal.xyz, P, tex);
+	//if (bUsesNormalMap)
+	//	TBN = cotangent_frame(normal.xyz, P, tex);
 
 	float4 greeble1 = 0.0, greeble2 = 0.0;
 	float4 greebleMixCol = 0.0;
@@ -196,7 +196,7 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
 	float  alpha = texelColor.w;
 	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
@@ -233,7 +233,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 B = cross(T, N);
 	const float3x3 TBN = float3x3(T, B, N);
 	if (bDoNormalMapping) {
-		const float3 NM = normalize(mul(0.5 * (normalMapColor - 0.5), TBN));
+		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}
 	output.normal = float4(N, SSAOAlpha);
@@ -258,7 +258,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
 	float4 GreebleColor = bIsLightmapGreeble ? texelColorIllum : output.color;
-	Greeble(GreebleColor, output.normal, input.tex, P);
+	Greeble(GreebleColor, output.normal, input.tex, P, TBN);
 	if (bIsLightmapGreeble)
 		texelColorIllum = GreebleColor;
 	else

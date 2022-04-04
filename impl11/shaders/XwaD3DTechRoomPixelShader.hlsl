@@ -151,7 +151,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// This is the per-vertex Gouraud-shaded color coming from the VR:
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : 0;
+	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
 	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
 	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
@@ -179,7 +179,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3x3 TBN = float3x3(T, B, N);
 
 	if (bDoNormalMapping) {
-		const float3 NM = normalize(mul(0.5 * (normalMapColor - 0.5), TBN));
+		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}
 
