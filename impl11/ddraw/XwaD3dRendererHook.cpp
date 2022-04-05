@@ -133,8 +133,6 @@ bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
 
-bool g_bResetCachedMeshes = false;
-
 RendererType g_rendererType = RendererType_Unknown;
 
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
@@ -223,24 +221,10 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	GetViewport(&_viewport);
 	GetViewportScale(_constants.viewportScale);
-
-	if (g_bResetCachedMeshes)
-		FlightStart();
 }
 
 void D3dRenderer::SceneEnd()
 {
-	static int PrevD3DExecuteCounter = -1;
-	// Reset the mesh cache if we're in the Tech Room every time the draw counter
-	// changes. This isn't a perfect fix, because if the draw call count stays
-	// the same after switching to a new ship, then we won't reset the meshes,
-	// but it helps.
-	if (g_bInTechRoom && g_iD3DExecuteCounter != PrevD3DExecuteCounter) {
-		// Set the signal to reset the meshes on the next frame. Resetting them here may
-		// cause a crash in SteamVR mode.
-		g_bResetCachedMeshes = true;
-		PrevD3DExecuteCounter = g_iD3DExecuteCounter;
-	}
 }
 
 void D3dRenderer::FlightStart()
@@ -259,9 +243,6 @@ void D3dRenderer::FlightStart()
 	_AABBs.clear();
 	_tangentMap.clear();
 	ClearCachedSRVs();
-	// This should be the only place where this flag is set to false. Here's
-	// where we actually reset the meshes.
-	g_bResetCachedMeshes = false;
 }
 
 void D3dRenderer::MainSceneHook(const SceneCompData* scene)
@@ -1386,6 +1367,10 @@ void D3dRendererOptLoadHook(int handle)
 	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
 	GetSizeFromHandle(handle);
 
+	// This hook is called every time an OPT is loaded. This can happen in the
+	// Tech Room and during regular flight. Either way, the cached meshes are
+	// cleared. This prevents artifacts in the Tech Room (and possibly during
+	// regular flight as well).
 	D3dRendererFlightStart();
 }
 

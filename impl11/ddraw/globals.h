@@ -222,7 +222,6 @@ extern int g_iSunFlareCount;
 extern int g_iD3DExecuteCounter;
 constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 constexpr float METERS_TO_OPT = 40.96f;
-extern bool g_bResetCachedMeshes;
 
 // *****************************************************
 // Global functions

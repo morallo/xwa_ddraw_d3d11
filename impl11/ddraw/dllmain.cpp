@@ -745,8 +745,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bShadowMapDebug = !g_bShadowMapDebug;
 				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
 				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
-				g_bResetCachedMeshes = true;
-				log_debug("[DBG] g_bResetCachedMeshes = true");
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
