@@ -426,7 +426,8 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 			// a collapsed triangle or a triangle with collapsed UVs. If it's a collapsed triangle, we
 			// won't see it as it will render as a line. If it's collapsed UVs, then the modeller must
 			// fix the UVs anyway.
-			float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+			float denom = (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+			float r = 1.0f / denom;
 			T = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
 			T.normalize();
 			//////////////////////////////////////////////////
@@ -544,6 +545,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			int normalsCount = *(int*)((int)normals - 8);
 			XwaVector3 *tangents = nullptr;
 			bool *tags = nullptr;
+			int counter = 0;
 
 			auto it_tanmap = _tangentMap.find((int)normals);
 			if (it_tanmap == _tangentMap.end()) {
@@ -552,17 +554,24 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				for (int i = 0; i < normalsCount; i++)
 					tags[i] = false;
 				_tangentMap.insert(std::make_pair((int)normals,
-					std::make_tuple(tangents, tags)));
+					std::make_tuple(tangents, tags, 0)));
 			}
 			else {
 				// Existing entry, fetch the data
 				tangents = std::get<0>(it_tanmap->second);
 				tags = std::get<1>(it_tanmap->second);
+				counter = std::get<2>(it_tanmap->second);
 			}
 			
 			if (tangents != nullptr && tags != nullptr)
 			{
-				if (ComputeTangents(scene, tangents, tags)) {
+				// For some reason, sometimes some meshes won't ever "use" all of their
+				// normals. In those cases, the tangent map won't ever be tagged as
+				// complete because we will always be missing a few normals. To work
+				// around that problem, we use a counter. If we've tried to create the
+				// tangent map for this mesh more times than the maximum number of meshes.
+				// Then we're probably done. I believe the max meshes per OPT is 256:
+				if (ComputeTangents(scene, tangents, tags) || counter > 256) {
 					D3D11_SUBRESOURCE_DATA initialData;
 					initialData.pSysMem = tangents;
 					initialData.SysMemPitch = 0;
@@ -590,6 +599,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				else {
 					std::get<0>(it_tanmap->second) = tangents;
 					std::get<1>(it_tanmap->second) = tags;
+					std::get<2>(it_tanmap->second) = ++counter;
 				}
 			}
 		}
