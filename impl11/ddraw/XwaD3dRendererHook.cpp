@@ -1395,6 +1395,9 @@ void D3dRendererShadowHook(SceneCompData* scene)
 void D3dRendererOptLoadHook(int handle)
 {
 	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
+
+	// XwaIOFileName contains the filename of the loaded OPT
+	// const char* XwaIOFileName = (const char*)0x0080DA60;
 	char* s_XwaIOFileName = (char*)0x0080DA60;
 	GetSizeFromHandle(handle);
 	sprintf_s(g_curOPTLoaded, MAX_OPT_NAME, s_XwaIOFileName);
@@ -1407,6 +1410,18 @@ void D3dRendererOptLoadHook(int handle)
 	// cleared. This prevents artifacts in the Tech Room (and possibly during
 	// regular flight as well).
 	D3dRendererFlightStart();
+
+	
+}
+
+void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* scene)
+{
+	const auto L00482000 = (void(*)(OptHeader*, OptNode*, SceneCompData*))0x00482000;
+
+	OptNode* node = optHeader->Nodes[nodeIndex];
+	g_xwa_d3d_renderer._currentOptMeshIndex = (node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ? (nodeIndex - 1) : nodeIndex;
+
+	L00482000(optHeader, node, scene);
 }
 
 #ifdef DISABLED

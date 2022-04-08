@@ -156,6 +156,8 @@ struct DrawCommand {
 class D3dRenderer
 {
 public:
+	int _currentOptMeshIndex;
+
 	D3dRenderer();
 	virtual void SceneBegin(DeviceResources* deviceResources);
 	virtual void SceneEnd();
