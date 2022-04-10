@@ -111,6 +111,7 @@ struct XwaD3dTriangle
 
 static_assert(sizeof(XwaD3dTriangle) == 20, "size of XwaD3dTriangle must be 20");
 
+/*
 struct XwaDataMesh
 {
 	XwaD3dVertex Vertices[384];
@@ -121,6 +122,7 @@ struct XwaDataMesh
 };
 
 static_assert(sizeof(XwaDataMesh) == 19980, "size of XwaDataMesh must be 19980");
+*/
 
 struct XwaVector3
 {
@@ -334,30 +336,30 @@ struct SceneCompData
 	XwaTransform WorldViewTransform;
 	XwaTransform WorldViewTransformTransposed;
 	XwaVector3 SceneCompData_m068;
-	int SceneCompData_m074;
-	int VerticesCount;
+	int SceneCompData_m074; // Always 0
+	int VerticesCount; // Matches data in OPT file
 	XwaVector3* MeshVertices;
 	XwaTextureVertex* MeshTextureVertices;
 	XwaVector3* MeshVertexNormals;
-	int SceneCompData_m088;
-	int FacesCount;
-	int EdgesCount;
+	int SceneCompData_m088; // Always 0
+	int FacesCount; // Matches data in OPT file
+	int EdgesCount; // Matches data in OPT file
 	XwaVector3* FaceNormals;
 	XwaVector3* FaceTexturingInfos;
-	int SceneCompData_m09C;
+	int SceneCompData_m09C; // Always 0
 	OptFaceDataNode_01_Data_Indices* FaceIndices;
-	const char* TextureName;
+	const char* TextureName; // Always 0
 	XwaTextureDescription* TextureDescription;
 	unsigned char* pTextureData;
 	unsigned short* TexturePalettes;
 	unsigned int TextureAlphaMask;
 	XwaD3DInfo* D3DInfo;
-	int FaceListIndex;
-	int VertListIndex;
-	int EdgeListIndex;
-	int FaceListCount;
-	int VertListCount;
-	int EdgeListCount;
+	int FaceListIndex; // Always 0
+	int VertListIndex; // Always 0
+	int EdgeListIndex; // Always 0
+	int FaceListCount; // Always 0
+	int VertListCount; // Always 0
+	int EdgeListCount; // Always 0
 	MeshDescriptor *pMeshDescriptor;
 	int GlowMarksCount;
 	XwaGlowMark* GlowMarks[16];
@@ -365,6 +367,7 @@ struct SceneCompData
 
 static_assert(sizeof(SceneCompData) == 284, "size of SceneCompData must be 284");
 
+/*
 struct SceneFaceList
 {
 	int FaceIndex;
@@ -396,6 +399,7 @@ struct SceneFaceList
 };
 
 static_assert(sizeof(SceneFaceList) == 116, "size of SceneFaceList must be 116");
+*/
 
 struct SceneVertList
 {

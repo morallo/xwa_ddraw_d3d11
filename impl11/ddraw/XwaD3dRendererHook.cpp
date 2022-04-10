@@ -20,6 +20,24 @@
  *		outside the cockpit.
  * - Universal head tracking through the tranformWorldView matrix
  * - Parallax mapping: we have the OPT -> Viewspace transform matrix now!
+
+
+ The opt filename is stored in char* s_XwaIOFileName = (char*)0x0080DA60;
+
+JeremyaFr:
+@blue_max Hello, Here is some infos about the backdrops.
+To preview backdrops for a given mission, you can take a look to the source code
+of XwaMission3DViewer: https://github.com/JeremyAnsel/XwaMission3DViewer
+To see how starfield backdrops are added to skirmish mission, you can take a look to the
+source code of the backdrops hook: https://github.com/JeremyAnsel/xwa_hooks/tree/master/xwa_hook_backdrops
+When the game creates the backdrops, it can write debug messages. You can see them with
+the deusdbg command line by enabling the Backdrops messages: https://www.xwaupgrade.com/phpBB3008/viewtopic.php?f=10&t=10516
+Do you want to know how the game generate these messages?
+
+Backdrops messages look like:
+- "Created backdrop %d : %d, side %d, from world %d, %d, %d to world %d, %d, %d.\n"
+- "Set backdrop scale %f, intensity %f, R%f, G%f, B%f, flags %d, imgnum %d.\n"
+
  */
 #include <vector>
 #include <fstream>
@@ -134,6 +152,8 @@ bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
 
 RendererType g_rendererType = RendererType_Unknown;
+
+char g_curOPTLoaded[MAX_OPT_NAME];
 
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
 {
@@ -1375,7 +1395,12 @@ void D3dRendererShadowHook(SceneCompData* scene)
 void D3dRendererOptLoadHook(int handle)
 {
 	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
+	char* s_XwaIOFileName = (char*)0x0080DA60;
 	GetSizeFromHandle(handle);
+	sprintf_s(g_curOPTLoaded, MAX_OPT_NAME, s_XwaIOFileName);
+	//log_debug("[DBG] Loading [%s]", s_XwaIOFileName);
+	// Here we can side-load additional data for this OPT, like tangent maps (?) or
+	// pre-computed BVH data.
 
 	// This hook is called every time an OPT is loaded. This can happen in the
 	// Tech Room and during regular flight. Either way, the cached meshes are

@@ -85,7 +85,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	// Zero-out the bloom mask and provide default output values
 	output.bloom		= 0;
-	output.color		= output.color = float4(brightness * texelColor.xyz, texelColor.w);
+	output.color		= float4(brightness * texelColor.xyz, texelColor.w);
 	output.pos3D		= float4(P, SSAOAlpha);
 	output.ssMask	= 0;
 
@@ -167,6 +167,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom.rgb *= fBloomStrength;
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
+
 		return output;
 	}
 

@@ -72,8 +72,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	// SS Mask: unused, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
 	// the background through it, so we mix it with a black color
