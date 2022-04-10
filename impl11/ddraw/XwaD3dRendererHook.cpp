@@ -1410,8 +1410,6 @@ void D3dRendererOptLoadHook(int handle)
 	// cleared. This prevents artifacts in the Tech Room (and possibly during
 	// regular flight as well).
 	D3dRendererFlightStart();
-
-	
 }
 
 void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* scene)
@@ -1419,7 +1417,9 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 	const auto L00482000 = (void(*)(OptHeader*, OptNode*, SceneCompData*))0x00482000;
 
 	OptNode* node = optHeader->Nodes[nodeIndex];
-	g_xwa_d3d_renderer._currentOptMeshIndex = (node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ? (nodeIndex - 1) : nodeIndex;
+	g_current_renderer->_currentOptMeshIndex =
+		(node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ?
+		(nodeIndex - 1) : nodeIndex;
 
 	L00482000(optHeader, node, scene);
 }
