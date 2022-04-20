@@ -130,8 +130,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.ssaoMask.a = 0.0;
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, coverAlpha);
 
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
+	// SS Mask: unused, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, 0.0, 0.0);
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -192,6 +192,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor = lerp(bgColor, hud_texelColor, hud_alpha);
 		}
 	}
+
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
 	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
 	// Also go shadeless where the cover texture is bright enough and mark that in the bloom mask.
@@ -228,6 +229,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
 		output.ssaoMask.a   = max(output.ssaoMask.a, (1.0 - coverAlpha));
 		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+		// After all the blending with the cover texture is finished, the final color should
+		// be opaque. Otherwise transparent areas will look black when shading is off.
+		coverColor.a			= 1.0f;
+		coverAlpha			= coverColor.a;
 	}
 	else {
 		// If use_damage_texture is set, then the cover texture will have the damage texture, so
@@ -239,7 +244,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
-		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
+		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // (unused), White Spec Val, unused
 	}
 	// Let's make the text and other DC elements emissive so that they are readable even in low lighting conditions
 	output.ssaoMask.r = lerp(output.ssaoMask.r, EMISSION_MAT, hud_Lightness);
