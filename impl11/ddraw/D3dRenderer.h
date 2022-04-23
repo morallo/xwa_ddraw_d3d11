@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include "LBVH.h"
 
 #pragma pack(push, 1)
 
@@ -157,6 +158,7 @@ class D3dRenderer
 {
 public:
 	int _currentOptMeshIndex;
+	LBVH *lbvh;
 
 	D3dRenderer();
 	virtual void SceneBegin(DeviceResources* deviceResources);
@@ -201,6 +203,7 @@ protected:
 	std::vector<XwaD3dTriangle> _glowMarksTriangles;
 
 	bool _isInitialized;
+	bool _isRTInitialized;
 	//UINT _meshBufferInitialCount;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshVerticesViews;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshNormalsViews;
@@ -234,6 +237,9 @@ protected:
 	ComPtr<ID3D11PixelShader> _shadowPixelShader;
 	ComPtr<ID3D11PixelShader> _techRoomPixelShader;
 	D3D11_VIEWPORT _viewport;
+
+	ComPtr<ID3D11Buffer> bvhNodes;
+	ComPtr<ID3D11ShaderResourceView> bvhSRV;
 };
 
 extern bool g_isInRenderLasers;

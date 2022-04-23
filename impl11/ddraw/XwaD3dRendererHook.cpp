@@ -202,6 +202,7 @@ bool LoadTangentMap(uint32_t ID, uint32_t &NumTangents, XwaVector3 **Tangents) {
 D3dRenderer::D3dRenderer()
 {
 	_isInitialized = false;
+	_isRTInitialized = false;
 	//_meshBufferInitialCount = 65536; // Not actually used anywhere at all
 	_lastMeshVertices = nullptr;
 	_lastMeshVerticesView = nullptr;
@@ -551,6 +552,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 	}
 
+	// Tangent maps
 	{
 		// Tangent maps are optional, so in this case, we default to nullptr
 		_lastMeshVertexTangentsView = nullptr;
@@ -657,6 +659,80 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 	ID3D11ShaderResourceView* vsSSRV[4] = { _lastMeshVerticesView, _lastMeshVertexNormalsView, _lastMeshTextureVerticesView, _lastMeshVertexTangentsView };
 	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Create the buffers for the BVH
+	if (lbvh != nullptr && !_isRTInitialized) {
+		HRESULT hr;
+
+		// DEBUG
+		/*
+		lbvh->nodes[0].ref = -1;
+		lbvh->nodes[0].left = 0;
+		lbvh->nodes[0].right = 1;
+		lbvh->nodes[0].min[0] = 1.0f;
+		lbvh->nodes[0].min[1] = 0.4f;
+		lbvh->nodes[0].min[2] = 0.4f;
+		lbvh->nodes[0].min[3] = 1.0f;
+		*/
+
+		/*
+		log_debug("[DBG] [BVH] NumVertices: %d, NumIndices: %d", lbvh->numVertices, lbvh->numIndices);
+		log_debug("[DBG] [BVH] Vertex[0]: %0.3f, %0.3f, %0.3f",
+			lbvh->vertices[0].x, lbvh->vertices[0].y, lbvh->vertices[0].z);
+		log_debug("[DBG] [BVH] Indices[0,1,2]: %d, %d, %d",
+			lbvh->indices[0], lbvh->indices[1], lbvh->indices[2]);
+
+		log_debug("[DBG] [BVH] numNodes: %d, sizeof(BVHNode): %d", lbvh->numNodes, sizeof(BVHNode));
+		log_debug("[DBG] [BVH] BVH[0].ref: %d, left: %d, right: %d",
+			lbvh->nodes[0].ref, lbvh->nodes[0].left, lbvh->nodes[0].right);
+		log_debug("[DBG] [BVH] BVH[0] min: %0.3f, %0.3f, %0.3f",
+			lbvh->nodes[0].min[0], lbvh->nodes[0].min[1], lbvh->nodes[0].min[2]);
+		log_debug("[DBG] [BVH] BVH[0] max: %0.3f, %0.3f, %0.3f",
+			lbvh->nodes[0].max[0], lbvh->nodes[0].max[1], lbvh->nodes[0].max[2]);
+
+		if (lbvh->numNodes > 1) {
+			log_debug("[DBG] [BVH] left child");
+			log_debug("[DBG] [BVH] BVH[0] min: %0.3f, %0.3f, %0.3f",
+				lbvh->nodes[1].min[0], lbvh->nodes[1].min[1], lbvh->nodes[1].min[2]);
+			log_debug("[DBG] [BVH] BVH[0] max: %0.3f, %0.3f, %0.3f",
+				lbvh->nodes[1].max[0], lbvh->nodes[1].max[1], lbvh->nodes[1].max[2]);
+		}
+		*/
+
+		D3D11_SUBRESOURCE_DATA initialData;
+		initialData.pSysMem = lbvh->nodes;
+		initialData.SysMemPitch = 0;
+		initialData.SysMemSlicePitch = 0;
+
+		D3D11_BUFFER_DESC desc;
+		ZeroMemory(&desc, sizeof(desc));
+		desc.ByteWidth = sizeof(BVHNode) * lbvh->numNodes;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+		desc.StructureByteStride = sizeof(BVHNode);
+		
+		hr = device->CreateBuffer(&desc, &initialData, &bvhNodes);
+		if (FAILED(hr)) {
+			log_debug("[DBG] [BVH] Failed when creating BVH buffer: 0x%x", hr);
+		}
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+		ZeroMemory(&srvDesc, sizeof(srvDesc));
+		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = lbvh->numNodes;
+
+		hr = device->CreateShaderResourceView(bvhNodes, &srvDesc, &bvhSRV);
+		if (FAILED(hr)) {
+			log_debug("[DBG] [BVH] Failed when creating BVH SRV: 0x%x", hr);
+		}
+		else {
+			log_debug("[DBG] [BVH] BVH buffers created");
+		}
+		_isRTInitialized = true;
+	}
 }
 
 void D3dRenderer::ResizeDataVector(const SceneCompData* scene)
@@ -1086,6 +1162,11 @@ void D3dRenderer::Initialize()
 	CreateConstantBuffer();
 	CreateStates();
 	CreateShaders();
+
+	if (g_bRTEnabled && lbvh != nullptr) {
+		delete lbvh;
+		lbvh = nullptr;
+	}
 }
 
 void D3dRenderer::CreateConstantBuffer()
@@ -1392,6 +1473,23 @@ void D3dRendererShadowHook(SceneCompData* scene)
 	g_current_renderer->HangarShadowSceneHook(scene);
 }
 
+LBVH *LoadLBVH(char *s_XwaIOFileName) {
+	char sBVHFileName[MAX_OPT_NAME];
+	// s_XwaIOFileName includes the relative path, like "FlightModels\AWingExterior.opt"
+	int len = strlen(s_XwaIOFileName);
+	sprintf_s(sBVHFileName, "%s", s_XwaIOFileName);
+
+	int i = len - 1;
+	while (i > 0 && sBVHFileName[i] != '.') i--;
+	i++;
+	sBVHFileName[i++] = 'b';
+	sBVHFileName[i++] = 'v';
+	sBVHFileName[i++] = 'h';
+	sBVHFileName[i++] = 0;
+	//log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
+	return LBVH::LoadLBVH(sBVHFileName);
+}
+
 void D3dRendererOptLoadHook(int handle)
 {
 	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
@@ -1402,8 +1500,17 @@ void D3dRendererOptLoadHook(int handle)
 	GetSizeFromHandle(handle);
 	sprintf_s(g_curOPTLoaded, MAX_OPT_NAME, s_XwaIOFileName);
 	//log_debug("[DBG] Loading [%s]", s_XwaIOFileName);
+	// s_XwaIOFileName includes the relative path, like "FlightModels\AWingExterior.opt"
 	// Here we can side-load additional data for this OPT, like tangent maps (?) or
 	// pre-computed BVH data.
+	if (g_bRTEnabled) {
+		if (g_current_renderer->lbvh != nullptr)
+		{
+			delete g_current_renderer->lbvh;
+			g_current_renderer->lbvh = nullptr;
+		}
+		g_current_renderer->lbvh = LoadLBVH(s_XwaIOFileName);
+	}
 
 	// This hook is called every time an OPT is loaded. This can happen in the
 	// Tech Room and during regular flight. Either way, the cached meshes are

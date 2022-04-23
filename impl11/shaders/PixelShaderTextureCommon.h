@@ -51,6 +51,7 @@ cbuffer ConstantBuffer : register(b9)
 	// 160 bytes
 	uint special_control_light;
 	uint bDoNormalMapping;
-	float2 unusedPS0;
+	uint bDoRaytracing;
+	float unusedPS0;
 	// 176 bytes
 };

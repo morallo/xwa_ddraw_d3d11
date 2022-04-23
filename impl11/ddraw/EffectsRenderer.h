@@ -87,6 +87,9 @@ protected:
 	D3D11_VIEWPORT _oldViewports[2];
 	UINT _oldNumViewports = 2;
 
+	ComPtr<ID3D11ComputeShader> _RTShadowCS;
+
+
 	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
@@ -100,6 +103,7 @@ protected:
 
 public:
 	EffectsRenderer();
+	virtual void CreateShaders();
 	virtual void SceneBegin(DeviceResources* deviceResources);
 	virtual void SceneEnd();
 	virtual void MainSceneHook(const SceneCompData* scene);
@@ -123,6 +127,9 @@ public:
 	void ApplyGreebles();
 	void ApplyAnimatedTextures();
 	void ApplyNormalMapping();
+
+	// Raytracing
+	void ApplyRTShadows();
 
 	// Deferred rendering
 	void RenderLasers();

@@ -1,10 +1,17 @@
 #include "EffectsRenderer.h"
 
+#ifdef _DEBUG
+#include "../Debug/RTShadowCS.h"
+#else
+#include "../Release/RTShadowCS.h"
+#endif
+
 // DEBUG vars
 int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
 
 // Control vars
 bool g_bEnableAnimations = true;
+bool g_bRTEnabled = true;
 
 EffectsRenderer g_effects_renderer;
 
@@ -397,6 +404,16 @@ void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matri
 EffectsRenderer::EffectsRenderer() : D3dRenderer() {
 	_hangarShadowMapRotation.identity();
 	_hangarShadowMapRotation.rotateX(180.0f);
+}
+
+void EffectsRenderer::CreateShaders() {
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	D3dRenderer::CreateShaders();
+
+	if (g_bRTEnabled) {
+		device->CreateComputeShader(g_RTShadowCS, sizeof(g_RTShadowCS), nullptr, &_RTShadowCS);
+	}
 }
 
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
@@ -1510,6 +1527,21 @@ void EffectsRenderer::ApplyNormalMapping()
 	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
 }
 
+void EffectsRenderer::ApplyRTShadows() {
+	if (!g_bRTEnabled)
+		return;
+
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	_bModifiedShaders = true;
+
+	// Enable Raytracing
+	g_PSCBuffer.bDoRaytracing = 1;
+
+	// Set the BVH SRV
+	context->PSSetShaderResources(14, 1, bvhSRV.GetAddressOf());
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -1660,6 +1692,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	// Animate the current mesh (if applicable)
 	ApplyMeshTransform();
+
+	if (g_bInTechRoom)
+		ApplyRTShadows();
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {

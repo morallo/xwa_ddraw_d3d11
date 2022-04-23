@@ -1970,6 +1970,11 @@ bool LoadSSAOParams() {
 				else if (_stricmp(svalue, "deferred") == 0)
 					g_SSAO_Type = SSO_DEFERRED;
 			}
+
+			if (_stricmp(param, "raytracing_enabled") == 0) {
+				g_bRTEnabled = (bool)fValue;
+			}
+
 			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
 				g_bDisableDiffuse = (bool)fValue;
 			}

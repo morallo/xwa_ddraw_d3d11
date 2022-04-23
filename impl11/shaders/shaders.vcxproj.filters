@@ -85,6 +85,7 @@
     <FxCompile Include="HangarShadowMapVS.hlsl" />
     <FxCompile Include="XwaD3DTechRoomPixelShader.hlsl" />
     <FxCompile Include="PixelShaderAnimDAT.hlsl" />
+    <FxCompile Include="RT\RTShadowCS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

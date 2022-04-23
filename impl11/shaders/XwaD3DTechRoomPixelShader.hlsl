@@ -15,6 +15,23 @@ SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
 
+struct BVHNode {
+	int ref;   // -1 for internal nodes, Triangle index for leaves
+	int left;  
+	int right;
+	int padding;
+	// 16 bytes
+
+	// AABB
+	float4 min;
+	// 32 bytes
+	float4 max;
+	// 48 bytes
+};
+
+// BVH, slot 14
+StructuredBuffer<BVHNode> g_BVH : register(t14);
+
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -258,8 +275,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap
 		output.bloom.rgb *= fBloomStrength;
-		if (bInHyperspace && output.bloom.a < 0.5)
-			discard;
+		//if (bInHyperspace && output.bloom.a < 0.5)
+		//	discard;
 		return output;
 	}
 
@@ -280,6 +297,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask.g = 1.0; // White specular value
 		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
+
+	// BVH DEBUG
+	/*
+	if (bDoRaytracing && g_BVH[0].ref == -1)
+		output.color.rgb = g_BVH[0].min.xyz;
+	*/
 
 	return output;
 }

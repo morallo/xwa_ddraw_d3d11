@@ -9,8 +9,11 @@ struct BVHNode {
 	int left; // Offset for the left child
 	int right; // Offset for the right child
 	int padding;
+	// 16 bytes
 	float min[4];
+	// 32 bytes
 	float max[4];
+	// 48 bytes
 };
 #pragma pack(pop)
 
@@ -21,7 +24,7 @@ public:
 	float3 *vertices;
 	int32_t *indices;
 	BVHNode *nodes;
-	int numVertices, numIndices, numTreeNodes;
+	int numVertices, numIndices, numNodes;
 
 	LBVH() {
 		this->vertices = nullptr;
@@ -29,7 +32,7 @@ public:
 		this->nodes = nullptr;
 		this->numVertices = 0;
 		this->numIndices = 0;
-		this->numTreeNodes = 0;
+		this->numNodes = 0;
 	}
 	
 	~LBVH() {
@@ -43,5 +46,5 @@ public:
 			delete[] nodes;
 	}
 
-	static LBVH *LoadLBVH(char *sFileName);
+	static LBVH *LoadLBVH(char *sFileName, bool verbose=false);
 };

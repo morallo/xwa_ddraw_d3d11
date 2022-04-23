@@ -323,7 +323,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
 		vr::HmdMatrix34_t m34_fullMatrix;
-		vr::HmdMatrix34_t m34_cockpitLookPose;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
