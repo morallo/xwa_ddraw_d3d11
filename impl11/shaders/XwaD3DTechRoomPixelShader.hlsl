@@ -31,6 +31,10 @@ struct BVHNode {
 
 // BVH, slot 14
 StructuredBuffer<BVHNode> g_BVH : register(t14);
+// Vertices, slot 15
+Buffer<float3> g_Vertices : register(t15);
+// Indices, slot 16
+Buffer<int> g_Indices : register(t16);
 
 struct PixelShaderInput
 {

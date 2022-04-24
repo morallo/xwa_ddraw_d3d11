@@ -1538,8 +1538,10 @@ void EffectsRenderer::ApplyRTShadows() {
 	// Enable Raytracing
 	g_PSCBuffer.bDoRaytracing = 1;
 
-	// Set the BVH SRV
-	context->PSSetShaderResources(14, 1, bvhSRV.GetAddressOf());
+	// Set the Raytracing SRVs
+	context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
+	context->PSSetShaderResources(15, 1, _RTVerticesSRV.GetAddressOf());
+	context->PSSetShaderResources(16, 1, _RTIndicesSRV.GetAddressOf());
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)

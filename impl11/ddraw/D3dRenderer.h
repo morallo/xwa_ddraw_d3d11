@@ -238,8 +238,12 @@ protected:
 	ComPtr<ID3D11PixelShader> _techRoomPixelShader;
 	D3D11_VIEWPORT _viewport;
 
-	ComPtr<ID3D11Buffer> bvhNodes;
-	ComPtr<ID3D11ShaderResourceView> bvhSRV;
+	ComPtr<ID3D11Buffer> _RTBvhNodes;
+	ComPtr<ID3D11Buffer> _RTVertices;
+	ComPtr<ID3D11Buffer> _RTIndices;
+	ComPtr<ID3D11ShaderResourceView> _RTBvhSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTIndicesSRV;
 };
 
 extern bool g_isInRenderLasers;

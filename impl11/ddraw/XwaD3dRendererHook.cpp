@@ -675,6 +675,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		lbvh->nodes[0].min[3] = 1.0f;
 		*/
 
+		// DEBUG
 		/*
 		log_debug("[DBG] [BVH] NumVertices: %d, NumIndices: %d", lbvh->numVertices, lbvh->numIndices);
 		log_debug("[DBG] [BVH] Vertex[0]: %0.3f, %0.3f, %0.3f",
@@ -699,38 +700,72 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 		*/
 
-		D3D11_SUBRESOURCE_DATA initialData;
-		initialData.pSysMem = lbvh->nodes;
-		initialData.SysMemPitch = 0;
-		initialData.SysMemSlicePitch = 0;
+		// Create the BVH buffer and SRV
+		{
+			D3D11_SUBRESOURCE_DATA initialData;
+			initialData.pSysMem = lbvh->nodes;
+			initialData.SysMemPitch = 0;
+			initialData.SysMemSlicePitch = 0;
 
-		D3D11_BUFFER_DESC desc;
-		ZeroMemory(&desc, sizeof(desc));
-		desc.ByteWidth = sizeof(BVHNode) * lbvh->numNodes;
-		desc.Usage = D3D11_USAGE_IMMUTABLE;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		desc.StructureByteStride = sizeof(BVHNode);
-		
-		hr = device->CreateBuffer(&desc, &initialData, &bvhNodes);
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] Failed when creating BVH buffer: 0x%x", hr);
+			D3D11_BUFFER_DESC desc;
+			ZeroMemory(&desc, sizeof(desc));
+			desc.ByteWidth = sizeof(BVHNode) * lbvh->numNodes;
+			desc.Usage = D3D11_USAGE_IMMUTABLE;
+			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+			desc.StructureByteStride = sizeof(BVHNode);
+
+			hr = device->CreateBuffer(&desc, &initialData, &_RTBvhNodes);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [BVH] Failed when creating BVH buffer: 0x%x", hr);
+			}
+
+			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+			ZeroMemory(&srvDesc, sizeof(srvDesc));
+			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+			srvDesc.Buffer.FirstElement = 0;
+			srvDesc.Buffer.NumElements = lbvh->numNodes;
+
+			hr = device->CreateShaderResourceView(_RTBvhNodes, &srvDesc, &_RTBvhSRV);
+			if (FAILED(hr)) {
+				log_debug("[DBG] [BVH] Failed when creating BVH SRV: 0x%x", hr);
+			}
+			else {
+				log_debug("[DBG] [BVH] BVH buffers created");
+			}
 		}
 
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-		ZeroMemory(&srvDesc, sizeof(srvDesc));
-		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = lbvh->numNodes;
+		// Create the vertex buffer
+		{
+			D3D11_SUBRESOURCE_DATA initialData;
+			initialData.pSysMem = lbvh->vertices;
+			initialData.SysMemPitch = 0;
+			initialData.SysMemSlicePitch = 0;
 
-		hr = device->CreateShaderResourceView(bvhNodes, &srvDesc, &bvhSRV);
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] Failed when creating BVH SRV: 0x%x", hr);
+			device->CreateBuffer(&CD3D11_BUFFER_DESC(lbvh->numVertices * sizeof(float3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
+				&initialData, &_RTVertices);
+
+			device->CreateShaderResourceView(_RTVertices,
+				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTVertices, DXGI_FORMAT_R32G32B32_FLOAT, 0, lbvh->numVertices),
+				&_RTVerticesSRV);
 		}
-		else {
-			log_debug("[DBG] [BVH] BVH buffers created");
+
+		// Create the index buffer
+		{
+			D3D11_SUBRESOURCE_DATA initialData;
+			initialData.pSysMem = lbvh->indices;
+			initialData.SysMemPitch = 0;
+			initialData.SysMemSlicePitch = 0;
+
+			device->CreateBuffer(&CD3D11_BUFFER_DESC(lbvh->numIndices * sizeof(int32_t), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
+				&initialData, &_RTIndices);
+
+			device->CreateShaderResourceView(_RTIndices,
+				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTIndices, DXGI_FORMAT_R32_SINT, 0, lbvh->numIndices),
+				&_RTIndicesSRV);
 		}
+
 		_isRTInitialized = true;
 	}
 }
