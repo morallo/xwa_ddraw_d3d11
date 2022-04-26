@@ -47,4 +47,6 @@ public:
 	}
 
 	static LBVH *LoadLBVH(char *sFileName, bool verbose=false);
+
+	void PrintTree(std::string level, int curnode);
 };

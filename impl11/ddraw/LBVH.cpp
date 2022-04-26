@@ -122,5 +122,21 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 	}
 
 	fclose(file);
+
+	// DEBUG: PrintTree
+	{
+		//lbvh->PrintTree("", 0);
+	}
+	// DEBUG
+
 	return lbvh;
+}
+
+void LBVH::PrintTree(std::string level, int curnode)
+{
+	if (curnode == -1)
+		return;
+	PrintTree(level + "    ", nodes[curnode].right);
+	log_debug("[DBG] [BVH] %s%d", level.c_str(), nodes[curnode].ref);
+	PrintTree(level + "    ", nodes[curnode].left);
 }
