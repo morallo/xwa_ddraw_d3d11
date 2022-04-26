@@ -37,7 +37,8 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 
 		lbvh = new LBVH();
 
-		// Read the vertices
+		// Read the vertices. The vertices are in OPT coords. They should match what we see
+		// in XwaOptEditor
 		{
 			int32_t NumVertices = 0;
 			fread(&NumVertices, sizeof(int32_t), 1, file);
@@ -46,6 +47,17 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 			int NumItems = fread(lbvh->vertices, sizeof(float3), NumVertices, file);
 			if (verbose)
 				log_debug("[DBG] [BVH] Read %d vertices from BVH file", NumItems);
+			// DEBUG
+			/*
+			log_debug("[DBG] [BVH] Vertices BEGIN");
+			for (int i = 0; i < lbvh->numVertices; i++) {
+				float3 V = lbvh->vertices[i];
+				log_debug("[DBG] [BVH] %0.6f, %0.6f, %0.6f",
+					V.x, V.y, V.z);
+			}
+			log_debug("[DBG] [BVH] Vertices END");
+			*/
+			// DEBUG
 		}
 
 		// Read the indices
@@ -68,6 +80,37 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 			int NumItems = fread(lbvh->nodes, sizeof(BVHNode), NumNodes, file);
 			if (verbose)
 				log_debug("[DBG] [BVH] Read %d BVH nodes from BVH file", NumItems);
+		}
+
+		// DEBUG
+		// Check some basic properties of the BVH
+		{
+			int minTriID = 2000000, maxTriID = -1;
+			bool innerNodeComplete = true;
+
+			for (int i = 0; i < lbvh->numNodes; i++) {
+				if (lbvh->nodes[i].ref != -1) {
+					minTriID = min(minTriID, lbvh->nodes[i].ref);
+					maxTriID = max(maxTriID, lbvh->nodes[i].ref);
+				}
+				else {
+					if (lbvh->nodes[i].left == -1 || lbvh->nodes[i].right == -1)
+						innerNodeComplete = false;
+				}
+			}
+			log_debug("[DBG] [BVH] minTriID: %d, maxTriID: %d", minTriID, maxTriID);
+			log_debug("[DBG] [BVH] innerNodeComplete: %d", innerNodeComplete);
+
+			// Check that all the indices reference existing vertices
+			bool indicesRangeOK = true;
+			for (int i = 0; i < lbvh->numIndices; i++) {
+				if (lbvh->indices[i] < 0 || lbvh->indices[i] >= lbvh->numVertices) {
+					log_debug("[DBG] [BVH] Invalid LBVH index: ", lbvh->indices[i]);
+					indicesRangeOK = false;
+					break;
+				}
+			}
+			log_debug("[DBG] [BVH] indicesRangeOK: %d", indicesRangeOK);
 		}
 	}
 	catch (...) {

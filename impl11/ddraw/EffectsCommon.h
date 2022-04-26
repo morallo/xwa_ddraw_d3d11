@@ -220,6 +220,15 @@ typedef struct PSShadingSystemCBStruct {
 	// 608 bytes
 } PSShadingSystemCB;
 
+typedef struct RTConstantsBufferStruct {
+	Matrix4 TransformWorldView;
+	// 64 bytes
+	Matrix4 TransformWorldViewInv;
+	// 128 bytes
+	int numVertices, numIndices, numTriangles, RTunused0;
+	// 144 bytes
+} RTConstantsBuffer;
+
 typedef struct {
 	/* Exclusive Flags. Only one flag can be set at the same time */
 	uint32_t ExclusiveMask : 8;

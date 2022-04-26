@@ -4028,6 +4028,12 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_OPTMeshTransformCB)))
 		return hr;
 
+	// Create the constant buffer for the ray-tracer
+	constantBufferDesc.ByteWidth = 144;
+	static_assert(sizeof(RTConstantsBuffer) == 144, "sizeof(RTConstantsBuffer) must be 144");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
+		return hr;
+
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
 	InitCraftMaterials();
@@ -4309,6 +4315,17 @@ void DeviceResources::InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, con
 	{
 		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
 		_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
+}
+
+void DeviceResources::InitPSRTConstantsBuffer(ID3D11Buffer **buffer, const RTConstantsBuffer *psConstants)
+{
+	//static RTConstantsBuffer RTConstants{};
+	//if (memcmp(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer)) != 0)
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+		_d3dDeviceContext->PSSetConstantBuffers(10, 1, buffer);
 		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
 	}
 }

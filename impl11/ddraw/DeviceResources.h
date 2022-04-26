@@ -130,6 +130,7 @@ public:
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
 	void InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer *vsConstants);
+	void InitPSRTConstantsBuffer(ID3D11Buffer ** buffer, const RTConstantsBuffer *psConstants);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, float inv_scale = 1.0f);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
@@ -490,6 +491,7 @@ public:
 	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
 	ComPtr<ID3D11Buffer> _OPTMeshTransformCB;
+	ComPtr<ID3D11Buffer> _RTConstantsBuffer;
 	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 

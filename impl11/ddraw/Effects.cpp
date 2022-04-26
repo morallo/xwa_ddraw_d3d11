@@ -11,6 +11,7 @@ BloomPixelShaderCBuffer		g_BloomPSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
 OPTMeshTransformCBuffer		g_OPTMeshTransformCB;
+RTConstantsBuffer			g_RTConstantsBuffer;
 
 std::vector<ColorLightPair> g_TextureVector;
 /*

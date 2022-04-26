@@ -8,33 +8,13 @@
 #include "shader_common.h"
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
+#include "RT/RTCommon.h"
 
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
-
-struct BVHNode {
-	int ref;   // -1 for internal nodes, Triangle index for leaves
-	int left;  
-	int right;
-	int padding;
-	// 16 bytes
-
-	// AABB
-	float4 min;
-	// 32 bytes
-	float4 max;
-	// 48 bytes
-};
-
-// BVH, slot 14
-StructuredBuffer<BVHNode> g_BVH : register(t14);
-// Vertices, slot 15
-Buffer<float3> g_Vertices : register(t15);
-// Indices, slot 16
-Buffer<int> g_Indices : register(t16);
 
 struct PixelShaderInput
 {
@@ -134,19 +114,20 @@ float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position
 	return (diffuse + specular) * light_color.xyz * dotNL;
 }
 
-float3 addPBR(in float3 position, in float3 N, in float3 V, in float3 baseColor,
+float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in float3 baseColor,
 	in float metalMask, in float glossiness, in float reflectance)
 {
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
 	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;
 	float3 albedo;
-	const float shadow = 1.0;
+	float shadow = 1.0;
 	const float ambient = 0.05;
 	// albedo = linear_to_srgb(baseColor);
 	albedo = baseColor;
 
-	for (int i = 0; i < globalLightsCount; i++)
+	//for (int i = 0; i < globalLightsCount; i++)
+	int i = 0;
 	{
 		//float3 L = float3(0.7, -0.7, 1);
 		//float3 L = float3(0.5, 1.0, 0.7);
@@ -154,7 +135,25 @@ float3 addPBR(in float3 position, in float3 N, in float3 V, in float3 baseColor,
 		float3 L = globalLights[i].direction.xyz;
 		float3 light_color = globalLights[i].color.w * globalLights[i].color.xyz;
 
+		// Vector from the current point to the light source. Lights are at infinity,
+		// so the current point is irrelevant.
 		L = normalize(L);
+
+		// Only do raytraced shadows for surfaces that face towards the light source.
+		// If the current surface faces away, we already know it's shadowed
+		const float dotLFlatN = dot(L, FlatN);
+		if (bDoRaytracing && dotLFlatN > 0) {
+			Ray ray;
+			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
+			ray.dir = L;
+			ray.max_dist = 1000.0f;
+
+			Intersection inters = TraceRaySimpleHit(ray);
+			if (inters.TriID > -1)
+				shadow = 0.0;
+		}
+		if (dotLFlatN <= 0) shadow = 0.0;
+
 		float3 col = computePBRLighting(L, light_color, position,
 			N, V, albedo, roughness, F0);
 		color += col;
@@ -179,7 +178,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
 	float  alpha = texelColor.w;
-	float3 P = input.pos3D.xyz;
+	const float3 P = input.pos3D.xyz;
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 
 	// Zero-out the bloom mask and provide default output values
@@ -242,7 +241,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		reflectance = 1.0;
 	}
 	float3 eye_vec = normalize(-output.pos3D.xyz); // normalize(eye - pos3D); // Vector from pos3D to the eye (0,0,0)
-	float3 col = addPBR(P, N, -eye_vec, srgb_to_linear(texelColor.rgb),
+	float3 col = addPBR(P, N, output.normal.xyz, -eye_vec, srgb_to_linear(texelColor.rgb),
 		metallicity,
 		glossiness, // Glossiness: 0 matte, 1 glossy/glass
 		reflectance

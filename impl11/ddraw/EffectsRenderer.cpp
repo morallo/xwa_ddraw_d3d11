@@ -1538,6 +1538,17 @@ void EffectsRenderer::ApplyRTShadows() {
 	// Enable Raytracing
 	g_PSCBuffer.bDoRaytracing = 1;
 
+	// Invert transformWorldView and send it to the ray-tracer
+	g_RTConstantsBuffer.TransformWorldView = _constants.transformWorldView;
+	g_RTConstantsBuffer.TransformWorldViewInv = g_RTConstantsBuffer.TransformWorldView;
+	g_RTConstantsBuffer.TransformWorldViewInv = 	g_RTConstantsBuffer.TransformWorldViewInv.invert();
+	g_RTConstantsBuffer.numVertices = lbvh->numVertices;
+	g_RTConstantsBuffer.numIndices = lbvh->numIndices;
+	g_RTConstantsBuffer.numTriangles = lbvh->numIndices / 3;
+	// Set the Raytracing constants
+	_deviceResources->InitPSRTConstantsBuffer(
+		_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
+
 	// Set the Raytracing SRVs
 	context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
 	context->PSSetShaderResources(15, 1, _RTVerticesSRV.GetAddressOf());
