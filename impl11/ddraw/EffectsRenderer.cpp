@@ -12,6 +12,9 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 // Control vars
 bool g_bEnableAnimations = true;
 bool g_bRTEnabled = true;
+//float g_RTScale = 0.325f; // This works for the A_Wing, but I don't understand why!
+//float g_RTScale = 0.321341f;
+//float g_RTScale = 0.92241f;
 
 EffectsRenderer g_effects_renderer;
 
@@ -1528,15 +1531,17 @@ void EffectsRenderer::ApplyNormalMapping()
 }
 
 void EffectsRenderer::ApplyRTShadows() {
-	if (!g_bRTEnabled)
+	
+	{
+		_bModifiedShaders = true;
+		// Disable Raytracing
+		g_PSCBuffer.bDoRaytracing = g_bRTEnabled;
+	}
+
+	if (!g_bRTEnabled || lbvh == nullptr)
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
-
-	_bModifiedShaders = true;
-
-	// Enable Raytracing
-	g_PSCBuffer.bDoRaytracing = 1;
 
 	// Invert transformWorldView and send it to the ray-tracer
 	g_RTConstantsBuffer.TransformWorldView = _constants.transformWorldView;
@@ -1545,14 +1550,19 @@ void EffectsRenderer::ApplyRTShadows() {
 	g_RTConstantsBuffer.numVertices = lbvh->numVertices;
 	g_RTConstantsBuffer.numIndices = lbvh->numIndices;
 	g_RTConstantsBuffer.numTriangles = lbvh->numIndices / 3;
+	g_RTConstantsBuffer.RTScale = lbvh->scale;
 	// Set the Raytracing constants
 	_deviceResources->InitPSRTConstantsBuffer(
 		_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 
 	// Set the Raytracing SRVs
-	context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
-	context->PSSetShaderResources(15, 1, _RTVerticesSRV.GetAddressOf());
-	context->PSSetShaderResources(16, 1, _RTIndicesSRV.GetAddressOf());
+	ID3D11ShaderResourceView *srvs[] = {
+		_RTBvhSRV.Get(),
+		_RTVerticesSRV.Get(),
+		_RTIndicesSRV.Get()
+	};
+	// Slots 14-15 are used for Raytracing buffers (BVH, Vertices and Indices)
+	context->PSSetShaderResources(14, 3, srvs);
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)

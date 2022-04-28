@@ -9,7 +9,8 @@ cbuffer ConstantBuffer : register(b10) {
 	// 64 bytes
 	matrix RTTransformWorldViewInv;
 	// 128 bytes
-	int g_NumVertices, g_NumIndices, g_NumTriangles, RTunused0;
+	int g_NumVertices, g_NumIndices, g_NumTriangles;
+	float RTScale;
 	// 144 bytes
 };
 
@@ -187,8 +188,14 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	pos3D *= 40.96f;
 	pos3D = mul(float4(pos3D, 1.0f), RTTransformWorldViewInv).xyz;
 	//pos3D = mul(float4(pos3D, 1.0f), MeshTransformInv);
+	
+	//float4 P = mul(ray.origin, RTTransformWorldViewInv);
+	//P /= P.w;
+	// ray.origin is in object-space OPT coords:
+	//ray.origin = P;
 
 	float3 dir = ray.dir;
+
 	// ray.dir is in the pos3D frame, we need to transform it into OPT coords
 	// Here the transform rule is slightly different because I hate myself and
 	// I altered how lights work in the Tech Room. XWA fixes the lights to the
@@ -197,11 +204,12 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	dir.yz = -dir.yz;
 	dir = mul(float4(dir, 0), RTTransformWorldViewInv).xyz;
 	//dir = mul(float4(dir, 0), MeshTransformInv);
+	
 
 	// pos3D and dir are  now in OPT coords. We can cast the ray
-	ray.origin = pos3D * 0.325; // I have no idea why I have to multiply by this constant!
+	ray.origin = pos3D * RTScale;
 	ray.dir = dir;
-	ray.max_dist *= 40.96f;
+	ray.max_dist *= RTScale * 40.96f;
 	return _TraceRaySimpleHit(ray);
 	//return _NaiveSimpleHit(ray);
 }

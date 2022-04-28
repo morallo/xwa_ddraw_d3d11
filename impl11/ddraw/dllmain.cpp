@@ -197,7 +197,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey	  = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
+	bool UpKey	  = (GetAsyncKeyState(VK_UP)			& 0x8000) == 0x8000;
 	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
@@ -753,7 +753,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				//return 0;
 			//}
+			// Ctrl+S
 			case 'S': {
+				if (g_bInTechRoom) {
+					g_bRTEnabled = !g_bRTEnabled;
+					log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				}
+
 				g_bShadowMapEnable = !g_bShadowMapEnable;
 				log_debug("[DBG] g_bShadowMapEnable: %d", g_bShadowMapEnable);
 				return 0;

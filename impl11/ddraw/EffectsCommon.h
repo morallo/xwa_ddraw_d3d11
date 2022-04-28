@@ -225,7 +225,8 @@ typedef struct RTConstantsBufferStruct {
 	// 64 bytes
 	Matrix4 TransformWorldViewInv;
 	// 128 bytes
-	int numVertices, numIndices, numTriangles, RTunused0;
+	int numVertices, numIndices, numTriangles;
+	float RTScale;
 	// 144 bytes
 } RTConstantsBuffer;
 

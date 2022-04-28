@@ -122,7 +122,8 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;
 	float3 albedo;
 	float shadow = 1.0;
-	const float ambient = 0.05;
+	//const float ambient = 0.05;
+	const float ambient = 0.1;
 	// albedo = linear_to_srgb(baseColor);
 	albedo = baseColor;
 
@@ -145,6 +146,7 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 		if (bDoRaytracing && dotLFlatN > 0) {
 			Ray ray;
 			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
+			//ray.origin = position - 0.1f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
 			ray.dir = L;
 			ray.max_dist = 1000.0f;
 

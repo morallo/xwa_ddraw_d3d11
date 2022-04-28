@@ -519,6 +519,45 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			_meshVerticesViews.insert(std::make_pair((int)vertices, meshVerticesView));
 			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
+
+			// Compute RTScale for this OPT
+			if (g_bRTEnabled && lbvh != nullptr && !lbvh->scaleComputed && _currentOptMeshIndex < lbvh->numVertexCounts) {
+				if (lbvh->vertexCounts[_currentOptMeshIndex] == verticesCount) {
+					log_debug("[DBG] [BVH] _currentOptMeshIndex: %d, verticesCount: %d matches lbvh->vertexCounts. Computing scale",
+						_currentOptMeshIndex, verticesCount, lbvh->vertexCounts[_currentOptMeshIndex]);
+					Vector3 bvhMeshMax = lbvh->meshMinMaxs[_currentOptMeshIndex].max;
+					Vector3 bvhMeshMin = lbvh->meshMinMaxs[_currentOptMeshIndex].min;
+					Vector3 bvhMeshRange = bvhMeshMax - bvhMeshMin;
+					Vector3 aabbRange = aabb.GetRange();
+
+					/*
+					log_debug("[DBG] bvhMesh AABB: (%0.4f, %0.4f, %0.4f)-(%0.4f, %0.4f, %0.4f)",
+						bvhMeshMin.x, bvhMeshMin.y, bvhMeshMin.z,
+						bvhMeshMax.x, bvhMeshMax.y, bvhMeshMax.z	);
+					log_debug("[DBG] AABB: (%0.4f, %0.4f, %0.4f)-(%0.4f, %0.4f, %0.4f)",
+						aabb.min.x, aabb.min.y, aabb.min.z,
+						aabb.max.x, aabb.max.y, aabb.max.z);
+					*/
+
+					log_debug("[DBG] [BVH] bvhRange: %0.4f, %0.4f, %0.4f",
+						bvhMeshRange.x, bvhMeshRange.y, bvhMeshRange.z);
+					log_debug("[DBG] [BVH] aabbRange: %0.4f, %0.4f, %0.4f",
+						aabbRange.x, aabbRange.y, aabbRange.z);
+
+					// Use the side with the maximum length to compute the scale
+					int axis = -1;
+					float bvhMax = -FLT_MAX, aabbMax = -FLT_MAX;
+					for (int i = 0; i < 3; i++) {
+						if (bvhMeshRange[i] > bvhMax) {
+							bvhMax = bvhMeshRange[i];
+							aabbMax = aabbRange[i];
+						}
+					}
+					lbvh->scale = bvhMax / aabbMax;
+					lbvh->scaleComputed = true;
+					log_debug("[DBG] [BVH] RTScale: %0.6f", lbvh->scale);
+				}
+			}
 		}
 	}
 
@@ -664,43 +703,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	if (lbvh != nullptr && !_isRTInitialized) {
 		HRESULT hr;
 
-		// DEBUG
-		/*
-		lbvh->nodes[0].ref = -1;
-		lbvh->nodes[0].left = 0;
-		lbvh->nodes[0].right = 1;
-		lbvh->nodes[0].min[0] = 1.0f;
-		lbvh->nodes[0].min[1] = 0.4f;
-		lbvh->nodes[0].min[2] = 0.4f;
-		lbvh->nodes[0].min[3] = 1.0f;
-		*/
-
-		// DEBUG
-		/*
-		log_debug("[DBG] [BVH] NumVertices: %d, NumIndices: %d", lbvh->numVertices, lbvh->numIndices);
-		log_debug("[DBG] [BVH] Vertex[0]: %0.3f, %0.3f, %0.3f",
-			lbvh->vertices[0].x, lbvh->vertices[0].y, lbvh->vertices[0].z);
-		log_debug("[DBG] [BVH] Indices[0,1,2]: %d, %d, %d",
-			lbvh->indices[0], lbvh->indices[1], lbvh->indices[2]);
-
-		log_debug("[DBG] [BVH] numNodes: %d, sizeof(BVHNode): %d", lbvh->numNodes, sizeof(BVHNode));
-		log_debug("[DBG] [BVH] BVH[0].ref: %d, left: %d, right: %d",
-			lbvh->nodes[0].ref, lbvh->nodes[0].left, lbvh->nodes[0].right);
-		log_debug("[DBG] [BVH] BVH[0] min: %0.3f, %0.3f, %0.3f",
-			lbvh->nodes[0].min[0], lbvh->nodes[0].min[1], lbvh->nodes[0].min[2]);
-		log_debug("[DBG] [BVH] BVH[0] max: %0.3f, %0.3f, %0.3f",
-			lbvh->nodes[0].max[0], lbvh->nodes[0].max[1], lbvh->nodes[0].max[2]);
-
-		if (lbvh->numNodes > 1) {
-			log_debug("[DBG] [BVH] left child");
-			log_debug("[DBG] [BVH] BVH[0] min: %0.3f, %0.3f, %0.3f",
-				lbvh->nodes[1].min[0], lbvh->nodes[1].min[1], lbvh->nodes[1].min[2]);
-			log_debug("[DBG] [BVH] BVH[0] max: %0.3f, %0.3f, %0.3f",
-				lbvh->nodes[1].max[0], lbvh->nodes[1].max[1], lbvh->nodes[1].max[2]);
-		}
-		*/
-
-		// Create the BVH buffer and SRV
+		// Create the BVH buffers
 		{
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = lbvh->nodes;
@@ -736,7 +739,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			}
 		}
 
-		// Create the vertex buffer
+		// Create the vertex buffers
 		{
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = lbvh->vertices;
@@ -751,7 +754,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				&_RTVerticesSRV);
 		}
 
-		// Create the index buffer
+		// Create the index buffers
 		{
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = lbvh->indices;
@@ -1521,7 +1524,7 @@ LBVH *LoadLBVH(char *s_XwaIOFileName) {
 	sBVHFileName[i++] = 'v';
 	sBVHFileName[i++] = 'h';
 	sBVHFileName[i++] = 0;
-	//log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
+	log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
 	return LBVH::LoadLBVH(sBVHFileName, true);
 }
 
@@ -1544,6 +1547,8 @@ void D3dRendererOptLoadHook(int handle)
 			delete g_current_renderer->lbvh;
 			g_current_renderer->lbvh = nullptr;
 		}
+		// Re-create the BVH buffers:
+		g_current_renderer->_isRTInitialized = false;
 		g_current_renderer->lbvh = LoadLBVH(s_XwaIOFileName);
 	}
 

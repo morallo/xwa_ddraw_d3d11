@@ -42,8 +42,8 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 		{
 			int32_t NumVertices = 0;
 			fread(&NumVertices, sizeof(int32_t), 1, file);
-			lbvh->vertices = new float3[NumVertices];
 			lbvh->numVertices = NumVertices;
+			lbvh->vertices = new float3[NumVertices];
 			int NumItems = fread(lbvh->vertices, sizeof(float3), NumVertices, file);
 			if (verbose)
 				log_debug("[DBG] [BVH] Read %d vertices from BVH file", NumItems);
@@ -64,8 +64,8 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 		{
 			int32_t NumIndices = 0;
 			fread(&NumIndices, sizeof(int32_t), 1, file);
-			lbvh->indices = new int32_t[NumIndices];
 			lbvh->numIndices = NumIndices;
+			lbvh->indices = new int32_t[NumIndices];
 			int NumItems = fread(lbvh->indices, sizeof(int32_t), NumIndices, file);
 			if (verbose)
 				log_debug("[DBG] [BVH] Read %d indices from BVH file", NumItems);
@@ -82,9 +82,31 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 				log_debug("[DBG] [BVH] Read %d BVH nodes from BVH file", NumItems);
 		}
 
+		// Read the mesh AABBs
+		{
+			int32_t NumMeshMinMaxs = 0;
+			fread(&NumMeshMinMaxs, sizeof(int32_t), 1, file);
+			lbvh->numMeshMinMaxs = NumMeshMinMaxs;
+			lbvh->meshMinMaxs = new MinMax[NumMeshMinMaxs];
+			int NumItems = fread(lbvh->meshMinMaxs, sizeof(MinMax), NumMeshMinMaxs, file);
+			if (verbose)
+				log_debug("[DBG] [BVH] Read %d AABBs from BVH file", NumItems);
+		}
+
+		// Read the Vertex Counts
+		{
+			int32_t NumVertexCounts = 0;
+			fread(&NumVertexCounts, sizeof(int32_t), 1, file);
+			lbvh->numVertexCounts = NumVertexCounts;
+			lbvh->vertexCounts = new uint32_t[NumVertexCounts];
+			int NumItems = fread(lbvh->vertexCounts, sizeof(uint32_t), NumVertexCounts, file);
+			if (verbose)
+				log_debug("[DBG] [BVH] Read %d Vertex Counts from BVH file", NumItems);
+		}
+
 		// DEBUG
 		// Check some basic properties of the BVH
-		{
+		if (false) {
 			int minTriID = 2000000, maxTriID = -1;
 			bool innerNodeComplete = true;
 
