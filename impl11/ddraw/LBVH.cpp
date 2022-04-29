@@ -82,6 +82,10 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 				log_debug("[DBG] [BVH] Read %d BVH nodes from BVH file", NumItems);
 		}
 
+		// Thanks to Jeremy I no longer need to read the mesh AABBs nor their vertex counts,
+		// I can read the OPT scale directly off of XWA's heap. So this block is now unnecessary.
+		// See D3dRenderer::UpdateMeshBuffers() for details on how to get the OPT scale.
+#ifdef DISABLED
 		// Read the mesh AABBs
 		{
 			int32_t NumMeshMinMaxs = 0;
@@ -103,6 +107,7 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 			if (verbose)
 				log_debug("[DBG] [BVH] Read %d Vertex Counts from BVH file", NumItems);
 		}
+#endif
 
 		// DEBUG
 		// Check some basic properties of the BVH

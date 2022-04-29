@@ -520,7 +520,16 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
 
+			// Compute the RTScale for this OPT
+			// According to Jeremy, only the Tech Room and the Briefings change the scale.
+			if (g_bRTEnabled && lbvh != nullptr && !lbvh->scaleComputed) {
+				double s_XwaOptScale = *(double*)0x007825F0;
+				lbvh->scale = (float )(1.0 / s_XwaOptScale);
+				lbvh->scaleComputed = true;
+			}
+
 			// Compute RTScale for this OPT
+#ifdef DISABLED
 			if (g_bRTEnabled && lbvh != nullptr && !lbvh->scaleComputed && _currentOptMeshIndex < lbvh->numVertexCounts) {
 				if (lbvh->vertexCounts[_currentOptMeshIndex] == verticesCount) {
 					log_debug("[DBG] [BVH] _currentOptMeshIndex: %d, verticesCount: %d matches lbvh->vertexCounts. Computing scale",
@@ -529,6 +538,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 					Vector3 bvhMeshMin = lbvh->meshMinMaxs[_currentOptMeshIndex].min;
 					Vector3 bvhMeshRange = bvhMeshMax - bvhMeshMin;
 					Vector3 aabbRange = aabb.GetRange();
+					double s_XwaOptScale = *(double*)0x007825F0;
 
 					/*
 					log_debug("[DBG] bvhMesh AABB: (%0.4f, %0.4f, %0.4f)-(%0.4f, %0.4f, %0.4f)",
@@ -539,10 +549,12 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 						aabb.max.x, aabb.max.y, aabb.max.z);
 					*/
 
+					/*
 					log_debug("[DBG] [BVH] bvhRange: %0.4f, %0.4f, %0.4f",
 						bvhMeshRange.x, bvhMeshRange.y, bvhMeshRange.z);
 					log_debug("[DBG] [BVH] aabbRange: %0.4f, %0.4f, %0.4f",
 						aabbRange.x, aabbRange.y, aabbRange.z);
+					*/
 
 					// Use the side with the maximum length to compute the scale
 					int axis = -1;
@@ -556,8 +568,11 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 					lbvh->scale = bvhMax / aabbMax;
 					lbvh->scaleComputed = true;
 					log_debug("[DBG] [BVH] RTScale: %0.6f", lbvh->scale);
+					log_debug("[DBG] [BVH] s_XwaOptScale: %0.6f", 1.0f / s_XwaOptScale);
 				}
 			}
+#endif
+
 		}
 	}
 

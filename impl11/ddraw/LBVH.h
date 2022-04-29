@@ -121,10 +121,10 @@ public:
 	float3 *vertices;
 	int32_t *indices;
 	BVHNode *nodes;
-	MinMax *meshMinMaxs;
+	//MinMax *meshMinMaxs;
 	uint32_t *vertexCounts;
 	int numVertices, numIndices, numNodes;
-	int numMeshMinMaxs, numVertexCounts;
+	//int numMeshMinMaxs, numVertexCounts;
 	float scale;
 	bool scaleComputed;
 
@@ -132,16 +132,16 @@ public:
 		this->vertices = nullptr;
 		this->indices = nullptr;
 		this->nodes = nullptr;
-		this->vertexCounts = nullptr;
-		this->meshMinMaxs = nullptr;
+		//this->vertexCounts = nullptr;
+		//this->meshMinMaxs = nullptr;
 		this->scale = 1.0f;
 		this->scaleComputed = false;
 
 		this->numVertices = 0;
 		this->numIndices = 0;
 		this->numNodes = 0;
-		this->numMeshMinMaxs = 0;
-		this->numVertexCounts = 0;
+		//this->numMeshMinMaxs = 0;
+		//this->numVertexCounts = 0;
 	}
 	
 	~LBVH() {
@@ -154,11 +154,11 @@ public:
 		if (nodes != nullptr)
 			delete[] nodes;
 
-		if (meshMinMaxs != nullptr)
-			delete[] meshMinMaxs;
+		//if (meshMinMaxs != nullptr)
+		//	delete[] meshMinMaxs;
 
-		if (vertexCounts != nullptr)
-			delete[] vertexCounts;
+		//if (vertexCounts != nullptr)
+		//	delete[] vertexCounts;
 	}
 
 	static LBVH *LoadLBVH(char *sFileName, bool verbose=false);

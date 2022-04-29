@@ -1534,8 +1534,8 @@ void EffectsRenderer::ApplyRTShadows() {
 	
 	{
 		_bModifiedShaders = true;
-		// Disable Raytracing
-		g_PSCBuffer.bDoRaytracing = g_bRTEnabled;
+		// Enable/Disable Raytracing as necessary
+		g_PSCBuffer.bDoRaytracing = g_bRTEnabled && (lbvh != nullptr);
 	}
 
 	if (!g_bRTEnabled || lbvh == nullptr)

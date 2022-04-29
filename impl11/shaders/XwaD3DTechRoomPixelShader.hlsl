@@ -123,7 +123,7 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 	float3 albedo;
 	float shadow = 1.0;
 	//const float ambient = 0.05;
-	const float ambient = 0.1;
+	const float ambient = 0.15;
 	// albedo = linear_to_srgb(baseColor);
 	albedo = baseColor;
 
