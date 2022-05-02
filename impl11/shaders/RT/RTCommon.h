@@ -27,6 +27,8 @@ struct Intersection		// 16 bytes
 	float U, V, T;		// 12 bytes
 };
 
+// BVH2 node, deprecated, BVH4 is more better
+#ifdef DISABLED
 struct BVHNode {
 	int ref;   // -1 for internal nodes, Triangle index for leaves
 	int left;
@@ -38,6 +40,21 @@ struct BVHNode {
 	float4 min;
 	// 32 bytes
 	float4 max;
+	// 48 bytes
+};
+#endif
+
+// BVH4 node
+struct BVHNode {
+	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
+	// 4 bytes
+	float3 min;
+	// 16 bytes
+	float3 max;
+	// 28 bytes
+	int parent; // Not used at this point
+	// 32 bytes
+	int children[4];
 	// 48 bytes
 };
 
@@ -153,11 +170,13 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 		{
 			const int TriID = g_BVH[curnode].ref;
 			// Inner node: push the children of this node on the stack
-			if (TriID == -1 && stack_top + 2 < MAX_RT_STACK) {
-				// All the inner nodes of a BVH-2 should be complete, so we can just
-				// push both children on the stack
-				stack[stack_top++] = g_BVH[curnode].left;
-				stack[stack_top++] = g_BVH[curnode].right;
+			if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+				// Push the valid children of this node into the stack
+				for (int i = 0; i < 4; i++) {
+					int child = g_BVH[curnode].children[i];
+					if (child == -1) break;
+					stack[stack_top++] = child;
+				}
 			}
 			// Leaf node: do the ray-triangle intersection test
 			else {

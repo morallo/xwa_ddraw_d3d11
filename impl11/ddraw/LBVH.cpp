@@ -2,6 +2,8 @@
 #include "LBVH.h"
 #include <stdio.h>
 
+// Load a BVH2, deprecated since the BVH4 are more better
+#ifdef DISABLED
 LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 	FILE *file;
 	errno_t error = 0;
@@ -166,4 +168,147 @@ void LBVH::PrintTree(std::string level, int curnode)
 	PrintTree(level + "    ", nodes[curnode].right);
 	log_debug("[DBG] [BVH] %s%d", level.c_str(), nodes[curnode].ref);
 	PrintTree(level + "    ", nodes[curnode].left);
+}
+#endif
+
+// Load a BVH4
+LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
+	FILE *file;
+	errno_t error = 0;
+	LBVH *lbvh = nullptr;
+
+	try {
+		error = fopen_s(&file, sFileName, "rb");
+	}
+	catch (...) {
+		if (verbose)
+			log_debug("[DBG] [BVH] Could not load [%s]", sFileName);
+		return lbvh;
+	}
+
+	if (error != 0) {
+		if (verbose)
+			log_debug("[DBG] [BVH] Error %d when loading [%s]", error, sFileName);
+		return lbvh;
+	}
+
+	try {
+		// Read the Magic Word and the version
+		{
+			char magic[9];
+			fread(magic, 1, 8, file);
+			magic[8] = 0;
+			if (strcmp(magic, "BVH4-1.0") != 0)
+			{
+				log_debug("[DBG] [BVH] Unknown BVH version. Got: [%s]", magic);
+				return lbvh;
+			}
+		}
+
+		lbvh = new LBVH();
+
+		// Read the vertices. The vertices are in OPT coords. They should match what we see
+		// in XwaOptEditor
+		{
+			int32_t NumVertices = 0;
+			fread(&NumVertices, sizeof(int32_t), 1, file);
+			lbvh->numVertices = NumVertices;
+			lbvh->vertices = new float3[NumVertices];
+			int NumItems = fread(lbvh->vertices, sizeof(float3), NumVertices, file);
+			if (verbose)
+				log_debug("[DBG] [BVH] Read %d vertices from BVH file", NumItems);
+		}
+
+		// Read the indices
+		{
+			int32_t NumIndices = 0;
+			fread(&NumIndices, sizeof(int32_t), 1, file);
+			lbvh->numIndices = NumIndices;
+			lbvh->indices = new int32_t[NumIndices];
+			int NumItems = fread(lbvh->indices, sizeof(int32_t), NumIndices, file);
+			if (verbose)
+				log_debug("[DBG] [BVH] Read %d indices from BVH file", NumItems);
+		}
+
+		// Read the BVH nodes
+		{
+			int32_t NumNodes = 0;
+			fread(&NumNodes, sizeof(int32_t), 1, file);
+			lbvh->numNodes = NumNodes;
+			lbvh->nodes = new BVHNode[NumNodes];
+			int NumItems = fread(lbvh->nodes, sizeof(BVHNode), NumNodes, file);
+			if (verbose)
+				log_debug("[DBG] [BVH] Read %d BVH nodes from BVH file", NumItems);
+		}
+
+		// DEBUG
+		// Check some basic properties of the BVH
+		if (true) {
+			int minTriID = 2000000, maxTriID = -1;
+			int minChildren = 10, maxChildren = -1;
+
+			for (int i = 0; i < lbvh->numNodes; i++) {
+				if (lbvh->nodes[i].ref != -1) {
+					// Leaf node
+					minTriID = min(minTriID, lbvh->nodes[i].ref);
+					maxTriID = max(maxTriID, lbvh->nodes[i].ref);
+				}
+				else {
+					// Inner node
+					int numChildren = 0;
+					for (int j = 0; j < 4; j++)
+						numChildren += (lbvh->nodes[i].children[j] != -1) ? 1 : 0;
+					if (numChildren < minChildren) minChildren = numChildren;
+					if (numChildren > maxChildren) maxChildren = numChildren;
+				}
+			}
+			log_debug("[DBG] [BVH] minTriID: %d, maxTriID: %d", minTriID, maxTriID);
+			log_debug("[DBG] [BVH] min,maxChildren: %d, %d", minChildren, maxChildren);
+
+			// Check that all the indices reference existing vertices
+			bool indicesRangeOK = true;
+			for (int i = 0; i < lbvh->numIndices; i++) {
+				if (lbvh->indices[i] < 0 || lbvh->indices[i] >= lbvh->numVertices) {
+					log_debug("[DBG] [BVH] Invalid LBVH index: ", lbvh->indices[i]);
+					indicesRangeOK = false;
+					break;
+				}
+			}
+			log_debug("[DBG] [BVH] indicesRangeOK: %d", indicesRangeOK);
+		}
+	}
+	catch (...) {
+		log_debug("[DBG] [BVH] There were errors while reading [%s]", sFileName);
+		if (lbvh != nullptr) {
+			delete lbvh;
+			lbvh = nullptr;
+		}
+	}
+
+	fclose(file);
+
+	// DEBUG: PrintTree
+	{
+		//lbvh->PrintTree("", 0);
+	}
+	// DEBUG
+
+	return lbvh;
+}
+
+void LBVH::PrintTree(std::string level, int curnode)
+{
+	if (curnode == -1)
+		return;
+	log_debug("[DBG] [BVH] %s", (level + "    --").c_str());
+	for (int i = 3; i >= 2; i--)
+		if (nodes[curnode].children[i] != -1)
+			PrintTree(level + "    ", nodes[curnode].children[i]);
+
+	log_debug("[DBG] [BVH] %s%d", level.c_str(), nodes[curnode].ref);
+
+	for (int i = 1; i >= 0; i--)
+		if (nodes[curnode].children[i] != -1)
+			PrintTree(level + "    ", nodes[curnode].children[i]);
+	log_debug("[DBG] [BVH] %s", (level + "    --").c_str());
 }

@@ -5,12 +5,16 @@
 #include "EffectsCommon.h"
 #include "xwa_structures.h"
 
-constexpr int ENCODED_TREE_NODE_SIZE = 48;
+constexpr int ENCODED_TREE_NODE2_SIZE = 48; // BVH2 node size
+constexpr int ENCODED_TREE_NODE4_SIZE = 48; // BVH4 node size
 
 struct Vector3;
 struct Vector4;
 
 #pragma pack(push, 1)
+
+// BVH2 node format, deprecated since the BVH4 is more better
+#ifdef DISABLED
 struct BVHNode {
 	int ref; // -1 for internal nodes, Triangle index for leaves
 	int left; // Offset for the left child
@@ -23,6 +27,24 @@ struct BVHNode {
 	// 48 bytes
 };
 
+static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be ENCODED_TREE_SIZE bytes");
+#endif
+
+struct BVHNode {
+	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
+	// 4 bytes
+	float min[3];
+	// 16 bytes
+	float max[3];
+	// 28 bytes
+	int parent; // Not used at this point
+	// 32 bytes
+	int children[4];
+	// 48 bytes
+};
+
+static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE4_SIZE, "BVHNodes (4) must be ENCODED_TREE_SIZE bytes");
+
 struct MinMax {
 	Vector3 min;
 	Vector3 max;
@@ -30,7 +52,6 @@ struct MinMax {
 
 #pragma pack(pop)
 
-static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE_SIZE, "BVHNodes must be ENCODED_TREE_SIZE bytes");
 
 class AABB
 {
