@@ -165,9 +165,13 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 		// Check if the ray intersects the current box
 		const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
 
-		// Ray intersects the box
-		if (T[1] >= T[0])
+		// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
+		// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
+		// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
+		// so we can't use that test).
+		if (T[1] >= 0 && T[1] >= T[0])
 		{
+			// Ray intersects the box
 			const int TriID = g_BVH[curnode].ref;
 			// Inner node: push the children of this node on the stack
 			if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
