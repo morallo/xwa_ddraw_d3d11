@@ -71,7 +71,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
-	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+	// I don't like this "fix" but I don't have a better solution at the moment.
+	// Sometimes, displaying broken glass will look weird. The reason seems to be related
+	// to the material type. When glass is rendered, GLASS_MAT is set in ssaoMask.r, but
+	// that will get blended with whatever material is already there. Sometimes this causes
+	// the material to change. To prevent that, I'm dividing by alpha to ensure that the
+	// material stays shadeless. This isn't a proper fix. Instead, we should get rid of
+	// the multiple materials in channel ssaoMask.r and instead just keep separate channels
+	// for metallicity, glossiness, etc. This should work for now, though.
+	output.ssaoMask = float4(fSSAOMaskVal/alpha, fGlossiness, fSpecInt, alpha);
 	// SS Mask: unused, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
