@@ -548,7 +548,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
-				if (g_bEnableAnimations)
+				if (g_bBloomEnabled)
 					DisplayTimedMessage(3, 0, "Bloom Enabled");
 				else
 					DisplayTimedMessage(3, 0, "Bloom Disabled");

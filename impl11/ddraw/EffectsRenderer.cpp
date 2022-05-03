@@ -1937,13 +1937,28 @@ void EffectsRenderer::DCCaptureMiniature()
 	// capturing them.
 	if (_bIsLaser || _lastTextureSelected->is_Missile) return;
 
-	// Restore the non-VR dimensions:
-	//float displayWidth = (float)resources->_displayWidth;
-	//float displayHeight = (float)resources->_displayHeight;
-	//g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
-	//g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
+	// Remember the current scissor rect before modifying it
+	UINT NumRects = 1;
+	D3D11_RECT rect;
+	context->RSGetScissorRects(&NumRects, &rect);
+
+	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
+	unsigned short scissorTop = *(unsigned short*)0x07CA354;
+	unsigned short scissorWidth = *(unsigned short*)0x08052B8;
+	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
+	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
+	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+	D3D11_RECT scissor{};
+	// The scissor is in screen coordinates.
+	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
+	scissor.top = (LONG)(_viewport.TopLeftY + scissorTop * scaleY + 0.5f);
+	scissor.right = scissor.left + (LONG)(scissorWidth * scaleX + 0.5f);
+	scissor.bottom = scissor.top + (LONG)(scissorHeight * scaleY + 0.5f);
+	_deviceResources->InitScissorRect(&scissor);
+
 	// Apply the brightness settings to the pixel shader
 	g_PSCBuffer.brightness = g_fBrightness;
+	// Restore the non-VR dimensions:`
 	_deviceResources->InitViewport(&_viewport);
 	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -1979,6 +1994,9 @@ void EffectsRenderer::DCCaptureMiniature()
 	// Restore the Pixel Shader constant buffers:
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	// Restore the scissor rect to its previous value
+	_deviceResources->InitScissorRect(&rect);
 
 	if (g_bDumpSSAOBuffers) {
 		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferDynCockpit, GUID_ContainerFormatJpeg, L"c:\\temp\\_DC-FG-Input-Raw.jpg");

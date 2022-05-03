@@ -1457,10 +1457,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 
 	// DEBUG
-	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_offscreenInputBloomMask-%d.jpg", PyramidLevel);
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
+		swprintf_s(filename, 80, L"c:\\temp\\_offscreenInputBloomMask-%d.dds", PyramidLevel);
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, filename);
 	}*/
 	// DEBUG
 
@@ -1468,10 +1468,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// This pass will downsample the image according to fViewportDivider:
 	BloomBasicPass(0, fZoomFactor);
 	// DEBUG
-	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_bloom1-pass0-level-%d.jpg", PyramidLevel);
-		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput1, GUID_ContainerFormatJpeg, filename);
+		swprintf_s(filename, 80, L"c:\\temp\\_bloom1-pass0-level-%d.dds", PyramidLevel);
+		DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput1, filename);
 	}*/
 	// DEBUG
 
@@ -1485,10 +1485,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
 	// DEBUG
-	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_bloom2-pass1-level-%d.jpg", PyramidLevel);
-		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
+		swprintf_s(filename, 80, L"c:\\temp\\_bloom2-pass1-level-%d.dds", PyramidLevel);
+		DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput2, filename);
 	}*/
 	// DEBUG
 
@@ -1532,10 +1532,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 
 	// DEBUG
-	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_bloomOutputSum-Level-%d.jpg", PyramidLevel);
-		DirectX::SaveWICTextureToFile(context, resources->_bloomOutputSum, GUID_ContainerFormatJpeg, filename);
+		swprintf_s(filename, 80, L"c:\\temp\\_bloomOutputSum-Level-%d.dds", PyramidLevel);
+		DirectX::SaveDDSTextureToFile(context, resources->_bloomOutputSum, filename);
 	}*/
 	// DEBUG
 
@@ -8446,6 +8446,9 @@ HRESULT PrimarySurface::Flip(
 				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 				hr = resources->InitBlendState(nullptr, &blendDesc);
 
+				// Sometimes the bloom effect will disappear unless we set the rasterizer state here
+				resources->InitRasterizerState(resources->_rasterizerState);
+
 				// Temporarily disable ZWrite: we won't need it to display Bloom
 				D3D11_DEPTH_STENCIL_DESC desc;
 				ComPtr<ID3D11DepthStencilState> depthState;
@@ -8461,10 +8464,6 @@ HRESULT PrimarySurface::Flip(
 					g_HyperspacePhaseFSM == HS_HYPER_EXIT_ST ||
 					g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST;
 
-				// DEBUG
-				//static int CaptureCounter = 1;
-				// DEBUG
-
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
@@ -8472,20 +8471,11 @@ HRESULT PrimarySurface::Flip(
 					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
 
 				// DEBUG
-				/* if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
-					wchar_t filename[80];
-
-					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.jpg", CaptureCounter);
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, GUID_ContainerFormatJpeg, filename);
-					swprintf_s(filename, 80, L".\\_offscreenBufferBloomMask-%d.dds", CaptureCounter);
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, filename);
-
-
-					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.jpg", CaptureCounter);
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, filename);
-					swprintf_s(filename, 80, L".\\_offscreenBuffer-%d.dds", CaptureCounter);
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, filename);
-				} */
+				/*if (g_bDumpSSAOBuffers) {
+					log_debug("[DBG] Dumping bloom buffers");
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask,
+						L"c:\\temp\\_offscreenBufferBloomMask.dds");
+				}*/
 				// DEBUG
 
 				{

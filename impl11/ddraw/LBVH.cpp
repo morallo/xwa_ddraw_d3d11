@@ -286,13 +286,6 @@ LBVH *LBVH::LoadLBVH(char *sFileName, bool verbose) {
 	}
 
 	fclose(file);
-
-	// DEBUG: PrintTree
-	{
-		//lbvh->PrintTree("", 0);
-	}
-	// DEBUG
-
 	return lbvh;
 }
 

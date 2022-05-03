@@ -1539,8 +1539,8 @@ LBVH *LoadLBVH(char *s_XwaIOFileName) {
 	sBVHFileName[i++] = 'v';
 	sBVHFileName[i++] = 'h';
 	sBVHFileName[i++] = 0;
-	log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
-	return LBVH::LoadLBVH(sBVHFileName, true);
+	//log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
+	return LBVH::LoadLBVH(sBVHFileName, false);
 }
 
 void D3dRendererOptLoadHook(int handle)
