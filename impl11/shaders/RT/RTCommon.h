@@ -5,13 +5,11 @@
 
 // RTConstantsBuffer
 cbuffer ConstantBuffer : register(b10) {
-	matrix RTTransformWorldView;
-	// 64 bytes
 	matrix RTTransformWorldViewInv;
-	// 128 bytes
-	int g_NumVertices, g_NumIndices, g_NumTriangles;
+	// 64 bytes
 	float RTScale;
-	// 144 bytes
+	int3 g_RTUnused;
+	// 80 bytes
 };
 
 struct Ray				// 28 bytes

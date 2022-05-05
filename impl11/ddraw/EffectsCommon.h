@@ -221,13 +221,11 @@ typedef struct PSShadingSystemCBStruct {
 } PSShadingSystemCB;
 
 typedef struct RTConstantsBufferStruct {
-	Matrix4 TransformWorldView;
-	// 64 bytes
 	Matrix4 TransformWorldViewInv;
-	// 128 bytes
-	int numVertices, numIndices, numTriangles;
+	// 64 bytes
 	float RTScale;
-	// 144 bytes
+	int RTUnused[3];
+	// 80 bytes
 } RTConstantsBuffer;
 
 typedef struct {
