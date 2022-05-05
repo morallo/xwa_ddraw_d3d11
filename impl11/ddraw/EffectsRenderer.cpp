@@ -11,10 +11,7 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 
 // Control vars
 bool g_bEnableAnimations = true;
-bool g_bRTEnabled = true;
-//float g_RTScale = 0.325f; // This works for the A_Wing, but I don't understand why!
-//float g_RTScale = 0.321341f;
-//float g_RTScale = 0.92241f;
+bool g_bRTEnabled = false;
 
 EffectsRenderer g_effects_renderer;
 
