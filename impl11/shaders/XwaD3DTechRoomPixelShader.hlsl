@@ -146,7 +146,7 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 		if (bDoRaytracing && dotLFlatN > 0) {
 			Ray ray;
 			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
-			//ray.origin = position - 0.1f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
+			//ray.origin = position + 0.01f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
 			ray.dir = L;
 			ray.max_dist = 1000.0f;
 

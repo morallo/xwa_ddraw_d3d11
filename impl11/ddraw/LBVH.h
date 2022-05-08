@@ -6,7 +6,7 @@
 #include "xwa_structures.h"
 
 constexpr int ENCODED_TREE_NODE2_SIZE = 48; // BVH2 node size
-constexpr int ENCODED_TREE_NODE4_SIZE = 48; // BVH4 node size
+constexpr int ENCODED_TREE_NODE4_SIZE = 64; // BVH4 node size
 
 struct Vector3;
 struct Vector4;
@@ -32,18 +32,32 @@ static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be 
 
 struct BVHNode {
 	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
-	// 4 bytes
-	float min[3];
-	// 16 bytes
-	float max[3];
-	// 28 bytes
 	int parent; // Not used at this point
+	int padding[2];
+	// 16 bytes
+	float min[4];
 	// 32 bytes
-	int children[4];
+	float max[4];
 	// 48 bytes
+	int children[4];
+	// 64 bytes
 };
 
-static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE4_SIZE, "BVHNodes (4) must be ENCODED_TREE_SIZE bytes");
+struct BVHPrimNode {
+	int ref;
+	int parent;
+	int padding[2];
+	// 16 bytes
+	float v0[4];
+	// 32 bytes
+	float v1[4];
+	// 48 bytes
+	float v2[4];
+	// 64 bytes
+};
+
+static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE4_SIZE, "BVHNode (4) must be ENCODED_TREE_NODE4_SIZE bytes");
+static_assert(sizeof(BVHPrimNode) == ENCODED_TREE_NODE4_SIZE, "BVHPrimNode (4) must be ENCODED_TREE_NODE4_SIZE bytes");
 
 struct MinMax {
 	Vector3 min;
@@ -142,10 +156,8 @@ public:
 	float3 *vertices;
 	int32_t *indices;
 	BVHNode *nodes;
-	//MinMax *meshMinMaxs;
 	uint32_t *vertexCounts;
 	int numVertices, numIndices, numNodes;
-	//int numMeshMinMaxs, numVertexCounts;
 	float scale;
 	bool scaleComputed;
 
@@ -153,16 +165,12 @@ public:
 		this->vertices = nullptr;
 		this->indices = nullptr;
 		this->nodes = nullptr;
-		//this->vertexCounts = nullptr;
-		//this->meshMinMaxs = nullptr;
 		this->scale = 1.0f;
 		this->scaleComputed = false;
 
 		this->numVertices = 0;
 		this->numIndices = 0;
 		this->numNodes = 0;
-		//this->numMeshMinMaxs = 0;
-		//this->numVertexCounts = 0;
 	}
 	
 	~LBVH() {
@@ -174,15 +182,10 @@ public:
 
 		if (nodes != nullptr)
 			delete[] nodes;
-
-		//if (meshMinMaxs != nullptr)
-		//	delete[] meshMinMaxs;
-
-		//if (vertexCounts != nullptr)
-		//	delete[] vertexCounts;
 	}
 
-	static LBVH *LoadLBVH(char *sFileName, bool verbose=false);
+	static LBVH *LoadLBVH(char *sFileName, bool EmbeddedVerts=false, bool verbose=false);
 
 	void PrintTree(std::string level, int curnode);
+	void DumpToOBJ(char *sFileName);
 };

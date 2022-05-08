@@ -717,6 +717,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	// Create the buffers for the BVH
 	if (lbvh != nullptr && !_isRTInitialized) {
 		HRESULT hr;
+		bool EmbeddedVertices = true;
 
 		// Create the BVH buffers
 		{
@@ -755,7 +756,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 
 		// Create the vertex buffers
-		{
+		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = lbvh->vertices;
 			initialData.SysMemPitch = 0;
@@ -768,9 +769,11 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTVertices, DXGI_FORMAT_R32G32B32_FLOAT, 0, lbvh->numVertices),
 				&_RTVerticesSRV);
 		}
+		else
+			_RTVerticesSRV = nullptr;
 
 		// Create the index buffers
-		{
+		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = lbvh->indices;
 			initialData.SysMemPitch = 0;
@@ -783,6 +786,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTIndices, DXGI_FORMAT_R32_SINT, 0, lbvh->numIndices),
 				&_RTIndicesSRV);
 		}
+		else
+			_RTIndicesSRV = nullptr;
 
 		_isRTInitialized = true;
 	}
@@ -1540,7 +1545,7 @@ LBVH *LoadLBVH(char *s_XwaIOFileName) {
 	sBVHFileName[i++] = 'h';
 	sBVHFileName[i++] = 0;
 	//log_debug("[DBG] [BVH] Loading BVH: [%s]", sBVHFileName);
-	return LBVH::LoadLBVH(sBVHFileName, false);
+	return LBVH::LoadLBVH(sBVHFileName, true, false);
 }
 
 void D3dRendererOptLoadHook(int handle)

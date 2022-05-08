@@ -45,23 +45,23 @@ struct BVHNode {
 // BVH4 node
 struct BVHNode {
 	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
-	// 4 bytes
-	float3 min;
-	// 16 bytes
-	float3 max;
-	// 28 bytes
 	int parent; // Not used at this point
+	int2 padding;
+	// 16 bytes
+	float4 min;
 	// 32 bytes
-	int children[4];
+	float4 max;
 	// 48 bytes
+	int4 children;
+	// 64 bytes
 };
 
 // BVH, slot 14
 StructuredBuffer<BVHNode> g_BVH : register(t14);
 // Vertices, slot 15
-Buffer<float3> g_Vertices : register(t15);
+//Buffer<float3> g_Vertices : register(t15);
 // Indices, slot 16
-Buffer<int> g_Indices : register(t16);
+//Buffer<int> g_Indices : register(t16);
 
 // ------------------------------------------
 // Checks if the ray hits the node's AABB
@@ -146,6 +146,8 @@ Intersection _NaiveSimpleHit(Ray ray) {
 }
 */
 
+// Ray traversal, Indexed Geometry version
+#ifdef DISABLED
 // ray is in OPT coords. We can traverse the BVH now
 Intersection _TraceRaySimpleHit(Ray ray) {
 	int stack[MAX_RT_STACK];
@@ -159,41 +161,102 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 	while (stack_top > 0) {
 		// Pop a node from the stack
 		curnode = stack[--stack_top];
+		const BVHNode node = g_BVH[curnode];
+		const int TriID = node.ref;
 
-		// Check if the ray intersects the current box
-		const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
+		if (TriID == -1) {
+			// This node is a box. Do the ray-box intersection test
+			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
 
-		// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
-		// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
-		// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
-		// so we can't use that test).
-		if (T[1] >= 0 && T[1] >= T[0])
-		{
-			// Ray intersects the box
-			const int TriID = g_BVH[curnode].ref;
-			// Inner node: push the children of this node on the stack
-			if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
-				// Push the valid children of this node into the stack
-				for (int i = 0; i < 4; i++) {
-					int child = g_BVH[curnode].children[i];
-					if (child == -1) break;
-					stack[stack_top++] = child;
+			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
+			// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
+			// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
+			// so we can't use that test).
+			if (T[1] >= 0 && T[1] >= T[0])
+			{
+				// Ray intersects the box
+				// Inner node: push the children of this node on the stack
+				if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+					// Push the valid children of this node into the stack
+					for (int i = 0; i < 4; i++) {
+						int child = node.children[i];
+						if (child == -1) break;
+						stack[stack_top++] = child;
+					}
 				}
 			}
-			// Leaf node: do the ray-triangle intersection test
-			else {
-				// Get the triangle data
-				const int ofs = TriID * 3;
-				const float3 A = g_Vertices[g_Indices[ofs]];
-				const float3 B = g_Vertices[g_Indices[ofs + 1]];
-				const float3 C = g_Vertices[g_Indices[ofs + 2]];
-				
-				Intersection inters = getIntersection(ray, A, B, C);
-				if (RayTriangleTest(inters)) {
-					inters.TriID = TriID;
-					best_inters = inters;
-					return best_inters;
+		}
+		else {
+			// This node is a triangle. Do the ray-triangle intersection test.
+			const float3 A = node.min.xyz;
+			const float3 B = node.max.xyz;
+			const float3 C = float3(
+				asfloat(node.children[0]),
+				asfloat(node.children[1]),
+				asfloat(node.children[2]));
+
+			Intersection inters = getIntersection(ray, A, B, C);
+			if (RayTriangleTest(inters)) {
+				inters.TriID = TriID;
+				best_inters = inters;
+				return best_inters;
+			}
+		}
+	}
+#endif
+
+// Ray traversal, Embedded Geometry version
+Intersection _TraceRaySimpleHit(Ray ray) {
+	int stack[MAX_RT_STACK];
+	int stack_top = 0;
+	int curnode = -1;
+	float3 inv_dir = 1.0f / ray.dir;
+	Intersection best_inters;
+	best_inters.TriID = -1;
+
+	stack[stack_top++] = 0; // Push the root on the stack
+	while (stack_top > 0) {
+		// Pop a node from the stack
+		curnode = stack[--stack_top];
+		const BVHNode node = g_BVH[curnode];
+		const int TriID = node.ref;
+
+		if (TriID == -1) {
+			// This node is a box. Do the ray-box intersection test
+			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
+
+			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
+			// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
+			// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
+			// so we can't use that test).
+			if (T[1] >= 0 && T[1] >= T[0])
+			{
+				// Ray intersects the box
+				// Inner node: push the children of this node on the stack
+				if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+					// Push the valid children of this node into the stack
+					for (int i = 0; i < 4; i++) {
+						int child = node.children[i];
+						if (child == -1) break;
+						stack[stack_top++] = child;
+					}
 				}
+			}
+		}
+		else {
+			// This node is a triangle. Do the ray-triangle intersection test.
+			const float3 A = node.min.xyz;
+			const float3 B = node.max.xyz;
+			const float3 C = float3(
+				asfloat(node.children[0]),
+				asfloat(node.children[1]),
+				asfloat(node.children[2]));
+
+			Intersection inters = getIntersection(ray, A, B, C);
+			if (RayTriangleTest(inters)) {
+				inters.TriID = TriID;
+				best_inters = inters;
+				return best_inters;
 			}
 		}
 	}

@@ -1551,6 +1551,8 @@ void EffectsRenderer::ApplyRTShadows() {
 	_deviceResources->InitPSRTConstantsBuffer(
 		_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 
+	// Non-embedded geometry:
+	/*
 	// Set the Raytracing SRVs
 	ID3D11ShaderResourceView *srvs[] = {
 		_RTBvhSRV.Get(),
@@ -1559,6 +1561,10 @@ void EffectsRenderer::ApplyRTShadows() {
 	};
 	// Slots 14-15 are used for Raytracing buffers (BVH, Vertices and Indices)
 	context->PSSetShaderResources(14, 3, srvs);
+	*/
+
+	// Embedded Geometry:
+	context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
