@@ -4,13 +4,15 @@
 #define MAX_RT_STACK 256
 
 // RTConstantsBuffer
+/*
 cbuffer ConstantBuffer : register(b10) {
 	matrix RTTransformWorldViewInv;
 	// 64 bytes
-	float RTScale;
-	int3 g_RTUnused;
+	//float RTScale;
+	//int3 g_RTUnused;
 	// 80 bytes
 };
+*/
 
 struct Ray				// 28 bytes
 {
@@ -58,6 +60,9 @@ struct BVHNode {
 
 // BVH, slot 14
 StructuredBuffer<BVHNode> g_BVH : register(t14);
+// Matrices, slot 15
+StructuredBuffer<matrix> g_Matrices : register(t15);
+
 // Vertices, slot 15
 //Buffer<float3> g_Vertices : register(t15);
 // Indices, slot 16
@@ -270,7 +275,8 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	// ray.origin is in the pos3D frame, we need to invert it into OPT coords
 	pos3D.y = -pos3D.y;
 	pos3D *= 40.96f;
-	pos3D = mul(float4(pos3D, 1.0f), RTTransformWorldViewInv).xyz;
+	//pos3D = mul(float4(pos3D, 1.0f), RTTransformWorldViewInv).xyz;
+	pos3D = mul(float4(pos3D, 1.0f), g_Matrices[0]).xyz;
 	//pos3D = mul(float4(pos3D, 1.0f), MeshTransformInv);
 	
 	//float4 P = mul(ray.origin, RTTransformWorldViewInv);
@@ -286,14 +292,15 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	// object, but I wanted them fixed in space so that we could really see the
 	// shading. See D3dRenderer::UpdateConstantBuffer for more details
 	dir.yz = -dir.yz;
-	dir = mul(float4(dir, 0), RTTransformWorldViewInv).xyz;
+	//dir = mul(float4(dir, 0), RTTransformWorldViewInv).xyz;
+	dir = mul(float4(dir, 0), g_Matrices[0]).xyz;
 	//dir = mul(float4(dir, 0), MeshTransformInv);
 	
 
 	// pos3D and dir are  now in OPT coords. We can cast the ray
-	ray.origin = pos3D * RTScale;
+	ray.origin = pos3D; // * RTScale;
 	ray.dir = dir;
-	ray.max_dist *= RTScale * 40.96f;
+	ray.max_dist *= 40.96f; // * RTScale;
 	return _TraceRaySimpleHit(ray);
 	//return _NaiveSimpleHit(ray);
 }

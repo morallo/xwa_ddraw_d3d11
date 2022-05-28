@@ -1540,16 +1540,26 @@ void EffectsRenderer::ApplyRTShadows() {
 
 	auto &context = _deviceResources->_d3dDeviceContext;
 
+	Matrix4 RTScale = Matrix4().scale(1.0f / lbvh->scale);
+	Matrix4 transformWorldViewInv = RTScale * _constants.transformWorldView;
+	transformWorldViewInv = transformWorldViewInv.invert();
 	// Invert transformWorldView and send it to the ray-tracer
-	g_RTConstantsBuffer.TransformWorldViewInv = _constants.transformWorldView;
-	g_RTConstantsBuffer.TransformWorldViewInv = g_RTConstantsBuffer.TransformWorldViewInv.invert();
-	g_RTConstantsBuffer.RTScale = lbvh->scale;
-	//g_RTConstantsBuffer.numVertices = lbvh->numVertices;
-	//g_RTConstantsBuffer.numIndices = lbvh->numIndices;
-	//g_RTConstantsBuffer.numTriangles = lbvh->numIndices / 3;
+	//g_RTConstantsBuffer.TransformWorldViewInv = transformWorldViewInv;
+	//g_RTConstantsBuffer.RTScale = lbvh->scale;
 	// Set the Raytracing constants
-	_deviceResources->InitPSRTConstantsBuffer(
-		_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
+	//_deviceResources->InitPSRTConstantsBuffer(
+	//	_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
+
+	// Update the matrices buffer
+	D3D11_MAPPED_SUBRESOURCE map;
+	ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	HRESULT hr = context->Map(_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	if (SUCCEEDED(hr)) {
+		memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
+		context->Unmap(_RTMatrices.Get(), 0);
+	}
+	else
+		log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
 
 	// Non-embedded geometry:
 	/*
@@ -1559,12 +1569,18 @@ void EffectsRenderer::ApplyRTShadows() {
 		_RTVerticesSRV.Get(),
 		_RTIndicesSRV.Get()
 	};
-	// Slots 14-15 are used for Raytracing buffers (BVH, Vertices and Indices)
+	// Slots 14-16 are used for Raytracing buffers (BVH, Vertices and Indices)
 	context->PSSetShaderResources(14, 3, srvs);
 	*/
 
 	// Embedded Geometry:
-	context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
+	//context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
+	ID3D11ShaderResourceView *srvs[] = {
+		_RTBvhSRV.Get(),
+		_RTMatricesSRV.Get(),
+	};
+	// Slots 14-15 are used for Raytracing buffers (BVH and Matrices)
+	context->PSSetShaderResources(14, 2, srvs);
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
