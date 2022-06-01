@@ -485,7 +485,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// If I remove the following, then the bloom mask is messed up!
-	if (Normal.w < 0.001) { // The skybox gets this alpha value
+	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
+	if (Normal.w < 0.475) {
 		output.color = float4(color, 1);
 		return output;
 	}
