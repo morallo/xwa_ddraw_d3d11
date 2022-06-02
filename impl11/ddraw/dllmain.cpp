@@ -611,6 +611,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				LoadVRParams();
 				return 0;
 			
+			// Ctrl+Alt+W
 			case 'W':
 				g_iDelayedDumpDebugBuffers = 30;
 				log_debug("[DBG] Delayed debug dump set");

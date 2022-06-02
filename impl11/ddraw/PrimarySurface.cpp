@@ -1987,7 +1987,19 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		}
 		if (g_bDumpSSAOBuffers)
 			log_file("[DBG] maxIdx: %d, maxIntensity: %0.3f\n\n", maxIdx, maxIntensity);
-		if (*g_playerInHangar) maxLights = 2;
+		if (*g_playerInHangar) {
+			// I don't remember why we're forcing 2 lights in the hangar, but removing the
+			// next line disables hangar shadow mapping, so they are related somehow; see
+			// commit 19d7bd03. The point is that forcing 2 lights may cause "leftover"
+			// lights from a mission to cast illumination in the hangar if the mission is
+			// terminated by pressing H. To avoid this problem, I'm also forcing the color
+			// of the second light to 0 to disable it. That seems to "fix" the leftover
+			// lighting.
+			maxLights = 2;
+			g_ShadingSys_PSBuffer.LightColor[1].x = 0;
+			g_ShadingSys_PSBuffer.LightColor[1].y = 0;
+			g_ShadingSys_PSBuffer.LightColor[1].z = 0;
+		}
 		g_ShadingSys_PSBuffer.LightCount  = maxLights;
 		g_ShadingSys_PSBuffer.MainLight.x = g_ShadingSys_PSBuffer.LightVector[maxIdx].x;
 		g_ShadingSys_PSBuffer.MainLight.y = g_ShadingSys_PSBuffer.LightVector[maxIdx].y;
