@@ -139,6 +139,6 @@ public:
 	void RenderDeferredDrawCalls();
 };
 
-extern EffectsRenderer g_effects_renderer;
+extern EffectsRenderer *g_effects_renderer;
 
 extern D3dRenderer *g_current_renderer;

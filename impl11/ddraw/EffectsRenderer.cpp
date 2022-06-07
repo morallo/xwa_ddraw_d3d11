@@ -13,7 +13,7 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 bool g_bEnableAnimations = true;
 bool g_bRTEnabled = false;
 
-EffectsRenderer g_effects_renderer;
+EffectsRenderer *g_effects_renderer = nullptr;
 
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 

@@ -76,6 +76,16 @@ struct DrawCommand {
 	Matrix4 meshTransformMatrix;
 };
 
+enum class D3dRendererType
+{
+	STANDARD,
+	EFFECTS,
+	STEAMVR,
+	DIRECTSBS
+};
+
+extern D3dRendererType g_D3dRendererType;
+
 class D3dRenderer
 {
 public:
@@ -175,7 +185,5 @@ extern bool g_isInRenderLasers;
 // false if we're in External Camera mode even if a craft is targeted.
 extern bool g_isInRenderMiniature;
 extern bool g_isInRenderHyperspaceLines;
-
-extern D3dRenderer g_xwa_d3d_renderer;
 
 void ClearCachedSRVs();

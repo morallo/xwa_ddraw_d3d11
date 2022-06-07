@@ -285,9 +285,7 @@ bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 
 float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
-#include "SteamVRRenderer.h"
-#include "DirectSBSRenderer.h"
-D3dRenderer *g_current_renderer = &g_effects_renderer;
+#include "D3dRenderer.h"
 
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
@@ -296,7 +294,7 @@ void LoadVRParams() {
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
 	// Initialize the current renderer to use Effects by default.
-	g_current_renderer = &g_effects_renderer;
+	g_D3dRendererType = D3dRendererType::EFFECTS;
 
 	try {
 		error = fopen_s(&file, "./vrparams.cfg", "rt");
@@ -424,7 +422,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_DIRECT_SBS;
 					g_bSteamVREnabled = false;
 					g_bEnableVR = true;
-					g_current_renderer = &g_directsbs_renderer;
+					g_D3dRendererType = D3dRendererType::DIRECTSBS;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using Direct SBS mode");
@@ -433,7 +431,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
-					g_current_renderer = &g_steamvr_renderer;
+					g_D3dRendererType = D3dRendererType::STEAMVR;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");

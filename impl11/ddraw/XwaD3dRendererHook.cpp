@@ -48,6 +48,7 @@ Backdrops messages look like:
 #include "XwaD3dRendererHook.h"
 #include "EffectsRenderer.h"
 #include "SteamVRRenderer.h"
+#include "DirectSBSRenderer.h"
 
 #ifdef _DEBUG
 #include "../Debug/XwaD3dVertexShader.h"
@@ -147,6 +148,8 @@ void DumpD3dVertices(D3dVertex* vertices, int count)
 
 #endif
 
+D3dRendererType g_D3dRendererType;
+
 bool g_isInRenderLasers = false;
 bool g_isInRenderMiniature = false;
 bool g_isInRenderHyperspaceLines = false;
@@ -217,6 +220,7 @@ D3dRenderer::D3dRenderer()
 	_RTMatricesSRV = nullptr;
 	_constants = {};
 	_viewport = {};
+	_currentOptMeshIndex = -1;
 
 #if LOGGER_DUMP
 	DumpFile("ddraw_d3d.txt");
@@ -1493,13 +1497,12 @@ void D3dRenderer::SetRenderTypeIllum(int type)
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_constants, 0, 0);
 }
 
-D3dRenderer g_xwa_d3d_renderer;
-
 // TODO: Select the appropriate renderer depending on the current config
 //#define ORIGINAL_D3D_RENDERER_SHADERS
 #ifdef ORIGINAL_D3D_RENDERER_SHADERS
-static D3dRenderer &g_current_renderer = g_xwa_d3d_renderer;
+D3dRenderer* g_current_renderer = g_xwa_d3d_renderer;
 #endif
+D3dRenderer* g_current_renderer = nullptr;
 
 void RenderDeferredDrawCalls() {
 	g_current_renderer->RenderDeferredDrawCalls();
@@ -1508,6 +1511,47 @@ void RenderDeferredDrawCalls() {
 //************************************************************************
 // Hooks
 //************************************************************************
+
+void D3dRendererInitialize()
+{
+	if (!g_config.D3dRendererHookEnabled)
+	{
+		return;
+	}
+
+	if (!g_current_renderer)
+	{
+		switch (g_D3dRendererType)
+		{
+		case D3dRendererType::EFFECTS:
+			g_current_renderer = new EffectsRenderer();
+			break;
+		case D3dRendererType::STEAMVR:
+			g_current_renderer = new SteamVRRenderer();
+			break;
+		case D3dRendererType::DIRECTSBS:
+			g_current_renderer = new DirectSBSRenderer();
+			break;
+		default:
+			g_current_renderer = new D3dRenderer();
+			break;
+		}
+	}
+}
+
+void D3dRendererUninitialize()
+{
+	if (!g_config.D3dRendererHookEnabled)
+	{
+		return;
+	}
+
+	if (g_current_renderer != nullptr)
+	{
+		delete g_current_renderer;
+		g_current_renderer = nullptr;
+	}
+}
 
 void D3dRendererSceneBegin(DeviceResources* deviceResources)
 {
@@ -1665,7 +1709,6 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 	g_current_renderer->_currentOptMeshIndex =
 		(node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ?
 		(nodeIndex - 1) : nodeIndex;
-
 	L00482000(optHeader, node, scene);
 }
 
