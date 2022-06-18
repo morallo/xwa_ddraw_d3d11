@@ -15,4 +15,4 @@ protected:
 	ComPtr<ID3D11VertexShader> _shadowVertexShaderVR;
 };
 
-extern DirectSBSRenderer g_directsbs_renderer;
+extern DirectSBSRenderer *g_directsbs_renderer;

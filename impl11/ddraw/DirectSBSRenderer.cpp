@@ -17,7 +17,7 @@
 // SteamVR Renderer
 //************************************************************************
 
-DirectSBSRenderer g_directsbs_renderer;
+DirectSBSRenderer *g_directsbs_renderer = nullptr;
 
 DirectSBSRenderer::DirectSBSRenderer() : EffectsRenderer() {
 }

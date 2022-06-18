@@ -25,7 +25,7 @@
 // SteamVR Renderer
 //************************************************************************
 
-SteamVRRenderer g_steamvr_renderer;
+SteamVRRenderer *g_steamvr_renderer = nullptr;
 
 SteamVRRenderer::SteamVRRenderer() : EffectsRenderer() {
 }

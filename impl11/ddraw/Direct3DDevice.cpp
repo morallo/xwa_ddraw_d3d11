@@ -13,6 +13,9 @@
 
 How to fix the videos in VR, from Jeremy:
 
+	JeremyaFr — 05/13/2022
+	You can retrieve the current image with the GetCurrentImage method on the IMFVideoDisplayControl interface.
+
 	You can take a look at the method Repaint in mfplayer.player.cpp. The video is painted with the
 	method RepaintVideo on the m_pVideoDisplay object. You can retrieve the video frame with the method
 	GetCurrentImage on the m_pVideoDisplay object.

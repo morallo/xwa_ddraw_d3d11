@@ -15,4 +15,4 @@ protected:
 	ComPtr<ID3D11VertexShader> _shadowVertexShaderVR;
 };
 
-extern SteamVRRenderer g_steamvr_renderer;
+extern SteamVRRenderer *g_steamvr_renderer;
