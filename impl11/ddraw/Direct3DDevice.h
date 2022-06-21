@@ -50,6 +50,8 @@ public:
 
 	void AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
 
+	void AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture * texture);
+
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);

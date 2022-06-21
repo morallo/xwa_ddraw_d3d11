@@ -1889,7 +1889,8 @@ Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEye
  * into 3D space.
  * After dumping solid polygons, I realized the back-project code skews the Y axis... considerably.
  */
-
+// Setting this flag to true will dump the explosions and engine glows. To set it
+// add dump_OBJ_enabled = 1 in SSAO.cfg
 bool g_bDumpOBJEnabled = false;
 FILE *g_DumpOBJFile = NULL, *g_DumpLaserFile = NULL;
 int g_iOBJFileIdx = 0;
@@ -2309,6 +2310,59 @@ void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex,
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
 			g_LaserList.insert(P, texture->material.Light);
+		}
+
+		if (!g_config.D3dHookExists) triangle++;
+	}
+}
+
+void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
+{
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	uint32_t index;
+	UINT idx = curIndex;
+	Vector3 tempv0, tempv1, tempv2, P;
+	Vector2 UV0, UV1, UV2, UV = texture->material.LightUVCoordPos;
+	Vector3 Light = texture->material.Light;
+	if (Light.x <= 0.01f && Light.y <= 0.01f && Light.z <= 0.01f) {
+		// This explosion's light and UV are not initialized. Provide some
+		// default values...
+
+		// We don't use (0.5, 0.5) because this coordinate will be contained in both
+		// triangles making up the explosion quad
+		UV = Vector2(0.45f, 0.45f);
+		Light = Vector3(0.4f, 0.3f, 0.15f);
+
+		// ... then write these values back to the texture
+		texture->material.LightUVCoordPos = UV;
+		texture->material.Light = Light;
+	}
+
+	// XWA probably batch-renders all explosions that share the same texture, so we may
+	// see several explosions when parsing this instruction. To detect each individual
+	// explosion, we need to look at the uv's and see if the current triangle contains
+	// the uv coord we're looking for (the default is (0.45, 0.45)). If the uv is contained,
+	// then we compute the 3D point using its barycentric coords and add it to the current
+	// list.
+	for (uint32_t i = 0; i < instruction->wCount; i++)
+	{
+		// Back-project the vertices of the triangle into metric 3D space:
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
+		UV0.x = g_OrigVerts[index].tu; UV0.y = g_OrigVerts[index].tv;
+		InverseTransformProjectionScreen(index, &tempv0);
+
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
+		UV1.x = g_OrigVerts[index].tu; UV1.y = g_OrigVerts[index].tv;
+		InverseTransformProjectionScreen(index, &tempv1);
+
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
+		UV2.x = g_OrigVerts[index].tu; UV2.y = g_OrigVerts[index].tv;
+		InverseTransformProjectionScreen(index, &tempv2);
+
+		float u, v;
+		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
+			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+			g_LaserList.insert(P, Light);
 		}
 
 		if (!g_config.D3dHookExists) triangle++;
@@ -4551,6 +4605,12 @@ HRESULT Direct3DDevice::Execute(
 					g_ShadertoyBuffer.twirl = 2.0f; // ExplosionScale: 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					// Set the constant buffer
 					resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+				}
+
+				// Add explosion lights
+				if (bIsExplosion)
+				{
+					AddExplosionLights(instruction, currentIndexLocation, lastTextureSelected);
 				}
 
 				// Render the procedural explosions
