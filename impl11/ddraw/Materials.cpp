@@ -958,6 +958,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	else if (_stricmp(param, "Light") == 0) {
 		LoadLightColor(buf, &(curMaterial->Light));
+		curMaterial->IsLightEmitter = true;
 		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
 		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 	}

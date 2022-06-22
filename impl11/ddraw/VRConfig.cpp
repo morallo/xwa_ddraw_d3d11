@@ -2407,6 +2407,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enable_laser_lights") == 0) {
 				g_bEnableLaserLights = (bool)fValue;
 			}
+			else if (_stricmp(param, "enable_explosion_lights") == 0) {
+				g_bEnableExplosionLights = (bool)fValue;
+			}
 			else if (_stricmp(param, "sqr_attenuation") == 0) {
 				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
 			}

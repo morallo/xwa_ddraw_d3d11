@@ -552,6 +552,7 @@ float g_fBlastMarkOfsX = 0.0f, g_fBlastMarkOfsY = 0.0f;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
+bool g_bEnableExplosionLights = true;
 bool g_b3DSunPresent = false;
 bool g_b3DSkydomePresent = false;
 
@@ -4608,7 +4609,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// Add explosion lights
-				if (bIsExplosion)
+				if (g_bEnableExplosionLights && bIsExplosion)
 				{
 					AddExplosionLights(instruction, currentIndexLocation, lastTextureSelected);
 				}

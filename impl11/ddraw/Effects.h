@@ -94,7 +94,7 @@ extern BloomConfig g_BloomConfig;
 
 // LASER LIGHTS
 extern SmallestK g_LaserList;
-extern bool g_bEnableLaserLights, g_bEnableHeadLights;
+extern bool g_bEnableLaserLights, g_bEnableExplosionLights, g_bEnableHeadLights;
 extern Vector3 g_LaserPointDebug;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
 extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;

@@ -1746,7 +1746,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Modify the state for both VR and regular game modes...
 
 	// Maintain the k-closest lasers to the camera (but ignore the miniature lasers)
-	if (g_bEnableLaserLights && _bIsLaser && _bHasMaterial && !g_bStartedGUI)
+	if ((g_bEnableLaserLights && _bIsLaser && _bHasMaterial && !g_bStartedGUI) ||
+		_lastTextureSelected->material.IsLightEmitter)
 		AddLaserLights(scene);
 
 	// Apply BLOOM flags and 32-bit mode enhancements
