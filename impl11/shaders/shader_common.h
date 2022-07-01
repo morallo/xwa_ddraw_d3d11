@@ -51,7 +51,7 @@ OPTMeshTransformCBuffer : register(b8)
 
 #define MAX_XWA_LIGHTS 8
 // Currently only used for the lasers
-#define MAX_CB_POINT_LIGHTS 8
+#define MAX_CB_POINT_LIGHTS 16
 
 // Used in the special_control CB field in the pixel shader
 // These flags are mutually-exclusive, so be careful when setting them. Only a handful are used

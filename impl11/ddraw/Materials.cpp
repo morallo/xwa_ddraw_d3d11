@@ -967,6 +967,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//log_debug("[DBG] [MAT] LightUVCoordPos: %0.3f, %0.3f",
 		//	curMaterial->LightUVCoordPos.x, curMaterial->LightUVCoordPos.y);
 	}
+	else if (_stricmp(param, "light_falloff") == 0) {
+		curMaterial->LightFalloff = fValue;
+	}
+	else if (_stricmp(param, "light_angle") == 0) {
+		curMaterial->LightAngle = fValue * DEG_TO_RAD;
+	}
 	else if (_stricmp(param, "NoBloom") == 0) {
 		curMaterial->NoBloom = (bool)fValue;
 		log_debug("[DBG] NoBloom: %d", curMaterial->NoBloom);

@@ -1,16 +1,16 @@
 /*
  * List of known issues:
- * - Faceted normal maps --> Not an issue with ddraw, OPTs have the wrong normals.
- * - VR
- * - Animations (including Debris)
- * - Animated Explosions (do they even work now?)
- * - Explosion Variants
+ * - Normal Mapping sometimes doesn't work. The asteroids tend to look very dark and stay dark.
+ *   This seems to be happening because normal mapping is never activated. We may have to just
+ *   load the normal maps from the XwaSmoother via an intermediary DLL.
  * - The Map was semi-fixed apparently as a side-effect of fixing the artifacts in the CMD.
  *   Turns out the map lines were being captured in the Dynamic Cockpit FG buffer, probably
  *   because we didn't detect the miniature being rendered when in map mode.
+ * - The Map sometimes does not render the wireframe model.
  *
  * New ideas that might be possible now:
  *
+ * - Per-craft damage textures
  * - Control the position of ships hypering in or out. Make them *snap* into place
  * - Animate the 3D cockpit. Moving joysticks, targetting computer, etc
  * - Aiming Reticle with lead

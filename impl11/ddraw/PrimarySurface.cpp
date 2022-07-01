@@ -2105,10 +2105,12 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			g_ShadingSys_PSBuffer.LightPoint[i].x =  g_LaserList._elems[i].P.x;
 			g_ShadingSys_PSBuffer.LightPoint[i].y =  g_LaserList._elems[i].P.y;
 			g_ShadingSys_PSBuffer.LightPoint[i].z = -g_LaserList._elems[i].P.z;
+			g_ShadingSys_PSBuffer.LightPoint[i].w =  g_LaserList._elems[i].falloff;
 
 			g_ShadingSys_PSBuffer.LightPointColor[i].x = g_LaserList._elems[i].col.x;
 			g_ShadingSys_PSBuffer.LightPointColor[i].y = g_LaserList._elems[i].col.y;
 			g_ShadingSys_PSBuffer.LightPointColor[i].z = g_LaserList._elems[i].col.z;
+			g_ShadingSys_PSBuffer.LightPointColor[i].w = g_LaserList._elems[i].angle;
 		}
 	}
 	else

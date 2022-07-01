@@ -92,13 +92,15 @@ extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
 extern BloomConfig g_BloomConfig;
 
-// LASER LIGHTS
+// LASER LIGHTS AND DYNAMIC LIGHTS
 extern SmallestK g_LaserList;
 extern bool g_bEnableLaserLights, g_bEnableExplosionLights, g_bEnableHeadLights;
 extern Vector3 g_LaserPointDebug;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
 extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
 extern bool g_bHeadLightsAutoTurnOn;
+extern const float DEFAULT_DYNAMIC_LIGHT_FALLOFF;
+extern const Vector3 DEFAULT_EXPLOSION_COLOR;
 
 extern int   g_iDraw2DCounter;
 extern bool g_bPrevPlayerInHangar;

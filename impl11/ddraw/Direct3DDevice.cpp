@@ -2325,6 +2325,7 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 	Vector3 tempv0, tempv1, tempv2, P;
 	Vector2 UV0, UV1, UV2, UV = texture->material.LightUVCoordPos;
 	Vector3 Light = texture->material.Light;
+	float falloff = texture->material.LightFalloff;
 	if (Light.x <= 0.01f && Light.y <= 0.01f && Light.z <= 0.01f) {
 		// This explosion's light and UV are not initialized. Provide some
 		// default values...
@@ -2332,11 +2333,17 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 		// We don't use (0.5, 0.5) because this coordinate will be contained in both
 		// triangles making up the explosion quad
 		UV = Vector2(0.45f, 0.45f);
-		Light = Vector3(0.4f, 0.3f, 0.15f);
+		Light = DEFAULT_EXPLOSION_COLOR;
 
 		// ... then write these values back to the texture
 		texture->material.LightUVCoordPos = UV;
 		texture->material.Light = Light;
+	}
+
+	// If the falloff isn't set for this explosion, then set a default value
+	if (falloff == 0.0f) {
+		falloff = DEFAULT_DYNAMIC_LIGHT_FALLOFF;
+		texture->material.LightFalloff = falloff;
 	}
 
 	// XWA probably batch-renders all explosions that share the same texture, so we may
@@ -2363,7 +2370,7 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			g_LaserList.insert(P, Light);
+			g_LaserList.insert(P, Light, falloff, 0.0f);
 		}
 
 		if (!g_config.D3dHookExists) triangle++;

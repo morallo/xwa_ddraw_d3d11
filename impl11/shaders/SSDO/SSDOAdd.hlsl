@@ -715,7 +715,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.bloom = tmp_bloom;
 
-	// Add the laser lights
+	// Add the laser/dynamic lights
 #define L_FADEOUT_A_0 30.0
 #define L_FADEOUT_A_1 50.0
 #define L_FADEOUT_B_0 50.0
@@ -731,16 +731,26 @@ PixelShaderOutput main(PixelShaderInput input)
 		// because both points have -z:
 		float3 L = LightPoint[i].xyz - pos3D;
 		const float Z = -LightPoint[i].z; // Z is positive depth
+		const float falloff = LightPoint[i].w;
+		//const float angle = LightPointColor[i].w;
 		
+		float attenuation, depth_attenuation;
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
-		// calculate the attenuation
-		const float depth_attenuation_A = 0.15 * smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
-		const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
-		const float depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
-		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
-		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
-		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		// calculate the attenuation for laser lights
+		if (falloff == 0.0f) {
+			const float depth_attenuation_A = 0.15 * smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
+			const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
+			depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
+			//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
+			//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
+			attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		}
+		// calculate the attenuation for other lights (explosions, etc)
+		else {
+			depth_attenuation = 1.0;
+			attenuation = falloff / distance_sqr;
+		}
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
 		//laser_light_alpha += diff_val;

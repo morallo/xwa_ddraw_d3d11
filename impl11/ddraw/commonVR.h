@@ -15,6 +15,7 @@
 
 const float MAX_BRIGHTNESS = 1.0f;
 extern const float RAD_TO_DEG;
+extern const float DEG_TO_RAD;
 extern const float DEFAULT_IPD; // Ignored in SteamVR mode.
 extern const float IPD_SCALE_FACTOR;
 extern Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;

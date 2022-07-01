@@ -186,10 +186,13 @@ float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
 bool g_bMetricParamsNeedReapply = false;
 Matrix4 g_ReflRotX;
 
+// LASER LIGHTS AND DYNAMIC LIGHTS
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
 float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 bool g_bHeadLightsAutoTurnOn = true;
+const float DEFAULT_DYNAMIC_LIGHT_FALLOFF = 4.0f;
+const Vector3 DEFAULT_EXPLOSION_COLOR = Vector3(1.0f, 0.75f, 0.375f);
 
 bool g_bKeybExitHyperspace = true;
 int g_iDraw2DCounter = 0;
@@ -225,7 +228,7 @@ GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 // **************************
 
 
-void SmallestK::insert(Vector3 P, Vector3 col) {
+void SmallestK::insert(Vector3 P, Vector3 col, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
 		// Copy the i-th element to the (i+1)-th index to make space at i
@@ -238,6 +241,8 @@ void SmallestK::insert(Vector3 P, Vector3 col) {
 	if (i + 1 < MAX_CB_POINT_LIGHTS) {
 		_elems[i + 1].P = P;
 		_elems[i + 1].col = col;
+		_elems[i + 1].falloff = falloff;
+		_elems[i + 1].angle = angle;
 		if (_size < MAX_CB_POINT_LIGHTS)
 			_size++;
 	}

@@ -188,7 +188,7 @@ struct XwaVector3
 	}
 
 	XwaVector3 normalize() {
-		float L = sqrt(x*x + y * y + z * z);
+		float L = sqrt(x * x + y * y + z * z);
 		x /= L;
 		y /= L;
 		z /= L;

@@ -336,6 +336,8 @@ typedef struct MaterialStruct {
 	bool  NoBloom;
 	Vector3 Light;
 	Vector2 LightUVCoordPos;
+	float LightFalloff;
+	float LightAngle;
 	bool IsLightEmitter;
 	bool  IsLava;
 	float LavaSpeed;
@@ -408,6 +410,8 @@ typedef struct MaterialStruct {
 		IsShadeless = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
 		LightUVCoordPos = Vector2(0.1f, 0.5f);
+		LightFalloff = 0.0f;
+		LightAngle = 0.0f;
 		IsLightEmitter = false;
 		NoBloom = false;
 		IsLava = false;

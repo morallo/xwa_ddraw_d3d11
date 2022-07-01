@@ -210,14 +210,14 @@ typedef struct PSShadingSystemCBStruct {
 	uint32_t num_lasers;
 	// 336 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
-	// 464 bytes
-	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
+	// 16 * 16 = 256
 	// 592 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 848 bytes
 	float ambient, headlights_angle_cos, HDR_white_point;
 	uint32_t HDREnabled;
-	// 608 bytes
+	// 864 bytes
 } PSShadingSystemCB;
 
 typedef struct RTConstantsBufferStruct {
@@ -324,6 +324,8 @@ class VectorColor {
 public:
 	Vector3 P;
 	Vector3 col;
+	float falloff;
+	float angle;
 };
 
 class SmallestK {
@@ -341,7 +343,7 @@ public:
 		_size = 0;
 	}
 
-	void insert(Vector3 P, Vector3 col);
+	void insert(Vector3 P, Vector3 col, float falloff=0.0f, float angle=0.0f);
 };
 
 typedef enum {
