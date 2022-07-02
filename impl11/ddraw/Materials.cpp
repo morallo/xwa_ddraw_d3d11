@@ -971,7 +971,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->LightFalloff = fValue;
 	}
 	else if (_stricmp(param, "light_angle") == 0) {
-		curMaterial->LightAngle = fValue * DEG_TO_RAD;
+		curMaterial->LightAngle = cos(fValue * DEG_TO_RAD);
 	}
 	else if (_stricmp(param, "NoBloom") == 0) {
 		curMaterial->NoBloom = (bool)fValue;

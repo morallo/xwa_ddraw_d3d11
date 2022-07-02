@@ -228,7 +228,7 @@ GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 // **************************
 
 
-void SmallestK::insert(Vector3 P, Vector3 col, float falloff, float angle) {
+void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
 		// Copy the i-th element to the (i+1)-th index to make space at i
@@ -243,6 +243,7 @@ void SmallestK::insert(Vector3 P, Vector3 col, float falloff, float angle) {
 		_elems[i + 1].col = col;
 		_elems[i + 1].falloff = falloff;
 		_elems[i + 1].angle = angle;
+		_elems[i + 1].dir = dir;
 		if (_size < MAX_CB_POINT_LIGHTS)
 			_size++;
 	}

@@ -320,9 +320,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 L = LightPoint[i].xyz - pos3D;
 		const float Z = -LightPoint[i].z;
 		const float falloff = LightPoint[i].w;
-		//const float angle = LightPointColor[i].w;
+		const float3 LDir = LightPointDirection[i].xyz;
+		const float angle_falloff_cos = LightPointDirection[i].w;
 
-		float attenuation, depth_attenuation;
+		float attenuation, depth_attenuation, angle_attenuation = 1.0f;
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
 		// calculate the attenuation for laser lights
@@ -339,11 +340,18 @@ PixelShaderOutput main(PixelShaderInput input)
 			depth_attenuation = 1.0;
 			attenuation = falloff / distance_sqr;
 		}
+		// calculate the attenation for directional lights
+		if (angle_falloff_cos != 0.0f) {
+			// compute the angle between the light's direction and the
+			// vector from the current point to the light's center
+			const float angle = max(dot(L, LDir), 0.0);
+			angle_attenuation = smoothstep(angle_falloff_cos, 1.0, angle);
+		}
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
 		//laser_light_alpha += diff_val;
 		// add everything up
-		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
+		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * diff_val * LightPointColor[i].rgb;
 	}
 	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;

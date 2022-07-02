@@ -1274,9 +1274,26 @@ void EffectsRenderer::AddLaserLights(const SceneCompData* scene)
 			float u, v;
 			if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 				P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
+				// Compute the normal for this face, we'll need that for directional lights
+				Vector3 e1 = Vector3(tempv1.x - tempv0.x,
+									 tempv1.y - tempv0.y,
+									 tempv1.z - tempv0.z);
+
+				Vector3 e2 = Vector3(tempv2.x - tempv1.x,
+									 tempv2.y - tempv1.y,
+									 tempv2.z - tempv1.z);
+				Vector3 N = e1.cross(e2);
+				// We need to invert the Z component or the lights won't work properly.
+				N.z = -N.z;
+				N.normalize();
+
 				// Prevent lasers behind the camera: they will cause a very bright flash
 				if (P.z > 0.01)
-					g_LaserList.insert(Vector3(P.x, P.y, P.z), _lastTextureSelected->material.Light);
+					g_LaserList.insert(Vector3(P.x, P.y, P.z),
+						_lastTextureSelected->material.Light,
+						N,
+						_lastTextureSelected->material.LightFalloff,
+						_lastTextureSelected->material.LightAngle);
 				//log_debug("[DBG] LaserLight: %0.1f, %0.1f, %0.1f", P.x, P.y, P.z);
 			}
 		}

@@ -2370,7 +2370,7 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			g_LaserList.insert(P, Light, falloff, 0.0f);
+			g_LaserList.insert(P, Light, {}, falloff, 0.0f);
 		}
 
 		if (!g_config.D3dHookExists) triangle++;
