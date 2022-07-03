@@ -13,6 +13,12 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 bool g_bEnableAnimations = true;
 bool g_bRTEnabled = false;
 
+// Maps an ObjectId to its index in the ObjectEntry table.
+// Textures have an associated objectId, this map tells us the slot
+// in the objects array where we'll find the corresponding objectId.
+std::map<int, int> g_objectIdToIndex;
+int *g_XwaObjectsCount = ((int *)0x007FFD80);
+
 EffectsRenderer *g_effects_renderer = nullptr;
 
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
@@ -191,6 +197,10 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 	if (g_iD3DExecuteCounterSkipLo < -1)
 		g_iD3DExecuteCounterSkipLo = -1;
 	log_debug("[DBG] g_iD3DExecuteCounterSkip, Lo: %d, Hi: %d", g_iD3DExecuteCounterSkipLo, g_iD3DExecuteCounterSkipHi);
+}
+
+void ResetObjectIndexMap() {
+	g_objectIdToIndex.clear();
 }
 
 // ****************************************************
@@ -1600,6 +1610,46 @@ void EffectsRenderer::ApplyRTShadows() {
 	context->PSSetShaderResources(14, 2, srvs);
 }
 
+/*
+ * Returns the CraftInstance associated to an objectId. Uses g_objectIdToIndex
+ * to check if objectId has been cached. If it isn't, then *objects is searched
+ * for objectId and then an entry is added to the g_objectIdToIndex cache.
+ */
+CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
+{
+	int objIndex = -1;
+	if (objects == NULL) return nullptr;
+
+	// Have we cached the objId?
+	auto it = g_objectIdToIndex.find(objectId);
+	if (it == g_objectIdToIndex.end()) {
+		// There's no entry for this objId, find it and add it
+		for (int i = 0; i < *g_XwaObjectsCount; i++) {
+			ObjectEntry *object = &((*objects)[i]);
+			if (object == NULL) return nullptr;
+			if (object->objectID == objectId) {
+				objIndex = i;
+				g_objectIdToIndex[objectId] = objIndex;
+				break;
+			}
+		}
+	}
+	else {
+		// Get the cached index
+		objIndex = it->second;
+	}
+
+	if (objIndex != -1) {
+		ObjectEntry *object = &((*objects)[objIndex]);
+		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+		if (mobileObject == NULL) return nullptr;
+		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+		return craftInstance;
+	}
+
+	return nullptr;
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -1683,6 +1733,25 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dd3f0f2, faceData : 0x1dd698c0, Id : 12, Type : 5, Genus : 0
 	[500][DBG][opt, FlightModels\TieFighter.opt, TEX00029, color, 0] : Mesh : 0x1dde3181, faceData : 0x1ddecd62, Id : 12, Type : 5, Genus : 0
 	*/
+
+	/*
+	if (stristr(_lastTextureSelected->_name.c_str(), "TIE") != 0 &&
+		((stristr(_lastTextureSelected->_name.c_str(), "TEX00023") != 0 ||
+		  stristr(_lastTextureSelected->_name.c_str(), "TEX00032") != 0))
+	   )
+	*/
+	if (false)
+	{
+		CraftInstance *craftInstance = ObjectIDToCraftInstance(scene->pObject->ObjectId);
+		if (craftInstance != nullptr) {
+			int hull = (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength));
+			hull = max(0, hull);
+			if (hull < 100) {
+				log_debug("[DBG] count: %d, T/F objId: %d, hull: %d",
+					g_XwaObjectsCount, scene->pObject->ObjectId, hull);
+			}
+		}
+	}
 
 	// The main 3D content is rendered here, that includes the cockpit and 3D models. But
 	// there's content that is still rendered in Direct3DDevice::Execute():

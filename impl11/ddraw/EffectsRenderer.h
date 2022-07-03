@@ -131,6 +131,9 @@ public:
 	// Raytracing
 	void ApplyRTShadows();
 
+	// Per-texture, per-instance effects
+	CraftInstance *ObjectIDToCraftInstance(int objectId);
+
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();

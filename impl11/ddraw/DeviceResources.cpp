@@ -199,6 +199,7 @@ extern MetricReconstructionCB g_MetricRecCBuffer;
 extern bool g_bYCenterHasBeenFixed;
 
 void ResetXWALightInfo();
+void ResetObjectIndexMap();
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
@@ -1434,6 +1435,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetXWALightInfo();
 	g_HiResTimer.ResetGlobalTime();
 	ResetGameEvent();
+	ResetObjectIndexMap();
 	if (IsZIPReaderLoaded())
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();
