@@ -922,6 +922,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	constexpr int MAX_SVALUE_LEN = 2048;
 	char param[256], svalue[MAX_SVALUE_LEN];
 	float fValue = 0.0f;
+	bool bIsExteriorOPT(stristr(OPTname, "Exterior") != NULL);
+	bool bIsCockpitOPT(stristr(OPTname, "Cockpit") != NULL);
+	// OPTname doesn't have the extension of the file, but materials for DAT
+	// files begin with dat-GroupId
+	bool bIsDATFile(stristr(OPTname, "dat") != NULL);
+	bool bIsGlobalOPT = bIsExteriorOPT || bIsCockpitOPT || bIsDATFile;
 
 	// Skip comments and blank lines
 	if (buf[0] == ';' || buf[0] == '#')
@@ -1089,7 +1095,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 				break;
 			}
 			// Add a reference to this material on the list of animated materials
-			g_AnimatedMaterials.push_back(atc);
+			if (bIsGlobalOPT)
+				g_AnimatedMaterials.push_back(atc);
+			else
+				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
 			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 
 			/*
@@ -1134,7 +1143,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 				break;
 			}
 			// Add a reference to this material on the list of animated materials
-			g_AnimatedMaterials.push_back(atc);
+			if (bIsGlobalOPT)
+				g_AnimatedMaterials.push_back(atc);
+			else
+				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
 			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 		}
 		else {

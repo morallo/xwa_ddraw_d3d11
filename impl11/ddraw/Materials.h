@@ -204,6 +204,16 @@ typedef struct GlobalGameEventStruct {
 // Global game event. Updated throughout the frame, reset in Direct3DDevice::BeginScene()
 extern GlobalGameEvent g_GameEvent;
 
+// Per-instance events. These events are linked to specific ship instances,
+// instead of being global events applied to all textures of the same name.
+typedef struct InstanceEventStruct {
+	GameEvent HullEvent;
+
+	InstanceEventStruct() {
+		HullEvent = EVT_NONE;
+	}
+} InstanceEvent;
+
 // Used to store the information related to animated light maps that
 // is loaded from .mat files:
 typedef struct TexSeqElemStruct {

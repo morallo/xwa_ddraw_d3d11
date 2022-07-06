@@ -18,6 +18,8 @@ bool g_bRTEnabled = false;
 // in the objects array where we'll find the corresponding objectId.
 std::map<int, int> g_objectIdToIndex;
 int *g_XwaObjectsCount = ((int *)0x007FFD80);
+// The new per-craft events will only store hull events (and maybe sys/disabled events
+// later), but we need a previous and current event, and a timer (for animations).
 
 EffectsRenderer *g_effects_renderer = nullptr;
 

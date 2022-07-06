@@ -420,6 +420,8 @@ inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeM
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 float3 InverseTransformProjectionScreen(float4 pos);
 
+void ResetObjectIndexMap();
+
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
@@ -3510,6 +3512,7 @@ HRESULT Direct3DDevice::Execute(
 							g_bHyperspaceLastFrame = true;
 							// Reset the Sun --> XWA light association every time we exit hyperspace
 							ResetXWALightInfo();
+							ResetObjectIndexMap();
 						}
 						break;
 					case HS_POST_HYPER_EXIT_ST:
