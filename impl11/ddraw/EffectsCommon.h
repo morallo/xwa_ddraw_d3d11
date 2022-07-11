@@ -108,6 +108,7 @@ typedef struct SSAOPixelShaderCBStruct {
 } SSAOPixelShaderCBuffer;
 
 typedef struct ShadertoyCBStruct {
+	// twirl: renamed to ExplosionScale in ExplosionShader.hlsl
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
@@ -122,8 +123,14 @@ typedef struct ShadertoyCBStruct {
 	Matrix4 viewMat; // The view rotation matrix
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 48 + 64 = 112 bytes
-	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
+	// Style: Enables the flare when jumping into hyperspace and other details
+	// 0: Standard (no flare)
+	// 1: Flare (Disney style)
+	// 2: Interdiction
+	// Renamed to ExplosionBlendMode in ExplosionShader
+	int Style;
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
+	// tunnel_speed: renamed to ExplosionTime in ExplosionShader.hlsl
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;

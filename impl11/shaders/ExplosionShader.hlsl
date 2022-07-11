@@ -21,7 +21,7 @@
 #define pi 3.14159265
 // 0: Original texture, 1: Blend with procedural explosion, 2: Use procedural explosions only
 // 0 won't even activate this shader at all.
-#define ExplosionBlendMode bDisneyStyle
+#define ExplosionBlendMode Style
 #define ExplosionScale twirl // Controls the scale of the explosion inside the rendered polygon
 #define ExplosionTime tunnel_speed // Controls variable n in SpiralNoiseC
 

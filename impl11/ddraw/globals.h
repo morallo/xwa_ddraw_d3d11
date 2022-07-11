@@ -7,6 +7,8 @@
 #include "ShadowMapping.h"
 #include "SharedMem.h"
 
+#include <map>
+
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
 
@@ -99,6 +101,9 @@ extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 extern bool g_bKeybExitHyperspace;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
+extern int g_iHyperStyle;
+extern bool g_bInterdictionActive;
+extern std::map<int, uint8_t> g_InterdictionMap;
 
 extern bool g_bFXAAEnabled;
 

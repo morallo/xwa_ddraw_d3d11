@@ -25,7 +25,7 @@ SamplerState noiseSamp : register(s1);
 #define LavaSize iResolution.x
 #define LavaBloom iResolution.y
 #define LavaColor SunColor[0]
-#define LavaTiling bDisneyStyle
+#define LavaTiling Style
 // DEBUG properties, remove later
 //#define LavaNormalMult SunColor[1]
 //#define LavaPosMult SunColor[2]

@@ -1894,9 +1894,10 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	//	log_debug("[DBG] NO GLOBAL LIGHTS!");
 	if (g_bDumpSSAOBuffers) {
 		if (missionIndexLoaded != nullptr)
-			log_debug("[DBG] Mission: %d", *missionIndexLoaded);
+			log_debug("[DBG] [INT] Mission: %d", *missionIndexLoaded);
 		else
 			log_debug("[DBG] NULL mission index");
+		log_debug("[DBG] [INT] current region: %d", PlayerDataTable[*g_playerIndex].currentRegion);
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
 		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
 		//DumpGlobalLights();
@@ -3967,10 +3968,19 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_LightVector[i].x = (float)cos((fLightRotationAngle + (i * 90.0f)) * 0.01745f);
 			g_LightVector[i].y = (float)sin((fLightRotationAngle + (i * 90.0f)) * 0.01745f);
 			g_LightVector[i].z = 0.0f;
+
+			// lerp the color of the lights from blue to red if an interdiction is happening
+			if (g_bInterdictionActive) {
+				g_LightColor[i].x = lerp(0.10f, 1.50f, min(1.0f, 2.5f * timeInHyperspace));
+				g_LightColor[i].y = lerp(0.15f, 0.15f, min(1.0f, 2.5f * timeInHyperspace));
+				g_LightColor[i].z = lerp(1.50f, 0.10f, min(1.0f, 2.5f * timeInHyperspace));
+			}
 		}
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
+		// Re-set the twirl for the tunnel. This field is used in other places with different meanings
+		g_ShadertoyBuffer.twirl = 1.0f;
 
 		if (g_config.StayInHyperspace) {
 			if (!g_bKeybExitHyperspace) {
@@ -4329,6 +4339,13 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_ShadertoyBuffer.y1 = y1;
 		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+		// Tint the bloom red, but only if an interdiction is happening and only
+		// after the second half of the hyper tunnel (we don't want to tint the
+		// entry into the hypertunnel red).
+		if (g_bInterdictionActive && g_HyperspacePhaseFSM > HS_HYPER_ENTER_ST)
+			g_ShadertoyBuffer.twirl = min(1.0f, 2.5f * timeInHyperspace);
+		else
+			g_ShadertoyBuffer.twirl = 0.0f;
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 		resources->InitPixelShader(resources->_hyperComposePS);

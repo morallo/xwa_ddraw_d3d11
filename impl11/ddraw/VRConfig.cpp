@@ -11,6 +11,8 @@
 #include "TextureSurface.h"
 #include "SharedMem.h"
 
+#include <map>
+
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
 const float DEFAULT_METRIC_MULT = 1.0f;
@@ -220,6 +222,15 @@ float g_fGlowMarkZOfs = -1.0f; // Small offset to make the hit effects more visi
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+int g_iHyperStyle = 1; // 0 = Regular, 1 = Disney style, 2 = Interdiction
+bool g_bInterdictionActive; // If true, then the current hyperjump must render an interdiction
+// Map of mission index -> hyperjump bitmap.
+// For each mission with an interdiction, there's a bitmap that flags which jumps will be
+// interdicted. For instance:
+// g_InterdictionMap[3] = 0x5 = 101b means jumps FROM regions 0 and 2 will be interdicted
+// We can only see the current region when a jump is activated, so all interdictions must
+// reference the region we're jumping from.
+std::map<int, uint8_t> g_InterdictionMap;
 int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
@@ -534,6 +545,8 @@ next:
 	LoadDefaultGlobalMaterial();
 	// Reload the materials
 	ReloadMaterials();
+	// Load the interdiction map
+	LoadInterdictionMap();
 }
 
 /* Restores the various VR parameters to their default values. */
@@ -2522,7 +2535,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.y_center = 0.15f;
 	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
-	g_ShadertoyBuffer.bDisneyStyle = 1;
+	g_ShadertoyBuffer.Style = g_iHyperStyle;
 	g_ShadertoyBuffer.tunnel_speed = 5.5f;
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
@@ -2557,7 +2570,8 @@ bool LoadHyperParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "disney_style") == 0) {
-				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
+				g_iHyperStyle = (int)fValue;
+				g_ShadertoyBuffer.Style = g_iHyperStyle;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
 				g_fHyperspaceTunnelSpeed = fValue;
@@ -2752,6 +2766,64 @@ void ReloadMaterials()
 		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
 		texture->bHasMaterial = true;
 	}
+}
+
+bool LoadInterdictionMap() {
+	log_debug("[DBG] [INT] Loading Interdiction Map...");
+	FILE* file;
+	int error = 0, line = 0;
+	g_InterdictionMap.clear();
+
+	// Test battle 1, mission 3, it has 4 consecutive jumps without any obstacles
+	// B1M3 is index 11, according to Missions\Mission.lst
+	// From region: 4 3 2 1 0
+	// bit:         0 0 1 0 1 = 0x5
+	// Jumping from regions 0 and 2 will trigger the interdiction effect
+	// But in this mission, the regions go 0 -> 2 -> 3 -> 1, so the first two jumps
+	// will show an interdiction with this bitmap.
+	//g_InterdictionMap[11] = 0x5;
+	return true;
+
+	// TODO:
+	// Read Missions\Mission.lst and build a map of mission index -> filename.
+	// Then read each mission .ini file and check for interdictions to build
+	// g_InterdictionMap
+	try {
+		error = fopen_s(&file, "./InterdictionMap.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load InterdictionMap.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading InterdictionMap.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "todo") == 0) {
+				//g_iHyperStyle = (int)fValue;
+				//g_ShadertoyBuffer.Style = g_iHyperStyle;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
 }
 
 void ToggleCockpitPZHack() {

@@ -613,8 +613,6 @@ void ResetXWALightInfo()
 	}
 }
 
-
-
 bool LoadGeneric3DCoords(char *buf, float *x, float *y, float *z)
 {
 	int res = 0;
@@ -3404,15 +3402,34 @@ HRESULT Direct3DDevice::Execute(
 							//log_debug("[DBG] [FSM] HS_INIT_ST --> HS_HYPER_ENTER_ST");
 							// Compute a new random seed for this hyperspace jump
 							g_fHyperspaceRand = (float)rand() / (float)RAND_MAX;
-							if (g_bLastFrameWasExterior)
+							if (g_bLastFrameWasExterior) {
 								// External view --> Cockpit transition for the hyperspace jump
 								g_bHyperExternalToCockpitTransition = true;
+							}
+							int region = PlayerDataTable[*g_playerIndex].currentRegion;
+							g_bInterdictionActive = false;
+							g_ShadertoyBuffer.Style = g_iHyperStyle;
+							log_debug("[DBG] [INT] Checking interdictions in mission: %d, region: %d",
+								*missionIndexLoaded, PlayerDataTable[*g_playerIndex].currentRegion);
+							auto it = g_InterdictionMap.find(*missionIndexLoaded);
+							if (it != g_InterdictionMap.end())
+							{
+								// The current mission
+								uint8_t bitfield = it->second;
+								log_debug("[DBG] [INT] Interdiction found in Mission %d: 0x%x",
+									*currentMissionInCampaign, bitfield);
+								if ((0x1 & (bitfield >> region)) != 0x0) {
+									g_bInterdictionActive = true;
+									log_debug("[DBG] [INT] INTERDICTION ACTIVATED");
+								}
+							}
 						}
 						break;
 					case HS_HYPER_ENTER_ST:
 						g_PSCBuffer.bInHyperspace = 1;
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
+						g_ShadertoyBuffer.Style = g_iHyperStyle;
 						// UPDATE 3/30/2020:
 						// This whole block was removed to support cockpit inertia. The aux buffer can't be cleared
 						// on the first hyperspace frame because it will otherwise "blink". We have to clear this
@@ -3463,6 +3480,7 @@ HRESULT Direct3DDevice::Execute(
 							for (int i = 0; i < 2; i++, fade *= 0.5f) {
 								memcpy(&g_TempLightVector[i], &g_LightVector[i], sizeof(Vector4));
 								memcpy(&g_TempLightColor[i], &g_LightColor[i], sizeof(Vector4));
+								// This color is modified in RenderHyperspaceEffect if there's an interdiction
 								g_LightColor[i].x = /* fade * */ 0.10f;
 								g_LightColor[i].y = /* fade * */ 0.15f;
 								g_LightColor[i].z = /* fade * */ 1.50f;
@@ -3476,6 +3494,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bInHyperspace = 1;
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
+						g_ShadertoyBuffer.Style = g_bInterdictionActive ? HYPER_INTERDICTION_STYLE : g_iHyperStyle;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 3) {
 							//log_debug("[DBG] [FSM] HS_HYPER_TUNNEL_ST --> HS_HYPER_EXIT_ST");
 							g_bHyperspaceTunnelLastFrame = true;
@@ -3490,7 +3509,7 @@ HRESULT Direct3DDevice::Execute(
 
 							// Clear the previously-captured offscreen buffer: we don't want to display it again when exiting
 							// hyperspace
-							if (!g_bClearedAuxBuffer) 
+							if (!g_bClearedAuxBuffer)
 							{
 								float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 								g_bClearedAuxBuffer = true;
@@ -3505,6 +3524,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bInHyperspace = 1;
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
+						g_ShadertoyBuffer.Style = g_bInterdictionActive ? HYPER_INTERDICTION_STYLE : g_iHyperStyle;
 						if (PlayerDataTable[*g_playerIndex].hyperspacePhase == 0) {
 							g_iHyperExitPostFrames = 0;
 							g_HyperspacePhaseFSM = HS_POST_HYPER_EXIT_ST;
@@ -3519,6 +3539,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bInHyperspace = 1;
 						g_bHyperspaceLastFrame = false;
 						g_bHyperspaceTunnelLastFrame = false;
+						g_ShadertoyBuffer.Style = g_bInterdictionActive ? HYPER_INTERDICTION_STYLE : g_iHyperStyle;
 						if (g_iHyperExitPostFrames > MAX_POST_HYPER_EXIT_FRAMES) {
 							g_HyperspacePhaseFSM = HS_INIT_ST;
 							//log_debug("[DBG] [FSM] HS_POST_HYPER_EXIT_ST --> HS_INIT_ST");
@@ -4610,7 +4631,7 @@ HRESULT Direct3DDevice::Execute(
 					g_ShadertoyBuffer.iTime = iTime;
 					//g_ShadertoyBuffer.iResolution[0] = lastTextureSelected->material.LavaSize;
 					g_ShadertoyBuffer.iResolution[1] = lastTextureSelected->material.EffectBloom;
-					g_ShadertoyBuffer.bDisneyStyle = false; // AlphaBlendEnabled: Do not blend the explosion with the original texture
+					g_ShadertoyBuffer.Style = 0; // AlphaBlendEnabled: Do not blend the explosion with the original texture
 					g_ShadertoyBuffer.tunnel_speed = 1.0f; // ExplosionTime: Always set to 1 -- the animation is performed by iTime in VolumetricExplosion()
 					//g_ShadertoyBuffer.twirl = ExplosionScale; // 2.0 is the normal size, 4.0 is small, 1.0 is big.
 					g_ShadertoyBuffer.twirl = 2.0f; // ExplosionScale: 2.0 is the normal size, 4.0 is small, 1.0 is big.
@@ -4671,7 +4692,7 @@ HRESULT Direct3DDevice::Execute(
 						// 1: Blend with procedural explosion, 
 						// 2: Use procedural explosions only
 						// AlphaBlendEnabled: true blend with original texture, false: replace original texture
-						g_ShadertoyBuffer.bDisneyStyle = lastTextureSelected->material.ExplosionBlendMode;
+						g_ShadertoyBuffer.Style = lastTextureSelected->material.ExplosionBlendMode;
 						g_ShadertoyBuffer.tunnel_speed = lerp(3.0f, -1.0f, ExplosionTime); // ExplosionTime: 3..-1 The animation is performed by iTime in VolumetricExplosion()
 						// ExplosionScale: 4.0 == small, 2.0 == normal, 1.0 == big.
 						// The value from ExplosionScale is translated from user-facing units to shader units in the ReadMaterialLine() function

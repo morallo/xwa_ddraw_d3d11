@@ -207,7 +207,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		//bloom = max(bloom, dot(0.333, trail_color));
 	}
 
-	if (bDisneyStyle) {
+	if (Style) {
 		// Add the disk at the center to transition into the hyperspace
 		// tunnel
 		float flare_size = mix(0.0, 0.1, smoothstep(0.35, T_JUMP + 0.2, t));

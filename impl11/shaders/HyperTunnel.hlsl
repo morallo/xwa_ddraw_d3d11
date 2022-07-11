@@ -8,6 +8,8 @@
 
 //static const float3 blue_color = float3(0.15, 0.35, 0.8);
 static const float3 blue_color = float3(0.15, 0.4, 0.9);
+static const float3 red_color = float3(0.9, 0.15, 0.15);
+static const float3 yellow_color = float3(0.7, 0.65, 0.15);
 static const float rotation_speed = 2.3;
 static const float t2 = 4.0;
 
@@ -51,12 +53,12 @@ float simplexNoise(vec3 p)
 	return dot(31.316, n);
 }
 
-float fBm(in vec3 p)
+float fBm(in vec3 p, float scale, float scale_mult)
 {
 	//p += vec2(sin(iTime * .7), cos(iTime * .45))*(.1) + iMouse.xy*.1/iResolution.xy;
 	float f = 0.0;
 	// Change starting scale to any integer value...
-	float scale = 13.0;
+	//float scale = 13.0; // Original
 	p = mod(p, scale);
 	float amp = 0.75;
 
@@ -65,19 +67,12 @@ float fBm(in vec3 p)
 		f += simplexNoise(p * scale) * amp;
 		amp *= 0.5;
 		// Scale must be multiplied by an integer value...
-		scale *= 2.0;
+		//scale *= 2.0;
+		scale *= scale_mult;
 	}
 	// Clamp it just in case....
 	return min(f, 1.0);
 }
-
-/*
-struct PixelShaderInput
-{
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
-};
-*/
 
 struct PixelShaderInput
 {
@@ -90,7 +85,6 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	//float4 bloom    : SV_TARGET1;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -98,7 +92,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	vec4 fragColor = vec4(0.0, 0.0, 0.0, 1);
 	vec2 fragCoord = input.uv * iResolution.xy;	
-	vec4 col = vec4(0, 0, 0, 1);
+	vec4 col = vec4(0, 0, 0, 1), col2 = 0, col3 = 0;
 	//output.bloom = 0;
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.y, iResolution.x);
@@ -125,31 +119,85 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// The focal_depth controls how "deep" the tunnel looks. Lower values
 	// provide more depth.
-	float focal_depth = mix(0.15, 0.015, smoothstep(0.65, 0.9, t));
+	float focal_depth  = mix(0.15, 0.015, smoothstep(0.65, 0.9, t));
+	float focal_depth2 = 0.125;
+	float focal_depth3 = 0.015;
+	const float streak_freq = mix(30.0, 60.0, smoothstep(0.65, 0.9, t));
 
-	vec2 polar;
+	vec2 polar, polar2, polar3;
 	//float p_len = length(p);
 	float p_len = length(v.xy);
-	//polar.y = focal_depth / p_len + iTime * speed;
-	polar.y = z * focal_depth + iTime * tunnel_speed;
 	float a = atan2(v.y, v.x);
 	a -= iTime * rotation_speed;
 	float x = fract(a / TAU);
 
+	//polar.y = focal_depth / p_len + iTime * speed;
+	polar.y = z * focal_depth + iTime * tunnel_speed;
 	polar.x = x + twirl * polar.y / TAU * 1.25; // Original period: 4
 	polar *= vec2(1.0, 0.2);
-	vec3 xyt = vec3(polar, 0.15 * iTime /* * forward_speed */);
+	float3 xyt = vec3(polar, 0.15 * iTime /* * forward_speed */);
+
+	polar2.y = z * focal_depth2 + iTime * tunnel_speed;
+	polar2.x = polar.x;
+	polar2 *= vec2(1.0, 0.2);
+	float3 xyt2 = vec3(polar2, 0.15 * iTime /* * forward_speed */);
+
+	polar3.y = z * focal_depth3 + iTime * tunnel_speed;
+	polar3.x = x + polar.y / TAU * 1.25; // Original period: 4
+	polar3 *= vec2(1.0, 0.2);
+	float3 xyt3 = vec3(polar3, 0.15 * iTime /* * forward_speed */);
 
 	// Blend two periods of noise together to eliminate the radial seam
-	float val = mix(fBm(xyt + vec3(1.0, 0.0, 0.0)), fBm(xyt), smoothstep(0.0, 1.0, x));
-	val = clamp(0.45 + 0.55 * val, 0.0, 1.0);
-
+	float val = mix(fBm(xyt + vec3(1.0, 0.0, 0.0), 13.0, 2.0),
+					fBm(xyt, 13.0, 2.0),
+					smoothstep(0.0, 1.0, x));
+	val = saturate(0.45 + 0.55 * val);
 	// Colorize blue
 	col.rgb = 1.25 * blue_color * val;
 
-	// Add white spots
+	// Calc the white spots
 	float white_spot = 0.65 * smoothstep(0.55, 1.0, val);
+
+	// Render the interdiction
+	if (Style == 2) {
+		float val2, val3, val4;
+		float white_spot3;
+		const float t2 = min(t * 2.5, 1.0);
+
+		val2 = mix(fBm(xyt2 + vec3(1.0, 0.0, 0.0), 6.0, 2.0),
+				   fBm(xyt2, 6.0, 2.0),
+				   smoothstep(0.0, 1.0, x));
+		val3 = mix(fBm(xyt3 + vec3(1.0, 0.0, 0.0), streak_freq, 1.0),
+				   fBm(xyt3, streak_freq, 1.0),
+				   smoothstep(0.0, 1.0, x));
+
+		val2 = saturate(0.45 + 0.55 * val2);
+		val3 = saturate(0.45 + 0.55 * val3);
+
+		val2 *= val2 * val2;
+		val3 = pow(abs(val3), 10.0);
+
+		val2 = saturate(val2);
+		val3 = saturate(val3);
+
+		// Colorize red and yellow
+		col2.rgb = 1.20 * red_color * val2;
+		col3.rgb = 1.25 * yellow_color * val3;
+
+		// Mix red and yellow with the regular tunnel
+		col.rgb  = lerp(col.rgb, col2.rgb, t2);
+		col.rgb += lerp(col.rgb, col3.rgb, t2);
+
+		col.rgb = saturate(col.rgb);
+
+		white_spot3 = 0.55 * smoothstep(0.55, 1.0, val3);
+		white_spot = lerp(white_spot, white_spot3, t2);
+		//white_spot = white_spot3;
+	}
+
+	// Add the white spot
 	col.rgb += white_spot;
+
 	//output.bloom = white_spot;
 	//output.bloom.rgb *= 2.5;
 

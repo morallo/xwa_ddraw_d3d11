@@ -1329,7 +1329,7 @@ void EffectsRenderer::ApplyProceduralLava()
 	_bModifiedSamplerState = true;
 
 	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.bDisneyStyle = _lastTextureSelected->material.LavaTiling;
+	g_ShadertoyBuffer.Style = _lastTextureSelected->material.LavaTiling;
 	g_ShadertoyBuffer.iResolution[0] = _lastTextureSelected->material.LavaSize;
 	g_ShadertoyBuffer.iResolution[1] = _lastTextureSelected->material.EffectBloom;
 	// SunColor[0] --> Color
