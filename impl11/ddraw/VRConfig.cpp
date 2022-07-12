@@ -2768,60 +2768,133 @@ void ReloadMaterials()
 	}
 }
 
+std::map<int, std::string> LoadMissionList() {
+	FILE* file;
+	int error = 0, line = 0;
+	std::map<int, std::string> missionMap;
+	log_debug("[DBG] [INT] Loading Mission List...");
+
+	// Read Missions\Mission.lst and build a map of mission index -> filename.
+	try {
+		error = fopen_s(&file, ".\\Missions\\Mission.lst", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load Mission.lst");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading Mission.lst", error);
+		return missionMap;
+	}
+
+	char buf[256], param[256], *aux;
+	int curIdx = -1;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		int len = strlen(buf);
+		if (strlen(buf) == 0)
+			continue;
+		if (buf[0] == '/' || buf[0] == '!')
+			continue;
+
+		if (stristr(buf, ".tie") != NULL) {
+			aux = &(buf[0]);
+			// Sometimes, missions begin with "* "
+			if (*aux == '*') {
+				aux += 2;
+				len -= 2;
+			}
+			// Remove the ".tie" ending
+			aux[len - 5] = 0;
+			sprintf_s(param, 256, ".\\Missions\\%s.ini", aux);
+			missionMap[curIdx] = std::string(param);
+			//log_debug("[DBG] [INT] %d --> %s", curIdx, missionMap[curIdx].c_str());
+		} else if (isdigit(buf[0])) {
+			curIdx = atoi(buf);
+		}
+	}
+	fclose(file);
+	return missionMap;
+}
+
 bool LoadInterdictionMap() {
-	log_debug("[DBG] [INT] Loading Interdiction Map...");
 	FILE* file;
 	int error = 0, line = 0;
 	g_InterdictionMap.clear();
+
+	// Read Missions\Mission.lst and build a map of mission index -> filename.
+	const auto missionMap = LoadMissionList();
 
 	// Test battle 1, mission 3, it has 4 consecutive jumps without any obstacles
 	// B1M3 is index 11, according to Missions\Mission.lst
 	// From region: 4 3 2 1 0
 	// bit:         0 0 1 0 1 = 0x5
 	// Jumping from regions 0 and 2 will trigger the interdiction effect
-	// But in this mission, the regions go 0 -> 2 -> 3 -> 1, so the first two jumps
+	// But in this mission, the regions go 0 -> 2 -> 3, so the first two jumps
 	// will show an interdiction with this bitmap.
 	//g_InterdictionMap[11] = 0x5;
-	return true;
 
-	// TODO:
-	// Read Missions\Mission.lst and build a map of mission index -> filename.
-	// Then read each mission .ini file and check for interdictions to build
+	// Now read each mission's .ini file and check for interdictions to build
 	// g_InterdictionMap
-	try {
-		error = fopen_s(&file, "./InterdictionMap.cfg", "rt");
-	}
-	catch (...) {
-		log_debug("[DBG] Could not load InterdictionMap.cfg");
-	}
+	log_debug("[DBG] [INT] Loading Interdiction Map...");
+	for (auto &it = missionMap.begin(); it != missionMap.end(); it++) {
+		int missionIdx = it->first;
+		std::string fileName = it->second;
 
-	if (error != 0) {
-		log_debug("[DBG] Error %d when loading InterdictionMap.cfg", error);
-		return false;
-	}
-
-	char buf[256], param[128], svalue[128];
-	int param_read_count = 0;
-	float fValue = 0.0f;
-
-	while (fgets(buf, 256, file) != NULL) {
-		line++;
-		// Skip comments and blank lines
-		if (buf[0] == ';' || buf[0] == '#')
-			continue;
-		if (strlen(buf) == 0)
-			continue;
-
-		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-			fValue = (float)atof(svalue);
-
-			if (_stricmp(param, "todo") == 0) {
-				//g_iHyperStyle = (int)fValue;
-				//g_ShadertoyBuffer.Style = g_iHyperStyle;
-			}
+		try {
+			error = fopen_s(&file, fileName.c_str(), "rt");
 		}
+		catch (...) {
+			log_debug("[DBG] [INT] Could not load %s", fileName.c_str());
+		}
+
+		if (error != 0) {
+			log_debug("[DBG] [INT] Error %d when loading %s", error, fileName.c_str());
+			continue;
+		}
+
+		// Read the mission's .ini file. Find the "[Interdiction]" section and
+		// populate the bitfield
+		bool interdictionSection = false;
+		char buf[256], param[128], svalue[128];
+		int param_read_count = 0;
+		int iValue = -1;
+		uint8_t bitfield = 0x0;
+
+		while (fgets(buf, 256, file) != NULL) {
+			line++;
+			if (strlen(buf) == 0)
+				continue;
+			// Skip comments and blank lines
+			if (buf[0] == ';' || buf[0] == '#')
+				continue;
+
+			if (buf[0] == '[') {
+				bool prevInterdictioSection = interdictionSection;
+				interdictionSection = (stristr(buf, "[Interdiction]") != NULL);
+				if (!interdictionSection && prevInterdictioSection)
+					break;
+			}
+			else if (interdictionSection) {
+				if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+					iValue = atoi(svalue);
+
+					if (_stricmp(param, "FromRegion") == 0) {
+						int fromRegion = iValue;
+						bitfield |= (0x1 << fromRegion);
+						log_debug("[DBG] [INT] Interdiction on mission: %d, from region: %d, bitfield: 0x%x",
+							missionIdx, fromRegion, bitfield);
+						g_InterdictionMap[missionIdx] = bitfield;
+					}
+				}
+			}
+
+		}
+
+		fclose(file);
 	}
-	fclose(file);
 
 	return true;
 }
