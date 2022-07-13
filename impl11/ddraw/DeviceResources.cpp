@@ -153,6 +153,7 @@
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 void SetPresentCounter(int val, int b_resetReticle);
+void ReloadInterdictionMap();
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -1436,6 +1437,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_HiResTimer.ResetGlobalTime();
 	ResetGameEvent();
 	ResetObjectIndexMap();
+	ReloadInterdictionMap();
 	if (IsZIPReaderLoaded())
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();

@@ -140,6 +140,7 @@
 	inline byte *g_IsCMDVisible = (byte *)0x05B5334;
 	inline uint32_t* g_XwaFlightHudColor = (uint32_t*)0x005B5318; // The current HUD color
 	inline uint32_t* g_XwaFlightHudBorderColor = (uint32_t*)0x005B531C; // The current HUD border color
+	inline const char* xwaMissionFileName = (const char*)0x06002E8; // The current mission loaded, like missions\1b1m3g.tie
 
 	inline int* s_XwaGlobalLightsCount = (int*)0x00782848;
 	inline XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0; // Maximum 8 lights

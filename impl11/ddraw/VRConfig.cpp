@@ -224,13 +224,12 @@ Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
 int g_iHyperStyle = 1; // 0 = Regular, 1 = Disney style, 2 = Interdiction
 bool g_bInterdictionActive; // If true, then the current hyperjump must render an interdiction
-// Map of mission index -> hyperjump bitmap.
-// For each mission with an interdiction, there's a bitmap that flags which jumps will be
-// interdicted. For instance:
-// g_InterdictionMap[3] = 0x5 = 101b means jumps FROM regions 0 and 2 will be interdicted
-// We can only see the current region when a jump is activated, so all interdictions must
-// reference the region we're jumping from.
-std::map<int, uint8_t> g_InterdictionMap;
+// The global interdiction bitfield. Each time a mission changes, this bitfield
+// is populated from the mission's ini file and bits are turned on for regions
+// that contain interdictors. For instance a value of 0x5 means regions 0 and 2
+// contain interdictors. This information is used to render the Interdiction Effect.
+uint8_t g_iInterdictionBitfield = 0;
+
 int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
@@ -545,8 +544,6 @@ next:
 	LoadDefaultGlobalMaterial();
 	// Reload the materials
 	ReloadMaterials();
-	// Load the interdiction map
-	LoadInterdictionMap();
 }
 
 /* Restores the various VR parameters to their default values. */
@@ -2819,84 +2816,86 @@ std::map<int, std::string> LoadMissionList() {
 	return missionMap;
 }
 
-bool LoadInterdictionMap() {
-	FILE* file;
-	int error = 0, line = 0;
-	g_InterdictionMap.clear();
+uint8_t LoadInterdictionMap(const char *fileName)
+{
+	int error = 0;
+	FILE *file = NULL;
 
-	// Read Missions\Mission.lst and build a map of mission index -> filename.
-	const auto missionMap = LoadMissionList();
-
-	// Test battle 1, mission 3, it has 4 consecutive jumps without any obstacles
-	// B1M3 is index 11, according to Missions\Mission.lst
-	// From region: 4 3 2 1 0
-	// bit:         0 0 1 0 1 = 0x5
-	// Jumping from regions 0 and 2 will trigger the interdiction effect
-	// But in this mission, the regions go 0 -> 2 -> 3, so the first two jumps
-	// will show an interdiction with this bitmap.
-	//g_InterdictionMap[11] = 0x5;
-
-	// Now read each mission's .ini file and check for interdictions to build
-	// g_InterdictionMap
-	log_debug("[DBG] [INT] Loading Interdiction Map...");
-	for (auto &it = missionMap.begin(); it != missionMap.end(); it++) {
-		int missionIdx = it->first;
-		std::string fileName = it->second;
-
-		try {
-			error = fopen_s(&file, fileName.c_str(), "rt");
-		}
-		catch (...) {
-			log_debug("[DBG] [INT] Could not load %s", fileName.c_str());
-		}
-
-		if (error != 0) {
-			log_debug("[DBG] [INT] Error %d when loading %s", error, fileName.c_str());
-			continue;
-		}
-
-		// Read the mission's .ini file. Find the "[Interdiction]" section and
-		// populate the bitfield
-		bool interdictionSection = false;
-		char buf[256], param[128], svalue[128];
-		int param_read_count = 0;
-		int iValue = -1;
-		uint8_t bitfield = 0x0;
-
-		while (fgets(buf, 256, file) != NULL) {
-			line++;
-			if (strlen(buf) == 0)
-				continue;
-			// Skip comments and blank lines
-			if (buf[0] == ';' || buf[0] == '#')
-				continue;
-
-			if (buf[0] == '[') {
-				bool prevInterdictioSection = interdictionSection;
-				interdictionSection = (stristr(buf, "[Interdiction]") != NULL);
-				if (!interdictionSection && prevInterdictioSection)
-					break;
-			}
-			else if (interdictionSection) {
-				if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
-					iValue = atoi(svalue);
-
-					if (_stricmp(param, "FromRegion") == 0) {
-						int fromRegion = iValue;
-						bitfield |= (0x1 << fromRegion);
-						log_debug("[DBG] [INT] Interdiction on mission: %d, from region: %d, bitfield: 0x%x",
-							missionIdx, fromRegion, bitfield);
-						g_InterdictionMap[missionIdx] = bitfield;
-					}
-				}
-			}
-
-		}
-
-		fclose(file);
+	try {
+		error = fopen_s(&file, fileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [INT] Could not load %s", fileName);
 	}
 
-	return true;
+	if (error != 0) {
+		log_debug("[DBG] [INT] Error %d when loading %s", error, fileName);
+		return 0;
+	}
+
+	// Read the mission's .ini file. Find the "[Interdiction]" section and
+	// populate the bitfield
+	bool interdictionSection = false;
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	int iValue = -1, line = 0;
+	uint8_t bitfield = 0x0;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		if (strlen(buf) == 0)
+			continue;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+
+		if (buf[0] == '[') {
+			bool prevInterdictioSection = interdictionSection;
+			interdictionSection = (stristr(buf, "[Interdiction]") != NULL);
+			if (!interdictionSection && prevInterdictioSection)
+				break;
+		}
+		else if (interdictionSection) {
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				iValue = atoi(svalue);
+
+				if (_stricmp(param, "Region") == 0) {
+					int region = iValue;
+					bitfield |= (0x1 << region);
+					log_debug("[DBG] [INT] Interdiction set on current mission, region: %d, bitfield: 0x%x",
+						region, bitfield);
+				}
+			}
+		}
+
+	}
+	fclose(file);
+	return bitfield;
+}
+
+void ReloadInterdictionMap() {
+	static char prevMission[128] = "";
+	char aux[128];
+	int len;
+	
+	if (_stricmp(xwaMissionFileName, prevMission) != 0)
+	{
+		// A new mission has been loaded since the last time this function
+		// was called. Reset the bitfield and reload the .ini file
+		g_iInterdictionBitfield = 0;
+		// Update the name of the previous mission
+		len = strlen(xwaMissionFileName);
+		strncpy_s(prevMission, 128, xwaMissionFileName, len);
+		strncpy_s(aux, 128, xwaMissionFileName, len);
+		
+		// Replace the ".tie" ending with an ".ini" ending.
+		aux[len - 3] = 'i';
+		aux[len - 2] = 'n';
+		aux[len - 1] = 'i';
+		g_iInterdictionBitfield = LoadInterdictionMap(aux);
+		log_debug("[DBG] [INT] Interdictions in mission: [%s] = 0x%x",
+			aux, g_iInterdictionBitfield);
+	}
 }
 
 void ToggleCockpitPZHack() {

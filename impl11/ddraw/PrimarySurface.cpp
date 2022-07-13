@@ -3940,6 +3940,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		fShakeAmplitude = lerp(0.0f, 4.0f, timeInHyperspace);
 		iLinearTime = iTime;
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperStreakStrength;
+		//log_debug("[DBG] [INT] Destination Region: %d, Mission: %s",
+		//	PlayerDataTable[*g_playerIndex].criticalMessageObjectIndex, xwaMissionFileName);
 		break;
 	case HS_HYPER_TUNNEL_ST:
 	{

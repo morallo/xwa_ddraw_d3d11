@@ -450,7 +450,9 @@ struct PlayerDataEntry
 	char primaryLaserLinkStatus;
 	int secondaryLinkStatus;
 	char criticalMessageType;
-	__int16 criticalMessageObjectIndex;
+	// When a hyperspace jump is initiated, this field contains
+	// the destination region
+	int16_t criticalMessageObjectIndex; // 0x53-0x54
 	char field_55;
 	char field_56;
 	char rollHeld;

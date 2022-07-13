@@ -421,6 +421,7 @@ inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 view
 float3 InverseTransformProjectionScreen(float4 pos);
 
 void ResetObjectIndexMap();
+void ReloadInterdictionMap();
 
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
@@ -3406,19 +3407,18 @@ HRESULT Direct3DDevice::Execute(
 								// External view --> Cockpit transition for the hyperspace jump
 								g_bHyperExternalToCockpitTransition = true;
 							}
-							int region = PlayerDataTable[*g_playerIndex].currentRegion;
+							//int region = PlayerDataTable[*g_playerIndex].currentRegion;
+							// criticalMessageObjectIndex holds the destination region when a hyperjump is
+							// initiated
+							int region = PlayerDataTable[*g_playerIndex].criticalMessageObjectIndex;
 							g_bInterdictionActive = false;
 							g_ShadertoyBuffer.Style = g_iHyperStyle;
-							log_debug("[DBG] [INT] Checking interdictions in mission: %d, region: %d",
-								*missionIndexLoaded, PlayerDataTable[*g_playerIndex].currentRegion);
-							auto it = g_InterdictionMap.find(*missionIndexLoaded);
-							if (it != g_InterdictionMap.end())
+							ReloadInterdictionMap();
+							if (g_iInterdictionBitfield)
 							{
-								// The current mission
-								uint8_t bitfield = it->second;
-								log_debug("[DBG] [INT] Interdiction found in Mission %d: 0x%x",
-									*currentMissionInCampaign, bitfield);
-								if ((0x1 & (bitfield >> region)) != 0x0) {
+								log_debug("[DBG] [INT] Interdictions in current mission: 0x%x, dest region: %d",
+									g_iInterdictionBitfield, region);
+								if ((0x1 & (g_iInterdictionBitfield >> region)) != 0x0) {
 									g_bInterdictionActive = true;
 									log_debug("[DBG] [INT] INTERDICTION ACTIVATED");
 								}
