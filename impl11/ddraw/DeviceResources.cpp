@@ -5049,7 +5049,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		messageShown = true;
 	}
 
-	this->_d3dAnnotation->EndEvent();
+	this->EndAnnotatedEvent();
 
 	return hr;
 }
