@@ -229,6 +229,13 @@ bool g_bInterdictionActive; // If true, then the current hyperjump must render a
 // that contain interdictors. For instance a value of 0x5 means regions 0 and 2
 // contain interdictors. This information is used to render the Interdiction Effect.
 uint8_t g_iInterdictionBitfield = 0;
+// Modulates the magnitude of the cockpit shake when an interdiction is happening.
+// Set to 0 to remove the shake effect
+float g_fInterdictionShake = 0.5f;
+// Modulates the cockpit shake when an interdiction is happening in VR
+float g_fInterdictionShakeInVR = 0.0f;
+// Controls the angle of the sin/cos used to shake the cockpit during an interdiction
+float g_fInterdictionAngleScale = 0.25f;
 
 int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
@@ -2588,6 +2595,15 @@ bool LoadHyperParams() {
 			else if (_stricmp(param, "shake_speed") == 0) {
 				g_fHyperShakeRotationSpeed = fValue;
 			}
+			else if (_stricmp(param, "interdiction_shake_scale") == 0) {
+				g_fInterdictionShake = fValue;
+			}
+			else if (_stricmp(param, "interdiction_shake_scale_in_VR") == 0) {
+				g_fInterdictionShakeInVR = fValue;
+			}
+			else if (_stricmp(param, "interdiction_angle_scale") == 0) {
+				g_fInterdictionAngleScale = fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -2816,6 +2832,29 @@ std::map<int, std::string> LoadMissionList() {
 	return missionMap;
 }
 
+// Reads a list of integers of the form:
+// X, Y, Z, ...
+// and returns the equivalent vector
+std::vector<int> ReadIntegerList(char *svalue) {
+	int i = 0;
+	int len = strlen(svalue);
+	std::vector<int> result;
+
+	while (i < len) {
+		int j = i;
+		// Advance to the next comma
+		while (j < len && svalue[j] != ',') j++;
+		// Terminate the string at the comma
+		if (j < len) svalue[j] = 0;
+		// Parse the integer
+		int elem = atoi(svalue + i);
+		result.push_back(elem);
+		// Repeat, starting at the first character after the comma
+		i = j + 1;
+	}
+	return result;
+}
+
 uint8_t LoadInterdictionMap(const char *fileName)
 {
 	int error = 0;
@@ -2860,10 +2899,15 @@ uint8_t LoadInterdictionMap(const char *fileName)
 				iValue = atoi(svalue);
 
 				if (_stricmp(param, "Region") == 0) {
-					int region = iValue;
-					bitfield |= (0x1 << region);
-					log_debug("[DBG] [INT] Interdiction set on current mission, region: %d, bitfield: 0x%x",
-						region, bitfield);
+					// scanf stops reading strings on commas, so we need the full right
+					// substring:
+					char *right_side = stristr(buf, "=");
+					// Skip the "=" sign
+					right_side++;
+					std::vector regions = ReadIntegerList(right_side);
+					for (int region : regions)
+						bitfield |= (0x1 << region);
+					//log_debug("[DBG] [INT] Interdiction set on current mission, bitfield: 0x%x", bitfield);
 				}
 			}
 		}

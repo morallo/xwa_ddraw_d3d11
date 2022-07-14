@@ -104,6 +104,9 @@ extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
 extern int g_iHyperStyle;
 extern bool g_bInterdictionActive;
 extern uint8_t g_iInterdictionBitfield;
+extern float g_fInterdictionShake;
+extern float g_fInterdictionShakeInVR;
+extern float g_fInterdictionAngleScale;
 
 extern bool g_bFXAAEnabled;
 

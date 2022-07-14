@@ -3924,6 +3924,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	const float T_OVERLAP = 1.5f; // Overlap between the trails and the zoom
 
 	static float fXRotationAngle = 0.0f, fYRotationAngle = 0.0f, fZRotationAngle = 0.0f;
+	Matrix4 ShakeMat;
+
+	if (g_bHyperDebugMode && g_iHyperStyle == HYPER_INTERDICTION_STYLE)
+		g_bInterdictionActive = true;
 
 	// Adjust the time according to the current hyperspace phase
 	//switch (PlayerDataTable[*g_playerIndex].hyperspacePhase) 
@@ -3973,9 +3977,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 			// lerp the color of the lights from blue to red if an interdiction is happening
 			if (g_bInterdictionActive) {
-				g_LightColor[i].x = lerp(0.10f, 1.50f, min(1.0f, 2.5f * timeInHyperspace));
-				g_LightColor[i].y = lerp(0.15f, 0.15f, min(1.0f, 2.5f * timeInHyperspace));
-				g_LightColor[i].z = lerp(1.50f, 0.10f, min(1.0f, 2.5f * timeInHyperspace));
+				const float t2 = min(max(0.0f, 2.0f * timeInHyperspace - 0.5f), 1.0f);
+				g_LightColor[i].x = lerp(0.10f, 1.50f, t2);
+				g_LightColor[i].y = lerp(0.15f, 0.15f, t2);
+				g_LightColor[i].z = lerp(1.50f, 0.10f, t2);
 			}
 		}
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
@@ -4037,6 +4042,26 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 	//#endif
 
+	// Shake the cockpit if an interdiction is happening
+	if (g_bInterdictionActive && g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST) {
+		Matrix4 RX, RY;
+		float fTotalInterdictionShake = g_fInterdictionShake;
+		if (g_bEnableVR || g_bSteamVREnabled)
+			fTotalInterdictionShake *= g_fInterdictionShakeInVR;
+		const float t2 = max(0.0f, (iTime * 1.25f) - 0.9f);
+		float shake_amp = 3.0f * t2 * fTotalInterdictionShake;
+		float ax = -1.2f * shake_amp * cos(g_fInterdictionAngleScale * 20.0f * t2);
+		float ay =  2.3f * shake_amp * sin(g_fInterdictionAngleScale * 20.0f * t2);
+
+		shake_amp = 0.5f * t2 * fTotalInterdictionShake;
+		ax += shake_amp * cos(g_fInterdictionAngleScale * 100.0f * t2);
+		ay += shake_amp * sin(g_fInterdictionAngleScale * 100.0f * t2);
+
+		RX.rotateX(ax);
+		RY.rotateY(ay);
+		ShakeMat = RX * RY;
+	}
+
 	fLightRotationAngle = 25.0f * iLinearTime * g_fHyperLightRotationSpeed;
 	// TODO: Where am I setting the lights for the new shading model?
 	//		 Am I setting the ssMask in the RTVs like I do during Execute()? Do I even need to do that?
@@ -4080,6 +4105,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		GetHyperspaceEffectMatrix(&g_ShadertoyBuffer.viewMat); // New version for SteamVR
 	else
 		GetCraftViewMatrix(&g_ShadertoyBuffer.viewMat); // Original version
+
+	// Apply the interdiction shake computed before
+	if (g_bInterdictionActive && g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
+	{
+		g_ShadertoyBuffer.viewMat = ShakeMat * g_ShadertoyBuffer.viewMat;
+	}
 
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;

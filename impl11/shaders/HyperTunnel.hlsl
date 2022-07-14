@@ -162,7 +162,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (Style == 2) {
 		float val2, val3, val4;
 		float white_spot3;
-		const float t2 = min(t * 2.5, 1.0);
+		const float t2 = smoothstep(0, 1, min(1.0, t * 1.5));
 
 		val2 = mix(fBm(xyt2 + vec3(1.0, 0.0, 0.0), 6.0, 2.0),
 				   fBm(xyt2, 6.0, 2.0),
@@ -202,7 +202,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.bloom.rgb *= 2.5;
 
 	float w_total = 0.0, w_out = 0.0, w_in;
-	// Fade in and out from white every t2 seconds
+	// Fade in and out from white every t seconds
 	w_in = abs(1.0 - 1.0 * smoothstep(0.0, 0.25, t));
 	w_out = abs(1.0 * smoothstep(0.8, 1.0, t));
 	w_total = max(w_in, w_out);
