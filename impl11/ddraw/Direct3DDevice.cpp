@@ -2636,6 +2636,8 @@ HRESULT Direct3DDevice::Execute(
 	DWORD dwFlags
 )
 {
+	_deviceResources->_d3dAnnotation->BeginEvent(L"Execute");
+
 #if LOGGER
 	std::ostringstream str;
 	str << this << " " << __FUNCTION__;
@@ -5666,6 +5668,8 @@ HRESULT Direct3DDevice::Execute(
 	g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1;
 	// DEBUG
 
+	_deviceResources->_d3dAnnotation->EndEvent();
+
 	if (FAILED(hr))
 	{
 		static bool messageShown = false;
@@ -6223,6 +6227,9 @@ nochange:
 
 HRESULT Direct3DDevice::BeginScene()
 {
+
+	_deviceResources->_d3dAnnotation->BeginEvent(L"Direct3DDeviceScene");
+
 #if LOGGER
 	std::ostringstream str;
 	str << this << " " << __FUNCTION__;
@@ -6602,6 +6609,8 @@ HRESULT Direct3DDevice::EndScene()
 	UpdateEventsFired();
 	// Animate all materials
 	AnimateMaterials();
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 
 	return D3D_OK;
 }

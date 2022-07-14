@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Jérémy Ansel
+﻿// Copyright (c) 2014 J�r�my Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -7414,6 +7414,8 @@ HRESULT PrimarySurface::Flip(
 	DWORD dwFlags
 	)
 {
+	_deviceResources->_d3dAnnotation->BeginEvent(L"PrimarySurfaceFlip");
+
 	static uint64_t frame, lastFrame = 0;
 	static float seconds;
 
@@ -7487,6 +7489,7 @@ HRESULT PrimarySurface::Flip(
 			if (FAILED(hr = this->_deviceResources->_backbufferSurface->BltFast(0, 0, this->_deviceResources->_frontbufferSurface, nullptr, 0)))
 				return hr;
 
+			_deviceResources->_d3dAnnotation->EndEvent();
 			return this->Flip(this->_deviceResources->_backbufferSurface, 0);
 		}
 
@@ -7983,6 +7986,7 @@ HRESULT PrimarySurface::Flip(
 				this->_deviceResources->_frontbufferSurface->wasBltFastCalled = false;
 			}
 
+			_deviceResources->_d3dAnnotation->EndEvent();
 			return hr;
 		}
 	}
@@ -9113,7 +9117,7 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 		}
-
+		_deviceResources->_d3dAnnotation->EndEvent();
 		return hr;
 	}
 
@@ -9122,6 +9126,7 @@ HRESULT PrimarySurface::Flip(
 	LogText(str.str());
 #endif
 
+	_deviceResources->_d3dAnnotation->EndEvent();
 	return DDERR_UNSUPPORTED;
 }
 
@@ -9759,6 +9764,8 @@ void PrimarySurface::RenderText()
 		return;
 	}
 
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderText");
+
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
 		s_d2d1RenderTarget = this->_deviceResources->_d2d1RenderTarget;
@@ -10092,6 +10099,8 @@ out:
 
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderRadar()
@@ -10114,6 +10123,8 @@ void PrimarySurface::RenderRadar()
 		s_brush.Release();
 		return;
 	}
+
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRadar");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10214,6 +10225,8 @@ void PrimarySurface::RenderRadar()
 	g_xwa_radar.clear();
 	g_xwa_radar_selected_positionX = -1;
 	g_xwa_radar_selected_positionY = -1;
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderBracket()
@@ -10240,6 +10253,8 @@ void PrimarySurface::RenderBracket()
 		s_brushOffscreen.Release();
 		return;
 	}
+
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderBracket");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10528,4 +10543,6 @@ void PrimarySurface::RenderSynthDCElems()
 out:
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
 	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
