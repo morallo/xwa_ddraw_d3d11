@@ -1742,16 +1742,26 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		  stristr(_lastTextureSelected->_name.c_str(), "TEX00032") != 0))
 	   )
 	*/
-	if (false)
+	
+	if (_lastTextureSelected->material.bInstanceMaterial)
 	{
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(scene->pObject->ObjectId);
 		if (craftInstance != nullptr) {
-			int hull = (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength));
-			hull = max(0, hull);
-			if (hull < 100) {
-				log_debug("[DBG] count: %d, T/F objId: %d, hull: %d",
-					g_XwaObjectsCount, scene->pObject->ObjectId, hull);
+			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
+			// This value seems to be somewhat arbitrary. ISDs seem to be 741 when healthy,
+			// and TIEs seem to be 628. But either way, this value is 0 when disabled. I think.
+			int subsystems = craftInstance->SubsystemStatus;
+
+			if (_lastTextureSelected->material.SkipWhenDisabled && subsystems == 0)
+			{
+				//log_debug("[DBG] [%s], systems: %d", _lastTextureSelected->_name.c_str(), systems);
+				goto out;
 			}
+			
+			//if (hull < 100) {
+			//	log_debug("[DBG] count: %d, T/F objId: %d, hull: %d",
+			//		g_XwaObjectsCount, scene->pObject->ObjectId, hull);
+			//}
 		}
 	}
 

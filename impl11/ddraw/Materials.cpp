@@ -928,7 +928,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	// files begin with dat-GroupId
 	bool bIsDATFile(stristr(OPTname, "dat") != NULL);
 	bool bIsGlobalOPT = bIsExteriorOPT || bIsCockpitOPT || bIsDATFile;
-
+	
 	// Skip comments and blank lines
 	if (buf[0] == ';' || buf[0] == '#')
 		return;
@@ -1097,8 +1097,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			// Add a reference to this material on the list of animated materials
 			if (bIsGlobalOPT)
 				g_AnimatedMaterials.push_back(atc);
-			else
+			else {
+				curMaterial->bInstanceMaterial = true;
 				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
+			}
 			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 
 			/*
@@ -1145,8 +1147,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			// Add a reference to this material on the list of animated materials
 			if (bIsGlobalOPT)
 				g_AnimatedMaterials.push_back(atc);
-			else
+			else {
+				curMaterial->bInstanceMaterial = true;
 				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
+			}
 			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 		}
 		else {
@@ -1418,6 +1422,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	else if (_stricmp(param, "TransformRotZ") == 0) {
 		curMaterial->meshTransform.bDoTransform = true;
 		curMaterial->meshTransform.RotZDelta = fValue;
+	}
+
+	else if (_stricmp(param, "SkipWhenDisabled") == 0) {
+		curMaterial->SkipWhenDisabled = (bool)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
 	}
 
 	/*

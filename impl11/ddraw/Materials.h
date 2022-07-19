@@ -406,6 +406,11 @@ typedef struct MaterialStruct {
 	char NormalMapName[MAX_NORMALMAP_NAME];
 	bool NormalMapLoaded;
 
+	// Set to true if this material has at least one property that is activated on
+	// a per-instance basis.
+	bool bInstanceMaterial;
+	bool SkipWhenDisabled;
+
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
@@ -469,6 +474,9 @@ typedef struct MaterialStruct {
 
 		NormalMapName[0] = 0;
 		NormalMapLoaded = false;
+
+		bInstanceMaterial = false;
+		SkipWhenDisabled = false;
 
 		/*
 		// DEBUG properties, remove later
