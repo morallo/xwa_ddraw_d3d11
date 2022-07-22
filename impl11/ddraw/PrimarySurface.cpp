@@ -2099,6 +2099,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		g_ShadingSys_PSBuffer.LightPointColor[0].z = 0.0f;
 		*/
 		// DEBUG
+
+		//g_LaserList.remove_duplicates();
 		int num_lasers = g_LaserList._size;
 		g_ShadingSys_PSBuffer.num_lasers = num_lasers;
 		for (i = 0; i < num_lasers; i++) {

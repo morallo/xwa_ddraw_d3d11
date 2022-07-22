@@ -2327,7 +2327,7 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 	Vector2 UV0, UV1, UV2, UV = texture->material.LightUVCoordPos;
 	Vector3 Light = texture->material.Light;
 	float falloff = texture->material.LightFalloff;
-	if (Light.x <= 0.01f && Light.y <= 0.01f && Light.z <= 0.01f) {
+	if (abs(Light.x) <= 0.0001f && abs(Light.y) <= 0.0001f && abs(Light.z) <= 0.0001f) {
 		// This explosion's light and UV are not initialized. Provide some
 		// default values...
 
@@ -2371,7 +2371,10 @@ void Direct3DDevice::AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIn
 		float u, v;
 		if (IsInsideTriangle(UV, UV0, UV1, UV2, &u, &v)) {
 			P = tempv0 + u * (tempv2 - tempv0) + v * (tempv1 - tempv0);
-			g_LaserList.insert(P, Light, {}, falloff, 0.0f);
+			// Don't add lights that are too close to the origin: they'll produce an annoying
+			// white flash
+			if (fabs(P.x > 2.5f) && fabs(P.y > 2.5f) && fabs(P.z > 2.5f))
+				g_LaserList.insert(P, Light, {}, falloff, 0.0f);
 		}
 
 		if (!g_config.D3dHookExists) triangle++;

@@ -355,6 +355,7 @@ public:
 	}
 
 	void insert(Vector3 P, Vector3 col, Vector3 dir={}, float falloff=0.0f, float angle=0.0f);
+	void remove_duplicates();
 };
 
 typedef enum {

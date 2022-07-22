@@ -231,6 +231,12 @@ GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
+		float dx = fabs(_elems[i].P.x - P.x);
+		float dy = fabs(_elems[i].P.y - P.y);
+		float dz = fabs(_elems[i].P.z - P.z);
+		// Avoid inserting duplicate elements in the list.
+		if (dx < 0.0001f && dy < 0.0001f && dz < 0.0001f)
+			return;
 		// Copy the i-th element to the (i+1)-th index to make space at i
 		if (i + 1 < MAX_CB_POINT_LIGHTS)
 			_elems[i + 1] = _elems[i];
@@ -247,6 +253,43 @@ void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float
 		if (_size < MAX_CB_POINT_LIGHTS)
 			_size++;
 	}
+}
+
+void SmallestK::remove_duplicates() {
+	bool Active[MAX_CB_POINT_LIGHTS] = { true };
+	VectorColor tmp[MAX_CB_POINT_LIGHTS];
+	int j = 0;
+
+	for (int i = 0; i < _size - 1; i++) {
+		float dx = fabs(_elems[i].P.x - _elems[i + 1].P.x);
+		float dy = fabs(_elems[i].P.y - _elems[i + 1].P.y);
+		float dz = fabs(_elems[i].P.z - _elems[i + 1].P.z);
+		if (dx < 0.0001f && dy < 0.0001f && dz < 0.0001f) {
+			if (g_bDumpSSAOBuffers)
+				log_debug("[DBG] Laser light %d disabled: it's duplicated", i);
+			Active[i] = false;
+		}
+		else if (fabs(_elems[i].P.x < 2.0f) &&
+			fabs(_elems[i].P.y < 2.0f) &&
+			fabs(_elems[i].P.z < 2.0f))
+		{
+			if (g_bDumpSSAOBuffers)
+				log_debug("[DBG] Laser light: %d disabled: too close to the camera", i);
+			Active[i] = false;
+		}
+		else {
+			Active[i] = true;
+			tmp[i] = _elems[i];
+		}
+	}
+
+	for (int i = 0; i < _size; i++) {
+		if (Active[i])
+		{
+			_elems[j++] = tmp[i];
+		}
+	}
+	_size = j;
 }
 
 bool isInVector(uint32_t crc, std::vector<uint32_t>& vector) {
