@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 J�r�my Ansel
+﻿// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
