@@ -388,6 +388,8 @@ HRESULT DeviceResources::Initialize()
 		hr = D3D11CreateDevice(nullptr, this->_d3dDriverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &this->_d3dDevice, &this->_d3dFeatureLevel, &this->_d3dDeviceContext);
 	}
 
+	this->_d3dDeviceContext->QueryInterface(__uuidof(ID3DUserDefinedAnnotation), (void**)&this->_d3dAnnotation);
+
 	/*
 	if (SUCCEEDED(hr)) {
 		log_debug("[DBG] Getting the DX11.1 device");
@@ -4511,6 +4513,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	ID3D11Texture2D* tex = nullptr;
 	ID3D11ShaderResourceView* texView = nullptr;
 
+	this->_d3dAnnotation->BeginEvent(L"RenderMain");
+
 	/*
 	if (g_bUseSteamVR) {
 		// Process SteamVR events
@@ -5044,6 +5048,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		messageShown = true;
 	}
+
+	this->EndAnnotatedEvent();
 
 	return hr;
 }
