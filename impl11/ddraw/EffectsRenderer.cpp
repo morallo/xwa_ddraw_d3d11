@@ -17,9 +17,11 @@ bool g_bRTEnabled = false;
 // Textures have an associated objectId, this map tells us the slot
 // in the objects array where we'll find the corresponding objectId.
 std::map<int, int> g_objectIdToIndex;
-int *g_XwaObjectsCount = ((int *)0x007FFD80);
 // The new per-craft events will only store hull events (and maybe sys/disabled events
 // later), but we need a previous and current event, and a timer (for animations).
+
+// Maps an ObjectId to its InstanceEvent
+std::map<int, InstanceEvent> g_objectIdToInstanceEvent;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
@@ -203,6 +205,7 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 
 void ResetObjectIndexMap() {
 	g_objectIdToIndex.clear();
+	g_objectIdToInstanceEvent.clear();
 }
 
 // ****************************************************
@@ -1436,7 +1439,7 @@ void EffectsRenderer::ApplyGreebles()
 	}
 }
 
-void EffectsRenderer::ApplyAnimatedTextures()
+void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
 	// texture
@@ -1446,9 +1449,27 @@ void EffectsRenderer::ApplyAnimatedTextures()
 	//if ((_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
 	//	(!_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
 
-	bool bIsDamageTex = false;
-	int TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDamageTex, TEXTURE_ATC_IDX);
-	int LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+	bool bIsDCDamageTex = false;
+	int TexATCIndex = -1, LightATCIndex = -1;
+	if (bInstanceEvent) {
+		// This is an instance ATC
+		const InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId);
+		if (instEvent != nullptr) {
+			TexATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(*instEvent, TEXTURE_ATC_IDX);
+			LightATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(*instEvent, LIGHTMAP_ATC_IDX);
+			/*
+			if (TexATCIndex != -1 || LightATCIndex != -1)
+				log_debug("[DBG] [INST] Instance Animation, objectId: %d, TexATCIndex: %d, LightATCIndex: %d",
+					objectId, TexATCIndex, LightATCIndex);
+			*/
+		}
+	}
+	else {
+		// This is a global ATC
+		TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDCDamageTex, TEXTURE_ATC_IDX);
+		LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+	}
+	
 	// If there's no texture animation and no lightmap animation, then there's nothing to do here
 	if (TexATCIndex == -1 && LightATCIndex == -1)
 		return;
@@ -1528,7 +1549,7 @@ void EffectsRenderer::ApplyAnimatedTextures()
 		// Force the use of damage textures if DC is on. This makes damage textures visible
 		// even when no cover texture is available:
 		if (bRenderingDC)
-			g_DCPSCBuffer.use_damage_texture = bIsDamageTex;
+			g_DCPSCBuffer.use_damage_texture = bIsDCDamageTex;
 	}
 	// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses
 	// that slot for something else
@@ -1635,6 +1656,9 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 				break;
 			}
 		}
+		// Add a new entry to g_objectIdToInstanceEvent
+		log_debug("[DBG] [INST] New InstanceEvent added to objectId: %d", objectId);
+		g_objectIdToInstanceEvent[objectId] = InstanceEvent();
 	}
 	else {
 		// Get the cached index
@@ -1650,6 +1674,19 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 	}
 
 	return nullptr;
+}
+
+/*
+ * Fetches the InstanceEvent associated with the given objectId or nullptr if there
+ * is no entry.
+ */
+InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId)
+{
+	auto it = g_objectIdToInstanceEvent.find(objectId);
+	if (it == g_objectIdToInstanceEvent.end())
+		return nullptr;
+
+	return &it->second;
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -1743,9 +1780,21 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	   )
 	*/
 	
-	if (_lastTextureSelected->material.bInstanceMaterial)
+	// Cache the current object's ID
+	int objectId = -1;
+	if (scene != nullptr && scene->pObject != nullptr)
+		objectId = scene->pObject->ObjectId;
+	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
+
+	// A material is associated with either a global ATC or an instance ATC for now.
+	// Not sure if it would be legal to have both, but I'm going to simplify things.
+	if (bInstanceEvent)
 	{
-		CraftInstance *craftInstance = ObjectIDToCraftInstance(scene->pObject->ObjectId);
+		// TODO: Add an entry into g_AnimatedInstMaterials with the proper objectId. We
+		// probably need to do this in ObjectIDToCraftInstance() because that's where we
+		// know if an entry is new or not.
+		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId);
+		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId);
 		if (craftInstance != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 			// This value seems to be somewhat arbitrary. ISDs seem to be 741 when healthy,
@@ -1758,10 +1807,17 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 				goto out;
 			}
 			
-			//if (hull < 100) {
-			//	log_debug("[DBG] count: %d, T/F objId: %d, hull: %d",
-			//		g_XwaObjectsCount, scene->pObject->ObjectId, hull);
-			//}
+			if (instanceEvent != nullptr) {
+				// Update the hull event for this instance
+				if (hull > 75.0f)
+					instanceEvent->Event = IEVT_NONE;
+				else if (50.0f < hull && hull <= 75.0f)
+					instanceEvent->Event = HULL_IEVT_DAMAGE_75;
+				else if (25.0f < hull && hull <= 50.0f)
+					instanceEvent->Event = HULL_IEVT_DAMAGE_50;
+				else if (hull <= 25.0f)
+					instanceEvent->Event = HULL_IEVT_DAMAGE_25;
+			}
 		}
 	}
 
@@ -1886,7 +1942,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyGreebles();
 
 	if (g_bEnableAnimations)
-		ApplyAnimatedTextures();
+		ApplyAnimatedTextures(objectId, bInstanceEvent);
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.

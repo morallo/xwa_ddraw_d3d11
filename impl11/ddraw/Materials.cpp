@@ -13,6 +13,8 @@ namespace fs = std::filesystem;
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 GlobalGameEvent g_GameEvent, g_PrevGameEvent;
+// Maps an ObjectId to its InstanceEvent
+extern std::map<int, InstanceEvent> g_objectIdToInstanceEvent;
 // Set of flags that tell us when events fired on the current frame
 bool bEventsFired[MAX_GAME_EVT] = { 0 };
 // Rule 1: The ordering in this array MUST match the ordering in GameEventEnum
@@ -56,14 +58,29 @@ char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_CANNON_8_READY",
 };
 
+// Rule 1: The ordering in this array MUST match the ordering in InstanceEventEnum
+// Rule 2: Always begin an event with the token "IEVT_" (it's used to parse it)
+char *g_sInstEventNames[MAX_INST_EVT] = {
+	"IEVT_NONE",
+	// Hull Damage Events
+	"IEVT_DAMAGE_75",
+	"IEVT_DAMAGE_50",
+	"IEVT_DAMAGE_25",
+};
 
 /*
  Contains all the materials for all the OPTs currently loaded
 */
 std::vector<CraftMaterials> g_Materials;
-// List of all the animated materials used in the current mission.
+// List of all the global animated materials used in the current mission.
+// Instance events still have an entry in this array, but they are "templates" used
+// to add ATCs to g_AnimatedInstMaterials below
 // This is used to update the timers on these materials.
 std::vector<AnimatedTexControl> g_AnimatedMaterials;
+// List of all the instance animated materials.
+// TODO: Add support for this map so that each instance material has its own timer
+std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
+
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 
@@ -164,11 +181,13 @@ bool LoadLightColor(char* buf, Vector3* Light)
 	if (*s == 0) return false;\
 }
 
-bool ParseEvent(char *s, GameEvent *eventType) {
+bool ParseEvent(char *s, GameEvent *eventType, InstEventType *instEventType, bool *isInstanceEvt) {
 	char s_event[80];
 	int res;
 	// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
 	*eventType = EVT_NONE;
+	*instEventType = IEVT_NONE;
+	*isInstanceEvt = false;
 
 	// Parse the event
 	try {
@@ -177,10 +196,19 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 			log_debug("[DBG] [MAT] Error reading event in '%s'", s);
 		}
 		else {
-			log_debug("[DBG] [MAT] EventType: %s", s_event);
+			// Check the game event list
 			for (int i = 0; i < MAX_GAME_EVT; i++)
-				if (stristr(s_event, g_sGameEventNames[i]) != NULL) {
+				if (_stricmp(s_event, g_sGameEventNames[i]) == 0) {
 					*eventType = (GameEvent)i;
+					log_debug("[DBG] [MAT] (GameEvent) EventType: %s", s_event);
+					break;
+				}
+			// Check the instance event list
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				if (_stricmp(s_event, g_sInstEventNames[i]) == 0) {
+					*instEventType = (InstEventType)i;
+					*isInstanceEvt = true;
+					log_debug("[DBG] [INST] (InstEvent) EventType: %s", s_event);
 					break;
 				}
 		}
@@ -336,8 +364,9 @@ bool ParseOptionalTexSeqArgs(char *buf, int *alpha_mode, float4 *AuxColor)
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType, int *alpha_mode,
-	float4 *AuxColor) 
+bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
+	GameEvent *eventType, InstEventType *instEventType, bool *isInstEvent,
+	int *alpha_mode, float4 *AuxColor)
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
@@ -347,6 +376,8 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false, IsZIPFile = false, bEllipsis = false;
 	*eventType = EVT_NONE;
+	*instEventType = IEVT_NONE;
+	*isInstEvent = false;
 	std::string s_temp;
 	*alpha_mode = 0;
 	AuxColor->x = 1.0f;
@@ -371,7 +402,9 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	s += 1;
 
 	// Parse the event, if it exists
-	if (stristr(s, "EVT_") != NULL) {
+	if (stristr(s, "EVT_") != NULL || stristr(s, "IEVT_") != NULL) {
+		//if (stristr(s, "IEVT_") != NULL)
+		//	log_debug("[DBG] [INST] Parsing INSTANCE EVENT from: [%s]", s);
 		// Skip to the next comma
 		t = s;
 		while (*t != 0 && *t != ',') t++;
@@ -379,7 +412,9 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseEvent(s, eventType);
+		ParseEvent(s, eventType, instEventType, isInstEvent);
+		//if (*isInstEvent)
+		//	log_debug("[DBG] [INST] INSTANCE EVENT parsed, %d", *instEventType);
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
@@ -593,13 +628,15 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType,
+bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
+	GameEvent *eventType, InstEventType *instEventType, bool *isInstEvent,
 	int *is_lightmap, int *alpha_mode, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
 {
 	int res = 0, clamp, raw_alpha_mode;
 	char *s = NULL, *t = NULL, path[256];
 	float fps = 30.0f, intensity = 0.0f, r,g,b, OfsX, OfsY, ar;
-	*is_lightmap = 0; *alpha_mode = 0; *eventType = EVT_NONE;
+	*is_lightmap = 0; *alpha_mode = 0;
+	*eventType = EVT_NONE; *instEventType = IEVT_NONE; *isInstEvent = false;
 	AuxColor->x = 1.0f;
 	AuxColor->y = 1.0f;
 	AuxColor->z = 1.0f;
@@ -621,7 +658,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 	if (*t == 0) return false;
 	// End this string on the comma so that we can parse a string
 	*t = 0;
-	ParseEvent(s, eventType);
+	ParseEvent(s, eventType, instEventType, isInstEvent);
 
 	// Skip the comma
 	s = t; s += 1;
@@ -893,9 +930,13 @@ bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
 	return true;
 }
 
-inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial, int ATCType=TEXTURE_ATC_IDX)
+inline void AssignTextureEvent(GameEvent eventType, InstEventType instEventType, bool isInstEvent,
+	Material* curMaterial, int ATCType)
 {
-	curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
+	if (!isInstEvent)
+		curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
+	else
+		curMaterial->InstTextureATCIndices[ATCType][instEventType] = g_AnimatedMaterials.size() - 1;
 }
 
 GreebleData *GetOrAddGreebleData(Material *curMaterial) {
@@ -1078,7 +1119,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence, &(atc.Event), &alpha_mode, &(atc.Tint)))
+		if (!LoadTextureSequence(buf, atc.Sequence,
+			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
+			&alpha_mode, &(atc.Tint)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1095,13 +1138,13 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 				break;
 			}
 			// Add a reference to this material on the list of animated materials
-			if (bIsGlobalOPT)
-				g_AnimatedMaterials.push_back(atc);
-			else {
+			g_AnimatedMaterials.push_back(atc);
+			if (atc.isInstEvent) {
 				curMaterial->bInstanceMaterial = true;
-				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
+				//log_debug("[DBG] [INST] Found instance material in [%s]", OPTname);
 			}
-			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
+			AssignTextureEvent(atc.Event, atc.InstEvent, atc.isInstEvent, curMaterial,
+				IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 
 			/*
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
@@ -1127,8 +1170,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &alpha_mode,
-			&(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
+		if (!LoadFrameSequence(buf, atc.Sequence,
+			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
+			&is_lightmap, &alpha_mode, &(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1145,13 +1189,13 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 				break;
 			}
 			// Add a reference to this material on the list of animated materials
-			if (bIsGlobalOPT)
-				g_AnimatedMaterials.push_back(atc);
-			else {
+			g_AnimatedMaterials.push_back(atc);
+			if (atc.isInstEvent) {
 				curMaterial->bInstanceMaterial = true;
-				log_debug("[DBG] [MAT] Non-global animated material for [%s]", OPTname);
+				//log_debug("[DBG] [INST] Found instance material in [%s]", OPTname);
 			}
-			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
+			AssignTextureEvent(atc.Event, atc.InstEvent, atc.isInstEvent, curMaterial,
+				is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
@@ -1817,6 +1861,8 @@ void AnimatedTexControl::Animate() {
 }
 
 void AnimateMaterials() {
+	// TODO: Do not animate instance materials as globals, use the entry in g_AnimatedMaterials
+	// as a template instead.
 	// I can't use a shorthand loop like the following:
 	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
 	// because that'll create local copies of each element in the std::vector in atc.
@@ -1824,8 +1870,23 @@ void AnimateMaterials() {
 	// which doesn't work, because we need to modify the source element
 	for (uint32_t i = 0; i < g_AnimatedMaterials.size(); i++) {
 		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
+		// Do not animate instance materials here. Any instance materials in this array
+		// are templates.
+		// TODO: Don't animate instance events here. These are templates!
+		//if (atc->isInstEvent)
+		//	continue;
 		// Reset this ATC if its event fired during the current frame
 		if (EventFired(atc->Event))
+			atc->ResetAnimation();
+		else
+			atc->Animate();
+	}
+
+	// TODO: CHECK that this loop is correct.
+	// Iterate over g_AnimatedInstMaterials and animate them.
+	for (uint32_t i = 0; i < g_AnimatedInstMaterials.size(); i++) {
+		AnimatedTexControl *atc = &(g_AnimatedInstMaterials[i]);
+		if (g_objectIdToInstanceEvent[atc->objectId].EventFired(atc->Event))
 			atc->ResetAnimation();
 		else
 			atc->Animate();
@@ -1835,7 +1896,10 @@ void AnimateMaterials() {
 void ClearAnimatedMaterials() {
 	for (AnimatedTexControl atc : g_AnimatedMaterials)
 		atc.Sequence.clear();
+	for (AnimatedTexControl atc : g_AnimatedInstMaterials)
+		atc.Sequence.clear();
 	g_AnimatedMaterials.clear();
+	g_AnimatedInstMaterials.clear();
 }
 
 void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
@@ -1854,6 +1918,7 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 }
 
 void ResetGameEvent() {
+	//////////////////// GLOBAL EVENTS ////////////////////
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
 	g_GameEvent.bCockpitInitialized = false;
@@ -1866,7 +1931,7 @@ void ResetGameEvent() {
 	for (int i = 0; i < MAX_CANNONS; i++)
 		g_GameEvent.CannonReady[i] = false;
 
-	// Add new events here
+	// Add new global events here
 	// ...
 
 	// Don't modify the code below this line if you're just adding new events
@@ -1874,8 +1939,20 @@ void ResetGameEvent() {
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
 
-	// Always keep this line at the end of this function
+	// Always keep this line at the end of the global event section
 	g_PrevGameEvent = g_GameEvent;
+
+	//////////////////// INSTANCE EVENTS ////////////////////
+	for (auto &it = g_objectIdToInstanceEvent.begin(); it != g_objectIdToInstanceEvent.end(); it++) {
+		InstanceEvent &instEvent = it->second;
+		instEvent.Event = IEVT_NONE;
+
+		// Add new instance events here
+		// ...
+
+		instEvent.ResetEventsFired();
+		instEvent.CopyCurrentEventsToPrev();
+	}
 }
 
 // Check which events were set on the current frame and set the corresponding flags
@@ -1883,7 +1960,7 @@ void UpdateEventsFired() {
 	// Set all events to false
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
-	
+
 	// Set the current target event to true if it changed:
 	if (g_PrevGameEvent.TargetEvent != g_GameEvent.TargetEvent)
 		bEventsFired[g_GameEvent.TargetEvent] = true;
@@ -1891,7 +1968,7 @@ void UpdateEventsFired() {
 	// Set the current hull damage event to true if it changed:
 	if (g_PrevGameEvent.HullEvent != g_GameEvent.HullEvent)
 		bEventsFired[g_GameEvent.HullEvent] = true;
-	
+
 	// Manually check and set each damage event
 	bEventsFired[CPT_EVT_BROKEN_CMD] = (g_PrevGameEvent.CockpitInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD);
 	bEventsFired[CPT_EVT_BROKEN_LASER_ION] = (g_PrevGameEvent.CockpitInstruments.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon);
@@ -1925,14 +2002,37 @@ void UpdateEventsFired() {
 
 	// Alternate explosions cannot be triggered as events. Instead, we need to do a frame-by-frame replacement.
 
-	// Don't modify the code below this line if you're only adding new events
+	// Don't modify this block if you're only adding new events
+	{
 #ifdef DEBUG_EVENTS
-	for (int i = 0; i < MAX_GAME_EVT; i++)
-		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
+		for (int i = 0; i < MAX_GAME_EVT; i++)
+			if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
 #endif
+		// Copy the events
+		g_PrevGameEvent = g_GameEvent;
+	}
 
-	// Copy the events
-	g_PrevGameEvent = g_GameEvent;
+	////////////////////// Update instance events //////////////////////
+	for (auto &it = g_objectIdToInstanceEvent.begin(); it != g_objectIdToInstanceEvent.end(); it++) {
+		InstanceEvent &instEvent = it->second;
+		// Set all instance events to false
+		instEvent.ResetEventsFired();
+
+		// Update instance events
+		// Set the current hull damage event to true if it changed:
+		if (instEvent.PrevEvent != instEvent.Event)
+			instEvent.bEventsFired[instEvent.Event] = true;
+
+		// Do not modify this block if you're only adding new instance events
+		{
+#ifdef DEBUG_EVENTS
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				if (instEvent.bEventsFired[i]) log_debug("[DBG] [INST] ===> InstEvent, objectId: %d, [%s] FIRED", it->first, g_sInstEventNames[i]);
+#endif
+			// Copy the instance events
+			instEvent.CopyCurrentEventsToPrev();
+		}
+	}
 }
 
 bool EventFired(GameEvent Event) {

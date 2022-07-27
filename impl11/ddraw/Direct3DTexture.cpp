@@ -1293,15 +1293,31 @@ void Direct3DTexture::TagTexture() {
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
-				if ((this->material.AnyLightMapATCIndex() && this->is_LightTexture) ||
-					(this->material.AnyTextureATCIndex() && !this->is_LightTexture)) 
-				{
-					// Load the animated textures for each valid index
-					int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
-					// Go over each valid TextureATCIndex and load their associated animations
-					for (int i = 0; i < MAX_GAME_EVT; i++)
-						if (this->material.TextureATCIndices[ATCType][i] > -1)
-							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
+				if (!this->material.bInstanceMaterial) {
+					// Load GLOBAL event animations
+					if ((this->material.AnyLightMapATCIndex() && this->is_LightTexture) ||
+						(this->material.AnyTextureATCIndex() && !this->is_LightTexture))
+					{
+						// Load the animated textures for each valid index
+						int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
+						// Go over each valid TextureATCIndex and load their associated animations
+						for (int i = 0; i < MAX_GAME_EVT; i++)
+							if (this->material.TextureATCIndices[ATCType][i] > -1)
+								LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
+					}
+				}
+				else {
+					// Load INSTANCE event animations
+					if ((this->material.AnyInstLightMapATCIndex() && this->is_LightTexture) ||
+						(this->material.AnyInstTextureATCIndex() && !this->is_LightTexture))
+					{
+						// Load the animated textures for each valid index
+						int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
+						// Go over each valid InstTextureATCIndices and load their associated animations
+						for (int i = 0; i < MAX_INST_EVT; i++)
+							if (this->material.InstTextureATCIndices[ATCType][i] > -1)
+								LoadAnimatedTextures(this->material.InstTextureATCIndices[ATCType][i]);
+					}
 				}
 
 				// Load the Greeble Textures here...

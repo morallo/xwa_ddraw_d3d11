@@ -77,7 +77,11 @@
 	inline const auto battleSelectScrollMovement = (int*)0x78317C;
 	inline const auto loadScrnTotalMissionsListed = (int*)0x7830BC;
 	inline const auto localPlayerIndex = (int*)0x8C1CC8;
+
 	inline ObjectEntry** objects = (ObjectEntry**)0x7B33C4;
+	// The total number of objects in the current mission. Use this to iterate *objects
+	inline int *g_XwaObjectsCount = ((int *)0x007FFD80);
+
 	inline PlayerDataEntry* PlayerDataTable = (PlayerDataEntry*)0x8B94E0;
 	inline CraftDefinitionEntry* CraftDefinitionTable = (CraftDefinitionEntry*)0x005BB480; // 32 Entries
 	inline const auto localPlayerConnectedAs = (int*)0xABD7B4;

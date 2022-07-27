@@ -49,13 +49,23 @@ typedef enum DiegeticMeshEnum {
 
 /*
 
-How to add support for a new event:
+How to add support for a new global event:
 
 1. Add the new event in GameEventEnum
-2. Add the corresponding string for the new event in g_sGameEventNames
+2. Add the corresponding string for the new event in g_sGameEventNames, follow the naming rules!
 3. Add a new field to g_GameEvent (if applicable).
 4. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
 5. Update Materials.h:GetCurrentATCIndex(). Mind the priority of the new event!
+6. Update Materials.cpp:ResetGameEvent()
+7. Update Materials.cpp:UpdateEventsFired()
+
+How to add support for a new instance event:
+
+1. Add the new event in InstEventType
+2. Add the corresponding string for the new event in g_sInstEventNames, follow the naming rules!
+3. Add a new field to InstanceEvent (if applicable).
+4. Add support in EffectsRenderer::MainSceneHook() (or wherever relevant) to detect the new event.
+5. Update Materials.h:GetCurrentInstATCIndex(). Mind the priority of the new event!
 6. Update Materials.cpp:ResetGameEvent()
 7. Update Materials.cpp:UpdateEventsFired()
 
@@ -116,6 +126,18 @@ typedef enum GameEventEnum {
 } GameEvent;
 
 extern char *g_sGameEventNames[MAX_GAME_EVT];
+
+typedef enum {
+	IEVT_NONE = 0,
+	// Hull Damage Events
+	HULL_IEVT_DAMAGE_75,
+	HULL_IEVT_DAMAGE_50,
+	HULL_IEVT_DAMAGE_25,
+	// End-of-events sentinel. Do not remove!
+	MAX_INST_EVT
+} InstEventType;
+
+extern char *g_sInstEventNames[MAX_INST_EVT];
 
 // *********************
 // Cockpit Damage
@@ -206,13 +228,29 @@ extern GlobalGameEvent g_GameEvent;
 
 // Per-instance events. These events are linked to specific ship instances,
 // instead of being global events applied to all textures of the same name.
-typedef struct InstanceEventStruct {
-	GameEvent HullEvent;
+class InstanceEvent {
+public:
+	InstEventType Event = IEVT_NONE;
+	InstEventType PrevEvent = IEVT_NONE;
+	bool bEventsFired[MAX_INST_EVT];
 
-	InstanceEventStruct() {
-		HullEvent = EVT_NONE;
+	InstanceEvent()
+	{
 	}
-} InstanceEvent;
+
+	void ResetEventsFired() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			bEventsFired[i] = false;
+	}
+
+	bool EventFired(GameEvent Event) {
+		return bEventsFired[Event];
+	}
+
+	void CopyCurrentEventsToPrev() {
+		PrevEvent = Event;
+	}
+};
 
 // Used to store the information related to animated light maps that
 // is loaded from .mat files:
@@ -242,6 +280,11 @@ typedef struct AnimatedTexControlStruct {
 	bool IsRandom, BlackToAlpha, NoLoop, AlphaIsBloomMask;
 	float4 Tint;
 	GameEvent Event; // Activate this animation according to the value set in this field, this is like a "back-pointer" to the event
+	InstEventType InstEvent; // If isInstEvent is true, then this field tells us what type of event is controlled by this ATC
+	bool isInstEvent;
+	// If this ATC describes an Instance Event, then the following will
+	// contain the objectId associated with this ATC.
+	int objectId;
 	float2 Offset;
 	float AspectRatio;
 	int Clamp;
@@ -258,11 +301,18 @@ typedef struct AnimatedTexControlStruct {
 		Tint.y = 1.0f;
 		Tint.z = 1.0f;
 		Event = EVT_NONE;
+		InstEvent = IEVT_NONE;
 		Offset.x = 0.0f;
 		Offset.y = 0.0f;
 		AspectRatio = 1.0f;
 		Clamp = 0;
 		NoLoop = false; // Animations loop by default
+		// Events are global by default. When this flag is set in g_AnimatedMaterials, it
+		// indicates it's a template for instance events and it should not be animated.
+		isInstEvent = false;
+		// If this ATC is an element of g_AnimatedInstMaterials, this field will be set to
+		// the objectId associated with this material.
+		objectId = -1;
 	}
 
 	void ResetAnimation();
@@ -375,7 +425,10 @@ typedef struct MaterialStruct {
 	int GroupId;
 	int ImageId;
 
+	// Global ATC event pointers
 	int TextureATCIndices[MAX_ATC_TYPES][MAX_GAME_EVT];
+	// Instance ATC event pointers, they point to template entries in g_AnimatedMaterials
+	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 
 	//GreebleData GreebleData;
 	int GreebleDataIdx;
@@ -459,6 +512,10 @@ typedef struct MaterialStruct {
 			for (int i = 0; i < MAX_GAME_EVT; i++)
 				TextureATCIndices[j][i] = -1;
 
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				InstTextureATCIndices[j][i] = -1;
+
 		GreebleDataIdx = -1;
 
 		for (int i = 0; i < MAX_ALT_EXPLOSIONS; i++)
@@ -491,7 +548,7 @@ typedef struct MaterialStruct {
 		*/
 	}
 
-	// Returns true if any of the possible texture indices is enabled
+	// Returns true if any of the possible texture indices is enabled for a global event
 	inline bool AnyTextureATCIndex() {
 		for (int i = 0; i < MAX_GAME_EVT; i++)
 			if (TextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
@@ -499,9 +556,25 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
-	// Returns true if any of the possible lightmap indices is enabled
+	// Returns true if any of the possible texture indices is enabled for an instance event
+	inline bool AnyInstTextureATCIndex() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
+				return true;
+		return false;
+	}
+
+	// Returns true if any of the possible lightmap indices is enabled for a global event
 	inline bool AnyLightMapATCIndex() {
 		for (int i = 0; i < MAX_GAME_EVT; i++)
+			if (TextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
+				return true;
+		return false;
+	}
+
+	// Returns true if any of the possible lightmap indices is enabled for an instance event
+	inline bool AnyInstLightMapATCIndex() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
 			if (TextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
 				return true;
 		return false;
@@ -632,6 +705,26 @@ typedef struct MaterialStruct {
 		return index;
 	}
 
+	inline int GetCurrentInstATCIndex(const InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
+		int index = InstTextureATCIndices[ATCType][IEVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
+
+		// Overrides: these indices are only selected if specific events are set
+		// Most-specific events first... least-specific events later.
+
+		// Hull Damage Events
+		if (instEvent.Event == HULL_IEVT_DAMAGE_25 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25] > -1)
+			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25];
+
+		if (instEvent.Event == HULL_IEVT_DAMAGE_50 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50] > -1)
+			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50];
+
+		if (instEvent.Event == HULL_IEVT_DAMAGE_75 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75] > -1)
+			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75];
+
+		// Least-specific events later.
+		// ...
+		return index;
+	}
 } Material;
 
 /*
@@ -677,6 +770,8 @@ extern std::vector<CraftMaterials> g_Materials;
 // way to iterate over them at the end of the frame to update their timers.
 // This list is used to update the timers on animated materials once per frame.
 extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
+// Same as g_AnimatedMaterials, but used to hold instance materials.
+extern std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
 // Global Greeble Data (mask, textures, blending modes)
