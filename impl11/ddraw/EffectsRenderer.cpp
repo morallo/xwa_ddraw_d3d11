@@ -1453,10 +1453,10 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	int TexATCIndex = -1, LightATCIndex = -1;
 	if (bInstanceEvent) {
 		// This is an instance ATC
-		const InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId);
+		InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId);
 		if (instEvent != nullptr) {
-			TexATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(*instEvent, TEXTURE_ATC_IDX);
-			LightATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(*instEvent, LIGHTMAP_ATC_IDX);
+			TexATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
+			LightATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
 			/*
 			if (TexATCIndex != -1 || LightATCIndex != -1)
 				log_debug("[DBG] [INST] Instance Animation, objectId: %d, TexATCIndex: %d, LightATCIndex: %d",
@@ -1502,7 +1502,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 
 	int extraTexIdx = -1, extraLightIdx = -1;
 	if (TexATCIndex > -1) {
-		AnimatedTexControl *atc = &(g_AnimatedMaterials[TexATCIndex]);
+		AnimatedTexControl *atc = bInstanceEvent ?
+			&(g_AnimatedInstMaterials[TexATCIndex]) : &(g_AnimatedMaterials[TexATCIndex]);
 		int idx = atc->AnimIdx;
 		extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
 		if (atc->BlackToAlpha)
@@ -1519,7 +1520,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	}
 
 	if (LightATCIndex > -1) {
-		AnimatedTexControl *atc = &(g_AnimatedMaterials[LightATCIndex]);
+		AnimatedTexControl *atc = bInstanceEvent ?
+			&(g_AnimatedInstMaterials[LightATCIndex]) : &(g_AnimatedMaterials[LightATCIndex]);
 		int idx = atc->AnimIdx;
 		extraLightIdx = atc->Sequence[idx].ExtraTextureIndex;
 		if (atc->BlackToAlpha)

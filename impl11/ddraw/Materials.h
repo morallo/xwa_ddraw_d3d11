@@ -230,12 +230,23 @@ extern GlobalGameEvent g_GameEvent;
 // instead of being global events applied to all textures of the same name.
 class InstanceEvent {
 public:
+	int objectId;
 	InstEventType Event = IEVT_NONE;
 	InstEventType PrevEvent = IEVT_NONE;
 	bool bEventsFired[MAX_INST_EVT];
+	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
+	// For instance materials, their corresponding ATC is always initialized to an entry
+	// in g_AnimatedMaterials. This entry is considered a "template". Once this template
+	// has been copied into g_AnimatedInstMaterials, the following flag must be set to true
+	bool bATCHasBeenInstanced;
 
 	InstanceEvent()
 	{
+		objectId = -1;
+		bATCHasBeenInstanced = false;
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				InstTextureATCIndices[j][i] = -1;
 	}
 
 	void ResetEventsFired() {
@@ -243,7 +254,7 @@ public:
 			bEventsFired[i] = false;
 	}
 
-	bool EventFired(GameEvent Event) {
+	bool EventFired(InstEventType Event) {
 		return bEventsFired[Event];
 	}
 
@@ -320,6 +331,9 @@ typedef struct AnimatedTexControlStruct {
 	// if the current material has an animation.
 	void Animate();
 } AnimatedTexControl;
+
+extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
+extern std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
 
 // Used to store the information related to greebles
 typedef struct GreebleDataStruct {
@@ -427,10 +441,16 @@ typedef struct MaterialStruct {
 
 	// Global ATC event pointers
 	int TextureATCIndices[MAX_ATC_TYPES][MAX_GAME_EVT];
-	// Instance ATC event pointers, they point to template entries in g_AnimatedMaterials
+	// Instance ATC event pointers, they point to template entries in g_AnimatedMaterials.
+	// It may seem redundant to have InstTextureATCIndices and in InstanceEvent too. But
+	// these indices are for material-level templates (i.e. they are global) and the
+	// indices in InstanceEvent are, well, copies of these indices and they are particular
+	// to each instance. This allows one ATC per material per instance so that each instance
+	// can have its own individual timer (that way, animations aren't globally synchronized).
+	// We also need these here when loading the material files because there are no instances
+	// yet anyway and to load the textures themselves in Direct3DTexture.
 	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 
-	//GreebleData GreebleData;
 	int GreebleDataIdx;
 
 	DiegeticMeshType DiegeticMesh;
@@ -556,14 +576,6 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
-	// Returns true if any of the possible texture indices is enabled for an instance event
-	inline bool AnyInstTextureATCIndex() {
-		for (int i = 0; i < MAX_INST_EVT; i++)
-			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
-				return true;
-		return false;
-	}
-
 	// Returns true if any of the possible lightmap indices is enabled for a global event
 	inline bool AnyLightMapATCIndex() {
 		for (int i = 0; i < MAX_GAME_EVT; i++)
@@ -572,10 +584,18 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
+	// Returns true if any of the possible texture indices is enabled for an instance event
+	inline bool AnyInstTextureATCIndex() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
+				return true;
+		return false;
+	}
+
 	// Returns true if any of the possible lightmap indices is enabled for an instance event
 	inline bool AnyInstLightMapATCIndex() {
 		for (int i = 0; i < MAX_INST_EVT; i++)
-			if (TextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
+			if (InstTextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
 				return true;
 		return false;
 	}
@@ -705,21 +725,44 @@ typedef struct MaterialStruct {
 		return index;
 	}
 
-	inline int GetCurrentInstATCIndex(const InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
+	inline int GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
 		int index = InstTextureATCIndices[ATCType][IEVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
+
+		// Lazy instancing of templates in g_AnimatedMaterials: we only make instances when
+		// requesting an ATC index for an animation that is about to be displayed.
+		if (!instEvent.bATCHasBeenInstanced) {
+			instEvent.objectId = objectId;
+			// Create a copy of each template in g_AnimatedMaterials and put it into g_AnimatedInstMaterials
+			for (int j = 0; j < MAX_ATC_TYPES; j++)
+				for (int i = 0; i < MAX_INST_EVT; i++) {
+					int src_idx = InstTextureATCIndices[j][i];
+					if (src_idx == -1)
+						continue;
+					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
+					if (objectId == -1) {
+						log_debug("[DBG] [INST] ERROR: objectId == -1!");
+						break;
+					}
+					atc.objectId = objectId;
+					g_AnimatedInstMaterials.push_back(atc);
+					instEvent.InstTextureATCIndices[j][i] = g_AnimatedInstMaterials.size() - 1;
+					log_debug("[DBG] [INST] Template %d has been instanced in slot %d", src_idx, g_AnimatedInstMaterials.size() - 1);
+				}
+			instEvent.bATCHasBeenInstanced = true;
+		}
 
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first... least-specific events later.
 
 		// Hull Damage Events
-		if (instEvent.Event == HULL_IEVT_DAMAGE_25 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25] > -1)
-			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25];
+		if (instEvent.Event == HULL_IEVT_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25];
 
-		if (instEvent.Event == HULL_IEVT_DAMAGE_50 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50] > -1)
-			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50];
+		if (instEvent.Event == HULL_IEVT_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50];
 
-		if (instEvent.Event == HULL_IEVT_DAMAGE_75 && InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75] > -1)
-			return InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75];
+		if (instEvent.Event == HULL_IEVT_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75];
 
 		// Least-specific events later.
 		// ...

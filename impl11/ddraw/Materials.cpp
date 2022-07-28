@@ -1861,8 +1861,6 @@ void AnimatedTexControl::Animate() {
 }
 
 void AnimateMaterials() {
-	// TODO: Do not animate instance materials as globals, use the entry in g_AnimatedMaterials
-	// as a template instead.
 	// I can't use a shorthand loop like the following:
 	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
 	// because that'll create local copies of each element in the std::vector in atc.
@@ -1872,9 +1870,8 @@ void AnimateMaterials() {
 		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
 		// Do not animate instance materials here. Any instance materials in this array
 		// are templates.
-		// TODO: Don't animate instance events here. These are templates!
-		//if (atc->isInstEvent)
-		//	continue;
+		if (atc->isInstEvent)
+			continue;
 		// Reset this ATC if its event fired during the current frame
 		if (EventFired(atc->Event))
 			atc->ResetAnimation();
@@ -1882,11 +1879,14 @@ void AnimateMaterials() {
 			atc->Animate();
 	}
 
-	// TODO: CHECK that this loop is correct.
-	// Iterate over g_AnimatedInstMaterials and animate them.
+	// Animate instance events. This allows independent timers for each instance.
 	for (uint32_t i = 0; i < g_AnimatedInstMaterials.size(); i++) {
 		AnimatedTexControl *atc = &(g_AnimatedInstMaterials[i]);
-		if (g_objectIdToInstanceEvent[atc->objectId].EventFired(atc->Event))
+		if (atc->objectId == -1) {
+			//log_debug("[DBG] [INST] SKIPPING animation on instance materials, objectId == -1");
+			continue;
+		}
+		if (g_objectIdToInstanceEvent[atc->objectId].EventFired(atc->InstEvent))
 			atc->ResetAnimation();
 		else
 			atc->Animate();
