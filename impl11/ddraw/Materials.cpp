@@ -936,7 +936,7 @@ inline void AssignTextureEvent(GameEvent eventType, InstEventType instEventType,
 	if (!isInstEvent)
 		curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
 	else
-		curMaterial->InstTextureATCIndices[ATCType][instEventType] = g_AnimatedMaterials.size() - 1;
+		curMaterial->InstTextureATCIndices[ATCType][instEventType].push_back(g_AnimatedMaterials.size() - 1);
 }
 
 GreebleData *GetOrAddGreebleData(Material *curMaterial) {

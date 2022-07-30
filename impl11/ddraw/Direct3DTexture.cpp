@@ -1314,9 +1314,11 @@ void Direct3DTexture::TagTexture() {
 						// Load the animated textures for each valid index
 						int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
 						// Go over each valid InstTextureATCIndices and load their associated animations
-						for (int i = 0; i < MAX_INST_EVT; i++)
-							if (this->material.InstTextureATCIndices[ATCType][i] > -1)
-								LoadAnimatedTextures(this->material.InstTextureATCIndices[ATCType][i]);
+						for (int i = 0; i < MAX_INST_EVT; i++) {
+							int size = this->material.InstTextureATCIndices[ATCType][i].size();
+							for (int j = 0; j < size; j++)
+								LoadAnimatedTextures(this->material.InstTextureATCIndices[ATCType][i][j]);
+						}
 					}
 				}
 

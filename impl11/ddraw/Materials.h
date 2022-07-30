@@ -449,7 +449,9 @@ typedef struct MaterialStruct {
 	// can have its own individual timer (that way, animations aren't globally synchronized).
 	// We also need these here when loading the material files because there are no instances
 	// yet anyway and to load the textures themselves in Direct3DTexture.
-	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
+	// We use std::vector<int> here to allow multiple versions of the same event, but when
+	// making an instance of these events, we randomly select one.
+	std::vector<int> InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 
 	int GreebleDataIdx;
 
@@ -534,7 +536,7 @@ typedef struct MaterialStruct {
 
 		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_INST_EVT; i++)
-				InstTextureATCIndices[j][i] = -1;
+				InstTextureATCIndices[j][i].clear();
 
 		GreebleDataIdx = -1;
 
@@ -587,7 +589,7 @@ typedef struct MaterialStruct {
 	// Returns true if any of the possible texture indices is enabled for an instance event
 	inline bool AnyInstTextureATCIndex() {
 		for (int i = 0; i < MAX_INST_EVT; i++)
-			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
+			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i].size() > 0)
 				return true;
 		return false;
 	}
@@ -595,7 +597,7 @@ typedef struct MaterialStruct {
 	// Returns true if any of the possible lightmap indices is enabled for an instance event
 	inline bool AnyInstLightMapATCIndex() {
 		for (int i = 0; i < MAX_INST_EVT; i++)
-			if (InstTextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
+			if (InstTextureATCIndices[LIGHTMAP_ATC_IDX][i].size() > 0)
 				return true;
 		return false;
 	}
@@ -726,7 +728,7 @@ typedef struct MaterialStruct {
 	}
 
 	inline int GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
-		int index = InstTextureATCIndices[ATCType][IEVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
+		int index = -1; // Default index, no event is set.
 
 		// Lazy instancing of templates in g_AnimatedMaterials: we only make instances when
 		// requesting an ATC index for an animation that is about to be displayed.
@@ -735,7 +737,12 @@ typedef struct MaterialStruct {
 			// Create a copy of each template in g_AnimatedMaterials and put it into g_AnimatedInstMaterials
 			for (int j = 0; j < MAX_ATC_TYPES; j++)
 				for (int i = 0; i < MAX_INST_EVT; i++) {
-					int src_idx = InstTextureATCIndices[j][i];
+					int size = InstTextureATCIndices[j][i].size();
+					if (size <= 0)
+						continue;
+					// Select a random entry from the list
+					int atc_idx = rand() % size;
+					int src_idx = InstTextureATCIndices[j][i][atc_idx];
 					if (src_idx == -1)
 						continue;
 					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
@@ -746,7 +753,8 @@ typedef struct MaterialStruct {
 					atc.objectId = objectId;
 					g_AnimatedInstMaterials.push_back(atc);
 					instEvent.InstTextureATCIndices[j][i] = g_AnimatedInstMaterials.size() - 1;
-					log_debug("[DBG] [INST] Template %d has been instanced in slot %d", src_idx, g_AnimatedInstMaterials.size() - 1);
+					log_debug("[DBG] [INST] Template %d, has been instanced in slot %d for objectId: %d",
+						src_idx, g_AnimatedInstMaterials.size() - 1, objectId);
 				}
 			instEvent.bATCHasBeenInstanced = true;
 		}
