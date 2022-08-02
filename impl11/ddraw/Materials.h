@@ -62,7 +62,7 @@ How to add support for a new global event:
 How to add support for a new instance event:
 
 1. Add the new event in InstEventType
-2. Add the corresponding string for the new event in g_sInstEventNames, follow the naming rules!
+2. Add the corresponding string for the new event in Materials.cpp:g_sInstEventNames, follow the naming rules!
 3. Add a new field to InstanceEvent (if applicable).
 4. Add support in EffectsRenderer::MainSceneHook() (or wherever relevant) to detect the new event.
 5. Update Materials.h:GetCurrentInstATCIndex(). Mind the priority of the new event!
@@ -130,9 +130,12 @@ extern char *g_sGameEventNames[MAX_GAME_EVT];
 typedef enum {
 	IEVT_NONE = 0,
 	// Hull Damage Events
-	HULL_IEVT_DAMAGE_75,
-	HULL_IEVT_DAMAGE_50,
-	HULL_IEVT_DAMAGE_25,
+	IEVT_HULL_DAMAGE_75,
+	IEVT_HULL_DAMAGE_50,
+	IEVT_HULL_DAMAGE_25,
+
+	IEVT_SHIELDS_DOWN,
+	// Add more events here...
 	// End-of-events sentinel. Do not remove!
 	MAX_INST_EVT
 } InstEventType;
@@ -753,8 +756,8 @@ typedef struct MaterialStruct {
 					atc.objectId = objectId;
 					g_AnimatedInstMaterials.push_back(atc);
 					instEvent.InstTextureATCIndices[j][i] = g_AnimatedInstMaterials.size() - 1;
-					log_debug("[DBG] [INST] Template %d, has been instanced in slot %d for objectId: %d",
-						src_idx, g_AnimatedInstMaterials.size() - 1, objectId);
+					log_debug("[DBG] [INST] Template %d, event: %s, has been instanced in slot %d for objectId: %d",
+						src_idx, g_sInstEventNames[i], g_AnimatedInstMaterials.size() - 1, objectId);
 				}
 			instEvent.bATCHasBeenInstanced = true;
 		}
@@ -762,18 +765,22 @@ typedef struct MaterialStruct {
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first... least-specific events later.
 
+		// Shield Events
+		if (instEvent.Event == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN];
+
 		// Hull Damage Events
-		if (instEvent.Event == HULL_IEVT_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_25];
+		if (instEvent.Event == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25];
 
-		if (instEvent.Event == HULL_IEVT_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_50];
+		if (instEvent.Event == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50];
 
-		if (instEvent.Event == HULL_IEVT_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][HULL_IEVT_DAMAGE_75];
+		if (instEvent.Event == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
+			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75];
 
-		// Least-specific events later.
-		// ...
+		// Add more events here... remember that least-specific events come later
+
 		return index;
 	}
 } Material;

@@ -1788,17 +1788,16 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		objectId = scene->pObject->ObjectId;
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
 
+	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
 	// Not sure if it would be legal to have both, but I'm going to simplify things.
 	if (bInstanceEvent)
 	{
-		// TODO: Add an entry into g_AnimatedInstMaterials with the proper objectId. We
-		// probably need to do this in ObjectIDToCraftInstance() because that's where we
-		// know if an entry is new or not.
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId);
 		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId);
 		if (craftInstance != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
+			int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
 			// This value seems to be somewhat arbitrary. ISDs seem to be 741 when healthy,
 			// and TIEs seem to be 628. But either way, this value is 0 when disabled. I think.
 			int subsystems = craftInstance->SubsystemStatus;
@@ -1811,14 +1810,15 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			
 			if (instanceEvent != nullptr) {
 				// Update the hull event for this instance
-				if (hull > 75.0f)
-					instanceEvent->Event = IEVT_NONE;
+				instanceEvent->Event = IEVT_NONE;
+				if (shields == 0)
+					instanceEvent->Event = IEVT_SHIELDS_DOWN;
 				else if (50.0f < hull && hull <= 75.0f)
-					instanceEvent->Event = HULL_IEVT_DAMAGE_75;
+					instanceEvent->Event = IEVT_HULL_DAMAGE_75;
 				else if (25.0f < hull && hull <= 50.0f)
-					instanceEvent->Event = HULL_IEVT_DAMAGE_50;
+					instanceEvent->Event = IEVT_HULL_DAMAGE_50;
 				else if (hull <= 25.0f)
-					instanceEvent->Event = HULL_IEVT_DAMAGE_25;
+					instanceEvent->Event = IEVT_HULL_DAMAGE_25;
 			}
 		}
 	}

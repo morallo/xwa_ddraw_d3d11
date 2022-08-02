@@ -66,6 +66,8 @@ char *g_sInstEventNames[MAX_INST_EVT] = {
 	"IEVT_DAMAGE_75",
 	"IEVT_DAMAGE_50",
 	"IEVT_DAMAGE_25",
+
+	"IEVT_SHIELDS_DOWN",
 };
 
 /*
@@ -2025,10 +2027,10 @@ void UpdateEventsFired() {
 
 		// Do not modify this block if you're only adding new instance events
 		{
-#ifdef DEBUG_EVENTS
+//#ifdef DEBUG_EVENTS
 			for (int i = 0; i < MAX_INST_EVT; i++)
 				if (instEvent.bEventsFired[i]) log_debug("[DBG] [INST] ===> InstEvent, objectId: %d, [%s] FIRED", it->first, g_sInstEventNames[i]);
-#endif
+//#endif
 			// Copy the instance events
 			instEvent.CopyCurrentEventsToPrev();
 		}
