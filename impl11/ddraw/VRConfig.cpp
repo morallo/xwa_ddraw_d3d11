@@ -1529,7 +1529,9 @@ bool LoadDCParams() {
 				g_DCWireframeContrast = fValue;
 				log_debug("[DBG] [DC] Wireframe contrast: %0.3f", g_DCWireframeContrast);
 			}
-
+			else if (_stricmp(param, "diegetic_cockpit_enabled") == 0) {
+				g_bDiegeticCockpitEnabled = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

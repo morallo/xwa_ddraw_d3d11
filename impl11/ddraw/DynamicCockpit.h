@@ -296,6 +296,8 @@ extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-C
 // HOLOGRAMS
 extern float g_fDCHologramFadeIn, g_fDCHologramFadeInIncr, g_fDCHologramTime;
 extern bool g_bDCHologramsVisible, g_bDCHologramsVisiblePrev;
+// DIEGETIC JOYSTICK
+extern bool g_bDiegeticCockpitEnabled;
 
 
 

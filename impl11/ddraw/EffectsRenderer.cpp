@@ -909,7 +909,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
 	// the beginning of MainSceneHook(). So if we just return from this function, no
 	// transform will be applied to the current mesh
-	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
+	if (!g_bDiegeticCockpitEnabled || !_bHasMaterial || !_bLastTextureSelectedNotNULL)
 		return;
 
 	auto &resources = _deviceResources;
