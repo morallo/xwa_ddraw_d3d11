@@ -21,7 +21,7 @@ std::map<int, int> g_objectIdToIndex;
 // later), but we need a previous and current event, and a timer (for animations).
 
 // Maps an ObjectId to its InstanceEvent
-std::map<int, InstanceEvent> g_objectIdToInstanceEvent;
+std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
@@ -1453,7 +1453,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	int TexATCIndex = -1, LightATCIndex = -1;
 	if (bInstanceEvent) {
 		// This is an instance ATC
-		InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId);
+		InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
 		if (instEvent != nullptr) {
 			TexATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
 			LightATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
@@ -1645,7 +1645,7 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 	int objIndex = -1;
 	if (objects == NULL) return nullptr;
 
-	// Have we cached the objId?
+	// Have we cached the objectId?
 	auto it = g_objectIdToIndex.find(objectId);
 	if (it == g_objectIdToIndex.end()) {
 		// There's no entry for this objId, find it and add it
@@ -1658,9 +1658,6 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 				break;
 			}
 		}
-		// Add a new entry to g_objectIdToInstanceEvent
-		log_debug("[DBG] [INST] New InstanceEvent added to objectId: %d", objectId);
-		g_objectIdToInstanceEvent[objectId] = InstanceEvent();
 	}
 	else {
 		// Get the cached index
@@ -1679,16 +1676,23 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 }
 
 /*
- * Fetches the InstanceEvent associated with the given objectId or nullptr if there
- * is no entry.
+ * Fetches the InstanceEvent associated with the given objectId or adds a new one
+ * if it doesn't exist.
  */
-InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId)
+InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t materialId)
 {
-	auto it = g_objectIdToInstanceEvent.find(objectId);
-	if (it == g_objectIdToInstanceEvent.end())
-		return nullptr;
+	uint64_t Id = InstEventIdFromObjectMaterialId(objectId, materialId);
 
-	return &it->second;
+	auto it = g_objectIdToInstanceEvent.find(Id);
+	if (it == g_objectIdToInstanceEvent.end()) {
+		// Add a new entry to g_objectIdToInstanceEvent
+		log_debug("[DBG] [INST] New InstanceEvent added to objectId-matId: %d-%d",
+			objectId, materialId);
+		g_objectIdToInstanceEvent[Id] = InstanceEvent();
+		return &g_objectIdToInstanceEvent[Id];
+	}
+	else
+		return &it->second;
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -1794,7 +1798,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (bInstanceEvent)
 	{
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId);
-		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId);
+		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
 		if (craftInstance != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 			int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
@@ -1809,16 +1813,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			}
 			
 			if (instanceEvent != nullptr) {
-				// Update the hull event for this instance
-				instanceEvent->Event = IEVT_NONE;
+				// Update the event for this instance
+				instanceEvent->ShieldEvent = IEVT_NONE;
+				instanceEvent->HullEvent = IEVT_NONE;
+
 				if (shields == 0)
-					instanceEvent->Event = IEVT_SHIELDS_DOWN;
-				else if (50.0f < hull && hull <= 75.0f)
-					instanceEvent->Event = IEVT_HULL_DAMAGE_75;
+					instanceEvent->ShieldEvent = IEVT_SHIELDS_DOWN;
+
+				if (50.0f < hull && hull <= 75.0f)
+					instanceEvent->HullEvent = IEVT_HULL_DAMAGE_75;
 				else if (25.0f < hull && hull <= 50.0f)
-					instanceEvent->Event = IEVT_HULL_DAMAGE_50;
+					instanceEvent->HullEvent = IEVT_HULL_DAMAGE_50;
 				else if (hull <= 25.0f)
-					instanceEvent->Event = IEVT_HULL_DAMAGE_25;
+					instanceEvent->HullEvent = IEVT_HULL_DAMAGE_25;
 			}
 		}
 	}

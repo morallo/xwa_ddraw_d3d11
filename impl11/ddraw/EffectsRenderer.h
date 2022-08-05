@@ -133,7 +133,7 @@ public:
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId);
-	InstanceEvent *ObjectIDToInstanceEvent(int objectId);
+	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 
 	// Deferred rendering
 	void RenderLasers();

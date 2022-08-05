@@ -14,7 +14,7 @@ bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 GlobalGameEvent g_GameEvent, g_PrevGameEvent;
 // Maps an ObjectId to its InstanceEvent
-extern std::map<int, InstanceEvent> g_objectIdToInstanceEvent;
+extern std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 // Set of flags that tell us when events fired on the current frame
 bool bEventsFired[MAX_GAME_EVT] = { 0 };
 // Rule 1: The ordering in this array MUST match the ordering in GameEventEnum
@@ -932,13 +932,37 @@ bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
 	return true;
 }
 
+uint32_t GenerateUniqueMaterialId()
+{
+	static uint32_t Id = 1;
+	Id++;
+	return Id - 1;
+}
+
+uint64_t InstEventIdFromObjectMaterialId(int objectId, uint32_t materialId) {
+	uint64_t Id = (uint64_t)objectId;
+	Id = (Id << 32) | materialId;
+	return Id;
+}
+
+void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *materialId)
+{
+	*materialId = 0xFFFFFFFF & instId;
+	*objectId = instId >> 32;
+}
+
 inline void AssignTextureEvent(GameEvent eventType, InstEventType instEventType, bool isInstEvent,
 	Material* curMaterial, int ATCType)
 {
+	// Assign a unique Id to this material
+	curMaterial->Id = GenerateUniqueMaterialId();
 	if (!isInstEvent)
 		curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
-	else
+	else {
 		curMaterial->InstTextureATCIndices[ATCType][instEventType].push_back(g_AnimatedMaterials.size() - 1);
+		//log_debug("[DBG] [INST] Added sub-template to event %s --> g_AnimatedMaterials[%d]",
+		//	g_sInstEventNames[instEventType], g_AnimatedMaterials.size() - 1);
+	}
 }
 
 GreebleData *GetOrAddGreebleData(Material *curMaterial) {
@@ -1888,7 +1912,8 @@ void AnimateMaterials() {
 			//log_debug("[DBG] [INST] SKIPPING animation on instance materials, objectId == -1");
 			continue;
 		}
-		if (g_objectIdToInstanceEvent[atc->objectId].EventFired(atc->InstEvent))
+		uint64_t Id = InstEventIdFromObjectMaterialId(atc->objectId, atc->materialId);
+		if (g_objectIdToInstanceEvent[Id].EventFired(atc->InstEvent))
 			atc->ResetAnimation();
 		else
 			atc->Animate();
@@ -1947,7 +1972,7 @@ void ResetGameEvent() {
 	//////////////////// INSTANCE EVENTS ////////////////////
 	for (auto &it = g_objectIdToInstanceEvent.begin(); it != g_objectIdToInstanceEvent.end(); it++) {
 		InstanceEvent &instEvent = it->second;
-		instEvent.Event = IEVT_NONE;
+		instEvent.HullEvent = IEVT_NONE;
 
 		// Add new instance events here
 		// ...
@@ -2021,15 +2046,26 @@ void UpdateEventsFired() {
 		instEvent.ResetEventsFired();
 
 		// Update instance events
+
+		// Set the current shield damage event to true if it changed:
+		if (instEvent.PrevShieldEvent != instEvent.ShieldEvent)
+			instEvent.bEventsFired[instEvent.ShieldEvent] = true;
+
 		// Set the current hull damage event to true if it changed:
-		if (instEvent.PrevEvent != instEvent.Event)
-			instEvent.bEventsFired[instEvent.Event] = true;
+		if (instEvent.PrevHullEvent != instEvent.HullEvent)
+			instEvent.bEventsFired[instEvent.HullEvent] = true;
 
 		// Do not modify this block if you're only adding new instance events
 		{
 //#ifdef DEBUG_EVENTS
 			for (int i = 0; i < MAX_INST_EVT; i++)
-				if (instEvent.bEventsFired[i]) log_debug("[DBG] [INST] ===> InstEvent, objectId: %d, [%s] FIRED", it->first, g_sInstEventNames[i]);
+				if (instEvent.bEventsFired[i]) {
+					int objectId;
+					uint32_t materialId;
+					InstEventIdToObjectMatId(it->first, &objectId, &materialId);
+					log_debug("[DBG] [INST] ===> InstEvent, object-matId: %d-%d, [%s] FIRED",
+						objectId, materialId, g_sInstEventNames[i]);
+				}
 //#endif
 			// Copy the instance events
 			instEvent.CopyCurrentEventsToPrev();

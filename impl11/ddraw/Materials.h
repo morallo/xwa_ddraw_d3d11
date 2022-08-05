@@ -234,8 +234,12 @@ extern GlobalGameEvent g_GameEvent;
 class InstanceEvent {
 public:
 	int objectId;
-	InstEventType Event = IEVT_NONE;
-	InstEventType PrevEvent = IEVT_NONE;
+
+	InstEventType HullEvent = IEVT_NONE;
+	InstEventType PrevHullEvent = IEVT_NONE;
+
+	InstEventType ShieldEvent = IEVT_NONE;
+	InstEventType PrevShieldEvent = IEVT_NONE;
 	bool bEventsFired[MAX_INST_EVT];
 	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 	// For instance materials, their corresponding ATC is always initialized to an entry
@@ -262,7 +266,8 @@ public:
 	}
 
 	void CopyCurrentEventsToPrev() {
-		PrevEvent = Event;
+		PrevHullEvent = HullEvent;
+		PrevShieldEvent = ShieldEvent;
 	}
 };
 
@@ -299,6 +304,7 @@ typedef struct AnimatedTexControlStruct {
 	// If this ATC describes an Instance Event, then the following will
 	// contain the objectId associated with this ATC.
 	int objectId;
+	uint32_t materialId;
 	float2 Offset;
 	float AspectRatio;
 	int Clamp;
@@ -402,8 +408,13 @@ public:
 	void UpdateTransform();
 };
 
+uint32_t GenerateUniqueMaterialId();
+uint64_t InstEventIdFromObjectMaterialId(int objectId, uint32_t materialId);
+void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *materialId);
+
 // Materials
 typedef struct MaterialStruct {
+	uint32_t Id;
 	float Metallic;
 	float Intensity;
 	float Glossiness;
@@ -495,6 +506,7 @@ typedef struct MaterialStruct {
 	//bool LavaTranspose;
 
 	MaterialStruct() {
+		Id = 0;
 		Metallic = DEFAULT_METALLIC;
 		Intensity = DEFAULT_SPEC_INT;
 		Glossiness = DEFAULT_GLOSSINESS;
@@ -733,6 +745,11 @@ typedef struct MaterialStruct {
 	inline int GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
 		int index = -1; // Default index, no event is set.
 
+		if (objectId == -1) {
+			log_debug("[DBG] [INST] ERROR: objectId == -1!");
+			return -1;
+		}
+
 		// Lazy instancing of templates in g_AnimatedMaterials: we only make instances when
 		// requesting an ATC index for an animation that is about to be displayed.
 		if (!instEvent.bATCHasBeenInstanced) {
@@ -743,21 +760,29 @@ typedef struct MaterialStruct {
 					int size = InstTextureATCIndices[j][i].size();
 					if (size <= 0)
 						continue;
+					
 					// Select a random entry from the list
 					int atc_idx = rand() % size;
 					int src_idx = InstTextureATCIndices[j][i][atc_idx];
-					if (src_idx == -1)
+					//log_debug("[DBG] [INST] global InstTextureATCIndices[j][%s].size(): %d, random idx: %d",
+					//	g_sInstEventNames[i], size, atc_idx);
+
+					if (src_idx == -1) {
+						log_debug("[DBG] [INST] WARN: Template %d, event %s is nonempty, but has src_idx == -1",
+							i, g_sInstEventNames[i]);
 						continue;
-					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
-					if (objectId == -1) {
-						log_debug("[DBG] [INST] ERROR: objectId == -1!");
-						break;
 					}
+					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
 					atc.objectId = objectId;
+					atc.materialId = this->Id;
 					g_AnimatedInstMaterials.push_back(atc);
-					instEvent.InstTextureATCIndices[j][i] = g_AnimatedInstMaterials.size() - 1;
-					log_debug("[DBG] [INST] Template %d, event: %s, has been instanced in slot %d for objectId: %d",
-						src_idx, g_sInstEventNames[i], g_AnimatedInstMaterials.size() - 1, objectId);
+					const int new_slot = g_AnimatedInstMaterials.size() - 1;
+					if (instEvent.InstTextureATCIndices[j][i] != -1)
+						log_debug("[DBG] [INST] WARN: Overwritting object-matId %d-%d, instEvent.InstTextureATCIndices[j][%d] <-- %d. Prev value: %d",
+							objectId, this->Id, g_sInstEventNames[i], new_slot, instEvent.InstTextureATCIndices[j][i]);
+					instEvent.InstTextureATCIndices[j][i] = new_slot;
+					//log_debug("[DBG] [INST] ATC object-matId: %d-%d instanced. instEvent.InstTextureATCIndices[j][%s] = g_AnimatedMaterials[%d] = %d",
+					//	objectId, this->Id, g_sInstEventNames[i], src_idx, new_slot);
 				}
 			instEvent.bATCHasBeenInstanced = true;
 		}
@@ -766,17 +791,17 @@ typedef struct MaterialStruct {
 		// Most-specific events first... least-specific events later.
 
 		// Shield Events
-		if (instEvent.Event == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
+		if (instEvent.ShieldEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
 			return instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN];
 
 		// Hull Damage Events
-		if (instEvent.Event == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
 			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25];
 
-		if (instEvent.Event == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
 			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50];
 
-		if (instEvent.Event == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
 			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75];
 
 		// Add more events here... remember that least-specific events come later
