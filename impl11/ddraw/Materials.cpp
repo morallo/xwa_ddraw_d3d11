@@ -2057,7 +2057,7 @@ void UpdateEventsFired() {
 
 		// Do not modify this block if you're only adding new instance events
 		{
-//#ifdef DEBUG_EVENTS
+#ifdef DEBUG_EVENTS
 			for (int i = 0; i < MAX_INST_EVT; i++)
 				if (instEvent.bEventsFired[i]) {
 					int objectId;
@@ -2066,7 +2066,7 @@ void UpdateEventsFired() {
 					log_debug("[DBG] [INST] ===> InstEvent, object-matId: %d-%d, [%s] FIRED",
 						objectId, materialId, g_sInstEventNames[i]);
 				}
-//#endif
+#endif
 			// Copy the instance events
 			instEvent.CopyCurrentEventsToPrev();
 		}
