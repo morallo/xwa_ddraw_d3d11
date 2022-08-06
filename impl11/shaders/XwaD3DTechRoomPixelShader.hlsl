@@ -194,13 +194,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
 
-	float3 T = normalize(input.tangent.xyz);
-	T.y = -T.y; // Invert the Y axis, originally Y+ is down
-	T.z = -T.z;
-	float3 B = cross(T, N);
-	float3x3 TBN = float3x3(T, B, N);
-
 	if (bDoNormalMapping) {
+		float3 T = normalize(input.tangent.xyz);
+		T.y = -T.y; // Invert the Y axis, originally Y+ is down
+		T.z = -T.z;
+		float3 B = cross(T, N);
+		float3x3 TBN = float3x3(T, B, N);
 		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}
