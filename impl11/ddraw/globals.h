@@ -234,6 +234,11 @@ constexpr float METERS_TO_OPT = 40.96f;
 // Raytracing
 extern bool g_bRTEnabled;
 
+// Levels.fx
+extern bool g_bEnableLevelsShader;
+extern float g_fLevelsWhitePoint;
+extern float g_fLevelsBlackPoint;
+
 // *****************************************************
 // Global functions
 // *****************************************************

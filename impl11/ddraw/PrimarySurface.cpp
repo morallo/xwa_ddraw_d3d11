@@ -649,6 +649,103 @@ HRESULT PrimarySurface::EnumOverlayZOrders(
 	return DDERR_UNSUPPORTED;
 }
 
+void PrimarySurface::SaveContext()
+{
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	_oldVSCBuffer = g_VSCBuffer;
+	_oldPSCBuffer = g_PSCBuffer;
+	_oldDCPSCBuffer = g_DCPSCBuffer;
+
+	context->VSGetConstantBuffers(0, 1, _oldVSConstantBuffer.GetAddressOf());
+	context->PSGetConstantBuffers(0, 1, _oldPSConstantBuffer.GetAddressOf());
+
+	context->VSGetShaderResources(0, 3, _oldVSSRV[0].GetAddressOf());
+	context->PSGetShaderResources(0, 13, _oldPSSRV[0].GetAddressOf());
+
+	context->VSGetShader(_oldVertexShader.GetAddressOf(), nullptr, nullptr);
+	// TODO: Use GetCurrentPixelShader here instead of PSGetShader and do *not* Release()
+	// _oldPixelShader in RestoreContext
+	context->PSGetShader(_oldPixelShader.GetAddressOf(), nullptr, nullptr);
+
+	context->PSGetSamplers(0, 2, _oldPSSamplers[0].GetAddressOf());
+
+	context->OMGetRenderTargets(8, _oldRTVs[0].GetAddressOf(), _oldDSV.GetAddressOf());
+	context->OMGetDepthStencilState(_oldDepthStencilState.GetAddressOf(), &_oldStencilRef);
+	context->OMGetBlendState(_oldBlendState.GetAddressOf(), _oldBlendFactor, &_oldSampleMask);
+
+	context->IAGetInputLayout(_oldInputLayout.GetAddressOf());
+	context->IAGetPrimitiveTopology(&_oldTopology);
+	context->IAGetVertexBuffers(0, 1, _oldVertexBuffer.GetAddressOf(), &_oldStride, &_oldOffset);
+	context->IAGetIndexBuffer(_oldIndexBuffer.GetAddressOf(), &_oldFormat, &_oldIOffset);
+
+	_oldNumViewports = 2;
+	context->RSGetViewports(&_oldNumViewports, _oldViewports);
+}
+
+void PrimarySurface::RestoreContext()
+{
+	auto &resources = _deviceResources;
+	auto &context = _deviceResources->_d3dDeviceContext;
+
+	// Restore a previously-saved context
+	g_VSCBuffer = _oldVSCBuffer;
+	g_PSCBuffer = _oldPSCBuffer;
+	g_DCPSCBuffer = _oldDCPSCBuffer;
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+
+	// The hyperspace effect needs the current VS constants to work properly
+	if (g_HyperspacePhaseFSM == HS_INIT_ST)
+		context->VSSetConstantBuffers(0, 1, _oldVSConstantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _oldPSConstantBuffer.GetAddressOf());
+
+	context->VSSetShaderResources(0, 3, _oldVSSRV[0].GetAddressOf());
+	context->PSSetShaderResources(0, 13, _oldPSSRV[0].GetAddressOf());
+
+	// It's important to use the Init*Shader methods here, or the shaders won't be
+	// applied sometimes.
+	resources->InitVertexShader(_oldVertexShader);
+	resources->InitPixelShader(_oldPixelShader);
+
+	context->PSSetSamplers(0, 2, _oldPSSamplers[0].GetAddressOf());
+	context->OMSetRenderTargets(8, _oldRTVs[0].GetAddressOf(), _oldDSV.Get());
+	context->OMSetDepthStencilState(_oldDepthStencilState.Get(), _oldStencilRef);
+	context->OMSetBlendState(_oldBlendState.Get(), _oldBlendFactor, _oldSampleMask);
+
+	resources->InitInputLayout(_oldInputLayout);
+	resources->InitTopology(_oldTopology);
+	context->IASetVertexBuffers(0, 1, _oldVertexBuffer.GetAddressOf(), &_oldStride, &_oldOffset);
+	context->IASetIndexBuffer(_oldIndexBuffer.Get(), _oldFormat, _oldIOffset);
+
+	context->RSSetViewports(_oldNumViewports, _oldViewports);
+
+	// Release everything. Previous calls to *Get* increase the refcount
+	_oldVSConstantBuffer.Release();
+	_oldPSConstantBuffer.Release();
+
+	for (int i = 0; i < 3; i++)
+		_oldVSSRV[i].Release();
+	for (int i = 0; i < 13; i++)
+		_oldPSSRV[i].Release();
+
+	_oldVertexShader.Release();
+	_oldPixelShader.Release();
+
+	for (int i = 0; i < 2; i++)
+		_oldPSSamplers[i].Release();
+
+	for (int i = 0; i < 8; i++)
+		_oldRTVs[i].Release();
+	_oldDSV.Release();
+	_oldDepthStencilState.Release();
+	_oldBlendState.Release();
+	_oldInputLayout.Release();
+	_oldVertexBuffer.Release();
+	_oldIndexBuffer.Release();
+}
+
 /*
  * Applies the barrel distortion effect on the 2D window (Concourse, menus, etc).
  */
@@ -4614,6 +4711,96 @@ void PrimarySurface::RenderFXAA()
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 }
 
+void PrimarySurface::RenderLevels()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	D3D11_VIEWPORT viewport{};
+
+	// Save the current context
+	SaveContext();
+
+	// Apply the constants for this effect
+	g_ShadertoyBuffer.twirl = g_fLevelsWhitePoint;
+	g_ShadertoyBuffer.bloom_strength = g_fLevelsBlackPoint;
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+	// Reset the viewport for non-VR mode:
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = g_fCurScreenWidth;
+	viewport.Height = g_fCurScreenHeight;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Reset the vertex shader to regular 2D post-process
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+	// Set/Create the VertexBuffer and set the topology, etc
+	UINT stride = sizeof(MainVertex), offset = 0;
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitPixelShader(resources->_levelsPS);
+	// Clear all the render target views
+	ID3D11RenderTargetView *rtvs_null[5] = {
+		NULL, // Main RTV
+		NULL, // Bloom
+		NULL, // Depth
+		NULL, // Norm Buf
+		NULL, // SSAO Mask
+	};
+	context->OMSetRenderTargets(5, rtvs_null, NULL);
+
+	// Do we need to resolve the offscreen buffer?
+	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+
+	ID3D11RenderTargetView *rtvs[1] = {
+		resources->_renderTargetViewPost.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+	// Set the SRVs:
+	ID3D11ShaderResourceView *srvs[1] = {
+		resources->_offscreenAsInputShaderResourceView.Get(),
+	};
+	context->PSSetShaderResources(0, 1, srvs);
+	context->Draw(6, 0);
+
+	// Post-process the right image
+	if (g_bUseSteamVR) {
+		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_renderTargetViewPostR.Get(),
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[1] = {
+			resources->_offscreenAsInputShaderResourceViewR.Get(),
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		context->Draw(6, 0);
+	}
+
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	if (g_bUseSteamVR)
+		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	// Restore the previous context
+	RestoreContext();
+}
+
 void PrimarySurface::RenderStarDebug()
 {
 	auto& resources = this->_deviceResources;
@@ -7670,128 +7857,10 @@ HRESULT PrimarySurface::Flip(
 				// we can finally execute those calls.
 				RenderDeferredDrawCalls();
 
-				/*
-				// Resolve the bloom mask
-				if (g_bBloomEnabled) {
-					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-						resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-					if (g_bUseSteamVR)
-						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-							resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+				// 2D path final post-processing step. Copied from ReShade's Levels.fx
+				if (g_bEnableLevelsShader) {
+					RenderLevels();
 				}
-
-				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_offscreenBuf.jpg");
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2D-1.dds");
-					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_depthBuf, L"C:\\Temp\\_depthBuf2D.dds");
-					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf2D.jpg");
-					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf2D.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR2D.jpg");
-					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf2D.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask2D.dds");
-					DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask2D.dds");
-				}
-
-				if (g_bAOEnabled) {
-					switch (g_SSAO_Type) {
-					case SSO_AMBIENT:
-						SSAOPass(g_fSSAOZoomFactor);
-						// Resolve the bloom mask again: SSDO can modify this mask
-						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
-						break;
-					case SSO_DIRECTIONAL:
-					case SSO_BENT_NORMALS:
-						SSDOPass(g_fSSAOZoomFactor, g_fSSAOZoomFactor2);
-						// Resolve the bloom mask again: SSDO can modify this mask
-						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
-						break;
-					case SSO_DEFERRED:
-						DeferredPass();
-						// Resolve the bloom mask again: SSDO can modify this mask
-						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
-							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
-						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
-						break;
-					}
-				}
-
-				if (g_bDumpSSAOBuffers) {
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2D-2.dds");
-				}
-
-				// Apply the Bloom effect
-				if (g_bBloomEnabled) {
-					// _offscreenBufferAsInputBloomMask is resolved earlier, before the SSAO pass because
-					// SSAO uses that mask to prevent applying SSAO on bright areas
-
-					// We need to set the blend state properly for Bloom, or else we might get
-					// different results when brackets are rendered because they alter the 
-					// blend state
-					D3D11_BLEND_DESC blendDesc{};
-					blendDesc.AlphaToCoverageEnable = FALSE;
-					blendDesc.IndependentBlendEnable = FALSE;
-					blendDesc.RenderTarget[0].BlendEnable = TRUE;
-					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-					hr = resources->InitBlendState(nullptr, &blendDesc);
-
-					// Temporarily disable ZWrite: we won't need it to display Bloom
-					D3D11_DEPTH_STENCIL_DESC desc;
-					ComPtr<ID3D11DepthStencilState> depthState;
-					desc.DepthEnable = FALSE;
-					desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-					desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-					desc.StencilEnable = FALSE;
-					resources->InitDepthStencilState(depthState, &desc);
-
-					// Initialize the accummulator buffer
-					float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-					context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-					if (g_bUseSteamVR)
-						context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
-
-					float fScale = 2.0f;
-					for (int i = 1; i <= g_BloomConfig.iNumPasses; i++) {
-						int AdditionalPasses = g_iBloomPasses[i] - 1;
-						// Zoom level 2.0f with only one pass tends to show artifacts unless
-						// the spread is set to 1
-						BloomPyramidLevelPass(i, AdditionalPasses, fScale);
-						fScale *= 2.0f;
-					}
-
-					// TODO: Check the statement below, I'm not sure it's current anymore (?)
-					// If SSAO is not enabled, then we can merge the bloom buffer with the offscreen buffer
-					// here. Otherwise, we'll merge it along with the SSAO buffer later.
-					// Add the accumulated bloom with the offscreen buffer
-					// Input: _bloomSum, _offscreenBufferAsInput
-					// Output: _offscreenBuffer
-					BloomBasicPass(5, 1.0f);
-
-					// DEBUG
-					if (g_bDumpSSAOBuffers) {
-						DirectX::SaveDDSTextureToFile(context, resources->_bloomOutput1, L"C:\\Temp\\_bloomOutput2D.dds");
-						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuffer-Bloom2D.dds");
-					}
-					// DEBUG
-				}
-				*/
 
 				UINT rate = 25 * this->_deviceResources->_refreshRate.Denominator;
 				UINT numerator = this->_deviceResources->_refreshRate.Numerator + this->_flipFrames;
@@ -8647,6 +8716,11 @@ HRESULT PrimarySurface::Flip(
 			{
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+			}
+
+			// 3D path final post-processing step. Copied from ReShade's Levels.fx
+			if (g_bEnableLevelsShader) {
+				RenderLevels();
 			}
 			
 			if (g_bDumpLaserPointerDebugInfo)

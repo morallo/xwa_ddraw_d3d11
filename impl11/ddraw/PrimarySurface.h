@@ -17,6 +17,31 @@ void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
+	// These variables are used with SaveContext() and RestoreContext()
+	VertexShaderCBuffer _oldVSCBuffer;
+	PixelShaderCBuffer _oldPSCBuffer;
+	DCPixelShaderCBuffer _oldDCPSCBuffer;
+	ComPtr<ID3D11Buffer> _oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> _oldVSSRV[3];
+	ComPtr<ID3D11ShaderResourceView> _oldPSSRV[13];
+	ComPtr<ID3D11VertexShader> _oldVertexShader;
+	ComPtr<ID3D11PixelShader> _oldPixelShader;
+	ComPtr<ID3D11SamplerState> _oldPSSamplers[2];
+	ComPtr<ID3D11RenderTargetView> _oldRTVs[8];
+	ComPtr<ID3D11DepthStencilView> _oldDSV;
+	ComPtr<ID3D11DepthStencilState> _oldDepthStencilState;
+	ComPtr<ID3D11BlendState> _oldBlendState;
+	ComPtr<ID3D11InputLayout> _oldInputLayout;
+	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
+	UINT _oldStencilRef, _oldSampleMask;
+	FLOAT _oldBlendFactor[4];
+	UINT _oldStride, _oldOffset, _oldIOffset;
+	DXGI_FORMAT _oldFormat;
+	D3D11_VIEWPORT _oldViewports[2];
+	UINT _oldNumViewports = 2;
+
 public:
 	PrimarySurface(DeviceResources* deviceResources, bool hasBackbufferAttached);
 
@@ -47,6 +72,9 @@ public:
 	STDMETHOD(EnumAttachedSurfaces)(THIS_ LPVOID, LPDDENUMSURFACESCALLBACK);
 
 	STDMETHOD(EnumOverlayZOrders)(THIS_ DWORD, LPVOID, LPDDENUMSURFACESCALLBACK);
+
+	void SaveContext();
+	void RestoreContext();
 
 	void barrelEffect2D(int iteration);
 
@@ -97,6 +125,8 @@ public:
 		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
 
 	void RenderFXAA();
+
+	void RenderLevels();
 
 	void RenderStarDebug();
 

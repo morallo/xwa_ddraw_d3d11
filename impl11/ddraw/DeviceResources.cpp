@@ -76,6 +76,7 @@
 #include "../Debug/PixelShaderAnimDAT.h"
 #include "../Debug/PixelShaderGreeble.h"
 #include "../Debug/HangarShadowMapVS.h"
+#include "../Debug/LevelsPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -140,6 +141,7 @@
 #include "../Release/PixelShaderAnimDAT.h"
 #include "../Release/PixelShaderGreeble.h"
 #include "../Release/HangarShadowMapVS.h"
+#include "../Release/LevelsPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3722,6 +3724,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
 	
 

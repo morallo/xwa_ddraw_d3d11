@@ -302,6 +302,10 @@ bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 
 float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
+bool g_bEnableLevelsShader = false;
+float g_fLevelsWhitePoint = 235.0f;
+float g_fLevelsBlackPoint = 16.0f;
+
 #include "D3dRenderer.h"
 
 /* Loads the VR parameters from vrparams.cfg */
@@ -2513,6 +2517,16 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "force_alt_explosion") == 0) {
 				g_iForceAltExplosion = (int)fValue;
+			}
+
+			if (_stricmp(param, "enable_levels_shader") == 0) {
+				g_bEnableLevelsShader = (bool)fValue;
+			}
+			if (_stricmp(param, "levels_white_point") == 0) {
+				g_fLevelsWhitePoint = fValue;
+			}
+			if (_stricmp(param, "levels_black_point") == 0) {
+				g_fLevelsBlackPoint = fValue;
 			}
 		}
 	}
