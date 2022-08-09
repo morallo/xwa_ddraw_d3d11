@@ -47,7 +47,7 @@ bool rayTriangleIntersect(
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
-	if (g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL && bResetReticle) {
+	if (g_pSharedData != nullptr && g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL && bResetReticle) {
 		g_pSharedData->pSharedData->bIsReticleSetup = 0;
 	}
 }
