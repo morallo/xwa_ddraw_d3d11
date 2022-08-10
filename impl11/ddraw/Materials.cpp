@@ -1908,15 +1908,18 @@ void AnimateMaterials() {
 	// Animate instance events. This allows independent timers for each instance.
 	for (uint32_t i = 0; i < g_AnimatedInstMaterials.size(); i++) {
 		AnimatedTexControl *atc = &(g_AnimatedInstMaterials[i]);
-		if (atc->objectId == -1) {
+		if (atc == nullptr || atc->objectId == -1) {
 			//log_debug("[DBG] [INST] SKIPPING animation on instance materials, objectId == -1");
 			continue;
 		}
 		uint64_t Id = InstEventIdFromObjectMaterialId(atc->objectId, atc->materialId);
-		if (g_objectIdToInstanceEvent[Id].EventFired(atc->InstEvent))
-			atc->ResetAnimation();
-		else
-			atc->Animate();
+		auto& it = g_objectIdToInstanceEvent.find(Id);
+		if (it != g_objectIdToInstanceEvent.end()) {
+			if (it->second.EventFired(atc->InstEvent))
+				atc->ResetAnimation();
+			else
+				atc->Animate();
+		}
 	}
 }
 
@@ -1970,8 +1973,8 @@ void ResetGameEvent() {
 	g_PrevGameEvent = g_GameEvent;
 
 	//////////////////// INSTANCE EVENTS ////////////////////
-	for (auto &it = g_objectIdToInstanceEvent.begin(); it != g_objectIdToInstanceEvent.end(); it++) {
-		InstanceEvent &instEvent = it->second;
+	for (auto &it : g_objectIdToInstanceEvent) {
+		InstanceEvent &instEvent = it.second;
 		instEvent.HullEvent = IEVT_NONE;
 
 		// Add new instance events here
@@ -2040,8 +2043,8 @@ void UpdateEventsFired() {
 	}
 
 	////////////////////// Update instance events //////////////////////
-	for (auto &it = g_objectIdToInstanceEvent.begin(); it != g_objectIdToInstanceEvent.end(); it++) {
-		InstanceEvent &instEvent = it->second;
+	for (auto &it : g_objectIdToInstanceEvent) {
+		InstanceEvent &instEvent = it.second;
 		// Set all instance events to false
 		instEvent.ResetEventsFired();
 

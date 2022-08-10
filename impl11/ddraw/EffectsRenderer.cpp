@@ -1654,7 +1654,7 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 			if (object == NULL) return nullptr;
 			if (object->objectID == objectId) {
 				objIndex = i;
-				g_objectIdToIndex[objectId] = objIndex;
+				g_objectIdToIndex.insert(std::make_pair(objectId, objIndex));
 				break;
 			}
 		}
@@ -1688,8 +1688,12 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		// Add a new entry to g_objectIdToInstanceEvent
 		log_debug("[DBG] [INST] New InstanceEvent added to objectId-matId: %d-%d",
 			objectId, materialId);
-		g_objectIdToInstanceEvent[Id] = InstanceEvent();
-		return &g_objectIdToInstanceEvent[Id];
+		g_objectIdToInstanceEvent.insert(std::make_pair(Id, InstanceEvent()));
+		auto &new_it = g_objectIdToInstanceEvent.find(Id);
+		if (new_it != g_objectIdToInstanceEvent.end())
+			return &new_it->second;
+		else
+			return nullptr;
 	}
 	else
 		return &it->second;
