@@ -654,6 +654,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 					tags[i] = false;
 				_tangentMap.insert(std::make_pair((int)normals,
 					std::make_tuple(tangents, tags, 0)));
+				// Make sure it_tanmap is valid. We'll need it below
+				it_tanmap = _tangentMap.find((int)normals);
 			}
 			else {
 				// Existing entry, fetch the data
@@ -662,7 +664,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				counter = std::get<2>(it_tanmap->second);
 			}
 			
-			if (tangents != nullptr && tags != nullptr)
+			if (tangents != nullptr && tags != nullptr && it_tanmap != _tangentMap.end())
 			{
 				// For some reason, sometimes some meshes won't ever "use" all of their
 				// normals. In those cases, the tangent map won't ever be tagged as
