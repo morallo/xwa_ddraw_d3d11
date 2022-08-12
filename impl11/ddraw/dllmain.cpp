@@ -412,6 +412,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_LaserPointDebug.y -= 0.1f;
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				case 4:
 					//g_fDebugYCenter -= 0.01f;
 					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
