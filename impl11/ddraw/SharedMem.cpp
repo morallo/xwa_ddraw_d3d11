@@ -2,65 +2,26 @@
 
 void log_debug(const char *format, ...);
 
-SharedMem::SharedMem(bool OpenCreate) 
-{
-	InitMemory(OpenCreate);
+void InitSharedMem() {
+
+	g_pSharedDataCockpitLook = g_SharedMemCockpitLook.GetMemoryPointer();
+	if (g_pSharedDataCockpitLook == NULL)
+		log_debug("[DBG][SharedMem] Could not load CockpitLook shared data ptr");
+
+	g_pSharedDataTgSmush = g_SharedMemTgSmush.GetMemoryPointer();
+	if (g_pSharedDataTgSmush == NULL)
+		log_debug("[DBG][SharedMem] Could not load TgSmush shared data ptr");
+
+	g_pSharedDataJoystick = g_SharedMemJoystick.GetMemoryPointer();
+	if (g_pSharedDataTgSmush == NULL)
+		log_debug("[DBG][SharedMem] Could not load Joystick shared data ptr");
 }
 
-bool SharedMem::InitMemory(bool OpenCreate) 
-{
-	pSharedMemPtr = NULL;
 
-	if (OpenCreate) {
-		hMapFile = CreateFileMapping(
-			INVALID_HANDLE_VALUE,    // use paging file
-			NULL,                    // default security
-			PAGE_READWRITE,          // read/write access
-			0,                       // maximum object size (high-order DWORD)
-			SHARED_MEM_SIZE,         // maximum object size (low-order DWORD)
-			SHARED_MEM_NAME);        // name of mapping object
+SharedMemDataCockpitLook* g_pSharedDataCockpitLook = nullptr;
+SharedMemDataTgSmush* g_pSharedDataTgSmush = nullptr;
+SharedMemDataJoystick* g_pSharedDataJoystick = nullptr;
 
-		if (hMapFile == NULL)
-		{
-			log_debug("Could not create file mapping object (%d)", GetLastError());
-			return false;
-		}
-	}
-	else {
-		hMapFile = OpenFileMapping(
-			FILE_MAP_ALL_ACCESS,   // read/write access
-			FALSE,                 // do not inherit the name
-			SHARED_MEM_NAME);      // name of mapping object
-
-		if (hMapFile == NULL)
-		{
-			log_debug("Could not open file mapping object (%d).\n", GetLastError());
-			return false;
-		}
-	}
-
-	pSharedMemPtr = (LPTSTR)MapViewOfFile(hMapFile,   // handle to map object
-		FILE_MAP_ALL_ACCESS, // read/write permission
-		0,
-		0,
-		SHARED_MEM_SIZE);
-
-	if (pSharedMemPtr == NULL) {
-		log_debug("Could not map view of file (%d)", GetLastError());
-		return false;
-	}
-
-	return true;
-}
-
-SharedMem::~SharedMem()
-{
-	UnmapViewOfFile(pSharedMemPtr);
-
-	CloseHandle(hMapFile);
-}
-
-void *SharedMem::GetMemoryPtr()
-{
-	return pSharedMemPtr;
-}
+SharedMem<SharedMemDataCockpitLook> g_SharedMemCockpitLook(SHARED_MEM_NAME_COCKPITLOOK, true, false);
+SharedMem<SharedMemDataTgSmush> g_SharedMemTgSmush(SHARED_MEM_NAME_TGSMUSH, true, true);
+SharedMem<SharedMemDataJoystick> g_SharedMemJoystick(SHARED_MEM_NAME_JOYSTICK, true, false);

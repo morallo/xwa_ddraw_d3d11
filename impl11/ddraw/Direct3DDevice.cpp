@@ -11,15 +11,6 @@
 
 /*
 
-How to fix the videos in VR, from Jeremy:
-
-	JeremyaFr — 05/13/2022
-	You can retrieve the current image with the GetCurrentImage method on the IMFVideoDisplayControl interface.
-
-	You can take a look at the method Repaint in mfplayer.player.cpp. The video is painted with the
-	method RepaintVideo on the m_pVideoDisplay object. You can retrieve the video frame with the method
-	GetCurrentImage on the m_pVideoDisplay object.
-
 Mission Index:
 	Skirmish: 0
 	PPG: 6 (looks like this is complicated in TFTC).
@@ -404,7 +395,6 @@ float s_XwaHudScale = 1.0f;
 #define DBG_MAX_PRESENT_LOGS 0
 
 #include "SharedMem.h"
-SharedDataProxy *g_pSharedData = NULL;
 
 #include "XWAFramework.h"
 

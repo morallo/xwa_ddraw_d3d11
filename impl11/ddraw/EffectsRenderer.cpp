@@ -941,7 +941,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		// _bJoystickTransformReady is set to false at the beginning of each frame. We set it to
 		// true as soon as one mesh computes it, so that we don't compute it several times per
 		// frame.
-		if (!_bJoystickTransformReady && g_pSharedData != NULL && g_pSharedData->bDataReady) {
+		if (!_bJoystickTransformReady && g_pSharedDataJoystick != NULL && g_SharedMemJoystick.IsDataReady()) {
 			Vector3 JoystickRoot = _lastTextureSelected->material.JoystickRoot;
 			float MaxYaw = _lastTextureSelected->material.JoystickMaxYaw;
 			float MaxPitch = _lastTextureSelected->material.JoystickMaxPitch;
@@ -951,10 +951,10 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 			T.identity(); T.translate(-JoystickRoot);
 			_joystickMeshTransform = T;
 
-			R.identity(); R.rotateY(MaxYaw * g_pSharedData->pSharedData->JoystickYaw);
+			R.identity(); R.rotateY(MaxYaw * g_pSharedDataJoystick->JoystickYaw);
 			_joystickMeshTransform = R * _joystickMeshTransform;
 
-			R.identity(); R.rotateX(MaxPitch * g_pSharedData->pSharedData->JoystickPitch);
+			R.identity(); R.rotateX(MaxPitch * g_pSharedDataJoystick->JoystickPitch);
 			_joystickMeshTransform = R * _joystickMeshTransform;
 
 			// Return the system to its original position
@@ -981,7 +981,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		// throttle are present.
 		//if (!_bThrottleTransformReady)
 		{
-			float throttle = (DiegeticMesh == DM_THR_ROT_X || DM_THR_ROT_Y || DM_THR_ROT_Z) ?
+			float throttle = (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_THR_ROT_Y || DM_THR_ROT_Z) ?
 				GetThrottle() : GetHyperThrottle();
 
 			// Build the transform matrix

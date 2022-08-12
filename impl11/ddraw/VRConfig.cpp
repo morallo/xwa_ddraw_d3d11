@@ -158,6 +158,8 @@ float g_fDebugYCenter = 0.0f;
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
 
+const float POVOffsetIncr = 0.025f;
+
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a

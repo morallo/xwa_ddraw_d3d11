@@ -27,9 +27,6 @@
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
-extern SharedDataProxy *g_pSharedData;
-extern SharedMem g_SharedMem;
-
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
 void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
@@ -47,8 +44,8 @@ bool rayTriangleIntersect(
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
-	if (g_pSharedData != nullptr && g_pSharedData->bDataReady && g_pSharedData->pSharedData != NULL && bResetReticle) {
-		g_pSharedData->pSharedData->bIsReticleSetup = 0;
+	if (g_pSharedDataCockpitLook != nullptr && g_SharedMemCockpitLook.IsDataReady() && bResetReticle) {
+		g_pSharedDataCockpitLook->bIsReticleSetup = 0;
 	}
 }
 
