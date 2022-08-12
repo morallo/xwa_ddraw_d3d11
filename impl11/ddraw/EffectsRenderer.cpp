@@ -981,7 +981,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		// throttle are present.
 		//if (!_bThrottleTransformReady)
 		{
-			float throttle = (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_THR_ROT_Y || DM_THR_ROT_Z) ?
+			float throttle = (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_THR_ROT_Y || DiegeticMesh == DM_THR_ROT_Z) ?
 				GetThrottle() : GetHyperThrottle();
 
 			// Build the transform matrix
