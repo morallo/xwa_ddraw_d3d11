@@ -201,7 +201,10 @@ extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 extern float g_fRealHorzFOV, g_fRealVertFOV;
 
-extern SharedDataProxy *g_pSharedData;
+extern SharedMem<SharedMemDataCockpitLook> g_SharedMemCockpitLook;
+extern SharedMem<SharedMemDataTgSmush> g_SharedMemTgSmush;
+extern SharedMemDataCockpitLook* g_pSharedDataCockpitLook;
+extern SharedMemDataTgSmush* g_pSharedDataTgSmush;
 
 // Custom HUD colors
 extern uint32_t g_iHUDInnerColor, g_iHUDBorderColor;

@@ -592,7 +592,7 @@ bool SavePOVOffsetToIniFile()
 		OUT_OF_TAG_ST
 	} fsm = INIT_ST;
 
-	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
 		log_debug("[DBG] [POV] Shared Memory has not been initialized, cannot write POV Offset");
 		return false;
 	}
@@ -653,9 +653,9 @@ bool SavePOVOffsetToIniFile()
 				if (fsm == IN_TAG_ST) {
 					fsm = OUT_OF_TAG_ST;
 					fprintf(out_file, "[CockpitPOVOffset]\n");
-					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
-					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
-					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
+					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
+					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
 					fprintf(out_file, "\n");
 					bPOVWritten = true;
 				}
@@ -670,9 +670,9 @@ bool SavePOVOffsetToIniFile()
 	// This DC file may not have the "xwahacker_fov" line, so let's add it:
 	if (!bPOVWritten) {
 		fprintf(out_file, "[CockpitPOVOffset]\n");
-		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
-		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
-		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
+		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
+		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
 		fprintf(out_file, "\n");
 		bPOVWritten = true;
 	}
@@ -687,8 +687,8 @@ bool SavePOVOffsetToIniFile()
 }
 
 /*
- * Saves the current POV Offset to the current .ini file.
- * Only call this function if the shared memory pointer proxy (g_pSharedData)
+ * Loads the current POV Offset from the current .ini file.
+ * Only call this function if the shared memory pointer (g_pSharedDataCockpitLook)
  * has been initialized.
  */
 bool LoadPOVOffsetFromIniFile()
@@ -707,7 +707,7 @@ bool LoadPOVOffsetFromIniFile()
 	} fsm = OUT_OF_TAG_ST;
 
 	log_debug("[DBG] [POV] LoadPOVOffset");
-	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
 		log_debug("[DBG] [POV] Shared Memory has not been initialized. Cannot read current POV Offset");
 		return false;
 	}
@@ -757,15 +757,15 @@ bool LoadPOVOffsetFromIniFile()
 				// Read the relevant parameters
 				if (_stricmp(param, "OffsetX") == 0) {
 					log_debug("[DBG] [POV] Read OffsetX: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetX = fValue;
+					g_pSharedDataCockpitLook->POVOffsetX = fValue;
 				}
 				if (_stricmp(param, "OffsetY") == 0) {
 					log_debug("[DBG] [POV] Read OffsetY: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetY = fValue;
+					g_pSharedDataCockpitLook->POVOffsetY = fValue;
 				}
 				if (_stricmp(param, "OffsetZ") == 0) {
 					log_debug("[DBG] [POV] Read OffsetZ: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetZ = fValue;
+					g_pSharedDataCockpitLook->POVOffsetZ = fValue;
 				}
 			}
 		}

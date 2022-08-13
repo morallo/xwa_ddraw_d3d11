@@ -28,10 +28,6 @@
 #include "XWAFramework.h"
 #include "SharedMem.h"
 
-extern SharedDataProxy *g_pSharedData;
-// ddraw is loaded after the hooks, so here we open an existing shared memory handle:
-SharedMem g_SharedMem(false);
-
 extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
 extern uint32_t* g_playerIndex;
@@ -989,39 +985,39 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_LEFT:
 				//IncreaseHUDParallax(-0.1f);
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetZ -= POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetZ -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_RIGHT:
 				//IncreaseHUDParallax(0.1f);
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetZ += POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetZ += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_UP:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetY += POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetY += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_DOWN:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetY -= POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetY -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_OEM_PERIOD:
 				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetX = 0.0f;
-					g_pSharedData->pSharedData->POVOffsetY = 0.0f;
-					g_pSharedData->pSharedData->POVOffsetZ = 0.0f;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetX = 0.0f;
+					g_pSharedDataCockpitLook->POVOffsetY = 0.0f;
+					g_pSharedDataCockpitLook->POVOffsetZ = 0.0f;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
@@ -1254,12 +1250,6 @@ void LoadPOVOffsets() {
 out:
 	fclose(file);
 	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
-}
-
-void InitSharedMem() {
-	g_pSharedData = (SharedDataProxy *)g_SharedMem.GetMemoryPtr();
-	if (g_pSharedData == NULL)
-		log_debug("[DBG] Could not load shared data ptr");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)

@@ -10,6 +10,8 @@ extern const char* COVER_TEX_NAME_DCPARAM;
 extern const char* COVER_TEX_SIZE_DCPARAM;
 extern const char* ERASE_REGION_DCPARAM;
 
+extern const float POVOffsetIncr;
+
 // This is the current resolution of the screen:
 extern float g_fLensK1;
 extern float g_fLensK2;
@@ -59,8 +61,6 @@ extern bool g_bEdgeDetectorEnabled;
 extern bool g_bEnableVR;
 extern bool g_bCockpitPZHackEnabled;
 extern bool g_bOverrideAspectRatio;
-
-
 
 // User-facing functions
 void ResetVRParams(); // Restores default values for the view params
