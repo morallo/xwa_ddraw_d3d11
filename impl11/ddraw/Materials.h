@@ -754,6 +754,7 @@ typedef struct MaterialStruct {
 		// requesting an ATC index for an animation that is about to be displayed.
 		if (!instEvent.bATCHasBeenInstanced) {
 			instEvent.objectId = objectId;
+			int rand_group = 0;
 			// Create a copy of each template in g_AnimatedMaterials and put it into g_AnimatedInstMaterials
 			for (int j = 0; j < MAX_ATC_TYPES; j++)
 				for (int i = 0; i < MAX_INST_EVT; i++) {
@@ -761,17 +762,49 @@ typedef struct MaterialStruct {
 					if (size <= 0)
 						continue;
 					
-					// Select a random entry from the list
-					int atc_idx = rand() % size;
-					int src_idx = InstTextureATCIndices[j][i][atc_idx];
-					//log_debug("[DBG] [INST] global InstTextureATCIndices[j][%s].size(): %d, random idx: %d",
-					//	g_sInstEventNames[i], size, atc_idx);
+					// The randomly-selected entry from the list
+					int src_idx = 0;
 
-					if (src_idx == -1) {
-						log_debug("[DBG] [INST] WARN: Template %d, event %s is nonempty, but has src_idx == -1",
-							i, g_sInstEventNames[i]);
-						continue;
+					// Hull damage events are grouped. If we select a random hull event, we'll
+					// just display randomly increasing damage. But if hull events are grouped
+					// we can add damage to previous textures and show consistent damage. To
+					// achieve this we select a random group for the first hull event, and then
+					// we choose textures from the same group for the other hull events.
+					if (IEVT_HULL_DAMAGE_75 <= i && i <= IEVT_HULL_DAMAGE_25)
+					{
+						// If this is the first hull event, select a random group. All subsequent hull events will
+						// now use this group.
+						if (i == IEVT_HULL_DAMAGE_75) {
+							rand_group = rand() % size;
+							//log_debug("[DBG] [INST] objectId: %d, size: %d, rand_group selected: %d, evt: %s",
+							//	objectId, size, rand_group, g_sInstEventNames[i]);
+						}
+
+						// If the random group is out of bounds for this event, select a new random slot
+						if (rand_group >= size) {
+							//log_debug("[DBG] [INST] objectId: %d, IGNORING previous rand_group: %d, evt: %s",
+							//	objectId, rand_group, g_sInstEventNames[i]);
+							src_idx = InstTextureATCIndices[j][i][rand() % size];
+						}
+						else {
+							//log_debug("[DBG] [INST] objectId: %d, USING previous rand_group: %d, evt: %s",
+							//	objectId, rand_group, g_sInstEventNames[i]);
+							// Select a slot from the group that was randomly chosen previously.
+							src_idx = InstTextureATCIndices[j][i][rand_group];
+						}
+					} else {
+						int atc_idx = rand() % size;
+						src_idx = InstTextureATCIndices[j][i][atc_idx];
+						//log_debug("[DBG] [INST] global InstTextureATCIndices[j][%s].size(): %d, random idx: %d",
+						//	g_sInstEventNames[i], size, atc_idx);
+
+						if (src_idx == -1) {
+							log_debug("[DBG] [INST] WARN: Template %d, event %s is nonempty, but has src_idx == -1",
+								i, g_sInstEventNames[i]);
+							continue;
+						}
 					}
+
 					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
 					atc.objectId = objectId;
 					atc.materialId = this->Id;
