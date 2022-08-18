@@ -294,7 +294,7 @@ typedef struct PixelShaderCBStruct {
 	special_control_bitfield special_control_light;
 	uint32_t bDoNormalMapping;
 	uint32_t bDoRaytracing;
-	float unused0;
+	uint32_t OverlayCtrl;
 	// 176 bytes
 } PixelShaderCBuffer;
 

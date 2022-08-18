@@ -499,6 +499,7 @@ typedef struct MaterialStruct {
 	// a per-instance basis.
 	bool bInstanceMaterial;
 	bool SkipWhenDisabled;
+	uint32_t OverlayCtrl;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -571,6 +572,7 @@ typedef struct MaterialStruct {
 
 		bInstanceMaterial = false;
 		SkipWhenDisabled = false;
+		OverlayCtrl = 0;
 
 		/*
 		// DEBUG properties, remove later

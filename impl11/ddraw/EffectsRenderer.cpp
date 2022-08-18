@@ -1439,7 +1439,7 @@ void EffectsRenderer::ApplyGreebles()
 	}
 }
 
-void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
+void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, uint32_t OverlayCtrl)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
 	// texture
@@ -1517,6 +1517,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+		g_PSCBuffer.OverlayCtrl = OverlayCtrl;
 	}
 
 	if (LightATCIndex > -1) {
@@ -1536,6 +1537,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+		g_PSCBuffer.OverlayCtrl = OverlayCtrl;
 	}
 
 	//if (g_bDumpSSAOBuffers)
@@ -1543,10 +1545,19 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
 
 	if (extraTexIdx > -1) {
-		// Use the following when using std::vector<ID3D11ShaderResourceView*>:
-		// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
-		// the DC foreground SRV
-		context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+
+		switch (OverlayCtrl) {
+		case 0:
+			// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+			// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+			// the DC foreground SRV
+			context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+			break;
+		case OVERLAY_CTRL_MULT:
+			// Set the animated texture in the multiplier layer
+			context->PSSetShaderResources(14, 1, &(resources->_extraTextures[extraTexIdx]));
+			break;
+		}
 
 		// Force the use of damage textures if DC is on. This makes damage textures visible
 		// even when no cover texture is available:
@@ -1795,6 +1806,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (scene != nullptr && scene->pObject != nullptr)
 		objectId = scene->pObject->ObjectId;
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
+	const uint32_t OverlayCtrl = _lastTextureSelected->material.OverlayCtrl;
+	//const uint32_t OverlayCtrl = bInstanceEvent ? OVERLAY_CTRL_MULT : 0;
 
 	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
@@ -1955,7 +1968,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyGreebles();
 
 	if (g_bEnableAnimations)
-		ApplyAnimatedTextures(objectId, bInstanceEvent);
+		ApplyAnimatedTextures(objectId, bInstanceEvent, OverlayCtrl);
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.

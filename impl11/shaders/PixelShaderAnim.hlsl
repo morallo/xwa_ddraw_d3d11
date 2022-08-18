@@ -17,6 +17,10 @@ Texture2D	 texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D   normalMap : register(t13);
+// Universal Hull Damage texture, slot 14
+Texture2D damageTex : register(t14);
+// Universal Shields Down texture, slot 15
+Texture2D shieldsDownTex : register(t15);
 
 struct PixelShaderInput
 {
@@ -43,9 +47,21 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
+	float specInt = fSpecInt;
+	float glossiness = fGlossiness;
 
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+
+	// Apply the damage texture if possible
+	if (OverlayCtrl == OVERLAY_CTRL_MULT)
+	{
+		float4 multColor = damageTex.Sample(sampler0, input.tex);
+		texelColor *= multColor;
+		specInt *= multColor.r;
+		glossiness *= multColor.r;
+	}
+
 	float  alpha = texelColor.a;
 	float3 HSV = RGBtoHSV(texelColor.rgb);
 	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
@@ -93,7 +109,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// material stays shadeless. This isn't a proper fix. Instead, we should get rid of
 	// the multiple materials in channel ssaoMask.r and instead just keep separate channels
 	// for metallicity, glossiness, etc. This should work for now, though.
-	output.ssaoMask = float4(fSSAOMaskVal/alpha, fGlossiness, fSpecInt, alpha);
+	output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, alpha);
 	// SS Mask: unused, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 

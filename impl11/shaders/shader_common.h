@@ -93,4 +93,16 @@ OPTMeshTransformCBuffer : register(b8)
 // That'll show mip-map level 5 -- it's a nice way to debug mip maps.
 //#define GENMIPMAPS_DEBUG
 
+// Flags used to control overlay textures. These textures are used in
+// PixelShaderAnim.hlsl to display hull damage textures and shields down
+// effects.
+// The multiplier texture is active and should be mixed with the color buffer
+#define OVERLAY_CTRL_MULT 0x1
+// The screen texture is active and should be mixed with the color buffer
+#define OVERLAY_CTRL_SCREEN 0x2
+// The multiplier texture is active and should be mixed with the lightmap buffer
+#define OVERLAY_ILLUM_CTRL_MULT 0x4
+// The screen texture is active and should be mixed with the lightmap buffer
+#define OVERLAY_ILLUM_CTRL_SCREEN 0x8
+
 #endif

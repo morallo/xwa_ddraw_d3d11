@@ -125,7 +125,7 @@ public:
 	void AddLaserLights(const SceneCompData* scene);
 	void ApplyProceduralLava();
 	void ApplyGreebles();
-	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent);
+	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent, uint32_t OverlayCtrl);
 	void ApplyNormalMapping();
 
 	// Raytracing
