@@ -222,6 +222,43 @@ bool ParseEvent(char *s, GameEvent *eventType, InstEventType *instEventType, boo
 	return true;
 }
 
+void UpgradeOverayCtrlToLightmap(uint32_t* overlayCtrl, bool IsLightMap) {
+	if (overlayCtrl == nullptr)
+		return;
+	if (*overlayCtrl == 0 || !IsLightMap)
+		return;
+
+	if ((*overlayCtrl & OVERLAY_CTRL_MULT) != 0x0) {
+		*overlayCtrl |= OVERLAY_ILLUM_CTRL_MULT;
+		*overlayCtrl &= ~OVERLAY_CTRL_MULT;
+		return;
+	}
+
+	if ((*overlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
+		*overlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
+		*overlayCtrl &= ~OVERLAY_CTRL_SCREEN;
+		return;
+	}
+}
+
+bool ParseOverlayControl(char* buf, bool IsLightingLayer, uint32_t* OverlayCtrl) {
+	if (_stricmp(buf, "LYR_MULT") == 0) {
+		if (IsLightingLayer)
+			*OverlayCtrl |= OVERLAY_ILLUM_CTRL_MULT;
+		else
+			*OverlayCtrl |= OVERLAY_CTRL_MULT;
+		return true;
+	}
+	if (_stricmp(buf, "LYR_SCREEN") == 0) {
+		if (IsLightingLayer)
+			*OverlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
+		else
+			*OverlayCtrl |= OVERLAY_CTRL_SCREEN;
+		return true;
+	}
+	return false;
+}
+
 bool ParseDatFileNameAndGroup(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId) {
 	std::string s_buf(buf);
 	*GroupId = -1;
@@ -366,9 +403,9 @@ bool ParseOptionalTexSeqArgs(char *buf, int *alpha_mode, float4 *AuxColor)
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
 
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
+bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &tex_sequence,
 	GameEvent *eventType, InstEventType *instEventType, bool *isInstEvent,
-	int *alpha_mode, float4 *AuxColor)
+	int *alpha_mode, float4 *AuxColor, uint32_t *overlayCtrl)
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
@@ -417,6 +454,21 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
 		ParseEvent(s, eventType, instEventType, isInstEvent);
 		//if (*isInstEvent)
 		//	log_debug("[DBG] [INST] INSTANCE EVENT parsed, %d", *instEventType);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse the overlay modifier
+	if (stristr(s, "LYR_") != NULL) {
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseOverlayControl(s, IsLightMap, overlayCtrl);
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
@@ -630,13 +682,14 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
-	GameEvent *eventType, InstEventType *instEventType, bool *isInstEvent,
-	int *is_lightmap, int *alpha_mode, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
+bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
+	GameEvent* eventType, InstEventType* instEventType, bool* isInstEvent,
+	int* is_lightmap, int* alpha_mode, float4* AuxColor, float2* Offset, float* AspectRatio,
+	int* Clamp, uint32_t* overlayCtrl)
 {
 	int res = 0, clamp, raw_alpha_mode;
-	char *s = NULL, *t = NULL, path[256];
-	float fps = 30.0f, intensity = 0.0f, r,g,b, OfsX, OfsY, ar;
+	char* s = NULL, * t = NULL, path[256];
+	float fps = 30.0f, intensity = 0.0f, r, g, b, OfsX, OfsY, ar;
 	*is_lightmap = 0; *alpha_mode = 0;
 	*eventType = EVT_NONE; *instEventType = IEVT_NONE; *isInstEvent = false;
 	AuxColor->x = 1.0f;
@@ -653,18 +706,36 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
 	// Skip the equals sign:
 	s += 1;
 
-	// Skip to the next comma
-	t = s;
-	while (*t != 0 && *t != ',') t++;
-	// If we reached the end of the string, that's an error
-	if (*t == 0) return false;
-	// End this string on the comma so that we can parse a string
-	*t = 0;
-	ParseEvent(s, eventType, instEventType, isInstEvent);
+	// Parse the event, if it exists
+	{
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseEvent(s, eventType, instEventType, isInstEvent);
 
-	// Skip the comma
-	s = t; s += 1;
-	SKIP_WHITESPACES(s);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse the overlay modifier
+	if (stristr(s, "LYR_") != NULL) {
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseOverlayControl(s, false, overlayCtrl);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
 
 	// Skip to the next comma
 	t = s;
@@ -716,6 +787,12 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence,
 	catch (...) {
 		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
 		return false;
+	}
+
+	// We only know if this is a lightmap animation here, so we need to
+	// upgrade the previous OverlayCtrl now.
+	if (*overlayCtrl != 0) {
+		UpgradeOverayCtrlToLightmap(overlayCtrl, *is_lightmap);
 	}
 
 	TexSeqElem tex_seq_elem;
@@ -1145,9 +1222,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence,
+		if (!LoadTextureSequence(buf, IsLightMap, atc.Sequence,
 			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
-			&alpha_mode, &(atc.Tint)))
+			&alpha_mode, &(atc.Tint), &(atc.OverlayCtrl)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1155,6 +1232,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			atc.ResetAnimation();
 			atc.BlackToAlpha = false;
 			atc.AlphaIsBloomMask = false;
+			//if (atc.OverlayCtrl) {
+			//	log_debug("[DBG] [INST] OverlayCtrl: 0x%x", atc.OverlayCtrl);
+			//}
+			
 			switch (alpha_mode) {
 			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
 				atc.BlackToAlpha = true;
@@ -1198,7 +1279,8 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
 		if (!LoadFrameSequence(buf, atc.Sequence,
 			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
-			&is_lightmap, &alpha_mode, &(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
+			&is_lightmap, &alpha_mode, &(atc.Tint), &(atc.Offset), &(atc.AspectRatio),
+			&(atc.Clamp), &(atc.OverlayCtrl)))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1206,6 +1288,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			atc.ResetAnimation();
 			atc.BlackToAlpha = false;
 			atc.AlphaIsBloomMask = false;
+			//if (atc.OverlayCtrl) {
+			//	log_debug("[DBG] [INST] OverlayCtrl: 0x%x", atc.OverlayCtrl);
+			//}
 			switch (alpha_mode) {
 			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
 				atc.BlackToAlpha = true;
@@ -1936,15 +2021,15 @@ void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 	CockpitDamage x;
 	x.Flags			= XWADamage;
 	CMD				= (x.CMD != 0);
-	LaserIon			= (x.LaserIon == 0x7);
+	LaserIon		= (x.LaserIon == 0x7);
 	BeamWeapon		= (x.BeamWeapon != 0);
 	Shields			= (x.Shields != 0);
-	Throttle			= (x.Throttle != 0);
+	Throttle		= (x.Throttle != 0);
 	Sensors			= (x.Sensors == 0x3);
 	LaserRecharge	= (x.LaserRecharge != 0);
 	EnginePower		= (x.EngineLevel != 0);
 	ShieldRecharge	= (x.ShieldRecharge != 0);
-	BeamRecharge		= (x.BeamRecharge != 0);
+	BeamRecharge	= (x.BeamRecharge != 0);
 }
 
 void ResetGameEvent() {
@@ -2065,7 +2150,7 @@ void UpdateEventsFired() {
 				if (instEvent.bEventsFired[i]) {
 					int objectId;
 					uint32_t materialId;
-					InstEventIdToObjectMatId(it->first, &objectId, &materialId);
+					InstEventIdToObjectMatId(it.first, &objectId, &materialId);
 					log_debug("[DBG] [INST] ===> InstEvent, object-matId: %d-%d, [%s] FIRED",
 						objectId, materialId, g_sInstEventNames[i]);
 				}

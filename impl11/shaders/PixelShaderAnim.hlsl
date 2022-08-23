@@ -18,9 +18,9 @@ SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D   normalMap : register(t13);
 // Universal Hull Damage texture, slot 14
-Texture2D damageTex : register(t14);
+Texture2D overlayTexA : register(t14);
 // Universal Shields Down texture, slot 15
-Texture2D shieldsDownTex : register(t15);
+Texture2D overlayTexB : register(t15);
 
 struct PixelShaderInput
 {
@@ -54,12 +54,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
 	// Apply the damage texture if possible
-	if (OverlayCtrl == OVERLAY_CTRL_MULT)
+	if ((OverlayCtrl & OVERLAY_CTRL_MULT) == OVERLAY_CTRL_MULT)
 	{
-		float4 multColor = damageTex.Sample(sampler0, input.tex);
-		texelColor *= multColor;
+		float4 multColor = overlayTexA.Sample(sampler0, input.tex);
+		texelColor.rgb *= multColor.rgb;
 		specInt *= multColor.r;
 		glossiness *= multColor.r;
+	}
+	
+	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) == OVERLAY_CTRL_SCREEN) {
+		float4 layerColor = overlayTexB.Sample(sampler0, input.tex);
+		texelColor.rgb = 1.0 - ((1.0 - texelColor.rgb) * (1.0 - layerColor.rgb));
 	}
 
 	float  alpha = texelColor.a;

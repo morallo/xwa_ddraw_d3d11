@@ -1439,39 +1439,36 @@ void EffectsRenderer::ApplyGreebles()
 	}
 }
 
-void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, uint32_t OverlayCtrl)
+void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
 	// texture
 	if (!_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx != -1)
 		return;
 
-	//if ((_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) > -1) ||
-	//	(!_bLastLightmapSelectedNotNULL && _lastTextureSelected->material.GetCurrentATCIndex(NULL, TEXTURE_ATC_IDX) > -1))
-
 	bool bIsDCDamageTex = false;
-	int TexATCIndex = -1, LightATCIndex = -1;
+	std::vector<int> TexATCIndices, LightATCIndices;
+	InstanceEvent* instEvent = nullptr;
+	uint32_t OverlayCtrl = 0;
+
 	if (bInstanceEvent) {
 		// This is an instance ATC
-		InstanceEvent *instEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
+		instEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
 		if (instEvent != nullptr) {
-			TexATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
-			LightATCIndex = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
-			/*
-			if (TexATCIndex != -1 || LightATCIndex != -1)
-				log_debug("[DBG] [INST] Instance Animation, objectId: %d, TexATCIndex: %d, LightATCIndex: %d",
-					objectId, TexATCIndex, LightATCIndex);
-			*/
+			TexATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
+			LightATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
 		}
 	}
 	else {
 		// This is a global ATC
-		TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDCDamageTex, TEXTURE_ATC_IDX);
-		LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+		int TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDCDamageTex, TEXTURE_ATC_IDX);
+		int LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
+		if (TexATCIndex != -1) TexATCIndices.push_back(TexATCIndex);
+		if (LightATCIndex != -1) LightATCIndices.push_back(LightATCIndex);
 	}
 	
 	// If there's no texture animation and no lightmap animation, then there's nothing to do here
-	if (TexATCIndex == -1 && LightATCIndex == -1)
+	if (TexATCIndices.size() == 0 && LightATCIndices.size() == 0)
 		return;
 
 	auto &resources = _deviceResources;
@@ -1501,8 +1498,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, u
 	g_PSCBuffer.AuxColorLight.w = 1.0f;
 
 	int extraTexIdx = -1, extraLightIdx = -1;
-	if (TexATCIndex > -1) {
-		AnimatedTexControl *atc = bInstanceEvent ?
+	for (int TexATCIndex : TexATCIndices) {
+		AnimatedTexControl* atc = bInstanceEvent ?
 			&(g_AnimatedInstMaterials[TexATCIndex]) : &(g_AnimatedMaterials[TexATCIndex]);
 		int idx = atc->AnimIdx;
 		extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
@@ -1517,10 +1514,35 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, u
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
-		g_PSCBuffer.OverlayCtrl = OverlayCtrl;
+
+		if (extraTexIdx > -1) {
+			if (atc->OverlayCtrl == 0) {
+				// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+				// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
+				// the DC foreground SRV
+				context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
+			}
+			if ((atc->OverlayCtrl & OVERLAY_CTRL_MULT) != 0x0) {
+				OverlayCtrl |= OVERLAY_CTRL_MULT;
+				g_PSCBuffer.OverlayCtrl = OverlayCtrl;
+				// Set the animated texture in the multiplier layer
+				context->PSSetShaderResources(14, 1, &(resources->_extraTextures[extraTexIdx]));
+			}
+			if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
+				OverlayCtrl |= OVERLAY_CTRL_SCREEN;
+				g_PSCBuffer.OverlayCtrl = OverlayCtrl;
+				// Set the animated texture in the screen layer
+				context->PSSetShaderResources(15, 1, &(resources->_extraTextures[extraTexIdx]));
+			}
+
+			// Force the use of damage textures if DC is on. This makes damage textures visible
+			// even when no cover texture is available:
+			if (bRenderingDC)
+				g_DCPSCBuffer.use_damage_texture = bIsDCDamageTex;
+		}
 	}
 
-	if (LightATCIndex > -1) {
+	for (int LightATCIndex : LightATCIndices) {
 		AnimatedTexControl *atc = bInstanceEvent ?
 			&(g_AnimatedInstMaterials[LightATCIndex]) : &(g_AnimatedMaterials[LightATCIndex]);
 		int idx = atc->AnimIdx;
@@ -1537,38 +1559,27 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, u
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
-		g_PSCBuffer.OverlayCtrl = OverlayCtrl;
-	}
 
-	//if (g_bDumpSSAOBuffers)
-	//	log_debug("[DBG] TargetEvt: %d, HullEvent: %d", g_GameEvent.TargetEvent, g_GameEvent.HullEvent);
-	//log_debug("[DBG] %s, ATCIndex: %d", lastTextureSelected->_surface->_name, ATCIndex);
-
-	if (extraTexIdx > -1) {
-
-		switch (OverlayCtrl) {
-		case 0:
-			// Use the following when using std::vector<ID3D11ShaderResourceView*>:
-			// We cannot use InitPSShaderResourceView here because that will set slots 0 and 1, thus changing
-			// the DC foreground SRV
-			context->PSSetShaderResources(0, 1, &(resources->_extraTextures[extraTexIdx]));
-			break;
-		case OVERLAY_CTRL_MULT:
-			// Set the animated texture in the multiplier layer
-			context->PSSetShaderResources(14, 1, &(resources->_extraTextures[extraTexIdx]));
-			break;
+		// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses
+		// that slot for something else
+		if (extraLightIdx > -1 && !bRenderingDC) {
+			if (atc->OverlayCtrl == 0) {
+				// Use the following when using std::vector<ID3D11ShaderResourceView*>:
+				context->PSSetShaderResources(1, 1, &(resources->_extraTextures[extraLightIdx]));
+			}
+			if ((atc->OverlayCtrl & OVERLAY_ILLUM_CTRL_MULT) != 0x0) {
+				OverlayCtrl |= OVERLAY_ILLUM_CTRL_MULT;
+				g_PSCBuffer.OverlayCtrl = OverlayCtrl;
+				// Set the animated texture in the multiplier layer
+				context->PSSetShaderResources(14, 1, &(resources->_extraTextures[extraLightIdx]));
+			}
+				if ((atc->OverlayCtrl & OVERLAY_ILLUM_CTRL_SCREEN) != 0x0) {
+					OverlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
+					g_PSCBuffer.OverlayCtrl = OverlayCtrl;
+				// Set the animated texture in the screen layer
+				context->PSSetShaderResources(15, 1, &(resources->_extraTextures[extraLightIdx]));
+			}
 		}
-
-		// Force the use of damage textures if DC is on. This makes damage textures visible
-		// even when no cover texture is available:
-		if (bRenderingDC)
-			g_DCPSCBuffer.use_damage_texture = bIsDCDamageTex;
-	}
-	// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses
-	// that slot for something else
-	if (extraLightIdx > -1 && !bRenderingDC) {
-		// Use the following when using std::vector<ID3D11ShaderResourceView*>:
-		context->PSSetShaderResources(1, 1, &(resources->_extraTextures[extraLightIdx]));
 	}
 }
 
@@ -1806,8 +1817,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (scene != nullptr && scene->pObject != nullptr)
 		objectId = scene->pObject->ObjectId;
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
-	const uint32_t OverlayCtrl = _lastTextureSelected->material.OverlayCtrl;
-	//const uint32_t OverlayCtrl = bInstanceEvent ? OVERLAY_CTRL_MULT : 0;
 
 	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
@@ -1968,7 +1977,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyGreebles();
 
 	if (g_bEnableAnimations)
-		ApplyAnimatedTextures(objectId, bInstanceEvent, OverlayCtrl);
+		ApplyAnimatedTextures(objectId, bInstanceEvent);
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.

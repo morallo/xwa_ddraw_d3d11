@@ -308,6 +308,7 @@ typedef struct AnimatedTexControlStruct {
 	float2 Offset;
 	float AspectRatio;
 	int Clamp;
+	uint32_t OverlayCtrl;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -333,6 +334,7 @@ typedef struct AnimatedTexControlStruct {
 		// If this ATC is an element of g_AnimatedInstMaterials, this field will be set to
 		// the objectId associated with this material.
 		objectId = -1;
+		OverlayCtrl = 0x0;
 	}
 
 	void ResetAnimation();
@@ -499,7 +501,6 @@ typedef struct MaterialStruct {
 	// a per-instance basis.
 	bool bInstanceMaterial;
 	bool SkipWhenDisabled;
-	uint32_t OverlayCtrl;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -572,7 +573,6 @@ typedef struct MaterialStruct {
 
 		bInstanceMaterial = false;
 		SkipWhenDisabled = false;
-		OverlayCtrl = 0;
 
 		/*
 		// DEBUG properties, remove later
@@ -619,7 +619,7 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
-	inline int GetCurrentATCIndex(bool *bIsDamageTex, int ATCType = TEXTURE_ATC_IDX) {
+	int GetCurrentATCIndex(bool *bIsDamageTex, int ATCType = TEXTURE_ATC_IDX) {
 		int index = TextureATCIndices[ATCType][EVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
 		if (bIsDamageTex != NULL) *bIsDamageTex = false;
 
@@ -744,12 +744,12 @@ typedef struct MaterialStruct {
 		return index;
 	}
 
-	inline int GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
-		int index = -1; // Default index, no event is set.
+	std::vector<int> GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
+		std::vector<int> indices;
 
 		if (objectId == -1) {
 			log_debug("[DBG] [INST] ERROR: objectId == -1!");
-			return -1;
+			return indices;
 		}
 
 		// Lazy instancing of templates in g_AnimatedMaterials: we only make instances when
@@ -827,21 +827,21 @@ typedef struct MaterialStruct {
 
 		// Shield Events
 		if (instEvent.ShieldEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN];
+			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN]);
 
 		// Hull Damage Events
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25];
-
+			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25]);
+		else
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50];
-
+			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50]);
+		else
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
-			return instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75];
+			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75]);
 
 		// Add more events here... remember that least-specific events come later
 
-		return index;
+		return indices;
 	}
 } Material;
 
