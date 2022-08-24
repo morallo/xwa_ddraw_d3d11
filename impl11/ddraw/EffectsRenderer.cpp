@@ -1442,31 +1442,71 @@ void EffectsRenderer::ApplyGreebles()
 void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
-	// texture
+	// texture. All textures with a .mat file have at least the default material.
 	if (!_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx != -1)
 		return;
 
 	bool bIsDCDamageTex = false;
 	std::vector<int> TexATCIndices, LightATCIndices;
+	std::vector<bool> TexATCIndexTypes, LightATCIndexTypes; // false: Global Event, true: Instance Event
 	InstanceEvent* instEvent = nullptr;
-	uint32_t OverlayCtrl = 0;
 
 	if (bInstanceEvent) {
-		// This is an instance ATC
+		// This is an instance ATC. We can have regular materials or
+		// default materials in this path.
 		instEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
 		if (instEvent != nullptr) {
 			TexATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
 			LightATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
+
+			for (size_t i = 0; i < TexATCIndices.size(); i++)
+				TexATCIndexTypes.push_back(true);
+			for (size_t i = 0; i < LightATCIndices.size(); i++)
+				LightATCIndexTypes.push_back(true);
 		}
 	}
 	else {
 		// This is a global ATC
 		int TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDCDamageTex, TEXTURE_ATC_IDX);
 		int LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
-		if (TexATCIndex != -1) TexATCIndices.push_back(TexATCIndex);
-		if (LightATCIndex != -1) LightATCIndices.push_back(LightATCIndex);
+		if (TexATCIndex != -1) {
+			TexATCIndices.push_back(TexATCIndex);
+			TexATCIndexTypes.push_back(false);
+		}
+		if (LightATCIndex != -1) {
+			LightATCIndices.push_back(LightATCIndex);
+			LightATCIndexTypes.push_back(false);
+		}
 	}
 	
+	if (!(_lastTextureSelected->material.bIsDefaultMaterial)) // TODO: Check that the default mat has an instance event) {
+	{
+		int craftIdx = _lastTextureSelected->material.craftIdx;
+		if (craftIdx != -1) {
+			CraftMaterials* craftMaterials = &(g_Materials[craftIdx]);
+			Material* defaultMaterial = &(craftMaterials->MaterialList[0].material);
+			if (defaultMaterial->bInstanceMaterial) {
+				std::vector<int> CraftTexATCIndices, CraftLightATCIndices;
+				InstanceEvent* craftInstEvent = ObjectIDToInstanceEvent(objectId, defaultMaterial->Id);
+				if (craftInstEvent != nullptr) {
+					CraftTexATCIndices = defaultMaterial->GetCurrentInstATCIndex(objectId, *craftInstEvent, TEXTURE_ATC_IDX);
+					CraftLightATCIndices = defaultMaterial->GetCurrentInstATCIndex(objectId, *craftInstEvent, LIGHTMAP_ATC_IDX);
+				}
+
+				// Inherit animations from the Default entry
+				// TODO: Avoid overwriting entries for events already in these lists
+				for (int ATCIndex : CraftTexATCIndices) {
+					TexATCIndices.push_back(ATCIndex);
+					TexATCIndexTypes.push_back(true);
+				}
+				for (int ATCIndex : CraftLightATCIndices) {
+					LightATCIndices.push_back(ATCIndex);
+					LightATCIndexTypes.push_back(true);
+				}
+			}
+		}
+	}
+
 	// If there's no texture animation and no lightmap animation, then there's nothing to do here
 	if (TexATCIndices.size() == 0 && LightATCIndices.size() == 0)
 		return;
@@ -1497,12 +1537,17 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	g_PSCBuffer.AuxColorLight.z = 1.0f;
 	g_PSCBuffer.AuxColorLight.w = 1.0f;
 
+	uint32_t OverlayCtrl = 0;
 	int extraTexIdx = -1, extraLightIdx = -1;
-	for (int TexATCIndex : TexATCIndices) {
-		AnimatedTexControl* atc = bInstanceEvent ?
+	for (size_t i = 0; i < TexATCIndices.size(); i++)
+	{
+		const int TexATCIndex = TexATCIndices[i];
+		bool bATCType = TexATCIndexTypes[i];
+		AnimatedTexControl* atc = bATCType ?
 			&(g_AnimatedInstMaterials[TexATCIndex]) : &(g_AnimatedMaterials[TexATCIndex]);
 		int idx = atc->AnimIdx;
 		extraTexIdx = atc->Sequence[idx].ExtraTextureIndex;
+
 		if (atc->BlackToAlpha)
 			g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 		else if (atc->AlphaIsBloomMask)
@@ -1542,11 +1587,15 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		}
 	}
 
-	for (int LightATCIndex : LightATCIndices) {
-		AnimatedTexControl *atc = bInstanceEvent ?
+	for (size_t i = 0; i < LightATCIndices.size(); i++)
+	{
+		const int LightATCIndex = LightATCIndices[i];
+		bool bATCType = LightATCIndexTypes[i];
+		AnimatedTexControl *atc = bATCType ?
 			&(g_AnimatedInstMaterials[LightATCIndex]) : &(g_AnimatedMaterials[LightATCIndex]);
 		int idx = atc->AnimIdx;
 		extraLightIdx = atc->Sequence[idx].ExtraTextureIndex;
+
 		if (atc->BlackToAlpha)
 			g_PSCBuffer.special_control_light.ExclusiveMask = SPECIAL_CONTROL_BLACK_TO_ALPHA;
 		else if (atc->AlphaIsBloomMask)
@@ -1698,7 +1747,7 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 }
 
 /*
- * Fetches the InstanceEvent associated with the given objectId or adds a new one
+ * Fetches the InstanceEvent associated with the given objectId-materialId or adds a new one
  * if it doesn't exist.
  */
 InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t materialId)
@@ -1817,6 +1866,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (scene != nullptr && scene->pObject != nullptr)
 		objectId = scene->pObject->ObjectId;
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
+	const int materialId = _lastTextureSelected->material.Id;
 
 	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
@@ -1824,7 +1874,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (bInstanceEvent)
 	{
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId);
-		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, _lastTextureSelected->material.Id);
+		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, materialId);
 		if (craftInstance != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 			int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;

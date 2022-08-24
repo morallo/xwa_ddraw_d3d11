@@ -1708,7 +1708,8 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 				//log_debug("[DBG] [MAT] texname: %s", texname);
 
 				if (!MaterialSaved) {
-					// There's an existing material that needs to be saved before proceeding
+					// A new material section begins in this line, but there's a previous
+					// material that needs to be saved before proceeding
 					for (TexnameType texname : texnameList) {
 						// Copy the texture name from the list to the current material
 						strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
@@ -1762,13 +1763,18 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 					curMaterialTexDef.texname[0] = 0;
 					// For new materials, use the Default material defined for this ship
 					curMaterialTexDef.material = craftMat.MaterialList[0].material;
+					// If the default material has instance event data, clear it:
+					curMaterialTexDef.material.bInstanceMaterial = false;
+					curMaterialTexDef.material.bIsDefaultMaterial = false;
+					curMaterialTexDef.material.ClearATCIndices();
 					// For new materials, use the default global material;
 					//curMaterialTexDef.material = g_DefaultGlobalMaterial;
 				}
 				MaterialSaved = false;
 			}
-			else
+			else {
 				ReadMaterialLine(buf, &(curMaterialTexDef.material), OPTname);
+			}
 		}
 	}
 	fclose(file);
@@ -1795,6 +1801,25 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 	texnameList.clear();
 
+	// Mark the first material as the default material
+	craftMat.MaterialList[0].material.bIsDefaultMaterial = true;
+
+	// DEBUG
+	/*
+	if (craftMat.MaterialList[0].material.bInstanceMaterial) {
+		log_debug("[DBG] [INST] DEFAULT MATERIAL FOR [%s] HAS AN INSTANCE EVENT",
+			OPTname);
+		for (int i = 0; i < MAX_ATC_TYPES; i++)
+			for (int j = 0; j < MAX_INST_EVT; j++) {
+				int size = craftMat.MaterialList[0].material.InstTextureATCIndices[i][j].size();
+				if (size > 0)
+					log_debug("[DBG] [INST] DEFAULT MATERIAL FOR [%s] HAS INSTANCE EVENT [%s]",
+						OPTname, g_sInstEventNames[j]);
+			}
+	}
+	*/
+	// DEBUG
+
 	// Replace the craft material in g_Materials
 	if (craftIdx < 0) {
 		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
@@ -1804,6 +1829,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	else {
 		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
 		g_Materials[craftIdx] = craftMat;
+	}
+
+	// Have each material point back to its parent CraftMaterials entry in g_Materials
+	for (auto& mat : g_Materials[craftIdx].MaterialList) {
+		mat.material.craftIdx = craftIdx;
 	}
 
 	// DEBUG

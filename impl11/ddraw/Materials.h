@@ -417,6 +417,9 @@ void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *material
 // Materials
 typedef struct MaterialStruct {
 	uint32_t Id;
+	int craftIdx;
+	bool bIsDefaultMaterial;
+
 	float Metallic;
 	float Intensity;
 	float Glossiness;
@@ -509,6 +512,8 @@ typedef struct MaterialStruct {
 
 	MaterialStruct() {
 		Id = 0;
+		craftIdx = -1;
+		bIsDefaultMaterial = false;
 		Metallic = DEFAULT_METALLIC;
 		Intensity = DEFAULT_SPEC_INT;
 		Glossiness = DEFAULT_GLOSSINESS;
@@ -547,13 +552,7 @@ typedef struct MaterialStruct {
 		GroupId = 0;
 		ImageId = 0;
 
-		for (int j = 0; j < MAX_ATC_TYPES; j++)
-			for (int i = 0; i < MAX_GAME_EVT; i++)
-				TextureATCIndices[j][i] = -1;
-
-		for (int j = 0; j < MAX_ATC_TYPES; j++)
-			for (int i = 0; i < MAX_INST_EVT; i++)
-				InstTextureATCIndices[j][i].clear();
+		ClearATCIndices();
 
 		GreebleDataIdx = -1;
 
@@ -585,6 +584,16 @@ typedef struct MaterialStruct {
 		LavaPosMult.z = -1.0f;
 		LavaTranspose = true;
 		*/
+	}
+
+	void ClearATCIndices() {
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_GAME_EVT; i++)
+				TextureATCIndices[j][i] = -1;
+
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				InstTextureATCIndices[j][i].clear();
 	}
 
 	// Returns true if any of the possible texture indices is enabled for a global event
@@ -864,10 +873,10 @@ typedef struct MaterialTexDefStruct {
  Contains all the entries from a *.mat file for a single craft, along with the
  OPT name for this craft
 */
-typedef struct CraftMaterialsStruct {
+struct CraftMaterials {
 	std::vector<MaterialTexDef> MaterialList;
 	char OPTname[MAX_OPT_NAME];
-} CraftMaterials;
+};
 
 typedef struct OPTNameStruct {
 	char name[MAX_OPT_NAME];

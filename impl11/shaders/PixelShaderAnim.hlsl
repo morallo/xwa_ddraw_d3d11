@@ -53,8 +53,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	// Apply the damage texture if possible
-	if ((OverlayCtrl & OVERLAY_CTRL_MULT) == OVERLAY_CTRL_MULT)
+	// Apply the damage texture
+	if ((OverlayCtrl & OVERLAY_CTRL_MULT) != 0)
 	{
 		float4 multColor = overlayTexA.Sample(sampler0, input.tex);
 		texelColor.rgb *= multColor.rgb;
@@ -62,7 +62,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		glossiness *= multColor.r;
 	}
 	
-	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) == OVERLAY_CTRL_SCREEN) {
+	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0)
+	{
 		float4 layerColor = overlayTexB.Sample(sampler0, input.tex);
 		texelColor.rgb = 1.0 - ((1.0 - texelColor.rgb) * (1.0 - layerColor.rgb));
 	}
