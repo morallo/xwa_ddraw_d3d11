@@ -1439,6 +1439,15 @@ void EffectsRenderer::ApplyGreebles()
 	}
 }
 
+bool ATCListContainsEventType(const std::vector<ATCIndexEvtType>& ATCList, int EvtType)
+{
+	for (const auto& item : ATCList) {
+		if (item.second == EvtType)
+			return true;
+	}
+	return false;
+}
+
 void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
@@ -1447,7 +1456,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		return;
 
 	bool bIsDCDamageTex = false;
-	std::vector<int> TexATCIndices, LightATCIndices;
+	std::vector<ATCIndexEvtType> TexATCIndices, LightATCIndices;
 	std::vector<bool> TexATCIndexTypes, LightATCIndexTypes; // false: Global Event, true: Instance Event
 	InstanceEvent* instEvent = nullptr;
 
@@ -1470,23 +1479,25 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		int TexATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(&bIsDCDamageTex, TEXTURE_ATC_IDX);
 		int LightATCIndex = _lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX);
 		if (TexATCIndex != -1) {
-			TexATCIndices.push_back(TexATCIndex);
+			TexATCIndices.push_back(std::make_pair(TexATCIndex, -1));
 			TexATCIndexTypes.push_back(false);
 		}
 		if (LightATCIndex != -1) {
-			LightATCIndices.push_back(LightATCIndex);
+			LightATCIndices.push_back(std::make_pair(LightATCIndex, -1));
 			LightATCIndexTypes.push_back(false);
 		}
 	}
 	
-	if (!(_lastTextureSelected->material.bIsDefaultMaterial)) // TODO: Check that the default mat has an instance event) {
+	// If the current material is not a default material, then we need to look up
+	// instance events from the default material and inherit them
+	if (!(_lastTextureSelected->material.bIsDefaultMaterial))
 	{
 		int craftIdx = _lastTextureSelected->material.craftIdx;
 		if (craftIdx != -1) {
 			CraftMaterials* craftMaterials = &(g_Materials[craftIdx]);
 			Material* defaultMaterial = &(craftMaterials->MaterialList[0].material);
 			if (defaultMaterial->bInstanceMaterial) {
-				std::vector<int> CraftTexATCIndices, CraftLightATCIndices;
+				std::vector<ATCIndexEvtType> CraftTexATCIndices, CraftLightATCIndices;
 				InstanceEvent* craftInstEvent = ObjectIDToInstanceEvent(objectId, defaultMaterial->Id);
 				if (craftInstEvent != nullptr) {
 					CraftTexATCIndices = defaultMaterial->GetCurrentInstATCIndex(objectId, *craftInstEvent, TEXTURE_ATC_IDX);
@@ -1495,13 +1506,27 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 
 				// Inherit animations from the Default entry
 				// TODO: Avoid overwriting entries for events already in these lists
-				for (int ATCIndex : CraftTexATCIndices) {
-					TexATCIndices.push_back(ATCIndex);
-					TexATCIndexTypes.push_back(true);
+				for (const auto &atcitem : CraftTexATCIndices) {
+					int ATCIndex = atcitem.first;
+					int EvtType = atcitem.second;
+					// Instance events in a material override events coming from Default materials.
+					// In other words: if we already have an instance event of the curren type, then
+					// don't add the event coming from the default material.
+					if (!ATCListContainsEventType(TexATCIndices, EvtType)) {
+						TexATCIndices.push_back(std::make_pair(ATCIndex, EvtType));
+						TexATCIndexTypes.push_back(true);
+					}
 				}
-				for (int ATCIndex : CraftLightATCIndices) {
-					LightATCIndices.push_back(ATCIndex);
-					LightATCIndexTypes.push_back(true);
+				for (const auto &atcitem : CraftLightATCIndices) {
+					int ATCIndex = atcitem.first;
+					int EvtType = atcitem.second;
+					// Instance events in a material override events coming from Default materials.
+					// In other words: if we already have an instance event of the curren type, then
+					// don't add the event coming from the default material.
+					if (!ATCListContainsEventType(LightATCIndices, EvtType)) {
+						LightATCIndices.push_back(std::make_pair(ATCIndex, EvtType));
+						LightATCIndexTypes.push_back(true);
+					}
 				}
 			}
 		}
@@ -1541,7 +1566,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	int extraTexIdx = -1, extraLightIdx = -1;
 	for (size_t i = 0; i < TexATCIndices.size(); i++)
 	{
-		const int TexATCIndex = TexATCIndices[i];
+		const auto& texatcitem = TexATCIndices[i];
+		const int TexATCIndex = texatcitem.first;
 		bool bATCType = TexATCIndexTypes[i];
 		AnimatedTexControl* atc = bATCType ?
 			&(g_AnimatedInstMaterials[TexATCIndex]) : &(g_AnimatedMaterials[TexATCIndex]);
@@ -1589,7 +1615,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 
 	for (size_t i = 0; i < LightATCIndices.size(); i++)
 	{
-		const int LightATCIndex = LightATCIndices[i];
+		const auto &lightatcitem = LightATCIndices[i];
+		const int LightATCIndex = lightatcitem.first;
 		bool bATCType = LightATCIndexTypes[i];
 		AnimatedTexControl *atc = bATCType ?
 			&(g_AnimatedInstMaterials[LightATCIndex]) : &(g_AnimatedMaterials[LightATCIndex]);
@@ -1622,7 +1649,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 				// Set the animated texture in the multiplier layer
 				context->PSSetShaderResources(14, 1, &(resources->_extraTextures[extraLightIdx]));
 			}
-				if ((atc->OverlayCtrl & OVERLAY_ILLUM_CTRL_SCREEN) != 0x0) {
+			if ((atc->OverlayCtrl & OVERLAY_ILLUM_CTRL_SCREEN) != 0x0) {
 					OverlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
 					g_PSCBuffer.OverlayCtrl = OverlayCtrl;
 				// Set the animated texture in the screen layer

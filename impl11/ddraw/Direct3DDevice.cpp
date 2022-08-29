@@ -10,6 +10,18 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+* Is there a field that tells us when a ship is under the effect of a beam weapon?
+*
+* RandomStarfighter:
+* Offset 0x13 into the craft struct, there's an int32[5] array that tracks whether
+* the craft is currently under the effect of a beam weapon. The first two slots are
+* of note for tractor and jamming beams, in that order. Decoy beam isn't tracked here
+* since it has a meta effect rather than a direct effect. The other slots are for
+* unused beams and not implemented. If I recall, the array is cleared and re-examined
+* every frame during the craft update logic.
+*
+*/
+/*
 
 Mission Index:
 	Skirmish: 0

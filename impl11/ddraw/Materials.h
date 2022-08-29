@@ -414,8 +414,11 @@ uint32_t GenerateUniqueMaterialId();
 uint64_t InstEventIdFromObjectMaterialId(int objectId, uint32_t materialId);
 void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *materialId);
 
+// (ATCIndex, EventType)
+typedef std::pair<int, int> ATCIndexEvtType;
+
 // Materials
-typedef struct MaterialStruct {
+struct Material {
 	uint32_t Id;
 	int craftIdx;
 	bool bIsDefaultMaterial;
@@ -510,7 +513,7 @@ typedef struct MaterialStruct {
 	//Vector3 LavaPosMult;
 	//bool LavaTranspose;
 
-	MaterialStruct() {
+	Material() {
 		Id = 0;
 		craftIdx = -1;
 		bIsDefaultMaterial = false;
@@ -753,8 +756,8 @@ typedef struct MaterialStruct {
 		return index;
 	}
 
-	std::vector<int> GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
-		std::vector<int> indices;
+	std::vector<ATCIndexEvtType> GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
+		std::vector<ATCIndexEvtType> indices;
 
 		if (objectId == -1) {
 			log_debug("[DBG] [INST] ERROR: objectId == -1!");
@@ -836,23 +839,23 @@ typedef struct MaterialStruct {
 
 		// Shield Events
 		if (instEvent.ShieldEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
-			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN]);
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN], IEVT_SHIELDS_DOWN));
 
 		// Hull Damage Events
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
-			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25]);
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25], IEVT_HULL_DAMAGE_25));
 		else
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
-			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50]);
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50], IEVT_HULL_DAMAGE_50));
 		else
 		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
-			indices.push_back(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75]);
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75], IEVT_HULL_DAMAGE_75));
 
 		// Add more events here... remember that least-specific events come later
 
 		return indices;
 	}
-} Material;
+};
 
 /*
  Individual entry in the craft material definition file (*.mat). Maintains a copy

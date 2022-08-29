@@ -1710,7 +1710,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 				if (!MaterialSaved) {
 					// A new material section begins in this line, but there's a previous
 					// material that needs to be saved before proceeding
-					for (TexnameType texname : texnameList) {
+					for (const TexnameType &texname : texnameList) {
 						// Copy the texture name from the list to the current material
 						strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
 						// Special case: overwrite the default material
@@ -1785,7 +1785,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 	else if (!MaterialSaved) {
 		// There's an existing material that needs to be saved before proceeding
-		for (TexnameType texname : texnameList) {
+		for (const TexnameType &texname : texnameList) {
 			// Copy the texture name from the list to the current material
 			strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
 			// Special case: overwrite the default material
