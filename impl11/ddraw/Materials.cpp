@@ -68,6 +68,9 @@ char *g_sInstEventNames[MAX_INST_EVT] = {
 	"IEVT_DAMAGE_25",
 
 	"IEVT_SHIELDS_DOWN",
+
+	"IEVT_TRACTOR_BEAM",
+	"IEVT_JAMMING_BEAM",
 };
 
 /*
@@ -2091,6 +2094,7 @@ void ResetGameEvent() {
 	for (auto &it : g_objectIdToInstanceEvent) {
 		InstanceEvent &instEvent = it.second;
 		instEvent.HullEvent = IEVT_NONE;
+		instEvent.ShieldBeamEvent = IEVT_NONE;
 
 		// Add new instance events here
 		// ...
@@ -2165,9 +2169,9 @@ void UpdateEventsFired() {
 
 		// Update instance events
 
-		// Set the current shield damage event to true if it changed:
-		if (instEvent.PrevShieldEvent != instEvent.ShieldEvent)
-			instEvent.bEventsFired[instEvent.ShieldEvent] = true;
+		// Set the current shield damage/beam event to true if it changed:
+		if (instEvent.PrevShieldBeamEvent != instEvent.ShieldBeamEvent)
+			instEvent.bEventsFired[instEvent.ShieldBeamEvent] = true;
 
 		// Set the current hull damage event to true if it changed:
 		if (instEvent.PrevHullEvent != instEvent.HullEvent)

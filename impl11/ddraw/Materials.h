@@ -135,7 +135,12 @@ typedef enum {
 	IEVT_HULL_DAMAGE_25,
 
 	IEVT_SHIELDS_DOWN,
-	// Add more events here...
+	
+	IEVT_TRACTOR_BEAM,
+	IEVT_JAMMING_BEAM,
+
+	// Add new events here...
+
 	// End-of-events sentinel. Do not remove!
 	MAX_INST_EVT
 } InstEventType;
@@ -238,8 +243,9 @@ public:
 	InstEventType HullEvent = IEVT_NONE;
 	InstEventType PrevHullEvent = IEVT_NONE;
 
-	InstEventType ShieldEvent = IEVT_NONE;
-	InstEventType PrevShieldEvent = IEVT_NONE;
+	InstEventType ShieldBeamEvent = IEVT_NONE;
+	InstEventType PrevShieldBeamEvent = IEVT_NONE;
+
 	bool bEventsFired[MAX_INST_EVT];
 	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 	// For instance materials, their corresponding ATC is always initialized to an entry
@@ -267,7 +273,7 @@ public:
 
 	void CopyCurrentEventsToPrev() {
 		PrevHullEvent = HullEvent;
-		PrevShieldEvent = ShieldEvent;
+		PrevShieldBeamEvent = ShieldBeamEvent;
 	}
 };
 
@@ -837,8 +843,17 @@ struct Material {
 		// Overrides: these indices are only selected if specific events are set
 		// Most-specific events first... least-specific events later.
 
+		// Shield and Beam events are mutually exclusive: we can only display one of these
+		// because they all use the SCREEN blending mode.
+		// Beam Events
+		if (instEvent.ShieldBeamEvent == IEVT_TRACTOR_BEAM && instEvent.InstTextureATCIndices[ATCType][IEVT_TRACTOR_BEAM] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_TRACTOR_BEAM], IEVT_TRACTOR_BEAM));
+		else
+		if (instEvent.ShieldBeamEvent == IEVT_JAMMING_BEAM && instEvent.InstTextureATCIndices[ATCType][IEVT_JAMMING_BEAM] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_JAMMING_BEAM], IEVT_JAMMING_BEAM));
+		else
 		// Shield Events
-		if (instEvent.ShieldEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
+		if (instEvent.ShieldBeamEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
 			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN], IEVT_SHIELDS_DOWN));
 
 		// Hull Damage Events

@@ -1743,6 +1743,11 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 	int objIndex = -1;
 	if (objects == NULL) return nullptr;
 
+	// Let's be extra-safe in GetPlayerCraftInstanceSafe(), we have a similar check
+	// because sometimes the game will crash if we try to access the craft table in
+	// the first few frames of a new mission.
+	if (g_iPresentCounter <= 5) return nullptr;
+
 	// Have we cached the objectId?
 	auto it = g_objectIdToIndex.find(objectId);
 	if (it == g_objectIdToIndex.end()) {
@@ -1917,11 +1922,15 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			
 			if (instanceEvent != nullptr) {
 				// Update the event for this instance
-				instanceEvent->ShieldEvent = IEVT_NONE;
+				instanceEvent->ShieldBeamEvent = IEVT_NONE;
 				instanceEvent->HullEvent = IEVT_NONE;
 
 				if (shields == 0)
-					instanceEvent->ShieldEvent = IEVT_SHIELDS_DOWN;
+					instanceEvent->ShieldBeamEvent = IEVT_SHIELDS_DOWN;
+				if (craftInstance->IsUnderBeamEffect[1] != 0)
+					instanceEvent->ShieldBeamEvent = IEVT_TRACTOR_BEAM;
+				if (craftInstance->IsUnderBeamEffect[2] != 0)
+					instanceEvent->ShieldBeamEvent = IEVT_JAMMING_BEAM;
 
 				if (50.0f < hull && hull <= 75.0f)
 					instanceEvent->HullEvent = IEVT_HULL_DAMAGE_75;
