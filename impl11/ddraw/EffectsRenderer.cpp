@@ -1584,7 +1584,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+		if (atc->OverlayCtrl == 0)
+			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
 		if (extraTexIdx > -1) {
 			if (atc->OverlayCtrl == 0) {
@@ -1634,7 +1635,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
+		if (atc->OverlayCtrl == 0)
+			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
 		// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses
 		// that slot for something else
