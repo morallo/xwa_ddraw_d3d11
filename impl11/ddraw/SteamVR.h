@@ -7,6 +7,7 @@
 #include "config.h"
 #include <headers/openvr.h>
 
+constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
 
 extern vr::IVRSystem* g_pHMD;
 extern vr::IVRChaperone* g_pChaperone;

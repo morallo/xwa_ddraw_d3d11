@@ -7639,6 +7639,40 @@ HRESULT PrimarySurface::Flip(
 	this->_deviceResources->sceneRendered = false;
 	bool bHyperspaceFirstFrame = g_bHyperspaceFirstFrame; // Used to clear the shadowMap DSVs *after* they're used
 
+	/* Display VR movies */
+	if (g_bUseSteamVR && g_pSharedDataTgSmush != nullptr &&
+		g_pSharedDataTgSmush->videoFrameIndex > 0)
+	{
+		// Create the TgSmush texture the first time we want to display it
+		// TODO: Handle movies of different sizes!
+		if (resources->_tgSmushTex == nullptr)
+			resources->CreateTgSmushTexture(g_pSharedDataTgSmush->videoFrameWidth, g_pSharedDataTgSmush->videoFrameHeight);
+
+		if (resources->_tgSmushTex != nullptr && g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
+		{
+			vr::Texture_t overlay_texture;
+
+			D3D11_MAPPED_SUBRESOURCE map;
+			HRESULT hr = context->Map(resources->_tgSmushTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+			if (SUCCEEDED(hr)) {
+				uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * g_pSharedDataTgSmush->videoFrameHeight * 3;
+				// Copy the data from TgSmush into this texture
+				memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, size);
+				context->Unmap(resources->_tgSmushTex, 0);
+			}
+
+			overlay_texture.eType = vr::TextureType_DirectX;
+			overlay_texture.eColorSpace = vr::ColorSpace_Auto;
+			overlay_texture.handle = resources->_tgSmushTex;
+			// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
+			g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
+			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+			// Let's make movies larger than the regular 2D overlay:
+			g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
+			g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+		}
+	}
+
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
 		if (!g_bHyperspaceFirstFrame) {
@@ -7942,6 +7976,7 @@ HRESULT PrimarySurface::Flip(
 								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
 								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
 								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+								g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, DEFAULT_STEAMVR_OVERLAY_WIDTH);
 								g_pVROverlay->ShowOverlay(g_VR2Doverlay);
 							}
 

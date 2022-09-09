@@ -162,6 +162,8 @@ public:
 	void DeleteGrayNoiseTexture();
 	void Create3DVisionSignatureTexture();
 	void Delete3DVisionTexture();
+	void CreateTgSmushTexture(DWORD width, DWORD height);
+	void DeleteTgSmushTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -272,6 +274,8 @@ public:
 	ComPtr<ID3D11Texture2D> _vision3DStaging;
 	// This texture stores the 3D vision signature.
 	ComPtr<ID3D11Texture2D> _vision3DSignatureTex;
+	// TgSmush
+	ComPtr<ID3D11Texture2D> _tgSmushTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;

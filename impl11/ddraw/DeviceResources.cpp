@@ -308,6 +308,7 @@ DeviceResources::DeviceResources()
 	this->_grayNoiseSRV = nullptr;
 	this->_vision3DSignatureTex = nullptr;
 	this->_vision3DSignatureSRV = nullptr;
+	this->_tgSmushTex = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -1260,6 +1261,59 @@ void DeviceResources::Delete3DVisionTexture()
 	_vision3DSignatureTex = nullptr;
 	_vision3DSignatureSRV = nullptr;
 	_noInterpolationSamplerState = nullptr;
+}
+
+void DeviceResources::CreateTgSmushTexture(DWORD width, DWORD height) {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	DWORD dwWidth = width;
+	DWORD dwHeight = height;
+	const int NUM_SAMPLES = dwWidth * dwHeight;
+	uint32_t* rawData = new uint32_t[NUM_SAMPLES];
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	if (_tgSmushTex != nullptr)
+		DeleteTgSmushTexture();
+
+	desc.Width = dwWidth;
+	desc.Height = dwHeight;
+	desc.Format = BACKBUFFER_FORMAT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: write-only, GPU: read-only
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint32_t) * dwWidth;
+	textureData.SysMemSlicePitch = 0;
+
+	// Clear rawData
+	memset(rawData, 0xFF, NUM_SAMPLES * 4);
+	// Create the texture proper
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_tgSmushTex))) {
+		log_debug("[DBG] [TGS] Failed when calling CreateTexture2D on _tgSmushTex, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+	else
+		log_debug("[DBG] [TGS] Successfully created _tgSmushTex");
+
+out:
+	delete[] rawData;
+}
+
+
+void DeviceResources::DeleteTgSmushTexture()
+{
+	if (_tgSmushTex != nullptr) _tgSmushTex->Release();
+	_tgSmushTex = nullptr;
 }
 
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
