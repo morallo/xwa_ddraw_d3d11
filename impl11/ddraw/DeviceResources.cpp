@@ -309,6 +309,7 @@ DeviceResources::DeviceResources()
 	this->_vision3DSignatureTex = nullptr;
 	this->_vision3DSignatureSRV = nullptr;
 	this->_tgSmushTex = nullptr;
+	this->_tgSmushTexWidth = this->_tgSmushTexHeight = -1;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
 	this->_useMultisampling = g_config.MultisamplingAntialiasingEnabled ? TRUE : FALSE;
@@ -1269,11 +1270,17 @@ void DeviceResources::CreateTgSmushTexture(DWORD width, DWORD height) {
 	DWORD dwWidth = width;
 	DWORD dwHeight = height;
 	const int NUM_SAMPLES = dwWidth * dwHeight;
-	uint32_t* rawData = new uint32_t[NUM_SAMPLES];
 	HRESULT hr;
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+
+	// If we already have a TgSmush texture with the right dimensions, just bail out.
+	if (_tgSmushTex != nullptr && _tgSmushTexWidth == width && _tgSmushTexHeight == height)
+		return;
+
+	uint32_t* rawData = new uint32_t[NUM_SAMPLES];
+
 	if (_tgSmushTex != nullptr)
 		DeleteTgSmushTexture();
 
@@ -1304,6 +1311,8 @@ void DeviceResources::CreateTgSmushTexture(DWORD width, DWORD height) {
 	}
 	else
 		log_debug("[DBG] [TGS] Successfully created _tgSmushTex");
+	_tgSmushTexWidth = width;
+	_tgSmushTexHeight = height;
 
 out:
 	delete[] rawData;
@@ -1314,6 +1323,7 @@ void DeviceResources::DeleteTgSmushTexture()
 {
 	if (_tgSmushTex != nullptr) _tgSmushTex->Release();
 	_tgSmushTex = nullptr;
+	_tgSmushTexWidth = _tgSmushTexHeight = -1;
 }
 
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {

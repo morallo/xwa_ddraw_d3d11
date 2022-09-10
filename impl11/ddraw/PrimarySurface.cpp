@@ -7643,10 +7643,9 @@ HRESULT PrimarySurface::Flip(
 	if (g_bUseSteamVR && g_pSharedDataTgSmush != nullptr &&
 		g_pSharedDataTgSmush->videoFrameIndex > 0)
 	{
-		// Create the TgSmush texture the first time we want to display it
-		// TODO: Handle movies of different sizes!
-		if (resources->_tgSmushTex == nullptr)
-			resources->CreateTgSmushTexture(g_pSharedDataTgSmush->videoFrameWidth, g_pSharedDataTgSmush->videoFrameHeight);
+		// Create or resize the TgSmush texture. If we already created this texture and there's
+		// no change in dimensions, CreateTgSmushTexture() will do nothing.
+		resources->CreateTgSmushTexture(g_pSharedDataTgSmush->videoFrameWidth, g_pSharedDataTgSmush->videoFrameHeight);
 
 		if (resources->_tgSmushTex != nullptr && g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
 		{
@@ -7655,9 +7654,12 @@ HRESULT PrimarySurface::Flip(
 			D3D11_MAPPED_SUBRESOURCE map;
 			HRESULT hr = context->Map(resources->_tgSmushTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 			if (SUCCEEDED(hr)) {
-				uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * g_pSharedDataTgSmush->videoFrameHeight * 3;
+				// The last few rows of the buffer show a green bar for some reason. Not sure why, but it just
+				// looks ugly
+				uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * (g_pSharedDataTgSmush->videoFrameHeight - 10) * 4;
 				// Copy the data from TgSmush into this texture
 				memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, size);
+				//memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, g_pSharedDataTgSmush->videoDataLength);
 				context->Unmap(resources->_tgSmushTex, 0);
 			}
 
@@ -7668,7 +7670,7 @@ HRESULT PrimarySurface::Flip(
 			g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
 			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
 			// Let's make movies larger than the regular 2D overlay:
-			g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
+			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
 			g_pVROverlay->ShowOverlay(g_VR2Doverlay);
 		}
 	}

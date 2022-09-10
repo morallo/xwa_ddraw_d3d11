@@ -541,6 +541,9 @@ public:
 	bool inScene;
 	bool inSceneBackbufferLocked;
 
+	int _tgSmushTexWidth;
+	int _tgSmushTexHeight;
+
 	PrimarySurface* _primarySurface;
 	DepthSurface* _depthSurface;
 	BackbufferSurface* _backbufferSurface;
