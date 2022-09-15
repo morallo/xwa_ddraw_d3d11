@@ -158,6 +158,8 @@ public:
 
 	void Add3DVisionSignature();
 
+	void RenderEdgeDetector();
+
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
 	STDMETHOD(GetAttachedSurface)(THIS_ LPDDSCAPS, LPDIRECTDRAWSURFACE FAR *);

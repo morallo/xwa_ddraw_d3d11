@@ -357,8 +357,8 @@ void InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem te
 		cur_tex_seq_elem.GroupId = tex_seq_elem0.GroupId;
 		cur_tex_seq_elem.ImageId = CurImageId;
 		cur_tex_seq_elem.ExtraTextureIndex = -1;
-		log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
-			cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
+		//log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
+		//	cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
 		tex_sequence.push_back(cur_tex_seq_elem);
 	}
 }
@@ -1475,8 +1475,8 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		LoadLightColor(buf, &(curMaterial->JoystickRoot));
 		// This point must be scaled to match the OPT coord sys
 		curMaterial->JoystickRoot *= METERS_TO_OPT;
-		log_debug("[DBG] [MAT] JoystickRoot: %0.3f, %0.3f, %0.3f",
-			curMaterial->JoystickRoot.x, curMaterial->JoystickRoot.y, curMaterial->JoystickRoot.z);
+		//log_debug("[DBG] [MAT] JoystickRoot: %0.3f, %0.3f, %0.3f",
+		//	curMaterial->JoystickRoot.x, curMaterial->JoystickRoot.y, curMaterial->JoystickRoot.z);
 	}
 	else if (_stricmp(param, "JoystickMaxYaw") == 0) {
 		curMaterial->JoystickMaxYaw = fValue;

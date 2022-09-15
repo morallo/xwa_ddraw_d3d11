@@ -90,8 +90,6 @@ public:
 
 	STDMETHOD(DeleteMatrix)(THIS_ D3DMATRIXHANDLE);
 
-	void RenderEdgeDetector();
-
 	STDMETHOD(BeginScene)(THIS);
 
 	STDMETHOD(EndScene)(THIS);

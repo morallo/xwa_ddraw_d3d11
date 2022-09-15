@@ -1376,7 +1376,7 @@ void Direct3DTexture::TagTexture() {
 						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
 						// Make sure we only load this sequence once
 						if (!atc->SequenceLoaded) {
-							log_debug("[DBG] Loading AltExplosionIdx[%d]: %d", AltExpIdx, ATCIndex);
+							//log_debug("[DBG] Loading AltExplosionIdx[%d]: %d", AltExpIdx, ATCIndex);
 							for (uint32_t j = 0; j < atc->Sequence.size(); j++) {
 								TexSeqElem tex_seq_elem = atc->Sequence[j];
 								ID3D11ShaderResourceView *texSRV = nullptr;
