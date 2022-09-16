@@ -1136,7 +1136,7 @@ void EffectsRenderer::ApplyBloomSettings()
 			AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
 			g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
 		}
-		g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
+		//g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 	}
 	// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
 	else if (_lastTextureSelected->is_EngineGlow) {
@@ -1584,7 +1584,9 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		if (atc->OverlayCtrl == 0)
+		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0)
+			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
+		else
 			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
 		if (extraTexIdx > -1) {
@@ -1635,7 +1637,9 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		if (atc->OverlayCtrl == 0)
+		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0)
+			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
+		else
 			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
 		// Set the animated lightmap in slot 1, but only if we're not rendering DC -- DC uses

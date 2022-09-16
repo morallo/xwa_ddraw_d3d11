@@ -255,7 +255,7 @@ typedef struct PixelShaderCBStruct {
 	// 16 bytes
 
 	uint32_t bIsLaser;
-	uint32_t bIsLightTexture;
+	float fOverlayBloomPower;
 	uint32_t bIsEngineGlow;
 	uint32_t GreebleControl;
 	// 32 bytes

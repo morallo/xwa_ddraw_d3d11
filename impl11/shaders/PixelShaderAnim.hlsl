@@ -49,6 +49,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (Clamp) UV = saturate(UV);
 	float specInt = fSpecInt;
 	float glossiness = fGlossiness;
+	float4 ScreenLyrBloom = 0;
 
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
@@ -64,8 +65,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0)
 	{
-		float4 layerColor = overlayTexB.Sample(sampler0, input.tex);
+		const float4 layerColor = overlayTexB.Sample(sampler0, input.tex);
 		texelColor.rgb = 1.0 - ((1.0 - texelColor.rgb) * (1.0 - layerColor.rgb));
+		const float val = dot(float3(0.33, 0.5, 0.16), layerColor.rgb) * layerColor.a;
+
+		const float bloom_alpha = val;
+		ScreenLyrBloom = fOverlayBloomPower * val * layerColor;
 	}
 
 	float  alpha = texelColor.a;
@@ -155,6 +160,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//if (bInHyperspace && output.bloom.a < 0.5)
 		//	discard;
 	}
+	output.bloom = max(output.bloom, ScreenLyrBloom);
 
 	return output;
 }

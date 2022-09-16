@@ -7837,7 +7837,6 @@ nochange:
 		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 	else
 		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
-	//log_debug("[DBG] _offscreenAsInputDynCockpit RENDERED (2)");
 
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.

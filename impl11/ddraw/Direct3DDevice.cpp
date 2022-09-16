@@ -5129,7 +5129,7 @@ HRESULT Direct3DDevice::Execute(
 							AnimatedTexControl *atc = &(g_AnimatedMaterials[anim_idx]);
 							g_PSCBuffer.fBloomStrength = atc->Sequence[atc->AnimIdx].intensity;
 						}
-						g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
+						//g_PSCBuffer.bIsLightTexture = g_config.EnhanceIllumination ? 2 : 1;
 					}
 					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
 					else if (lastTextureSelected->is_EngineGlow) {

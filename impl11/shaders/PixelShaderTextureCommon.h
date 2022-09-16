@@ -9,7 +9,7 @@ cbuffer ConstantBuffer : register(b9)
 	// 16 bytes
 
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
+	float fOverlayBloomPower;	// Controls the intensity of the bloom effect coming from SCREEN overlay textures
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
 	uint GreebleControl;			// Bitmask: 0x1 0000 -- Use Normal Map
 								// 0x00F 1st Tex Blend Mode
