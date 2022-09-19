@@ -296,6 +296,12 @@ typedef struct PixelShaderCBStruct {
 	uint32_t bDoRaytracing;
 	uint32_t OverlayCtrl;
 	// 176 bytes
+
+	float rand;
+	float PS_unused0;
+	float PS_unused1;
+	float PS_unused2;
+	// 192 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

@@ -2004,6 +2004,14 @@ void AnimatedTexControl::Animate() {
 	this->TimeLeft = time;
 }
 
+bool AnimatedTexControl::IsRandomizableOverlay() {
+	if (this->InstEvent == IEVT_SHIELDS_DOWN ||
+		this->InstEvent == IEVT_TRACTOR_BEAM ||
+		this->InstEvent == IEVT_JAMMING_BEAM)
+		return true;
+	return false;
+}
+
 void AnimateMaterials() {
 	// I can't use a shorthand loop like the following:
 	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
@@ -2170,8 +2178,12 @@ void UpdateEventsFired() {
 		// Update instance events
 
 		// Set the current shield damage/beam event to true if it changed:
-		if (instEvent.PrevShieldBeamEvent != instEvent.ShieldBeamEvent)
+		if (instEvent.PrevShieldBeamEvent != instEvent.ShieldBeamEvent) {
 			instEvent.bEventsFired[instEvent.ShieldBeamEvent] = true;
+			// This random value gets re-computed each time the event gets triggered.
+			// Thus it can help us randomize the shields down effect.
+			instEvent.rand = (float)rand() / RAND_MAX;
+		}
 
 		// Set the current hull damage event to true if it changed:
 		if (instEvent.PrevHullEvent != instEvent.HullEvent)

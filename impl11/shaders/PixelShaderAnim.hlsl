@@ -65,11 +65,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0)
 	{
-		const float4 layerColor = overlayTexB.Sample(sampler0, input.tex);
+		// rand is a random value provided by the CPU in the range 0..1
+		// It is used here to compute a rotation matrix that rotates UVs
+		// in the same range (0..180 degrees).
+		float s, c, ang = rand;
+		sincos(ang, s, c);
+		float2x2 mat = float2x2(c, s, -s, c);
+		float2 uv = mul(input.tex.xy, mat);
+		const float4 layerColor = overlayTexB.Sample(sampler0, uv);
 		texelColor.rgb = 1.0 - ((1.0 - texelColor.rgb) * (1.0 - layerColor.rgb));
 		const float val = dot(float3(0.33, 0.5, 0.16), layerColor.rgb) * layerColor.a;
-
-		const float bloom_alpha = val;
 		ScreenLyrBloom = fOverlayBloomPower * val * layerColor;
 	}
 

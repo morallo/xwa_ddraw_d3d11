@@ -1459,6 +1459,9 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	std::vector<ATCIndexEvtType> TexATCIndices, LightATCIndices;
 	std::vector<bool> TexATCIndexTypes, LightATCIndexTypes; // false: Global Event, true: Instance Event
 	InstanceEvent* instEvent = nullptr;
+	// Random value used to alter the shields down effect (and others). This
+	// value is set into InstanceEvent every time the event is triggered,
+	float randVal = 0.0f;
 
 	if (bInstanceEvent) {
 		// This is an instance ATC. We can have regular materials or
@@ -1467,6 +1470,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		if (instEvent != nullptr) {
 			TexATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, TEXTURE_ATC_IDX);
 			LightATCIndices = _lastTextureSelected->material.GetCurrentInstATCIndex(objectId, *instEvent, LIGHTMAP_ATC_IDX);
+			randVal = instEvent->rand;
 
 			for (size_t i = 0; i < TexATCIndices.size(); i++)
 				TexATCIndexTypes.push_back(true);
@@ -1502,6 +1506,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 				if (craftInstEvent != nullptr) {
 					CraftTexATCIndices = defaultMaterial->GetCurrentInstATCIndex(objectId, *craftInstEvent, TEXTURE_ATC_IDX);
 					CraftLightATCIndices = defaultMaterial->GetCurrentInstATCIndex(objectId, *craftInstEvent, LIGHTMAP_ATC_IDX);
+					randVal = craftInstEvent->rand;
 				}
 
 				// Inherit animations from the Default entry
@@ -1584,8 +1589,11 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0)
+		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
 			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
+			// Only enable randomness for specific events
+			g_PSCBuffer.rand = atc->IsRandomizableOverlay() ? randVal : 0.0f;
+		}
 		else
 			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 
@@ -1637,8 +1645,11 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.Offset = atc->Offset;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0)
+		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
 			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
+			// Only enable randomness for specific events
+			g_PSCBuffer.rand = atc->IsRandomizableOverlay() ? randVal : 0.0f;
+		}
 		else
 			g_PSCBuffer.fBloomStrength = atc->Sequence[idx].intensity;
 

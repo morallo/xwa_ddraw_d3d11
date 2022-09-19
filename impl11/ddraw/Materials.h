@@ -252,11 +252,14 @@ public:
 	// in g_AnimatedMaterials. This entry is considered a "template". Once this template
 	// has been copied into g_AnimatedInstMaterials, the following flag must be set to true
 	bool bATCHasBeenInstanced;
+	// Random value, used to rotate the textures for the shields down effect.
+	float rand;
 
 	InstanceEvent()
 	{
 		objectId = -1;
 		bATCHasBeenInstanced = false;
+		rand = 0.0f;
 		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_INST_EVT; i++)
 				InstTextureATCIndices[j][i] = -1;
@@ -344,9 +347,15 @@ typedef struct AnimatedTexControlStruct {
 	}
 
 	void ResetAnimation();
+
 	// Updates the timer/index on the current animated material. Only call this function
 	// if the current material has an animation.
 	void Animate();
+
+	// Returns true if this event can be randomized by sending a random value to the shader.
+	// For instance, shields down and beam effects can be easily randomized
+	bool IsRandomizableOverlay();
+
 } AnimatedTexControl;
 
 extern std::vector<AnimatedTexControl> g_AnimatedMaterials;

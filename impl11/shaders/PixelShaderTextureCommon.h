@@ -54,4 +54,10 @@ cbuffer ConstantBuffer : register(b9)
 	uint bDoRaytracing;
 	uint OverlayCtrl;			// Used to control overlay effects, like shields down or hull damage
 	// 176 bytes
+
+	float rand;					// Used as a random value in PixelShaderAnim.hlsl
+	float PS_unused0;
+	float PS_unused1;
+	float PS_unused2;
+	// 192 bytes
 };
