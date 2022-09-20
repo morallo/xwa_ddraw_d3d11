@@ -1,3 +1,4 @@
+#include "common.h"
 #include "hook_config.h"
 #include <fstream>
 

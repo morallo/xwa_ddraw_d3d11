@@ -1,3 +1,4 @@
+#include "common.h"
 #include "DirectSBSRenderer.h"
 
 #ifdef _DEBUG

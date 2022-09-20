@@ -1,8 +1,8 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 
-#include "config.h"
 #include "common.h"
+#include "config.h"
 #include "hook_config.h"
 
 #include <string>

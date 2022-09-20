@@ -1,6 +1,5 @@
-#include "DynamicCockpit.h"
-
 #include "common.h"
+#include "DynamicCockpit.h"
 #include "globals.h"
 #include "VRConfig.h"
 

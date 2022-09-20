@@ -1,3 +1,4 @@
+#include "common.h"
 #include "SharedMem.h"
 
 void log_debug(const char *format, ...);

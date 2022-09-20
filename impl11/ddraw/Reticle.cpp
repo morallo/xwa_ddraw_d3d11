@@ -1,6 +1,5 @@
-#include "reticle.h"
-
 #include "common.h"
+#include "reticle.h"
 #include <vector>
 
 /*

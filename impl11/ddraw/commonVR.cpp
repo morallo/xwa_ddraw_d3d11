@@ -1,3 +1,4 @@
+#include "common.h"
 #include "commonVR.h"
 #include "EffectsCommon.h"
 

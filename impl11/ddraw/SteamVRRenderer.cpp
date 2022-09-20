@@ -4,8 +4,10 @@
  *	 camera roll only.
  *	 Probable fix: remove the backdrop altogether and substitute with an environment map.
  *	 Make the environment map respond to head tracking motion.
+ *   The position of the camera is not at the origin in external view. We need to compensate for that.
  * - Disable head tracking while rendering the miniature.
  */
+#include "common.h"
 #include "SteamVRRenderer.h"
 
 #ifdef _DEBUG

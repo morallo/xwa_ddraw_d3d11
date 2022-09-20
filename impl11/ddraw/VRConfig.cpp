@@ -1,3 +1,4 @@
+#include "common.h"
 #include "VRConfig.h"
 #include "config.h"
 #include "utils.h"

@@ -1,3 +1,4 @@
+#include "common.h"
 #include "globals.h"
 #include "Materials.h"
 #include "utils.h"

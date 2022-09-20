@@ -1,6 +1,7 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 
+#include "common.h"
 #include "logger.h"
 
 #if LOGGER || LOGGER_DUMP

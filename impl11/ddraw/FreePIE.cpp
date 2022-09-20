@@ -1,3 +1,4 @@
+#include "common.h"
 #include <windows.h>
 #include "FreePIE.h"
 

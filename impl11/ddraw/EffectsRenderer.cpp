@@ -1,3 +1,4 @@
+#include "common.h"
 #include "EffectsRenderer.h"
 
 #ifdef _DEBUG

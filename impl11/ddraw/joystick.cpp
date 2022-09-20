@@ -1,8 +1,8 @@
 // Copyright (c) 2016-2018 Reimar Döffinger
 // Licensed under the MIT license. See LICENSE.txt
 
-#include "config.h"
 #include "common.h"
+#include "config.h"
 
 #include <mmsystem.h>
 #include <xinput.h>

@@ -1,6 +1,6 @@
+#include "common.h"
 #include "Effects.h"
 #include "globals.h"
-#include "common.h"
 #include "XWAFramework.h"
 #include "VRConfig.h"
 

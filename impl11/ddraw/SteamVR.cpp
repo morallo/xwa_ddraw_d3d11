@@ -1,6 +1,6 @@
+#include "common.h"
 #include <Windows.h>
 #include <stdio.h>
-#include "common.h"
 #include "utils.h"
 #include "commonVR.h"
 #include "SteamVR.h"

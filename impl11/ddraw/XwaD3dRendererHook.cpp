@@ -39,6 +39,7 @@ Backdrops messages look like:
 - "Set backdrop scale %f, intensity %f, R%f, G%f, B%f, flags %d, imgnum %d.\n"
 
  */
+#include "common.h"
 #include <vector>
 #include <fstream>
 #include <sstream>

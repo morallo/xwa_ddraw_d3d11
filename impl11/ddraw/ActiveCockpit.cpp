@@ -1,3 +1,4 @@
+#include "common.h"
 #include "ActiveCockpit.h"
 #include "DynamicCockpit.h"
 #include "utils.h"
