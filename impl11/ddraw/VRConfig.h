@@ -82,7 +82,7 @@ bool LoadSSAOParams();
 bool LoadHyperParams();
 bool Load3DVisionParams();
 bool LoadDefaultGlobalMaterial();
-bool LoadInterdictionMap();
+bool LoadMultiplayerConfig();
 void ReloadMaterials();
 
 #ifdef DBG_VR

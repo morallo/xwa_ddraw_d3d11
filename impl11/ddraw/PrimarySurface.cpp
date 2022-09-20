@@ -7713,9 +7713,17 @@ void PrimarySurface::RenderEdgeDetector()
 		if (object == NULL) goto nocolor;
 		MobileObjectEntry* mobileObject = object->MobileObjectPtr;
 		if (mobileObject == NULL) goto nocolor;
-		int IFF = mobileObject->IFF;
-		if (IFF >= 0 && IFF <= 5)
-			g_ShadertoyBuffer.SunColor[0] = g_DCTargetingIFFColors[IFF];
+		if (g_bGreenAndRedForIFFColorsOnly) {
+			if (IsObjectEnemy(currentTargetIndex, PlayerDataTable[*g_playerIndex].team))
+				g_ShadertoyBuffer.SunColor[0] = g_DCTargetingFoe;
+			else
+				g_ShadertoyBuffer.SunColor[0] = g_DCTargetingFriend;
+		}
+		else {
+			int IFF = mobileObject->IFF;
+			if (IFF >= 0 && IFF <= 5)
+				g_ShadertoyBuffer.SunColor[0] = g_DCTargetingIFFColors[IFF];
+		}
 	}
 nocolor:
 	// Override all of the above if the current DC file has a wireframe color set:

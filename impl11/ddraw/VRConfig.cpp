@@ -555,6 +555,8 @@ next:
 	LoadFocalLength();
 	// Load the default global material
 	LoadDefaultGlobalMaterial();
+	// Load hook_tourmultiplayer.cfg
+	LoadMultiplayerConfig();
 	// Reload the materials
 	ReloadMaterials();
 }
@@ -1397,6 +1399,16 @@ bool LoadDCParams() {
 	g_DCWireframeLuminance.z = 0.16f;
 	g_DCWireframeLuminance.w = 0.05f;
 
+	g_DCTargetingFriend.x = 0.1f;
+	g_DCTargetingFriend.y = 0.6f;
+	g_DCTargetingFriend.z = 0.1f;
+	g_DCTargetingFriend.w = 1.0f;
+
+	g_DCTargetingFoe.x = 0.6f;
+	g_DCTargetingFoe.y = 0.1f;
+	g_DCTargetingFoe.z = 0.1f;
+	g_DCTargetingFoe.w = 1.0f;
+
 	g_DCWireframeContrast = 3.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
@@ -1517,6 +1529,24 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].y = y;
 					g_DCTargetingIFFColors[5].z = z;
 					g_DCTargetingIFFColors[5].w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_multiplayer_friend") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFriend.x = x;
+					g_DCTargetingFriend.y = y;
+					g_DCTargetingFriend.z = z;
+					g_DCTargetingFriend.w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_multiplayer_foe") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFoe.x = x;
+					g_DCTargetingFoe.y = y;
+					g_DCTargetingFoe.z = z;
+					g_DCTargetingFoe.w = 1.0f;
 				}
 			}
 			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
@@ -2716,6 +2746,48 @@ bool LoadDefaultGlobalMaterial() {
 		ReadMaterialLine(buf, &g_DefaultGlobalMaterial, "GlobalMaterial");
 	}
 	fclose(file);
+	return true;
+}
+
+bool LoadMultiplayerConfig() {
+	log_debug("[DBG] Loading hook_tourmultiplayer.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./hook_tourmultiplayer.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hook_tourmultiplayer.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hook_tourmultiplayer.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "GreenAndRedForIFFColorsOnly") == 0) {
+				g_bGreenAndRedForIFFColorsOnly = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
 	return true;
 }
 

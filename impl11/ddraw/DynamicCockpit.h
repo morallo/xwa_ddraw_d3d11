@@ -290,6 +290,9 @@ extern bool g_bEdgeEffectApplied;
 extern int g_WindowWidth, g_WindowHeight;
 extern float4 g_DCTargetingColor, g_DCWireframeLuminance;
 extern float4 g_DCTargetingIFFColors[6];
+extern float4 g_DCTargetingFriend;
+extern float4 g_DCTargetingFoe;
+extern bool g_bGreenAndRedForIFFColorsOnly;
 extern float g_DCWireframeContrast;
 extern float g_fReticleScale;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on

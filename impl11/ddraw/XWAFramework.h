@@ -49,7 +49,7 @@
 	inline const auto DisplayMessage = (int(*)(int messageIndex, int playerIndex))0x497D40;
 	inline const auto GetKeyboardDeviceState = (int(*)())0x42B900;
 	inline const auto DirectInputKeyboardReaquire = (char(*)())0x42B920;
-
+	inline const auto IsObjectEnemy = (bool(*)(unsigned __int16 objectIndex, int playerTeam))0x505D40;
 
 
 	// Globals from XWA
