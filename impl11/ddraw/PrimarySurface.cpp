@@ -7924,9 +7924,7 @@ HRESULT PrimarySurface::Flip(
 				D3D11_MAPPED_SUBRESOURCE map;
 				HRESULT hr = context->Map(resources->_tgSmushTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 				if (SUCCEEDED(hr)) {
-					// The last few rows of the buffer show a green bar for some reason. Not sure why, but it just
-					// looks ugly
-					uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * (g_pSharedDataTgSmush->videoFrameHeight - 10) * 4;
+					uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * g_pSharedDataTgSmush->videoFrameHeight * 4;
 					// Copy the data from TgSmush into this texture
 					memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, size);
 					//memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, g_pSharedDataTgSmush->videoDataLength);
