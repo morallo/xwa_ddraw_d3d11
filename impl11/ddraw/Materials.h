@@ -252,14 +252,14 @@ public:
 	// in g_AnimatedMaterials. This entry is considered a "template". Once this template
 	// has been copied into g_AnimatedInstMaterials, the following flag must be set to true
 	bool bATCHasBeenInstanced;
-	// Random value, used to rotate the textures for the shields down effect.
-	float rand;
+	// Random values, used to rotate and translate the textures for the shields down effect.
+	float rand0, rand1, rand2;
 
 	InstanceEvent()
 	{
 		objectId = -1;
 		bATCHasBeenInstanced = false;
-		rand = 0.0f;
+		rand0 = rand1 = rand2 = 0.0f;
 		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_INST_EVT; i++)
 				InstTextureATCIndices[j][i] = -1;

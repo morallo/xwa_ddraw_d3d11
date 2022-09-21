@@ -2183,7 +2183,9 @@ void UpdateEventsFired() {
 			instEvent.bEventsFired[instEvent.ShieldBeamEvent] = true;
 			// This random value gets re-computed each time the event gets triggered.
 			// Thus it can help us randomize the shields down effect.
-			instEvent.rand = (float)rand() / RAND_MAX;
+			instEvent.rand0 = (float)rand() / RAND_MAX;
+			instEvent.rand1 = (float)rand() / RAND_MAX;
+			instEvent.rand2 = (float)rand() / RAND_MAX;
 		}
 
 		// Set the current hull damage event to true if it changed:

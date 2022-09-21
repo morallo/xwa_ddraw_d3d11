@@ -297,10 +297,10 @@ typedef struct PixelShaderCBStruct {
 	uint32_t OverlayCtrl;
 	// 176 bytes
 
-	float rand;
+	float rand0;
+	float rand1;
+	float rand2;
 	float PS_unused0;
-	float PS_unused1;
-	float PS_unused2;
 	// 192 bytes
 } PixelShaderCBuffer;
 
