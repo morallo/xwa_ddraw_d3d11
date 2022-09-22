@@ -19,6 +19,7 @@
       <Filter>Fichiers sources</Filter>
     </None>
     <None Include="ddraw.cfg" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BackbufferSurface.cpp">
