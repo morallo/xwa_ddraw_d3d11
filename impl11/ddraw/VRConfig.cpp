@@ -1532,7 +1532,7 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].w = 1.0f;
 				}
 			}
-			else if (_stricmp(param, "wireframe_multiplayer_friend") == 0) {
+			else if (_stricmp(param, "wireframe_color_friend") == 0) {
 				float x, y, z;
 				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
 					g_DCTargetingFriend.x = x;
@@ -1541,7 +1541,7 @@ bool LoadDCParams() {
 					g_DCTargetingFriend.w = 1.0f;
 				}
 			}
-			else if (_stricmp(param, "wireframe_multiplayer_foe") == 0) {
+			else if (_stricmp(param, "wireframe_color_foe") == 0) {
 				float x, y, z;
 				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
 					g_DCTargetingFoe.x = x;
