@@ -1,3 +1,5 @@
+#ifndef RT_COMMON_H
+#define RT_COMMON_H
 // Copied and adapted from GPU Pro 3, the code is in the public domain, so that's
 // OK. I should know, since I'm one of the co-authors!
 
@@ -304,3 +306,5 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	return _TraceRaySimpleHit(ray);
 	//return _NaiveSimpleHit(ray);
 }
+
+#endif

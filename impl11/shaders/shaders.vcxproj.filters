@@ -139,6 +139,9 @@
     <ClInclude Include="RT\RTCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="PBRShading.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="XwaD3dCommon.hlsl" />

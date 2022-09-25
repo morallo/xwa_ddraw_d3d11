@@ -525,6 +525,7 @@
     <ClInclude Include="material_defs.h" />
     <ClInclude Include="metric_common.h" />
     <ClInclude Include="NormalMapping.h" />
+    <ClInclude Include="PBRShading.h" />
     <ClInclude Include="PixelShaderTextureCommon.h" />
     <ClInclude Include="RT\RTCommon.h" />
     <ClInclude Include="ShadertoyCBuffer.h" />
