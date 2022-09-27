@@ -12,6 +12,9 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
+#include "..\PBRShading.h"
+
+#undef PBR_SHADING
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -434,7 +437,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
 	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D	          = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D	      = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
@@ -502,7 +505,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float distance_fade = enable_dist_fade * saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
 	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
+#ifndef PBR_SHADING
 	color = color * color; // Gamma correction (approx pow 2.2)
+#else
+	color = srgb_to_linear(color);
+#endif
 	//float3 N = normalize(Normal.xyz);
 	float3 N = Normal.xyz;
 	const float3 smoothN = N;
@@ -613,6 +620,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint i;
 
 	// Compute the shading contribution from the main lights
+#ifndef PBR_SHADING
 	[loop]
 	for (i = 0; i < LightCount; i++)
 	{
@@ -713,6 +721,33 @@ PixelShaderOutput main(PixelShaderInput input)
 		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
+#else
+	const float metallicity = 0.25;
+	const float glossiness = 0.75;
+	const float reflectance = 0.30;
+	const float ambient = 0.05;
+	const float exposure = 1.0;
+	[loop]
+	for (i = 0; i < LightCount; i++) {
+		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
+		float LightIntensity = dot(LightColor[i].rgb, 0.333);
+		float3 eye_vec = normalize(-P);
+		float3 N_PBR = N;
+		N_PBR.xy = -N_PBR.xy;
+		L.xy = -L.xy;
+		float3 col = addPBR(P, N_PBR, N_PBR, -eye_vec,
+			color.rgb, L, float4(LightColor[i].rgb, LightIntensity),
+			metallicity,
+			glossiness, // Glossiness: 0 matte, 1 glossy/glass
+			reflectance,
+			ambient,
+			total_shadow_factor * ssdo.x
+		);
+		tmp_color += col;
+		//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
+		//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+	}
+#endif
 	output.bloom = tmp_bloom;
 
 	// Add the laser/dynamic lights
@@ -752,7 +787,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			depth_attenuation = 1.0;
 			attenuation = falloff / distance_sqr;
 		}
-		// calculate the attenation for directional lights
+		// calculate the attenuation for directional lights
 		if (angle_falloff_cos != 0.0f) {
 			// compute the angle between the light's direction and the
 			// vector from the current point to the light's center
@@ -762,8 +797,26 @@ PixelShaderOutput main(PixelShaderInput input)
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
 		//laser_light_alpha += diff_val;
+
 		// add everything up
 		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * diff_val * LightPointColor[i].rgb;
+
+		// add everything up, PBR version
+		/*
+		const float metallicity	= 0.25;
+		const float glossiness	= 0.70;
+		const float reflectance	= 0.60;
+		float3 eye_vec = normalize(-pos3D);
+		float3 N_PBR = N;
+		N_PBR.yz = -N_PBR.yz;
+		float3 col = addPBR(P, N_PBR, N_PBR, -eye_vec,
+			srgb_to_linear(color.rgb), LDir, float4(LightPointColor[i].rgb, 1),
+			metallicity,
+			glossiness, // Glossiness: 0 matte, 1 glossy/glass
+			reflectance
+		);
+		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * col;
+		*/
 	}
 	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;
@@ -772,6 +825,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
+#ifndef PBR_SHADING
 	// Reinhard tone mapping:
 	if (HDREnabled) {
 		//float I = dot(tmp_color, 0.333);
@@ -786,6 +840,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
 	}
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
+#else
+	//const float exposure = 1.0f;
+	output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
+#endif
 
 #ifdef DISABLED
 	if (ssao_debug == 8)

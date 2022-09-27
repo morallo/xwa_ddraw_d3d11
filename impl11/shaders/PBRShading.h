@@ -5,6 +5,7 @@
  * PBR shaders based on https://www.shadertoy.com/view/4l3SWf
  */
 #include "shader_common.h"
+#include "PixelShaderTextureCommon.h"
 #include "RT/RTCommon.h"
 
 #define PI 3.1415926535
@@ -87,7 +88,8 @@ float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position
 
 // Main entry point for PBR shading with Ray-tracing. This is used in
 // the Tech Room.
-float3 addPBR_RT(in float3 position, in float3 N, in float3 FlatN, in float3 V, in float3 baseColor,
+float3 addPBR_RT(in float3 position, in float3 N, in float3 FlatN, in float3 V,
+	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance)
 {
 	float3 color = 0.0;
@@ -106,8 +108,8 @@ float3 addPBR_RT(in float3 position, in float3 N, in float3 FlatN, in float3 V, 
 		//float3 L = float3(0.7, -0.7, 1);
 		//float3 L = float3(0.5, 1.0, 0.7);
 		//float3 light_color = 1.0;
-		float3 L = globalLights[i].direction.xyz;
-		float3 light_color = globalLights[i].color.w * globalLights[i].color.xyz;
+		float3 L = lightDir;
+		float3 light_color = lightColor.w * lightColor.xyz;
 
 		// Vector from the current point to the light source. Lights are at infinity,
 		// so the current point is irrelevant.
@@ -141,8 +143,21 @@ float3 addPBR_RT(in float3 position, in float3 N, in float3 FlatN, in float3 V, 
 }
 
 // Main entry point for PBR shading, no Ray-tracing.
-float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in float3 baseColor,
-	in float metalMask, in float glossiness, in float reflectance)
+// position:			input.pos3D.xyz
+// N (smooth normal):	N = normalize(input.normal.xyz); N.yz = -N.yz
+// FlatN:				Same as N, without normal mapping.
+// V:					-eye_vec = normalize(-input.pos3D.xyz);
+// baseColor:			srgb_to_linear(texelColor.rgb)
+// lightDir:			Vector from the current point to the light source. Lights are at infinity,
+//						so the current point is irrelevant.
+// lightColor:			xyz is the color, w is the intensity.
+// exposure				= 1.00;
+// metallicity			= 0.25;
+// glossiness			= 0.70;
+// reflectance			= 0.60;
+float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
+	in float3 baseColor, in float3 lightDir, in float4 lightColor,
+	in float metalMask, in float glossiness, in float reflectance, in float ambient, in float shadowFactor)
 {
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
@@ -150,18 +165,17 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 	float3 albedo;
 	float shadow = 1.0;
 	//const float ambient = 0.05;
-	const float ambient = 0.15;
+	//const float ambient = 0.15;
 	// albedo = linear_to_srgb(baseColor);
 	albedo = baseColor;
 
 	//for (int i = 0; i < globalLightsCount; i++)
-	int i = 0;
 	{
 		//float3 L = float3(0.7, -0.7, 1);
 		//float3 L = float3(0.5, 1.0, 0.7);
 		//float3 light_color = 1.0;
-		float3 L = globalLights[i].direction.xyz;
-		float3 light_color = globalLights[i].color.w * globalLights[i].color.xyz;
+		float3 L = lightDir;
+		float3 light_color = lightColor.w * lightColor.xyz;
 
 		// Vector from the current point to the light source. Lights are at infinity,
 		// so the current point is irrelevant.
@@ -180,6 +194,7 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V, in 
 	}
 
 	//return color * shadow; // Original version
-	return ambient * albedo + color * shadow; // This prevents areas in shadow from becoming full black.
+	return ambient * albedo + color * shadow * shadowFactor; // This prevents areas in shadow from becoming full black.
 }
+
 #endif

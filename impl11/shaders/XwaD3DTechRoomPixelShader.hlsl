@@ -49,9 +49,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsBlastMark)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	float  alpha = texelColor.w;
+	float alpha = texelColor.w;
 	const float3 P = input.pos3D.xyz;
-	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 
 	// Zero-out the bloom mask and provide default output values
 	output.bloom = 0;
@@ -60,8 +60,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 	output.normal = float4(N, SSAOAlpha);
 
 	if (bDoNormalMapping) {
@@ -102,7 +101,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	const float exposure = 1.0;
 	//float glossiness = output.ssaoMask.g + 0.5;
-	float metallicity = 0.25;
+	const float metallicity = 0.25;
 	float glossiness = 0.7;
 	float reflectance = 0.6;
 	float final_alpha = alpha;
@@ -113,6 +112,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	float3 eye_vec = normalize(-output.pos3D.xyz); // normalize(eye - pos3D); // Vector from pos3D to the eye (0,0,0)
 	float3 col = addPBR_RT(P, N, output.normal.xyz, -eye_vec, srgb_to_linear(texelColor.rgb),
+		globalLights[0].direction.xyz, globalLights[0].color,
 		metallicity,
 		glossiness, // Glossiness: 0 matte, 1 glossy/glass
 		reflectance

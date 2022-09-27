@@ -1,3 +1,6 @@
+#ifndef PIXEL_SHADER_COMMON_H
+#define PIXEL_SHADER_COMMON_H
+
 // PixelShaderCBuffer, used to be register(b0), but the new D3dRendererHook
 // is using that, so let's use another register: b9
 cbuffer ConstantBuffer : register(b9)
@@ -61,3 +64,5 @@ cbuffer ConstantBuffer : register(b9)
 	float PS_unused2;
 	// 192 bytes
 };
+
+#endif
