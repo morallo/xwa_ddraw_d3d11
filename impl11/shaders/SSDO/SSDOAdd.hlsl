@@ -724,11 +724,16 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
 #else
+	const float V = dot(0.333, color.rgb);
+	//const bool blackish = V < 0.1;
+	const bool blackish = smoothstep(0.1, 0.0, V);
 	const float metallicity = 0.25;
-	const float glossiness = 0.75;
-	const float reflectance = 0.30;
+	//const float glossiness = blackish ? 0.25 : 0.75;
+	const float glossiness = lerp(0.75, 0.5, blackish);
+	//const float reflectance = blackish ? 0.0 : 0.30;
+	const float reflectance = lerp(0.3, 0.1, blackish);
 	const float ambient = 0.05;
-	const float exposure = 1.0;
+	//const float exposure = 1.0;
 	[loop]
 	for (i = 0; i < LightCount; i++) {
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
