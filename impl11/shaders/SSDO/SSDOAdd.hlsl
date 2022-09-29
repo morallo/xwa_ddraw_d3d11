@@ -15,6 +15,7 @@
 #include "..\PBRShading.h"
 
 #undef PBR_SHADING
+#define PBR_DYN_LIGHTS
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -508,7 +509,8 @@ PixelShaderOutput main(PixelShaderInput input)
 #ifndef PBR_SHADING
 	color = color * color; // Gamma correction (approx pow 2.2)
 #else
-	color = srgb_to_linear(color);
+	//color = srgb_to_linear(color);
+	color = color * color;
 #endif
 	//float3 N = normalize(Normal.xyz);
 	float3 N = Normal.xyz;
@@ -799,24 +801,29 @@ PixelShaderOutput main(PixelShaderInput input)
 		//laser_light_alpha += diff_val;
 
 		// add everything up
+#ifndef PBR_DYN_LIGHTS
 		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * diff_val * LightPointColor[i].rgb;
-
+#else
 		// add everything up, PBR version
-		/*
 		const float metallicity	= 0.25;
-		const float glossiness	= 0.70;
-		const float reflectance	= 0.60;
-		float3 eye_vec = normalize(-pos3D);
+		const float glossiness	= 0.75;
+		const float reflectance	= 0.40;
+		const float ambient = 0.05;
+		float3 eye_vec = normalize(-P);
+		float3 L_PBR = L;
 		float3 N_PBR = N;
-		N_PBR.yz = -N_PBR.yz;
+		N_PBR.xy = -N_PBR.xy;
+		L_PBR.xy = -L_PBR.xy;
 		float3 col = addPBR(P, N_PBR, N_PBR, -eye_vec,
-			srgb_to_linear(color.rgb), LDir, float4(LightPointColor[i].rgb, 1),
+			color.rgb, L_PBR, float4(LightPointColor[i].rgb, 1),
 			metallicity,
 			glossiness, // Glossiness: 0 matte, 1 glossy/glass
-			reflectance
+			reflectance,
+			ambient,
+			1.0 // shadow factor
 		);
 		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * col;
-		*/
+#endif
 	}
 	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;
@@ -842,7 +849,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 #else
 	//const float exposure = 1.0f;
-	output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
+	//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
+	//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
+	if (HDREnabled) {
+		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+	}
+	output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
 #endif
 
 #ifdef DISABLED
