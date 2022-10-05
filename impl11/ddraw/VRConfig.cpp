@@ -1971,6 +1971,7 @@ bool LoadSSAOParams() {
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
 	g_ShadowMapping.bEnabled = false;
+	g_ShadowMapping.bCSMEnabled = false;
 	g_bShadowMapDebug = false;
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
@@ -2194,6 +2195,11 @@ bool LoadSSAOParams() {
 				g_bShadowMapEnable = (bool)fValue;
 				g_ShadowMapping.bEnabled = g_bShadowMapEnable;
 				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.bEnabled;
+				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
+			}
+			else if (_stricmp(param, "cascaded_shadow_mapping_enable") == 0) {
+				g_ShadowMapping.bCSMEnabled = (bool)fValue;
+				g_ShadowMapVSCBuffer.sm_csm_enabled = g_ShadowMapping.bEnabled;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
 			}
 			else if (_stricmp(param, "shadow_mapping_anisotropic_scale") == 0) {

@@ -95,6 +95,9 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta);
 void IncreaseLensK1(float Delta);
 void IncreaseLensK2(float Delta);
 
+// CSM
+void ToggleCSM();
+
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
 	if (g_fReticleScale < 0.2f)
@@ -610,8 +613,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			
 			// Ctrl+Alt+W
 			case 'W':
-				g_iDelayedDumpDebugBuffers = 30;
-				log_debug("[DBG] Delayed debug dump set");
+				ToggleCSM();
+
+				//g_iDelayedDumpDebugBuffers = 30;
+				//log_debug("[DBG] Delayed debug dump set");
+
 				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
 				if (g_fSpecIntensity > 0.5f) {

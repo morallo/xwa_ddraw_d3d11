@@ -1,8 +1,17 @@
+/*
+ * Cascaded Shadow Maps (CSM) Vertex Shader.
+ */
 #include "XwaD3dCommon.hlsl"
 #include "shader_common.h"
 #include "shadow_mapping_common.h"
 
 Buffer<float3> g_vertices : register(t0);
+
+// OPTMeshTransformCBuffer
+cbuffer ConstantBuffer : register(b8) {
+	matrix MeshTransform;
+	// 64 bytes
+};
 
 struct VertexShaderInput
 {
@@ -19,10 +28,12 @@ PixelShaderInput main(VertexShaderInput input)
 	PixelShaderInput output;
 
 	float3 v = g_vertices[input.index.x];
-	// OPT (object space) to viewspace transform:
+	// OPT (object space) to viewspace transform
+	v = mul(float4(v, 1.0f), MeshTransform).xyz;
 	float4 P = mul(float4(v, 1.0f), transformWorldView);
-	P.xyz *= 0.024414; // 1/40.96, OPT to metric conversion factor
+	P *= 0.024414; // 1/40.96, OPT to metric conversion factor
 	P.y = -P.y; // Further conversion of the coordinate system (Y+ is up)
+	// At this point, P is metric, X+ is right, Y+ is up and Z+ is forward (away from the camera)
 	// P is now equivalent to pos3D in the regular vertex shader
 
 	// We have transformed from OPT 3D to metric 3D, with the POV at the origin.

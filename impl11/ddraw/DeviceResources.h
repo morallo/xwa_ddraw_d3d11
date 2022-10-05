@@ -262,6 +262,8 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
+	ComPtr<ID3D11Texture2D> _csmMap;		 // Main render texture for CSM.
+	ComPtr<ID3D11Texture2D> _csmArray;       // Cascaded Shadow Map array
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 	// 3D Vision
@@ -363,6 +365,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
 	// Shadow Mapping
 	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
+	ComPtr<ID3D11ShaderResourceView> _csmArraySRV;       // Cascaded Shadow Map array SRV
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 	// Generated/Procedural Textures SRVs
@@ -375,6 +378,7 @@ public:
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
 	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
+	ComPtr<ID3D11DepthStencilView> _csmMapDSV;
 	//ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
@@ -461,6 +465,7 @@ public:
 	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11VertexShader> _shadowMapVS;
 	ComPtr<ID3D11VertexShader> _hangarShadowMapVS;
+	ComPtr<ID3D11VertexShader> _csmVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;

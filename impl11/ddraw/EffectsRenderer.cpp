@@ -430,6 +430,8 @@ void EffectsRenderer::CreateShaders() {
 	if (g_bRTEnabled) {
 		device->CreateComputeShader(g_RTShadowCS, sizeof(g_RTShadowCS), nullptr, &_RTShadowCS);
 	}
+
+	//StartCascadedShadowMap();
 }
 
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
@@ -484,6 +486,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 void EffectsRenderer::SceneEnd()
 {
+	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
 
 	// Close the OBJ dump file for the current frame
@@ -2504,6 +2507,8 @@ void EffectsRenderer::RenderScene()
 
 	context->DrawIndexed(_trianglesCount * 3, 0, 0);
 
+	//RenderCascadedShadowMap();
+
 //out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
@@ -3105,6 +3110,142 @@ void EffectsRenderer::RenderHangarShadowMap()
 	RestoreContext();
 	_bHangarShadowsRenderedInCurrentFrame = true;
 	_ShadowMapDrawCommands.clear();
+}
+
+void EffectsRenderer::StartCascadedShadowMap()
+{
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	if (!g_ShadowMapping.bCSMEnabled || g_HyperspacePhaseFSM != HS_INIT_ST) {
+		return;
+	}
+
+	// This is the shadow factor, 1.0 disables shadows, 0.0 makes shadows pitch black.
+	g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;
+	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
+
+	// Adjust the range for the shadow maps. The first light is only for the cockpit:
+	g_ShadowMapVSCBuffer.sm_minZ[0] = 10.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[0] = 100.0f;
+	// The second light is for the hangar:
+	g_ShadowMapVSCBuffer.sm_minZ[1] = 100.0f;
+	g_ShadowMapVSCBuffer.sm_maxZ[1] = 300.0f;
+
+	//g_ShadowMapVSCBuffer.sm_PCSS_enabled = g_bShadowMapEnablePCSS;
+	g_ShadowMapVSCBuffer.sm_resolution = (float)g_ShadowMapping.ShadowMapSize;
+	g_ShadowMapVSCBuffer.sm_hardware_pcf = g_bShadowMapHardwarePCF;
+	// Select either the SW or HW bias depending on which setting is enabled
+	g_ShadowMapVSCBuffer.sm_bias = g_bShadowMapHardwarePCF ? g_ShadowMapping.hw_pcf_bias : g_ShadowMapping.sw_pcf_bias;
+	g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
+	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
+
+	// TODO: The g_bShadowMapEnable was added later to be able to toggle the shadows with a hotkey
+	//	     Either remove the multiplicity of "enable" variables or get rid of the hotkey.
+	//g_ShadowMapping.bEnabled = g_bShadowMapEnable;
+	//g_ShadowMapVSCBuffer.sm_enabled = g_bShadowMapEnable;
+	
+
+	// Shadow map limits
+	//float range, minZ;
+	//Matrix4 ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
+	Matrix4 ST;
+	ST.identity();
+
+	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
+	int ShadowMapIdx = 1; // Shadow maps for the hangar are always located at index 1
+	g_ShadowMapVSCBuffer.OBJrange[ShadowMapIdx] = 300;
+	g_ShadowMapVSCBuffer.OBJminZ[ShadowMapIdx] = 50;
+
+	Matrix4 S1, S2;
+	//S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+	//S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
+	S1.identity();
+	S2.identity();
+
+	// Compute the LightView (Parallel Projection) Matrix
+	// See HangarShadowSceneHook for an explanation of why L looks like this:
+	//Matrix4 L = _hangarShadowMapRotation * S1 * Matrix4(command.constants.hangarShadowView) * S2;
+	Matrix4 L = S1;
+	g_ShadowMapVSCBuffer.lightWorldMatrix[ShadowMapIdx] = ST * L;
+	g_ShadowMapVSCBuffer.light_index = ShadowMapIdx;
+
+	// The post-proc shaders (SSDOAddPixel, SSAOAddPixel) use sm_enabled to compute shadows,
+	// we must set the PS constants here even if we're not rendering shadows at all
+	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+	// Set the constant buffer for the VS and PS.
+	resources->InitVSConstantBufferShadowMap(resources->_shadowMappingVSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+
+	// Clear the Shadow Map DSV
+	context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+}
+
+void EffectsRenderer::RenderCascadedShadowMap()
+{
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	if (!g_ShadowMapping.bCSMEnabled || g_HyperspacePhaseFSM != HS_INIT_ST) {
+		return;
+	}
+
+	//SaveContext();
+
+	//context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	//context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+
+	// Enable ZWrite: we'll need it for the ShadowMap
+	/*
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = TRUE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	desc.DepthFunc = D3D11_COMPARISON_LESS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+	// Solid blend state, no transparency
+	resources->InitBlendState(_solidBlendState, nullptr);
+	*/
+
+	// Init the Viewport. This viewport has the dimensions of the shadowmap texture
+	_deviceResources->InitViewport(&g_ShadowMapping.ViewPort);
+	//_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//_deviceResources->InitInputLayout(_inputLayout);
+
+	_deviceResources->InitVertexShader(resources->_csmVS);
+	_deviceResources->InitPixelShader(resources->_shadowMapPS);
+
+	// Set the Shadow Map DSV
+	context->OMSetRenderTargets(0, 0, resources->_csmMapDSV.Get());
+
+	// Render the Shadow Map
+	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+}
+
+void EffectsRenderer::EndCascadedShadowMap()
+{
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	if (!g_ShadowMapping.bCSMEnabled || g_HyperspacePhaseFSM != HS_INIT_ST) {
+		return;
+	}
+
+	int ShadowMapIdx = 1; // Shadow maps for the hangar are always located at index 1
+
+	// Copy the shadow map to the right slot in the array
+	context->CopySubresourceRegion(resources->_csmArray, D3D11CalcSubresource(0, ShadowMapIdx, 1), 0, 0, 0,
+		resources->_csmMap, D3D11CalcSubresource(0, 0, 1), NULL);
+
+	if (g_bDumpSSAOBuffers) {
+		context->CopySubresourceRegion(resources->_shadowMapDebug, D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
+			resources->_csmArray, D3D11CalcSubresource(0, ShadowMapIdx, 1), NULL);
+		DirectX::SaveDDSTextureToFile(context, resources->_shadowMapDebug, L"c:\\Temp\\_csmMap.dds");
+	}
+
+	//RestoreContext();
 }
 
 void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)

@@ -1,4 +1,9 @@
-
+/*
+ * This is the original Vertex Shader used for hangar shadows as computed by
+ * XWA. It's used with the D3dHook. This is *not* a shadow mapping shader,
+ * as it doesn't use the depth buffer for shadowing. It simply renders the
+ * hangar scene from a camera looking down.
+ */
 #include "XwaD3dCommon.hlsl"
 
 Buffer<float3> g_vertices : register(t0);

@@ -76,6 +76,7 @@
 #include "../Debug/PixelShaderAnimDAT.h"
 #include "../Debug/PixelShaderGreeble.h"
 #include "../Debug/HangarShadowMapVS.h"
+#include "../Debug/XwaD3dCSMVertexShader.h"
 #include "../Debug/LevelsPS.h"
 #else
 #include "../Release/MainVertexShader.h"
@@ -141,6 +142,7 @@
 #include "../Release/PixelShaderAnimDAT.h"
 #include "../Release/PixelShaderGreeble.h"
 #include "../Release/HangarShadowMapVS.h"
+#include "../Release/XwaD3dCSMVertexShader.h"
 #include "../Release/LevelsPS.h"
 #endif
 
@@ -1712,6 +1714,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadowMapArraySRV.Release();
 		this->_shadowMapDSV.Release();
 		this->_shadowMapArray.Release();
+		if (g_ShadowMapping.bCSMEnabled) {
+			this->_csmMap.Release();
+			this->_csmMapDSV.Release();
+			this->_csmArray.Release();
+			this->_csmArraySRV.Release();
+		}
 	}
 
 	this->_backBuffer.Release();
@@ -3282,11 +3290,28 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMap);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				step = "_csmMap";
+				depthStencilDesc.Width = CSM_MAP_SIZE;
+				depthStencilDesc.Height = CSM_MAP_SIZE;
+				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_csmMap);
+				if (FAILED(hr)) goto out;
+			}
+
 			step = "_shadowMapDSV";
 			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D, DXGI_FORMAT_D32_FLOAT);
 			hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_shadowMapDSV);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				step = "_csmMapDSV";
+				CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D, DXGI_FORMAT_D32_FLOAT);
+				hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_csmMapDSV);
+				if (FAILED(hr)) goto out;
+			}
+
+			depthStencilDesc.Width = g_ShadowMapping.ShadowMapSize;
+			depthStencilDesc.Height = g_ShadowMapping.ShadowMapSize;
 			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			depthStencilDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 			step = "_shadowMapDebug";
@@ -3300,6 +3325,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				// Inherit previous values
+				step = "_csmArray";
+				depthStencilDesc.Width = CSM_MAP_SIZE;
+				depthStencilDesc.Height = CSM_MAP_SIZE;
+				depthStencilDesc.ArraySize = MAX_CSM_LEVELS;
+				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_csmArray);
+				if (FAILED(hr)) goto out;
+			}
+
 			step = "_shadowMapArraySRV";
 			D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
 			depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
@@ -3310,6 +3345,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_XWA_LIGHTS;
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapArray, &depthStencilSRVDesc, &this->_shadowMapArraySRV);
 			if (FAILED(hr)) goto out;
+
+			if (g_ShadowMapping.bCSMEnabled) {
+				// Inherit previous values
+				step = "_csmArraySRV";
+				depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_CSM_LEVELS;
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_csmArray, &depthStencilSRVDesc, &this->_csmArraySRV);
+				if (FAILED(hr)) goto out;
+			}
 
 			/*
 			step = "_shadowMapSingleSRV";
@@ -3554,6 +3597,9 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_XwaD3dCSMVertexShader, sizeof(g_XwaD3dCSMVertexShader), nullptr, &_csmVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
@@ -3890,6 +3936,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_XwaD3dCSMVertexShader, sizeof(g_XwaD3dCSMVertexShader), nullptr, &_csmVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))

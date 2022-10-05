@@ -53,6 +53,8 @@ OPTMeshTransformCBuffer : register(b8)
 // Currently only used for the lasers
 #define MAX_CB_POINT_LIGHTS 16
 
+#define MAX_CSM_LEVELS 4
+
 // Used in the special_control CB field in the pixel shader
 // These flags are mutually-exclusive, so be careful when setting them. Only a handful are used
 // in the same shader though.

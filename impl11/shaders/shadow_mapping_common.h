@@ -7,7 +7,8 @@ cbuffer ConstantBuffer : register(b5)
 	uint sm_enabled, sm_debug;
 	float sm_light_size, sm_blocker_radius;
 
-	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
+	float sm_aspect_ratio, sm_bias, sm_pcss_radius;
+	bool sm_csm_enabled;
 
 	float3 POV;
 	float sm_resolution;

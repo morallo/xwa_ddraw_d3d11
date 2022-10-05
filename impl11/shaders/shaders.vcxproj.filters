@@ -87,6 +87,7 @@
     <FxCompile Include="PixelShaderAnimDAT.hlsl" />
     <FxCompile Include="RT\RTShadowCS.hlsl" />
     <FxCompile Include="LevelsPS.hlsl" />
+    <FxCompile Include="XwaD3dCSMVertexShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

@@ -6,6 +6,7 @@
 #include "../shaders/shader_common.h"
 
 #define SHADOW_MAP_SIZE 2048
+#define CSM_MAP_SIZE 1024
 #define DEFAULT_COCKPIT_SHADOWMAP_MAX_Z 7.0f
 #define DEFAULT_HANGAR_SHADOWMAP_MAX_Z 300.0f
 
@@ -19,7 +20,9 @@ typedef struct ShadowMapVertexShaderMatrixCBStruct {
 	float sm_light_size, sm_blocker_radius;
 	// 592 bytes
 
-	float sm_aspect_ratio, sm_bias, sm_unused, sm_pcss_radius;
+	float sm_aspect_ratio, sm_bias, sm_pcss_radius;
+	bool sm_csm_enabled;
+
 	// 608 bytes
 	Vector3 POV;
 	float sm_resolution;
@@ -51,6 +54,7 @@ extern std::vector<Vector4> g_OBJLimits;
 class ShadowMappingData {
 public:
 	bool bEnabled;
+	bool bCSMEnabled;
 	bool bAnisotropicMapScale;
 	bool bAllLightsTagged;
 	bool bMultipleSuns;

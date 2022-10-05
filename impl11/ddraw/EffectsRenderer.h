@@ -140,6 +140,9 @@ public:
 	void RenderTransparency();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
+	void StartCascadedShadowMap();
+	void RenderCascadedShadowMap();
+	void EndCascadedShadowMap();
 	void RenderDeferredDrawCalls();
 };
 
