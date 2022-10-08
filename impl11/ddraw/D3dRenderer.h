@@ -90,7 +90,7 @@ class D3dRenderer
 {
 public:
 	int _currentOptMeshIndex;
-	LBVH *lbvh;
+	LBVH *_lbvh;
 	bool _isRTInitialized;
 
 	D3dRenderer();
@@ -143,6 +143,7 @@ protected:
 	std::map<int, std::tuple<XwaVector3*, bool*, int>> _tangentMap;
 	std::map<int, ComPtr<ID3D11ShaderResourceView>> _meshTextureCoordsViews;
 	std::map<int, AABB> _AABBs;
+	std::map<int, LBVH*> _LBVHs;
 	XwaVector3* _lastMeshVertices;
 	ID3D11ShaderResourceView* _lastMeshVerticesView;
 	XwaVector3* _lastMeshVertexNormals;

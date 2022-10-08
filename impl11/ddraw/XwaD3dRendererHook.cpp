@@ -288,6 +288,7 @@ void D3dRenderer::FlightStart()
 	_triangleBuffers.clear();
 	_vertexCounters.clear();
 	_AABBs.clear();
+	_LBVHs.clear();
 	_tangentMap.clear();
 	ClearCachedSRVs();
 }
@@ -546,10 +547,15 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 			// Compute the RTScale for this OPT
 			// According to Jeremy, only the Tech Room and the Briefings change the scale.
-			if (g_bRTEnabled && lbvh != nullptr && !lbvh->scaleComputed) {
+			if (g_bRTEnabled && _lbvh != nullptr && !_lbvh->scaleComputed) {
 				double s_XwaOptScale = *(double*)0x007825F0;
-				lbvh->scale = (float )(1.0 / s_XwaOptScale);
-				lbvh->scaleComputed = true;
+				_lbvh->scale = (float )(1.0 / s_XwaOptScale);
+				_lbvh->scaleComputed = true;
+
+				// Build the LBVH for this mesh and add it to the map
+				// TODO... Not sure the LBVH can be built here, since we're missing index data...
+				//LBVH* meshLBVH = LBVH.Build(vertices);
+				//_LBVHs.insert(std::make_pair((int)vertices, meshLBVH));
 			}
 
 			// Compute RTScale for this OPT
@@ -741,7 +747,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	context->VSSetShaderResources(0, 4, vsSSRV);
 
 	// Create the buffers for the BVH
-	if (lbvh != nullptr && !_isRTInitialized) {
+	if (_lbvh != nullptr && !_isRTInitialized) {
 		HRESULT hr;
 		bool EmbeddedVertices = true;
 
@@ -767,7 +773,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			// Sample case: allocate N times more nodes than what we're going to use
 			// In a real scenario, we'll probably allocate some initial memory and then
 			// expand it as necessary.
-			int numNodes = lbvh->numNodes; // * 3;
+			int numNodes = _lbvh->numNodes; // * 3;
 			desc.ByteWidth = sizeof(BVHNode) * numNodes;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -801,7 +807,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
 			hr = context->Map(_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 			if (SUCCEEDED(hr)) {
-				memcpy(map.pData, lbvh->nodes, sizeof(BVHNode) * lbvh->numNodes);
+				memcpy(map.pData, _lbvh->nodes, sizeof(BVHNode) * _lbvh->numNodes);
 				context->Unmap(_RTBvh.Get(), 0);
 			}
 			else
@@ -844,15 +850,15 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		// Create the vertex buffers
 		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
-			initialData.pSysMem = lbvh->vertices;
+			initialData.pSysMem = _lbvh->vertices;
 			initialData.SysMemPitch = 0;
 			initialData.SysMemSlicePitch = 0;
 
-			device->CreateBuffer(&CD3D11_BUFFER_DESC(lbvh->numVertices * sizeof(float3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
+			device->CreateBuffer(&CD3D11_BUFFER_DESC(_lbvh->numVertices * sizeof(float3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
 				&initialData, &_RTVertices);
 
 			device->CreateShaderResourceView(_RTVertices,
-				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTVertices, DXGI_FORMAT_R32G32B32_FLOAT, 0, lbvh->numVertices),
+				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTVertices, DXGI_FORMAT_R32G32B32_FLOAT, 0, _lbvh->numVertices),
 				&_RTVerticesSRV);
 		}
 		else
@@ -861,15 +867,15 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		// Create the index buffers
 		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
-			initialData.pSysMem = lbvh->indices;
+			initialData.pSysMem = _lbvh->indices;
 			initialData.SysMemPitch = 0;
 			initialData.SysMemSlicePitch = 0;
 
-			device->CreateBuffer(&CD3D11_BUFFER_DESC(lbvh->numIndices * sizeof(int32_t), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
+			device->CreateBuffer(&CD3D11_BUFFER_DESC(_lbvh->numIndices * sizeof(int32_t), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE),
 				&initialData, &_RTIndices);
 
 			device->CreateShaderResourceView(_RTIndices,
-				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTIndices, DXGI_FORMAT_R32_SINT, 0, lbvh->numIndices),
+				&CD3D11_SHADER_RESOURCE_VIEW_DESC(_RTIndices, DXGI_FORMAT_R32_SINT, 0, _lbvh->numIndices),
 				&_RTIndicesSRV);
 		}
 		else
@@ -1306,9 +1312,9 @@ void D3dRenderer::Initialize()
 	CreateStates();
 	CreateShaders();
 
-	if (g_bRTEnabled && lbvh != nullptr) {
-		delete lbvh;
-		lbvh = nullptr;
+	if (g_bRTEnabled && _lbvh != nullptr) {
+		delete _lbvh;
+		_lbvh = nullptr;
 	}
 }
 
@@ -1687,14 +1693,14 @@ void D3dRendererOptLoadHook(int handle)
 	// Here we can side-load additional data for this OPT, like tangent maps (?) or
 	// pre-computed BVH data.
 	if (g_bRTEnabled) {
-		if (g_current_renderer->lbvh != nullptr)
+		if (g_current_renderer->_lbvh != nullptr)
 		{
-			delete g_current_renderer->lbvh;
-			g_current_renderer->lbvh = nullptr;
+			delete g_current_renderer->_lbvh;
+			g_current_renderer->_lbvh = nullptr;
 		}
 		// Re-create the BVH buffers:
 		g_current_renderer->_isRTInitialized = false;
-		g_current_renderer->lbvh = LoadLBVH(s_XwaIOFileName);
+		g_current_renderer->_lbvh = LoadLBVH(s_XwaIOFileName);
 	}
 
 	// This hook is called every time an OPT is loaded. This can happen in the

@@ -2,6 +2,7 @@
 #include "globals.h"
 #include "LBVH.h"
 #include <stdio.h>
+#include <algorithm>
 
 // Load a BVH2, deprecated since the BVH4 are more better
 #ifdef DISABLED
@@ -171,6 +172,11 @@ void LBVH::PrintTree(std::string level, int curnode)
 	PrintTree(level + "    ", nodes[curnode].left);
 }
 #endif
+
+bool leafSorter(const LeafItem& i, const LeafItem& j)
+{
+	return std::get<0>(i) < std::get<0>(j);
+}
 
 // Load a BVH4
 LBVH *LBVH::LoadLBVH(char *sFileName, bool EmbeddedVerts, bool verbose) {
@@ -406,4 +412,268 @@ void LBVH::DumpToOBJ(char *sFileName)
 	}
 	fclose(file);
 	log_debug("[DBG] [BVH] BVH Dumped to OBJ");
+}
+
+static int firstbithigh(uint32_t X)
+{
+	int pos = 31;
+	uint32_t mask = 0x1;
+	while (pos >= 0)
+	{
+		if ((X & (mask << pos)) != 0x0)
+			return pos;
+		pos--;
+	}
+	return pos;
+}
+
+static int delta32(uint32_t X, uint32_t Y)
+{
+	if (X == Y)
+		return -1;
+	return firstbithigh(X ^ Y);
+}
+
+static uint32_t SpreadBits(uint32_t x, int offset)
+{
+	if ((x < 0) || (x > 1023))
+	{
+		return -1;
+	}
+
+	if ((offset < 0) || (offset > 2))
+	{
+		return -1;
+	}
+
+	x = (x | (x << 10)) & 0x000F801F;
+	x = (x | (x << 4)) & 0x00E181C3;
+	x = (x | (x << 2)) & 0x03248649;
+	x = (x | (x << 2)) & 0x09249249;
+
+	return x << offset;
+}
+
+// From https://stackoverflow.com/questions/1024754/how-to-compute-a-3d-morton-number-interleave-the-bits-of-3-ints
+MortonCode_t GetMortonCode32(uint32_t x, uint32_t y, uint32_t z)
+{
+	return SpreadBits(x, 2) | SpreadBits(y, 1) | SpreadBits(z, 0);
+}
+
+MortonCode_t GetMortonCode32(const XwaVector3 &V)
+{
+	uint32_t x = (uint32_t)(V.x * 1023.0f);
+	uint32_t y = (uint32_t)(V.y * 1023.0f);
+	uint32_t z = (uint32_t)(V.z * 1023.0f);
+	return GetMortonCode32(x, y, z);
+}
+
+// This is the delta used in Apetrei 2014
+static int delta(const std::vector<LeafItem> &leafItems, int i)
+{
+	MortonCode_t mi = std::get<0>(leafItems[i]);
+	MortonCode_t mj = std::get<0>(leafItems[i + 1]);
+	return (mi == mj) ? i ^ (i + 1) : mi ^ mj;
+}
+
+void ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem> &leafItems, InnerNode *innerNodes)
+{
+	int parent = -1;
+	int left, right;
+	AABB curAABB;
+
+	if (isLeaf)
+	{
+		left = curNode;
+		right = curNode;
+		curAABB = std::get<1>(leafItems[curNode]);
+	}
+	else
+	{
+		left = innerNodes[curNode].first;
+		right = innerNodes[curNode].last;
+		curAABB = innerNodes[curNode].aabb;
+	}
+
+	/*
+	log_debug("[DBG] [BVH] %s, curNode: %d, left,right: [%d,%d], d(right): %d, d(left - 1): %d",
+		isLeaf ? "LEAF" : "INNER", curNode, left, right,
+		right < numLeaves - 1 ? delta(leafItems, right) : -1,
+		left - 1 >= 0 ? delta(leafItems, left - 1) : -1);
+	*/
+	if (left == 0 || (right != (numLeaves - 1) && delta(leafItems, right) < delta(leafItems, left - 1)))
+	{
+		parent = right;
+		innerNodes[parent].left = curNode;
+		innerNodes[parent].leftIsLeaf = isLeaf;
+		innerNodes[parent].first = left;
+		innerNodes[parent].readyCount++;
+		innerNodes[parent].aabb.Expand(curAABB);
+		//log_debug("[DBG] [BVH]    case 1, parent: %d, parent.left: %d, parent.first: %d, readyCount: %d",
+		//	parent, innerNodes[parent].left, innerNodes[parent].first, innerNodes[parent].readyCount);
+	}
+	else
+	{
+		parent = left - 1;
+		innerNodes[parent].right = curNode;
+		innerNodes[parent].rightIsLeaf = isLeaf;
+		innerNodes[parent].last = right;
+		innerNodes[parent].readyCount++;
+		innerNodes[parent].aabb.Expand(curAABB);
+		//log_debug("[DBG] [BVH]    case 2, parent: %d, parent.right: %d, parent.last: %d, readyCount: %d",
+		//	parent, innerNodes[parent].right, innerNodes[parent].last, innerNodes[parent].readyCount);
+	}
+}
+
+InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
+{
+	int numLeaves = leafItems.size();
+	*root = -1;
+	//log_debug("[DBG] [BVH] numLeaves: %d", numLeaves);
+	if (numLeaves <= 1)
+		// Nothing to do, the single leaf is the root
+		return nullptr;
+
+	// Initialize the inner nodes
+	int numInnerNodes = numLeaves - 1;
+	int innerNodesProcessed = 0;
+	InnerNode* innerNodes = new InnerNode[numInnerNodes];
+	for (int i = 0; i < numInnerNodes; i++) {
+		innerNodes[i].readyCount = 0;
+		innerNodes[i].processed = false;
+		innerNodes[i].aabb.SetInfinity();
+	}
+
+	// Start the tree by iterating over the leaves
+	//log_debug("[DBG] [BVH] Adding leaves to BVH");
+	for (int i = 0; i < numLeaves; i++) {
+		ChooseParent(i, true, numLeaves, leafItems, innerNodes);
+	}
+
+	// Build the tree
+	while (innerNodesProcessed < numInnerNodes)
+	{
+		//log_debug("[DBG] [BVH] ********** Inner node iteration");
+		for (int i = 0; i < numInnerNodes; i++) {
+			if (!innerNodes[i].processed && innerNodes[i].readyCount == 2)
+			{
+				if (innerNodes[i].first == 0 && innerNodes[i].last == numLeaves - 1)
+				{
+					*root = i;
+					innerNodes[i].processed = true;
+					innerNodesProcessed++;
+					break;
+				}
+				else
+				{
+					ChooseParent(i, false, numLeaves, leafItems, innerNodes);
+					innerNodes[i].processed = true;
+					innerNodesProcessed++;
+				}
+			}
+		}
+	}
+	//log_debug("[DBG] [BVH] root at index: %d", *root);
+	return innerNodes;
+}
+
+std::string tab(int N)
+{
+	std::string res = "";
+	for (int i = 0; i < N; i++)
+		res += " ";
+	return res;
+}
+
+void printTree(int N, int curNode, bool isLeaf, InnerNode* innerNodes)
+{
+	if (curNode == -1 || innerNodes == nullptr)
+		return;
+
+	if (isLeaf)
+	{
+		log_debug("[DBG] [BVH] %s%d]", tab(N).c_str(), curNode);
+		return;
+	}
+
+	printTree(N + 4, innerNodes[curNode].right, innerNodes[curNode].rightIsLeaf, innerNodes);
+	log_debug("[DBG] [BVH] %s%d", tab(N).c_str(), curNode);
+	printTree(N + 4, innerNodes[curNode].left, innerNodes[curNode].leftIsLeaf, innerNodes);
+}
+
+void TestFastLBVH()
+{
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLBVH() START");
+	std::vector<LeafItem> leafItems;
+	AABB aabb;
+	// This is the example from Apetrei 2014
+	leafItems.push_back(std::make_tuple(4, aabb, 0));
+	leafItems.push_back(std::make_tuple(12, aabb, 1));
+	leafItems.push_back(std::make_tuple(3, aabb, 2));
+	leafItems.push_back(std::make_tuple(13, aabb, 3));
+	leafItems.push_back(std::make_tuple(5, aabb, 4));
+	leafItems.push_back(std::make_tuple(2, aabb, 5));
+	leafItems.push_back(std::make_tuple(15, aabb, 6));
+	leafItems.push_back(std::make_tuple(8, aabb, 7));
+
+	// Sort by the morton codes
+	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
+
+	int root = -1;
+	InnerNode* innerNodes = FastLBVH(leafItems, &root);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	int numLeaves = leafItems.size();
+	int numInnerNodes = numLeaves - 1;
+	for (int i = 0; i < numInnerNodes; i++)
+	{
+		log_debug("[DBG] [BVH] node: %d, left,right: %s%d, %s%d",
+			i,
+			innerNodes[i].leftIsLeaf ? "(L)" : "", innerNodes[i].left,
+			innerNodes[i].rightIsLeaf ? "(L)" : "", innerNodes[i].right);
+	}
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing Tree");
+	printTree(0, root, false, innerNodes);
+
+	delete[] innerNodes;
+	log_debug("[DBG] [BVH] TestFastLBVH() END");
+	log_debug("[DBG] [BVH] ****************************************************************");
+}
+
+LBVH* BuildLBVH(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
+{
+	int numTris = numIndices / 3;
+	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d",
+		numVertices, numIndices, numTris);
+	// Get the Morton Code and AABB for each triangle.
+	//std::vector<MortonCode_t> mortonCodes;
+	//std::vector<AABB> aabbs;
+	std::vector<LeafItem> leafItems;
+	for (int i = 0; i < numIndices; i += 3) {
+		AABB aabb;
+		aabb.Expand(vertices[indices[i + 0]]);
+		aabb.Expand(vertices[indices[i + 1]]);
+		aabb.Expand(vertices[indices[i + 2]]);
+		//aabbs.push_back(aabb);
+		XwaVector3 centroid = aabb.GetCentroid();
+		MortonCode_t m = GetMortonCode32(centroid);
+		leafItems.push_back(std::make_tuple(m, aabb, i));
+	}
+
+	// Sort the morton codes
+	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
+
+	// Check
+	for (uint32_t i = 0; i < leafItems.size() - 1; i++)
+	{
+		if (std::get<0>(leafItems[i]) > std::get<0>(leafItems[i + 1]))
+			throw;
+	}
+	log_debug("[DBG] [BVH] leafItems sorted and verified");
+
+	// Build the tree
+	// ...
 }

@@ -1,5 +1,5 @@
 #pragma once
-
+#include "common.h"
 #include <vector>
 
 #include "EffectsCommon.h"
@@ -66,7 +66,6 @@ struct MinMax {
 
 #pragma pack(pop)
 
-
 class AABB
 {
 public:
@@ -77,8 +76,7 @@ public:
 	std::vector<Vector4> Limits;
 
 	AABB() {
-		min.x = min.y = min.z = 0.0f;
-		max.x = max.y = max.z = 0.0f;
+		SetInfinity();
 	}
 
 	inline void SetInfinity() {
@@ -120,6 +118,14 @@ public:
 		if (aabb.max.z > max.z) max.z = aabb.max.z;
 	}
 
+	inline XwaVector3 GetCentroid()
+	{
+		return XwaVector3(
+			(min.x + max.x) / 2.0f,
+			(min.y + max.y) / 2.0f,
+			(min.z + max.z) / 2.0f);
+	}
+
 	inline void Expand(const std::vector<Vector4> &Limits)
 	{
 		for each (Vector4 v in Limits)
@@ -150,6 +156,27 @@ public:
 
 	void DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);
 };
+
+using MortonCode_t = uint32_t;
+using LeafItem = std::tuple<MortonCode_t, AABB, int>;
+struct InnerNode
+{
+	int parent;
+	// Children
+	int left;
+	int right;
+	bool leftIsLeaf;
+	bool rightIsLeaf;
+	// Range
+	int first;
+	int last;
+	AABB aabb;
+	// Processing
+	uint8_t readyCount;
+	bool processed;
+};
+
+bool leafSorter(const LeafItem& i, const LeafItem& j);
 
 class LBVH {
 public:

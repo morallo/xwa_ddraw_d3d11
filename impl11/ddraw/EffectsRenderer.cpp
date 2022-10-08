@@ -1715,15 +1715,15 @@ void EffectsRenderer::ApplyRTShadows() {
 	{
 		_bModifiedShaders = true;
 		// Enable/Disable Raytracing as necessary
-		g_PSCBuffer.bDoRaytracing = g_bRTEnabled && (lbvh != nullptr);
+		g_PSCBuffer.bDoRaytracing = g_bRTEnabled && (_lbvh != nullptr);
 	}
 
-	if (!g_bRTEnabled || lbvh == nullptr)
+	if (!g_bRTEnabled || _lbvh == nullptr)
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
 
-	Matrix4 RTScale = Matrix4().scale(1.0f / lbvh->scale);
+	Matrix4 RTScale = Matrix4().scale(1.0f / _lbvh->scale);
 	Matrix4 transformWorldViewInv = RTScale * _constants.transformWorldView;
 	transformWorldViewInv = transformWorldViewInv.invert();
 	// Invert transformWorldView and send it to the ray-tracer
