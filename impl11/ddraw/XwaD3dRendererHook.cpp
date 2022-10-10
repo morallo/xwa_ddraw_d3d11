@@ -501,6 +501,51 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 	return counter == normalsCount;
 }
 
+// This is a stripped-down version of EffectsRenderer::OBJDumpD3dVertices()
+// Here, the faceData is parsed to create an index buffer that is then used
+// by the LBVH class to build a tree
+LBVH *D3dRenderer::BuildBVH(const SceneCompData* scene)
+{
+	XwaVector3* MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	bool bShadowDump = g_rendererType == RendererType_Shadow;
+	std::vector<int> indices;
+
+	if (bShadowDump)
+		// This is a hangar shadow, ignore
+		return nullptr;
+
+	//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+
+	//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, NormalsCount: %d, FacesCount: %d",
+	//	D3DOBJGroup, MeshVerticesCount, MeshNormalsCount, scene->FacesCount);
+	// These are the vertices in scene:
+	/*
+	for (int i = 0; i < MeshVerticesCount; i++) {
+		XwaVector3 v = MeshVertices[i];
+		Vector4 V(v.x, v.y, v.z, 1.0f);
+		//V = W * V;
+		//fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	}
+	*/
+
+	// The following works alright, but it's not how things are rendered.
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		indices.push_back(faceData.Vertex[0]);
+		indices.push_back(faceData.Vertex[1]);
+		indices.push_back(faceData.Vertex[2]);
+		if (edgesCount == 4) {
+			indices.push_back(faceData.Vertex[0]);
+			indices.push_back(faceData.Vertex[2]);
+			indices.push_back(faceData.Vertex[3]);
+		}
+	}
+
+	return LBVH::Build(MeshVertices, MeshVerticesCount, indices.data(), indices.size());
+}
+
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -544,6 +589,14 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			_meshVerticesViews.insert(std::make_pair((int)vertices, meshVerticesView));
 			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
+
+			if (g_bRTEnabled)
+			{
+				//static int counter = 0;
+				log_debug("[DBG] [BVH] g_bInTechRoom: %d, _currentOptMeshIndex: %d, verticesCount: %d, FacesCount: %d",
+					g_bInTechRoom, _currentOptMeshIndex, verticesCount, scene->FacesCount);
+				//BuildBVH(scene);
+			}
 
 			// Compute the RTScale for this OPT
 			// According to Jeremy, only the Tech Room and the Briefings change the scale.

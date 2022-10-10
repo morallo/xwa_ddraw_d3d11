@@ -101,6 +101,7 @@ public:
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
 	bool ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags);
+	LBVH *BuildBVH(const SceneCompData* scene);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);

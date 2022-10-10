@@ -30,6 +30,7 @@ struct BVHNode {
 static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be ENCODED_TREE_SIZE bytes");
 #endif
 
+// QBVH inner node
 struct BVHNode {
 	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
 	int parent; // Not used at this point
@@ -43,6 +44,7 @@ struct BVHNode {
 	// 64 bytes
 };
 
+// QBVH leaf node
 struct BVHPrimNode {
 	int ref;
 	int parent;
@@ -157,6 +159,7 @@ public:
 	void DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);
 };
 
+// Classes and data used for the Fast LBVH build.
 using MortonCode_t = uint32_t;
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
 struct InnerNode
@@ -178,6 +181,126 @@ struct InnerNode
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 
+class IGenericTree
+{
+public:
+	virtual int GetArity() = 0;
+	virtual bool IsLeaf() = 0;
+	virtual AABB GetBox() = 0;
+	virtual int GetTriID() = 0;
+	virtual std::vector<IGenericTree *> GetChildren() = 0;
+	virtual IGenericTree *GetParent() = 0;
+	virtual void SetNumNodes(int numNodes) = 0;
+	virtual int GetNumNodes() = 0;
+};
+
+class QTreeNode : public IGenericTree
+{
+public:
+	int TriID, numNodes;
+	QTreeNode* parent;
+	QTreeNode* children[4];
+	AABB box;
+
+	void SetNullChildren()
+	{
+		for (int i = 0; i < 4; i++)
+			this->children[i] = nullptr;
+	}
+
+	void SetChildren(QTreeNode* children[])
+	{
+		for (int i = 0; i < 4; i++) {
+			this->children[i] = children[i];
+			if (children[i] != nullptr)
+				this->numNodes += children[i]->numNodes;
+		}
+	}
+
+	QTreeNode(int TriID)
+	{
+		this->TriID = TriID;
+		this->box.SetInfinity();
+		this->numNodes = 0;
+		this->parent = nullptr;
+		SetNullChildren();
+	}
+
+	QTreeNode(int TriID, AABB box)
+	{
+		this->TriID = TriID;
+		this->box = box;
+		this->numNodes = 1;
+		this->parent = nullptr;
+		SetNullChildren();
+	}
+
+	QTreeNode(int TriID, QTreeNode *children[])
+	{
+		this->TriID = TriID;
+		this->box.SetInfinity();
+		this->numNodes = 1;
+		this->parent = nullptr;
+		SetChildren(children);
+	}
+
+	QTreeNode(int TriID, AABB box, QTreeNode *children[], QTreeNode* parent)
+	{
+		this->TriID = TriID;
+		this->box = box;
+		this->parent = parent;
+		this->numNodes = 1;
+		SetChildren(children);
+	}
+
+	virtual int GetArity()
+	{
+		return 4;
+	}
+
+	virtual AABB GetBox()
+	{
+		return this->box;
+	}
+
+	virtual int GetTriID()
+	{
+		return this->TriID;
+	}
+
+	virtual bool IsLeaf()
+	{
+		for (int i = 0; i < 4; i++)
+			if (children[i] != nullptr)
+				return false;
+		return true;
+	}
+
+	virtual std::vector<IGenericTree*> GetChildren()
+	{
+		std::vector<IGenericTree*> result;
+		for (int i = 0; i < 4; i++)
+			if (children[i] != nullptr)
+				result.push_back(children[i]);
+		return result;
+	}
+
+	virtual IGenericTree* GetParent()
+	{
+		return parent;
+	}
+
+	virtual void SetNumNodes(int numNodes)
+	{
+		this->numNodes = numNodes;
+	}
+
+	virtual int GetNumNodes()
+	{
+		return this->numNodes;
+	}
+};
+
 class LBVH {
 public:
 	float3 *vertices;
@@ -198,6 +321,7 @@ public:
 		this->numVertices = 0;
 		this->numIndices = 0;
 		this->numNodes = 0;
+		this->vertexCounts = nullptr;
 	}
 	
 	~LBVH() {
@@ -212,7 +336,13 @@ public:
 	}
 
 	static LBVH *LoadLBVH(char *sFileName, bool EmbeddedVerts=false, bool verbose=false);
+	static LBVH *Build(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName);
 };
+
+QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems);
+void DeleteTree(QTreeNode* Q);
+
+uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* Indices);
