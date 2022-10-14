@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
 #include "common.h"
+#include <vector>
+#include <map>
 #include "XWAFramework.h"
 #include "EffectsCommon.h"
 #include "DynamicCockpit.h"
@@ -121,6 +122,14 @@ void CycleFOVSetting();
 float ComputeRealVertFOV();
 float ComputeRealHorzFOV();
 float RealVertFOVToRawFocalLength(float real_FOV);
+
+// ********************************
+// Raytracing
+// // Maps face group index --> numTris in face group
+using FaceGroups = std::map<int32_t, int32_t>;
+using MeshData = std::tuple<FaceGroups, void*>;
+// The BLAS map
+extern std::map<int32_t, MeshData> g_LBVHMap;
 
 // ********************************
 // DATReader function pointers

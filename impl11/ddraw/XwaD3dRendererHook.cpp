@@ -159,6 +159,9 @@ RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
 
+int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
+int32_t MakeMeshKey(const SceneCompData* scene);
+
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
 {
 	float x = v0.y * v1.z - v0.z * v1.y;
@@ -223,6 +226,11 @@ D3dRenderer::D3dRenderer()
 	_viewport = {};
 	_currentOptMeshIndex = -1;
 
+	// RT OBJ DEBUG
+	_D3DTotalVertices = 1;
+	_D3DOBJGroup = 1;
+	_D3DFile = NULL;
+
 #if LOGGER_DUMP
 	DumpFile("ddraw_d3d.txt");
 #endif
@@ -267,6 +275,10 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 void D3dRenderer::SceneEnd()
 {
 	_deviceResources->_d3dAnnotation->EndEvent();
+	if (g_bRTEnabled && _D3DFile != NULL)
+	{
+		fclose(_D3DFile);
+	}
 }
 
 void D3dRenderer::FlightStart()
@@ -504,32 +516,79 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 // This is a stripped-down version of EffectsRenderer::OBJDumpD3dVertices()
 // Here, the faceData is parsed to create an index buffer that is then used
 // by the LBVH class to build a tree
-LBVH *D3dRenderer::BuildBVH(const SceneCompData* scene)
+LBVH *D3dRenderer::BuildBVH(const SceneCompData* scene, int meshIndex)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-	bool bShadowDump = g_rendererType == RendererType_Shadow;
-	std::vector<int> indices;
+	static XwaVector3* LastMeshVertices = nullptr;
+	static int LastMeshVerticesCount = 0;
 
-	if (bShadowDump)
+	if (g_rendererType == RendererType_Shadow)
 		// This is a hangar shadow, ignore
 		return nullptr;
 
-	//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+	int OBJIndex = -1;
+	MeshData meshData;
+	FaceGroups FGs;
 
-	//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, NormalsCount: %d, FacesCount: %d",
-	//	D3DOBJGroup, MeshVerticesCount, MeshNormalsCount, scene->FacesCount);
-	// These are the vertices in scene:
-	/*
-	for (int i = 0; i < MeshVerticesCount; i++) {
-		XwaVector3 v = MeshVertices[i];
-		Vector4 V(v.x, v.y, v.z, 1.0f);
-		//V = W * V;
-		//fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	char sFileName[80];
+	sprintf_s(sFileName, 80, ".\\mesh-%d.obj", meshIndex);
+	FILE *file = NULL;
+
+	int32_t meshKey = MakeMeshKey(scene);
+	auto it = g_LBVHMap.find(meshKey);
+	if (it == g_LBVHMap.end())
+	{
+		// New file
+		fopen_s(&file, sFileName, "wt");
+		if (file == NULL)
+		{
+			log_debug("[DBG] [BVH] Could not open file wt: %s", sFileName);
+			return NULL;
+		}
+
+		fprintf(file, "o obj-0\n");
+		OBJIndex = 1;
+		FGs.clear();
 	}
-	*/
+	else
+	{
+		// Check if we've seen this FG group before
+		meshData = it->second;
+		FGs = std::get<0>(meshData);
+		// The FG key is FaceIndices:
+		auto it = FGs.find((int32_t)scene->FaceIndices);
+		if (it != FGs.end())
+		{
+			// We've seen this FG before, ignore
+			return NULL;
+		}
 
-	// The following works alright, but it's not how things are rendered.
+		int numTris = 0;
+		// Append to existing file
+		fopen_s(&file, sFileName, "at");
+		if (file == NULL)
+		{
+			log_debug("[DBG] [BVH] Could not open file at: %s", sFileName);
+			return NULL;
+		}
+
+		for (const auto& FG : FGs)
+		{
+			numTris += FG.second;
+			log_debug("[DBG] [BVH] --- meshIdx: %d, FGIndex: %d, numTris: %d",
+				meshIndex, FG.first, FG.second);
+		}
+		OBJIndex = numTris * 3 + 1;
+		log_debug("[DBG] [BVH] meshIdx: %d, Total numTris: %d", meshIndex, numTris);
+	}
+
+	//log_debug("[DBG] [BVH] ***** Dumping MESHES to file: %s", sFileName);
+	std::vector<int> indices;
+	XwaVector3 *vertices = MeshVertices;
+	std::string name;
+
+	// Convert face data into indexed triangles
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
 		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
 		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
@@ -543,7 +602,83 @@ LBVH *D3dRenderer::BuildBVH(const SceneCompData* scene)
 		}
 	}
 
-	return LBVH::Build(MeshVertices, MeshVerticesCount, indices.data(), indices.size());
+	int numTris = indices.size() / 3;
+	for (int TriID = 0; TriID < numTris; TriID++)
+	{
+		int i = TriID * 3;
+
+		XwaVector3 v0 = vertices[indices[i + 0]];
+		XwaVector3 v1 = vertices[indices[i + 1]];
+		XwaVector3 v2 = vertices[indices[i + 2]];
+
+		//name = "t-" + std::to_string(TriID);
+		OBJIndex = DumpTriangle(std::string(""), file, OBJIndex, v0, v1, v2);
+	}
+	fclose(file);
+
+	// Update g_LBVHMap
+	// Add a new index for this FaceGroup
+	FGs[(int32_t)scene->FaceIndices] = numTris;
+	// Update the FaceGroup in the meshData
+	std::get<0>(meshData) = FGs;
+	//... LBVH::Build(MeshVertices, MeshVerticesCount, indices.data(), indices.size(), meshIndex);
+	//std::get<1>(meshData) = LBVH;
+	g_LBVHMap[meshKey] = meshData;
+
+	//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+
+	//log_debug("[DBG] Writting obj_idx: %d, MeshVerticesCount: %d, NormalsCount: %d, FacesCount: %d",
+	//	D3DOBJGroup, MeshVerticesCount, MeshNormalsCount, scene->FacesCount);
+
+	// DEBUG: Dump the vertices to an OBJ file for verification. This is a stripped-down
+	// version of the OBJ dump method in EffectsRenderer.cpp
+	if (false && g_bRTEnabled && g_LBVHMap.size() == 0)
+	{
+		char sFileName[80];
+		sprintf_s(sFileName, 80, ".\\bvh-mesh.obj");
+		log_debug("[DBG] [BVH] ***** Dumping MESHES to file: %s", sFileName);
+
+		_D3DFile = NULL;
+		fopen_s(&_D3DFile, sFileName, "wt");
+	}
+
+	// DEBUG
+	if (false && _D3DFile != NULL)
+	{
+		if (LastMeshVertices != MeshVertices)
+		{
+			fprintf(_D3DFile, "o obj-%d\n", _D3DOBJGroup);
+			// These are the vertices in scene:
+			for (int i = 0; i < MeshVerticesCount; i++) {
+				XwaVector3 v = MeshVertices[i];
+				Vector4 V(v.x * OPT_TO_METERS, v.y * OPT_TO_METERS, v.z * OPT_TO_METERS, 1.0f);
+				fprintf(_D3DFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+			}
+			fprintf(_D3DFile, "\n");
+
+			_D3DTotalVertices += LastMeshVerticesCount;
+			_D3DOBJGroup++;
+
+			LastMeshVerticesCount = MeshVerticesCount;
+			LastMeshVertices = MeshVertices;
+		}
+
+		// The following works alright, but it's not how things are rendered.
+		for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+			OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+			int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+			std::string line = "f ";
+
+			for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+			{
+				line += std::to_string(faceData.Vertex[vertexIndex] + _D3DTotalVertices) + " ";
+			}
+			fprintf(_D3DFile, "%s\n", line.c_str());
+		}
+		fprintf(_D3DFile, "\n");
+	}
+
+	return NULL;
 }
 
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
@@ -592,10 +727,16 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 			if (g_bRTEnabled)
 			{
-				//static int counter = 0;
+				/*
 				log_debug("[DBG] [BVH] g_bInTechRoom: %d, _currentOptMeshIndex: %d, verticesCount: %d, FacesCount: %d",
 					g_bInTechRoom, _currentOptMeshIndex, verticesCount, scene->FacesCount);
-				//BuildBVH(scene);
+				if (_lbvh != nullptr)
+				{
+					delete _lbvh;
+					_lbvh = nullptr;
+				}
+				*/
+				/* _lbvh = */ /* BuildBVH(scene, _currentOptMeshIndex); */
 			}
 
 			// Compute the RTScale for this OPT
@@ -604,11 +745,6 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 				double s_XwaOptScale = *(double*)0x007825F0;
 				_lbvh->scale = (float )(1.0 / s_XwaOptScale);
 				_lbvh->scaleComputed = true;
-
-				// Build the LBVH for this mesh and add it to the map
-				// TODO... Not sure the LBVH can be built here, since we're missing index data...
-				//LBVH* meshLBVH = LBVH.Build(vertices);
-				//_LBVHs.insert(std::make_pair((int)vertices, meshLBVH));
 			}
 
 			// Compute RTScale for this OPT

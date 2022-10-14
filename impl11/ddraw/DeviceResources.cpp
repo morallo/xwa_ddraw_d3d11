@@ -203,6 +203,9 @@ extern bool g_bShadowMappingEnabled;
 extern MetricReconstructionCB g_MetricRecCBuffer;
 extern bool g_bYCenterHasBeenFixed;
 
+// Raytracing
+std::map<int32_t, MeshData> g_LBVHMap;
+
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
 
@@ -1720,6 +1723,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_csmArray.Release();
 			this->_csmArraySRV.Release();
 		}
+	}
+
+	if (g_bRTEnabled)
+	{
+		// TODO: Fully-delete each LBVH
+		g_LBVHMap.clear();
 	}
 
 	this->_backBuffer.Release();

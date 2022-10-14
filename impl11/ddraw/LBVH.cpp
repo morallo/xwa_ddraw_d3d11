@@ -330,6 +330,11 @@ void LBVH::DumpToOBJ(char *sFileName)
 	int index = 1;
 
 	fopen_s(&file, sFileName, "wt");
+	if (file == NULL) {
+		log_debug("[DBG] [BVH] Could not open file: %s", sFileName);
+		return;
+	}
+
 	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes);
 	for (int i = 0; i < numNodes; i++) {
 		if (nodes[i].ref != -1) {
@@ -477,7 +482,7 @@ static int delta(const std::vector<LeafItem> &leafItems, int i)
 	return (mi == mj) ? i ^ (i + 1) : mi ^ mj;
 }
 
-void ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem> &leafItems, InnerNode *innerNodes)
+int ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem> &leafItems, InnerNode *innerNodes)
 {
 	int parent = -1;
 	int left, right;
@@ -505,6 +510,11 @@ void ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<Lea
 	if (left == 0 || (right != (numLeaves - 1) && delta(leafItems, right) < delta(leafItems, left - 1)))
 	{
 		parent = right;
+		if (parent == numLeaves - 1)
+		{
+			// We have found the root
+			return curNode;
+		}
 		innerNodes[parent].left = curNode;
 		innerNodes[parent].leftIsLeaf = isLeaf;
 		innerNodes[parent].first = left;
@@ -524,6 +534,7 @@ void ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<Lea
 		//log_debug("[DBG] [BVH]    case 2, parent: %d, parent.right: %d, parent.last: %d, readyCount: %d",
 		//	parent, innerNodes[parent].right, innerNodes[parent].last, innerNodes[parent].readyCount);
 	}
+	return -1;
 }
 
 InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
@@ -547,30 +558,21 @@ InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
 
 	// Start the tree by iterating over the leaves
 	//log_debug("[DBG] [BVH] Adding leaves to BVH");
-	for (int i = 0; i < numLeaves; i++) {
+	for (int i = 0; i < numLeaves; i++)
 		ChooseParent(i, true, numLeaves, leafItems, innerNodes);
-	}
 
 	// Build the tree
-	while (innerNodesProcessed < numInnerNodes)
+	while (*root == -1 && innerNodesProcessed < numInnerNodes)
 	{
 		//log_debug("[DBG] [BVH] ********** Inner node iteration");
 		for (int i = 0; i < numInnerNodes; i++) {
 			if (!innerNodes[i].processed && innerNodes[i].readyCount == 2)
 			{
-				if (innerNodes[i].first == 0 && innerNodes[i].last == numLeaves - 1)
-				{
-					*root = i;
-					innerNodes[i].processed = true;
-					innerNodesProcessed++;
+				*root = ChooseParent(i, false, numLeaves, leafItems, innerNodes);
+				innerNodes[i].processed = true;
+				innerNodesProcessed++;
+				if (*root == -1)
 					break;
-				}
-				else
-				{
-					ChooseParent(i, false, numLeaves, leafItems, innerNodes);
-					innerNodes[i].processed = true;
-					innerNodesProcessed++;
-				}
 			}
 		}
 	}
@@ -586,7 +588,7 @@ std::string tab(int N)
 	return res;
 }
 
-void printTree(int N, int curNode, bool isLeaf, InnerNode* innerNodes)
+static void printTree(int N, int curNode, bool isLeaf, InnerNode* innerNodes)
 {
 	if (curNode == -1 || innerNodes == nullptr)
 		return;
@@ -602,21 +604,45 @@ void printTree(int N, int curNode, bool isLeaf, InnerNode* innerNodes)
 	printTree(N + 4, innerNodes[curNode].left, innerNodes[curNode].leftIsLeaf, innerNodes);
 }
 
+static void PrintTree(std::string level, IGenericTree *T)
+{
+	if (T == nullptr)
+		return;
+
+	int arity = T->GetArity();
+	std::vector<IGenericTree *> children = T->GetChildren();
+	bool isLeaf = children.size() == 0;
+
+	if (!isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
+	for (int i = arity - 1; i >= arity / 2; i--)
+		if (i < (int)children.size())
+			PrintTree(level + "    ", children[i]);
+
+	log_debug("[DBG] [BVH] %s%s",
+		(level + std::to_string(T->GetTriID())).c_str(), isLeaf ? "]" : "");
+
+	for (int i = arity / 2 - 1; i >= 0; i--)
+		if (i < (int)children.size())
+			PrintTree(level + "    ", children[i]);
+	if (!isLeaf) log_debug("[DBG] [BVH] %s", (level + "   \\--/").c_str());
+}
+
 void TestFastLBVH()
 {
 	log_debug("[DBG] [BVH] ****************************************************************");
 	log_debug("[DBG] [BVH] TestFastLBVH() START");
 	std::vector<LeafItem> leafItems;
 	AABB aabb;
-	// This is the example from Apetrei 2014
-	leafItems.push_back(std::make_tuple(4, aabb, 0));
-	leafItems.push_back(std::make_tuple(12, aabb, 1));
-	leafItems.push_back(std::make_tuple(3, aabb, 2));
-	leafItems.push_back(std::make_tuple(13, aabb, 3));
-	leafItems.push_back(std::make_tuple(5, aabb, 4));
-	leafItems.push_back(std::make_tuple(2, aabb, 5));
-	leafItems.push_back(std::make_tuple(15, aabb, 6));
-	leafItems.push_back(std::make_tuple(8, aabb, 7));
+	// This is the example from Apetrei 2014.
+	// Here the TriID is the same as the morton code for debugging purposes.
+	leafItems.push_back(std::make_tuple(4, aabb, 4));
+	leafItems.push_back(std::make_tuple(12, aabb, 12));
+	leafItems.push_back(std::make_tuple(3, aabb, 3));
+	leafItems.push_back(std::make_tuple(13, aabb, 13));
+	leafItems.push_back(std::make_tuple(5, aabb, 5));
+	leafItems.push_back(std::make_tuple(2, aabb, 2));
+	leafItems.push_back(std::make_tuple(15, aabb, 15));
+	leafItems.push_back(std::make_tuple(8, aabb, 8));
 
 	// Sort by the morton codes
 	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
@@ -639,27 +665,154 @@ void TestFastLBVH()
 	log_debug("[DBG] [BVH] Printing Tree");
 	printTree(0, root, false, innerNodes);
 
-	delete[] innerNodes;
-	log_debug("[DBG] [BVH] TestFastLBVH() END");
 	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] BVH2 --> QBVH conversion");
+	QTreeNode* Q = BinTreeToQTree(root, false, innerNodes, leafItems);
+	delete[] innerNodes;
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing QTree");
+	PrintTree("", Q);
+	DeleteTree(Q);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLBVH() END");
 }
 
-LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
+void Normalize(XwaVector3 &A, const AABB &sceneBox, const XwaVector3 &range)
 {
+	A.x -= sceneBox.min.x;
+	A.y -= sceneBox.min.y;
+	A.z -= sceneBox.min.z;
+
+	A.x /= range.x;
+	A.y /= range.y;
+	A.z /= range.z;
+}
+
+int DumpTriangle(const std::string &name, FILE *file, int OBJindex, const XwaVector3 &v0, const XwaVector3& v1, const XwaVector3& v2)
+{
+	if (name.size() != 0)
+		fprintf(file, "o %s\n", name.c_str());
+
+	fprintf(file, "v %f %f %f\n", v0.x * OPT_TO_METERS, v0.y * OPT_TO_METERS, v0.z * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n", v1.x * OPT_TO_METERS, v1.y * OPT_TO_METERS, v1.z * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n", v2.x * OPT_TO_METERS, v2.y * OPT_TO_METERS, v2.z * OPT_TO_METERS);
+
+	fprintf(file, "f %d %d %d\n", OBJindex, OBJindex + 1, OBJindex + 2);
+	return OBJindex + 3;
+}
+
+int DumpAABB(const std::string &name, FILE* file, int OBJindex, const Vector3 &min, const Vector3 &max)
+{
+	fprintf(file, "o %s\n", name.c_str());
+
+	fprintf(file, "v %f %f %f\n",
+		min[0] * OPT_TO_METERS, min[1] * OPT_TO_METERS, min[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		max[0] * OPT_TO_METERS, min[1] * OPT_TO_METERS, min[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		max[0] * OPT_TO_METERS, max[1] * OPT_TO_METERS, min[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		min[0] * OPT_TO_METERS, max[1] * OPT_TO_METERS, min[2] * OPT_TO_METERS);
+
+	fprintf(file, "v %f %f %f\n",
+		min[0] * OPT_TO_METERS, min[1] * OPT_TO_METERS, max[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		max[0] * OPT_TO_METERS, min[1] * OPT_TO_METERS, max[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		max[0] * OPT_TO_METERS, max[1] * OPT_TO_METERS, max[2] * OPT_TO_METERS);
+	fprintf(file, "v %f %f %f\n",
+		min[0] * OPT_TO_METERS, max[1] * OPT_TO_METERS, max[2] * OPT_TO_METERS);
+
+	fprintf(file, "f %d %d\n", OBJindex + 0, OBJindex + 1);
+	fprintf(file, "f %d %d\n", OBJindex + 1, OBJindex + 2);
+	fprintf(file, "f %d %d\n", OBJindex + 2, OBJindex + 3);
+	fprintf(file, "f %d %d\n", OBJindex + 3, OBJindex + 0);
+
+	fprintf(file, "f %d %d\n", OBJindex + 4, OBJindex + 5);
+	fprintf(file, "f %d %d\n", OBJindex + 5, OBJindex + 6);
+	fprintf(file, "f %d %d\n", OBJindex + 6, OBJindex + 7);
+	fprintf(file, "f %d %d\n", OBJindex + 7, OBJindex + 4);
+
+	fprintf(file, "f %d %d\n", OBJindex + 0, OBJindex + 4);
+	fprintf(file, "f %d %d\n", OBJindex + 1, OBJindex + 5);
+	fprintf(file, "f %d %d\n", OBJindex + 2, OBJindex + 6);
+	fprintf(file, "f %d %d\n", OBJindex + 3, OBJindex + 7);
+	return OBJindex + 8;
+}
+
+void DumpInnerNodesToOBJ(char *sFileName, int rootIdx,
+	const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems,
+	const XwaVector3* vertices, const int* indices)
+{
+	int OBJindex = 1;
+	int numLeaves = leafItems.size();
+	int numInnerNodes = numLeaves - 1;
+	std::string name;
+
+	log_debug("[DBG] [BVH] ***** Dumping Fast LBVH to file: %s", sFileName);
+
+	FILE* file = NULL;
+	fopen_s(&file, sFileName, "wt");
+	if (file == NULL) {
+		log_debug("[DBG] [BVH] Could not open file: %s", sFileName);
+		return;
+	}
+
+	for (int curNode = 0; curNode < numLeaves; curNode++)
+	{
+		int TriID = std::get<2>(leafItems[curNode]);
+		int i = TriID * 3;
+
+		XwaVector3 v0 = vertices[indices[i + 0]];
+		XwaVector3 v1 = vertices[indices[i + 1]];
+		XwaVector3 v2 = vertices[indices[i + 2]];
+
+		name = "leaf-" + std::to_string(curNode);
+		OBJindex = DumpTriangle(name, file, OBJindex, v0, v1, v2);
+	}
+
+	for (int curNode = 0; curNode < numInnerNodes; curNode++)
+	{
+		InnerNode node = innerNodes[curNode];
+
+		name = (curNode == rootIdx) ?
+			name = "ROOT-" + std::to_string(curNode) :
+			name = "aabb-" + std::to_string(curNode);
+		OBJindex = DumpAABB(name, file, OBJindex, node.aabb.min, node.aabb.max);
+	}
+
+	fclose(file);
+}
+
+LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices, const int meshIndex)
+{
+	// Get the scene limits
+	AABB sceneBox;
+	XwaVector3 range;
+	for (int i = 0; i < numVertices; i++)
+		sceneBox.Expand(vertices[i]);
+	range.x = sceneBox.max.x - sceneBox.min.x;
+	range.y = sceneBox.max.y - sceneBox.min.y;
+	range.z = sceneBox.max.z - sceneBox.min.z;
+
 	int numTris = numIndices / 3;
-	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d",
-		numVertices, numIndices, numTris);
+	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+		numVertices, numIndices, numTris,
+		sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
+		sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
+
 	// Get the Morton Code and AABB for each triangle.
-	//std::vector<MortonCode_t> mortonCodes;
-	//std::vector<AABB> aabbs;
 	std::vector<LeafItem> leafItems;
 	for (int i = 0, TriID = 0; i < numIndices; i += 3, TriID++) {
 		AABB aabb;
 		aabb.Expand(vertices[indices[i + 0]]);
 		aabb.Expand(vertices[indices[i + 1]]);
 		aabb.Expand(vertices[indices[i + 2]]);
-		//aabbs.push_back(aabb);
+
 		XwaVector3 centroid = aabb.GetCentroid();
+		Normalize(centroid, sceneBox, range);
 		MortonCode_t m = GetMortonCode32(centroid);
 		leafItems.push_back(std::make_tuple(m, aabb, TriID));
 	}
@@ -672,16 +825,32 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	InnerNode* innerNodes = FastLBVH(leafItems, &root);
 	log_debug("[DBG] [BVH] FastLBVH finished. Tree built. root: %d", root);
 
+	//char sFileName[80];
+	//sprintf_s(sFileName, 80, ".\\BLAS-%d.obj", meshIndex);
+	//DumpInnerNodesToOBJ(sFileName, root, innerNodes, leafItems, vertices, indices);
+
 	// Convert to QBVH
 	QTreeNode *Q = BinTreeToQTree(root, leafItems.size() == 1, innerNodes, leafItems);
 	delete[] innerNodes;
 
 	// Encode the QBVH in a buffer
 	void *buffer = EncodeNodes(Q, vertices, indices);
+
+	LBVH *lbvh = new LBVH();
+	lbvh->nodes = (BVHNode *)buffer;
+	lbvh->numVertices = numVertices;
+	lbvh->numIndices = numIndices;
+	lbvh->numNodes = Q->numNodes;
+	// DEBUG
+	//log_debug("[DBG} [BVH] Dumping file: %s", sFileName);
+	//lbvh->DumpToOBJ(sFileName);
+	//log_debug("[DBG] [BVH] BLAS dumped");
+	// DEBUG
+
 	// Tidy up
 	DeleteTree(Q);
-	delete[] buffer;
-	return nullptr;
+	//delete[] buffer;
+	return lbvh;
 }
 
 void DeleteTree(QTreeNode* Q)

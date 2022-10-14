@@ -8305,6 +8305,12 @@ HRESULT PrimarySurface::Flip(
 						g_bDumpSSAOBuffers = false;
 					}
 
+					if (g_iDelayedDumpDebugBuffers) {
+						g_iDelayedDumpDebugBuffers--;
+						if (g_iDelayedDumpDebugBuffers == 0)
+							g_bDumpSSAOBuffers = true;
+					}
+
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D

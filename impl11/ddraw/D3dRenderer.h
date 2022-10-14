@@ -101,7 +101,7 @@ public:
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
 	bool ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags);
-	LBVH *BuildBVH(const SceneCompData* scene);
+	LBVH *BuildBVH(const SceneCompData* scene, int meshIndex);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);
@@ -122,6 +122,11 @@ public:
 protected:
 	DeviceResources* _deviceResources;
 	ID3D11Buffer *_lastVertexBuffer, *_lastIndexBuffer;
+
+	// RT OBJ DEBUG
+	int _D3DTotalVertices;
+	int _D3DOBJGroup;
+	FILE *_D3DFile;
 
 	int _totalVerticesCount;
 	int _totalTrianglesCount;

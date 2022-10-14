@@ -28,6 +28,13 @@ EffectsRenderer *g_effects_renderer = nullptr;
 
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
+int32_t MakeMeshKey(const SceneCompData* scene)
+{
+	//return ((int64_t)scene->MeshVertices << 32) |
+	//	   ((int64_t)scene->FaceIndices);
+	return (int32_t)scene->MeshVertices;
+}
+
 float4 TransformProjection(float3 input)
 {
 	float vpScaleX = g_VSCBuffer.viewportScale[0];
@@ -213,7 +220,7 @@ void ResetObjectIndexMap() {
 // Dump to OBJ
 // ****************************************************
 // Set the following flag to true to enable dumping the current scene to an OBJ file
-bool bD3DDumpOBJEnabled = false;
+bool bD3DDumpOBJEnabled = true;
 bool bHangarDumpOBJEnabled = false;
 FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
 int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DTotalNormals = 0, D3DOBJGroup = 0;
@@ -2111,6 +2118,15 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 		// Set the current mesh transform
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+	}
+
+	if (g_bRTEnabled)
+	{
+		//auto it = g_LBVHMap.find(MakeMeshKey(scene));
+		//if (it == g_LBVHMap.end())
+		{
+			BuildBVH(scene, _currentOptMeshIndex);
+		}
 	}
 
 	// Dump the current scene to an OBJ file
