@@ -2120,13 +2120,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 	}
 
-	if (g_bRTEnabled)
+	if (g_bRTEnabled && g_bInTechRoom)
 	{
-		//auto it = g_LBVHMap.find(MakeMeshKey(scene));
-		//if (it == g_LBVHMap.end())
-		{
-			BuildBVH(scene, _currentOptMeshIndex);
-		}
+		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}
 
 	// Dump the current scene to an OBJ file

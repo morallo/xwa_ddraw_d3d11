@@ -336,7 +336,7 @@ public:
 	}
 
 	static LBVH *LoadLBVH(char *sFileName, bool EmbeddedVerts=false, bool verbose=false);
-	static LBVH *Build(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices, const int meshIndex);
+	static LBVH *Build(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName);

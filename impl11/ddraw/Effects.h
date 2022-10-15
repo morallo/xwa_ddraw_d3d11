@@ -127,7 +127,8 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 // Raytracing
 // // Maps face group index --> numTris in face group
 using FaceGroups = std::map<int32_t, int32_t>;
-using MeshData = std::tuple<FaceGroups, void*>;
+// FaceGroups, NumVertices, BLAS ptr
+using MeshData = std::tuple<FaceGroups, int32_t, void*>;
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
 
@@ -176,3 +177,5 @@ std::vector<short> ReadZIPImageListFromGroup(const char *sZIPFileName, int Group
 // ********************************
 
 CraftInstance *GetPlayerCraftInstanceSafe();
+// Also updates g_bInTechGlobe when called.
+bool InTechGlobe();

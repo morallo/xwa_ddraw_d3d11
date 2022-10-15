@@ -786,7 +786,7 @@ void DumpInnerNodesToOBJ(char *sFileName, int rootIdx,
 	fclose(file);
 }
 
-LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices, const int meshIndex)
+LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
 {
 	// Get the scene limits
 	AABB sceneBox;
@@ -841,6 +841,8 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	lbvh->numVertices = numVertices;
 	lbvh->numIndices = numIndices;
 	lbvh->numNodes = Q->numNodes;
+	lbvh->scale = 1.0f;
+	lbvh->scaleComputed = true;
 	// DEBUG
 	//log_debug("[DBG} [BVH] Dumping file: %s", sFileName);
 	//lbvh->DumpToOBJ(sFileName);
