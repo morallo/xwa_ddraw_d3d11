@@ -473,7 +473,7 @@ void D3dRenderer::MainSceneHook(const SceneCompData* scene)
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	_deviceResources->InitRasterizerState(_rasterizerState);
+	_deviceResources->InitRasterizerState(g_isInRenderLasers ? _rasterizerState : _rasterizerStateCull);
 	_deviceResources->InitSamplerState(_samplerState.GetAddressOf(), nullptr);
 
 	if (scene->TextureAlphaMask == 0)
@@ -1589,7 +1589,11 @@ void D3dRenderer::CreateStates()
 	rsDesc.AntialiasedLineEnable = FALSE;
 	device->CreateRasterizerState(&rsDesc, &_rasterizerState);
 
+	rsDesc.CullMode = D3D11_CULL_FRONT;
+	device->CreateRasterizerState(&rsDesc, &_rasterizerStateCull);
+
 	rsDesc.FillMode = D3D11_FILL_WIREFRAME;
+	rsDesc.CullMode = D3D11_CULL_NONE;
 	device->CreateRasterizerState(&rsDesc, &_rasterizerStateWireframe);
 
 	D3D11_SAMPLER_DESC samplerDesc;

@@ -160,6 +160,7 @@ protected:
 	D3dConstants _constants;
 	ComPtr<ID3D11Buffer> _constantBuffer;
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
+	ComPtr<ID3D11RasterizerState> _rasterizerStateCull;
 	ComPtr<ID3D11RasterizerState> _rasterizerStateWireframe;
 	ComPtr<ID3D11SamplerState> _samplerState;
 	ComPtr<ID3D11BlendState> _solidBlendState;

@@ -1855,6 +1855,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	_deviceResources->InitRasterizerState(g_isInRenderLasers ? _rasterizerState : _rasterizerStateCull);
 	_deviceResources->InitRasterizerState(_rasterizerState);
 	_deviceResources->InitSamplerState(_samplerState.GetAddressOf(), nullptr);
 
