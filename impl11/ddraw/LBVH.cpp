@@ -611,9 +611,9 @@ static void PrintTree(std::string level, IGenericTree *T)
 
 	int arity = T->GetArity();
 	std::vector<IGenericTree *> children = T->GetChildren();
-	bool isLeaf = children.size() == 0;
+	bool isLeaf = T->IsLeaf();
 
-	if (!isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
+	if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
 	for (int i = arity - 1; i >= arity / 2; i--)
 		if (i < (int)children.size())
 			PrintTree(level + "    ", children[i]);
@@ -624,59 +624,7 @@ static void PrintTree(std::string level, IGenericTree *T)
 	for (int i = arity / 2 - 1; i >= 0; i--)
 		if (i < (int)children.size())
 			PrintTree(level + "    ", children[i]);
-	if (!isLeaf) log_debug("[DBG] [BVH] %s", (level + "   \\--/").c_str());
-}
-
-void TestFastLBVH()
-{
-	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] TestFastLBVH() START");
-	std::vector<LeafItem> leafItems;
-	AABB aabb;
-	// This is the example from Apetrei 2014.
-	// Here the TriID is the same as the morton code for debugging purposes.
-	leafItems.push_back(std::make_tuple(4, aabb, 4));
-	leafItems.push_back(std::make_tuple(12, aabb, 12));
-	leafItems.push_back(std::make_tuple(3, aabb, 3));
-	leafItems.push_back(std::make_tuple(13, aabb, 13));
-	leafItems.push_back(std::make_tuple(5, aabb, 5));
-	leafItems.push_back(std::make_tuple(2, aabb, 2));
-	leafItems.push_back(std::make_tuple(15, aabb, 15));
-	leafItems.push_back(std::make_tuple(8, aabb, 8));
-
-	// Sort by the morton codes
-	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
-
-	int root = -1;
-	InnerNode* innerNodes = FastLBVH(leafItems, &root);
-
-	log_debug("[DBG] [BVH] ****************************************************************");
-	int numLeaves = leafItems.size();
-	int numInnerNodes = numLeaves - 1;
-	for (int i = 0; i < numInnerNodes; i++)
-	{
-		log_debug("[DBG] [BVH] node: %d, left,right: %s%d, %s%d",
-			i,
-			innerNodes[i].leftIsLeaf ? "(L)" : "", innerNodes[i].left,
-			innerNodes[i].rightIsLeaf ? "(L)" : "", innerNodes[i].right);
-	}
-
-	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] Printing Tree");
-	printTree(0, root, false, innerNodes);
-
-	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] BVH2 --> QBVH conversion");
-	QTreeNode* Q = BinTreeToQTree(root, false, innerNodes, leafItems);
-	delete[] innerNodes;
-
-	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] Printing QTree");
-	PrintTree("", Q);
-	DeleteTree(Q);
-
-	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] TestFastLBVH() END");
+	if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   \\--/").c_str());
 }
 
 void Normalize(XwaVector3 &A, const AABB &sceneBox, const XwaVector3 &range)
@@ -786,6 +734,86 @@ void DumpInnerNodesToOBJ(char *sFileName, int rootIdx,
 	fclose(file);
 }
 
+TreeNode* RotLeft(TreeNode* T)
+{
+	if (T == nullptr) return nullptr;
+
+	TreeNode* L = T->left;
+	TreeNode* R = T->right;
+	TreeNode* RL = T->right->left;
+	TreeNode* RR = T->right->right;
+	R->right = RR;
+	R->left = T;
+	T->left = L;
+	T->right = RL;
+
+	return R;
+}
+
+TreeNode* RotRight(TreeNode* T)
+{
+	if (T == nullptr) return nullptr;
+
+	TreeNode* L = T->left;
+	TreeNode* R = T->right;
+	TreeNode* LL = T->left->left;
+	TreeNode* LR = T->left->right;
+	L->left = LL;
+	L->right = T;
+	T->left = LR;
+	T->right = R;
+
+	return L;
+}
+
+// Red-Black balanced insertion
+TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box)
+{
+	if (T == nullptr)
+	{
+		return new TreeNode(TriID, code, box);
+	}
+
+	if (code <= T->code)
+	{
+		T->left = insertRB(T->left, TriID, code, box);
+		// Rebalance
+		if (T->left->left != nullptr && T->left->red && T->left->left->red)
+		{
+			T = RotRight(T);
+			T->left->red = false;
+			T->right->red = false;
+		}
+		else if (T->left->right != nullptr && T->left->red && T->left->right->red)
+		{
+			T->left = RotLeft(T->left);
+			T = RotRight(T);
+			T->left->red = false;
+			T->right->red = false;
+		}
+	}
+	else
+	{
+		T->right = insertRB(T->right, TriID, code, box);
+		// Rebalance
+		if (T->right->right != nullptr && T->right->red && T->right->right->red)
+		{
+			T = RotLeft(T);
+			T->left->red = false;
+			T->right->red = false;
+		}
+		else if (T->right->left != nullptr && T->right->red && T->right->left->red)
+		{
+			T->right = RotRight(T->right);
+			T = RotLeft(T);
+			T->left->red = false;
+			T->right->red = false;
+		}
+	}
+
+	return T;
+}
+
 LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
 {
 	// Get the scene limits
@@ -853,6 +881,15 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	DeleteTree(Q);
 	//delete[] buffer;
 	return lbvh;
+}
+
+void DeleteTree(TreeNode* T)
+{
+	if (T == nullptr) return;
+
+	DeleteTree(T->left);
+	DeleteTree(T->right);
+	delete T;
 }
 
 void DeleteTree(QTreeNode* Q)
@@ -1041,4 +1078,98 @@ uint8_t *EncodeNodes(IGenericTree *root, const XwaVector3* Vertices, const int* 
 	}
 
 	return result;
+}
+
+void TestFastLBVH()
+{
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLBVH() START");
+	std::vector<LeafItem> leafItems;
+	AABB aabb;
+	// This is the example from Apetrei 2014.
+	// Here the TriID is the same as the morton code for debugging purposes.
+	leafItems.push_back(std::make_tuple(4, aabb, 4));
+	leafItems.push_back(std::make_tuple(12, aabb, 12));
+	leafItems.push_back(std::make_tuple(3, aabb, 3));
+	leafItems.push_back(std::make_tuple(13, aabb, 13));
+	leafItems.push_back(std::make_tuple(5, aabb, 5));
+	leafItems.push_back(std::make_tuple(2, aabb, 2));
+	leafItems.push_back(std::make_tuple(15, aabb, 15));
+	leafItems.push_back(std::make_tuple(8, aabb, 8));
+
+	// Sort by the morton codes
+	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
+
+	int root = -1;
+	InnerNode* innerNodes = FastLBVH(leafItems, &root);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	int numLeaves = leafItems.size();
+	int numInnerNodes = numLeaves - 1;
+	for (int i = 0; i < numInnerNodes; i++)
+	{
+		log_debug("[DBG] [BVH] node: %d, left,right: %s%d, %s%d",
+			i,
+			innerNodes[i].leftIsLeaf ? "(L)" : "", innerNodes[i].left,
+			innerNodes[i].rightIsLeaf ? "(L)" : "", innerNodes[i].right);
+	}
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing Tree");
+	printTree(0, root, false, innerNodes);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] BVH2 --> QBVH conversion");
+	QTreeNode* Q = BinTreeToQTree(root, false, innerNodes, leafItems);
+	delete[] innerNodes;
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing QTree");
+	PrintTree("", Q);
+	DeleteTree(Q);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLBVH() END");
+}
+
+void TestRedBlackBVH()
+{
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestRedBlackBVH() START");
+
+	AABB box;
+	TreeNode* T = nullptr;
+
+	/*
+	T = insertRB(T, 0, 0, box);
+	T = insertRB(T, 1, 1, box);
+	T = insertRB(T, 2, 2, box);
+	T = insertRB(T, 3, 3, box);
+	T = insertRB(T, 4, 4, box);
+	T = insertRB(T, 5, 5, box);
+	T = insertRB(T, 6, 6, box);
+	T = insertRB(T, 7, 7, box);
+	T = insertRB(T, 8, 8, box);
+	T = insertRB(T, 9, 9, box);
+	T = insertRB(T, 10, 10, box);
+	T = insertRB(T, 11, 11, box);
+	T = insertRB(T, 12, 12, box);
+	*/
+
+	T = insertRB(T, 4, 4, box);
+	T = insertRB(T, 12, 12, box);
+	T = insertRB(T, 3, 3, box);
+	T = insertRB(T, 13, 13, box);
+	T = insertRB(T, 5, 5, box);
+	T = insertRB(T, 2, 2, box);
+	T = insertRB(T, 15, 15, box);
+	T = insertRB(T, 8, 8, box);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing Tree");
+	PrintTree("", T);
+	DeleteTree(T);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestRedBlackBVH() END");
 }

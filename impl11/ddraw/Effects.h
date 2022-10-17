@@ -127,7 +127,18 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 // Raytracing
 // // Maps face group index --> numTris in face group
 using FaceGroups = std::map<int32_t, int32_t>;
-// FaceGroups, NumVertices, BLAS ptr
+// Each OPT is made of multiple meshes
+// Each mesh is made of multiple face groups
+// From our perspective, inside ddraw, we see a draw call per face group
+// but each face group references the whole set of vertices from the mesh.
+// The only way to reconstruct the original faces is by accumulating all
+// face groups that reference the same mesh -- and even then, we may only
+// see the faces that make a specific LOD, leaving several "unused" vertices.
+// That's why we need to group all the face groups that belong to the same
+// mesh. We do that with MeshData.
+// g_LBVHMap maps a mesh (vertex pointer) to a MeshData
+// (FaceGroup map, NumVertices, LBVH). That's how we can reconstruct a mesh
+// as much as it's possible from this perspective (we might be missing LODs)
 using MeshData = std::tuple<FaceGroups, int32_t, void*>;
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;

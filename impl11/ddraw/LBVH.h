@@ -194,6 +194,147 @@ public:
 	virtual int GetNumNodes() = 0;
 };
 
+class TreeNode : public IGenericTree
+{
+public:
+	int TriID, numNodes;
+	TreeNode *left, *right, *parent;
+	AABB box;
+	XwaVector3 centroid;
+	MortonCode_t code;
+	bool red; // For Red-Black tree implementation
+
+	void InitNode()
+	{
+		TriID = -1;
+		left = right = parent = nullptr;
+		box.SetInfinity();
+		code = 0;
+		numNodes = 0;
+		code = 0xFFFFFFFF;
+		// All new nodes are red by default
+		red = true;
+		// Invalid centroid:
+		centroid.x = NAN;
+		centroid.y = NAN;
+		centroid.z = NAN;
+	}
+
+	TreeNode()
+	{
+		InitNode();
+	}
+
+	TreeNode(int TriID)
+	{
+		InitNode();
+		this->TriID = TriID;
+	}
+
+	TreeNode(int TriID, MortonCode_t code)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->code = code;
+	}
+
+	TreeNode(int TriID, MortonCode_t code, const AABB &box)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->code = code;
+		this->box.Expand(box);
+	}
+
+	TreeNode(int TriID, TreeNode *left, TreeNode *right)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->left = left;
+		this->right = right;
+	}
+
+	TreeNode(int TriID, const AABB& box)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->box.Expand(box);
+	}
+
+	/*
+	TreeNode(int TriID, const AABB &box, const XwaVector3 &centroid)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->box.Expand(box);
+		this->centroid = centroid;
+	}
+	*/
+
+	TreeNode(int TriID, const AABB &box, TreeNode *left, TreeNode *right)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->left = left;
+		this->right = right;
+		this->box.Expand(box);
+	}
+
+	TreeNode(int TriID, TreeNode *left, TreeNode *right, TreeNode *parent)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->left = left;
+		this->right = right;
+		this->parent = parent;
+	}
+
+	virtual int GetArity()
+	{
+		return 2;
+	}
+
+	virtual AABB GetBox()
+	{
+		return this->box;
+	}
+
+	virtual int GetTriID()
+	{
+		return this->TriID;
+	}
+
+	virtual bool IsLeaf()
+	{
+		return this->left == nullptr && this->right == nullptr;
+	}
+
+	virtual std::vector<IGenericTree*> GetChildren()
+	{
+		std::vector<IGenericTree*> List;
+		if (this->left != nullptr)
+			List.push_back(this->left);
+		if (this->right != nullptr)
+			List.push_back(this->right);
+		return List;
+	}
+
+	virtual IGenericTree *GetParent()
+	{
+		return this->parent;
+	}
+
+	virtual void SetNumNodes(int numNodes)
+	{
+		this->numNodes = numNodes;
+	}
+
+	virtual int GetNumNodes()
+	{
+		return this->numNodes;
+	}
+};
+
 class QTreeNode : public IGenericTree
 {
 public:
@@ -341,6 +482,9 @@ public:
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName);
 };
+
+// Red-Black balanced insertion
+TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box);
 
 QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems);
 void DeleteTree(QTreeNode* Q);
