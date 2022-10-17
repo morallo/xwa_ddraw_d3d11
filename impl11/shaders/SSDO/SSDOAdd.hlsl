@@ -15,7 +15,7 @@
 #include "..\PBRShading.h"
 
 #undef PBR_SHADING
-#define PBR_DYN_LIGHTS
+#undef PBR_DYN_LIGHTS
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -726,13 +726,16 @@ PixelShaderOutput main(PixelShaderInput input)
 #else
 	const float V = dot(0.333, color.rgb);
 	//const bool blackish = V < 0.1;
-	const bool blackish = smoothstep(0.1, 0.0, V);
+	const float blackish = smoothstep(0.1, 0.0, V);
 	const float metallicity = 0.25;
 	//const float glossiness = blackish ? 0.25 : 0.75;
-	const float glossiness = lerp(0.75, 0.5, blackish);
+	//const float glossiness = lerp(0.75, 0.5, blackish);
+	const float glossiness = lerp(0.75, 0.25, blackish);
 	//const float reflectance = blackish ? 0.0 : 0.30;
-	const float reflectance = lerp(0.3, 0.1, blackish);
-	const float ambient = 0.05;
+	//const float reflectance = lerp(0.3, 0.1, blackish);
+	const float reflectance = lerp(0.3, 0.05, blackish);
+	//const float ambient = 0.05;
+	const float ambient = 0.03;
 	//const float exposure = 1.0;
 	[loop]
 	for (i = 0; i < LightCount; i++) {

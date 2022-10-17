@@ -55,7 +55,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Zero-out the bloom mask and provide default output values
 	output.bloom = 0;
-	output.color = output.color = float4(brightness * texelColor.xyz, texelColor.w);
+	output.color = float4(brightness * texelColor.xyz, texelColor.w);
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 
@@ -100,11 +100,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG
 
 	const float exposure = 1.0;
+	const float blackish = smoothstep(0.3, 0.0, dot(0.333, texelColor.rgb));
 	//float glossiness = output.ssaoMask.g + 0.5;
 	const float metallicity = 0.25;
-	float glossiness = 0.7;
-	float reflectance = 0.6;
+	float glossiness = lerp(0.7, 0.6, blackish);
+	//float reflectance = 0.6;
+	float reflectance = lerp(0.6, 0.5, blackish);
 	float final_alpha = alpha;
+	// Make glass more glossy
 	if (alpha < 0.98)
 	{
 		glossiness = 0.92;
@@ -118,6 +121,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		reflectance
 	);
 	output.color.rgb = linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
+	// Make glass reflections more visible (non-transparent)
 	if (alpha < 0.95)
 		final_alpha = max(alpha, dot(output.color.rgb, 0.333));
 	output.color.a = final_alpha;
