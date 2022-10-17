@@ -2120,7 +2120,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 	}
 
-	if (g_bRTEnabled && g_bInTechRoom)
+	// Only add these vertices to the global BVH if we're in the Tech Room and
+	// the texture is not transparent (engine glows are transparent and may both
+	// cast and catch shadows otherwise).
+	if (g_bRTEnabled && g_bInTechRoom &&
+		_bLastTextureSelectedNotNULL &&
+		!_lastTextureSelected->is_Transparent &&
+		!_lastTextureSelected->is_LightTexture)
 	{
 		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}

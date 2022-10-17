@@ -209,6 +209,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Laser = false;
 	this->is_TurboLaser = false;
 	this->is_LightTexture = false;
+	this->is_Transparent = false;
 	this->is_EngineGlow = false;
 	this->is_Electricity = false;
 	this->is_Explosion = false;
@@ -741,7 +742,7 @@ void Direct3DTexture::TagTexture() {
 	this->is_Tagged = true;
 
 	// DEBUG: Remove later!
-	//log_debug("[DBG] %s", surface->_name);
+	//log_debug("[DBG] %s", surface->_cname);
 	{
 		// Capture the textures
 #ifdef DBG_VR
@@ -1116,6 +1117,10 @@ void Direct3DTexture::TagTexture() {
 		if (strstr(surface->_cname, ",light,") != NULL)
 			this->is_LightTexture = true;
 
+		// Tag textures with transparency
+		if (strstr(surface->_cname, ",color-transparent,") != NULL)
+			this->is_Transparent = true;
+
 		// Link light and color textures:
 		/*
 		{
@@ -1468,6 +1473,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Laser = d3dTexture->is_Laser;
 	this->is_TurboLaser = d3dTexture->is_TurboLaser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
+	this->is_Transparent = d3dTexture->is_Transparent;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Electricity = d3dTexture->is_Electricity;
 	this->is_Explosion = d3dTexture->is_Explosion;

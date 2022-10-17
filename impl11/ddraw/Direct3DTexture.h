@@ -61,6 +61,8 @@ public:
 	bool is_TurboLaser;
 	// True if this is an "illumination" or "light" texture
 	bool is_LightTexture;
+	// True if this is a texture with transparency
+	bool is_Transparent;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
 	// True if this is an Electricity (Sparks or Electric Arcs) texture
