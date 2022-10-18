@@ -145,6 +145,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
 		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
+
+		// Bloom should disable shadows. Here we use the bloom factor
+		// to blend back to the original unshaded albedo.
+		//const float V = saturate(bloom_alpha * val);
+		const float V = saturate(2.0f * bloom_alpha * val);
+		output.color.rgb = lerp(output.color.rgb, texelColor.rgb, V);
+
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
 		// Set fNMIntensity to 0 where we have bloom:
@@ -161,6 +168,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// The HUD is shadeless and has transparency. Some planets in the background are also 
 	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
 	// So glass is a non-shadeless surface with transparency:
+#ifdef DISABLED
 	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
 		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
 		&& alpha < 0.95 /* This texture has transparency */
@@ -175,6 +183,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask.g = 1.0; // White specular value
 		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
+#endif
 
 	// BVH DEBUG
 	/*
