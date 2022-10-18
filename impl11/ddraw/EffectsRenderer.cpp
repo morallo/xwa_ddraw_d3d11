@@ -2483,6 +2483,8 @@ void EffectsRenderer::RenderScene()
 	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
 		return;
 
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderScene");
+
 	auto &context = _deviceResources->_d3dDeviceContext;
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
@@ -2530,13 +2532,15 @@ void EffectsRenderer::RenderScene()
 //out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void EffectsRenderer::RenderLasers()
 {
 	if (_LaserDrawCommands.size() == 0)
 		return;
-
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLasers");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	//log_debug("[DBG] Rendering %d deferred draw calls", _LaserDrawCommands.size());
@@ -2621,12 +2625,15 @@ void EffectsRenderer::RenderLasers()
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
 	RestoreContext();
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void EffectsRenderer::RenderTransparency()
 {
 	if (_TransparentDrawCommands.size() == 0)
 		return;
+
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderTransparency");
 
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
@@ -2703,6 +2710,8 @@ void EffectsRenderer::RenderTransparency()
 	// Clear the command list and restore the previous state
 	_TransparentDrawCommands.clear();
 	RestoreContext();
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 /*
@@ -2871,6 +2880,7 @@ Matrix4 EffectsRenderer::GetShadowMapLimits(const AABB &aabb, float *range, floa
 
 void EffectsRenderer::RenderCockpitShadowMap()
 {
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderCockpitShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -2890,6 +2900,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	if (!g_ShadowMapping.bEnabled || !g_bShadowMapEnable || !g_ShadowMapping.bUseShadowOBJ || _bExternalCamera ||
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
+		_deviceResources->_d3dAnnotation->EndEvent();
 		return;
 
 	SaveContext();
@@ -2990,10 +3001,12 @@ void EffectsRenderer::RenderCockpitShadowMap()
 
 	RestoreContext();
 	_bShadowsRenderedInCurrentFrame = true;
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void EffectsRenderer::RenderHangarShadowMap()
 {
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHangarShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -3003,6 +3016,7 @@ void EffectsRenderer::RenderHangarShadowMap()
 	if (!g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 || _bHangarShadowsRenderedInCurrentFrame ||
 		g_HyperspacePhaseFSM != HS_INIT_ST) {
 		_ShadowMapDrawCommands.clear();
+		_deviceResources->_d3dAnnotation->EndEvent();
 		return;
 	}
 
@@ -3128,6 +3142,7 @@ void EffectsRenderer::RenderHangarShadowMap()
 	RestoreContext();
 	_bHangarShadowsRenderedInCurrentFrame = true;
 	_ShadowMapDrawCommands.clear();
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void EffectsRenderer::StartCascadedShadowMap()
@@ -3372,10 +3387,12 @@ void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
  */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderDeferredDrawCalls");
 	// All the calls below should be rendered with RendererType_Main
 	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
+	_deviceResources->_d3dAnnotation->EndEvent();
 }
