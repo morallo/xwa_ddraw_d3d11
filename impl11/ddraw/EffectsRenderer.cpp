@@ -12,7 +12,7 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 
 // Control vars
 bool g_bEnableAnimations = true;
-bool g_bRTEnabled = false;
+bool g_bRTEnabledInTechRoom = true;
 
 // Maps an ObjectId to its index in the ObjectEntry table.
 // Textures have an associated objectId, this map tells us the slot
@@ -30,8 +30,6 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
 int32_t MakeMeshKey(const SceneCompData* scene)
 {
-	//return ((int64_t)scene->MeshVertices << 32) |
-	//	   ((int64_t)scene->FaceIndices);
 	return (int32_t)scene->MeshVertices;
 }
 
@@ -434,7 +432,7 @@ void EffectsRenderer::CreateShaders() {
 
 	D3dRenderer::CreateShaders();
 
-	if (g_bRTEnabled) {
+	if (g_bRTEnabledInTechRoom) {
 		device->CreateComputeShader(g_RTShadowCS, sizeof(g_RTShadowCS), nullptr, &_RTShadowCS);
 	}
 
@@ -1722,10 +1720,10 @@ void EffectsRenderer::ApplyRTShadows() {
 	{
 		_bModifiedShaders = true;
 		// Enable/Disable Raytracing as necessary
-		g_PSCBuffer.bDoRaytracing = g_bRTEnabled && (_lbvh != nullptr);
+		g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
 	}
 
-	if (!g_bRTEnabled || _lbvh == nullptr)
+	if (!g_bRTEnabledInTechRoom || _lbvh == nullptr)
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -2123,7 +2121,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the global BVH if we're in the Tech Room and
 	// the texture is not transparent (engine glows are transparent and may both
 	// cast and catch shadows otherwise).
-	if (g_bRTEnabled && g_bInTechRoom &&
+	if (g_bRTEnabledInTechRoom && g_bInTechRoom &&
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
