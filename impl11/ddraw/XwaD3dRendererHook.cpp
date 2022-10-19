@@ -274,7 +274,7 @@ void D3dRenderer::SceneEnd()
 {
 	_deviceResources->_d3dAnnotation->EndEvent();
 
-	if (g_bRTEnabled && _BLASNeedsUpdate)
+	if (g_bRTEnabledInTechRoom && _BLASNeedsUpdate)
 	{
 		// ... Rebuild the relevant BLASes...
 
@@ -719,7 +719,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
 
-			if (g_bRTEnabled)
+			if (g_bRTEnabledInTechRoom)
 			{
 				/*
 				log_debug("[DBG] [BVH] g_bInTechRoom: %d, _currentOptMeshIndex: %d, verticesCount: %d, FacesCount: %d",
@@ -1503,7 +1503,7 @@ void D3dRenderer::Initialize()
 	CreateStates();
 	CreateShaders();
 
-	if (g_bRTEnabled && _lbvh != nullptr) {
+	if (g_bRTEnabledInTechRoom && _lbvh != nullptr) {
 		delete _lbvh;
 		_lbvh = nullptr;
 		ClearGlobalLBVH();
@@ -1884,7 +1884,7 @@ void D3dRendererOptLoadHook(int handle)
 	// s_XwaIOFileName includes the relative path, like "FlightModels\AWingExterior.opt"
 	// Here we can side-load additional data for this OPT, like tangent maps (?) or
 	// pre-computed BVH data.
-	if (g_bRTEnabled) {
+	if (g_bRTEnabledInTechRoom) {
 		if (g_current_renderer->_lbvh != nullptr)
 		{
 			delete g_current_renderer->_lbvh;

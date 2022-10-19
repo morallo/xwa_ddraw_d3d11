@@ -1725,7 +1725,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 	}
 
-	if (g_bRTEnabled)
+	if (g_bRTEnabledInTechRoom)
 	{
 		// TODO: Fully-delete each LBVH
 		g_LBVHMap.clear();

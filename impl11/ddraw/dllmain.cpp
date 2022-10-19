@@ -760,8 +760,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+S
 			case 'S': {
 				if (g_bInTechRoom) {
-					g_bRTEnabled = !g_bRTEnabled;
-					log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+					g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
+					log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
 				}
 
 				g_bShadowMapEnable = !g_bShadowMapEnable;
