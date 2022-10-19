@@ -56,6 +56,8 @@ void DirectSBSRenderer::RenderScene()
 		// resources->InitVertexShader(_shadowVertexShaderVR);
 		return;
 
+	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderScene");
+
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -87,6 +89,8 @@ void DirectSBSRenderer::RenderScene()
 
 	// TODO: Implement instanced rendering so that we issue only one draw call to
 	// render both eyes.
+	// https://github.com/Prof-Butts/xwa_ddraw_d3d11/issues/48
+
 	
 	// Regular VR path
 	resources->InitVertexShader(_vertexShaderVR);
@@ -174,4 +178,6 @@ void DirectSBSRenderer::RenderScene()
 //out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
+
+	_deviceResources->_d3dAnnotation->EndEvent();
 }

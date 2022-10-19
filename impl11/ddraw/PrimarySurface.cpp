@@ -1148,6 +1148,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	if (iteration > 0)
 		return;
 
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"resizeForSteamVR");
+
 	D3D11_VIEWPORT viewport{};
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1315,6 +1317,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// Restore previous rendertarget, etc
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
  /*
@@ -1330,6 +1334,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
 void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomBasicPass");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1521,6 +1527,8 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 /*
@@ -1532,6 +1540,8 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
  *		_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR (blurred and downsampled from this pass)
  */
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomPyramidLevelPass");
+
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
@@ -1637,6 +1647,8 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	/*context->CopyResource(resources->_offscreenBuffer, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);*/
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR clearColor) {
@@ -1757,6 +1769,8 @@ int PrimarySurface::ClearHUDRegions() {
  * commands if DC is enabled
  */
 void PrimarySurface::DrawHUDVertices() {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DrawHUDVertices");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1896,6 +1910,7 @@ void PrimarySurface::DrawHUDVertices() {
 
 	if (!g_bEnableVR) // Shortcut for the non-VR path
 		//goto out;
+		this->_deviceResources->_d3dAnnotation->EndEvent();
 		return;
 
 	// Render the right image
@@ -1941,6 +1956,8 @@ out:
 	//UINT offset = 0;
 	//resources->InitVertexBuffer(_vertexBuffer.GetAddressOf(), &stride, &offset);
 	*/
+	this->_deviceResources->_d3dAnnotation->EndEvent();
+
 }
 
 /*
@@ -2241,6 +2258,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 }
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSAOPass");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -2557,9 +2577,14 @@ out2:
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSDOPass");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -3260,10 +3285,15 @@ out2:
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 /* Regular deferred shading with fake HDR, no SSAO */
 void PrimarySurface::DeferredPass() {
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DeferredLightingPass");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -3428,6 +3458,8 @@ void PrimarySurface::DeferredPass() {
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 
@@ -4012,6 +4044,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			3: Exiting hyperspace
 				max time: 236, 231
 	*/
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHyperspaceEffect");
 
 	// Constants for the post-hyper-exit effect:
 	const float T2 = 2.0f; // Time in seconds for the trails
@@ -4609,10 +4643,14 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitVertexBuffer(&lastVertexBuffer, lastVertexBufStride, lastVertexBufOffset);
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderFXAA()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderFXAA");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -4705,10 +4743,13 @@ void PrimarySurface::RenderFXAA()
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderLevels()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLevels");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -4795,6 +4836,7 @@ void PrimarySurface::RenderLevels()
 
 	// Restore the previous context
 	RestoreContext();
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderStarDebug()
@@ -5078,6 +5120,8 @@ void PrimarySurface::RenderExternalHUD()
 	// The reticle centroid is not visible and the triangle pointer isn't visible: nothing to do
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderExternalHUD");
 
 	// DEBUG
 	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
@@ -5396,6 +5440,8 @@ out:
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
@@ -5568,6 +5614,8 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 
 void PrimarySurface::RenderSpeedEffect()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSpeedEffect");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -5902,6 +5950,8 @@ void PrimarySurface::RenderSpeedEffect()
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 inline D3DCOLOR PrimarySurface::EncodeNormal(Vector3 N)
@@ -6080,6 +6130,8 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 
 void PrimarySurface::RenderAdditionalGeometry()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderAdditionalGeometry");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -6366,6 +6418,8 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 /*
@@ -6693,6 +6747,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 
 void PrimarySurface::RenderSunFlare()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSunFlare");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -7010,6 +7065,8 @@ void PrimarySurface::RenderSunFlare()
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 
@@ -7021,6 +7078,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLaserPointer");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -7339,6 +7398,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 out:
 */
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
@@ -7594,6 +7655,8 @@ void PrimarySurface::Add3DVisionSignature()
 
 void PrimarySurface::RenderEdgeDetector()
 {
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderEdgeDetector");
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -7664,7 +7727,10 @@ void PrimarySurface::RenderEdgeDetector()
 			g_ShadertoyBuffer.SunCoords[3].w = 0.0f;
 	}
 	else
+	{
+		this->_deviceResources->_d3dAnnotation->EndEvent();
 		return;
+	}
 
 	// SunCoords[1] are the UV coords for the buffer that has the SubCMD when the 2D renderer is disabled
 	// SunCoords[2].xy is the in-game resolution
@@ -7858,6 +7924,8 @@ nochange:
 	// multiple such effects are rendered per frame, we'll end up here multiple times too. That's fine,
 	// we just need to prevent applying this effect multiple times.
 	g_bEdgeEffectApplied = true;
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 HRESULT PrimarySurface::Flip(
@@ -7865,7 +7933,7 @@ HRESULT PrimarySurface::Flip(
 	DWORD dwFlags
 	)
 {
-	_deviceResources->_d3dAnnotation->BeginEvent(L"PrimarySurfaceFlip");
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"PrimarySurfaceFlip");
 
 	static uint64_t frame, lastFrame = 0;
 	static float seconds;
@@ -7977,9 +8045,12 @@ HRESULT PrimarySurface::Flip(
 			HRESULT hr;
 
 			if (FAILED(hr = this->_deviceResources->_backbufferSurface->BltFast(0, 0, this->_deviceResources->_frontbufferSurface, nullptr, 0)))
+			{
+				this->_deviceResources->_d3dAnnotation->EndEvent();
 				return hr;
+			}
 
-			_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->_d3dAnnotation->EndEvent();
 			return this->Flip(this->_deviceResources->_backbufferSurface, 0);
 		}
 
@@ -8082,7 +8153,10 @@ HRESULT PrimarySurface::Flip(
 			if (this->_deviceResources->_frontbufferSurface == nullptr)
 			{
 				if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
+				{
+					this->_deviceResources->_d3dAnnotation->EndEvent();
 					return DDERR_GENERIC;
+				}
 			}
 			else
 			{
@@ -8147,7 +8221,10 @@ HRESULT PrimarySurface::Flip(
 				delete[] buffer;
 
 				if (FAILED(hr))
+				{
+					this->_deviceResources->_d3dAnnotation->EndEvent();
 					return DDERR_GENERIC;
+				}
 			}
 
 			HRESULT hr;
@@ -8366,7 +8443,7 @@ HRESULT PrimarySurface::Flip(
 				this->_deviceResources->_frontbufferSurface->wasBltFastCalled = false;
 			}
 
-			_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->_d3dAnnotation->EndEvent();
 			return hr;
 		}
 	}
@@ -9506,7 +9583,7 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 		}
-		_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->_d3dAnnotation->EndEvent();
 		return hr;
 	}
 
@@ -10153,7 +10230,7 @@ void PrimarySurface::RenderText()
 		return;
 	}
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderText");
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderText");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10489,7 +10566,7 @@ out:
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderRadar()
@@ -10513,7 +10590,7 @@ void PrimarySurface::RenderRadar()
 		return;
 	}
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRadar");
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRadar");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10615,7 +10692,7 @@ void PrimarySurface::RenderRadar()
 	g_xwa_radar_selected_positionX = -1;
 	g_xwa_radar_selected_positionY = -1;
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void PrimarySurface::RenderBracket()
@@ -10643,7 +10720,7 @@ void PrimarySurface::RenderBracket()
 		return;
 	}
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderBracket");
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderBracket");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10770,6 +10847,9 @@ void PrimarySurface::RenderBracket()
 	// crashes when exiting.
 	s_brush = nullptr;
 	g_xwa_bracket.clear();
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
+
 }
 
 /*
@@ -10799,6 +10879,8 @@ void PrimarySurface::RenderSynthDCElems()
 		s_content_brush.Release();
 		return;
 	}
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSynthDCElems");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10933,5 +11015,5 @@ out:
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
 	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
