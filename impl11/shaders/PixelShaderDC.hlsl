@@ -100,11 +100,12 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	// coverColor/texelColor is the cover texture
-	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
-	if (Clamp) UV = saturate(UV);
-	float4 coverColor = AuxColor * texture0.Sample(sampler0, UV);
-	float coverAlpha = coverColor.w; // alpha of the cover texture
-	float3 HSV = RGBtoHSV(coverColor.rgb);
+	float2 UV          = input.tex * float2(AspectRatio, 1) + Offset.xy;
+	if (Clamp) UV      = saturate(UV);
+	float4 coverColor  = AuxColor * texture0.Sample(sampler0, UV);
+	float  coverAlpha  = coverColor.w; // alpha of the cover texture
+	float  SSAOAlpha   = saturate(min(coverAlpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float3 HSV         = RGBtoHSV(coverColor.rgb);
 	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		coverAlpha = HSV.z;
@@ -122,7 +123,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-	output.normal = float4(N, 1);
+	output.normal = float4(N, SSAOAlpha);
 
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
