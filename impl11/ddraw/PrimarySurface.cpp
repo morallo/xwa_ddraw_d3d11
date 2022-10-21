@@ -1733,6 +1733,8 @@ int PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"ClearHUDRegions");
+
 	int size = g_iNumDCElements;
 	for (int i = 0; i < size; i++) {
 		dc_element *dc_elem = &g_DCElements[i];
@@ -1761,6 +1763,8 @@ int PrimarySurface::ClearHUDRegions() {
 			}
 		}
 	}
+
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 	return num_regions_erased;
 }
 
