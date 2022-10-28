@@ -1714,6 +1714,8 @@ void D3dRenderHyperspaceLinesHook(int A4)
 	g_isInRenderHyperspaceLines = false;
 }
 
+
+// This is hooking 2 calls to the function that processes OptNodes with NodeType==FaceData
 void D3dRendererMainHook(SceneCompData* scene)
 {
 	if (*(int*)0x06628E0 != 0)

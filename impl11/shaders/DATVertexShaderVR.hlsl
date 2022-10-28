@@ -18,6 +18,7 @@ struct VertexShaderInput
 	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -27,6 +28,7 @@ struct PixelShaderInput
 	float2 tex      : TEXCOORD0;
 	float4 pos3D    : COLOR1;
 	float4 normal   : NORMAL;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 float3 InverseTransformProjectionScreen(float4 input)
@@ -78,7 +80,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(viewMatrix, float4(P, 1));
 	else
 		output.pos = mul(fullViewMatrix, float4(P, 1));
-	output.pos = mul(projEyeMatrix, output.pos);
+	output.pos = mul(projEyeMatrix[input.instId], output.pos);
 
 	// At this point, we should be doing:
 	//
@@ -101,5 +103,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.color  = input.color.zyxw;
 	output.normal = input.specular;
 	output.tex = input.tex;
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }

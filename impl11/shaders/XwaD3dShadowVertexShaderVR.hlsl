@@ -19,6 +19,7 @@ Buffer<float2> g_textureCoords : register(t2);
 struct VertexShaderInput
 {
 	int4 index : POSITION;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -28,6 +29,7 @@ struct PixelShaderInput
 	//float4 normal : COLOR1;
 	//float2 tex : TEXCOORD;
 	//float4 color : COLOR0;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -82,9 +84,10 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(viewMatrix, output.pos);
 	else
 		output.pos = mul(fullViewMatrix, output.pos);
-	output.pos = mul(projEyeMatrix, output.pos);
+	output.pos = mul(projEyeMatrix[input.instId], output.pos);
 	// Fix the depth
 	output.pos.z = (Q.z / Q.w) * output.pos.w;
-
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }

@@ -12,6 +12,7 @@ struct VertexShaderInput
 	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -19,6 +20,7 @@ struct PixelShaderInput
 	float4 pos		: SV_POSITION;
 	float4 color	: COLOR0;
 	float2 tex		: TEXCOORD;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -80,7 +82,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 		// Project again
 		P.z = -P.z;
-		output.pos = mul(projEyeMatrix, float4(P, 1.0));
+		output.pos = mul(projEyeMatrix[input.instId], float4(P, 1.0));
 		// DirectX will divide output.pos by output.pos.w, so we don't need to do it here,
 		// plus we probably can't do it here in the case of SteamVR anyway...
 		// Old code follows, just for reference (this code actually worked):
@@ -95,5 +97,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 	output.color = fadeout * input.color.zyxw;
 	output.tex   = input.tex;
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }

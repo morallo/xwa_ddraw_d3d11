@@ -13,6 +13,7 @@ struct VertexShaderInput
 	float4 color		: COLOR0;
 	float4 normal   : COLOR1;
 	float2 tex		: TEXCOORD;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -21,6 +22,7 @@ struct PixelShaderInput
 	float4 color		: COLOR0;
 	float4 normal	: COLOR1;
 	float2 tex		: TEXCOORD;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -67,7 +69,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 		// Project:
 		P.z = -P.z;
-		output.pos = mul(projEyeMatrix, float4(P.xyz, 1.0));
+		output.pos = mul(projEyeMatrix[0], float4(P.xyz, 1.0));
 		
 		/*
 		VR PATH
@@ -116,5 +118,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.color  = input.color.zyxw;
 	output.tex    = input.tex;
 	output.normal = input.normal;
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }

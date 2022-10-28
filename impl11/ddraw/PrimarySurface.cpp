@@ -990,7 +990,7 @@ void PrimarySurface::barrelEffect3D() {
 		wchar_t filename[120];
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf2-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBuffer2, filename);
@@ -1077,7 +1077,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 
 		log_debug("[DBG] Capturing buffers");
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBufAsInput-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBufferAsInput, filename);
@@ -1274,8 +1274,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
-		resources->_depthStencilViewL.Get());
+	/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
+		resources->_depthStencilViewL.Get());*/
+	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),nullptr);
 	if (g_bSteamVRMirrorWindowLeftEye) {
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	}
@@ -1298,8 +1299,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
-				resources->_depthStencilViewL.Get());
+			/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
+				resources->_depthStencilViewL.Get());*/
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),nullptr);
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
@@ -1329,7 +1331,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		static int frame = 0;
 		wchar_t filename[120];
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBufAsInput-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBufferAsInput, filename);
@@ -1930,7 +1932,7 @@ void PrimarySurface::DrawHUDVertices() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the left projection matrix
-	g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+	g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Set the HUD foreground, background and Text textures:
@@ -1972,7 +1974,7 @@ void PrimarySurface::DrawHUDVertices() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the right projection matrix
-	g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+	g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
 	//if (RenderHUD)
@@ -2806,27 +2808,27 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewEmissionMask.Get(), black);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				//resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 			goto out1;
 		}
 		else {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				//resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
 			context->Draw(6, 0);
 		}
@@ -2873,16 +2875,17 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssEmissionMask);
 			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
-			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
-			// Clear the destination buffers: the blur will re-populate them
+			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+
+			//Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
 			ID3D11ShaderResourceView *srvs[4] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_normBufSRV.Get(),
-					resources->_bentBufSRV_R.Get(),
+					//resources->_bentBufSRV_R.Get(),
 					//resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 	g_SSAO_Type != SSO_BENT_NORMALS) {
@@ -2893,7 +2896,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// Alternatively, we could change renderTargetViewBentBuf to be MSAA too, just like I did for ssMaskMSAA, etc; but... eh...
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
-					resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
+					//resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
@@ -2909,7 +2912,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			else {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO.Get(),
-					resources->_renderTargetViewBentBuf.Get(),
+					//resources->_renderTargetViewBentBuf.Get(),
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
@@ -3076,7 +3079,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
-			resources->_bentBufSRV.Get(),							// Bent Normals
+			//resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
 
 			g_ShadowMapping.bEnabled ? 
@@ -3120,7 +3123,7 @@ out1:
 			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewR.Get(),
-					resources->_renderTargetViewBentBufR.Get(),
+					//resources->_renderTargetViewBentBufR.Get(),
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
@@ -3132,10 +3135,10 @@ out1:
 			else {
 				ID3D11RenderTargetView *rtvs[2] = {
 					resources->_renderTargetViewSSAO_R.Get(),
-					resources->_renderTargetViewBentBufR.Get()
+					//resources->_renderTargetViewBentBufR.Get()
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
@@ -3181,23 +3184,24 @@ out1:
 				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
 				// Here I'm reusing bentBuf as a temporary buffer for bentBufR
 				// This is just to avoid having to make a temporary buffer to blur the bent normals.
-				context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+				//context->CopyResource(resources->_bentBuf, resources->_bentBufR);
+
 				// Clear the destination buffers: the blur will re-populate them
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
+				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
 				ID3D11ShaderResourceView *srvs[4] = {
 						//resources->_offscreenAsInputShaderResourceViewR.Get(), // LDR
 						resources->_bloomOutput1SRV.Get(), // HDR
 						resources->_depthBufSRV_R.Get(),
 						resources->_normBufSRV_R.Get(),
-						resources->_bentBufSRV.Get(),
+						//resources->_bentBufSRV.Get(),
 				};
 				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
 					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 					// Don't mix MSAA and non-MSAA RTVs:
 					ID3D11RenderTargetView *rtvs[2] = {
 						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewSSAO_R.Get(),
-						resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBufR.Get(),
+						//resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBufR.Get(),
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
 					context->PSSetShaderResources(0, 4, srvs);
@@ -3211,7 +3215,7 @@ out1:
 				else {
 					ID3D11RenderTargetView *rtvs[2] = {
 						resources->_renderTargetViewSSAO_R.Get(),
-						resources->_renderTargetViewBentBufR.Get()
+						//resources->_renderTargetViewBentBufR.Get()
 					};
 					context->OMSetRenderTargets(2, rtvs, NULL);
 					context->PSSetShaderResources(0, 4, srvs);
@@ -3365,7 +3369,7 @@ out1:
 
 				resources->_depthBufSRV_R.Get(),						// Depth buffer
 				resources->_normBufSRV_R.Get(),							// Normals buffer
-				resources->_bentBufSRV_R.Get(),							// Bent Normals
+				//resources->_bentBufSRV_R.Get(),							// Bent Normals
 				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
 
 				g_ShadowMapping.bEnabled ?
@@ -4823,7 +4827,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4859,7 +4863,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
@@ -4926,7 +4930,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.scale_override	= 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		//resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4967,7 +4971,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -5459,7 +5463,7 @@ void PrimarySurface::RenderStarDebug()
 			g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -5506,7 +5510,7 @@ void PrimarySurface::RenderStarDebug()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR) {
@@ -5799,7 +5803,7 @@ void PrimarySurface::RenderExternalHUD()
 			g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -5847,7 +5851,7 @@ void PrimarySurface::RenderExternalHUD()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR) {
@@ -6321,7 +6325,7 @@ void PrimarySurface::RenderSpeedEffect()
 		}
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -6350,7 +6354,7 @@ void PrimarySurface::RenderSpeedEffect()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -6781,7 +6785,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		}
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -6811,7 +6815,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -7562,7 +7566,7 @@ void PrimarySurface::RenderSunFlare()
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -7608,7 +7612,7 @@ void PrimarySurface::RenderSunFlare()
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR) {
@@ -8547,7 +8551,7 @@ nochange:
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -9034,7 +9038,7 @@ HRESULT PrimarySurface::Flip(
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
-					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceresources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
 						// Barrel effect enabled for DirectSBS mode.
@@ -9508,7 +9512,7 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
@@ -9886,7 +9890,7 @@ HRESULT PrimarySurface::Flip(
 				g_bDumpLaserPointerDebugInfo = false;
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
-			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceresources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 			if (g_bDumpSSAOBuffers && !g_bAOEnabled) {
 				log_debug("[DBG] SSAO Disabled. Dumping buffers");

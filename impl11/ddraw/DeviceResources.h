@@ -218,7 +218,7 @@ public:
 	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text
 	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders
 	ComPtr<ID3D11Texture2D> _ReticleBufMSAA;			   // "RTV" to render the HUD in VR mode
-	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from DCTextMSAA for use in shaders
+	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from _ReticleBufMSAA for use in shaders
 	// Barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
 	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
@@ -248,8 +248,8 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
 	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // Used in SteamVR mode
-	ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
-	ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
+	//ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
+	//ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBufR;		// No MSAA
 	// Shading System
@@ -365,8 +365,8 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
-	ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
+	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
+	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV_R;   // SRV for ssaoBuf
 	// Shading System

@@ -13,35 +13,35 @@
 #include "SSAOPSConstantBuffer.h"
 
 // The color buffer
-Texture2D texColor : register(t0);
+Texture2DArray texColor : register(t0);
 SamplerState sampColor : register(s0);
 
 // The SSDO Direct buffer
-Texture2D texSSDO : register(t1);
+Texture2DArray texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t2);
+Texture2DArray texSSDOInd : register(t2);
 SamplerState samplerSSDOInd : register(s2);
 
 // The SSAO mask
-Texture2D texSSAOMask : register(t3);
+Texture2DArray texSSAOMask : register(t3);
 SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
-Texture2D texPos : register(t4);
+Texture2DArray texPos : register(t4);
 SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
-Texture2D texNormal : register(t5);
+Texture2DArray texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
 // The Bent Normals buffer
-Texture2D texBent : register(t6);
-SamplerState samplerBent : register(s6);
+//Texture2DArray texBent : register(t6);
+//SamplerState samplerBent : register(s6);
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t7);
+Texture2DArray texSSMask : register(t7);
 SamplerState samplerSSMask : register(s7);
 
 // The Emission Mask buffer
@@ -68,6 +68,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+	uint viewId: SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -77,11 +78,11 @@ struct PixelShaderOutput
 	float4 bent  : SV_TARGET2;
 };
 
-inline float3 getPosition(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in uint viewId, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampPos, float3(uv,viewId), level).xyz;
 }
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -94,16 +95,16 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub	  = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
-	float3 color		  = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal		  = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo			  = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd		  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 color		  = texColor.Sample(sampColor, float3(input.uv, input.viewId)).xyz;
+	float4 Normal		  = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
+	float3 pos3D		  = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
+	float3 ssdo			  = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
+	float3 ssdoInd		  = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask		  = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask		  = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask		  = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv,input.viewId)).xyz;
+	float3 ssMask		  = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
 	float  mask			  = ssaoMask.x;
 	float  gloss_mask	  = ssaoMask.y;

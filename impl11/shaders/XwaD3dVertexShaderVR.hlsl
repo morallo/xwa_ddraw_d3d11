@@ -21,6 +21,7 @@ cbuffer ConstantBuffer : register(b8) {
 struct VertexShaderInput
 {
 	int4 index : POSITION;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -31,6 +32,7 @@ struct PixelShaderInput
 	float2 tex    : TEXCOORD;
 	//float4 color  : COLOR0;
 	float4 tangent : TANGENT;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -88,7 +90,7 @@ PixelShaderInput main(VertexShaderInput input)
 		output.pos = mul(viewMatrix, float4(P, 1));
 	else
 		output.pos = mul(fullViewMatrix, float4(P, 1));
-	output.pos = mul(projEyeMatrix, output.pos);
+	output.pos = mul(projEyeMatrix[input.instId], output.pos);
 
 	// We need the original depth to be consistent with the rest of the draw calls in Execute().
 	// Use the original Depth; but compensate with the new w so that it stays perspective-correct:
@@ -102,6 +104,9 @@ PixelShaderInput main(VertexShaderInput input)
 	//		 in the Pimax. Better not to use the original w coming from the game.
 	if (sz_override > -0.1)
 		output.pos.z = sz_override * output.pos.w;
+
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 
 	return output;
 }

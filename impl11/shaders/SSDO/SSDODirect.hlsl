@@ -11,50 +11,51 @@
 #define AO_INTENSITY 4.0
 
 // The Foreground 3D position buffer (linear X,Y,Z)
-Texture2D    texPos   : register(t0);
+Texture2DArray    texPos   : register(t0);
 SamplerState sampPos  : register(s0) = 
 	sampler_state {
 		Filter = MIN_MAG_MIP_LINEAR;
 	};
 
 // The normal buffer
-Texture2D    texNorm   : register(t1);
+Texture2DArray    texNorm   : register(t1);
 SamplerState sampNorm  : register(s1);
 
 // The color buffer
-Texture2D    texColor  : register(t2);
+Texture2DArray    texColor  : register(t2);
 SamplerState sampColor : register(s2);
 
 // The ssao mask
-Texture2D    texSSAOMask  : register(t3);
+Texture2DArray    texSSAOMask  : register(t3);
 SamplerState sampSSAOMask : register(s3);
 
 // The bloom mask
-Texture2D    texBloomMask  : register(t4);
+Texture2DArray    texBloomMask  : register(t4);
 SamplerState sampBloomMask : register(s4);
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
 {
 	float4 ssao        : SV_TARGET0; // SSDO Direct output
-	float4 bentNormal  : SV_TARGET1; // Bent Normal
+	//float4 bentNormal  : SV_TARGET1; // Bent Normal
 	//float4 emission    : SV_TARGET2; // Emission Mask
 };
 
-inline float3 getPosition(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv,in uint viewId,in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampPos, float3(uv,viewId), level).xyz;
 }
 
-inline float3 getNormal(in float2 uv, in float level) {
-	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
+inline float3 getNormal(in float2 uv,in uint viewId, in float level) {
+	return texNorm.SampleLevel(sampNorm, float3(uv,viewId), level).xyz;
 }
 
 struct ColNorm {
@@ -63,7 +64,7 @@ struct ColNorm {
 	//float3 E;   // Emission color
 };
 
-inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 color,
+inline ColNorm doSSDODirect(in uint viewId, in float2 input_uv, in float2 sample_uv, in float3 color,
 	in float3 P, in float3 Normal, in float cur_radius_sqr, in float max_radius_sqr, in float max_dist_sqr,
 	out float ao_factor)
 {
@@ -90,8 +91,8 @@ inline ColNorm doSSDODirect(in float2 input_uv, in float2 sample_uv, in float3 c
 	const float miplevel = 0.0;
 #endif
 
-	float3 occluder = getPosition(sample_uv, miplevel);
-	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, sample_uv, 0).xyz;
+	float3 occluder = getPosition(sample_uv, viewId, miplevel);
+	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, float3(sample_uv,viewId), 0).xyz;
 	float  occ_material = occ_mask.x;
 
 	//float3 occluder_normal = getNormal(sample_uv, 0);
@@ -293,8 +294,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	ColNorm ssdo_aux;
-	float3 p = getPosition(input.uv, 0);
-	float3 Normal = getNormal(input.uv, 0);
+	float3 p = getPosition(input.uv, input.viewId, 0);
+	float3 Normal = getNormal(input.uv, input.viewId, 0);
 	//Normal.z = -Normal.z;
 	float3 SSAO_Normal = float3(Normal.xy, -Normal.z); // For SSAO we need to flip the Z component because the code expects a different coord system
 	//float3 SSAO_Normal = Normal;
@@ -302,7 +303,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 color = 0;
 	//float3 ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).xyz;
 	//float  material  = mask.x;
-	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
+	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, float3(input.uv,input.viewId), 0);
 	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
 	//float3 bentNormal = float3(0, 0, 0);
 	// A value of bentNormalInit == 0.2 seems to work fine.
@@ -316,7 +317,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//color = color * color; // Gamma correction (approx to pow 2.2)
 
 	output.ssao = 1;
-	output.bentNormal = float4(0, 0, 0.01, 1); //output.bentNormal = 0;
+	//output.bentNormal = float4(0, 0, 0.01, 1); //output.bentNormal = 0;
 	//output.emission = 0;	
 
 	// This apparently helps prevent z-fighting noise
@@ -380,10 +381,10 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
-		ssdo_aux = doSSDODirect(input.uv, sample_uv, color, p, Normal, 
+		ssdo_aux = doSSDODirect(input.viewId,input.uv, sample_uv, color, p, Normal, 
 			radius_sqr, max_radius_sqr, max_dist_sqr, ao_factor);
 		ssdo       += ssdo_aux.col;
-		bentNormal += ssdo_aux.N;
+		//bentNormal += ssdo_aux.N;
 		//emission   += ssdo_aux.E;
 		ao         += ao_factor;
 	}
@@ -398,15 +399,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float3 debugBentNormal = normalize(bentNormal);
 	// Let's make a cleaner bent normal. The bent normal is the smooth normal when there's no occlusion
 	// so let's use the AO term to select the normal or the bent normal
-	bentNormal = ao * normalize(lerp(bentNormal, Normal, ao * ao)); // Using ao^2 makes the dark areas darker... kind of looks better, I think
+	//bentNormal = ao * normalize(lerp(bentNormal, Normal, ao * ao)); // Using ao^2 makes the dark areas darker... kind of looks better, I think
 	//output.bentNormal.xyz = bentNormal; // * 0.5 + 0.5;
 	// Start fading the bent normals at INFINITY_Z0 and fade out completely at INFINITY_Z1
-	output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
+	//output.bentNormal.xyz = lerp(bentNormal, 0, saturate((p.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE));
 	// Bent normal tweak: don't smooth the bent normal itself; but the difference with the smooth normal
-	output.bentNormal.xyz = Normal - output.bentNormal.xyz;
+	//output.bentNormal.xyz = Normal - output.bentNormal.xyz;
 	
 	//// Compute the contact shadow and put it in the y channel (not done here anymore)
-	float bentDiff = max(dot(bentNormal, LightVector[0].xyz), 0.0);
+	//float bentDiff = max(dot(bentNormal, LightVector[0].xyz), 0.0);
 	//float normDiff = max(dot(Normal, LightVector[0].xyz), 0.0);
 	////float bentDiff = dot(bentNormal, LightVector[0].xyz); // Removing max also reduces the effect, looks better with max
 	////float normDiff = dot(n, LightVector[0].xyz);
@@ -428,14 +429,14 @@ PixelShaderOutput main(PixelShaderInput input)
 #ifdef DISABLED
 	if (ssao_debug == 1)
 		output.ssao.xyz = output.ssao.xxx;
-	if (ssao_debug == 2)
-		output.ssao.xyz = bentDiff;
+	//if (ssao_debug == 2)
+		//output.ssao.xyz = bentDiff;
 	if (ssao_debug == 3)
 		output.ssao.xyz = ao * ao; // Gamma correction (or at least makes it looks like the output from SSAO anyway)
 	//if (ssao_debug == 4)
 	//	output.ssao.xyz = debugBentNormal;
-	if (ssao_debug == 5)
-		output.ssao.xyz = bentNormal;
+	//if (ssao_debug == 5)
+		//output.ssao.xyz = bentNormal;
 	if (ssao_debug == 6)
 		output.ssao.xyz = Normal;
 	//if (ssao_debug == 7)

@@ -134,7 +134,7 @@ void DirectSBSRenderer::RenderScene()
 		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 
 		// Set the left projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		// The viewMatrix is set at the beginning of the frame
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -168,7 +168,7 @@ void DirectSBSRenderer::RenderScene()
 		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 
 		// Set the right projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 		// The viewMatrix is set at the beginning of the frame
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 

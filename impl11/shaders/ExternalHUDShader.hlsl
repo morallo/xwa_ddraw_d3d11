@@ -13,7 +13,7 @@
 #include "metric_common.h"
 
 // The background texture
-Texture2D    bgTex     : register(t0);
+Texture2DArray    bgTex     : register(t0);
 SamplerState bgSampler : register(s0);
 
 // The reticle texture
@@ -32,6 +32,8 @@ struct PixelShaderInput
 	float4 color  : COLOR0;
 	float2 uv     : TEXCOORD0;
 	float4 pos3D  : COLOR1;
+	float4 normal   : NORMAL; // hook_normals.dll populates this field
+	uint viewId   : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -147,7 +149,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// In SBS VR mode, each half-screen receives a full 0..1 uv range. So if we sample the
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
 	// right. That's 4 images in one screen!
-	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
+	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 	
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 	p *= preserveAspectRatioComp;

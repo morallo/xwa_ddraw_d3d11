@@ -5589,7 +5589,7 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the left projection matrix
-					g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+					g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image
@@ -5661,7 +5661,7 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the right projection matrix
-					g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+					g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);

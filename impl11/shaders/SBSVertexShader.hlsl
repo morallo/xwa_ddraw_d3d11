@@ -13,6 +13,7 @@ struct VertexShaderInput
 	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
@@ -22,6 +23,7 @@ struct PixelShaderInput
 	float2 tex      : TEXCOORD0;
 	float4 pos3D    : COLOR1;
 	float4 normal   : NORMAL; // hook_normals.dll populates this field
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)
@@ -85,7 +87,7 @@ PixelShaderInput main(VertexShaderInput input)
 		compViewMatrix._m03_m13_m23 = 0;
 		output.pos = mul(compViewMatrix, float4(P, 1));
 	}
-	output.pos = mul(projEyeMatrix, output.pos);
+	output.pos = mul(projEyeMatrix[input.instId], output.pos);
 
 	// Use the original sz; but compensate with the new w so that it stays perspective-correct:
 	output.pos.z = sz * output.pos.w;
@@ -97,5 +99,7 @@ PixelShaderInput main(VertexShaderInput input)
 	output.color  = input.color.zyxw;
 	output.normal = input.specular;
 	output.tex    = input.tex;
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }
