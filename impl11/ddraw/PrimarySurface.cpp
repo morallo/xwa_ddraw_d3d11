@@ -8017,6 +8017,10 @@ HRESULT PrimarySurface::Flip(
 		}
 	}
 
+	if (g_pSharedDataTgSmush != nullptr && g_pSharedDataTgSmush->videoFrameIndex > 0)
+		// Early exit in case Flip is being called from Tgsmush to avoid doing anything unnecessary that can cause crashes.
+		return DD_OK;
+
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
 		if (!g_bHyperspaceFirstFrame) {
