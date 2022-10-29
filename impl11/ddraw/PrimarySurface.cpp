@@ -10073,6 +10073,49 @@ HRESULT PrimarySurface::UpdateOverlayDisplay(
 	LogText(str.str());
 #endif
 
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	/* Display VR movies in SteamVR*/
+	if (g_bUseSteamVR && g_pSharedDataTgSmush != nullptr &&
+		g_pSharedDataTgSmush->videoFrameIndex > 0)
+	{
+		// Create or resize the TgSmush texture. If we already created this texture and there's
+		// no change in dimensions, CreateTgSmushTexture() will do nothing.
+		resources->CreateTgSmushTexture(g_pSharedDataTgSmush->videoFrameWidth, g_pSharedDataTgSmush->videoFrameHeight);
+
+		if (resources->_tgSmushTex != nullptr && g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
+		{
+			static int lastFrameRendered = -1;
+			vr::Texture_t overlay_texture;
+
+			// Avoid mapping the resource if the frame hasn't changed.
+			if (lastFrameRendered != g_pSharedDataTgSmush->videoFrameIndex) {
+				D3D11_MAPPED_SUBRESOURCE map;
+				HRESULT hr = context->Map(resources->_tgSmushTex, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+				if (SUCCEEDED(hr)) {
+					uint32_t size = g_pSharedDataTgSmush->videoFrameWidth * g_pSharedDataTgSmush->videoFrameHeight * 4;
+					// Copy the data from TgSmush into this texture
+					memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, size);
+					//memcpy(map.pData, g_pSharedDataTgSmush->videoDataPtr, g_pSharedDataTgSmush->videoDataLength);
+					context->Unmap(resources->_tgSmushTex, 0);
+				}
+				lastFrameRendered = g_pSharedDataTgSmush->videoFrameIndex;
+			}
+
+			overlay_texture.eType = vr::TextureType_DirectX;
+			overlay_texture.eColorSpace = vr::ColorSpace_Auto;
+			overlay_texture.handle = resources->_tgSmushTex;
+			// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
+			g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
+			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+			// Let's make movies larger than the regular 2D overlay:
+			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
+			g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+		}
+		return DD_OK;
+	}		
+
 #if LOGGER
 	str.str("\tDDERR_UNSUPPORTED");
 	LogText(str.str());
