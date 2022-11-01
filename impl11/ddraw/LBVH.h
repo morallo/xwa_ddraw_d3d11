@@ -179,6 +179,22 @@ struct InnerNode
 	bool processed;
 };
 
+struct InnerNode4
+{
+	int parent;
+	// Children
+	int children[4];
+	bool isLeaf[4];
+	int numChildren;
+	// Range
+	int first;
+	int last;
+	AABB aabb;
+	// Processing
+	uint8_t readyCount;
+	bool processed;
+};
+
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 
 class IGenericTree
@@ -478,6 +494,7 @@ public:
 
 	static LBVH *LoadLBVH(char *sFileName, bool EmbeddedVerts=false, bool verbose=false);
 	static LBVH *Build(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
+	static LBVH *BuildQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName);

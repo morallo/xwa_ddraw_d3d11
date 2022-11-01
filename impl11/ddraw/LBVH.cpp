@@ -580,6 +580,155 @@ InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
 	return innerNodes;
 }
 
+int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem>& leafItems, InnerNode4* innerNodes)
+{
+	int parent = -1;
+	int left, right;
+	AABB curAABB;
+
+	if (isLeaf)
+	{
+		left = curNode;
+		right = curNode;
+		curAABB = std::get<1>(leafItems[curNode]);
+	}
+	else
+	{
+		left = innerNodes[curNode].first;
+		right = innerNodes[curNode].last;
+		curAABB = innerNodes[curNode].aabb;
+	}
+
+	if (left == 0 || (right != (numLeaves - 1) && delta(leafItems, right) < delta(leafItems, left - 1)))
+	{
+		parent = right;
+		if (parent == numLeaves - 1)
+		{
+			// We have found the root
+			return curNode;
+		}
+		innerNodes[parent].children[0] = curNode;
+		innerNodes[parent].isLeaf[0] = isLeaf;
+		innerNodes[parent].first = left;
+		innerNodes[parent].readyCount++;
+		innerNodes[parent].aabb.Expand(curAABB);
+		innerNodes[parent].numChildren++;
+	}
+	else
+	{
+		parent = left - 1;
+		innerNodes[parent].children[1] = curNode;
+		innerNodes[parent].isLeaf[1] = isLeaf;
+		innerNodes[parent].last = right;
+		innerNodes[parent].readyCount++;
+		innerNodes[parent].aabb.Expand(curAABB);
+		innerNodes[parent].numChildren++;
+		//log_debug("[DBG] [BVH]    case 2, parent: %d, parent.right: %d, parent.last: %d, readyCount: %d",
+		//	parent, innerNodes[parent].right, innerNodes[parent].last, innerNodes[parent].readyCount);
+	}
+	return -1;
+}
+
+void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
+{
+	// TODO: Update the AABB of the converted node
+	InnerNode4 node = innerNodes[i];
+
+	int numGrandChildren = 0;
+	// Count all the grandchildren
+	numGrandChildren += (node.isLeaf[0]) ? 1 : innerNodes[node.children[0]].numChildren;
+	numGrandChildren += (node.isLeaf[1]) ? 1 : innerNodes[node.children[1]].numChildren;
+
+	//log_debug("[DBG] [BVH] Attempting BVH4 conversion for node: %d, numChildren: %d, numGrandChildren: %d",
+	//	i, node.numChildren, numGrandChildren);
+
+	if (3 <= numGrandChildren && numGrandChildren <= 4)
+	{
+		int numChild = 0;
+		InnerNode4 tmp = node;
+		int arity = node.numChildren;
+		//log_debug("[DBG] [BVH] Collapsing node of arity: %d", arity);
+		for (int k = 0; k < arity; k++)
+		{
+			//log_debug("[DBG] [BVH]   child: %d, isLeaf: %d", k, node.isLeaf[k]);
+			if (node.isLeaf[k])
+			{
+				// No grandchildren, copy immediate child
+				tmp.children[numChild] = node.children[k];
+				tmp.isLeaf[numChild] = true;
+				numChild++;
+			}
+			else
+			{
+				// Pull up grandchildren
+				const int child = node.children[k];
+				const int numGrandChildren = innerNodes[child].numChildren;
+				for (int j = 0; j < numGrandChildren; j++)
+				{
+					//log_debug("[DBG] [BVH]      gchild: %d, node: %d, isLeaf: %d",
+					//	j, innerNodes[child].children[j], innerNodes[child].isLeaf[j]);
+					tmp.children[numChild] = innerNodes[child].children[j];
+					tmp.isLeaf[numChild] = innerNodes[child].isLeaf[j];
+					numChild++;
+				}
+				// Disable the node that is now empty
+				innerNodes[child].numChildren = -1;
+			}
+		}
+		tmp.numChildren = numChild;
+		// Replace the original node
+		innerNodes[i] = tmp;
+		//log_debug("[DBG] [BVH] converted node %d to BVH4 node, numChildren: %d",
+		//	i, tmp.numChildren);
+	}
+}
+
+InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int* root)
+{
+	int numLeaves = leafItems.size();
+	*root = -1;
+	if (numLeaves <= 1)
+		// Nothing to do, the single leaf is the root
+		return nullptr;
+
+	// Initialize the inner nodes
+	int numInnerNodes = numLeaves - 1;
+	int innerNodesProcessed = 0;
+	InnerNode4* innerNodes = new InnerNode4[numInnerNodes];
+	for (int i = 0; i < numInnerNodes; i++) {
+		innerNodes[i].readyCount = 0;
+		innerNodes[i].processed = false;
+		innerNodes[i].aabb.SetInfinity();
+		innerNodes[i].numChildren = 0;
+	}
+
+	// Start the tree by iterating over the leaves
+	//log_debug("[DBG] [BVH] Adding leaves to BVH");
+	for (int i = 0; i < numLeaves; i++)
+		ChooseParent4(i, true, numLeaves, leafItems, innerNodes);
+
+	// Build the tree
+	while (*root == -1 && innerNodesProcessed < numInnerNodes)
+	{
+		//log_debug("[DBG] [BVH] ********** Inner node iteration");
+		for (int i = 0; i < numInnerNodes; i++) {
+			if (!innerNodes[i].processed && innerNodes[i].readyCount == 2)
+			{
+				// This node has its two children and doesn't have a parent yet.
+				// Pull-up grandchildren and convert to BVH4 node
+				ConvertToBVH4Node(innerNodes, i);
+				*root = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
+				innerNodes[i].processed = true;
+				innerNodesProcessed++;
+				if (*root == -1)
+					break;
+			}
+		}
+	}
+	//log_debug("[DBG] [BVH] root at index: %d", *root);
+	return innerNodes;
+}
+
 std::string tab(int N)
 {
 	std::string res = "";
@@ -602,6 +751,27 @@ static void printTree(int N, int curNode, bool isLeaf, InnerNode* innerNodes)
 	printTree(N + 4, innerNodes[curNode].right, innerNodes[curNode].rightIsLeaf, innerNodes);
 	log_debug("[DBG] [BVH] %s%d", tab(N).c_str(), curNode);
 	printTree(N + 4, innerNodes[curNode].left, innerNodes[curNode].leftIsLeaf, innerNodes);
+}
+
+static void printTree(int N, int curNode, bool isLeaf, InnerNode4* innerNodes)
+{
+	if (curNode == -1 || innerNodes == nullptr)
+		return;
+
+	if (isLeaf)
+	{
+		log_debug("[DBG] [BVH] %s%d]", tab(N).c_str(), curNode);
+		return;
+	}
+
+	int arity = innerNodes[curNode].numChildren;
+	//if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
+	for (int i = arity - 1; i >= arity / 2; i--)
+		printTree(N + 4, innerNodes[curNode].children[i], innerNodes[curNode].isLeaf[i], innerNodes);
+	log_debug("[DBG] [BVH] %s%d", tab(N).c_str(), curNode);
+	for (int i = arity / 2 - 1; i >= 0; i--)
+		printTree(N + 4, innerNodes[curNode].children[i], innerNodes[curNode].isLeaf[i], innerNodes);
+	//if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   \\--/").c_str());
 }
 
 static void PrintTree(std::string level, IGenericTree *T)
@@ -883,6 +1053,68 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	return lbvh;
 }
 
+LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices)
+{
+	// Get the scene limits
+	AABB sceneBox;
+	XwaVector3 range;
+	for (int i = 0; i < numVertices; i++)
+		sceneBox.Expand(vertices[i]);
+	range.x = sceneBox.max.x - sceneBox.min.x;
+	range.y = sceneBox.max.y - sceneBox.min.y;
+	range.z = sceneBox.max.z - sceneBox.min.z;
+
+	int numTris = numIndices / 3;
+	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+		numVertices, numIndices, numTris,
+		sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
+		sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
+
+	// Get the Morton Code and AABB for each triangle.
+	std::vector<LeafItem> leafItems;
+	for (int i = 0, TriID = 0; i < numIndices; i += 3, TriID++) {
+		AABB aabb;
+		aabb.Expand(vertices[indices[i + 0]]);
+		aabb.Expand(vertices[indices[i + 1]]);
+		aabb.Expand(vertices[indices[i + 2]]);
+
+		XwaVector3 centroid = aabb.GetCentroid();
+		Normalize(centroid, sceneBox, range);
+		MortonCode_t m = GetMortonCode32(centroid);
+		leafItems.push_back(std::make_tuple(m, aabb, TriID));
+	}
+
+	// Sort the morton codes
+	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
+
+	// Build the tree
+	int root = -1;
+	InnerNode4* innerNodes = FastLQBVH(leafItems, &root);
+	log_debug("[DBG] [BVH] FastLQBVH finished. QTree built. root: %d", root);
+
+	// Encode the QBVH in a buffer
+	//void* buffer = EncodeNodes(Q, vertices, indices);
+	delete[] innerNodes;
+
+	LBVH* lbvh = new LBVH();
+	//lbvh->nodes = (BVHNode*)buffer;
+	lbvh->numVertices = numVertices;
+	lbvh->numIndices = numIndices;
+	//lbvh->numNodes = Q->numNodes;
+	lbvh->scale = 1.0f;
+	lbvh->scaleComputed = true;
+	// DEBUG
+	//log_debug("[DBG} [BVH] Dumping file: %s", sFileName);
+	//lbvh->DumpToOBJ(sFileName);
+	//log_debug("[DBG] [BVH] BLAS dumped");
+	// DEBUG
+
+	// Tidy up
+	//DeleteTree(Q);
+	//delete[] buffer;
+	return lbvh;
+}
+
 void DeleteTree(TreeNode* T)
 {
 	if (T == nullptr) return;
@@ -1130,6 +1362,63 @@ void TestFastLBVH()
 
 	log_debug("[DBG] [BVH] ****************************************************************");
 	log_debug("[DBG] [BVH] TestFastLBVH() END");
+}
+
+void TestFastLQBVH()
+{
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLQBVH() START");
+	std::vector<LeafItem> leafItems;
+	AABB aabb;
+	// This is the example from Apetrei 2014.
+	// Here the TriID is the same as the morton code for debugging purposes.
+	leafItems.push_back(std::make_tuple(4, aabb, 4));
+	leafItems.push_back(std::make_tuple(12, aabb, 12));
+	leafItems.push_back(std::make_tuple(3, aabb, 3));
+	leafItems.push_back(std::make_tuple(13, aabb, 13));
+	leafItems.push_back(std::make_tuple(5, aabb, 5));
+	leafItems.push_back(std::make_tuple(2, aabb, 2));
+	leafItems.push_back(std::make_tuple(15, aabb, 15));
+	leafItems.push_back(std::make_tuple(8, aabb, 8));
+
+	// Sort by the morton codes
+	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
+
+	int root = -1;
+	InnerNode4* innerNodes = FastLQBVH(leafItems, &root);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] root: %d", root);
+	int numLeaves = leafItems.size();
+	int numInnerNodes = numLeaves - 1;
+	for (int i = 0; i < numInnerNodes; i++)
+	{
+		std::string msg = "";
+		for (int j = 0; j < innerNodes[i].numChildren; j++) {
+			msg += (innerNodes[i].isLeaf[j] ? "(L)" : "") +
+				   std::to_string(innerNodes[i].children[j]) + ", ";
+		}
+
+		log_debug("[DBG] [BVH] node: %d, numChildren: %d| %s",
+			i, innerNodes[i].numChildren, msg.c_str());
+	}
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] Printing Tree");
+	printTree(0, root, false, innerNodes);
+
+	//log_debug("[DBG] [BVH] ****************************************************************");
+	//log_debug("[DBG] [BVH] BVH2 --> QBVH conversion");
+	//QTreeNode* Q = BinTreeToQTree(root, false, innerNodes, leafItems);
+	delete[] innerNodes;
+
+	//log_debug("[DBG] [BVH] ****************************************************************");
+	//log_debug("[DBG] [BVH] Printing QTree");
+	//PrintTree("", Q);
+	//DeleteTree(Q);
+
+	log_debug("[DBG] [BVH] ****************************************************************");
+	log_debug("[DBG] [BVH] TestFastLQBVH() END");
 }
 
 void TestRedBlackBVH()
