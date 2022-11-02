@@ -583,6 +583,7 @@ InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
 int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem>& leafItems, InnerNode4* innerNodes)
 {
 	int parent = -1;
+	int totalNodes = 0;
 	int left, right;
 	AABB curAABB;
 
@@ -591,12 +592,14 @@ int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<Lea
 		left = curNode;
 		right = curNode;
 		curAABB = std::get<1>(leafItems[curNode]);
+		totalNodes = 1;
 	}
 	else
 	{
 		left = innerNodes[curNode].first;
 		right = innerNodes[curNode].last;
 		curAABB = innerNodes[curNode].aabb;
+		totalNodes = innerNodes[curNode].totalNodes;
 	}
 
 	if (left == 0 || (right != (numLeaves - 1) && delta(leafItems, right) < delta(leafItems, left - 1)))
@@ -610,9 +613,6 @@ int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<Lea
 		innerNodes[parent].children[0] = curNode;
 		innerNodes[parent].isLeaf[0] = isLeaf;
 		innerNodes[parent].first = left;
-		innerNodes[parent].readyCount++;
-		innerNodes[parent].aabb.Expand(curAABB);
-		innerNodes[parent].numChildren++;
 	}
 	else
 	{
@@ -620,18 +620,24 @@ int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<Lea
 		innerNodes[parent].children[1] = curNode;
 		innerNodes[parent].isLeaf[1] = isLeaf;
 		innerNodes[parent].last = right;
-		innerNodes[parent].readyCount++;
-		innerNodes[parent].aabb.Expand(curAABB);
-		innerNodes[parent].numChildren++;
 		//log_debug("[DBG] [BVH]    case 2, parent: %d, parent.right: %d, parent.last: %d, readyCount: %d",
 		//	parent, innerNodes[parent].right, innerNodes[parent].last, innerNodes[parent].readyCount);
 	}
+	innerNodes[parent].readyCount++;
+	innerNodes[parent].aabb.Expand(curAABB);
+	innerNodes[parent].numChildren++;
+	innerNodes[parent].totalNodes += totalNodes;
 	return -1;
 }
 
+/// <summary>
+/// Converts a BVH2 node into a BVH4 node.
+/// </summary>
+/// <param name="innerNodes">The inner node list</param>
+/// <param name="i">The current node to convert</param>
 void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 {
-	// TODO: Update the AABB of the converted node
+	// TODO: Update the AABB of the converted node?
 	InnerNode4 node = innerNodes[i];
 
 	int numGrandChildren = 0;
@@ -645,6 +651,7 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 	if (3 <= numGrandChildren && numGrandChildren <= 4)
 	{
 		int numChild = 0;
+		int totalNodes = node.totalNodes;
 		InnerNode4 tmp = node;
 		int arity = node.numChildren;
 		//log_debug("[DBG] [BVH] Collapsing node of arity: %d", arity);
@@ -669,13 +676,16 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 					//	j, innerNodes[child].children[j], innerNodes[child].isLeaf[j]);
 					tmp.children[numChild] = innerNodes[child].children[j];
 					tmp.isLeaf[numChild] = innerNodes[child].isLeaf[j];
+
 					numChild++;
 				}
 				// Disable the node that is now empty
 				innerNodes[child].numChildren = -1;
+				totalNodes--;
 			}
 		}
 		tmp.numChildren = numChild;
+		tmp.totalNodes = totalNodes;
 		// Replace the original node
 		innerNodes[i] = tmp;
 		//log_debug("[DBG] [BVH] converted node %d to BVH4 node, numChildren: %d",
@@ -683,10 +693,10 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 	}
 }
 
-InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int* root)
+InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 {
 	int numLeaves = leafItems.size();
-	*root = -1;
+	root_out = -1;
 	if (numLeaves <= 1)
 		// Nothing to do, the single leaf is the root
 		return nullptr;
@@ -700,6 +710,7 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int* root)
 		innerNodes[i].processed = false;
 		innerNodes[i].aabb.SetInfinity();
 		innerNodes[i].numChildren = 0;
+		innerNodes[i].totalNodes = 1; // Count the current node
 	}
 
 	// Start the tree by iterating over the leaves
@@ -708,7 +719,7 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int* root)
 		ChooseParent4(i, true, numLeaves, leafItems, innerNodes);
 
 	// Build the tree
-	while (*root == -1 && innerNodesProcessed < numInnerNodes)
+	while (root_out == -1 && innerNodesProcessed < numInnerNodes)
 	{
 		//log_debug("[DBG] [BVH] ********** Inner node iteration");
 		for (int i = 0; i < numInnerNodes; i++) {
@@ -717,10 +728,10 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int* root)
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
 				ConvertToBVH4Node(innerNodes, i);
-				*root = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
+				root_out = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
 				innerNodes[i].processed = true;
 				innerNodesProcessed++;
-				if (*root == -1)
+				if (root_out == -1)
 					break;
 			}
 		}
@@ -768,7 +779,7 @@ static void printTree(int N, int curNode, bool isLeaf, InnerNode4* innerNodes)
 	//if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
 	for (int i = arity - 1; i >= arity / 2; i--)
 		printTree(N + 4, innerNodes[curNode].children[i], innerNodes[curNode].isLeaf[i], innerNodes);
-	log_debug("[DBG] [BVH] %s%d", tab(N).c_str(), curNode);
+	log_debug("[DBG] [BVH] %s%d,%d", tab(N).c_str(), curNode, innerNodes[curNode].totalNodes);
 	for (int i = arity / 2 - 1; i >= 0; i--)
 		printTree(N + 4, innerNodes[curNode].children[i], innerNodes[curNode].isLeaf[i], innerNodes);
 	//if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   \\--/").c_str());
@@ -902,6 +913,271 @@ void DumpInnerNodesToOBJ(char *sFileName, int rootIdx,
 	}
 
 	fclose(file);
+}
+
+// Encode a BVH4 node using Embedded Geometry.
+// Returns the new offset (in multiples of 4 bytes) that can be written to.
+static int EncodeTreeNode4(void* buffer, int startOfs, IGenericTree* T, int32_t parent, const std::vector<int>& children,
+	const XwaVector3* Vertices, const int* Indices)
+{
+	AABB box = T->GetBox();
+	int TriID = T->GetTriID();
+	int padding = 0;
+	int ofs = startOfs;
+	uint32_t* ubuffer = (uint32_t*)buffer;
+	float* fbuffer = (float*)buffer;
+
+	// This leaf node must have its vertices embedded in the node
+	if (TriID != -1)
+	{
+		int vertofs = TriID * 3;
+		XwaVector3 v0 = Vertices[Indices[vertofs]];
+		XwaVector3 v1 = Vertices[Indices[vertofs + 1]];
+		XwaVector3 v2 = Vertices[Indices[vertofs + 2]];
+
+		ubuffer[ofs++] = TriID;
+		ubuffer[ofs++] = parent;
+		ubuffer[ofs++] = padding;
+		ubuffer[ofs++] = padding;
+		// 16 bytes
+
+		fbuffer[ofs++] = v0.x;
+		fbuffer[ofs++] = v0.y;
+		fbuffer[ofs++] = v0.z;
+		fbuffer[ofs++] = 1.0f;
+		// 32 bytes
+		fbuffer[ofs++] = v1.x;
+		fbuffer[ofs++] = v1.y;
+		fbuffer[ofs++] = v1.z;
+		fbuffer[ofs++] = 1.0f;
+		// 48 bytes
+		fbuffer[ofs++] = v2.x;
+		fbuffer[ofs++] = v2.y;
+		fbuffer[ofs++] = v2.z;
+		fbuffer[ofs++] = 1.0f;
+		// 64 bytes
+	}
+	else
+	{
+		ubuffer[ofs++] = TriID;
+		ubuffer[ofs++] = parent;
+		ubuffer[ofs++] = padding;
+		ubuffer[ofs++] = padding;
+		// 16 bytes
+		fbuffer[ofs++] = box.min.x;
+		fbuffer[ofs++] = box.min.y;
+		fbuffer[ofs++] = box.min.z;
+		fbuffer[ofs++] = 1.0f;
+		// 32 bytes
+		fbuffer[ofs++] = box.max.x;
+		fbuffer[ofs++] = box.max.y;
+		fbuffer[ofs++] = box.max.z;
+		fbuffer[ofs++] = 1.0f;
+		// 48 bytes
+		for (int i = 0; i < 4; i++)
+			ubuffer[ofs++] = children[i];
+		// 64 bytes
+	}
+
+	/*
+	if (ofs - startOfs == ENCODED_TREE_NODE4_SIZE)
+	{
+		log_debug("[DBG] [BVH] TreeNode should be encoded in %d bytes, but got %d instead",
+			ENCODED_TREE_NODE4_SIZE, ofs - startOfs);
+	}
+	*/
+	return ofs;
+}
+
+// Encode a BVH4 node using Embedded Geometry.
+// Returns the new offset (in multiples of 4 bytes) that can be written to.
+static int EncodeTreeNode4(void* buffer, int startOfs,
+	int curNode, InnerNode4* innerNodes,
+	bool isLeaf, const std::vector<LeafItem>& leafItems,
+	int32_t parent, const std::vector<int>& children,
+	const XwaVector3* Vertices, const int* Indices)
+{
+	AABB box = isLeaf ? std::get<1>(leafItems[curNode]) : innerNodes[curNode].aabb;
+	int TriID = isLeaf ? std::get<2>(leafItems[curNode]) : -1;
+	int padding = 0;
+	int ofs = startOfs;
+	uint32_t* ubuffer = (uint32_t*)buffer;
+	float* fbuffer = (float*)buffer;
+
+	// This leaf node must have its vertices embedded in the node
+	if (TriID != -1)
+	{
+		int vertofs = TriID * 3;
+		XwaVector3 v0 = Vertices[Indices[vertofs]];
+		XwaVector3 v1 = Vertices[Indices[vertofs + 1]];
+		XwaVector3 v2 = Vertices[Indices[vertofs + 2]];
+
+		ubuffer[ofs++] = TriID;
+		ubuffer[ofs++] = parent;
+		ubuffer[ofs++] = padding;
+		ubuffer[ofs++] = padding;
+		// 16 bytes
+
+		fbuffer[ofs++] = v0.x;
+		fbuffer[ofs++] = v0.y;
+		fbuffer[ofs++] = v0.z;
+		fbuffer[ofs++] = 1.0f;
+		// 32 bytes
+		fbuffer[ofs++] = v1.x;
+		fbuffer[ofs++] = v1.y;
+		fbuffer[ofs++] = v1.z;
+		fbuffer[ofs++] = 1.0f;
+		// 48 bytes
+		fbuffer[ofs++] = v2.x;
+		fbuffer[ofs++] = v2.y;
+		fbuffer[ofs++] = v2.z;
+		fbuffer[ofs++] = 1.0f;
+		// 64 bytes
+	}
+	else
+	{
+		ubuffer[ofs++] = TriID;
+		ubuffer[ofs++] = parent;
+		ubuffer[ofs++] = padding;
+		ubuffer[ofs++] = padding;
+		// 16 bytes
+		fbuffer[ofs++] = box.min.x;
+		fbuffer[ofs++] = box.min.y;
+		fbuffer[ofs++] = box.min.z;
+		fbuffer[ofs++] = 1.0f;
+		// 32 bytes
+		fbuffer[ofs++] = box.max.x;
+		fbuffer[ofs++] = box.max.y;
+		fbuffer[ofs++] = box.max.z;
+		fbuffer[ofs++] = 1.0f;
+		// 48 bytes
+		for (int i = 0; i < 4; i++)
+			ubuffer[ofs++] = children[i];
+		// 64 bytes
+	}
+
+	/*
+	if (ofs - startOfs == ENCODED_TREE_NODE4_SIZE)
+	{
+		log_debug("[DBG] [BVH] TreeNode should be encoded in %d bytes, but got %d instead",
+			ENCODED_TREE_NODE4_SIZE, ofs - startOfs);
+	}
+	*/
+	return ofs;
+}
+
+// Returns a compact buffer containing BVHNode entries that represent the given tree
+// The current ray-tracer uses embedded geometry.
+uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* Indices)
+{
+	uint8_t* result = nullptr;
+	if (root == nullptr)
+		return result;
+
+	int NumNodes = root->GetNumNodes();
+	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
+	int startOfs = 0;
+	uint32_t arity = root->GetArity();
+	log_debug("[DBG] [BVH] Encoding %d BVH nodes", NumNodes);
+
+	// A breadth-first traversal will ensure that each level of the tree is encoded to the
+	// buffer before advancing to the next level. We can thus keep track of the offset in
+	// the buffer where the next node will appear.
+	std::queue<IGenericTree*> Q;
+
+	// Initialize the queue and the offsets.
+	Q.push(root);
+	// Since we're going to put this data in an array, it's easier to specify the children
+	// offsets as indices into this array.
+	int nextNode = 1;
+	std::vector<int> childOfs;
+
+	while (Q.size() != 0)
+	{
+		IGenericTree* T = Q.front();
+		Q.pop();
+		std::vector<IGenericTree*> children = T->GetChildren();
+
+		// In a breadth-first search, the left child will always be at offset nextNode
+		// Add the children offsets
+		childOfs.clear();
+		for (uint32_t i = 0; i < arity; i++)
+			childOfs.push_back(i < children.size() ? nextNode + i : -1);
+
+		startOfs = EncodeTreeNode4(result, startOfs, T, -1 /* parent (TODO) */,
+			childOfs, Vertices, Indices);
+
+		// Enqueue the children
+		for (const auto& child : children)
+		{
+			Q.push(child);
+			nextNode++;
+		}
+	}
+
+	return result;
+}
+
+// Returns a compact buffer containing BVHNode entries that represent the given tree
+// The tree is expected to be of arity 4.
+// The current ray-tracer uses embedded geometry.
+uint8_t* EncodeNodes(int root, InnerNode4* innerNodes, const std::vector<LeafItem>& leafItems,
+	const XwaVector3* Vertices, const int* Indices)
+{
+	using Item = std::pair<int, bool>;
+	uint8_t* result = nullptr;
+	if (root == -1)
+		return result;
+
+	int NumNodes = innerNodes[root].totalNodes;
+	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
+	int startOfs = 0;
+	uint32_t arity = 4; // Yeah, hard-coded, this will _definitely_ come back and bite me in the ass later, but whatever.
+	log_debug("[DBG] [BVH] Encoding %d QBVH nodes", NumNodes);
+
+	// A breadth-first traversal will ensure that each level of the tree is encoded to the
+	// buffer before advancing to the next level. We can thus keep track of the offset in
+	// the buffer where the next node will appear.
+	std::queue<Item> Q;
+
+	// Initialize the queue and the offsets.
+	Q.push(Item(root, false));
+	// Since we're going to put this data in an array, it's easier to specify the children
+	// offsets as indices into this array.
+	int nextNode = 1;
+	std::vector<int> childOfs;
+
+	while (Q.size() != 0)
+	{
+		Item curItem = Q.front();
+		int curNode = curItem.first;
+		bool isLeaf = curItem.second;
+		Q.pop();
+		int* children = isLeaf ? nullptr : innerNodes[curNode].children;
+		bool* isLeafArray = isLeaf ? nullptr : innerNodes[curNode].isLeaf;
+		uint32_t numChildren = isLeaf ? 0 : innerNodes[curNode].numChildren;
+
+		// In a breadth-first search, the left child will always be at offset nextNode
+		// Add the children offsets
+		childOfs.clear();
+		for (uint32_t i = 0; i < arity; i++)
+			childOfs.push_back(i < numChildren ? nextNode + i : -1);
+
+		startOfs = EncodeTreeNode4(result, startOfs,
+			curNode, innerNodes,
+			isLeaf, leafItems,
+			-1 /* parent (TODO) */, childOfs,
+			Vertices, Indices);
+
+		// Enqueue the children
+		for (uint32_t i = 0; i < numChildren; i++)
+		{
+			Q.push(Item(children[i], isLeafArray[i]));
+			nextNode++;
+		}
+	}
+
+	return result;
 }
 
 TreeNode* RotLeft(TreeNode* T)
@@ -1049,7 +1325,7 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 
 	// Tidy up
 	DeleteTree(Q);
-	//delete[] buffer;
+	//delete[] buffer; // We can't delete the buffer here, lbvh->nodes now owns it
 	return lbvh;
 }
 
@@ -1089,18 +1365,23 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 
 	// Build the tree
 	int root = -1;
-	InnerNode4* innerNodes = FastLQBVH(leafItems, &root);
-	log_debug("[DBG] [BVH] FastLQBVH finished. QTree built. root: %d", root);
+	InnerNode4* innerNodes = FastLQBVH(leafItems, root);
+	int totalNodes = innerNodes[root].totalNodes;
+	log_debug("[DBG] [BVH] FastLQBVH* finished. QTree built. root: %d, totalNodes: %d", root, totalNodes);
+	AABB scene = innerNodes[root].aabb;
+	log_debug("[DBG] [BVH] scene size from the QTree: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+		scene.min.x, scene.min.y, scene.min.z,
+		scene.max.x, scene.max.y, scene.max.z);
 
 	// Encode the QBVH in a buffer
-	//void* buffer = EncodeNodes(Q, vertices, indices);
+	void* buffer = EncodeNodes(root, innerNodes, leafItems, vertices, indices);
 	delete[] innerNodes;
 
 	LBVH* lbvh = new LBVH();
-	//lbvh->nodes = (BVHNode*)buffer;
+	lbvh->nodes = (BVHNode*)buffer;
 	lbvh->numVertices = numVertices;
 	lbvh->numIndices = numIndices;
-	//lbvh->numNodes = Q->numNodes;
+	lbvh->numNodes = totalNodes;
 	lbvh->scale = 1.0f;
 	lbvh->scaleComputed = true;
 	// DEBUG
@@ -1110,8 +1391,7 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 	// DEBUG
 
 	// Tidy up
-	//DeleteTree(Q);
-	//delete[] buffer;
+	//delete[] buffer; // We can't delete the buffer here, lbvh->nodes now owns it
 	return lbvh;
 }
 
@@ -1183,133 +1463,6 @@ QTreeNode *BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* inne
 		box.Expand(children[i]->box);
 
 	return new QTreeNode(-1, box, children, nullptr);
-}
-
-// Encode a BVH4 node using Embedded Geometry.
-// Returns the new offset (in multiples of 4 bytes) that can be written to.
-static int EncodeTreeNode4(void *buffer, int startOfs, IGenericTree *T, int32_t parent, const std::vector<int> &children,
-	const XwaVector3* Vertices, const int *Indices)
-{
-	AABB box = T->GetBox();
-	int TriID = T->GetTriID();
-	int padding = 0;
-	int ofs = startOfs;
-	uint32_t* ubuffer = (uint32_t *)buffer;
-	float* fbuffer = (float *)buffer;
-
-	// This leaf node must have its vertices embedded in the node
-	if (TriID != -1)
-	{
-		int vertofs = TriID * 3;
-		XwaVector3 v0 = Vertices[Indices[vertofs]];
-		XwaVector3 v1 = Vertices[Indices[vertofs + 1]];
-		XwaVector3 v2 = Vertices[Indices[vertofs + 2]];
-
-		ubuffer[ofs++] = TriID;
-		ubuffer[ofs++] = parent;
-		ubuffer[ofs++] = padding;
-		ubuffer[ofs++] = padding;
-		// 16 bytes
-
-		fbuffer[ofs++] = v0.x;
-		fbuffer[ofs++] = v0.y;
-		fbuffer[ofs++] = v0.z;
-		fbuffer[ofs++] = 1.0f;
-		// 32 bytes
-		fbuffer[ofs++] = v1.x;
-		fbuffer[ofs++] = v1.y;
-		fbuffer[ofs++] = v1.z;
-		fbuffer[ofs++] = 1.0f;
-		// 48 bytes
-		fbuffer[ofs++] = v2.x;
-		fbuffer[ofs++] = v2.y;
-		fbuffer[ofs++] = v2.z;
-		fbuffer[ofs++] = 1.0f;
-		// 64 bytes
-	}
-	else
-	{
-		ubuffer[ofs++] = TriID;
-		ubuffer[ofs++] = parent;
-		ubuffer[ofs++] = padding;
-		ubuffer[ofs++] = padding;
-		// 16 bytes
-		fbuffer[ofs++] = box.min.x;
-		fbuffer[ofs++] = box.min.y;
-		fbuffer[ofs++] = box.min.z;
-		fbuffer[ofs++] = 1.0f;
-		// 32 bytes
-		fbuffer[ofs++] = box.max.x;
-		fbuffer[ofs++] = box.max.y;
-		fbuffer[ofs++] = box.max.z;
-		fbuffer[ofs++] = 1.0f;
-		// 48 bytes
-		for (int i = 0; i < 4; i++)
-			ubuffer[ofs++] = children[i];
-		// 64 bytes
-	}
-
-	/*
-	if (ofs - startOfs == ENCODED_TREE_NODE4_SIZE)
-	{
-		log_debug("[DBG] [BVH] TreeNode should be encoded in %d bytes, but got %d instead",
-			ENCODED_TREE_NODE4_SIZE, ofs - startOfs);
-	}
-	*/
-	return ofs;
-}
-
-// Returns a compact buffer containing BVHNode entries that represent the given tree
-// The tree is expected to be of arity 4.
-// The current ray-tracer uses embedded geometry.
-uint8_t *EncodeNodes(IGenericTree *root, const XwaVector3* Vertices, const int* Indices)
-{
-	uint8_t* result = nullptr;
-	if (root == nullptr)
-		return result;
-
-	int NumNodes = root->GetNumNodes();
-	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
-	int startOfs = 0;
-	uint32_t arity = root->GetArity();
-	log_debug("[DBG] [BVH] Encoding %d BVH nodes", NumNodes);
-
-	// A breadth-first traversal will ensure that each level of the tree is encoded to the
-	// buffer before advancing to the next level. We can thus keep track of the offset in
-	// the buffer where the next node will appear.
-	std::queue<IGenericTree*> Q;
-
-	// Initialize the queue and the offsets.
-	Q.push(root);
-	// Since we're going to put this data in an array, it's easier to specify the children
-	// offsets as indices into this array.
-	int nextNode = 1;
-	std::vector<int> childOfs;
-
-	while (Q.size() != 0)
-	{
-		IGenericTree* T = Q.front();
-		Q.pop();
-		std::vector<IGenericTree*> children = T->GetChildren();
-
-		// In a breadth-first search, the left child will always be at offset nextNode
-		// Add the children offsets
-		childOfs.clear();
-		for (uint32_t i = 0; i < arity; i++)
-			childOfs.push_back(i < children.size() ? nextNode + i : -1);
-
-		startOfs = EncodeTreeNode4(result, startOfs, T, -1 /* parent (TODO) */,
-			childOfs, Vertices, Indices);
-
-		// Enqueue the children
-		for (const auto &child : children)
-		{
-			Q.push(child);
-			nextNode++;
-		}
-	}
-
-	return result;
 }
 
 void TestFastLBVH()
@@ -1385,10 +1538,11 @@ void TestFastLQBVH()
 	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
 
 	int root = -1;
-	InnerNode4* innerNodes = FastLQBVH(leafItems, &root);
+	InnerNode4* innerNodes = FastLQBVH(leafItems, root);
+	int totalNodes = innerNodes[root].totalNodes;
 
 	log_debug("[DBG] [BVH] ****************************************************************");
-	log_debug("[DBG] [BVH] root: %d", root);
+	log_debug("[DBG] [BVH] root: %d, totalNodes: %d", root, totalNodes);
 	int numLeaves = leafItems.size();
 	int numInnerNodes = numLeaves - 1;
 	for (int i = 0; i < numInnerNodes; i++)

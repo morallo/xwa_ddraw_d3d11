@@ -426,7 +426,8 @@ void D3dRenderer::SceneEnd()
 			// All the vertices and indices have been accumulated, the tree can be built now
 			if (_lbvh != nullptr)
 				delete _lbvh;
-			_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+			//_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+			_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
 		}
 		_BLASNeedsUpdate = false;
 	}

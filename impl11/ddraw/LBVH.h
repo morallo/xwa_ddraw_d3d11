@@ -161,6 +161,7 @@ public:
 
 // Classes and data used for the Fast LBVH build.
 using MortonCode_t = uint32_t;
+// Morton Code, Bounding Box, TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
 struct InnerNode
 {
@@ -186,6 +187,7 @@ struct InnerNode4
 	int children[4];
 	bool isLeaf[4];
 	int numChildren;
+	int totalNodes;
 	// Range
 	int first;
 	int last;
