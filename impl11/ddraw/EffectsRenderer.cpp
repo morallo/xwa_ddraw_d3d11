@@ -38,18 +38,20 @@ float4 TransformProjection(float3 input)
 	float vpScaleX = g_VSCBuffer.viewportScale[0];
 	float vpScaleY = g_VSCBuffer.viewportScale[1];
 	float vpScaleZ = g_VSCBuffer.viewportScale[2];
-	float projectionValue1 = *(float*)0x08B94CC; // Znear
-	float projectionValue2 = *(float*)0x05B46B4; // Zfar
+	float Znear = *(float*)0x08B94CC; // Znear
+	float Zfar  = *(float*)0x05B46B4; // Zfar
 	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
 	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
 
 	float4 pos;
 	// st0 = Znear / input.z == pos.w
-	float st0 = projectionValue1 / input.z; // st0 = Znear / MetricZ
+	float st0 = Znear / input.z; // st0 = Znear / MetricZ
 	pos.x = input.x * st0 + projectionDeltaX;
 	pos.y = input.y * st0 + projectionDeltaY;
+	// DEPTH-BUFFER-CHANGE DONE
 	// pos.z = (st0 * Zfar/32) / (abs(st0) * Zfar/32 + Znear/3) * 0.5
-	pos.z = (st0 * projectionValue2 / 32) / (abs(st0) * projectionValue2 / 32 + projectionValue1 / 3) * 0.5f;
+	//pos.z = (st0 * Zfar / 32) / (abs(st0) * Zfar / 32 + Znear / 3) * 0.5f;
+	pos.z = (st0 * Zfar / g_config.ProjectionParameterA) / (abs(st0) * Zfar / g_config.ProjectionParameterB + Znear * g_config.ProjectionParameterC);
 	pos.w = 1.0f;
 	pos.x = (pos.x * vpScaleX - 1.0f) * vpScaleZ;
 	pos.y = (pos.y * vpScaleY + 1.0f) * vpScaleZ;
@@ -126,8 +128,9 @@ float3 InverseTransformProjection(float4 input)
  */
 float3 InverseTransformProjectionScreen(float4 input)
 {
+	// DEPTH-BUFFER-CHANGE DONE
 	float Znear = *(float *)0x08B94CC;
-	float Zfar = *(float *)0x05B46B4;
+	float Zfar  = *(float *)0x05B46B4;
 	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;
 	float projectionDeltaY = *(float*)0x080ACF8 + *(float*)0x07B33C0 + *(float*)0x064D1AC;
 	//float st0 = input.w;
@@ -175,12 +178,17 @@ float3 InverseTransformProjectionScreen(float4 input)
 	*/
 	float3 P;
 	if (input.z == input.w)
-		P.z = Zfar / input.w - Zfar;
+	{
+		//P.z = Zfar / input.w - Zfar;
+		P.z = Zfar / input.w;
+	}
 	else
+	{
 		// For the regular case, when w != z, we can probably just invert st0 from TransformProjection():
 		P.z = Znear / input.w;
 		//P.z = Znear * input.w;
 		//P.z = input.w;
+	}
 
 	// We can now continue inverting the formulas in TransformProjection
 	float st0 = Znear / P.z;
@@ -303,6 +311,7 @@ void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matri
 		LastMeshNormalsCount = 0;
 	}
 
+	// DEPTH-BUFFER-CHANGE DONE
 	float *Znear = (float *)0x08B94CC;
 	float *Zfar = (float *)0x05B46B4;
 	float projectionDeltaX = *(float*)0x08C1600 + *(float*)0x0686ACC;

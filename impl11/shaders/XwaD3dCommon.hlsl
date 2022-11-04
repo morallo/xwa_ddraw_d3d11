@@ -19,6 +19,7 @@ cbuffer ConstantBuffer : register(b0)
 	float projectionValue2;
 	float projectionDeltaX;
 	float projectionDeltaY;
+	float4 projectionParameters;
 	float floorLevel;
 	float cameraPositionX;
 	float cameraPositionY;
@@ -51,16 +52,20 @@ float4 TransformProjection(float3 input)
 	float4 pos;
 	// st0 = Znear / input.z == pos.w
 	float st0 = projectionValue1 / input.z;
+	float inv_st0 = input.z / projectionValue1;
 	pos.x = input.x * st0 + projectionDeltaX;
 	pos.y = input.y * st0 + projectionDeltaY;
 	// pos.z = (st0 * Zfar/32) / (abs(st0) * Zfar/32 + Znear/3) * 0.5
-	pos.z = (st0 * projectionValue2 / 32) / (abs(st0) * projectionValue2 / 32 + projectionValue1 / 3) * 0.5f;
-	pos.w = 1.0f;
-	pos.x = (pos.x * vpScale.x - 1.0f) * vpScale.z;
-	pos.y = (pos.y * vpScale.y + 1.0f) * vpScale.z;
+	// DEPTH-BUFFER-CHANGE DONE
+	//pos.z = (st0 * projectionValue2 / 32) / (abs(st0) * projectionValue2 / 32 + projectionValue1 / 3) * 0.5f;
+	pos.z = (st0 * projectionValue2 / projectionParameters.x) / (abs(st0) * projectionValue2 / projectionParameters.y + projectionValue1 * projectionParameters.z);
+	//pos.w = 1.0f;
+	pos.xy = (pos.xy * vpScale.xy + float2(-1.0f, 1.0f)) * vpScale.z;
 	// We previously did pos.w = 1. After the next line, pos.w = 1 / st0, that implies
 	// that pos.w == rhw and st0 == w
-	pos *= 1.0f / st0;
+	//pos *= 1.0f / st0;
+	pos.xyz *= inv_st0;
+	pos.w = inv_st0;
 	return pos;
 }
 

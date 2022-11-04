@@ -10,7 +10,7 @@
 struct VertexShaderInput
 {
 	float4 pos		: POSITION;
-	float4 color		: COLOR0;
+	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
 };

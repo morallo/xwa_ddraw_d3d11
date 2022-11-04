@@ -181,12 +181,14 @@ typedef struct VertexShaderCBStruct {
 	float unused1;
 	float unused2;
 	// 32 bytes
+	float4 ProjectionParameters;
+	// 48 bytes
 	float aspect_ratio;
 	uint32_t apply_uv_comp;
 	float z_override, sz_override;
-	// 48 bytes
-	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 64 bytes
+	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
+	// 80 bytes
 } VertexShaderCBuffer;
 
 typedef struct VertexShaderMatrixCBStruct {

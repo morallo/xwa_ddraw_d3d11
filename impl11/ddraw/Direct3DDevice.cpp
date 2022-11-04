@@ -524,11 +524,11 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
 D3D11_VIEWPORT g_nonVRViewport{};
 
-VertexShaderMatrixCB				g_VSMatrixCB;
+VertexShaderMatrixCB			g_VSMatrixCB;
 VertexShaderCBuffer				g_VSCBuffer;
 PixelShaderCBuffer				g_PSCBuffer;
-DCPixelShaderCBuffer				g_DCPSCBuffer;
-ShadertoyCBuffer					g_ShadertoyBuffer;
+DCPixelShaderCBuffer			g_DCPSCBuffer;
+ShadertoyCBuffer				g_ShadertoyBuffer;
 LaserPointerCBuffer				g_LaserPointerBuffer;
 ShadowMapVertexShaderMatrixCB	g_ShadowMapVSCBuffer;
 MetricReconstructionCB			g_MetricRecCBuffer;
@@ -1918,6 +1918,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 
 #define METRIC 1
 
+	// DEPTH-BUFFER-CHANGE DONE
 	// Start a new object
 	if (name != nullptr) fprintf(file, "# %s\n", name);
 	float *Znear = (float *)0x08B94CC;
@@ -2736,17 +2737,17 @@ HRESULT Direct3DDevice::Execute(
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
-	g_VSCBuffer.aspect_ratio		  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+	g_VSCBuffer.aspect_ratio      =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 	g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
-	g_VSCBuffer.z_override		  = -1.0f;
-	g_VSCBuffer.sz_override		  = -1.0f;
+	g_VSCBuffer.z_override        = -1.0f;
+	g_VSCBuffer.sz_override       = -1.0f;
 	g_VSCBuffer.mult_z_override	  = -1.0f;
 	g_VSCBuffer.apply_uv_comp     =  false;
 	g_VSCBuffer.bPreventTransform =  0.0f;
-	g_VSCBuffer.bFullTransform	  =  FullTransform;
+	g_VSCBuffer.bFullTransform    =  FullTransform;
 	g_VSCBuffer.scale_override    =  1.0f;
-	g_VSCBuffer.s_V0x08B94CC		  = *(float*)0x08B94CC;
-	g_VSCBuffer.s_V0x05B46B4		  = *(float*)0x05B46B4;
+	g_VSCBuffer.s_V0x08B94CC      = *(float*)0x08B94CC;
+	g_VSCBuffer.s_V0x05B46B4      = *(float*)0x05B46B4;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -2862,6 +2863,9 @@ HRESULT Direct3DDevice::Execute(
 		// New constants added with the D3DRendererHook:
 		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
 		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
+		g_VSCBuffer.ProjectionParameters.x = g_config.ProjectionParameterA;
+		g_VSCBuffer.ProjectionParameters.y = g_config.ProjectionParameterB;
+		g_VSCBuffer.ProjectionParameters.z = g_config.ProjectionParameterC;
 		if (g_bEnableVR && !g_bInTechRoom) {
 			// The Tech Room needs the regular viewportscale below in VR
 			g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
@@ -2876,7 +2880,7 @@ HRESULT Direct3DDevice::Execute(
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
 		g_VSCBuffer.viewportScale[3]  =  g_fGlobalScale;
 		// If we're rendering to the Tech Library, then we should use the Concourse Aspect Ratio
-		g_VSCBuffer.aspect_ratio		  =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
+		g_VSCBuffer.aspect_ratio      =  g_bRendering3D ? g_fAspectRatio : g_fConcourseAspectRatio;
 		g_SSAO_PSCBuffer.aspect_ratio =  g_VSCBuffer.aspect_ratio;
 		g_VSCBuffer.apply_uv_comp     =  false;
 		g_VSCBuffer.z_override        = -1.0f;

@@ -78,6 +78,10 @@ Config::Config()
 	this->OnlyGrayscaleInTechRoom = false;
 	this->CullBackFaces = false;
 
+	this->ProjectionParameterA = 32.0f;
+	this->ProjectionParameterB = 256.0f;
+	this->ProjectionParameterC = 0.33f;
+
 	if (ifstream("Hook_D3d.dll") && HookD3D_IsHookD3DEnabled())
 	{
 		this->D3dHookExists = true;
@@ -254,6 +258,18 @@ Config::Config()
 			else if (name == "CullBackFaces")
 			{
 				this->CullBackFaces = stoi(value) != 0;
+			}
+			else if (name == "ProjectionParameterA")
+			{
+				this->ProjectionParameterA = stof(value);
+			}
+			else if (name == "ProjectionParameterB")
+			{
+				this->ProjectionParameterB = stof(value);
+			}
+			else if (name == "ProjectionParameterC")
+			{
+				this->ProjectionParameterC = stof(value);
 			}
 		}
 	}

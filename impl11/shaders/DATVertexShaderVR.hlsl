@@ -15,7 +15,7 @@
 struct VertexShaderInput
 {
 	float4 pos		: POSITION;
-	float4 color		: COLOR0;
+	float4 color	: COLOR0;
 	float4 specular : COLOR1;
 	float2 tex		: TEXCOORD;
 };
@@ -61,7 +61,9 @@ PixelShaderInput main(VertexShaderInput input)
 
 	//float4 Q = TransformProjection(P);
 	float st0 = Znear / P.z;
-	float Qz = (st0 * Zfar / 32) / (abs(st0) * Zfar / 32 + Znear / 3) * 0.5;
+	// DEPTH-BUFFER-CHANGE DONE
+	//float Qz = (st0 * Zfar / 32) / (abs(st0) * Zfar / 32 + Znear / 3) * 0.5;
+	float Qz = (st0 * Zfar / projectionParametersVS.x) / (abs(st0) * Zfar / projectionParametersVS.y + Znear * projectionParametersVS.z);
 	//float Qw = 1.0f / st0;
 
 	// Transform to metric 3D

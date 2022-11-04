@@ -24,6 +24,10 @@ struct D3dConstants
 	float projectionValue2;
 	float projectionDeltaX;
 	float projectionDeltaY;
+	float projectionParameterA;
+	float projectionParameterB;
+	float projectionParameterC;
+	float projectionParameterD;
 	float floorLevel;
 	float cameraPositionX;
 	float cameraPositionY;

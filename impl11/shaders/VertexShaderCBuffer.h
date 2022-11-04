@@ -8,6 +8,8 @@ cbuffer ConstantBuffer : register(b1)
 	float unused1;
 	float unused2;
 
+	float4 projectionParametersVS;
+
 	float aspect_ratio;
 	uint apply_uv_comp;
 	float z_override, sz_override;

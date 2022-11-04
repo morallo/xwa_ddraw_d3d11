@@ -79,15 +79,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsBlastMark)
 		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	float  alpha				= texelColor.w;
-	float3 P					= input.pos3D.xyz;
-	float  SSAOAlpha			= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float  alpha			= texelColor.w;
+	float3 P				= input.pos3D.xyz;
+	float  SSAOAlpha		= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	
 	// Zero-out the bloom mask and provide default output values
-	output.bloom		= 0;
-	output.color		= float4(brightness * texelColor.xyz, texelColor.w);
-	output.pos3D		= float4(P, SSAOAlpha);
-	output.ssMask	= 0;
+	output.bloom			= 0;
+	output.color			= float4(brightness * texelColor.xyz, texelColor.w);
+	output.pos3D			= float4(P, SSAOAlpha);
+	output.ssMask			= 0;
 
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down

@@ -55,6 +55,10 @@ public:
 	bool EnableSoftHangarShadows;
 	bool OnlyGrayscaleInTechRoom;
 	bool CullBackFaces;
+
+	float ProjectionParameterA;
+	float ProjectionParameterB;
+	float ProjectionParameterC;
 };
 
 extern Config g_config;

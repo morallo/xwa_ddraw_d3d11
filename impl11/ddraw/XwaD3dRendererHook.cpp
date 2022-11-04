@@ -1245,6 +1245,11 @@ void D3dRenderer::UpdateConstantBuffer(const SceneCompData* scene)
 {
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
 
+	_constants.projectionParameterA = g_config.ProjectionParameterA;
+	_constants.projectionParameterB = g_config.ProjectionParameterB;
+	_constants.projectionParameterC = g_config.ProjectionParameterC;
+	_constants.projectionParameterD = 0;
+
 	switch (g_rendererType)
 	{
 	case RendererType_Main:
