@@ -190,6 +190,12 @@ bool g_isInRenderHyperspaceLines = false;
 RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
+BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
+	"    BVH2",
+	"    QBVH",
+	"FastQBVH"
+};
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
@@ -426,14 +432,30 @@ void D3dRenderer::SceneEnd()
 			// All the vertices and indices have been accumulated, the tree can be built now
 			if (_lbvh != nullptr)
 				delete _lbvh;
-			// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-			//_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+			// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
+			// not be used during regular flight as it will mess up the animations
+			g_HiResTimer.GetElapsedTime();
 
-			// 2-step LBVH build: QBVH, Encoding.
-			//_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+			switch (g_BVHBuilderType)
+			{
+			case BVHBuilderType_BVH2:
+				// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
+				_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+				break;
 
-			// 1-step LBVH build: QBVH is built and encoded in one step.
-			_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+			case BVHBuilderType_QBVH:
+				// 2-step LBVH build: QBVH, Encoding.
+				_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+				break;
+
+			case BVHBuilderType_FastQBVH:
+				// 1-step LBVH build: QBVH is built and encoded in one step.
+				_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+				break;
+			}
+			g_HiResTimer.GetElapsedTime();
+			log_debug("[DBG] [BVH] Builder: %s, %s, BVH build time: %0.6fs, nodes: %d",
+				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_curOPTLoaded, g_HiResTimer.elapsed_s, _lbvh->numNodes);
 		}
 		_BLASNeedsUpdate = false;
 	}

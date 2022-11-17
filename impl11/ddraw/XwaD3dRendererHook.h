@@ -17,6 +17,17 @@ enum RendererType
 
 extern RendererType g_rendererType;
 
+enum BVHBuilderType
+{
+	BVHBuilderType_BVH2,
+	BVHBuilderType_QBVH,
+	BVHBuilderType_FastQBVH,
+	BVHBuilderType_MAX,
+};
+
+extern BVHBuilderType g_BVHBuilderType;
+extern char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX];
+
 void D3dRendererInitialize();
 void D3dRendererUninitialize();
 void D3dRendererSceneBegin(DeviceResources* deviceResources);

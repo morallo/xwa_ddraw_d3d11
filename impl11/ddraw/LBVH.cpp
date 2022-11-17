@@ -1335,7 +1335,7 @@ uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* 
 	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
 	int startOfs = 0;
 	uint32_t arity = root->GetArity();
-	log_debug("[DBG] [BVH] Encoding %d BVH nodes", NumNodes);
+	//log_debug("[DBG] [BVH] Encoding %d BVH nodes", NumNodes);
 
 	// A breadth-first traversal will ensure that each level of the tree is encoded to the
 	// buffer before advancing to the next level. We can thus keep track of the offset in
@@ -1390,7 +1390,7 @@ uint8_t* EncodeNodes(int root, InnerNode4* innerNodes, const std::vector<LeafIte
 	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
 	int startOfs = 0;
 	uint32_t arity = 4; // Yeah, hard-coded, this will _definitely_ come back and bite me in the ass later, but whatever.
-	log_debug("[DBG] [BVH] Encoding %d QBVH nodes", NumNodes);
+	//log_debug("[DBG] [BVH] Encoding %d QBVH nodes", NumNodes);
 
 	// A breadth-first traversal will ensure that each level of the tree is encoded to the
 	// buffer before advancing to the next level. We can thus keep track of the offset in
@@ -1529,10 +1529,12 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	range.z = sceneBox.max.z - sceneBox.min.z;
 
 	int numTris = numIndices / 3;
+	/*
 	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
 		numVertices, numIndices, numTris,
 		sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
 		sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
+	*/
 
 	// Get the Morton Code and AABB for each triangle.
 	std::vector<LeafItem> leafItems;
@@ -1554,7 +1556,7 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	// Build the tree
 	int root = -1;
 	InnerNode* innerNodes = FastLBVH(leafItems, &root);
-	log_debug("[DBG] [BVH] FastLBVH finished. Tree built. root: %d", root);
+	//log_debug("[DBG] [BVH] FastLBVH finished. Tree built. root: %d", root);
 
 	//char sFileName[80];
 	//sprintf_s(sFileName, 80, ".\\BLAS-%d.obj", meshIndex);
@@ -1666,11 +1668,13 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	int numTris = numIndices / 3;
 	int numQBVHInnerNodes = max(1, (int)ceil(2 * numTris / 3.0f));
 	int numQBVHNodes = numTris + numQBVHInnerNodes;
+	/*
 	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, numQBVHInnerNodes: %d, numQBVHNodes: %d, "
 		"scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
 		numVertices, numIndices, numTris, numQBVHInnerNodes, numQBVHNodes,
 		sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
 		sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
+	*/
 
 	// We can reserve the buffer for the QBVH now.
 	BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
@@ -1708,8 +1712,8 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	int root = -1;
 	FastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
 	int totalNodes = numQBVHNodes - root;
-	log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d, totalNodes: %d",
-		root, numQBVHNodes, totalNodes);
+	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d, totalNodes: %d",
+	//	root, numQBVHNodes, totalNodes);
 	/*
 	AABB scene;
 	scene.min.x = QBVHBuffer[root].min[0];
