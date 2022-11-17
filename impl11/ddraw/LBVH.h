@@ -186,6 +186,7 @@ struct InnerNode4
 	// Children
 	int children[4];
 	bool isLeaf[4];
+	int QBVHOfs[4]; // Encoded QBVH offset
 	int numChildren;
 	int totalNodes;
 	// Range
@@ -195,6 +196,7 @@ struct InnerNode4
 	// Processing
 	uint8_t readyCount;
 	bool processed;
+	bool isEncoded;
 };
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
@@ -464,9 +466,10 @@ class LBVH {
 public:
 	float3 *vertices;
 	int32_t *indices;
+	BVHNode *rawBuffer;
 	BVHNode *nodes;
 	uint32_t *vertexCounts;
-	int numVertices, numIndices, numNodes;
+	int /* rootIdx,*/ numVertices, numIndices, numNodes;
 	float scale;
 	bool scaleComputed;
 
@@ -474,6 +477,7 @@ public:
 		this->vertices = nullptr;
 		this->indices = nullptr;
 		this->nodes = nullptr;
+		this->rawBuffer = nullptr;
 		this->scale = 1.0f;
 		this->scaleComputed = false;
 
@@ -490,13 +494,24 @@ public:
 		if (indices != nullptr)
 			delete[] indices;
 
-		if (nodes != nullptr)
+		// "nodes" always points to the root, but sometimes
+		// "rawBuffer" may be a little larger than "nodes" and
+		// point to the same memory area. This happens with the
+		// bottom-up single-step QBVH builder. If set, "rawBuffer"
+		// should be released.
+		if (rawBuffer != nullptr)
+			delete[] rawBuffer;
+		else if (nodes != nullptr)
 			delete[] nodes;
 	}
 
 	static LBVH *LoadLBVH(char *sFileName, bool EmbeddedVerts=false, bool verbose=false);
+	// Build the BVH2. Convert to QBVH. Encode the QBVH.
 	static LBVH *Build(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
+	// Build the QBVH at the same time as the BVH2 is built. Encoding is a separate step.
 	static LBVH *BuildQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
+	// Build & Encode the QBVH at the same time as the BVH2 is built.
+	static LBVH *BuildFastQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName);

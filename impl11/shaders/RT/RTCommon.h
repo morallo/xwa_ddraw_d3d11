@@ -3,7 +3,7 @@
 // Copied and adapted from GPU Pro 3, the code is in the public domain, so that's
 // OK. I should know, since I'm one of the co-authors!
 
-#define MAX_RT_STACK 256
+#define MAX_RT_STACK 256 // TODO: Try 31, as is the case for DXR right now.
 
 // RTConstantsBuffer
 /*
@@ -64,6 +64,12 @@ struct BVHNode {
 StructuredBuffer<BVHNode> g_BVH : register(t14);
 // Matrices, slot 15
 StructuredBuffer<matrix> g_Matrices : register(t15);
+// Offsets, slot 16 (TODO)
+// We're probably going to need this at some point, to either:
+// * Have roots that begin at a non-zero index (this happens with the bottom-up QBVH builder)
+// * Have multiple BLASes in a single buffer. Thus, multiple roots may exist in a single
+//   buffer and each BVH will have its own starting offset to which all other internal offsets are relative to.
+//StructuredBuffer<uint2> g_BVHOffsets : register(t16);
 
 // Vertices, slot 15
 //Buffer<float3> g_Vertices : register(t15);
