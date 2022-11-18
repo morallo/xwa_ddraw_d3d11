@@ -190,6 +190,7 @@ bool g_isInRenderHyperspaceLines = false;
 RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",

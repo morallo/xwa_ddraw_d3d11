@@ -227,7 +227,10 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 	Intersection best_inters;
 	best_inters.TriID = -1;
 
-	stack[stack_top++] = 0; // Push the root on the stack
+	// Read the padding from the first BVHNode. It will contain the location of the root
+	int root = g_BVH[0].padding.x;
+
+	stack[stack_top++] = root; // Push the root on the stack
 	while (stack_top > 0) {
 		// Pop a node from the stack
 		curnode = stack[--stack_top];

@@ -5,14 +5,17 @@
 #include <queue>
 #include <algorithm>
 
-// This is the global offset where the next inner QBVH node will be written.
+// This is the global index where the next inner QBVH node will be written.
 // It's used by BuildFastQBVH/FastLQBVH (the single-step version) to create
 // the QBVH buffer as the BVH2 is built. It's expected that the algorithm
 // will be parallelized and multiple threads will have to update this variable
 // atomically, so that's why it's a global variable for now.
-static int QBVHEncodeOfs = 0;
+static int QBVHEncodeNodeIdx = 0;
 
 void PrintTreeBuffer(std::string level, BVHNode* buffer, int curNode);
+int BinTreeToBuffer(BVHNode* buffer, int EncodeOfs,
+	int curNode, bool curNodeIsLeaf, InnerNode* innerNodes, const std::vector<LeafItem>& leafItems,
+	const XwaVector3* vertices, const int* indices);
 
 // Load a BVH2, deprecated since the BVH4 are more better
 #ifdef DISABLED
@@ -761,13 +764,42 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 	return innerNodes;
 }
 
-int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int QBVHEncodeOfs)
+int EncodeInnerNode(BVHNode* buffer, BVHNode *node, int EncodeNodeIndex)
+{
+	uint32_t* ubuffer = (uint32_t*)buffer;
+	float* fbuffer = (float*)buffer;
+	// Convert the node index into an int offset:
+	int ofs = EncodeNodeIndex * sizeof(BVHNode) / 4;
+
+	// Encode the next inner node.
+	ubuffer[ofs++] = -1; // TriID
+	ubuffer[ofs++] = -1; // parent;
+	ubuffer[ofs++] = 0; // padding;
+	ubuffer[ofs++] = 0; // padding;
+	// 16 bytes
+	fbuffer[ofs++] = node->min[0];
+	fbuffer[ofs++] = node->min[1];
+	fbuffer[ofs++] = node->min[2];
+	fbuffer[ofs++] = 1.0f;
+	// 32 bytes
+	fbuffer[ofs++] = node->max[0];
+	fbuffer[ofs++] = node->max[1];
+	fbuffer[ofs++] = node->max[2];
+	fbuffer[ofs++] = 1.0f;
+	// 48 bytes
+	for (int j = 0; j < 4; j++)
+		ubuffer[ofs++] = node->children[j];
+	// 64 bytes
+	return ofs;
+}
+
+int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int EncodeNodeIndex)
 {
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer = (float*)buffer;
 	AABB box = innerNodes[curNode].aabb;
 	const int numChildren = innerNodes[curNode].numChildren;
-	int ofs = QBVHEncodeOfs * sizeof(BVHNode) / 4;
+	int ofs = EncodeNodeIndex * sizeof(BVHNode) / 4;
 
 	// Encode the next inner node.
 	ubuffer[ofs++] = -1; // TriID
@@ -791,7 +823,7 @@ int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int QB
 	return ofs;
 }
 
-int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int leafIdx, int EncodeOfs,
+int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int leafIdx, int EncodeNodeIdx,
 	const XwaVector3 *vertices, const int *indices)
 {
 	uint32_t* ubuffer = (uint32_t*)buffer;
@@ -799,6 +831,7 @@ int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int 
 	int TriID = std::get<2>(leafItems[leafIdx]);
 	int idx = TriID * 3;
 	XwaVector3 v0, v1, v2;
+	int EncodeOfs = EncodeNodeIdx * sizeof(BVHNode) / 4;
 	//log_debug("[DBG] [BVH] Encoding leaf %d, TriID: %d, at QBVHOfs: %d",
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
 	//if (vertices != nullptr && indices != nullptr)
@@ -853,14 +886,14 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 		else
 		{
 			if (!innerNodes[childNode].isEncoded) {
-				EncodeInnerNode(buffer, innerNodes, childNode, QBVHEncodeOfs);
+				EncodeInnerNode(buffer, innerNodes, childNode, QBVHEncodeNodeIdx);
 				// Update the parent's QBVH offset for this child:
-				innerNodes[curNode].QBVHOfs[i] = QBVHEncodeOfs;
+				innerNodes[curNode].QBVHOfs[i] = QBVHEncodeNodeIdx;
 				innerNodes[childNode].isEncoded = true;
 				//log_debug("[DBG] [BVH] Linking Inner (E). curNode: %d, i: %d, childNode: %d, QBVHOfs: %d",
 				//	curNode, i, childNode, innerNodes[curNode].QBVHOfs[i]);
 				// Jump to the next available slot (atomic decrement)
-				QBVHEncodeOfs--;
+				QBVHEncodeNodeIdx--;
 			}
 			/*else {
 				log_debug("[DBG] [BVH] Linking Inner (NE). curNode: %d, i: %d, childNode: %d, QBVHOfs: %d",
@@ -879,8 +912,8 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems, int &root_out /*int& inner_root, bool debug = false*/)
 {
 	int numLeaves = leafItems.size();
-	// QBVHEncodeOfs points to the next available inner node.
-	QBVHEncodeOfs = numQBVHInnerNodes - 1;
+	// QBVHEncodeNodeIdx points to the next available inner node index.
+	QBVHEncodeNodeIdx = numQBVHInnerNodes - 1;
 	root_out = -1;
 	//inner_root = -1;
 	if (numLeaves <= 1) {
@@ -888,7 +921,7 @@ void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafIte
 		root_out = numQBVHInnerNodes;
 		return;
 	}
-	//log_debug("[DBG] [BVH] Initial QBVHEncodeOfs: %d", QBVHEncodeOfs);
+	//log_debug("[DBG] [BVH] Initial QBVHEncodeNodeIdx: %d", QBVHEncodeNodeIdx);
 
 	// Initialize the inner nodes
 	int numInnerNodes = numLeaves - 1;
@@ -927,12 +960,12 @@ void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafIte
 				if (root_out != -1)
 				{
 					//log_debug("[DBG] [BVH] Encoding the root (%d), after processing node: %d, at QBVHOfs: %d",
-					//	root_out, i, QBVHEncodeOfs);
+					//	root_out, i, QBVHEncodeNodeIdx);
 					// Encode the root
-					EncodeInnerNode(buffer, innerNodes, root_out, QBVHEncodeOfs);
+					EncodeInnerNode(buffer, innerNodes, root_out, QBVHEncodeNodeIdx);
 					// Replace root with the encoded QBVH root offset
 					//inner_root = root_out;
-					root_out = QBVHEncodeOfs;
+					root_out = QBVHEncodeNodeIdx;
 					//log_debug("[DBG] [BVH] inner_root: %d, root_out: %d");
 					break;
 				}
@@ -1437,6 +1470,106 @@ uint8_t* EncodeNodes(int root, InnerNode4* innerNodes, const std::vector<LeafIte
 	return result;
 }
 
+// Converts a BVH2 into an encoded QBVH and returns a compact buffer
+// The current ray-tracer uses embedded geometry.
+BVHNode* EncodeNodesAsQBVH(int root, InnerNode* innerNodes, const std::vector<LeafItem>& leafItems,
+	const XwaVector3* Vertices, const int* Indices, int &numQBVHNodes_out)
+{
+	using Item = std::pair<int, bool>;
+	BVHNode* result = nullptr;
+	if (root == -1)
+		return result;
+
+	numQBVHNodes_out = leafItems.size() + max(1, (int)ceil((2.0f * leafItems.size()) / 3.0f));
+	result = new BVHNode[numQBVHNodes_out];
+	// Initialize the root
+	result[0].padding[0] = 0;
+
+	// A breadth-first traversal will ensure that each level of the tree is encoded to the
+	// buffer before advancing to the next level. We can thus keep track of the offset in
+	// the buffer where the next node will appear.
+	std::queue<Item> Q;
+
+	// Initialize the queue and the offsets.
+	Q.push(Item(root, false));
+	// Since we're going to put this data in an array, it's easier to specify the children
+	// offsets as indices into this array.
+	int nextNode = 1;
+	int EncodeIdx = 0;
+
+	while (Q.size() != 0)
+	{
+		Item curItem = Q.front();
+		int curNode = curItem.first;
+		bool isLeaf = curItem.second;
+		Q.pop();
+		//int* children = isLeaf ? nullptr : innerNodes[curNode].children;
+		//bool* isLeafArray = isLeaf ? nullptr : innerNodes[curNode].isLeaf;
+		//uint32_t numChildren = isLeaf ? 0 : innerNodes[curNode].numChildren;
+		BVHNode node;
+		int nextchild = 0;
+
+		if (!isLeaf)
+		{
+			// Initialize the node
+			node.ref    = -1;
+			node.parent  = -1;
+
+			node.min[0] = innerNodes[curNode].aabb.min.x;
+			node.min[1] = innerNodes[curNode].aabb.min.y;
+			node.min[2] = innerNodes[curNode].aabb.min.z;
+
+			node.max[0] = innerNodes[curNode].aabb.max.x;
+			node.max[1] = innerNodes[curNode].aabb.max.y;
+			node.max[2] = innerNodes[curNode].aabb.max.z;
+
+			for (int i = 0; i < 4; i++)
+				node.children[i] = -1;
+
+			// Pull-up the grandchildren, if possible
+			if (innerNodes[curNode].leftIsLeaf)
+			{
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[curNode].left, true));
+			}
+			else
+			{
+				int c0 = innerNodes[curNode].left;
+
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[c0].left, innerNodes[c0].leftIsLeaf));
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[c0].right, innerNodes[c0].rightIsLeaf));
+			}
+
+			if (innerNodes[curNode].rightIsLeaf)
+			{
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[curNode].right, true));
+			}
+			else
+			{
+				int c1 = innerNodes[curNode].right;
+
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[c1].left, innerNodes[c1].leftIsLeaf));
+				node.children[nextchild++] = nextNode++;
+				Q.push(Item(innerNodes[c1].right, innerNodes[c1].rightIsLeaf));
+			}
+
+			// Encode the inner node
+			EncodeInnerNode(result, &node, EncodeIdx++);
+		}
+		else
+		{
+			// Encode a leaf node
+			EncodeLeafNode(result, leafItems, curNode, EncodeIdx++, Vertices, Indices);
+		}
+	}
+
+	return result;
+}
+
 TreeNode* RotLeft(TreeNode* T)
 {
 	if (T == nullptr) return nullptr;
@@ -1563,17 +1696,21 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	//DumpInnerNodesToOBJ(sFileName, root, innerNodes, leafItems, vertices, indices);
 
 	// Convert to QBVH
-	QTreeNode *Q = BinTreeToQTree(root, leafItems.size() == 1, innerNodes, leafItems);
-	delete[] innerNodes;
-
+	//QTreeNode *Q = BinTreeToQTree(root, leafItems.size() == 1, innerNodes, leafItems);
+	//delete[] innerNodes;
 	// Encode the QBVH in a buffer
-	void *buffer = EncodeNodes(Q, vertices, indices);
+	//void *buffer = EncodeNodes(Q, vertices, indices);
+
+	int numNodes = 0;
+	BVHNode *buffer = EncodeNodesAsQBVH(root, innerNodes, leafItems, vertices, indices, numNodes);
+	delete[] innerNodes;
 
 	LBVH *lbvh = new LBVH();
 	lbvh->nodes = (BVHNode *)buffer;
 	lbvh->numVertices = numVertices;
 	lbvh->numIndices = numIndices;
-	lbvh->numNodes = Q->numNodes;
+	//lbvh->numNodes = Q->numNodes;
+	lbvh->numNodes = numNodes;
 	lbvh->scale = 1.0f;
 	lbvh->scaleComputed = true;
 	// DEBUG
@@ -1583,8 +1720,7 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	// DEBUG
 
 	// Tidy up
-	DeleteTree(Q);
-	//delete[] buffer; // We can't delete the buffer here, lbvh->nodes now owns it
+	//DeleteTree(Q);
 	return lbvh;
 }
 
@@ -1600,10 +1736,10 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 	range.z = sceneBox.max.z - sceneBox.min.z;
 
 	int numTris = numIndices / 3;
-	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
-		numVertices, numIndices, numTris,
-		sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
-		sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
+	//log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, scene: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+	//	numVertices, numIndices, numTris,
+	//	sceneBox.min.x, sceneBox.min.y, sceneBox.min.z,
+	//	sceneBox.max.x, sceneBox.max.y, sceneBox.max.z);
 
 	// Get the Morton Code and AABB for each triangle.
 	std::vector<LeafItem> leafItems;
@@ -1626,15 +1762,17 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 	int root = -1;
 	InnerNode4* innerNodes = FastLQBVH(leafItems, root);
 	int totalNodes = innerNodes[root].totalNodes;
-	log_debug("[DBG] [BVH] FastLQBVH* finished. QTree built. root: %d, totalNodes: %d", root, totalNodes);
+	//log_debug("[DBG] [BVH] FastLQBVH* finished. QTree built. root: %d, totalNodes: %d", root, totalNodes);
 	AABB scene = innerNodes[root].aabb;
-	log_debug("[DBG] [BVH] scene size from the QTree: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
-		scene.min.x, scene.min.y, scene.min.z,
-		scene.max.x, scene.max.y, scene.max.z);
+	//log_debug("[DBG] [BVH] scene size from the QTree: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+	//	scene.min.x, scene.min.y, scene.min.z,
+	//	scene.max.x, scene.max.y, scene.max.z);
 
 	// Encode the QBVH in a buffer
-	void* buffer = EncodeNodes(root, innerNodes, leafItems, vertices, indices);
+	BVHNode *buffer = (BVHNode * )EncodeNodes(root, innerNodes, leafItems, vertices, indices);
 	delete[] innerNodes;
+	// Initialize the root
+	buffer[0].padding[0] = 0;
 
 	LBVH* lbvh = new LBVH();
 	lbvh->nodes = (BVHNode*)buffer;
@@ -1702,16 +1840,21 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 
 	// Encode the sorted leaves
 	// TODO: Encode the leaves before sorting, and use TriID as the sort index.
-	int LeafOfs = numQBVHInnerNodes * sizeof(BVHNode) / 4;
+	//int LeafOfs = numQBVHInnerNodes * sizeof(BVHNode) / 4;
+	int LeafEncodeIdx = numQBVHInnerNodes;
 	for (unsigned int i = 0; i < leafItems.size(); i++)
 	{
-		LeafOfs = EncodeLeafNode(QBVHBuffer, leafItems, i, LeafOfs, vertices, indices);
+		EncodeLeafNode(QBVHBuffer, leafItems, i, LeafEncodeIdx++, vertices, indices);
 	}
 
 	// Build, convert and encode the QBVH
 	int root = -1;
 	FastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
 	int totalNodes = numQBVHNodes - root;
+	// Initialize the root
+	//QBVHBuffer[0].padding[0] = root;
+	QBVHBuffer[0].padding[0] = 0;
+
 	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d, totalNodes: %d",
 	//	root, numQBVHNodes, totalNodes);
 	/*
@@ -1981,10 +2124,11 @@ void TestFastLQBVHEncode()
 		numTris, numQBVHInnerNodes, numQBVHNodes);
 
 	// Encode the leaves
-	int LeafOfs = numQBVHInnerNodes * sizeof(BVHNode) / 4;
+	//int LeafOfs = numQBVHInnerNodes * sizeof(BVHNode) / 4;
+	int LeafEncodeIdx = numQBVHInnerNodes;
 	for (unsigned int i = 0; i < leafItems.size(); i++)
 	{
-		LeafOfs = EncodeLeafNode(QBVHBuffer, leafItems, i, LeafOfs, nullptr, nullptr);
+		EncodeLeafNode(QBVHBuffer, leafItems, i, LeafEncodeIdx++, nullptr, nullptr);
 	}
 
 	int root = -1, inner_root = -1;

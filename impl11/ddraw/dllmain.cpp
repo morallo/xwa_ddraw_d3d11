@@ -760,11 +760,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+S
 			case 'S': {
 				if (g_bInTechRoom) {
-					g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
-					log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
+					//g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
+					//log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
 					// Benchmark mode:
-					//g_BVHBuilderType = (BVHBuilderType )(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
-					//log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
+					g_BVHBuilderType = (BVHBuilderType )(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
+					log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
 				}
 
 				g_bShadowMapEnable = !g_bShadowMapEnable;
