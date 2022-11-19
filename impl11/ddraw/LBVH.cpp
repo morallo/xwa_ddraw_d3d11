@@ -186,6 +186,11 @@ void LBVH::PrintTree(std::string level, int curnode)
 }
 #endif
 
+int CalcNumInnerQBVHNodes(int numPrimitives)
+{
+	return max(1, (int)((2.0f * numPrimitives) / 3.0f));
+}
+
 bool leafSorter(const LeafItem& i, const LeafItem& j)
 {
 	return std::get<0>(i) < std::get<0>(j);
@@ -1480,7 +1485,8 @@ BVHNode* EncodeNodesAsQBVH(int root, InnerNode* innerNodes, const std::vector<Le
 	if (root == -1)
 		return result;
 
-	numQBVHNodes_out = leafItems.size() + max(1, (int)ceil((2.0f * leafItems.size()) / 3.0f));
+	int numPrimitives = leafItems.size();
+	numQBVHNodes_out = numPrimitives + CalcNumInnerQBVHNodes(numPrimitives);
 	result = new BVHNode[numQBVHNodes_out];
 	// Initialize the root
 	result[0].padding[0] = 0;
@@ -1804,7 +1810,7 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	range.z = sceneBox.max.z - sceneBox.min.z;
 
 	int numTris = numIndices / 3;
-	int numQBVHInnerNodes = max(1, (int)ceil(2 * numTris / 3.0f));
+	int numQBVHInnerNodes = CalcNumInnerQBVHNodes(numTris);
 	int numQBVHNodes = numTris + numQBVHInnerNodes;
 	/*
 	log_debug("[DBG] [BVH] numVertices: %d, numIndices: %d, numTris: %d, numQBVHInnerNodes: %d, numQBVHNodes: %d, "
@@ -1850,10 +1856,14 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	// Build, convert and encode the QBVH
 	int root = -1;
 	FastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
-	int totalNodes = numQBVHNodes - root;
+
 	// Initialize the root
-	//QBVHBuffer[0].padding[0] = root;
-	QBVHBuffer[0].padding[0] = 0;
+	//QBVHBuffer[0].padding[0] = 0;
+	//int totalNodes = numQBVHNodes - root;
+
+	// Initialize the root
+	QBVHBuffer[0].padding[0] = root;
+	int totalNodes = numQBVHNodes;
 
 	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d, totalNodes: %d",
 	//	root, numQBVHNodes, totalNodes);
@@ -1882,6 +1892,7 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	// compatible with the current raytracer, but we don't actually need to do this.
 	// The alternative is to alter the raytracer so that it can start traversal on
 	// a nonzero root index. Let's do that later, though.
+	/*
 	for (int i = root; i < numQBVHNodes; i++) {
 		// This change only applies to inner nodes
 		if (QBVHBuffer[i].ref == -1) {
@@ -1892,15 +1903,17 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 			}
 		}
 	}
+	*/
 
 	//log_debug("[DBG] [BVH] ****************************************************************");
 	//log_debug("[DBG] [BVH] Printing Buffer");
 	//PrintTreeBuffer("", QBVHBuffer + root, 0);
+	//PrintTreeBuffer("", QBVHBuffer, root);
 
 	LBVH* lbvh = new LBVH();
-	lbvh->rawBuffer = QBVHBuffer;
-	lbvh->nodes = QBVHBuffer + root;
-	//lbvh->nodes = QBVHBuffer;
+	//lbvh->rawBuffer = QBVHBuffer;
+	//lbvh->nodes = QBVHBuffer + root;
+	lbvh->nodes = QBVHBuffer;
 	lbvh->numVertices = numVertices;
 	lbvh->numIndices = numIndices;
 	lbvh->numNodes = totalNodes;
@@ -2116,7 +2129,7 @@ void TestFastLQBVHEncode()
 	std::sort(leafItems.begin(), leafItems.end(), leafSorter);
 
 	int numTris = leafItems.size();
-	int numQBVHInnerNodes = max(1, (int)ceil(2 * numTris / 3.0f));
+	int numQBVHInnerNodes = CalcNumInnerQBVHNodes(numTris);
 	int numQBVHNodes = numTris + numQBVHInnerNodes;
 	BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
 
