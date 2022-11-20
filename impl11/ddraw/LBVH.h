@@ -201,20 +201,20 @@ struct InnerNode4
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 
-class IGenericTree
+class IGenericTreeNode
 {
 public:
 	virtual int GetArity() = 0;
 	virtual bool IsLeaf() = 0;
 	virtual AABB GetBox() = 0;
 	virtual int GetTriID() = 0;
-	virtual std::vector<IGenericTree *> GetChildren() = 0;
-	virtual IGenericTree *GetParent() = 0;
+	virtual std::vector<IGenericTreeNode *> GetChildren() = 0;
+	virtual IGenericTreeNode *GetParent() = 0;
 	virtual void SetNumNodes(int numNodes) = 0;
 	virtual int GetNumNodes() = 0;
 };
 
-class TreeNode : public IGenericTree
+class TreeNode : public IGenericTreeNode
 {
 public:
 	int TriID, numNodes;
@@ -329,9 +329,9 @@ public:
 		return this->left == nullptr && this->right == nullptr;
 	}
 
-	virtual std::vector<IGenericTree*> GetChildren()
+	virtual std::vector<IGenericTreeNode*> GetChildren()
 	{
-		std::vector<IGenericTree*> List;
+		std::vector<IGenericTreeNode*> List;
 		if (this->left != nullptr)
 			List.push_back(this->left);
 		if (this->right != nullptr)
@@ -339,7 +339,7 @@ public:
 		return List;
 	}
 
-	virtual IGenericTree *GetParent()
+	virtual IGenericTreeNode *GetParent()
 	{
 		return this->parent;
 	}
@@ -355,7 +355,7 @@ public:
 	}
 };
 
-class QTreeNode : public IGenericTree
+class QTreeNode : public IGenericTreeNode
 {
 public:
 	int TriID, numNodes;
@@ -437,18 +437,91 @@ public:
 		return true;
 	}
 
-	virtual std::vector<IGenericTree*> GetChildren()
+	virtual std::vector<IGenericTreeNode*> GetChildren()
 	{
-		std::vector<IGenericTree*> result;
+		std::vector<IGenericTreeNode*> result;
 		for (int i = 0; i < 4; i++)
 			if (children[i] != nullptr)
 				result.push_back(children[i]);
 		return result;
 	}
 
-	virtual IGenericTree* GetParent()
+	virtual IGenericTreeNode* GetParent()
 	{
 		return parent;
+	}
+
+	virtual void SetNumNodes(int numNodes)
+	{
+		this->numNodes = numNodes;
+	}
+
+	virtual int GetNumNodes()
+	{
+		return this->numNodes;
+	}
+};
+
+class BufferTreeNode : public IGenericTreeNode
+{
+public:
+	BVHNode* nodes;
+	int curNode;
+	int numNodes;
+
+	BufferTreeNode(BVHNode* nodes, int curNode)
+	{
+		this->nodes = nodes;
+		this->curNode = curNode;
+		numNodes = 1;
+	}
+
+	virtual int GetArity()
+	{
+		return 4;
+	}
+
+	virtual AABB GetBox()
+	{
+		AABB box;
+		box.min.x = nodes[curNode].min[0];
+		box.min.y = nodes[curNode].min[1];
+		box.min.z = nodes[curNode].min[2];
+
+		box.max.x = nodes[curNode].max[0];
+		box.max.y = nodes[curNode].max[1];
+		box.max.z = nodes[curNode].max[2];
+
+		return box;
+	}
+
+	virtual int GetTriID() {
+		return nodes[curNode].ref;
+	}
+
+	virtual bool IsLeaf() {
+		return nodes[curNode].ref != -1;
+	}
+
+	virtual std::vector<IGenericTreeNode*> GetChildren()
+	{
+		std::vector<IGenericTreeNode*> children;
+		if (IsLeaf())
+			return children;
+
+		for (int i = 0; i < 4; i++)
+		{
+			int childIdx = nodes[curNode].children[i];
+			if (childIdx == -1)
+				break;
+			children.push_back(new BufferTreeNode(nodes, childIdx));
+		}
+		return children;
+	}
+
+	virtual IGenericTreeNode* GetParent()
+	{
+		return new BufferTreeNode(nodes, nodes[curNode].parent);
 	}
 
 	virtual void SetNumNodes(int numNodes)
@@ -523,4 +596,6 @@ TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box);
 QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems);
 void DeleteTree(QTreeNode* Q);
 
-uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* Indices);
+uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const int* Indices);
+
+void DeleteBufferTree(BufferTreeNode *node);

@@ -1036,13 +1036,13 @@ static void printTree(int N, int curNode, bool isLeaf, InnerNode4* innerNodes)
 	log_debug("[DBG] [BVH] %s", (tab(N) + "   \\--/").c_str());
 }
 
-static void PrintTree(std::string level, IGenericTree *T)
+static void PrintTree(std::string level, IGenericTreeNode *T)
 {
 	if (T == nullptr)
 		return;
 
 	int arity = T->GetArity();
-	std::vector<IGenericTree *> children = T->GetChildren();
+	std::vector<IGenericTreeNode*> children = T->GetChildren();
 	bool isLeaf = T->IsLeaf();
 
 	if (arity > 2 && !isLeaf) log_debug("[DBG] [BVH] %s", (level + "   /--\\").c_str());
@@ -1204,7 +1204,7 @@ void DumpInnerNodesToOBJ(char *sFileName, int rootIdx,
 
 // Encode a BVH4 node using Embedded Geometry.
 // Returns the new offset (in multiples of 4 bytes) that can be written to.
-static int EncodeTreeNode4(void* buffer, int startOfs, IGenericTree* T, int32_t parent, const std::vector<int>& children,
+static int EncodeTreeNode4(void* buffer, int startOfs, IGenericTreeNode* T, int32_t parent, const std::vector<int>& children,
 	const XwaVector3* Vertices, const int* Indices)
 {
 	AABB box = T->GetBox();
@@ -1363,7 +1363,7 @@ static int EncodeTreeNode4(void* buffer, int startOfs,
 
 // Returns a compact buffer containing BVHNode entries that represent the given tree
 // The current ray-tracer uses embedded geometry.
-uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* Indices)
+uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const int* Indices)
 {
 	uint8_t* result = nullptr;
 	if (root == nullptr)
@@ -1378,7 +1378,7 @@ uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* 
 	// A breadth-first traversal will ensure that each level of the tree is encoded to the
 	// buffer before advancing to the next level. We can thus keep track of the offset in
 	// the buffer where the next node will appear.
-	std::queue<IGenericTree*> Q;
+	std::queue<IGenericTreeNode*> Q;
 
 	// Initialize the queue and the offsets.
 	Q.push(root);
@@ -1389,9 +1389,9 @@ uint8_t* EncodeNodes(IGenericTree* root, const XwaVector3* Vertices, const int* 
 
 	while (Q.size() != 0)
 	{
-		IGenericTree* T = Q.front();
+		IGenericTreeNode* T = Q.front();
 		Q.pop();
-		std::vector<IGenericTree*> children = T->GetChildren();
+		std::vector<IGenericTreeNode*> children = T->GetChildren();
 
 		// In a breadth-first search, the left child will always be at offset nextNode
 		// Add the children offsets
@@ -1576,6 +1576,52 @@ BVHNode* EncodeNodesAsQBVH(int root, InnerNode* innerNodes, const std::vector<Le
 	return result;
 }
 
+int CalcMaxDepth(IGenericTreeNode* node)
+{
+	if (node->IsLeaf())
+	{
+		return 1;
+	}
+
+	std::vector<IGenericTreeNode*>children = node->GetChildren();
+	int max_depth = 0;
+	for (const auto &child : children) {
+		int depth = CalcMaxDepth(child);
+		max_depth = max(1 + depth, max_depth);
+	}
+	return max_depth;
+}
+
+void CalcOccupancy(IGenericTreeNode* node, int &OccupiedNodes_out, int &TotalNodes_out)
+{
+	if (node->IsLeaf())
+	{
+		OccupiedNodes_out = 0; TotalNodes_out = 0;
+		return;
+	}
+
+	std::vector<IGenericTreeNode*>children = node->GetChildren();
+	TotalNodes_out = 4;
+	OccupiedNodes_out = children.size();
+	for (const auto& child : children) {
+		int Occupancy, TotalNodes;
+		CalcOccupancy(child, Occupancy, TotalNodes);
+		OccupiedNodes_out += Occupancy;
+		TotalNodes_out += TotalNodes;
+	}
+}
+
+void ComputeTreeStats(IGenericTreeNode* root)
+{
+	// Get the maximum depth of the tree
+	int max_depth = CalcMaxDepth(root);
+	int TotalNodes = 0, Occupancy = 0;
+	CalcOccupancy(root, Occupancy, TotalNodes);
+	float OccupancyPerc = (float)Occupancy / (float)TotalNodes * 100.0f;
+	log_debug("[DBG] [BVH] max_depth: %d, Occupancy: %d, TotalNodes: %d, OccupancyPerc: %0.3f",
+		max_depth, Occupancy, TotalNodes, OccupancyPerc);
+}
+
 TreeNode* RotLeft(TreeNode* T)
 {
 	if (T == nullptr) return nullptr;
@@ -1710,6 +1756,10 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 	int numNodes = 0;
 	BVHNode *buffer = EncodeNodesAsQBVH(root, innerNodes, leafItems, vertices, indices, numNodes);
 	delete[] innerNodes;
+
+	//log_debug("[DBG] [BVH] ****************************************************************");
+	//log_debug("[DBG] [BVH] Printing Buffer");
+	//PrintTreeBuffer("", buffer, 0);
 
 	LBVH *lbvh = new LBVH();
 	lbvh->nodes = (BVHNode *)buffer;

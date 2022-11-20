@@ -190,8 +190,10 @@ bool g_isInRenderHyperspaceLines = false;
 RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
+
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",
 	"    QBVH",
@@ -200,6 +202,7 @@ char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
+void ComputeTreeStats(IGenericTreeNode* root);
 
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
 {
@@ -455,8 +458,13 @@ void D3dRenderer::SceneEnd()
 				break;
 			}
 			g_HiResTimer.GetElapsedTime();
-			log_debug("[DBG] [BVH] Builder: %s, %s, BVH build time: %0.6fs, nodes: %d",
-				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_curOPTLoaded, g_HiResTimer.elapsed_s, _lbvh->numNodes);
+			int root = _lbvh->nodes[0].padding[0];
+			log_debug("[DBG] [BVH] Builder: %s, %s, BVH build time: %0.6fs, total nodes: %d, actual nodes: %d",
+				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_curOPTLoaded, g_HiResTimer.elapsed_s,
+				_lbvh->numNodes, _lbvh->numNodes - root);
+			BufferTreeNode* tree = new BufferTreeNode(_lbvh->nodes, root);
+			ComputeTreeStats(tree);
+			delete tree;
 		}
 		_BLASNeedsUpdate = false;
 	}
