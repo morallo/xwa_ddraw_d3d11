@@ -42,6 +42,7 @@ extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
 extern bool g_bEnableAnimations;
 extern bool g_bFadeLights;
+extern bool g_bEnableQBVHwSAH;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -749,6 +750,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bShadowMapDebug = !g_bShadowMapDebug;
 				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
 				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
+
+				if (g_bInTechRoom) {
+					g_bEnableQBVHwSAH = !g_bEnableQBVHwSAH;
+					log_debug("[DBG] [BVH] g_bEnableQBVHwSAH: %d", g_bEnableQBVHwSAH);
+				}
+
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key

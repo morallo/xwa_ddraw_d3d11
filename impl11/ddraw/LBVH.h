@@ -68,6 +68,9 @@ struct MinMax {
 
 #pragma pack(pop)
 
+// NodeIndex, IsLeaf, QBVHEncodeOfs
+using EncodeItem = std::tuple<int, bool, int>;
+
 class AABB
 {
 public:
@@ -134,7 +137,7 @@ public:
 			Expand(v);
 	}
 
-	Vector3 GetRange() {
+	inline Vector3 GetRange() {
 		return max - min;
 	}
 
@@ -154,6 +157,13 @@ public:
 	void TransformLimits(const Matrix4 &T) {
 		for (uint32_t i = 0; i < Limits.size(); i++)
 			Limits[i] = T * Limits[i];
+	}
+
+	float GetArea()
+	{
+		Vector3 range = GetRange();
+		// Area of a parallelepiped: 2ab + 2bc + 2ac
+		return 2.0f * (range.x * range.y + range.y * range.z * range.x * range.z);
 	}
 
 	void DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);

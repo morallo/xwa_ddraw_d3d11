@@ -191,6 +191,7 @@ RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
 
+extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
 
@@ -459,8 +460,9 @@ void D3dRenderer::SceneEnd()
 			}
 			g_HiResTimer.GetElapsedTime();
 			int root = _lbvh->nodes[0].padding[0];
-			log_debug("[DBG] [BVH] Builder: %s, %s, BVH build time: %0.6fs, total nodes: %d, actual nodes: %d",
-				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_curOPTLoaded, g_HiResTimer.elapsed_s,
+			log_debug("[DBG] [BVH] Builder: %s:%s, %s, BVH build time: %0.6fs, total nodes: %d, actual nodes: %d",
+				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
+				g_curOPTLoaded, g_HiResTimer.elapsed_s,
 				_lbvh->numNodes, _lbvh->numNodes - root);
 			BufferTreeNode* tree = new BufferTreeNode(_lbvh->nodes, root);
 			ComputeTreeStats(tree);
