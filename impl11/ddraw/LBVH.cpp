@@ -556,6 +556,12 @@ int ChooseParent(int curNode, bool isLeaf, int numLeaves, const std::vector<Leaf
 	return -1;
 }
 
+/// <summary>
+/// Standard LBVH2 builder.
+/// </summary>
+/// <param name="leafItems"></param>
+/// <param name="root"></param>
+/// <returns></returns>
 InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
 {
 	int numLeaves = leafItems.size();
@@ -709,7 +715,7 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 					numChild++;
 				}
 				// Disable the node that is now empty
-				innerNodes[child].numChildren = -1;
+				innerNodes[child].numChildren = 0;
 				totalNodes--;
 			}
 		}
@@ -722,6 +728,13 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 	}
 }
 
+/// <summary>
+/// Convert a BVH2 node into a BVH4 node, using SAH. Uses BVH4 nodes as input.
+/// </summary>
+/// <param name="innerNodes"></param>
+/// <param name="curNodeIdx"></param>
+/// <param name="leafItems"></param>
+/// <param name="numQBVHInnerNodes"></param>
 void ConvertToBVH4NodeSAH(InnerNode4* innerNodes, int curNodeIdx, const int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems)
 {
 	InnerNode4 node = innerNodes[curNodeIdx];
@@ -775,7 +788,7 @@ void ConvertToBVH4NodeSAH(InnerNode4* innerNodes, int curNodeIdx, const int numQ
 					numChild++;
 				}
 				// Disable the node that is now empty
-				innerNodes[child].numChildren = -1;
+				innerNodes[child].numChildren = 0;
 				totalNodes--;
 			}
 		}
@@ -988,6 +1001,159 @@ void ConvertToBVH4NodeSAH(InnerNode4* innerNodes, int curNodeIdx, const int numQ
 	}
 }
 
+int FindChildWithMaxArea(int curNode, InnerNode4* innerNodes, const std::vector<LeafItem>& leafItems, bool checkLeaves)
+{
+	uint32_t numChildren = innerNodes[curNode].numChildren;
+	float    maxArea     = -1.0f;
+	int      maxAreaIdx  = -1;
+
+	for (uint32_t i = 0; i < numChildren; i++)
+	{
+		int  child       = innerNodes[curNode].children[i];
+		bool childIsLeaf = innerNodes[curNode].isLeaf[i];
+		AABB box;
+
+		if (!checkLeaves && childIsLeaf)
+			continue;
+
+		if (childIsLeaf)
+			box = std::get<1>(leafItems[child]);
+		else
+			box = innerNodes[child].aabb;
+
+		float area = box.GetArea();
+		if (area > maxArea) {
+			maxArea    = area;
+			maxAreaIdx = i;
+		}
+	}
+
+	return maxAreaIdx;
+}
+
+void RemoveChildIdx(int curNode, int childIdx, InnerNode4* innerNodes)
+{
+	int child = innerNodes[curNode].children[childIdx];
+	//if (innerNodes[child].isEncoded)
+	//	log_debug("[DBG] [BVH] WARNING: Removing an encoded node: %d", child);
+	//if (innerNodes[curNode].isEncoded)
+	//	log_debug("[DBG] [BVH] WARNING: Removing child of an encoded node: %d", curNode);
+
+	for (int i = childIdx; i < 3 /* arity - 1 */; i++)
+	{
+		innerNodes[curNode].children[i] = innerNodes[curNode].children[i + 1];
+		innerNodes[curNode].isLeaf[i]   = innerNodes[curNode].isLeaf[i + 1];
+		innerNodes[curNode].QBVHOfs[i]  = innerNodes[curNode].QBVHOfs[i + 1];
+	}
+	// We just removed one child
+	innerNodes[curNode].numChildren--;
+	for (int i = innerNodes[curNode].numChildren; i < 4; i++)
+		innerNodes[curNode].children[i] = -1;
+}
+
+AABB CalcInnerNodeAABB(int curNode, InnerNode4* innerNodes, const std::vector<LeafItem>& leafItems)
+{
+	uint32_t numChildren = innerNodes[curNode].numChildren;
+	innerNodes[curNode].aabb.SetInfinity();
+	for (uint32_t i = 0; i < numChildren; i++)
+	{
+		int  child       = innerNodes[curNode].children[i];
+		bool childIsLeaf = innerNodes[curNode].isLeaf[i];
+		AABB box;
+
+		if (childIsLeaf)
+			box = std::get<1>(leafItems[child]);
+		else
+			box = innerNodes[child].aabb;
+		innerNodes[curNode].aabb.Expand(box);
+	}
+
+	return innerNodes[curNode].aabb;
+}
+
+/// <summary>
+/// Converts a BVH2 node into a BVH4 node using SAH. Use this with the
+/// single-step FastLBVH builder (notice how it uses InnerNode4 nodes).
+/// Only call this for inner nodes.
+/// </summary>
+void ConvertToBVH4NodeSAH2(int curNode, InnerNode4* innerNodes, const std::vector<LeafItem>& leafItems)
+{
+	std::vector<EncodeItem> items;
+	std::vector<EncodeItem> result;
+	uint32_t numChildren = innerNodes[curNode].numChildren;
+	uint32_t fill = 4 - numChildren;
+
+	while (fill)
+	{
+		// Open the node with the largest area, ignore leaves
+		int maxAreaIdx = FindChildWithMaxArea(curNode, innerNodes, leafItems, false);
+		// Nothing can be pulled up (all children are leaves):
+		if (maxAreaIdx < 0)
+			break;
+
+		// child can't be a leaf
+		int child = innerNodes[curNode].children[maxAreaIdx];
+
+		// Expand/pullup the node with the maximum area. We're only
+		// expanding inner nodes, so we can assume there's at least
+		// two children on the node to be expanded.
+		int numGrandChildren = innerNodes[child].numChildren;
+		if (numGrandChildren == 2)
+		{
+			// Make space for the nodes we'll pullup
+			RemoveChildIdx(curNode, maxAreaIdx, innerNodes);
+			uint32_t numChildren = innerNodes[curNode].numChildren;
+
+			int nextChild = numChildren;
+			// Pull up the two grandchildren
+			for (int i = 0; i < numGrandChildren; i++, nextChild++) {
+				innerNodes[curNode].children[nextChild] = innerNodes[child].children[i];
+				innerNodes[curNode].isLeaf[nextChild]   = innerNodes[child].isLeaf[i];
+				innerNodes[curNode].QBVHOfs[nextChild]  = innerNodes[child].QBVHOfs[i];
+			}
+			// We just added two children
+			innerNodes[curNode].numChildren += 2;
+			// Cancel the node we just pulled up
+			innerNodes[child].numChildren = 0;
+			for (int i = 0; i < 4; i++)
+				innerNodes[child].children[i] = -1;
+			// Recompute the AABB for the current node
+			CalcInnerNodeAABB(curNode, innerNodes, leafItems);
+		}
+		else if (numGrandChildren >= 3)
+		{
+			// Pull up one grandchild (the one with the max area)
+			int nextChild = innerNodes[curNode].numChildren;
+			int maxAreaGChildIdx = FindChildWithMaxArea(child, innerNodes, leafItems, true);
+			if (maxAreaGChildIdx >= 0 && maxAreaGChildIdx < numGrandChildren)
+			{
+				int  GChild        = innerNodes[child].children[maxAreaGChildIdx];
+				bool GChildIsLeaf  = innerNodes[child].isLeaf[maxAreaGChildIdx];
+				int  GChildQBVHOfs = innerNodes[child].QBVHOfs[maxAreaGChildIdx];
+				innerNodes[curNode].children[nextChild] = GChild;
+				innerNodes[curNode].isLeaf[nextChild]   = GChildIsLeaf;
+				innerNodes[curNode].QBVHOfs[nextChild]  = GChildQBVHOfs;
+				innerNodes[curNode].numChildren++;
+				// Remove the grandchild from the child
+				RemoveChildIdx(child, maxAreaGChildIdx, innerNodes);
+				// Recompute the AABB for the child node
+				CalcInnerNodeAABB(child, innerNodes, leafItems);
+			}
+		}
+
+		int newfill = 4 - innerNodes[curNode].numChildren;
+		// Break if nothing could be pulled up.
+		if (fill == newfill)
+			break;
+		fill = newfill;
+	}
+}
+
+/// <summary>
+/// Two-step QBVH builder. Build the BVH2 and convert it into BVH4, but encode later.
+/// </summary>
+/// <param name="level"></param>
+/// <param name="T"></param>
 InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 {
 	int numLeaves = leafItems.size();
@@ -1023,12 +1189,22 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 			{
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
-				ConvertToBVH4Node(innerNodes, i);
+				if (g_bEnableQBVHwSAH)
+					ConvertToBVH4NodeSAH2(i, innerNodes, leafItems);
+					//ConvertToBVH4NodeSAH(innerNodes, i, 0, leafItems);
+				else
+					ConvertToBVH4Node(innerNodes, i);
 				root_out = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
 				innerNodes[i].processed = true;
 				innerNodesProcessed++;
-				if (root_out != -1)
+				if (root_out != -1) {
+					if (g_bEnableQBVHwSAH)
+						ConvertToBVH4NodeSAH2(root_out, innerNodes, leafItems);
+						//ConvertToBVH4NodeSAH(innerNodes, root_out, 0, leafItems);
+					else
+						ConvertToBVH4Node(innerNodes, root_out);
 					break;
+				}
 			}
 		}
 	}
@@ -1046,8 +1222,8 @@ int EncodeInnerNode(BVHNode* buffer, BVHNode *node, int EncodeNodeIndex)
 	// Encode the next inner node.
 	ubuffer[ofs++] = -1; // TriID
 	ubuffer[ofs++] = -1; // parent;
-	ubuffer[ofs++] = 0; // padding;
-	ubuffer[ofs++] = 0; // padding;
+	ubuffer[ofs++] = 0; // rootIdx;
+	ubuffer[ofs++] = 0; // numChildren;
 	// 16 bytes
 	fbuffer[ofs++] = node->min[0];
 	fbuffer[ofs++] = node->min[1];
@@ -1076,8 +1252,8 @@ int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int En
 	// Encode the next inner node.
 	ubuffer[ofs++] = -1; // TriID
 	ubuffer[ofs++] = -1; // parent;
-	ubuffer[ofs++] =  0; // padding;
-	ubuffer[ofs++] =  0; // padding;
+	ubuffer[ofs++] =  0; // rootIdx;
+	ubuffer[ofs++] =  numChildren;
 	// 16 bytes
 	fbuffer[ofs++] = box.min.x;
 	fbuffer[ofs++] = box.min.y;
@@ -1093,6 +1269,38 @@ int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int En
 		ubuffer[ofs++] = (j < numChildren) ? innerNodes[curNode].QBVHOfs[j] : -1;
 	// 64 bytes
 	return ofs;
+}
+
+int RemoveEncodedInnerNode(BVHNode* buffer, int QBVHOfs, int childIdx, AABB newBox)
+{
+	uint32_t* ubuffer = (uint32_t*)buffer;
+	float* fbuffer = (float*)buffer;
+	int startOfs = QBVHOfs * sizeof(BVHNode) / 4;
+	int ofs = startOfs;
+
+	// Encode the next inner node.
+	//ubuffer[ofs++] = -1; // TriID
+	//ubuffer[ofs++] = -1; // parent;
+	//ubuffer[ofs++] = 0; // rootIdx;
+	int numChildren = ubuffer[ofs+3];
+	ofs += 4;
+	// 16 bytes
+	fbuffer[ofs++] = newBox.min.x;
+	fbuffer[ofs++] = newBox.min.y;
+	fbuffer[ofs++] = newBox.min.z;
+	fbuffer[ofs++] = 1.0f;
+	// 32 bytes
+	fbuffer[ofs++] = newBox.max.x;
+	fbuffer[ofs++] = newBox.max.y;
+	fbuffer[ofs++] = newBox.max.z;
+	fbuffer[ofs++] = 1.0f;
+	// 48 bytes
+	for (int j = childIdx; j < 3; j++)
+		ubuffer[ofs + j] = ubuffer[ofs + j + 1];
+	numChildren--;
+	ubuffer[startOfs + 3] = numChildren;
+	for (int j = numChildren; j < 4; j++)
+		ubuffer[ofs + j] = -1;
 }
 
 int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int leafIdx, int EncodeNodeIdx,
@@ -1137,12 +1345,13 @@ int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int 
 }
 
 // Encodes the immediate children of inner node curNode
+// Use with the single-step FastLQBVH
 void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNodes, int curNode, const std::vector<LeafItem>& leafItems)
 {
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer = (float*)buffer;
 
-	int numChildren = innerNodes[curNode].numChildren;
+	const int numChildren = innerNodes[curNode].numChildren;
 	for (int i = 0; i < numChildren; i++) {
 		int childNode = innerNodes[curNode].children[i];
 
@@ -1161,6 +1370,9 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 				EncodeInnerNode(buffer, innerNodes, childNode, QBVHEncodeNodeIdx);
 				// Update the parent's QBVH offset for this child:
 				innerNodes[curNode].QBVHOfs[i] = QBVHEncodeNodeIdx;
+				//int child = innerNodes[curNode].children[i];
+				//bool childIsLeaf = innerNodes[curNode].isLeaf[i];
+				//if (!childIsLeaf) innerNodes[child].selfQBVHOfs = QBVHEncodeNodeIdx;
 				innerNodes[childNode].isEncoded = true;
 				//log_debug("[DBG] [BVH] Linking Inner (E). curNode: %d, i: %d, childNode: %d, QBVHOfs: %d",
 				//	curNode, i, childNode, innerNodes[curNode].QBVHOfs[i]);
@@ -1182,7 +1394,8 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 /// <param name="buffer">The BVHNode encoding buffer</param>
 /// <param name="leafItems"></param>
 /// <param name="root_out">The index of the root node</param>
-void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems, int &root_out /*int& inner_root, bool debug = false*/)
+void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems, int &root_out
+	/*int& inner_root, bool debug = false*/)
 {
 	int numLeaves = leafItems.size();
 	// QBVHEncodeNodeIdx points to the next available inner node index.
@@ -1235,6 +1448,14 @@ void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafIte
 				innerNodesProcessed++;
 				if (root_out != -1)
 				{
+					//inner_root_out = root_out;
+					// Convert the root to BVH4
+					if (g_bEnableQBVHwSAH)
+						ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
+					else
+						ConvertToBVH4Node(innerNodes, root_out);
+					// The children of this node can now be encoded
+					EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, root_out, leafItems);
 					//log_debug("[DBG] [BVH] Encoding the root (%d), after processing node: %d, at QBVHOfs: %d",
 					//	root_out, i, QBVHEncodeNodeIdx);
 					// Encode the root
@@ -1248,18 +1469,8 @@ void FastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafIte
 			}
 		}
 	}
-	//log_debug("[DBG] [BVH] root at index: %d", *root);
-	/*
-	if (debug)
-	{
-		return innerNodes;
-	}
-	else
-	{
-		return nullptr;
-	}
-	*/
 	delete[] innerNodes;
+	return;
 }
 
 std::string tab(int N)
@@ -1760,7 +1971,7 @@ BVHNode* EncodeNodesAsQBVH(int root, InnerNode* innerNodes, const std::vector<Le
 	numQBVHNodes_out = numPrimitives + CalcNumInnerQBVHNodes(numPrimitives);
 	result = new BVHNode[numQBVHNodes_out];
 	// Initialize the root
-	result[0].padding[0] = 0;
+	result[0].rootIdx = 0;
 
 	// A breadth-first traversal will ensure that each level of the tree is encoded to the
 	// buffer before advancing to the next level. We can thus keep track of the offset in
@@ -1876,7 +2087,12 @@ std::vector<EncodeItem> PullUpChildren(int curNode, InnerNode* innerNodes, const
 	return items;
 }
 
-// Only call this function for inner nodes
+/// <summary>
+/// Finds which children to pull up for a BVH4 conversion
+/// using SAH.
+/// Use this with the standard FastLBVH2 builder.
+/// Only call this function for inner nodes.
+/// </summary>
 std::vector<EncodeItem> PullUpChildrenSAH(int curNode, InnerNode* innerNodes, const std::vector<LeafItem>& leafItems)
 {
 	std::vector<EncodeItem> items;
@@ -1954,7 +2170,7 @@ BVHNode* EncodeNodesAsQBVHwSAH(int root, InnerNode* innerNodes, const std::vecto
 	numQBVHNodes_out = numPrimitives + CalcNumInnerQBVHNodes(numPrimitives);
 	result = new BVHNode[numQBVHNodes_out];
 	// Initialize the root
-	result[0].padding[0] = 0;
+	result[0].rootIdx = 0;
 
 	// A breadth-first traversal will ensure that each level of the tree is encoded to the
 	// buffer before advancing to the next level. We can thus keep track of the offset in
@@ -2019,6 +2235,18 @@ BVHNode* EncodeNodesAsQBVHwSAH(int root, InnerNode* innerNodes, const std::vecto
 	}
 
 	return result;
+}
+
+void CheckTree(InnerNode4* innerNodes, int curNode)
+{
+	if (innerNodes[curNode].numChildren < 0 || innerNodes[curNode].numChildren > 4) {
+		log_debug("[DBG] [BVH] ERROR. node: %d, has numChildren: %d", curNode, innerNodes[curNode].numChildren);
+		return;
+	}
+	for (int i = 0; i < 4; i++) {
+		if (!(innerNodes[curNode].isLeaf[i]))
+			CheckTree(innerNodes, innerNodes[curNode].children[i]);
+	}
 }
 
 int CalcMaxDepth(IGenericTreeNode* node)
@@ -2273,7 +2501,7 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 	BVHNode *buffer = (BVHNode * )EncodeNodes(root, innerNodes, leafItems, vertices, indices);
 	delete[] innerNodes;
 	// Initialize the root
-	buffer[0].padding[0] = 0;
+	buffer[0].rootIdx = 0;
 
 	LBVH* lbvh = new LBVH();
 	lbvh->nodes = (BVHNode*)buffer;
@@ -2350,15 +2578,31 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 
 	// Build, convert and encode the QBVH
 	int root = -1;
-	FastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
-
-	// Initialize the root
-	//QBVHBuffer[0].padding[0] = 0;
-	//int totalNodes = numQBVHNodes - root;
-
-	// Initialize the root
-	QBVHBuffer[0].padding[0] = root;
+	SingleStepFastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
+	log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d",
+		root, numQBVHNodes);
 	int totalNodes = numQBVHNodes;
+	//log_debug("[DBG] [BVH] Checking tree...");
+	//CheckTree(innerNodes, inner_root);
+	//log_debug("[DBG] [BVH] Tree checked.");
+
+	/*
+	const bool bDoPostEncode = true;
+	if (bDoPostEncode)
+	{
+		innerNodes[inner_root].totalNodes = totalNodes;
+		delete[] QBVHBuffer;
+		QBVHBuffer = (BVHNode*)EncodeNodes(inner_root, innerNodes, leafItems, vertices, indices);
+		QBVHBuffer[0].rootIdx = 0;
+		delete[] innerNodes;
+		log_debug("[DBG] [BVH] Buffer post-encoded");
+	}
+	else
+	*/
+	{
+		// Initialize the root
+		QBVHBuffer[0].rootIdx = root;
+	}
 
 	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d, totalNodes: %d",
 	//	root, numQBVHNodes, totalNodes);
@@ -2382,23 +2626,6 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	//log_debug("[DBG] [BVH] ****************************************************************");
 	//log_debug("[DBG] [BVH] Printing Buffer");
 	//PrintTreeBuffer("", QBVHBuffer, root);
-
-	// Re-label all the offsets so that the root is at offset 0. This makes the tree
-	// compatible with the current raytracer, but we don't actually need to do this.
-	// The alternative is to alter the raytracer so that it can start traversal on
-	// a nonzero root index. Let's do that later, though.
-	/*
-	for (int i = root; i < numQBVHNodes; i++) {
-		// This change only applies to inner nodes
-		if (QBVHBuffer[i].ref == -1) {
-			for (int j = 0; j < 4; j++) {
-				if (QBVHBuffer[i].children[j] == -1)
-					break;
-				QBVHBuffer[i].children[j] -= root;
-			}
-		}
-	}
-	*/
 
 	//log_debug("[DBG] [BVH] ****************************************************************");
 	//log_debug("[DBG] [BVH] Printing Buffer");
@@ -2639,8 +2866,8 @@ void TestFastLQBVHEncode()
 		EncodeLeafNode(QBVHBuffer, leafItems, i, LeafEncodeIdx++, nullptr, nullptr);
 	}
 
-	int root = -1, inner_root = -1;
-	FastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
+	int root = -1;
+	SingleStepFastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
 	int totalNodes = numQBVHNodes - root;
 
 	log_debug("[DBG] [BVH] root: %d, totalNodes: %d", root, totalNodes);

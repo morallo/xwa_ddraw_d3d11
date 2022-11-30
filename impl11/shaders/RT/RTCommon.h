@@ -50,7 +50,8 @@ struct BVHNode {
 struct BVHNode {
 	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
 	int parent; // Not used at this point
-	int2 padding;
+	int rootIdx;
+	int numChildren;
 	// 16 bytes
 	float4 min;
 	// 32 bytes
@@ -228,7 +229,7 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 	best_inters.TriID = -1;
 
 	// Read the padding from the first BVHNode. It will contain the location of the root
-	int root = g_BVH[0].padding.x;
+	int root = g_BVH[0].rootIdx;
 
 	stack[stack_top++] = root; // Push the root on the stack
 	while (stack_top > 0) {

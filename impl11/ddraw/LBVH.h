@@ -34,7 +34,8 @@ static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be 
 struct BVHNode {
 	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
 	int parent; // Not used at this point
-	int padding[2];
+	int rootIdx;
+	int numChildren;
 	// 16 bytes
 	float min[4];
 	// 32 bytes
@@ -196,7 +197,8 @@ struct InnerNode4
 	// Children
 	int children[4];
 	bool isLeaf[4];
-	int QBVHOfs[4]; // Encoded QBVH offset
+	int QBVHOfs[4]; // Encoded QBVH offset for the children
+	int selfQBVHOfs; // Encoded QBVH offset for this node
 	int numChildren;
 	int totalNodes;
 	// Range

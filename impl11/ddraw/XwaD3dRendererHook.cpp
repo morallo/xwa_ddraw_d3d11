@@ -193,6 +193,7 @@ char g_curOPTLoaded[MAX_OPT_NAME];
 
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
@@ -459,7 +460,7 @@ void D3dRenderer::SceneEnd()
 				break;
 			}
 			g_HiResTimer.GetElapsedTime();
-			int root = _lbvh->nodes[0].padding[0];
+			int root = _lbvh->nodes[0].rootIdx;
 			log_debug("[DBG] [BVH] Builder: %s:%s, %s, BVH build time: %0.6fs, total nodes: %d, actual nodes: %d",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
 				g_curOPTLoaded, g_HiResTimer.elapsed_s,
