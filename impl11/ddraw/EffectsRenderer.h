@@ -130,6 +130,7 @@ public:
 
 	// Raytracing
 	void ApplyRTShadows();
+	void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId);

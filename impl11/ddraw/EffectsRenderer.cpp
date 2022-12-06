@@ -13,6 +13,11 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 // Control vars
 bool g_bEnableAnimations = true;
 bool g_bRTEnabledInTechRoom = true;
+bool g_bRTEnabled = false; // In-flight RT switch.
+bool g_bRTCaptureCameraAABB = true;
+AABB g_CameraAABB;
+XwaVector3 g_CameraRange;
+TreeNode* g_TLASTree = nullptr;
 
 // Maps an ObjectId to its index in the ObjectEntry table.
 // Textures have an associated objectId, this map tells us the slot
@@ -27,6 +32,11 @@ std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 EffectsRenderer *g_effects_renderer = nullptr;
 
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+
+#define DUMP_TLAS 1
+#ifdef DUMP_TLAS
+static FILE* g_TLASFile = NULL;
+#endif
 
 int32_t MakeMeshKey(const SceneCompData* scene)
 {
@@ -295,6 +305,160 @@ void AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCou
 	fprintf(D3DDumpOBJFile, "\n");
 }
 
+/// <summary>
+/// Get the AABB for the current camera space by gathering all
+/// the frustrum limits. The resulting AABB is in OPT-scale coords,
+/// to get meters, multiply the AABB by OPT_TO_METERS.
+/// </summary>
+/// <returns></returns>
+AABB GetCameraSpaceAABBFromFrustrum()
+{
+	// Calc and dump the 8 corners of the frustrum
+	float Znear = *(float*)0x08B94CC;
+	float Zfar = *(float*)0x05B46B4;
+	AABB aabb;
+	float3 V;
+	float4 v;
+	float Z;
+
+	const float Z_MAX = 5000.0f, Z_MIN = 25.0f;
+	const float marginX = g_fCurInGameWidth * 0.05f;
+	const float marginY = g_fCurInGameHeight * 0.05f;
+	const float left = -marginX, right = g_fCurInGameWidth + marginX;
+	const float top = -marginY, bottom = g_fCurInGameHeight + marginY;
+
+	Z = Zfar / (Z_MAX * METERS_TO_OPT);
+
+	v.x = left; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = right; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = right; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = left; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	// ------------------------------------------------------------------
+
+	Z = Zfar / (Z_MIN * METERS_TO_OPT);
+
+	v.x = left; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = right; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = right; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	v.x = left; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	aabb.Expand(V);
+
+	return aabb;
+}
+
+void DumpFrustrumToOBJ()
+{
+	FILE* D3DDumpOBJFile = NULL;
+	fopen_s(&D3DDumpOBJFile, "./frustrum.obj", "wt");
+	fprintf(D3DDumpOBJFile, "o frustrum\n");
+
+	// Calc and dump the 8 corners of the frustrum
+	float Znear = *(float*)0x08B94CC;
+	float Zfar = *(float*)0x05B46B4;
+	// [18780] [DBG] [BVH] Znear: 765.382812, Zfar: 64.000000
+	fprintf(D3DDumpOBJFile, "# Znear: %0.6f, Zfar: %0.6f\n", Znear, Zfar);
+	float3 V;
+	float4 v;
+	// ------------------------------------------------------------------
+	float Z = 0.0002f; // Zfar, 0 causes inf, smaller = farther
+	const float Z_MAX = 10000.0f, Z_MIN = 10.0f;
+	const float marginX = g_fCurInGameWidth * 0.05f;
+	const float marginY = g_fCurInGameHeight * 0.05f;
+	const float left = -marginX, right = g_fCurInGameWidth + marginX;
+	const float top = -marginY, bottom = g_fCurInGameHeight + marginY;
+
+	// Inverting the formulas for P.z in InverseTransformProjection yields:
+	// Z = (Zfar / w) * OPT_TO_METERS;
+	// w = Zfar / (Z * METERS_TO_OPT);
+	Z = Zfar / (Z_MAX * METERS_TO_OPT);
+	//log_debug("[DBG] [BVH] Z max: %0.6f", Z);
+
+	v.x = left; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = right; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = right; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = left; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	// ------------------------------------------------------------------
+	// Z = 0.25f; // Znear, the bigger, the closer to the origin.
+	Z = Zfar / (Z_MIN * METERS_TO_OPT);
+	//log_debug("[DBG] [BVH] Z min: %0.6f", Z);
+
+	v.x = left; v.y = top; v.z = v.w = Z; // 0 causes inf, use 0.00001
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = right; v.y = top; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = right; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	v.x = left; v.y = bottom; v.z = v.w = Z;
+	V = InverseTransformProjectionScreen(v);
+	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
+	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+
+	const int VerticesCountOffset = 1;
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 1);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 2);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 3);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 0);
+
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 4, VerticesCountOffset + 5);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 5, VerticesCountOffset + 6);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 6, VerticesCountOffset + 7);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 7, VerticesCountOffset + 4);
+
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 4);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 5);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 6);
+	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 7);
+	fprintf(D3DDumpOBJFile, "\n");
+
+	fclose(D3DDumpOBJFile);
+}
+
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
 {
 	std::ostringstream str;
@@ -474,6 +638,30 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
 
+	if (g_bRTEnabled)
+	{
+		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
+			/* Get the Frustrum and Camera Space global AABB */
+			g_CameraAABB = GetCameraSpaceAABBFromFrustrum();
+			g_CameraRange.x = g_CameraAABB.max.x - g_CameraAABB.min.x;
+			g_CameraRange.y = g_CameraAABB.max.y - g_CameraAABB.min.y;
+			g_CameraRange.z = g_CameraAABB.max.z - g_CameraAABB.min.z;
+			/*
+			log_debug("[DBG] [BVH] cameraAABB: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+				cameraAABB.min.x * OPT_TO_METERS, cameraAABB.min.y * OPT_TO_METERS, cameraAABB.min.z * OPT_TO_METERS,
+				cameraAABB.max.x * OPT_TO_METERS, cameraAABB.max.y * OPT_TO_METERS, cameraAABB.max.z * OPT_TO_METERS);
+			*/
+			g_bRTCaptureCameraAABB = false;
+		}
+
+		// Restart the TLAS
+		if (g_TLASTree != nullptr)
+		{
+			DeleteRB(g_TLASTree);
+			g_TLASTree = nullptr;
+		}
+	}
+
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
 		// Create the file if it doesn't exist
@@ -502,6 +690,18 @@ void EffectsRenderer::SceneEnd()
 {
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+	{
+#ifdef DUMP_TLAS
+		if (g_TLASFile != NULL)
+		{
+			fclose(g_TLASFile);
+			g_TLASFile = NULL;
+		}
+#endif
+		DumpFrustrumToOBJ();
+	}
 
 	// Close the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -1849,6 +2049,54 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
+void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb)
+{
+	// Transform this aabb into camera space, get a new aabb,
+	// get the centroid and add it to the TLAS
+	Matrix4 S1;
+	S1.identity();
+
+#ifdef DUMP_TLAS
+	static int totalVertices = 1;
+	static int OBJGroup = 1;
+	if (g_bDumpSSAOBuffers)
+	{
+		S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+		if (g_TLASFile == NULL)
+			fopen_s(&g_TLASFile, ".\\TLAS.obj", "wt");
+	}
+#endif
+
+	aabb.UpdateLimits();
+	aabb.TransformLimits(S1 * WorldViewTransform);
+
+	// The limits have been transformed into camera space, get the
+	// new AABB in this space
+	// Bad idea: this creates large AABBs with lots of empty space.
+	// It's better to have OOBBs as primitives in the TLAS.
+	//AABB box = aabb.GetAABBFromCurrentLimits();
+
+#ifdef DUMP_TLAS
+	if (g_bDumpSSAOBuffers)
+	{
+		aabb.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
+		totalVertices += aabb.Limits.size();
+
+		//box.UpdateLimits();
+		//box.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
+		//totalVertices += box.Limits.size();
+
+		OBJGroup++;
+	}
+#endif
+
+	// Get the centroid and compute its Morton Code using g_CameraAABB
+	XwaVector3 centroid = aabb.GetCentroid();
+	Normalize(centroid, g_CameraAABB, g_CameraRange);
+	MortonCode_t code = GetMortonCode32(centroid);
+	g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -2112,6 +2360,24 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	if (g_bEnableAnimations)
 		ApplyAnimatedTextures(objectId, bInstanceEvent);
+
+	// TlAS construction
+	if (g_bRTEnabled && scene != nullptr)
+	{
+		// g_bRTCaptureCameraAABB is false when the Camera AABB has been captured
+		bool addToTLAS = !g_bRTCaptureCameraAABB && !_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner;
+		if (addToTLAS)
+		{
+			Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+			// Fetch the AABB for this mesh
+			int meshID = (int)scene->MeshVertices;
+			auto aabb_it = _AABBs.find(meshID);
+			if (aabb_it != _AABBs.end()) {
+				// Update the current TLAS
+				AddAABBToTLAS(W, meshID, aabb_it->second);
+			}
+		}
+	}
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.

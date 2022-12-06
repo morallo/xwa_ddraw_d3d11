@@ -1731,6 +1731,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		g_LBVHMap.clear();
 	}
 
+	if (g_bRTEnabled)
+	{
+		g_bRTCaptureCameraAABB = true;
+	}
+
 	this->_backBuffer.Release();
 	if (g_b3DVisionEnabled && g_b3DVisionForceFullScreen) {
 		// Exit Full-screen mode if necessary before releasing the swapchain

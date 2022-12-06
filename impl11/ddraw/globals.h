@@ -236,6 +236,8 @@ constexpr float METERS_TO_OPT = 40.96f;
 
 // Raytracing
 extern bool g_bRTEnabledInTechRoom;
+extern bool g_bRTEnabled;
+extern bool g_bRTCaptureCameraAABB;
 
 // Levels.fx
 extern bool g_bEnableLevelsShader;

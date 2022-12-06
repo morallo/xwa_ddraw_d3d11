@@ -114,6 +114,16 @@ public:
 		if (v.z > max.z) max.z = v.z;
 	}
 
+	inline void Expand(const float3& v) {
+		if (v.x < min.x) min.x = v.x;
+		if (v.y < min.y) min.y = v.y;
+		if (v.z < min.z) min.z = v.z;
+
+		if (v.x > max.x) max.x = v.x;
+		if (v.y > max.y) max.y = v.y;
+		if (v.z > max.z) max.z = v.z;
+	}
+
 	inline void Expand(const AABB &aabb) {
 		if (aabb.min.x < min.x) min.x = aabb.min.x;
 		if (aabb.min.y < min.y) min.y = aabb.min.y;
@@ -158,6 +168,14 @@ public:
 	void TransformLimits(const Matrix4 &T) {
 		for (uint32_t i = 0; i < Limits.size(); i++)
 			Limits[i] = T * Limits[i];
+	}
+
+	inline AABB GetAABBFromCurrentLimits()
+	{
+		AABB result;
+		for (const Vector4 &v : Limits)
+			result.Expand(v);
+		return result;
 	}
 
 	float GetArea()
@@ -234,6 +252,7 @@ public:
 	AABB box;
 	XwaVector3 centroid;
 	MortonCode_t code;
+	Matrix4 m; // Used for TLAS leaves to represent OOBBs
 	bool red; // For Red-Black tree implementation
 
 	void InitNode()
@@ -250,6 +269,7 @@ public:
 		centroid.x = NAN;
 		centroid.y = NAN;
 		centroid.z = NAN;
+		m.identity();
 	}
 
 	TreeNode()
@@ -276,6 +296,15 @@ public:
 		this->TriID = TriID;
 		this->code = code;
 		this->box.Expand(box);
+	}
+
+	TreeNode(int TriID, MortonCode_t code, const AABB& box, const Matrix4 &m)
+	{
+		InitNode();
+		this->TriID = TriID;
+		this->code = code;
+		this->box.Expand(box);
+		this->m = m;
 	}
 
 	TreeNode(int TriID, TreeNode *left, TreeNode *right)
@@ -602,8 +631,13 @@ public:
 	void DumpToOBJ(char *sFileName);
 };
 
+void Normalize(XwaVector3& A, const AABB& sceneBox, const XwaVector3& range);
+
+MortonCode_t GetMortonCode32(const XwaVector3& V);
+
 // Red-Black balanced insertion
-TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box);
+TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box, const Matrix4& m);
+void DeleteRB(TreeNode* T);
 
 QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems);
 void DeleteTree(QTreeNode* Q);

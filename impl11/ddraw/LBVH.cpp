@@ -2328,16 +2328,16 @@ TreeNode* RotRight(TreeNode* T)
 }
 
 // Red-Black balanced insertion
-TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box)
+TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, const Matrix4 &m)
 {
 	if (T == nullptr)
 	{
-		return new TreeNode(TriID, code, box);
+		return new TreeNode(TriID, code, box, m);
 	}
 
 	if (code <= T->code)
 	{
-		T->left = insertRB(T->left, TriID, code, box);
+		T->left = InsertRB(T->left, TriID, code, box, m);
 		// Rebalance
 		if (T->left->left != nullptr && T->left->red && T->left->left->red)
 		{
@@ -2355,7 +2355,7 @@ TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box)
 	}
 	else
 	{
-		T->right = insertRB(T->right, TriID, code, box);
+		T->right = InsertRB(T->right, TriID, code, box, m);
 		// Rebalance
 		if (T->right->right != nullptr && T->right->red && T->right->right->red)
 		{
@@ -2373,6 +2373,14 @@ TreeNode* insertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box)
 	}
 
 	return T;
+}
+
+void DeleteRB(TreeNode* T)
+{
+	if (T == nullptr)
+		return;
+	DeleteRB(T->left);
+	DeleteRB(T->right);
 }
 
 LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
@@ -2908,31 +2916,32 @@ void TestRedBlackBVH()
 
 	AABB box;
 	TreeNode* T = nullptr;
+	Matrix4 m;
 
 	/*
-	T = insertRB(T, 0, 0, box);
-	T = insertRB(T, 1, 1, box);
-	T = insertRB(T, 2, 2, box);
-	T = insertRB(T, 3, 3, box);
-	T = insertRB(T, 4, 4, box);
-	T = insertRB(T, 5, 5, box);
-	T = insertRB(T, 6, 6, box);
-	T = insertRB(T, 7, 7, box);
-	T = insertRB(T, 8, 8, box);
-	T = insertRB(T, 9, 9, box);
-	T = insertRB(T, 10, 10, box);
-	T = insertRB(T, 11, 11, box);
-	T = insertRB(T, 12, 12, box);
+	T = InsertRB(T, 0, 0, box, m);
+	T = InsertRB(T, 1, 1, box, m);
+	T = InsertRB(T, 2, 2, box, m);
+	T = InsertRB(T, 3, 3, box, m);
+	T = InsertRB(T, 4, 4, box, m);
+	T = InsertRB(T, 5, 5, box, m);
+	T = InsertRB(T, 6, 6, box, m);
+	T = InsertRB(T, 7, 7, box, m);
+	T = InsertRB(T, 8, 8, box, m);
+	T = InsertRB(T, 9, 9, box, m);
+	T = InsertRB(T, 10, 10, box, m);
+	T = InsertRB(T, 11, 11, box, m);
+	T = InsertRB(T, 12, 12, box, m);
 	*/
 
-	T = insertRB(T, 4, 4, box);
-	T = insertRB(T, 12, 12, box);
-	T = insertRB(T, 3, 3, box);
-	T = insertRB(T, 13, 13, box);
-	T = insertRB(T, 5, 5, box);
-	T = insertRB(T, 2, 2, box);
-	T = insertRB(T, 15, 15, box);
-	T = insertRB(T, 8, 8, box);
+	T = InsertRB(T, 4, 4, box, m);
+	T = InsertRB(T, 12, 12, box, m);
+	T = InsertRB(T, 3, 3, box, m);
+	T = InsertRB(T, 13, 13, box, m);
+	T = InsertRB(T, 5, 5, box, m);
+	T = InsertRB(T, 2, 2, box, m);
+	T = InsertRB(T, 15, 15, box, m);
+	T = InsertRB(T, 8, 8, box, m);
 
 	log_debug("[DBG] [BVH] ****************************************************************");
 	log_debug("[DBG] [BVH] Printing Tree");
