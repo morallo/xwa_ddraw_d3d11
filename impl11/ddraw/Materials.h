@@ -522,6 +522,8 @@ struct Material {
 	// a per-instance basis.
 	bool bInstanceMaterial;
 	bool SkipWhenDisabled;
+	int DisplayIfSpeedGE;
+	float DisplayIfThrottleGE;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -590,6 +592,8 @@ struct Material {
 
 		bInstanceMaterial = false;
 		SkipWhenDisabled = false;
+		DisplayIfSpeedGE = -INT_MAX;
+		DisplayIfThrottleGE = -FLT_MAX;
 
 		/*
 		// DEBUG properties, remove later

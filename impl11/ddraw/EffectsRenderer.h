@@ -133,7 +133,7 @@ public:
 	void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb);
 
 	// Per-texture, per-instance effects
-	CraftInstance *ObjectIDToCraftInstance(int objectId);
+	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 
 	// Deferred rendering

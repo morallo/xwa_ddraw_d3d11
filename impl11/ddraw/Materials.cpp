@@ -1589,6 +1589,18 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->bInstanceMaterial = true;
 	}
 
+	else if (_stricmp(param, "DisplayIfSpeedGE") == 0) {
+		curMaterial->DisplayIfSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "DisplayIfThrottleGE") == 0) {
+		curMaterial->DisplayIfThrottleGE = fValue / 100.0f;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));

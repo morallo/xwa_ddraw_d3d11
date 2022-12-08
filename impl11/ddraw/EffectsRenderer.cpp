@@ -2005,7 +2005,7 @@ void EffectsRenderer::ApplyRTShadows() {
  * to check if objectId has been cached. If it isn't, then *objects is searched
  * for objectId and then an entry is added to the g_objectIdToIndex cache.
  */
-CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
+CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId, MobileObjectEntry **mobileObject_out)
 {
 	int objIndex = -1;
 	if (objects == NULL) return nullptr;
@@ -2038,6 +2038,8 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId)
 		ObjectEntry *object = &((*objects)[objIndex]);
 		MobileObjectEntry *mobileObject = object->MobileObjectPtr;
 		if (mobileObject == NULL) return nullptr;
+		if (mobileObject_out != NULL)
+			*mobileObject_out = mobileObject;
 		CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 		return craftInstance;
 	}
@@ -2221,7 +2223,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Not sure if it would be legal to have both, but I'm going to simplify things.
 	if (bInstanceEvent)
 	{
-		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId);
+		MobileObjectEntry* mobileObject = nullptr;
+		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId, &mobileObject);
 		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, materialId);
 		if (craftInstance != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
@@ -2229,6 +2232,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			// This value seems to be somewhat arbitrary. ISDs seem to be 741 when healthy,
 			// and TIEs seem to be 628. But either way, this value is 0 when disabled. I think.
 			int subsystems = craftInstance->SubsystemStatus;
+			float curThrottle = craftInstance->EngineThrottleInput / 65535.0f; // Percentage in the range: 0..1
+			//float topSpeed = craftInstance->TopSpeedMPH / 2.25f;
+			int curSpeed = (mobileObject != NULL) ? (int)(mobileObject->currentSpeed / 2.25f) : INT_MAX; // MGLT
+
+			if (curSpeed < _lastTextureSelected->material.DisplayIfSpeedGE)
+			{
+				goto out;
+			}
+
+			if (curThrottle < _lastTextureSelected->material.DisplayIfThrottleGE)
+			{
+				goto out;
+			}
 
 			if (_lastTextureSelected->material.SkipWhenDisabled && subsystems == 0)
 			{
