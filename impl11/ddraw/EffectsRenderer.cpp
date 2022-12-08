@@ -33,7 +33,8 @@ EffectsRenderer *g_effects_renderer = nullptr;
 
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
-#define DUMP_TLAS 1
+//#define DUMP_TLAS 1
+#undef DUMP_TLAS
 #ifdef DUMP_TLAS
 static FILE* g_TLASFile = NULL;
 #endif
@@ -280,9 +281,9 @@ inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
  * Before calling this method, make sure you call UpdateLimits() to convert the internal aabb into
  * a list of vertices and then call TransformLimits() with the appropriate transform matrix.
  */
-void AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset)
+int AABB::DumpLimitsToOBJ(FILE* D3DDumpOBJFile, const std::string &name, int VerticesCountOffset)
 {
-	fprintf(D3DDumpOBJFile, "o aabb-%d\n", OBJGroupId);
+	fprintf(D3DDumpOBJFile, "o %s\n", name.c_str());
 	for (uint32_t i = 0; i < Limits.size(); i++) {
 		Vector4 V = Limits[i];
 		fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
@@ -303,6 +304,17 @@ void AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCou
 	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 6);
 	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 7);
 	fprintf(D3DDumpOBJFile, "\n");
+	return VerticesCountOffset + 8;
+}
+
+/*
+ * Dump the current Limits to an OBJ file.
+ * Before calling this method, make sure you call UpdateLimits() to convert the internal aabb into
+ * a list of vertices and then call TransformLimits() with the appropriate transform matrix.
+ */
+int AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset)
+{
+	return DumpLimitsToOBJ(D3DDumpOBJFile, std::string("aabb-") + std::to_string(OBJGroupId), VerticesCountOffset);
 }
 
 /// <summary>
@@ -654,9 +666,17 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			g_bRTCaptureCameraAABB = false;
 		}
 
-		// Restart the TLAS
+		// Restart the TLAS for the next frame
 		if (g_TLASTree != nullptr)
 		{
+			// DEBUG: Dump the TLAS before deleting it
+			if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+			{
+				FILE* file = NULL;
+				fopen_s(&file, ".\\TLASRB.obj", "wt");
+				DumpRBToOBJ(file, g_TLASTree, "0", 1);
+				fclose(file);
+			}
 			DeleteRB(g_TLASTree);
 			g_TLASTree = nullptr;
 		}

@@ -185,7 +185,8 @@ public:
 		return 2.0f * (range.x * range.y + range.y * range.z * range.x * range.z);
 	}
 
-	void DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);
+	int DumpLimitsToOBJ(FILE* D3DDumpOBJFile, const std::string &name, int VerticesCountOffset);
+	int DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);
 };
 
 // Classes and data used for the Fast LBVH build.
@@ -638,6 +639,7 @@ MortonCode_t GetMortonCode32(const XwaVector3& V);
 // Red-Black balanced insertion
 TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box, const Matrix4& m);
 void DeleteRB(TreeNode* T);
+int DumpRBToOBJ(FILE* file, TreeNode* T, const std::string& name, int VerticesCountOffset);
 
 QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* innerNodes, const std::vector<LeafItem>& leafItems);
 void DeleteTree(QTreeNode* Q);

@@ -2335,6 +2335,13 @@ TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, c
 		return new TreeNode(TriID, code, box, m);
 	}
 
+	// Avoid duplicate meshes? The same mesh, but with a different transform matrix may
+	// appear multiple times. However, it's also true that the same mesh, but with different
+	// face groups may also appear multiple times, creating duplicate entries in the tree.
+	// So, to be sure, we need to check the mesh ID and the transform matrix
+	if (T->TriID == TriID && T->m == m)
+		return T;
+
 	if (code <= T->code)
 	{
 		T->left = InsertRB(T->left, TriID, code, box, m);
@@ -2372,6 +2379,14 @@ TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, c
 		}
 	}
 
+	// Update the bounding box of this node.
+	// TODO: Call UpdateLimits and TransformLimits to get the proper AABB
+	T->box.SetInfinity();
+	if (T->left != nullptr)
+		T->box.Expand(T->left->box);
+	if (T->right != nullptr)
+		T->box.Expand(T->right->box);
+
 	return T;
 }
 
@@ -2381,6 +2396,28 @@ void DeleteRB(TreeNode* T)
 		return;
 	DeleteRB(T->left);
 	DeleteRB(T->right);
+}
+
+int DumpRBToOBJ(FILE* file, TreeNode* T, const std::string &name, int VerticesCountOffset)
+{
+	if (T == nullptr)
+		return VerticesCountOffset;
+
+	Matrix4 S1;
+	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+	T->box.UpdateLimits();
+	T->box.TransformLimits(S1 * T->m);
+
+	bool IsLeaf = T->IsLeaf();
+	VerticesCountOffset = T->box.DumpLimitsToOBJ(file,
+		name + (IsLeaf ? std::string("-leaf") : std::string("-inner")),
+		VerticesCountOffset);
+
+	if (T->left != nullptr)
+		VerticesCountOffset = DumpRBToOBJ(file, T->left, name + "L", VerticesCountOffset);
+	if (T->right != nullptr)
+		VerticesCountOffset = DumpRBToOBJ(file, T->right, name + "R", VerticesCountOffset);
+	return VerticesCountOffset;
 }
 
 LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *indices, const int numIndices)
