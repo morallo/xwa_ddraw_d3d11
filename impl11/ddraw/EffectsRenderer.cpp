@@ -2234,7 +2234,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			int subsystems = craftInstance->SubsystemStatus;
 			float curThrottle = craftInstance->EngineThrottleInput / 65535.0f; // Percentage in the range: 0..1
 			//float topSpeed = craftInstance->TopSpeedMPH / 2.25f;
-			int curSpeed = (mobileObject != NULL) ? (int)(mobileObject->currentSpeed / 2.25f) : INT_MAX; // MGLT
+			int curSpeed = (int)(mobileObject->currentSpeed / 2.25f); // MGLT
+			int curMissionSetSpeed = (int)(craftInstance->MissionSetSpeed / 2.25f); // MGLT
+
+			bool DisplayIfMissionSetSpeedGE = (curThrottle >= 0.99f && curMissionSetSpeed >= _lastTextureSelected->material.DisplayIfMissionSetSpeedGE);
+			if (!DisplayIfMissionSetSpeedGE)
+			{
+				goto out;
+			}
 
 			if (curSpeed < _lastTextureSelected->material.DisplayIfSpeedGE)
 			{

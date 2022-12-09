@@ -524,6 +524,7 @@ struct Material {
 	bool SkipWhenDisabled;
 	int DisplayIfSpeedGE;
 	float DisplayIfThrottleGE;
+	int DisplayIfMissionSetSpeedGE;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -594,6 +595,7 @@ struct Material {
 		SkipWhenDisabled = false;
 		DisplayIfSpeedGE = -INT_MAX;
 		DisplayIfThrottleGE = -FLT_MAX;
+		DisplayIfMissionSetSpeedGE = -INT_MAX;
 
 		/*
 		// DEBUG properties, remove later

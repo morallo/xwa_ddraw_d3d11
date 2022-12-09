@@ -1601,6 +1601,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->bInstanceMaterial = true;
 	}
 
+	else if (_stricmp(param, "DisplayIfMissionSetSpeedGE") == 0) {
+		curMaterial->DisplayIfMissionSetSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));
