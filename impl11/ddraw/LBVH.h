@@ -361,6 +361,21 @@ public:
 		return this->box;
 	}
 
+	/// <summary>
+	/// Multiplies this node's transform matrix with its box, thus generating a set of
+	/// limits representing an OOBB. Then it gets the AABB that contains that OOBB
+	/// </summary>
+	/// <returns></returns>
+	AABB GetAABBFromOOBB()
+	{
+		this->box.UpdateLimits();
+		this->box.TransformLimits(this->m);
+		AABB res;
+		for (auto& v : this->box.Limits)
+			res.Expand(v);
+		return res;
+	}
+
 	virtual int GetTriID()
 	{
 		return this->TriID;

@@ -2380,13 +2380,21 @@ TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, c
 	}
 
 	// Update the bounding box of this node.
-	// TODO: Call UpdateLimits and TransformLimits to get the proper AABB
+	// TODO: Properly convert the OOBBs in the leaves to AABBs.
+	T->m.identity();
 	T->box.SetInfinity();
-	if (T->left != nullptr)
-		T->box.Expand(T->left->box);
-	if (T->right != nullptr)
-		T->box.Expand(T->right->box);
-
+	if (T->left != nullptr) {
+		if (T->left->IsLeaf())
+			T->box.Expand(T->left->GetAABBFromOOBB());
+		else
+			T->box.Expand(T->left->box);
+	}
+	if (T->right != nullptr) {
+		if (T->right->IsLeaf())
+			T->box.Expand(T->right->GetAABBFromOOBB());
+		else
+			T->box.Expand(T->right->box);
+	}
 	return T;
 }
 
