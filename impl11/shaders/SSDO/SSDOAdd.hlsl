@@ -49,12 +49,12 @@ SamplerState samplerNormal : register(s5);
 //SamplerState samplerBent : register(s6);
 
 // The Shading System Mask buffer
-Texture2DArray texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
+Texture2DArray texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // The Shadow Map buffer
-Texture2DArray<float> texShadowMap : register(t8);
-SamplerComparisonState cmpSampler : register(s8);
+Texture2DArray<float> texShadowMap : register(t7);
+SamplerComparisonState cmpSampler : register(s7);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
@@ -86,7 +86,7 @@ struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
-	float4 bent  : SV_TARGET2;
+	//float4 bent  : SV_TARGET2;
 };
 
 // From: https://www.shadertoy.com/view/MdfXWr
@@ -384,7 +384,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
-	output.bent  = 0;
+	//output.bent  = 0;
 
 	float2 input_uv_sub   = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
@@ -870,14 +870,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 
 #ifdef DISABLED
-	if (ssao_debug == 8)
-		output.color.xyz = bentN.xyz * 0.5 + 0.5;
+	//if (ssao_debug == 8)
+		//output.color.xyz = bentN.xyz * 0.5 + 0.5;
 	if (ssao_debug == 9 || ssao_debug >= 14)
 		output.color.xyz = contactShadow;
-	if (ssao_debug == 10)
-		output.color.xyz = bentDiff;
-	if (ssao_debug == 12)
-		output.color.xyz = color * (diff_int * bentDiff + ambient);
+	//if (ssao_debug == 10)
+		//output.color.xyz = bentDiff;
+	//if (ssao_debug == 12)
+		//output.color.xyz = color * (diff_int * bentDiff + ambient);
 	if (ssao_debug == 13)
 		output.color.xyz = N.xyz * 0.5 + 0.5;
 	if (ssao_debug == 18)

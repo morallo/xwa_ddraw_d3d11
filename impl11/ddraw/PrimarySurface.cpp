@@ -2880,7 +2880,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
 			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
-			ID3D11ShaderResourceView *srvs[4] = {
+			ID3D11ShaderResourceView *srvs[3] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
@@ -2894,13 +2894,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// If both are set and MSAA is active, nothing gets rendered -- even with a NULL depth stencil.
 				// The solution here is to avoid setting the renderTargetViewBentBuf if MSAA is active
 				// Alternatively, we could change renderTargetViewBentBuf to be MSAA too, just like I did for ssMaskMSAA, etc; but... eh...
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				context->PSSetShaderResources(0, 3, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
@@ -2910,13 +2910,13 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				goto out1;
 			}
 			else {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO.Get(),
 					//resources->_renderTargetViewBentBuf.Get(),
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				context->PSSetShaderResources(0, 3, srvs);
 				context->Draw(6, 0);
 			}
 		}
@@ -3060,18 +3060,18 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		resources->InitViewport(&viewport);
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 		// so that it can be used as an SRV
-		ID3D11RenderTargetView *rtvs[5] = {
+		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetView.Get(),			 // MSAA
 			resources->_renderTargetViewBloomMask.Get(), // MSAA
-			NULL, //resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! Non-MSAA
-			NULL, NULL,
+			//NULL, //resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! Non-MSAA
+			//NULL, NULL,
 		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
+		context->OMSetRenderTargets(2, rtvs, NULL);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
@@ -3085,7 +3085,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			g_ShadowMapping.bEnabled ? 
 				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 		context->Draw(6, 0);
 	}
 
@@ -3121,25 +3121,25 @@ out1:
 			
 			resources->InitPixelShader(resources->_ssdoDirectPS);
 			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewR.Get(),
 					//resources->_renderTargetViewBentBufR.Get(),
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
 				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
-				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->OMSetRenderTargets(1, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
 				goto out2;
 			}
 			else {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO_R.Get(),
 					//resources->_renderTargetViewBentBufR.Get()
 				};
 				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
 				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
-				context->OMSetRenderTargets(2, rtvs, NULL);
+				context->OMSetRenderTargets(1, rtvs, NULL);
 				context->PSSetShaderResources(0, 5, srvs_pass1);
 				context->Draw(6, 0);
 			}

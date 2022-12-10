@@ -419,10 +419,9 @@ HRESULT DeviceResources::Initialize()
 	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
 
 	UINT createDeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 
 #ifdef _DEBUG
-	//createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
 

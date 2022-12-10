@@ -4425,11 +4425,12 @@ out:
 
 	// Decrease the refcount of all the objects we queried at the prologue. (Is this
 	// really necessary? They live on the stack, so maybe they are auto-released?)
+	/*
 	oldVSConstantBuffer.Release();
 	oldPSConstantBuffer.Release();
 	for (int i = 0; i < 3; i++)
 		oldVSSRV[i].Release();
-
+	*/
 	/*
 	if (bModifiedBlendState) {
 		RestoreBlendState();

@@ -1702,7 +1702,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 			// ZIPReader: Load and erase any dangling temporary directories
 			{
 				if (InitZIPReader())
-					DeleteAllTempZIPDirectories();
+					//DeleteAllTempZIPDirectories();
+					break;
 			}
 		}
 		break;
