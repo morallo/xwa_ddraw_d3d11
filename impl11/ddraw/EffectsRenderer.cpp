@@ -2238,7 +2238,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			int curMissionSetSpeed = (int)(craftInstance->MissionSetSpeed / 2.25f); // MGLT
 
 			bool DisplayIfMissionSetSpeedGE = (curThrottle >= 0.99f && curMissionSetSpeed >= _lastTextureSelected->material.DisplayIfMissionSetSpeedGE);
-			if (!DisplayIfMissionSetSpeedGE)
+			if (_lastTextureSelected->material.DisplayIfMissionSetSpeedGE > 0 && !DisplayIfMissionSetSpeedGE)
 			{
 				goto out;
 			}
