@@ -2379,8 +2379,10 @@ TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, c
 		}
 	}
 
-	// Update the bounding box of this node.
-	// TODO: Properly convert the OOBBs in the leaves to AABBs.
+	// In an RB tree, all nodes (including the inner nodes) contain primitives.
+	// We would need an additional AABB to represent the box that spans all
+	// primitives under the current node
+	/*
 	T->m.identity();
 	T->box.SetInfinity();
 	if (T->left != nullptr) {
@@ -2395,6 +2397,7 @@ TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB &box, c
 		else
 			T->box.Expand(T->right->box);
 	}
+	*/
 	return T;
 }
 
@@ -2416,15 +2419,9 @@ int DumpRBToOBJ(FILE* file, TreeNode* T, const std::string &name, int VerticesCo
 	T->box.UpdateLimits();
 	T->box.TransformLimits(S1 * T->m);
 
-	bool IsLeaf = T->IsLeaf();
-	VerticesCountOffset = T->box.DumpLimitsToOBJ(file,
-		name + (IsLeaf ? std::string("-leaf") : std::string("-inner")),
-		VerticesCountOffset);
-
-	if (T->left != nullptr)
-		VerticesCountOffset = DumpRBToOBJ(file, T->left, name + "L", VerticesCountOffset);
-	if (T->right != nullptr)
-		VerticesCountOffset = DumpRBToOBJ(file, T->right, name + "R", VerticesCountOffset);
+	VerticesCountOffset = T->box.DumpLimitsToOBJ(file, name, VerticesCountOffset);
+	VerticesCountOffset = DumpRBToOBJ(file, T->left, name + "L", VerticesCountOffset);
+	VerticesCountOffset = DumpRBToOBJ(file, T->right, name + "R", VerticesCountOffset);
 	return VerticesCountOffset;
 }
 

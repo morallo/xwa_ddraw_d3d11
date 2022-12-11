@@ -185,7 +185,7 @@ public:
 		return 2.0f * (range.x * range.y + range.y * range.z * range.x * range.z);
 	}
 
-	int DumpLimitsToOBJ(FILE* D3DDumpOBJFile, const std::string &name, int VerticesCountOffset);
+	int DumpLimitsToOBJ(FILE *D3DDumpOBJFile, const std::string &name, int VerticesCountOffset);
 	int DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset);
 };
 
@@ -261,7 +261,6 @@ public:
 		TriID = -1;
 		left = right = parent = nullptr;
 		box.SetInfinity();
-		code = 0;
 		numNodes = 0;
 		code = 0xFFFFFFFF;
 		// All new nodes are red by default
@@ -305,7 +304,7 @@ public:
 		this->TriID = TriID;
 		this->code = code;
 		this->box.Expand(box);
-		this->m = m;
+		this->m.set(m.get());
 	}
 
 	TreeNode(int TriID, TreeNode *left, TreeNode *right)
@@ -383,7 +382,7 @@ public:
 
 	virtual bool IsLeaf()
 	{
-		return this->left == nullptr && this->right == nullptr;
+		return (this->left == nullptr) && (this->right == nullptr);
 	}
 
 	virtual std::vector<IGenericTreeNode*> GetChildren()
