@@ -187,6 +187,17 @@ struct XwaVector3
 		return lhs;
 	}
 
+	bool equals(const XwaVector3 &rhs)
+	{
+		float difx = fabs(x - rhs.x);
+		float dify = fabs(y - rhs.y);
+		float difz = fabs(z - rhs.z);
+		if (difx <= 0.0001f && dify <= 0.0001f && difz <= 0.0001f)
+			return true;
+		else
+			return false;
+	}
+
 	XwaVector3 normalize() {
 		float L = sqrt(x * x + y * y + z * z);
 		x /= L;

@@ -198,6 +198,11 @@ bool leafSorter(const LeafItem& i, const LeafItem& j)
 	return std::get<0>(i) < std::get<0>(j);
 }
 
+bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j)
+{
+	return std::get<0>(i) < std::get<0>(j);
+}
+
 // Load a BVH4
 LBVH *LBVH::LoadLBVH(char *sFileName, bool EmbeddedVerts, bool verbose) {
 	FILE *file;

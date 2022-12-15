@@ -1,5 +1,6 @@
 #include "common.h"
 #include "EffectsRenderer.h"
+#include <algorithm>
 
 #ifdef _DEBUG
 #include "../Debug/RTShadowCS.h"
@@ -15,9 +16,12 @@ bool g_bEnableAnimations = true;
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTCaptureCameraAABB = true;
-AABB g_CameraAABB;
+AABB g_CameraAABB; // AABB built from the camera's frustrum
+AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
 XwaVector3 g_CameraRange;
+XwaVector3 g_GlobalRange;
 TreeNode* g_TLASTree = nullptr;
+std::vector<TLASLeafItem> tlasLeaves;
 
 // Maps an ObjectId to its index in the ObjectEntry table.
 // Textures have an associated objectId, this map tells us the slot
@@ -471,6 +475,54 @@ void DumpFrustrumToOBJ()
 	fclose(D3DDumpOBJFile);
 }
 
+void DumpGlobalAABBandTLASToOBJ()
+{
+	Matrix4 S1;
+
+	int VerticesCount = 1;
+	FILE* D3DDumpOBJFile = NULL;
+	fopen_s(&D3DDumpOBJFile, "./GlobalTLAS.obj", "wt");
+	fprintf(D3DDumpOBJFile, "o globalAABB\n");
+
+	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+	// Dump the global AABB
+	g_GlobalAABB.UpdateLimits();
+	g_GlobalAABB.TransformLimits(S1);
+	VerticesCount = g_GlobalAABB.DumpLimitsToOBJ(D3DDumpOBJFile, "GlobalAABB", VerticesCount);
+
+	// Dump all the other AABBs in tlasLeaves
+	int counter = 0;
+	for (const auto& leaf : tlasLeaves)
+	{
+		// Morton Code, Bounding Box, TriID, Matrix, Centroid
+		AABB aabb = std::get<1>(leaf);
+		const Matrix4& m = std::get<3>(leaf);
+		aabb.UpdateLimits();
+		aabb.TransformLimits(S1 * m);
+		VerticesCount = aabb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+	}
+	fclose(D3DDumpOBJFile);
+}
+
+void BuildTLAS()
+{
+	const uint32_t numLeaves = tlasLeaves.size();
+	// Get the morton codes for the tlas leaves
+	for (uint32_t i = 0; i < numLeaves; i++)
+	{
+		auto& leaf = tlasLeaves[i];
+		// 0            1             2      3       4         5
+		// Morton Code, Bounding Box, TriID, Matrix, Centroid, aabbFromOBB
+		AABB aabb = std::get<1>(leaf);
+		XwaVector3 centroid = std::get<4>(leaf);
+		Normalize(centroid, g_GlobalAABB, g_GlobalRange);
+		std::get<0>(leaf) = GetMortonCode32(centroid);
+	}
+
+	// Sort the tlas leaves
+	std::sort(tlasLeaves.begin(), tlasLeaves.end(), tlasLeafSorter);
+}
+
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
 {
 	std::ostringstream str;
@@ -652,6 +704,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	if (g_bRTEnabled)
 	{
+		// Reset the global AABB at the beginning of each frame
+		g_GlobalAABB.SetInfinity();
+		tlasLeaves.clear();
+
 		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
 			/* Get the Frustrum and Camera Space global AABB */
 			g_CameraAABB = GetCameraSpaceAABBFromFrustrum();
@@ -670,6 +726,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		if (g_TLASTree != nullptr)
 		{
 			// DEBUG: Dump the TLAS before deleting it
+			/*
 			if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 			{
 				FILE* file = NULL;
@@ -677,6 +734,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 				DumpRBToOBJ(file, g_TLASTree, "0", 1);
 				fclose(file);
 			}
+			*/
 			DeleteRB(g_TLASTree);
 			g_TLASTree = nullptr;
 		}
@@ -711,7 +769,15 @@ void EffectsRenderer::SceneEnd()
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
 
-	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+	if (g_bRTEnabled)
+	{
+		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
+		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
+		g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
+		BuildTLAS();
+	}
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled && g_bRTEnabled)
 	{
 #ifdef DUMP_TLAS
 		if (g_TLASFile != NULL)
@@ -721,6 +787,8 @@ void EffectsRenderer::SceneEnd()
 		}
 #endif
 		DumpFrustrumToOBJ();
+		// TODO: Dump the global AABB and all the TLAS leaves
+		DumpGlobalAABBandTLASToOBJ();
 	}
 
 	// Close the OBJ dump file for the current frame
@@ -2073,12 +2141,13 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 
 void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb)
 {
+	aabb.UpdateLimits();
+
 	// Transform this aabb into camera space, get a new aabb,
 	// get the centroid and add it to the TLAS
+#ifdef DUMP_TLAS
 	Matrix4 S1;
 	S1.identity();
-
-#ifdef DUMP_TLAS
 	static int totalVertices = 1;
 	static int OBJGroup = 1;
 	if (g_bDumpSSAOBuffers)
@@ -2087,16 +2156,31 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 		if (g_TLASFile == NULL)
 			fopen_s(&g_TLASFile, ".\\TLAS.obj", "wt");
 	}
+	aabb.TransformLimits(S1 * WorldViewTransform);
+#else
+	aabb.TransformLimits(WorldViewTransform);
 #endif
 
-	aabb.UpdateLimits();
-	aabb.TransformLimits(S1 * WorldViewTransform);
-
 	// The limits have been transformed into camera space, get the
-	// new AABB in this space
-	// Bad idea: this creates large AABBs with lots of empty space.
-	// It's better to have OOBBs as primitives in the TLAS.
-	//AABB box = aabb.GetAABBFromCurrentLimits();
+	// new AABB in this space and expand the current global AABB.
+	AABB box = aabb.GetAABBFromCurrentLimits();
+	XwaVector3 globalCentroid = box.GetCentroid();
+	g_GlobalAABB.Expand(box);
+
+	// Add this mesh to the current TLAS, but avoid duplicates
+	int size = tlasLeaves.size();
+	if (size > 0)
+	{
+		const auto& lastItem = tlasLeaves[tlasLeaves.size() - 1];
+		int lastMeshID = std::get<2>(lastItem);
+		XwaVector3 lastCentroid = std::get<4>(lastItem);
+		// Avoid duplicates:
+		if (!globalCentroid.equals(lastCentroid) || meshID != lastMeshID)
+			tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
+	}
+	else
+		// List empty, just add this mesh
+		tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
 
 #ifdef DUMP_TLAS
 	if (g_bDumpSSAOBuffers)

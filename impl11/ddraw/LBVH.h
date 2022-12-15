@@ -193,6 +193,8 @@ public:
 using MortonCode_t = uint32_t;
 // Morton Code, Bounding Box, TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
+// Morton Code, Bounding Box, TriID, Matrix, Centroid, aabbFromOBB
+using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, Matrix4, XwaVector3, AABB>;
 struct InnerNode
 {
 	int parent;
@@ -231,6 +233,7 @@ struct InnerNode4
 };
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
+bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j);
 
 class IGenericTreeNode
 {
