@@ -63,6 +63,7 @@ extern bool g_bPrevIsTargetHighlighted; // The value of g_bIsTargetHighlighted f
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 extern unsigned int g_iFloatingGUIDrawnCounter;
 extern int g_iPresentCounter, g_iNonZBufferCounter, g_iSkipNonZBufferDrawIdx;
+constexpr int PLAYERDATATABLE_MIN_SAFE_FRAME = 5;
 extern float g_fZBracketOverride; // 65535 is probably the maximum Z value in XWA
 extern bool g_bResetDC;
 
@@ -136,6 +137,7 @@ extern bool g_bApplyCockpitDamage, g_bResetCockpitDamage;
 extern bool g_bAutoGreeblesEnabled;
 extern bool g_bShowBlastMarks;
 extern float g_fBlastMarkOfsX, g_fBlastMarkOfsY;
+extern bool g_bEnableGimbalLockFix;
 
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
@@ -243,6 +245,30 @@ extern bool g_bRTCaptureCameraAABB;
 extern bool g_bEnableLevelsShader;
 extern float g_fLevelsWhitePoint;
 extern float g_fLevelsBlackPoint;
+
+// Gimbal Lock Fix
+// Configurable settings
+extern bool g_bEnableGimbalLockFix, g_bGimbalLockActive, g_bGimbalLockDebugMode;
+extern float g_fRollFromYawScale;
+
+extern float g_fYawAccelRate_s;
+extern float g_fPitchAccelRate_s;
+extern float g_fRollAccelRate_s;
+
+extern float g_fMaxYawRate_s;
+extern float g_fMaxPitchRate_s;
+extern float g_fMaxRollRate_s;
+
+extern float g_fTurnRateScaleThr_0;
+extern float g_fTurnRateScaleThr_100;
+extern float g_fMaxTurnAccelRate_s;
+
+// Non-configurable
+extern float g_fJoystickRudder;
+
+// Gimbal lock debug settings
+extern int g_iMouseCenterX, g_iMouseCenterY;
+extern float g_fMouseRangeX, g_fMouseRangeY;
 
 // *****************************************************
 // Global functions

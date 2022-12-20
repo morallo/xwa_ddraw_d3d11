@@ -3500,8 +3500,12 @@ void InitHeadingMatrix() {
 }
 
 /*
- * For a simple direction vector Fs (like a light vector), return a simple matrix that aligns
- * the given vector with (0,0,1) (if invert == false).
+ * For a simple direction vector Fs (like a light vector), return
+ * a matrix R such that:
+ * 
+ * R * Fs = |F| * [0, 0, 1]
+ * 
+ * In other words, R aligns Fs with Z+.
  */
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert) {
 	Vector4 temp = Fs;
@@ -3524,11 +3528,419 @@ Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert) {
 }
 
 /*
+ * For a *unitary* direction vector Fs, return a matrix R such that:
+ *
+ * R * Fs = [0, 0, 1]
+ *
+ * In other words, R aligns Fs with Z+.
+ */
+Matrix4 GetDirectionMatrixUnitaryVector(Vector4 Fs) {
+	Vector4 temp = Fs;
+	//if (temp.x < -1.0f) temp.x = -1.0f;
+	//if (temp.x > 1.0f) temp.x = 1.0f;
+	// Rotate the vector around the X-axis to align it with the X-Z plane
+	float AngX = atan2(temp.y, temp.z) * RAD_TO_DEG;
+	float AngY = -asin(temp.x) * RAD_TO_DEG;
+	Matrix4 rotX, rotY, rotFull;
+	rotX.rotateX(AngX);
+	rotY.rotateY(AngY);
+	rotFull = rotY * rotX;
+	// DEBUG
+	//Vector4 debugFs = rotFull * temp;
+	// The following line should always display: (0,0,1)
+	//log_debug("[DBG] debugFs: %0.3f, %0.3f, %0.3f", debugFs.x, debugFs.y, debugFs.z);
+	// DEBUG
+	return rotFull;
+}
+
+/*
+ * Return a rotation matrix that rotates about axis A.
+ * A must be an unitary direction vector.
+ */
+Matrix4 RotateAroundAxis(const Vector4 A, const float degrees)
+{
+	Matrix4 R = GetDirectionMatrixUnitaryVector(A);
+	Matrix4 Rinv = R;
+	Matrix4 Rot;
+	Rot.rotate(degrees, 0.0f, 0.0f, 1.0f);
+	Rinv.invert(); // TODO: Maybe we only need to do a transpose here, R *should* be orthonormal
+	return Rinv * Rot * R;
+}
+
+/*
+ * XWA's coordinate system:
+ * X+ = right 
+ * Y+ = forward
+ * Z+ = up
+ */
+Vector4 PlayerRs(1,0,0, 0);
+Vector4 PlayerUs(0,0,1, 0);
+Vector4 PlayerFs(0,1,0, 0);
+
+float AngleDiff(float deg1, float deg2)
+{
+	while (deg1 < -0.001f) deg1 += 360.0f;
+	while (deg2 < -0.001f) deg2 += 360.0f;
+	return fabs(deg1 - deg2);
+}
+
+void ReOrthogonalize(Vector4& R, Vector4& U, Vector4& F)
+{
+	// Compute a new U
+	// Rx Ry Rz
+	// Fx Fy Fz
+	U.x = R.y * F.z - R.z * F.y;
+	U.y = R.z * F.x - R.x * F.z;
+	U.z = R.x * F.y - R.y * F.x;
+
+	// Compute a new R
+	// Fx Fy Fz
+	// Ux Uy Uz
+	R.x = F.y * U.z - F.z * U.y;
+	R.y = F.z * U.x - F.x * U.z;
+	R.z = F.x * U.y - F.y * U.x;
+}
+
+/// <summary>
+/// Converts an orthonormal Us,Fs system to XWA's yaw, pitch, roll
+/// </summary>
+/// <param name="Us">The unitary up vector</param>
+/// <param name="Fs">The unitary forward vector</param>
+/// <param name="yaw_out"></param>
+/// <param name="pitch_out"></param>
+/// <param name="roll_out"></param>
+/// <param name="invert_roll"></param>
+void ShipOrientationToYPR(const Vector4& Us, const Vector4& Fs, float* yaw_out, float* pitch_out, float* roll_out)
+{
+	Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixFull;
+	*yaw_out = atan2(Fs.y, Fs.x);
+	*pitch_out = acos(Fs.z / Fs.length());
+
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateZ(90.0f - (*yaw_out * RAD_TO_DEG));
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX((*pitch_out * RAD_TO_DEG) - 90.0f);
+
+	// The following transform should align Fs with Y+:
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	// This transformation makes testU lie in the X-Z plane (y --> 0)
+	Vector4 testU = rotMatrixFull * Us;
+	testU.normalize();
+	//Vector4 F = rotMatrixFull * Fs;
+	//log_debug("[DBG] (CHECK) F: [%0.3f, %0.3f, %0.3f]", F.x, F.y, F.z);
+	//log_debug("[DBG] (CHECK) testU: [%0.3f, %0.3f, %0.3f]", testU.x, testU.y, testU.z);
+	//log_debug("[DBG] (CHECK) Us: [%0.3f, %0.3f, %0.3f], testU: [%0.3f, %0.3f, %0.3f]",
+	//	Us.x, Us.y, Us.z,
+	//	testU.x, testU.y, testU.z);
+
+	*roll_out = -acos(testU.z);
+	if (testU.x > 0) *roll_out = -(*roll_out);
+}
+
+void YPRToShipOrientation(float yaw_deg, float pitch_deg, float roll_deg, Vector4 &Rs, Vector4& Us, Vector4& Fs)
+{
+	Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, rotMatrixFull;
+
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateZ(90.0f - yaw_deg);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch_deg - 90.0f);
+	rotMatrixRoll.identity();  rotMatrixPitch.rotateY(-roll_deg);
+
+	// The following transform should align Fs with Y+:
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	// Now we build the canonical orthonormal system
+	Rs.x = 1; Rs.y = 0; Rs.z = 0; Rs.w = 0;
+	Us.x = 0; Us.y = 0; Us.z = 1; Us.w = 0;
+	Fs.x = 0; Fs.y = 1; Fs.z = 0; Fs.w = 0;
+	// Apply the roll
+	Rs = rotMatrixRoll * Rs;
+	Us = rotMatrixRoll * Us;
+	// Invert the transform
+	rotMatrixFull.invert();
+	// Transform RUF back into the global coord system
+	Rs = rotMatrixFull * Rs;
+	Us = rotMatrixFull * Us;
+	Fs = rotMatrixFull * Fs;
+	ReOrthogonalize(Rs, Us, Fs);
+	Rs.normalize(); Us.normalize(); Fs.normalize();
+}
+
+void InitializePlayerYawPitchRoll()
+{
+	ObjectEntry* object = NULL;
+	MobileObjectEntry* mobileObject = NULL;
+
+	if (GetPlayerCraftInstanceSafe(&object, &mobileObject) == NULL)
+		return;
+	if (object == NULL)
+		return;
+
+	Vector4 Rs, Us, Fs;
+	Rs.y = -mobileObject->transformMatrix.Right_X / 32768.0f;
+	Rs.x = -mobileObject->transformMatrix.Right_Y / 32768.0f;
+	Rs.z = -mobileObject->transformMatrix.Right_Z / 32768.0f;
+	Rs.w = 0;
+	float R = Rs.length();
+
+	Us.y = mobileObject->transformMatrix.Up_X / 32768.0f;
+	Us.x = mobileObject->transformMatrix.Up_Y / 32768.0f;
+	Us.z = mobileObject->transformMatrix.Up_Z / 32768.0f;
+	Us.w = 0;
+	float U = Us.length();
+
+	Fs.y = mobileObject->transformMatrix.Front_X / 32768.0f;
+	Fs.x = mobileObject->transformMatrix.Front_Y / 32768.0f;
+	Fs.z = mobileObject->transformMatrix.Front_Z / 32768.0f;
+	Fs.w = 0;
+	float F = Fs.length();
+
+	if (R < 0.5f || U < 0.5f || F < 0.5f)
+		// RUF must be orthonormal, but in some cases, the rotation matrix is
+		// not ready yet and we need to ignore it.
+		return;
+
+	float dotR = Rs.x * PlayerRs.x + Rs.y * PlayerRs.y + Rs.z * PlayerRs.z;
+	float dotU = Us.x * PlayerUs.x + Us.y * PlayerUs.y + Us.z * PlayerUs.z;
+	float dotF = Fs.x * PlayerFs.x + Fs.y * PlayerFs.y + Fs.z * PlayerFs.z;
+	//log_debug("[DBG] dotRUF: %0.3f, %0.3f, %0.3f", dotR, dotU, dotF);
+	// If any of these dot products is lower than 0.99, then the game has
+	// modified the orientation of the ship and we need to update PlayerRUF
+	// accordingly
+	if (dotR < 0.99f || dotU < 0.99f || dotF < 0.99f)
+	{
+		PlayerRs = Rs;
+		PlayerUs = Us;
+		PlayerFs = Fs;
+		ReOrthogonalize(PlayerRs, PlayerUs, PlayerFs);
+		PlayerRs.normalize();
+		PlayerUs.normalize();
+		PlayerFs.normalize();
+		//log_debug("[DBG] Initialized PlayerRUF");
+		/*
+		log_debug("[DBG] Init:RUF: [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f]",
+			PlayerRs.x, PlayerRs.y, PlayerRs.z,
+			PlayerUs.x, PlayerUs.y, PlayerUs.z,
+			PlayerFs.x, PlayerFs.y, PlayerFs.z);
+		*/
+	}
+
+	/*
+	const float yaw   = object->yaw   / 65535.0f * 360.0f;
+	const float pitch = object->pitch / 65535.0f * 360.0f;
+	const float roll  = object->roll  / 65535.0f * 360.0f;
+	YPRToShipOrientation(yaw, pitch, roll, PlayerRs, PlayerUs, PlayerFs);
+	*/
+}
+
+void ApplyYawPitchRoll(float yaw_inc_deg, float pitch_inc_deg, float roll_inc_deg)
+{
+	ObjectEntry* object = NULL;
+
+	if (GetPlayerCraftInstanceSafe(&object) == NULL)
+		return;
+	if (object == NULL)
+		return;
+
+	// This is how we could conceivably write the RUF matrix directly to the
+	// mobileObject, but we're going to need a hook:
+	/*
+	mobileObject->transformMatrix.Right_X = (short)(PlayerRs.x * 32768.0f);
+	mobileObject->transformMatrix.Right_Y = (short)(PlayerRs.y * 32768.0f);
+	mobileObject->transformMatrix.Right_Z = (short)(PlayerRs.z * 32768.0f);
+
+	mobileObject->transformMatrix.Up_X = (short)(PlayerUs.x * 32768.0f);
+	mobileObject->transformMatrix.Up_Y = (short)(PlayerUs.y * 32768.0f);
+	mobileObject->transformMatrix.Up_Z = (short)(PlayerUs.z * 32768.0f);
+
+	mobileObject->transformMatrix.Front_X = (short)(PlayerFs.x * 32768.0f);
+	mobileObject->transformMatrix.Front_Y = (short)(PlayerFs.y * 32768.0f);
+	mobileObject->transformMatrix.Front_Z = (short)(PlayerFs.z * 32768.0f);
+	return;
+	*/
+
+	// The player's Rs,Us,Fs system must be rotated about the Us axis to apply yaw
+	Matrix4 R_yaw = RotateAroundAxis(PlayerUs, yaw_inc_deg);
+	PlayerRs = R_yaw * PlayerRs;
+	PlayerUs = R_yaw * PlayerUs;
+	PlayerFs = R_yaw * PlayerFs;
+	PlayerRs.normalize(); PlayerUs.normalize(); PlayerFs.normalize();
+
+	// Now we need to rotate the system around the Rs axis
+	Matrix4 R_pitch = RotateAroundAxis(PlayerRs, pitch_inc_deg);
+	PlayerRs = R_pitch * PlayerRs;
+	PlayerUs = R_pitch * PlayerUs;
+	PlayerFs = R_pitch * PlayerFs;
+	PlayerRs.normalize(); PlayerUs.normalize(); PlayerFs.normalize();
+
+	// Finally, we can rotate the system around the Fs axis
+	Matrix4 R_roll = RotateAroundAxis(PlayerFs, roll_inc_deg);
+	PlayerRs = R_roll * PlayerRs;
+	PlayerUs = R_roll * PlayerUs;
+	PlayerFs = R_roll * PlayerFs;
+	ReOrthogonalize(PlayerRs, PlayerUs, PlayerFs);
+	PlayerRs.normalize(); PlayerUs.normalize(); PlayerFs.normalize();
+
+	// The following matrix satisfies:
+	// M * RUF = I
+	// In other words, M transforms RUF back into the major axes
+	// meaning that M' transforms major axes into RUF
+	/*
+	Matrix4 M(
+		PlayerRs.x, PlayerUs.x, PlayerFs.x, 0,
+		PlayerRs.y, PlayerUs.y, PlayerFs.y, 0,
+		PlayerRs.z, PlayerUs.z, PlayerFs.z, 0,
+		0, 0, 0, 1
+	);
+	Vector4 Rs = M * PlayerRs;
+	Vector4 Us = M * PlayerUs;
+	Vector4 Fs = M * PlayerFs;
+	// The following should always display (1,0,0), (0,1,0), (0,0,1)
+	log_debug("[DBG] RUFs: [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f]",
+		Rs.x, Rs.y, Rs.z,
+		Us.x, Us.y, Us.z,
+		Fs.x, Fs.y, Fs.z);
+	*/
+
+	float yaw, pitch, roll;
+	ShipOrientationToYPR(PlayerUs, PlayerFs, &yaw, &pitch, &roll);
+
+	object->yaw   = (short)(yaw   / 3.141593f * 32768.0f);
+	object->pitch = (short)(pitch / 3.141593f * 32768.0f);
+	object->roll  = (short)(roll  / 3.141593f * 32768.0f);
+
+	//log_debug("[DBG] ypr: %0.1f, %0.1f, %0.1f",
+	//	yaw * RAD_TO_DEG, pitch * RAD_TO_DEG, roll * RAD_TO_DEG);
+
+	// DEBUG: Dump the RUF system to an OBJ file
+	/*
+	FILE* file = NULL;
+	fopen_s(&file, ".\\PlayerSystem.obj", "wt");
+	fprintf(file, "o Rs\n");
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerRs.x, PlayerRs.y, PlayerRs.z);
+	fprintf(file, "f 1 2\n\n");
+
+	fprintf(file, "o Us\n");
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerUs.x, PlayerUs.y, PlayerUs.z);
+	fprintf(file, "f 3 4\n\n");
+
+	fprintf(file, "o Fs\n");
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
+	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerFs.x, PlayerFs.y, PlayerFs.z);
+	fprintf(file, "f 5 6\n\n");
+	fclose(file);
+	*/
+}
+
+// This is the function that I used to figure out the formulas used to convert an
+// orthonormal RUF system into XWA yaw, pitch, roll
+void TestShipOrientationToYPR(Vector4& Rs_out, Vector4& Us_out, Vector4& Fs_out, bool invert=false, bool debug=false)
+{
+	Matrix4 rotMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+	Vector4 Rs, Us, Fs;
+	ObjectEntry* object = NULL;
+
+	if (GetPlayerCraftInstanceSafe(&object) == NULL)
+		return;
+	if (object == NULL)
+		return;
+
+	// The range for these angles is [0..65535] = [0..360]
+	const float yaw   = object->yaw   / 65535.0f * 360.0f;
+	const float pitch = object->pitch / 65535.0f * 360.0f;
+	const float roll  = object->roll  / 65535.0f * 360.0f;
+
+	// Compute the full rotation that aligns ypr with Y+ (forward)
+	rotMatrixFull.identity();
+	rotMatrixYaw.identity();   rotMatrixYaw.rotateZ(90 - yaw);
+	rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch - 90);
+	rotMatrixRoll.identity();  rotMatrixRoll.rotateY(-roll);
+
+	// rotMatrixYaw aligns the orientation with the y-z plane (x --> 0)
+	// rotMatrixPitch aligns the orientation with the x-z plane (z --> 0)
+	// So the vector is aligned with Y+ (forward) and the roll is applied along that axis.
+
+	float cosTheta, cosPhi, sinTheta, sinPhi;
+	cosTheta = cos(yaw * DEG_TO_RAD), sinTheta = sin(yaw * DEG_TO_RAD);
+	cosPhi = cos(pitch * DEG_TO_RAD), sinPhi = sin(pitch * DEG_TO_RAD);
+
+	Fs.x = sinPhi * cosTheta;
+	Fs.y = sinPhi * sinTheta;
+	Fs.z = cosPhi;
+	const float test_yaw = atan2(Fs.y, Fs.x);
+	const float test_pitch = acos(Fs.z / Fs.length());
+
+	// The yaw is indeed the z-axis (up) rotation, it goes from -180 to 0 to 180.
+	// When pitch == 90, the craft is actually seeing the horizon
+	// When pitch == 0, the craft is looking towards the sun
+
+	// The following transform chain will always transform (Fs.x,Fs.y,Fs.z) into (0, 1, 0) (forward)
+	// To verify this, display Fs after multiplying it by rotMatrixFull
+	rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	//Fs = rotMatrixFull * Fs;
+	//log_debug("[DBG] Fs(DEBUG): [%0.3f, %0.3f, %0.3f]", Fs.x, Fs.y, Fs.z);
+
+	// Fs = (0, 1, 0) after the previous transform
+	Us.x = 0; Us.y = 0; Us.z = 1; Us.w = 0; // Up vector
+	Rs.x = 1; Rs.y = 0; Rs.z = 0; Rs.w = 0; // Right vector
+	// Apply the roll around the Y+ axis (forward)
+	Us = rotMatrixRoll * Us;
+	Rs = rotMatrixRoll * Rs;
+	float test_roll = acos(Us.z);
+	if (Us.x > 0) test_roll = -test_roll;
+
+	// Invert the transforms to go back to the original frame of reference, but now
+	// we'll have a new orthonormal system: testRUF. testRUF should be equivalent
+	// to the original ypr
+	rotMatrixFull.invert();
+	Vector4 testR = rotMatrixFull * Rs;
+	Vector4 testU = rotMatrixFull * Us;
+	Vector4 testF = rotMatrixFull * Vector4(0, 1, 0, 0);
+	// TEST: testF and F should be equal
+	//float dotF = Fs.x * testF.x + Fs.y * testF.y + Fs.z * testF.z;
+	// TEST: if testF = [0,1,0], then testR = [1,0,0] and testU = [0,0,1]
+	/*
+	log_debug("[DBG] Fs:[%0.3f, %0.3f, %0.3f] (%d) Rs: [%0.3f, %0.3f, %0.3f], Us: [%0.3f, %0.3f, %0.3f]",
+		testF.x, testF.y, testF.z, fabs(dotF - 1.0) < 0.001f,
+		testR.x, testR.y, testR.z,
+		testU.x, testU.y, testU.z);
+	*/
+	
+	float diff_y = AngleDiff(yaw,   test_yaw   * RAD_TO_DEG);
+	float diff_p = AngleDiff(pitch, test_pitch * RAD_TO_DEG);
+	float diff_r = AngleDiff(roll,  test_roll  * RAD_TO_DEG);
+	
+	// Here we're comparing the original yaw,pitch,roll with the ypr coming
+	// from testRUF. They should be equal, thus proving that our formulas are
+	// correct.
+	log_debug("[DBG] ypr(1): (%0.1f, %0.1f, %0.1f)-(%0.1f, %0.1f, %0.1f)::eq:[%d, %d, %d]",
+		yaw, pitch, roll,
+		test_yaw * RAD_TO_DEG, test_pitch * RAD_TO_DEG, test_roll * RAD_TO_DEG,
+		diff_y < 0.01f, diff_p < 0.01f, diff_r < 0.01f);
+
+	// Now let's test that ShipOrientationToYPR() also returns the same angles
+	float y, p, r;
+	ShipOrientationToYPR(testU, testF, &y, &p, &r);
+	r = -r;
+	diff_y = AngleDiff(yaw,   y * RAD_TO_DEG);
+	diff_p = AngleDiff(pitch, p * RAD_TO_DEG);
+	diff_r = AngleDiff(roll,  r * RAD_TO_DEG);
+	log_debug("[DBG] ypr(2): (%0.1f, %0.1f, %0.1f)-(%0.1f, %0.1f, %0.1f)::eq:[%d, %d, %d]",
+		yaw, pitch, roll,
+		y * RAD_TO_DEG, p * RAD_TO_DEG, r * RAD_TO_DEG,
+		diff_y < 0.01f, diff_p < 0.01f, diff_r < 0.01f);
+
+	// Apply the new ypr to object (this operation should be idempotent)
+	//object->yaw   = (short)(y / 3.141593f * 32768.0f);
+	//object->pitch = (short)(p / 3.141593f * 32768.0f);
+	//object->roll  = (short)(r / 3.141593f * 32768.0f);
+}
+
+/*
  * Compute the current ship's orientation. Returns:
  * Rs: The "Right" vector in global coordinates
  * Us: The "Up" vector in global coordinates
  * Fs: The "Forward" vector in global coordinates
- * A viewMatrix that maps [Rs, Us, Fs] to the major [X, Y, Z] axes
+ * When invert=false:
+ *     A matrix that maps [Rs, Us, Fs] to the major [X, Y, Z] axes
  */
 Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert=false, bool debug=false)
 {

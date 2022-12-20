@@ -83,6 +83,7 @@ bool LoadHyperParams();
 bool Load3DVisionParams();
 bool LoadDefaultGlobalMaterial();
 bool LoadMultiplayerConfig();
+bool LoadGimbaLockFixConfig();
 void ReloadMaterials();
 
 #ifdef DBG_VR

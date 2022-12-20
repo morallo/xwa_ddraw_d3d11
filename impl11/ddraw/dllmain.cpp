@@ -533,11 +533,15 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	return 0;
 			case 'G':
 				//g_bDumpLaserPointerDebugInfo = true;
+				g_bEnableGimbalLockFix = !g_bEnableGimbalLockFix;
+				DisplayTimedMessage(3, 0, g_bEnableGimbalLockFix ? "Gimbal Lock Fix ON" : "Regular Joystick Controls");
+				/*
 				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
 				if (g_bAutoGreeblesEnabled)
 					DisplayTimedMessage(3, 0, "Greebles Enabled");
 				else
 					DisplayTimedMessage(3, 0, "Greebles Disabled");
+				*/
 				return 0;
 				// DEBUG
 			case 'P':
@@ -959,8 +963,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		}
 
 		// Ctrl + Shift
-		if (CtrlKey && !AltKey && ShiftKey) {
-			switch (wParam) {
+		if (CtrlKey && !AltKey && ShiftKey)
+		{
+			switch (wParam)
+			{
 			case 0xbb:
 				//IncreaseNoExecIndices(0, 1);
 				IncreaseD3DExecuteCounterSkipHi(1);
@@ -969,16 +975,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//IncreaseNoExecIndices(0, -1);
 				IncreaseD3DExecuteCounterSkipHi(-1);
 				return 0;
-			// Ctrl+Shift+C: Reset the cockpit damage
+				// Ctrl+Shift+C: Reset the cockpit damage
 			case 'C':
 				g_bResetCockpitDamage = true;
 				return 0;
-			/*
-			case 'T': {
-				g_bDCHologramsVisible = !g_bDCHologramsVisible;
-				return 0;
-			}
-			*/
+				/*
+				case 'T': {
+					g_bDCHologramsVisible = !g_bDCHologramsVisible;
+					return 0;
+				}
+				*/
 
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
@@ -998,6 +1004,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Shift
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
+			// Shift + Arrow Keys
 			case VK_LEFT:
 				//IncreaseHUDParallax(-0.1f);
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
@@ -1028,6 +1035,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
+
 			case VK_OEM_PERIOD:
 				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {

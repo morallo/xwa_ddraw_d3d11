@@ -227,7 +227,6 @@ DeleteAllTempZIPDirectoriesFun	DeleteAllTempZIPDirectories = nullptr;
 GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 // **************************
 
-
 void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
@@ -876,7 +875,7 @@ CraftInstance *GetPlayerCraftInstanceSafe()
 {
 	// I've seen the game crash when trying to access the CraftInstance table in the
 	// first few frames of a new mission. Let's add this test to prevent this crash.
-	if (g_iPresentCounter <= 5) return NULL;
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
 
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
@@ -886,6 +885,42 @@ CraftInstance *GetPlayerCraftInstanceSafe()
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
 	if (mobileObject == NULL) return NULL;
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}
+
+CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry **object)
+{
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) return NULL;
+	*object = &((*objects)[objectIndex]);
+	if (object == NULL) return NULL;
+	MobileObjectEntry* mobileObject = (*object)->MobileObjectPtr;
+	if (mobileObject == NULL) return NULL;
+	CraftInstance* craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}
+
+CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntry **mobileObject)
+{
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) return NULL;
+	*object = &((*objects)[objectIndex]);
+	if (object == NULL) return NULL;
+	*mobileObject = (*object)->MobileObjectPtr;
+	if (*mobileObject == NULL) return NULL;
+	CraftInstance* craftInstance = (*mobileObject)->craftInstancePtr;
 	if (craftInstance == NULL) return NULL;
 	return craftInstance;
 }

@@ -12,7 +12,7 @@
 // atomically, so that's why it's a global variable for now.
 static int QBVHEncodeNodeIdx = 0;
 
-bool g_bEnableQBVHwSAH = true;
+bool g_bEnableQBVHwSAH = false; // The FastLQBVH builder still has some problems when SAH is enabled
 
 void PrintTreeBuffer(std::string level, BVHNode* buffer, int curNode);
 int BinTreeToBuffer(BVHNode* buffer, int EncodeOfs,

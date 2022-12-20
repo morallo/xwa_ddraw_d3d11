@@ -558,6 +558,8 @@ next:
 	LoadDefaultGlobalMaterial();
 	// Load hook_tourmultiplayer.cfg
 	LoadMultiplayerConfig();
+	// Load gimbal lock fix parameters
+	LoadGimbaLockFixConfig();
 	// Reload the materials
 	ReloadMaterials();
 }
@@ -2793,6 +2795,94 @@ bool LoadMultiplayerConfig() {
 
 			if (_stricmp(param, "GreenAndRedForIFFColorsOnly") == 0) {
 				g_bGreenAndRedForIFFColorsOnly = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+bool LoadGimbaLockFixConfig() {
+	log_debug("[DBG] Loading GimbalLockFix.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./GimbalLockFix.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load GimbalLockFix.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading GimbalLockFix.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
+				g_bEnableGimbalLockFix = (bool)fValue;
+			}
+			else if (_stricmp(param, "debug_mode") == 0) {
+				g_bGimbalLockDebugMode = (bool)fValue;
+			}
+
+			else if (_stricmp(param, "yaw_accel_rate_s") == 0) {
+				g_fYawAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "pitch_accel_rate_s") == 0) {
+				g_fPitchAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "roll_accel_rate_s") == 0) {
+				g_fRollAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "max_yaw_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_pitch_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_roll_rate_s") == 0) {
+				g_fMaxRollRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "turn_rate_scale_throttle_0") == 0) {
+				g_fTurnRateScaleThr_0 = fValue;
+			}
+			else if (_stricmp(param, "turn_rate_scale_throttle_100") == 0) {
+				g_fTurnRateScaleThr_100 = fValue;
+			}
+			else if (_stricmp(param, "max_turn_accel_rate_s") == 0) {
+				g_fMaxTurnAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "mouse_center_x") == 0) {
+				g_iMouseCenterX = (int)fValue;
+			}
+			else if (_stricmp(param, "mouse_center_y") == 0) {
+				g_iMouseCenterY = (int)fValue;
+			}
+			else if (_stricmp(param, "mouse_range_x") == 0) {
+				g_fMouseRangeX = fValue;
+			}
+			else if (_stricmp(param, "mouse_range_y") == 0) {
+				g_fMouseRangeY = fValue;
 			}
 		}
 	}

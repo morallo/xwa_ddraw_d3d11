@@ -10,8 +10,38 @@
 #include "XWAObject.h"
 #include "SharedMem.h"
 #include "joystick.h"
+
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
+
+// Gimbal Lock Fix
+bool g_bEnableGimbalLockFix = true, g_bGimbalLockActive = false, g_bGimbalLockDebugMode = false;
+
+// How much roll is applied when the ship is doing yaw. Set this to 0
+// to have a completely flat yaw, as in the YT-series ships.
+float g_fRollFromYawScale = -0.8f;
+
+// Acceleration and deceleration rates in degrees per second (this is the 2nd derivative)
+float g_fYawAccelRate_s   = 10.0f;
+float g_fPitchAccelRate_s = 10.0f;
+float g_fRollAccelRate_s  = 10.0f;
+
+// The maximum turn rate (in degrees per second) for each axis (1st derivative)
+float g_fMaxYawRate_s   = 70.0f;
+float g_fMaxPitchRate_s = 70.0f;
+float g_fMaxRollRate_s  = 100.0f;
+
+float g_fTurnRateScaleThr_0   = 0.3f;
+float g_fTurnRateScaleThr_100 = 0.6f;
+float g_fMaxTurnAccelRate_s   = 3.0f;
+
+// The normalized [-1..1] rudder read from the joystick
+float g_fJoystickRudder = 0.0f;
+
+int g_iMouseCenterX = 256, g_iMouseCenterY = 256;
+float g_fMouseRangeX = 256.0f, g_fMouseRangeY = 256.0f;
+
+extern bool g_bRendering3D;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -19,6 +49,13 @@ extern uint32_t *g_playerIndex;
 #undef min
 #undef max
 #include <algorithm>
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
 
 // timeGetTime emulation.
 // if it is called in a tight loop it will call Sleep()
@@ -171,8 +208,30 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 
 		if (g_config.InvertThrottle) pji->dwZpos = (joyZmax - pji->dwZpos) + joyZmin;
+		// WARNING: Do not use these when the Joystick hook is present
+		// dwXpos: x-axis goes from 0 (left) to 32767 (center) to 65535 (right)
+		// dwYpos: y-axis goes from 0 (up)   to 32767 (center) to 65535 (down)
+		// dwRpos: z-axis goes from 0 (left) to 32767 (center) to 65535 (right)
+		//log_debug("[DBG] dwXpos: %d, dwYpos: %d, dwZpos: %d, dwRpos: %d",
+		//	pji->dwXpos, pji->dwYpos, pji->dwZpos, pji->dwRpos);
+		if (g_bGimbalLockActive)
+		{
+			if (g_pSharedDataJoystick != NULL) {
+				float normYaw   = 2.0f * (pji->dwXpos / 65535.0f - 0.5f);
+				float normPitch = 2.0f * (pji->dwYpos / 65535.0f - 0.5f);
+				float normRoll  = 2.0f * (pji->dwRpos / 65535.0f - 0.5f);
+				g_pSharedDataJoystick->JoystickYaw = normYaw;
+				g_pSharedDataJoystick->JoystickPitch = normPitch;
+				g_fJoystickRudder = normRoll;
+			}
+			// Nullify the joystick input
+			pji->dwXpos = 32767;
+			pji->dwYpos = 32767;
+			pji->dwRpos = 32767;
+		}
 		return res;
 	}
+
 	if (joy != 0) return MMSYSERR_NODRIVER;
 	if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
 	// XInput
@@ -226,7 +285,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	// Assume we started a new game
 	if ((now - lastGetPos) > 5000)
 	{
-		SetCursorPos(240, 240);
+		SetCursorPos(g_iMouseCenterX, g_iMouseCenterY);
 		GetAsyncKeyState(VK_LBUTTON);
 		GetAsyncKeyState(VK_RBUTTON);
 		GetAsyncKeyState(VK_MBUTTON);
@@ -244,8 +303,26 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	// Mouse input
 	{
-		pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
-		pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		if (!g_bGimbalLockActive && !g_bGimbalLockDebugMode)
+		{
+			// This is the original code by Reimar
+			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
+			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		}
+		else if (g_bRendering3D || g_bGimbalLockDebugMode)
+		{
+			const float deltaX = clamp((pos.x - g_iMouseCenterX) * g_config.MouseSensitivity / g_fMouseRangeX, -1.0f, 1.0f);
+			const float deltaY = clamp((pos.y - g_iMouseCenterY) * g_config.MouseSensitivity / g_fMouseRangeY, -1.0f, 1.0f);
+			SetCursorPos(g_iMouseCenterX, g_iMouseCenterY);
+			pji->dwXpos = static_cast<DWORD>((deltaX + 1.0f) / 2.0f * 512.0f);
+			pji->dwYpos = static_cast<DWORD>((deltaY + 1.0f) / 2.0f * 512.0f);
+
+			if (g_bGimbalLockDebugMode) {
+				log_debug("[DBG] Mouse pos: %d, %d, delta: %0.3f, %0.3f",
+					pos.x, pos.y, deltaX, deltaY);
+			}
+		}
+
 		pji->dwButtons = 0;
 		pji->dwButtonNumber = 0;
 		if (GetAsyncKeyState(VK_LBUTTON)) {
@@ -309,11 +386,21 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	}
 	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
 	// Normalize each axis to the range -1..1:
-	float normYaw = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
+	float normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
 	float normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
 	if (g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->JoystickYaw = normYaw;
 		g_pSharedDataJoystick->JoystickPitch = normPitch;
+	}
+
+	if (g_bGimbalLockActive)
+	{
+		// Nullify the joystick input, but only if we're inside the cockpit
+		// (that's what g_bGimbalLockActive does)
+		pji->dwXpos = 256;
+		pji->dwYpos = 256;
+		pji->dwZpos = 256;
+		pji->dwRpos = 256;
 	}
 
 	return JOYERR_NOERROR;

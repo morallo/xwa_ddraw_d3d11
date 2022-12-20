@@ -10,6 +10,21 @@
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
 /*
+From Jeremy, regarding how to replace the transform matrix in MobileObject
+
+The function to recalculate the forward vector is:
+// L0043FFB0
+void XwaRecalculateForwardVector( word A4, word A8, Ptr<XwaObject> AC )
+
+The function to recalculate the transform matrix is:
+// L00440140
+void XwaRecalculateTransformMatrix( word A4, word A8, Ptr<XwaObject> AC )
+
+I think you can modify/replace the implementation of this function to define the matrix to whatever you want 
+
+*/
+
+/*
 * Is there a field that tells us when a ship is under the effect of a beam weapon?
 *
 * RandomStarfighter:
