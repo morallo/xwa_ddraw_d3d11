@@ -35,6 +35,30 @@ std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
+// Current turn rate. This will make the ship turn faster at 1/3 throttle.
+// This variable makes a smooth transition when the throttle changes.
+float g_fTurnRateScale = 1.0f;
+// The player's current yaw, pitch, roll rate expressed in degrees
+// These values do *not* represent the current heading and they are used to
+// do a smooth interpolation between the desired ypr rate and the current ypr rate.
+float CurPlayerYawRateDeg = 0, CurPlayerPitchRateDeg = 0, CurPlayerRollRateDeg = 0;
+
+float lerp(float x, float y, float s);
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
+
+inline float sign(float val)
+{
+	return (val >= 0.0f) ? 1.0f : -1.0f;
+}
+
+void InitializePlayerYawPitchRoll();
+void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 
 //#define DUMP_TLAS 1
@@ -241,7 +265,7 @@ void ResetObjectIndexMap() {
 // Dump to OBJ
 // ****************************************************
 // Set the following flag to true to enable dumping the current scene to an OBJ file
-bool bD3DDumpOBJEnabled = true;
+bool bD3DDumpOBJEnabled = false;
 bool bHangarDumpOBJEnabled = false;
 FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
 int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DTotalNormals = 0, D3DOBJGroup = 0;
@@ -676,9 +700,103 @@ void EffectsRenderer::CreateShaders() {
 	//StartCascadedShadowMap();
 }
 
+void ApplyGimbalLockFix(float elapsedTime)
+{
+	if (g_pSharedDataJoystick == NULL || !g_SharedMemJoystick.IsDataReady())
+		return;
+	bool RMouseDown = GetAsyncKeyState(VK_RBUTTON);
+	float DesiredYawRate_s = 0, DesiredPitchRate_s = 0, DesiredRollRate_s = 0;
+
+	const float RollFromYawScale = g_fRollFromYawScale;
+	// How can I tell if the current ship doesn't roll when applying yaw?
+
+	CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
+	if (craftInstance == NULL)
+		return;
+	// log_debug("[DBG] CraftType: %u", craftInstance->CraftType); // This is the 0-based slot# of this craft
+	//log_debug("[DBG] RollingYawPercentage: %d",
+	//	CraftDefinitionTable[craftInstance->CraftType].RollingYawPercentage); // This don't work: T/F is reported as 0
+
+	// This calibration is wrt to the Xwing and some educated guessing
+	float TurnRate = craftInstance->YawRate / 10240.0f;
+	// Modulate the turn rate according to the current throttle
+	float throttle = craftInstance->EngineThrottleInput / 65535.0f;
+	float DesiredTurnRateScale = 1.0f;
+	if (throttle < 0.333f)
+		DesiredTurnRateScale = lerp(g_fTurnRateScaleThr_0, 1.0f, throttle / 0.333f);
+	else
+		DesiredTurnRateScale = lerp(1.0f, g_fTurnRateScaleThr_100, (throttle - 0.333f) / 0.667f);
+	float TurnRateScaleDelta = DesiredTurnRateScale - g_fTurnRateScale;
+	// Provide a smooth transition between the current turn rate and the desired turn rate
+	g_fTurnRateScale += elapsedTime * g_fMaxTurnAccelRate_s * TurnRateScaleDelta;
+
+	TurnRate *= g_fTurnRateScale;
+	const float MaxYawRate_s   = TurnRate * g_fMaxYawRate_s;
+	const float MaxPitchRate_s = TurnRate * g_fMaxPitchRate_s;
+	const float MaxRollRate_s  = TurnRate * g_fMaxRollRate_s;
+
+	DesiredPitchRate_s = g_pSharedDataJoystick->JoystickPitch * MaxPitchRate_s;
+	if (g_config.JoystickEmul)
+	{
+		if (!RMouseDown)
+		{
+			DesiredYawRate_s = g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
+			// Apply a little roll when yaw is applied
+			DesiredRollRate_s = RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+		}
+		else
+		{
+			DesiredRollRate_s = -g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+		}
+	}
+	else
+	{
+		DesiredYawRate_s  =  g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
+		// Apply a little roll when yaw is applied
+		DesiredRollRate_s = -g_fJoystickRudder * MaxRollRate_s + RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+	}
+	const float DeltaYaw   = DesiredYawRate_s   - CurPlayerYawRateDeg;
+	const float DeltaPitch = DesiredPitchRate_s - CurPlayerPitchRateDeg;
+	const float DeltaRoll  = DesiredRollRate_s  - CurPlayerRollRateDeg;
+
+	// Accumulate the joystick input
+	CurPlayerYawRateDeg   += elapsedTime * g_fYawAccelRate_s   * DeltaYaw;
+	CurPlayerPitchRateDeg += elapsedTime * g_fPitchAccelRate_s * DeltaPitch;
+	CurPlayerRollRateDeg  += elapsedTime * g_fRollAccelRate_s  * DeltaRoll;
+
+	//g_PlayerYawDeg   = clamp(g_PlayerYawDeg,   -MaxYawRate_s,   MaxYawRate_s);
+	//g_PlayerPitchDeg = clamp(g_PlayerPitchDeg, -MaxPitchRate_s, MaxPitchRate_s);
+	//g_PlayerRollDeg  = clamp(g_PlayerRollDeg,  -MaxRollRate_s,  MaxRollRate_s);
+
+	//log_debug("[DBG] CurYPRRateInc: %0.3f, %0.3f, %0.3f", CurYawRateInc_s, CurRollRateInc_s, CurPitchRateInc_s);
+	//log_debug("[DBG] elapsed: %0.3f, g_PlayerYPR: %0.3f, %0.3f, %0.3f",
+	//	elapsedTime, g_PlayerYawDeg, g_PlayerPitchDeg, g_PlayerRollDeg);
+
+	//Vector4 Rs, Us, Fs;
+	//Matrix4 H = TestShipOrientation(Rs, Us, Fs, false, false);
+	//log_debug("[DBG] joystick ypr: %0.3f, %0.3f, %0.3f", g_PlayerYawDeg, g_PlayerPitchDeg, g_PlayerRollDeg);
+	InitializePlayerYawPitchRoll();
+	ApplyYawPitchRoll(elapsedTime * CurPlayerYawRateDeg, elapsedTime * CurPlayerPitchRateDeg, elapsedTime * CurPlayerRollRateDeg);
+}
+
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
+
+	static float lastTime = g_HiResTimer.global_time_s;
+	float now = g_HiResTimer.global_time_s;
+	if (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME)
+	{
+		bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
+
+		g_bGimbalLockActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret && !(*g_playerInHangar);
+		if (g_bGimbalLockActive)
+		{
+			ApplyGimbalLockFix(now - lastTime);
+		}
+	}
+	lastTime = now;
 
 	// Reset any deferred-rendering variables here
 	_LaserDrawCommands.clear();
