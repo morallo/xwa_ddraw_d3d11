@@ -3419,8 +3419,10 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	if (!g_ShadowMapping.bEnabled || !g_bShadowMapEnable || !g_ShadowMapping.bUseShadowOBJ || _bExternalCamera ||
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
+	{
 		_deviceResources->_d3dAnnotation->EndEvent();
 		return;
+	}
 
 	SaveContext();
 

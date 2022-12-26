@@ -1913,9 +1913,11 @@ void PrimarySurface::DrawHUDVertices() {
 		context->Draw(6, 0);
 
 	if (!g_bEnableVR) // Shortcut for the non-VR path
+	{
 		//goto out;
 		this->_deviceResources->_d3dAnnotation->EndEvent();
 		return;
+	}
 
 	// Render the right image
 	if (g_bUseSteamVR)
