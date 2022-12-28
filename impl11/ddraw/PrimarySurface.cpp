@@ -3705,7 +3705,7 @@ void InitializePlayerYawPitchRoll()
 	// If any of these dot products is lower than 0.99, then the game has
 	// modified the orientation of the ship and we need to update PlayerRUF
 	// accordingly
-	if (dotR < 0.99f || dotU < 0.99f || dotF < 0.99f)
+	if (dotR < 0.999f || dotU < 0.999f || dotF < 0.999f)
 	{
 		PlayerRs = Rs;
 		PlayerUs = Us;

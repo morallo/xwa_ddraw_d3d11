@@ -22,9 +22,9 @@ bool g_bEnableGimbalLockFix = true, g_bGimbalLockActive = false, g_bGimbalLockDe
 float g_fRollFromYawScale = -0.8f;
 
 // Acceleration and deceleration rates in degrees per second (this is the 2nd derivative)
-float g_fYawAccelRate_s   = 10.0f;
-float g_fPitchAccelRate_s = 10.0f;
-float g_fRollAccelRate_s  = 10.0f;
+float g_fYawAccelRate_s   = 5.0f;
+float g_fPitchAccelRate_s = 5.0f;
+float g_fRollAccelRate_s  = 5.0f;
 
 // The maximum turn rate (in degrees per second) for each axis (1st derivative)
 float g_fMaxYawRate_s   = 70.0f;

@@ -789,8 +789,9 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	{
 		bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
+		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 
-		g_bGimbalLockActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret && !(*g_playerInHangar);
+		g_bGimbalLockActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret && !(*g_playerInHangar) && hyperspacePhase == 0;
 		if (g_bGimbalLockActive)
 		{
 			ApplyGimbalLockFix(now - lastTime);
