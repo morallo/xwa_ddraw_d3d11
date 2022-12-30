@@ -2884,6 +2884,10 @@ bool LoadGimbaLockFixConfig() {
 			else if (_stricmp(param, "mouse_range_y") == 0) {
 				g_fMouseRangeY = fValue;
 			}
+
+			else if (_stricmp(param, "reset_mouse_every_n_frames") == 0) {
+				g_iMouseCounterReset = (int)fValue;
+			}
 		}
 	}
 	fclose(file);

@@ -248,7 +248,7 @@ extern float g_fLevelsBlackPoint;
 
 // Gimbal Lock Fix
 // Configurable settings
-extern bool g_bEnableGimbalLockFix, g_bGimbalLockActive, g_bGimbalLockDebugMode;
+extern bool g_bEnableGimbalLockFix, g_bGimbalLockFixActive, g_bGimbalLockDebugMode;
 extern float g_fRollFromYawScale;
 
 extern float g_fYawAccelRate_s;
@@ -263,10 +263,8 @@ extern float g_fTurnRateScaleThr_0;
 extern float g_fTurnRateScaleThr_100;
 extern float g_fMaxTurnAccelRate_s;
 
-// Non-configurable
-extern float g_fJoystickRudder;
-
 // Gimbal lock debug settings
+extern int g_iMouseCounterReset;
 extern int g_iMouseCenterX, g_iMouseCenterY;
 extern float g_fMouseRangeX, g_fMouseRangeY;
 

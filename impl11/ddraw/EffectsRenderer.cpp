@@ -710,6 +710,13 @@ void ApplyGimbalLockFix(float elapsedTime)
 	const float RollFromYawScale = g_fRollFromYawScale;
 	// How can I tell if the current ship doesn't roll when applying yaw?
 
+	if (g_bGimbalLockDebugMode) {
+		log_debug("[DBG] Joystick ypr: %0.3f, %0.3f, %0.3f",
+			g_pSharedDataJoystick->JoystickYaw,
+			g_pSharedDataJoystick->JoystickPitch,
+			g_pSharedDataJoystick->JoystickRoll);
+	}
+
 	CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance == NULL)
 		return;
@@ -753,7 +760,8 @@ void ApplyGimbalLockFix(float elapsedTime)
 	{
 		DesiredYawRate_s  =  g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
 		// Apply a little roll when yaw is applied
-		DesiredRollRate_s = -g_fJoystickRudder * MaxRollRate_s + RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+		DesiredRollRate_s = -g_pSharedDataJoystick->JoystickRoll * MaxRollRate_s +
+			RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
 	}
 	const float DeltaYaw   = DesiredYawRate_s   - CurPlayerYawRateDeg;
 	const float DeltaPitch = DesiredPitchRate_s - CurPlayerPitchRateDeg;
@@ -791,8 +799,35 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 
-		g_bGimbalLockActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret && !(*g_playerInHangar) && hyperspacePhase == 0;
-		if (g_bGimbalLockActive)
+		// DEBUG, print mobileObject->transformMatrix (RUF)
+		/*
+		ObjectEntry* object = NULL;
+		MobileObjectEntry* mobileObject = NULL;
+		if (GetPlayerCraftInstanceSafe(&object, &mobileObject) != NULL)
+		{
+			Vector4 Rs, Us, Fs;
+			Rs.y = -mobileObject->transformMatrix.Right_X / 32768.0f;
+			Rs.x = -mobileObject->transformMatrix.Right_Y / 32768.0f;
+			Rs.z = -mobileObject->transformMatrix.Right_Z / 32768.0f;
+
+			Us.y = mobileObject->transformMatrix.Up_X / 32768.0f;
+			Us.x = mobileObject->transformMatrix.Up_Y / 32768.0f;
+			Us.z = mobileObject->transformMatrix.Up_Z / 32768.0f;
+
+			Fs.y = mobileObject->transformMatrix.Front_X / 32768.0f;
+			Fs.x = mobileObject->transformMatrix.Front_Y / 32768.0f;
+			Fs.z = mobileObject->transformMatrix.Front_Z / 32768.0f;
+
+			log_debug("[DBG] RUF: [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f]",
+				Rs.x, Rs.y, Rs.z,
+				Us.x, Us.y, Us.z,
+				Fs.x, Fs.y, Fs.z);
+		}
+		*/
+
+		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
+			!(*g_playerInHangar) && hyperspacePhase == 0;
+		if (g_bGimbalLockFixActive)
 		{
 			ApplyGimbalLockFix(now - lastTime);
 		}

@@ -3806,30 +3806,6 @@ void ApplyYawPitchRoll(float yaw_inc_deg, float pitch_inc_deg, float roll_inc_de
 	object->yaw   = (short)(yaw   / 3.141593f * 32768.0f);
 	object->pitch = (short)(pitch / 3.141593f * 32768.0f);
 	object->roll  = (short)(roll  / 3.141593f * 32768.0f);
-
-	//log_debug("[DBG] ypr: %0.1f, %0.1f, %0.1f",
-	//	yaw * RAD_TO_DEG, pitch * RAD_TO_DEG, roll * RAD_TO_DEG);
-
-	// DEBUG: Dump the RUF system to an OBJ file
-	/*
-	FILE* file = NULL;
-	fopen_s(&file, ".\\PlayerSystem.obj", "wt");
-	fprintf(file, "o Rs\n");
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerRs.x, PlayerRs.y, PlayerRs.z);
-	fprintf(file, "f 1 2\n\n");
-
-	fprintf(file, "o Us\n");
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerUs.x, PlayerUs.y, PlayerUs.z);
-	fprintf(file, "f 3 4\n\n");
-
-	fprintf(file, "o Fs\n");
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", 0.0f, 0.0f, 0.0f);
-	fprintf(file, "v %0.3f %0.3f %0.3f\n", PlayerFs.x, PlayerFs.y, PlayerFs.z);
-	fprintf(file, "f 5 6\n\n");
-	fclose(file);
-	*/
 }
 
 // This is the function that I used to figure out the formulas used to convert an
