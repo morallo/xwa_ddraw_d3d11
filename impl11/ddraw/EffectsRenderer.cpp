@@ -700,6 +700,13 @@ void EffectsRenderer::CreateShaders() {
 	//StartCascadedShadowMap();
 }
 
+void ResetGimbalLockFix()
+{
+	CurPlayerYawRateDeg   = 0.0f;
+	CurPlayerPitchRateDeg = 0.0f;
+	CurPlayerRollRateDeg  = 0.0f;
+}
+
 void ApplyGimbalLockFix(float elapsedTime)
 {
 	if (g_pSharedDataJoystick == NULL || !g_SharedMemJoystick.IsDataReady())
@@ -729,10 +736,13 @@ void ApplyGimbalLockFix(float elapsedTime)
 	// Modulate the turn rate according to the current throttle
 	float throttle = craftInstance->EngineThrottleInput / 65535.0f;
 	float DesiredTurnRateScale = 1.0f;
-	if (throttle < 0.333f)
-		DesiredTurnRateScale = lerp(g_fTurnRateScaleThr_0, 1.0f, throttle / 0.333f);
-	else
-		DesiredTurnRateScale = lerp(1.0f, g_fTurnRateScaleThr_100, (throttle - 0.333f) / 0.667f);
+	if (g_bThrottleModulationEnabled)
+	{
+		if (throttle < 0.333f)
+			DesiredTurnRateScale = lerp(g_fTurnRateScaleThr_0, 1.0f, throttle / 0.333f);
+		else
+			DesiredTurnRateScale = lerp(1.0f, g_fTurnRateScaleThr_100, (throttle - 0.333f) / 0.667f);
+	}
 	float TurnRateScaleDelta = DesiredTurnRateScale - g_fTurnRateScale;
 	// Provide a smooth transition between the current turn rate and the desired turn rate
 	g_fTurnRateScale += elapsedTime * g_fMaxTurnAccelRate_s * TurnRateScaleDelta;
@@ -799,6 +809,9 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 
+		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
+			!(*g_playerInHangar) && hyperspacePhase == 0;
+
 		// DEBUG, print mobileObject->transformMatrix (RUF)
 		/*
 		ObjectEntry* object = NULL;
@@ -825,8 +838,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		}
 		*/
 
-		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
-			!(*g_playerInHangar) && hyperspacePhase == 0;
 		if (g_bGimbalLockFixActive)
 		{
 			ApplyGimbalLockFix(now - lastTime);

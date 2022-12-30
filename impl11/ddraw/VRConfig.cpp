@@ -2888,6 +2888,9 @@ bool LoadGimbaLockFixConfig() {
 			else if (_stricmp(param, "reset_mouse_every_n_frames") == 0) {
 				g_iMouseCounterReset = (int)fValue;
 			}
+			else if (_stricmp(param, "modulate_accel_rate_with_throttle") == 0) {
+				g_bThrottleModulationEnabled = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

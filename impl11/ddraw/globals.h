@@ -137,7 +137,6 @@ extern bool g_bApplyCockpitDamage, g_bResetCockpitDamage;
 extern bool g_bAutoGreeblesEnabled;
 extern bool g_bShowBlastMarks;
 extern float g_fBlastMarkOfsX, g_fBlastMarkOfsY;
-extern bool g_bEnableGimbalLockFix;
 
 /*
  * Dumps the vertices in the current instruction to the given file after back-projecting them
@@ -262,6 +261,7 @@ extern float g_fMaxRollRate_s;
 extern float g_fTurnRateScaleThr_0;
 extern float g_fTurnRateScaleThr_100;
 extern float g_fMaxTurnAccelRate_s;
+extern bool g_bThrottleModulationEnabled;
 
 // Gimbal lock debug settings
 extern int g_iMouseCounterReset;

@@ -34,6 +34,7 @@ float g_fMaxRollRate_s  = 100.0f;
 float g_fTurnRateScaleThr_0   = 0.3f;
 float g_fTurnRateScaleThr_100 = 0.6f;
 float g_fMaxTurnAccelRate_s   = 3.0f;
+bool g_bThrottleModulationEnabled = true;
 
 // Use a smaller value for g_iMouseCounterReset (10) when not using the joystick hook
 int g_iMouseCounterReset = 15;

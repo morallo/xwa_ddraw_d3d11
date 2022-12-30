@@ -535,6 +535,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bDumpLaserPointerDebugInfo = true;
 				g_bEnableGimbalLockFix = !g_bEnableGimbalLockFix;
 				DisplayTimedMessage(3, 0, g_bEnableGimbalLockFix ? "Gimbal Lock Fix ON" : "Regular Joystick Controls");
+				log_debug(g_bEnableGimbalLockFix ? "[DBG] Gimbal Lock Fix ON" : "[DBG] Regular Joystick Controls");
 				/*
 				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
 				if (g_bAutoGreeblesEnabled)
