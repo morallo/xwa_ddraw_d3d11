@@ -2872,22 +2872,16 @@ bool LoadGimbaLockFixConfig() {
 				g_fMaxTurnAccelRate_s = fValue;
 			}
 
-			else if (_stricmp(param, "mouse_center_x") == 0) {
-				g_iMouseCenterX = (int)fValue;
-			}
-			else if (_stricmp(param, "mouse_center_y") == 0) {
-				g_iMouseCenterY = (int)fValue;
-			}
 			else if (_stricmp(param, "mouse_range_x") == 0) {
 				g_fMouseRangeX = fValue;
 			}
 			else if (_stricmp(param, "mouse_range_y") == 0) {
 				g_fMouseRangeY = fValue;
 			}
-
-			else if (_stricmp(param, "reset_mouse_every_n_frames") == 0) {
-				g_iMouseCounterReset = (int)fValue;
+			else if (_stricmp(param, "mouse_decel_rate_s") == 0) {
+				g_fMouseDecelRate_s = fValue;
 			}
+
 			else if (_stricmp(param, "modulate_accel_rate_with_throttle") == 0) {
 				g_bThrottleModulationEnabled = (bool)fValue;
 			}

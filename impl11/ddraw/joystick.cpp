@@ -10,6 +10,7 @@
 #include "XWAObject.h"
 #include "SharedMem.h"
 #include "joystick.h"
+#include "HiResTimer.h"
 
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
@@ -36,10 +37,13 @@ float g_fTurnRateScaleThr_100 = 0.6f;
 float g_fMaxTurnAccelRate_s   = 3.0f;
 bool g_bThrottleModulationEnabled = true;
 
-// Use a smaller value for g_iMouseCounterReset (10) when not using the joystick hook
-int g_iMouseCounterReset = 15;
-int g_iMouseCenterX = 256, g_iMouseCenterY = 256;
 float g_fMouseRangeX = 256.0f, g_fMouseRangeY = 256.0f;
+
+float g_fMouseDeltaX = 0.0f, g_fMouseDeltaY = 0.0f;
+float g_fMouseDecelRate_s = 700.0f;
+
+constexpr int MAX_RAW_INPUT_ENTRIES = 128;
+RAWINPUT rawInputBuffer[MAX_RAW_INPUT_ENTRIES];
 
 extern bool g_bRendering3D;
 
@@ -50,11 +54,25 @@ extern bool g_bRendering3D;
 #undef max
 #include <algorithm>
 
+inline float sign(float val)
+{
+	return (val >= 0.0f) ? 1.0f : -1.0f;
+}
+
 inline float clamp(float val, float min, float max)
 {
 	if (val < min) val = min;
 	if (val > max) val = max;
 	return val;
+}
+
+float SignedReduceClamp(float val, float delta)
+{
+	float s = sign(val);
+	val = fabs(val);
+	val -= delta;
+	if (val < 0.0f) val = 0.0f;
+	return s * val;
 }
 
 // timeGetTime emulation.
@@ -194,6 +212,55 @@ static const DWORD povmap[16] = {
 	JOY_POVCENTERED, // up and down
 };
 
+// See:
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputbuffer?redirectedfrom=MSDN
+// https://learn.microsoft.com/en-us/windows/win32/inputdev/using-raw-input
+// https://stackoverflow.com/questions/28879021/winapi-getrawinputbuffer
+// https://stackoverflow.com/questions/59809804/rawinput-winapi-getrawinputbuffer-and-message-handling
+// Returns 0 if no events were read
+int ReadRawMouseData(int *iDeltaX, int *iDeltaY)
+{
+	uint32_t rawInputBufferSize = sizeof(RAWINPUT) * MAX_RAW_INPUT_ENTRIES;
+
+	*iDeltaX = 0; *iDeltaY = 0;
+	//bool nonzero = false;
+	// MAGIC NUMBER WARNING:
+	// For some reason, the actual data is shifted by 8 bytes.
+	// This 8 is probably the diff between sizeof(RAWINPUT) (40) and header.dwSize (48)
+	RAWINPUT* raw = (RAWINPUT*)((uint32_t)rawInputBuffer + 8);
+
+	int res = GetRawInputBuffer(rawInputBuffer, &rawInputBufferSize, sizeof(RAWINPUTHEADER));
+	int count = res;
+	/*if (count) {
+		log_debug("[DBG] count: %d, rawInputBufferSize: %d", count, rawInputBufferSize);
+		nonzero = true;
+	}*/
+
+	while (count > 0) {
+		// The trackpad becomes RIM_TYPEMOUSE, but additional mice have a different type
+		// (probably RIM_TYPEHID). Since we're only registering mice, we can ignore the
+		// type and move on...
+		//if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			/*log_debug("[DBG] RMD.MOUSE event, %d, %d; %d, %d, %d",
+				raw->data.mouse.lLastX, raw->data.mouse.lLastY,
+				raw->data.mouse.ulButtons, raw->data.mouse.usButtonFlags,
+				raw->data.mouse.ulExtraInformation);*/
+			*iDeltaX += raw->data.mouse.lLastX;
+			*iDeltaY += raw->data.mouse.lLastY;
+		}
+
+		raw = NEXTRAWINPUTBLOCK(raw);
+		count--;
+	}
+
+	/*if (nonzero) {
+		log_debug("[DBG] Delta: %d, %d", *iDeltaX, *iDeltaY);
+		log_debug("[DBG] ---------------------------------");
+	}*/
+	return res;
+}
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
 	// Tell the joystick hook when to disable the joystick
@@ -293,7 +360,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	// Assume we started a new game
 	if ((now - lastGetPos) > 5000)
 	{
-		SetCursorPos(g_iMouseCenterX, g_iMouseCenterY);
+		SetCursorPos(240, 240);
 		GetAsyncKeyState(VK_LBUTTON);
 		GetAsyncKeyState(VK_RBUTTON);
 		GetAsyncKeyState(VK_MBUTTON);
@@ -314,28 +381,41 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		if (!g_bGimbalLockFixActive && !g_bGimbalLockDebugMode)
 		{
 			// This is the original code by Reimar
-			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - (float)g_iMouseCenterX) * g_config.MouseSensitivity, 512.0f));
-			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - (float)g_iMouseCenterY) * g_config.MouseSensitivity, 512.0f));
+			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
+			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
 		}
 		else if (g_bRendering3D || g_bGimbalLockDebugMode)
 		{
-			static int mouseCounter = 0;
-			const float deltaX = clamp((pos.x - g_iMouseCenterX) * g_config.MouseSensitivity / g_fMouseRangeX, -1.0f, 1.0f);
-			const float deltaY = clamp((pos.y - g_iMouseCenterY) * g_config.MouseSensitivity / g_fMouseRangeY, -1.0f, 1.0f);
+			static float lastTime = g_HiResTimer.global_time_s;
+			const float now = g_HiResTimer.global_time_s;
+			const float elapsedTime = now - lastTime;
 
-			mouseCounter++;
-			if (mouseCounter == g_iMouseCounterReset) {
-				SetCursorPos(g_iMouseCenterX, g_iMouseCenterY);
-				mouseCounter = 0;
+			int iDeltaX = 0, iDeltaY = 0;
+			if (ReadRawMouseData(&iDeltaX, &iDeltaY))
+			{
+				g_fMouseDeltaX = clamp(g_fMouseDeltaX + (float)iDeltaX * g_config.MouseSensitivity,
+					-g_fMouseRangeX, g_fMouseRangeX);
+				g_fMouseDeltaY = clamp(g_fMouseDeltaY + (float)iDeltaY * g_config.MouseSensitivity,
+					-g_fMouseRangeY, g_fMouseRangeY);
 			}
+			else
+			{
+				//g_fMouseDeltaX *= 0.5f;
+				//g_fMouseDeltaY *= 0.5f;
+
+				g_fMouseDeltaX = SignedReduceClamp(g_fMouseDeltaX, elapsedTime * g_fMouseDecelRate_s);
+				g_fMouseDeltaY = SignedReduceClamp(g_fMouseDeltaY, elapsedTime * g_fMouseDecelRate_s);
+			}
+			//log_debug("[DBG] elapsedTicks: %0.3f, Mouse Delta: %0.3f, %0.3f",
+			//	elapsedTime, g_fMouseDeltaX, g_fMouseDeltaY);
+
+			const float deltaX = clamp(g_fMouseDeltaX / g_fMouseRangeX, -1.0f, 1.0f);
+			const float deltaY = clamp(g_fMouseDeltaY / g_fMouseRangeY, -1.0f, 1.0f);
 
 			pji->dwXpos = static_cast<DWORD>((deltaX + 1.0f) / 2.0f * 512.0f);
 			pji->dwYpos = static_cast<DWORD>((deltaY + 1.0f) / 2.0f * 512.0f);
 
-			if (g_bGimbalLockDebugMode) {
-				log_debug("[DBG] Mouse pos: %d, %d, delta: %0.3f, %0.3f",
-					pos.x, pos.y, deltaX, deltaY);
-			}
+			lastTime = now;
 		}
 
 		pji->dwButtons = 0;

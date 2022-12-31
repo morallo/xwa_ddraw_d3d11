@@ -8,6 +8,7 @@
 #define STRICT
 #include <Windows.h>
 #include <objbase.h>
+#include <hidusage.h>
 
 #include <stdio.h>
 #include <vector>
@@ -744,6 +745,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
+				DisplayTimedMessage(3, 0, *mouseLook ? "Mouse Look ON" : "Mouse Look OFF");
 				log_debug("[DBG] mouseLook: %d", *mouseLook);
 				return 0;
 			}
@@ -1138,7 +1140,32 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 		}
 		*/
+		return 0;
 	}
+
+	/*
+	case WM_INPUT:
+	{
+		UINT dwSize = sizeof(RAWINPUT);
+		static BYTE lpb[sizeof(RAWINPUT)];
+
+		// GetRawInputBuffer() can't be read inside the main message loop
+		GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
+
+		RAWINPUT* raw = (RAWINPUT*)lpb;
+
+		if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			g_iMouseDeltaX += raw->data.mouse.lLastX;
+			g_iMouseDeltaY += raw->data.mouse.lLastY;
+			//log_debug("[DBG] raw delta: %d, %d", raw->data.mouse.lLastX, raw->data.mouse.lLastY);
+			//g_bMouseDeltaReady = true;
+			//InsertMouseDelta(g_iMouseDeltaX, g_iMouseDeltaY);
+		}
+		break;
+	}
+	*/
+
 	}
 	
 	// Call the previous WindowProc handler
@@ -1148,6 +1175,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 bool ReplaceWindowProc(HWND hwnd)
 {
 	RECT rect;
+
+	// Register the mouse for raw input. This will allow us to receive low-level mouse deltas
+	RAWINPUTDEVICE Rid[1];
+	Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+	Rid[0].dwFlags = RIDEV_INPUTSINK;
+	Rid[0].hwndTarget = hwnd;
+	if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
+		log_debug("[DBG] Failed to register raw input device");
+
 	g_ThisWindow = hwnd;
 	OldWindowProc = (WNDPROC )SetWindowLong(g_ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
 	if (OldWindowProc != NULL) {
@@ -1305,7 +1342,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
 
 		InitSharedMem();
-		
+
 		if (IsXwaExe())
 		{
 			if (g_config.Text2DRendererEnabled) 

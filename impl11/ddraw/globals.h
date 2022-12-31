@@ -68,16 +68,7 @@ extern float g_fZBracketOverride; // 65535 is probably the maximum Z value in XW
 extern bool g_bResetDC;
 
 // Performance Counters and Timing
-class HiResTimer {
-public:
-	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us, start_time;
-	float global_time_s, elapsed_s, last_time_s;
-
-	void ResetGlobalTime();
-	//float GetElapsedTimeSinceLastCall();
-	float GetElapsedTime();
-};
-extern HiResTimer g_HiResTimer;
+#include "HiResTimer.h"
 
 // DS2 Effects
 extern int g_iReactorExplosionCount;
@@ -264,9 +255,8 @@ extern float g_fMaxTurnAccelRate_s;
 extern bool g_bThrottleModulationEnabled;
 
 // Gimbal lock debug settings
-extern int g_iMouseCounterReset;
-extern int g_iMouseCenterX, g_iMouseCenterY;
 extern float g_fMouseRangeX, g_fMouseRangeY;
+extern float g_fMouseDecelRate_s;
 
 // *****************************************************
 // Global functions
