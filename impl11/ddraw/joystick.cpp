@@ -16,7 +16,7 @@ extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
 
 // Gimbal Lock Fix
-bool g_bEnableGimbalLockFix = true, g_bGimbalLockFixActive = false, g_bGimbalLockDebugMode = false;
+bool g_bEnableGimbalLockFix = true, g_bGimbalLockFixActive = false;
 
 // How much roll is applied when the ship is doing yaw. Set this to 0
 // to have a completely flat yaw, as in the YT-series ships.
@@ -66,12 +66,13 @@ inline float clamp(float val, float min, float max)
 	return val;
 }
 
-float SignedReduceClamp(float val, float delta)
+float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
 {
 	float s = sign(val);
 	val = fabs(val);
 	val -= delta;
-	if (val < 0.0f) val = 0.0f;
+	if (val < abs_min) val = abs_min;
+	if (val > abs_max) val = abs_max;
 	return s * val;
 }
 
@@ -261,6 +262,13 @@ int ReadRawMouseData(int *iDeltaX, int *iDeltaY)
 	return res;
 }
 
+void ResetRawMouseInput()
+{
+	int deltaX, deltaY;
+	ReadRawMouseData(&deltaX, &deltaY);
+	g_fMouseDeltaX = g_fMouseDeltaY = 0.0f;
+}
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
 	// Tell the joystick hook when to disable the joystick
@@ -281,12 +289,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 
 		if (g_config.InvertThrottle) pji->dwZpos = (joyZmax - pji->dwZpos) + joyZmin;
-		// WARNING: Do not use these when the Joystick hook is present
 		// dwXpos: x-axis goes from 0 (left) to 32767 (center) to 65535 (right)
 		// dwYpos: y-axis goes from 0 (up)   to 32767 (center) to 65535 (down)
 		// dwRpos: z-axis goes from 0 (left) to 32767 (center) to 65535 (right)
-		//log_debug("[DBG] dwXpos: %d, dwYpos: %d, dwZpos: %d, dwRpos: %d",
-		//	pji->dwXpos, pji->dwYpos, pji->dwZpos, pji->dwRpos);
 		if (g_bGimbalLockFixActive && g_pSharedDataJoystick != NULL)
 		{
 			// Only run this section if the joystick hook isn't present
@@ -378,13 +383,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	// Mouse input
 	{
-		if (!g_bGimbalLockFixActive && !g_bGimbalLockDebugMode)
+		if (!g_bGimbalLockFixActive)
 		{
 			// This is the original code by Reimar
 			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
 			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
 		}
-		else if (g_bRendering3D || g_bGimbalLockDebugMode)
+		else // if (g_bRendering3D)
 		{
 			static float lastTime = g_HiResTimer.global_time_s;
 			const float now = g_HiResTimer.global_time_s;
@@ -403,12 +408,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				//g_fMouseDeltaX *= 0.5f;
 				//g_fMouseDeltaY *= 0.5f;
 
-				g_fMouseDeltaX = SignedReduceClamp(g_fMouseDeltaX, elapsedTime * g_fMouseDecelRate_s);
-				g_fMouseDeltaY = SignedReduceClamp(g_fMouseDeltaY, elapsedTime * g_fMouseDecelRate_s);
+				g_fMouseDeltaX = SignedReduceClamp(g_fMouseDeltaX, elapsedTime * g_fMouseDecelRate_s, 0.0f, g_fMouseRangeX);
+				g_fMouseDeltaY = SignedReduceClamp(g_fMouseDeltaY, elapsedTime * g_fMouseDecelRate_s, 0.0f, g_fMouseRangeY);
 			}
-			//log_debug("[DBG] elapsedTicks: %0.3f, Mouse Delta: %0.3f, %0.3f",
-			//	elapsedTime, g_fMouseDeltaX, g_fMouseDeltaY);
-
 			const float deltaX = clamp(g_fMouseDeltaX / g_fMouseRangeX, -1.0f, 1.0f);
 			const float deltaY = clamp(g_fMouseDeltaY / g_fMouseRangeY, -1.0f, 1.0f);
 

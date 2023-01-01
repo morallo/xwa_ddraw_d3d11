@@ -2838,10 +2838,11 @@ bool LoadGimbaLockFixConfig() {
 			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
 				g_bEnableGimbalLockFix = (bool)fValue;
 			}
+			/*
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bGimbalLockDebugMode = (bool)fValue;
 			}
-
+			*/
 			else if (_stricmp(param, "yaw_accel_rate_s") == 0) {
 				g_fYawAccelRate_s = fValue;
 			}

@@ -208,6 +208,7 @@ std::map<int32_t, MeshData> g_LBVHMap;
 
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
+void ResetRawMouseInput();
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
@@ -1511,6 +1512,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetGameEvent();
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
+	ResetRawMouseInput();
 	if (IsZIPReaderLoaded())
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();

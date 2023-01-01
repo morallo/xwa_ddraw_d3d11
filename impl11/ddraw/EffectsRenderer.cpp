@@ -717,13 +717,6 @@ void ApplyGimbalLockFix(float elapsedTime)
 	const float RollFromYawScale = g_fRollFromYawScale;
 	// How can I tell if the current ship doesn't roll when applying yaw?
 
-	if (g_bGimbalLockDebugMode) {
-		log_debug("[DBG] Joystick ypr: %0.3f, %0.3f, %0.3f",
-			g_pSharedDataJoystick->JoystickYaw,
-			g_pSharedDataJoystick->JoystickPitch,
-			g_pSharedDataJoystick->JoystickRoll);
-	}
-
 	CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance == NULL)
 		return;

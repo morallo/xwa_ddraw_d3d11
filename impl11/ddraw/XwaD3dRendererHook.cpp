@@ -494,6 +494,8 @@ void D3dRenderer::FlightStart()
 	_AABBs.clear();
 	_LBVHs.clear();
 	_tangentMap.clear();
+	// TODO: This function gets called every time an OPT is loaded. Calling
+	// ClearCachedSRVs() here may not have the expected effect...
 	ClearCachedSRVs();
 
 #if LOGGER_DUMP
