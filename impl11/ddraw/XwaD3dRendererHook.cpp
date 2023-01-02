@@ -314,103 +314,36 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 #endif
 }
 
-void D3dRenderer::SceneEnd()
+// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh
+void D3dRenderer::BuildSingleBLASFromCurrentBVHMap()
 {
-	_deviceResources->_d3dAnnotation->EndEvent();
-
-	if (g_bRTEnabledInTechRoom && _BLASNeedsUpdate)
-	{
-		// ... Rebuild the relevant BLASes...
-
-		// DEBUG, dump the vertices we saw in the previous frame to a file
+	// DEBUG, dump the vertices we saw in the previous frame to a file
 #ifdef DISABLED
-		if (false) {
+	if (false) {
+		int OBJIndex = 1;
+		char sFileName[80];
+		sprintf_s(sFileName, 80, ".\\mesh-all.obj");
+		FILE* file = NULL;
+		fopen_s(&file, sFileName, "wt");
+
+		for (const auto& it : g_LBVHMap)
+		{
+			int meshIndex = it.first;
+			XwaVector3* vertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+			MeshData meshData = it.second;
+
+			// This block will cause each mesh to be dumped to a separate file
+			/*
 			int OBJIndex = 1;
 			char sFileName[80];
-			sprintf_s(sFileName, 80, ".\\mesh-all.obj");
+			sprintf_s(sFileName, 80, ".\\mesh-%x.obj", meshIndex);
 			FILE* file = NULL;
 			fopen_s(&file, sFileName, "wt");
-
-			for (const auto& it : g_LBVHMap)
+			*/
+			if (file != NULL)
 			{
-				int meshIndex = it.first;
-				XwaVector3* vertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
-				MeshData meshData = it.second;
-
-				// This block will cause each mesh to be dumped to a separate file
-				/*
-				int OBJIndex = 1;
-				char sFileName[80];
-				sprintf_s(sFileName, 80, ".\\mesh-%x.obj", meshIndex);
-				FILE* file = NULL;
-				fopen_s(&file, sFileName, "wt");
-				*/
-				if (file != NULL)
-				{
-					std::vector<int> indices;
-					const FaceGroups &FGs = std::get<0>(meshData);
-					for (const auto& FG : FGs)
-					{
-						OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices * )(FG.first);
-						int FacesCount = FG.second;
-
-						for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-							OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-							int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-							indices.push_back(faceData.Vertex[0]);
-							indices.push_back(faceData.Vertex[1]);
-							indices.push_back(faceData.Vertex[2]);
-							if (edgesCount == 4) {
-								indices.push_back(faceData.Vertex[0]);
-								indices.push_back(faceData.Vertex[2]);
-								indices.push_back(faceData.Vertex[3]);
-							}
-						}
-
-						int numTris = indices.size() / 3;
-						for (int TriID = 0; TriID < numTris; TriID++)
-						{
-							int i = TriID * 3;
-
-							XwaVector3 v0 = vertices[indices[i + 0]];
-							XwaVector3 v1 = vertices[indices[i + 1]];
-							XwaVector3 v2 = vertices[indices[i + 2]];
-
-							//name = "t-" + std::to_string(TriID);
-							OBJIndex = DumpTriangle(std::string(""), file, OBJIndex, v0, v1, v2);
-						}
-					}
-					// fclose(file); // Uncomment this line when dumping each mesh to a separate file
-				} // if (file != NULL)
-
-			}
-
-			if (file) fclose(file);
-		}
-#endif
-
-		if (g_bInTechRoom)
-		{
-			// Rebuild the whole tree using the current contents of g_LBVHMap
-			std::vector<XwaVector3> vertices;
-			std::vector<int> indices;
-			int TotalVertices = 0;
-
-			for (const auto& it : g_LBVHMap)
-			{
-				int meshIndex = it.first;
-				XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
-				MeshData meshData = it.second;
+				std::vector<int> indices;
 				const FaceGroups& FGs = std::get<0>(meshData);
-				int NumVertices = std::get<1>(meshData);
-
-				// Populate the vertices
-				for (int i = 0; i < NumVertices; i++)
-				{
-					vertices.push_back(XwaVertices[i]);
-				}
-
-				// Populate the indices
 				for (const auto& FG : FGs)
 				{
 					OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
@@ -419,55 +352,208 @@ void D3dRenderer::SceneEnd()
 					for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
 						OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
 						int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-						indices.push_back(faceData.Vertex[0] + TotalVertices);
-						indices.push_back(faceData.Vertex[1] + TotalVertices);
-						indices.push_back(faceData.Vertex[2] + TotalVertices);
+						indices.push_back(faceData.Vertex[0]);
+						indices.push_back(faceData.Vertex[1]);
+						indices.push_back(faceData.Vertex[2]);
 						if (edgesCount == 4) {
-							indices.push_back(faceData.Vertex[0] + TotalVertices);
-							indices.push_back(faceData.Vertex[2] + TotalVertices);
-							indices.push_back(faceData.Vertex[3] + TotalVertices);
+							indices.push_back(faceData.Vertex[0]);
+							indices.push_back(faceData.Vertex[2]);
+							indices.push_back(faceData.Vertex[3]);
 						}
 					}
+
+					int numTris = indices.size() / 3;
+					for (int TriID = 0; TriID < numTris; TriID++)
+					{
+						int i = TriID * 3;
+
+						XwaVector3 v0 = vertices[indices[i + 0]];
+						XwaVector3 v1 = vertices[indices[i + 1]];
+						XwaVector3 v2 = vertices[indices[i + 2]];
+
+						//name = "t-" + std::to_string(TriID);
+						OBJIndex = DumpTriangle(std::string(""), file, OBJIndex, v0, v1, v2);
+					}
 				}
+				// fclose(file); // Uncomment this line when dumping each mesh to a separate file
+			} // if (file != NULL)
 
-				// All the FaceGroups have been added, update the starting offset
-				// for the indices
-				TotalVertices += NumVertices;
+		}
+
+		if (file) fclose(file);
+	}
+#endif
+
+	// Rebuild the whole tree using the current contents of g_LBVHMap
+	std::vector<XwaVector3> vertices;
+	std::vector<int> indices;
+	int TotalVertices = 0;
+
+	for (const auto& it : g_LBVHMap)
+	{
+		int meshIndex = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		MeshData meshData = it.second;
+		const FaceGroups& FGs = std::get<0>(meshData);
+		int NumVertices = std::get<1>(meshData);
+
+		// Populate the vertices
+		for (int i = 0; i < NumVertices; i++)
+		{
+			vertices.push_back(XwaVertices[i]);
+		}
+
+		// Populate the indices
+		for (const auto& FG : FGs)
+		{
+			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
+			int FacesCount = FG.second;
+
+			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
+				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
+				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+				indices.push_back(faceData.Vertex[0] + TotalVertices);
+				indices.push_back(faceData.Vertex[1] + TotalVertices);
+				indices.push_back(faceData.Vertex[2] + TotalVertices);
+				if (edgesCount == 4) {
+					indices.push_back(faceData.Vertex[0] + TotalVertices);
+					indices.push_back(faceData.Vertex[2] + TotalVertices);
+					indices.push_back(faceData.Vertex[3] + TotalVertices);
+				}
 			}
+		}
 
-			// All the vertices and indices have been accumulated, the tree can be built now
-			if (_lbvh != nullptr)
-				delete _lbvh;
-			// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
-			// not be used during regular flight as it will mess up the animations
-			g_HiResTimer.GetElapsedTime();
+		// All the FaceGroups have been added, update the starting offset
+		// for the indices
+		TotalVertices += NumVertices;
+	}
 
-			switch (g_BVHBuilderType)
-			{
-			case BVHBuilderType_BVH2:
-				// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-				_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-				break;
+	// All the vertices and indices have been accumulated, the tree can be built now
+	if (_lbvh != nullptr)
+		delete _lbvh;
 
-			case BVHBuilderType_QBVH:
-				// 2-step LBVH build: QBVH, Encoding.
-				_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-				break;
+	// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
+	// not be used during regular flight as it will mess up the animations
+	//g_HiResTimer.GetElapsedTime();
 
-			case BVHBuilderType_FastQBVH:
-				// 1-step LBVH build: QBVH is built and encoded in one step.
-				_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-				break;
+	switch (g_BVHBuilderType)
+	{
+	case BVHBuilderType_BVH2:
+		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
+		_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+		break;
+
+	case BVHBuilderType_QBVH:
+		// 2-step LBVH build: QBVH, Encoding.
+		_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+		break;
+
+	case BVHBuilderType_FastQBVH:
+		// 1-step LBVH build: QBVH is built and encoded in one step.
+		_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+		break;
+	}
+	//g_HiResTimer.GetElapsedTime();
+	int root = _lbvh->nodes[0].rootIdx;
+	log_debug("[DBG] [BVH] Builder: %s:%s, %s, total nodes: %d, actual nodes: %d",
+		g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
+		g_curOPTLoaded, _lbvh->numNodes, _lbvh->numNodes - root);
+
+	// These lines are for testing only. They get some stats for the BVH that has been just built
+	{
+		//BufferTreeNode* tree = new BufferTreeNode(_lbvh->nodes, root);
+		//ComputeTreeStats(tree);
+		//delete tree;
+	}
+}
+
+// Builds one BLAS per mesh and populates its corresponding tuple in g_LBVHMap
+void D3dRenderer::BuildMultipleBLASFromCurrentBVHMap()
+{
+	for (auto& it : g_LBVHMap)
+	{
+		std::vector<XwaVector3> vertices;
+		std::vector<int> indices;
+		int meshIndex = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		MeshData &meshData = it.second;
+		const FaceGroups& FGs = std::get<0>(meshData);
+		int NumVertices = std::get<1>(meshData);
+		LBVH *bvh = (LBVH *)std::get<2>(meshData);
+
+		// First, let's check if this mesh already has a BVH. If it does, skip it.
+		if (bvh != nullptr)
+			continue;
+
+		// Populate the vertices
+		for (int i = 0; i < NumVertices; i++)
+		{
+			vertices.push_back(XwaVertices[i]);
+		}
+
+		// Populate the indices
+		for (const auto& FG : FGs)
+		{
+			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
+			int FacesCount = FG.second;
+
+			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
+				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
+				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+				indices.push_back(faceData.Vertex[0]);
+				indices.push_back(faceData.Vertex[1]);
+				indices.push_back(faceData.Vertex[2]);
+				if (edgesCount == 4) {
+					indices.push_back(faceData.Vertex[0]);
+					indices.push_back(faceData.Vertex[2]);
+					indices.push_back(faceData.Vertex[3]);
+				}
 			}
-			g_HiResTimer.GetElapsedTime();
-			int root = _lbvh->nodes[0].rootIdx;
-			log_debug("[DBG] [BVH] Builder: %s:%s, %s, BVH build time: %0.6fs, total nodes: %d, actual nodes: %d",
-				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				g_curOPTLoaded, g_HiResTimer.elapsed_s,
-				_lbvh->numNodes, _lbvh->numNodes - root);
-			BufferTreeNode* tree = new BufferTreeNode(_lbvh->nodes, root);
-			ComputeTreeStats(tree);
-			delete tree;
+		}
+
+		// All the FaceGroups have been added, the tree can be built now
+		switch (g_BVHBuilderType)
+		{
+		case BVHBuilderType_BVH2:
+			// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
+			bvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+			break;
+
+		case BVHBuilderType_QBVH:
+			// 2-step LBVH build: QBVH, Encoding.
+			bvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+			break;
+
+		case BVHBuilderType_FastQBVH:
+			// 1-step LBVH build: QBVH is built and encoded in one step.
+			bvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+			break;
+		}
+		int root = bvh->nodes[0].rootIdx;
+		log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
+			g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
+			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);
+
+		// Put this bvh back into g_LBVHMap
+		std::get<2>(meshData) = bvh;
+	}
+}
+
+void D3dRenderer::SceneEnd()
+{
+	_deviceResources->_d3dAnnotation->EndEvent();
+
+	if (_BLASNeedsUpdate)
+	{
+		if (g_bRTEnabledInTechRoom && g_bInTechRoom)
+		{
+			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
+			BuildSingleBLASFromCurrentBVHMap();
+		}
+		else if (g_bRTEnabled)
+		{
+			// Build multiple BVH trees and put them in g_LBVHMap
+			BuildMultipleBLASFromCurrentBVHMap();
 		}
 		_BLASNeedsUpdate = false;
 	}
@@ -716,49 +802,6 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 	return counter == normalsCount;
 }
 
-// Update g_LBVHMap: checks if the current mesh/face group is new. If it is,
-// then it will add the meshData into g_LBVHMap and this will request a tree
-// rebuild at the end of this frame
-void D3dRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
-{
-	XwaVector3* MeshVertices = scene->MeshVertices;
-	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-
-	if (g_rendererType == RendererType_Shadow)
-		// This is a hangar shadow, ignore
-		return;
-
-	MeshData meshData;
-	FaceGroups FGs;
-	int32_t meshKey = MakeMeshKey(scene);
-	auto it = g_LBVHMap.find(meshKey);
-
-	if (it != g_LBVHMap.end())
-	{
-		// Check if we've seen this FG group before
-		meshData = it->second;
-		FGs = std::get<0>(meshData);
-		// The FG key is FaceIndices:
-		auto it = FGs.find((int32_t)scene->FaceIndices);
-		if (it != FGs.end())
-		{
-			// We've seen this mesh/FG before, ignore
-			return;
-		}
-	}
-
-	// Update g_LBVHMap
-	_BLASNeedsUpdate = true;
-	// Add the FG to the map so that it's not processed again
-	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
-	// Update the FaceGroup in the meshData
-	std::get<0>(meshData) = FGs;
-	std::get<1>(meshData) = scene->VerticesCount;
-	//std::get<2>(meshData) = LBVH::Build(MeshVertices, MeshVerticesCount, indices.data(), indices.size(), meshIndex);
-	g_LBVHMap[meshKey] = meshData;
-	//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
-}
-
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -802,20 +845,6 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			_meshVerticesViews.insert(std::make_pair((int)vertices, meshVerticesView));
 			_AABBs.insert(std::make_pair((int)vertices, aabb));
 			_lastMeshVerticesView = meshVerticesView;
-
-			if (g_bRTEnabledInTechRoom)
-			{
-				/*
-				log_debug("[DBG] [BVH] g_bInTechRoom: %d, _currentOptMeshIndex: %d, verticesCount: %d, FacesCount: %d",
-					g_bInTechRoom, _currentOptMeshIndex, verticesCount, scene->FacesCount);
-				if (_lbvh != nullptr)
-				{
-					delete _lbvh;
-					_lbvh = nullptr;
-				}
-				*/
-				/* _lbvh = */ /* BuildBVH(scene, _currentOptMeshIndex); */
-			}
 
 			// Compute the RTScale for this OPT
 			// According to Jeremy, only the Tech Room and the Briefings change the scale.
@@ -1576,7 +1605,17 @@ void D3dRenderer::RenderGlowMarks()
 
 void ClearGlobalLBVH()
 {
-	// TODO: Release any additional memory used here
+	// Release any BLASes that may be stored in the BVH map
+	for (auto& it : g_LBVHMap)
+	{
+		MeshData& meshData = it.second;
+		LBVH* bvh = (LBVH*)std::get<2>(meshData);
+		if (bvh != nullptr) {
+			delete bvh;
+		}
+		std::get<2>(meshData) = nullptr;
+	}
+
 	g_LBVHMap.clear();
 }
 
@@ -1595,6 +1634,10 @@ void D3dRenderer::Initialize()
 	if (g_bRTEnabledInTechRoom && _lbvh != nullptr) {
 		delete _lbvh;
 		_lbvh = nullptr;
+		ClearGlobalLBVH();
+	}
+
+	if (g_bRTEnabled && !g_bInTechRoom) {
 		ClearGlobalLBVH();
 	}
 }

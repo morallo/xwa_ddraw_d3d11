@@ -107,7 +107,6 @@ public:
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void UpdateTextures(const SceneCompData* scene);
 	bool ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags);
-	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);
 	void UpdateMeshBuffers(const SceneCompData* scene);
 	void ResizeDataVector(const SceneCompData* scene);
 	void CreateDataScene(const SceneCompData* scene);
@@ -124,6 +123,8 @@ public:
 	void GetViewport(D3D11_VIEWPORT* viewport);
 	void GetViewportScale(float* viewportScale);
 	void SetRenderTypeIllum(int type);
+	void BuildSingleBLASFromCurrentBVHMap();
+	void BuildMultipleBLASFromCurrentBVHMap();
 
 protected:
 	DeviceResources* _deviceResources;

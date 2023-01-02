@@ -2170,28 +2170,23 @@ void EffectsRenderer::ApplyNormalMapping()
 	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
 }
 
-void EffectsRenderer::ApplyRTShadows() {
-	
-	{
-		_bModifiedShaders = true;
-		// Enable/Disable Raytracing as necessary
-		g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
-	}
+void EffectsRenderer::ApplyRTShadows()
+{
+	_bModifiedShaders = true;
+	// Enable/Disable Raytracing as necessary
+	g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
 
 	if (!g_bRTEnabledInTechRoom || _lbvh == nullptr)
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
 
-	Matrix4 RTScale = Matrix4().scale(1.0f / _lbvh->scale);
-	Matrix4 transformWorldViewInv = RTScale * _constants.transformWorldView;
+	// The scale is no longer needed. The BLAS is computed with the same data that is used
+	// to render the object -- not from the OPT file.
+	//Matrix4 RTScale = Matrix4().scale(1.0f / _lbvh->scale);
+	//Matrix4 transformWorldViewInv = RTScale * _constants.transformWorldView;
+	Matrix4 transformWorldViewInv = _constants.transformWorldView;
 	transformWorldViewInv = transformWorldViewInv.invert();
-	// Invert transformWorldView and send it to the ray-tracer
-	//g_RTConstantsBuffer.TransformWorldViewInv = transformWorldViewInv;
-	//g_RTConstantsBuffer.RTScale = lbvh->scale;
-	// Set the Raytracing constants
-	//_deviceResources->InitPSRTConstantsBuffer(
-	//	_deviceResources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 
 	// Update the matrices buffer
 	D3D11_MAPPED_SUBRESOURCE map;
@@ -2359,6 +2354,58 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	Normalize(centroid, g_CameraAABB, g_CameraRange);
 	MortonCode_t code = GetMortonCode32(centroid);
 	g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
+}
+
+// Update g_LBVHMap: checks if the current mesh/face group combination is new.
+// If it is, then it will add a new meshData tuple into g_LBVHMap and this will
+// request a tree rebuild at the end of this frame
+void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
+{
+	XwaVector3* MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+
+	if (g_rendererType == RendererType_Shadow)
+		// This is a hangar shadow, ignore
+		return;
+
+	MeshData meshData;
+	FaceGroups FGs;
+	int32_t meshKey = MakeMeshKey(scene);
+	auto it = g_LBVHMap.find(meshKey);
+	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
+
+	// We have seen this mesh before, but we need to check if we've seen
+	// the FG as well
+	if (it != g_LBVHMap.end())
+	{
+		// Check if we've seen this FG group before
+		meshData = it->second;
+		FGs = std::get<0>(meshData);
+		// The FG key is FaceIndices:
+		auto it = FGs.find((int32_t)scene->FaceIndices);
+		if (it != FGs.end())
+		{
+			// We've seen this mesh/FG combination before, ignore
+			return;
+		}
+	}
+
+	// Signal that there's at least one BLAS that needs to be rebuilt
+	_BLASNeedsUpdate = true;
+	// Delete any previous BVH for this mesh
+	LBVH* bvh = (LBVH*)std::get<2>(meshData);
+	if (bvh != nullptr)
+		delete bvh;
+
+	// Update the g_LBVHMap
+	// Add the FG to the map so that it's not processed again
+	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
+	// Update the FaceGroup in the meshData
+	std::get<0>(meshData) = FGs;
+	std::get<1>(meshData) = scene->VerticesCount;
+	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
+	std::get<3>(meshData) = XwaTransformToMatrix4(scene->WorldViewTransform);
+	g_LBVHMap[meshKey] = meshData;
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)

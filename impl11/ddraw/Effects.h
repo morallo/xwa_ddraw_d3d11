@@ -136,10 +136,17 @@ using FaceGroups = std::map<int32_t, int32_t>;
 // see the faces that make a specific LOD, leaving several "unused" vertices.
 // That's why we need to group all the face groups that belong to the same
 // mesh. We do that with MeshData.
-// g_LBVHMap maps a mesh (vertex pointer) to a MeshData
-// (FaceGroup map, NumVertices, LBVH). That's how we can reconstruct a mesh
-// as much as it's possible from this perspective (we might be missing LODs)
-using MeshData = std::tuple<FaceGroups, int32_t, void*>;
+// g_LBVHMap maps a mesh (vertex pointer) to a MeshData. That's how we can reconstruct
+// a mesh as much as it's possible from this perspective (we might be missing LODs)
+// If an LBVH pointer is NULL and we're not in the Tech Room, then that means this
+// mesh needs to have its BVH rebuilt.
+//
+// (FaceGroup map, NumMeshVertices, LBVH, Matrix4)
+// FaceGroup std::map -- A map with all the Face Groups in this mesh
+// NumMeshVertices    -- The number of vertices in this mesh
+// LBVH               -- The BVH for this mesh (only used outside the Tech Room)
+// Matrix4            -- The WorldView matrix for this mesh (only used outside the Tech Room)
+using MeshData = std::tuple<FaceGroups, int32_t, void*, Matrix4>;
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
 

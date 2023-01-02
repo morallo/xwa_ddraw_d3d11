@@ -2634,8 +2634,7 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	// Build, convert and encode the QBVH
 	int root = -1;
 	SingleStepFastLQBVH(QBVHBuffer, numQBVHInnerNodes, leafItems, root);
-	log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d",
-		root, numQBVHNodes);
+	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d", root, numQBVHNodes);
 	int totalNodes = numQBVHNodes;
 	//log_debug("[DBG] [BVH] Checking tree...");
 	//CheckTree(innerNodes, inner_root);
