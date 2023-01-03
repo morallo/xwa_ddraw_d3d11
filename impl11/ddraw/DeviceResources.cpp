@@ -205,6 +205,7 @@ extern bool g_bYCenterHasBeenFixed;
 
 // Raytracing
 std::map<int32_t, MeshData> g_LBVHMap;
+void ClearGlobalLBVH();
 
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
@@ -1727,15 +1728,27 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 	}
 
-	if (g_bRTEnabledInTechRoom)
+	if (g_bRTEnabled || g_bRTEnabledInTechRoom)
 	{
-		// TODO: Fully-delete each LBVH
-		g_LBVHMap.clear();
-	}
+		if (g_bRTEnabledInTechRoom)
+		{
+			ClearGlobalLBVH();
+		}
 
-	if (g_bRTEnabled)
-	{
-		g_bRTCaptureCameraAABB = true;
+		if (g_bRTEnabled)
+		{
+			g_bRTCaptureCameraAABB = true;
+		}
+
+		if (this->_RTBvh != nullptr)
+			this->_RTBvh->Release();
+		if (this->_RTMatrices != nullptr)
+			this->_RTMatrices->Release();
+
+		if (this->_RTBvhSRV != nullptr)
+			this->_RTBvhSRV.Release();
+		if (this->_RTMatricesSRV != nullptr)
+			this->_RTMatricesSRV.Release();
 	}
 
 	this->_backBuffer.Release();

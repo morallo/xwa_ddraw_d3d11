@@ -372,6 +372,9 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
 	// 3D Vision
 	ComPtr<ID3D11ShaderResourceView> _vision3DSignatureSRV; // SRV for _vision3DSignature
+	// Raytracing
+	ComPtr<ID3D11ShaderResourceView> _RTBvhSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTMatricesSRV;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
@@ -505,7 +508,12 @@ public:
 	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
 	ComPtr<ID3D11Buffer> _OPTMeshTransformCB;
+
+	// Raytracing
 	ComPtr<ID3D11Buffer> _RTConstantsBuffer;
+	ComPtr<ID3D11Buffer> _RTBvh;
+	ComPtr<ID3D11Buffer> _RTMatrices;
+
 	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 

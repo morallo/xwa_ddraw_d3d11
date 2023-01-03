@@ -262,10 +262,6 @@ D3dRenderer::D3dRenderer()
 	_lastMeshVertexTangentsView = nullptr;
 	_lastMeshTextureVertices = nullptr;
 	_lastMeshTextureVerticesView = nullptr;
-	_RTBvh = nullptr;
-	_RTBvhSRV = nullptr;
-	_RTMatrices = nullptr;
-	_RTMatricesSRV = nullptr;
 	_constants = {};
 	_viewport = {};
 	_currentOptMeshIndex = -1;
@@ -565,11 +561,6 @@ void D3dRenderer::FlightStart()
 	_lastMeshVertexNormals = nullptr;
 	_lastMeshTextureVertices = nullptr;
 
-	_RTBvh = nullptr;
-	_RTBvhSRV = nullptr;
-	_RTMatrices = nullptr;
-	_RTMatricesSRV = nullptr;
-
 	_meshVerticesViews.clear();
 	_meshNormalsViews.clear();
 	_meshTangentsViews.clear();
@@ -806,6 +797,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 	ID3D11DeviceContext* context = _deviceResources->_d3dDeviceContext;
+	auto& resources = _deviceResources;
 
 	XwaVector3* vertices = scene->MeshVertices;
 	XwaVector3* normals = scene->MeshVertexNormals;
@@ -1047,7 +1039,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	// Create the buffers for the BVH
 	if (_lbvh != nullptr && !_isRTInitialized) {
 		HRESULT hr;
-		bool EmbeddedVertices = true;
+		const bool EmbeddedVertices = true;
 
 		// Create the BVH buffers
 		{
@@ -1071,7 +1063,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			// Sample case: allocate N times more nodes than what we're going to use
 			// In a real scenario, we'll probably allocate some initial memory and then
 			// expand it as necessary.
-			int numNodes = _lbvh->numNodes; // * 3;
+			const int numNodes = _lbvh->numNodes; // * 3;
 			desc.ByteWidth = sizeof(BVHNode) * numNodes;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1080,7 +1072,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			desc.StructureByteStride = sizeof(BVHNode);
 
 			//hr = device->CreateBuffer(&desc, &initialData, &_RTBvhNodes);
-			hr = device->CreateBuffer(&desc, nullptr, &_RTBvh);
+			hr = device->CreateBuffer(&desc, nullptr, &(resources->_RTBvh));
 			if (FAILED(hr)) {
 				log_debug("[DBG] [BVH] Failed when creating BVH buffer: 0x%x", hr);
 			}
@@ -1092,7 +1084,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			srvDesc.Buffer.FirstElement = 0;
 			srvDesc.Buffer.NumElements = numNodes; // lbvh->numNodes;
 
-			hr = device->CreateShaderResourceView(_RTBvh, &srvDesc, &_RTBvhSRV);
+			hr = device->CreateShaderResourceView(resources->_RTBvh, &srvDesc, &(resources->_RTBvhSRV));
 			if (FAILED(hr)) {
 				log_debug("[DBG] [BVH] Failed when creating BVH SRV: 0x%x", hr);
 			}
@@ -1103,10 +1095,10 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			// Initialize the BVH
 			D3D11_MAPPED_SUBRESOURCE map;
 			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-			hr = context->Map(_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+			hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 			if (SUCCEEDED(hr)) {
 				memcpy(map.pData, _lbvh->nodes, sizeof(BVHNode) * _lbvh->numNodes);
-				context->Unmap(_RTBvh.Get(), 0);
+				context->Unmap(resources->_RTBvh.Get(), 0);
 			}
 			else
 				log_debug("[DBG] [BVH] Failed when mapping BVH nodes: 0x%x", hr);
@@ -1116,7 +1108,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		{
 			D3D11_BUFFER_DESC desc;
 			ZeroMemory(&desc, sizeof(desc));
-			int numMatrices = 32;
+			int numMatrices = 32; // TODO: Use the actual number of matrices
 			desc.ByteWidth = sizeof(Matrix4) * numMatrices;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1124,7 +1116,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
 			desc.StructureByteStride = sizeof(Matrix4);
 
-			hr = device->CreateBuffer(&desc, nullptr, &_RTMatrices);
+			hr = device->CreateBuffer(&desc, nullptr, &(resources->_RTMatrices));
 			if (FAILED(hr)) {
 				log_debug("[DBG] [BVH] Failed when creating _RTMatrices: 0x%x", hr);
 			}
@@ -1136,7 +1128,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			srvDesc.Buffer.FirstElement = 0;
 			srvDesc.Buffer.NumElements = numMatrices;
 
-			hr = device->CreateShaderResourceView(_RTMatrices, &srvDesc, &_RTMatricesSRV);
+			hr = device->CreateShaderResourceView(resources->_RTMatrices, &srvDesc, &(resources->_RTMatricesSRV));
 			if (FAILED(hr)) {
 				log_debug("[DBG] [BVH] Failed when creating _RTMatricesSRV: 0x%x", hr);
 			}
@@ -1146,6 +1138,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 
 		// Create the vertex buffers
+		/*
 		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = _lbvh->vertices;
@@ -1161,8 +1154,10 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 		else
 			_RTVerticesSRV = nullptr;
+		*/
 
 		// Create the index buffers
+		/*
 		if (!EmbeddedVertices) {
 			D3D11_SUBRESOURCE_DATA initialData;
 			initialData.pSysMem = _lbvh->indices;
@@ -1178,6 +1173,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 		else
 			_RTIndicesSRV = nullptr;
+		*/
 
 		_isRTInitialized = true;
 	}
@@ -1632,12 +1628,11 @@ void D3dRenderer::Initialize()
 	CreateShaders();
 
 	if (g_bRTEnabledInTechRoom && _lbvh != nullptr) {
+		ClearGlobalLBVH();
 		delete _lbvh;
 		_lbvh = nullptr;
-		ClearGlobalLBVH();
 	}
-
-	if (g_bRTEnabled && !g_bInTechRoom) {
+	else if (g_bRTEnabled && !g_bInTechRoom) {
 		ClearGlobalLBVH();
 	}
 }

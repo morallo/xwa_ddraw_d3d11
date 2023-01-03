@@ -2173,6 +2173,7 @@ void EffectsRenderer::ApplyNormalMapping()
 void EffectsRenderer::ApplyRTShadows()
 {
 	_bModifiedShaders = true;
+	// TODO: These conditions need to be updated to allow In-flight RT
 	// Enable/Disable Raytracing as necessary
 	g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
 
@@ -2180,6 +2181,7 @@ void EffectsRenderer::ApplyRTShadows()
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
+	auto &resources = _deviceResources;
 
 	// The scale is no longer needed. The BLAS is computed with the same data that is used
 	// to render the object -- not from the OPT file.
@@ -2191,10 +2193,10 @@ void EffectsRenderer::ApplyRTShadows()
 	// Update the matrices buffer
 	D3D11_MAPPED_SUBRESOURCE map;
 	ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-	HRESULT hr = context->Map(_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 	if (SUCCEEDED(hr)) {
 		memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
-		context->Unmap(_RTMatrices.Get(), 0);
+		context->Unmap(resources->_RTMatrices.Get(), 0);
 	}
 	else
 		log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
@@ -2214,8 +2216,8 @@ void EffectsRenderer::ApplyRTShadows()
 	// Embedded Geometry:
 	//context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
 	ID3D11ShaderResourceView *srvs[] = {
-		_RTBvhSRV.Get(),
-		_RTMatricesSRV.Get(),
+		resources->_RTBvhSRV.Get(),
+		resources->_RTMatricesSRV.Get(),
 	};
 	// Slots 14-15 are used for Raytracing buffers (BVH and Matrices)
 	context->PSSetShaderResources(14, 2, srvs);

@@ -142,6 +142,7 @@ using FaceGroups = std::map<int32_t, int32_t>;
 // mesh needs to have its BVH rebuilt.
 //
 // (FaceGroup map, NumMeshVertices, LBVH, Matrix4)
+//
 // FaceGroup std::map -- A map with all the Face Groups in this mesh
 // NumMeshVertices    -- The number of vertices in this mesh
 // LBVH               -- The BVH for this mesh (only used outside the Tech Room)
