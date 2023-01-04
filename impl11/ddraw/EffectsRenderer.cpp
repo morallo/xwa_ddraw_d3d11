@@ -768,16 +768,17 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 		}
 		else
 		{
-			DesiredRollRate_s = -g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+			DesiredRollRate_s = g_bEnableRudder ? -g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s : 0.0f;
 		}
 	}
 	else
 	{
 		DesiredYawRate_s  =  g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
-		// Apply a little roll when yaw is applied
-		DesiredRollRate_s = -g_pSharedDataJoystick->JoystickRoll * MaxRollRate_s +
-			RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
+		DesiredRollRate_s = g_bEnableRudder ? -g_pSharedDataJoystick->JoystickRoll * MaxRollRate_s : 0.0f;
+		// Add a little roll when yaw is applied
+		DesiredRollRate_s += RollFromYawScale * g_pSharedDataJoystick->JoystickYaw * MaxRollRate_s;
 	}
+
 	const float DeltaYaw   = DesiredYawRate_s   - CurPlayerYawRateDeg;
 	const float DeltaPitch = DesiredPitchRate_s - CurPlayerPitchRateDeg;
 	const float DeltaRoll  = DesiredRollRate_s  - CurPlayerRollRateDeg;

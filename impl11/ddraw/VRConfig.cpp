@@ -2838,6 +2838,9 @@ bool LoadGimbaLockFixConfig() {
 			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
 				g_bEnableGimbalLockFix = (bool)fValue;
 			}
+			else if (_stricmp(param, "enable_rudder") == 0) {
+				g_bEnableRudder = (bool)fValue;
+			}
 			/*
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bGimbalLockDebugMode = (bool)fValue;

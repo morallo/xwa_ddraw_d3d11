@@ -242,7 +242,7 @@ extern float g_fLevelsBlackPoint;
 
 // Gimbal Lock Fix
 // Configurable settings
-extern bool g_bEnableGimbalLockFix, g_bGimbalLockFixActive;
+extern bool g_bEnableGimbalLockFix, g_bGimbalLockFixActive, g_bEnableRudder;
 extern float g_fRollFromYawScale;
 
 extern float g_fYawAccelRate_s;
