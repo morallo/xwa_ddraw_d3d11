@@ -619,7 +619,8 @@ InnerNode *FastLBVH(const std::vector<LeafItem> &leafItems, int *root)
 /// <param name="leafItems"></param>
 /// <param name="innerNodes"></param>
 /// <returns>The root index if it was found, or -1 otherwise.</returns>
-int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<LeafItem>& leafItems, InnerNode4* innerNodes)
+template<class T>
+int ChooseParent4(int curNode, bool isLeaf, int numLeaves, const std::vector<T>& leafItems, InnerNode4* innerNodes)
 {
 	int parent = -1;
 	int totalNodes = 0;
@@ -740,7 +741,8 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 /// <param name="curNodeIdx"></param>
 /// <param name="leafItems"></param>
 /// <param name="numQBVHInnerNodes"></param>
-void ConvertToBVH4NodeSAH(InnerNode4* innerNodes, int curNodeIdx, const int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems)
+template<class T>
+void ConvertToBVH4NodeSAH(InnerNode4* innerNodes, int curNodeIdx, const int numQBVHInnerNodes, const std::vector<T>& leafItems)
 {
 	InnerNode4 node = innerNodes[curNodeIdx];
 
@@ -1349,9 +1351,45 @@ int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int 
 	return EncodeOfs;
 }
 
+int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, int leafIdx, int EncodeNodeIdx)
+{
+	uint32_t* ubuffer = (uint32_t*)buffer;
+	float* fbuffer = (float*)buffer;
+	int MeshID = TLASGetID(leafItems[leafIdx]);
+	//int matrixSlot = ...!
+	AABB aabb = TLASGetAABB(leafItems[leafIdx]);
+	int EncodeOfs = EncodeNodeIdx * sizeof(BVHNode) / 4;
+	//log_debug("[DBG] [BVH] Encoding leaf %d, TriID: %d, at QBVHOfs: %d",
+	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
+
+	// Encode the current TLAS leaf into the QBVH buffer, in the leaf section
+	ubuffer[EncodeOfs++] = MeshID;
+	ubuffer[EncodeOfs++] = -1; // parent
+	ubuffer[EncodeOfs++] = -1; // matrixSlot !!!
+	ubuffer[EncodeOfs++] = 0;
+	// 16 bytes
+	fbuffer[EncodeOfs++] = aabb.min[0];
+	fbuffer[EncodeOfs++] = aabb.min[1];
+	fbuffer[EncodeOfs++] = aabb.min[2];
+	fbuffer[EncodeOfs++] = 1.0f;
+	// 32 bytes
+	fbuffer[EncodeOfs++] = aabb.max[0];
+	fbuffer[EncodeOfs++] = aabb.max[1];
+	fbuffer[EncodeOfs++] = aabb.max[2];
+	fbuffer[EncodeOfs++] = 1.0f;
+	// 48 bytes
+	ubuffer[EncodeOfs++] = 0;
+	ubuffer[EncodeOfs++] = 0;
+	ubuffer[EncodeOfs++] = 0;
+	ubuffer[EncodeOfs++] = 1;
+	// 64 bytes
+	return EncodeOfs;
+}
+
 // Encodes the immediate children of inner node curNode
 // Use with the single-step FastLQBVH
-void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNodes, int curNode, const std::vector<LeafItem>& leafItems)
+template<class T>
+void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNodes, int curNode, const std::vector<T>& leafItems)
 {
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer = (float*)buffer;
@@ -1399,7 +1437,8 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 /// <param name="buffer">The BVHNode encoding buffer</param>
 /// <param name="leafItems"></param>
 /// <param name="root_out">The index of the root node</param>
-void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems, int &root_out
+template<class T>
+void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<T>& leafItems, int &root_out
 	/*int& inner_root, bool debug = false*/)
 {
 	int numLeaves = leafItems.size();
@@ -1477,6 +1516,7 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vect
 	delete[] innerNodes;
 	return;
 }
+
 
 std::string tab(int N)
 {

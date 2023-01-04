@@ -32,7 +32,7 @@ static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be 
 
 // QBVH inner node
 struct BVHNode {
-	int ref; // TriID: -1 for internal nodes, Triangle index for leaves
+	int ref;    // TriID: -1 for internal nodes, Triangle index for leaves
 	int parent; // Not used at this point
 	int rootIdx;
 	int numChildren;
@@ -45,7 +45,7 @@ struct BVHNode {
 	// 64 bytes
 };
 
-// QBVH leaf node
+// QBVH BLAS leaf node
 struct BVHPrimNode {
 	int ref;
 	int parent;
@@ -59,8 +59,24 @@ struct BVHPrimNode {
 	// 64 bytes
 };
 
+// QBVH TLAS leaf node
+struct BVHTLASLeafNode {
+	int ref;         // Mesh ID
+	int parent;
+	int matrixSlot;  // WorldView matrix slot
+	int padding1;
+	// 16 bytes
+	float min[4];    // Object-space AABB min (needs to be multiplied by the matrix in matrixSlot)
+	// 32 bytes
+	float max[4];    // Object-space AABB max  (needs to be multiplied by the matrix in matrixSlot)
+	// 48 bytes
+	int padding2[4];
+	// 64 bytes
+};
+
 static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE4_SIZE, "BVHNode (4) must be ENCODED_TREE_NODE4_SIZE bytes");
 static_assert(sizeof(BVHPrimNode) == ENCODED_TREE_NODE4_SIZE, "BVHPrimNode (4) must be ENCODED_TREE_NODE4_SIZE bytes");
+static_assert(sizeof(BVHTLASLeafNode) == ENCODED_TREE_NODE4_SIZE, "BVHTLASLeafNode (4) must be ENCODED_TREE_NODE4_SIZE bytes");
 
 struct MinMax {
 	Vector3 min;
@@ -234,6 +250,37 @@ struct InnerNode4
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j);
+
+//using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, Matrix4, XwaVector3, AABB>;
+inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X)
+{
+	return std::get<0>(X);
+}
+
+inline AABB& TLASGetAABB(TLASLeafItem& X)
+{
+	return std::get<1>(X);
+}
+
+inline int& TLASGetID(TLASLeafItem& X)
+{
+	return std::get<2>(X);
+}
+
+inline Matrix4& TLASGetMatrix4(TLASLeafItem& X)
+{
+	return std::get<3>(X);
+}
+
+inline XwaVector3& TLASGetCentroid(TLASLeafItem& X)
+{
+	return std::get<4>(X);
+}
+
+inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X)
+{
+	return std::get<5>(X);
+}
 
 class IGenericTreeNode
 {
@@ -662,5 +709,6 @@ QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* inne
 void DeleteTree(QTreeNode* Q);
 
 uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const int* Indices);
+int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, int leafIdx, int EncodeNodeIdx);
 
 void DeleteBufferTree(BufferTreeNode *node);

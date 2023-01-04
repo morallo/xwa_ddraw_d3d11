@@ -274,7 +274,7 @@ void ResetObjectIndexMap() {
 // Dump to OBJ
 // ****************************************************
 // Set the following flag to true to enable dumping the current scene to an OBJ file
-bool bD3DDumpOBJEnabled = false;
+bool bD3DDumpOBJEnabled = true;
 bool bHangarDumpOBJEnabled = false;
 FILE *D3DDumpOBJFile = NULL, *D3DDumpLaserOBJFile = NULL;
 int D3DOBJFileIdx = 0, D3DTotalVertices = 0, D3DTotalNormals = 0, D3DOBJGroup = 0;
@@ -544,12 +544,10 @@ void BuildTLAS()
 	for (uint32_t i = 0; i < numLeaves; i++)
 	{
 		auto& leaf = tlasLeaves[i];
-		// 0            1             2      3       4         5
-		// Morton Code, Bounding Box, TriID, Matrix, Centroid, aabbFromOBB
-		AABB aabb = std::get<1>(leaf);
-		XwaVector3 centroid = std::get<4>(leaf);
+		AABB aabb = TLASGetAABB(leaf);
+		XwaVector3 centroid = TLASGetCentroid(leaf);
 		Normalize(centroid, g_GlobalAABB, g_GlobalRange);
-		std::get<0>(leaf) = GetMortonCode32(centroid);
+		TLASGetMortonCode(leaf) = GetMortonCode32(centroid);
 	}
 
 	// Sort the tlas leaves
@@ -950,7 +948,7 @@ void EffectsRenderer::SceneEnd()
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
 
-	if (g_bRTEnabled)
+	if (g_bRTEnabled && !g_bInTechRoom)
 	{
 		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
 		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
@@ -967,7 +965,7 @@ void EffectsRenderer::SceneEnd()
 			g_TLASFile = NULL;
 		}
 #endif
-		DumpFrustrumToOBJ();
+		//DumpFrustrumToOBJ();
 		// TODO: Dump the global AABB and all the TLAS leaves
 		DumpGlobalAABBandTLASToOBJ();
 	}
@@ -2371,13 +2369,15 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	XwaVector3 globalCentroid = box.GetCentroid();
 	g_GlobalAABB.Expand(box);
 
-	// Add this mesh to the current TLAS, but avoid duplicates
+	// Add this mesh to the current TLAS leaves, but avoid duplicates
 	int size = tlasLeaves.size();
 	if (size > 0)
 	{
-		const auto& lastItem = tlasLeaves[tlasLeaves.size() - 1];
-		int lastMeshID = std::get<2>(lastItem);
-		XwaVector3 lastCentroid = std::get<4>(lastItem);
+		// TODO: This is not a great way to avoid duplicates. We should use an std::map here
+		// and check the meshKey
+		auto& lastItem = tlasLeaves[tlasLeaves.size() - 1];
+		int lastMeshID = TLASGetID(lastItem);
+		XwaVector3 lastCentroid = TLASGetCentroid(lastItem);
 		// Avoid duplicates:
 		if (!globalCentroid.equals(lastCentroid) || meshID != lastMeshID)
 			tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
