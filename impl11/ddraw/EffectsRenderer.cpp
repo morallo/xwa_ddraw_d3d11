@@ -716,7 +716,7 @@ void ResetGimbalLockFix()
 	CurPlayerRollRateDeg  = 0.0f;
 }
 
-void ApplyGimbalLockFix(float elapsedTime)
+void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 {
 	if (g_pSharedDataJoystick == NULL || !g_SharedMemJoystick.IsDataReady())
 		return;
@@ -726,9 +726,12 @@ void ApplyGimbalLockFix(float elapsedTime)
 	const float RollFromYawScale = g_fRollFromYawScale;
 	// How can I tell if the current ship doesn't roll when applying yaw?
 
-	CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
-	if (craftInstance == NULL)
-		return;
+	/*log_debug("[DBG] IsDocking: %d, DoneDockingCount: %d, BeingBoarded: %d, DoneBoardedCount: %d",
+		craftInstance->IsDocking, craftInstance->DoneDockingCount,
+		craftInstance->BeingBoarded, craftInstance->DoneBoardedCount);*/
+	/*log_debug("[DBG] specialTimerOrState: %d, PickedUpObjectIndex: %d, currentManr: %d, CraftState: %d",
+		craftInstance->specialTimerOrState, craftInstance->PickedUpObjectIndex,
+		craftInstance->currentManr, craftInstance->CraftState);*/
 	// log_debug("[DBG] CraftType: %u", craftInstance->CraftType); // This is the 0-based slot# of this craft
 	//log_debug("[DBG] RollingYawPercentage: %d",
 	//	CraftDefinitionTable[craftInstance->CraftType].RollingYawPercentage); // This don't work: T/F is reported as 0
@@ -810,9 +813,12 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
+		CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
 
 		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
-			!(*g_playerInHangar) && hyperspacePhase == 0;
+			!(*g_playerInHangar) && hyperspacePhase == 0 &&
+			// currentManr == 18 when the ship is docking
+			craftInstance != nullptr && craftInstance->currentManr != 18;
 
 		// DEBUG, print mobileObject->transformMatrix (RUF)
 		/*
@@ -842,7 +848,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 		if (g_bGimbalLockFixActive)
 		{
-			ApplyGimbalLockFix(now - lastTime);
+			ApplyGimbalLockFix(now - lastTime, craftInstance);
 		}
 	}
 	lastTime = now;
