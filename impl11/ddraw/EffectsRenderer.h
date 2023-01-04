@@ -129,7 +129,7 @@ public:
 	void ApplyNormalMapping();
 
 	// Raytracing
-	void ApplyRTShadows();
+	void ApplyRTShadows(const SceneCompData* scene);
 	void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb);
 	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);
 

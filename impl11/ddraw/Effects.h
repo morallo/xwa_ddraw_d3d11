@@ -146,8 +146,8 @@ using FaceGroups = std::map<int32_t, int32_t>;
 // FaceGroup std::map -- A map with all the Face Groups in this mesh
 // NumMeshVertices    -- The number of vertices in this mesh
 // LBVH               -- The BVH for this mesh (only used outside the Tech Room)
-// Matrix4            -- The WorldView matrix for this mesh (only used outside the Tech Room)
-using MeshData = std::tuple<FaceGroups, int32_t, void*, Matrix4>;
+// MatrixSlotIndex    -- The index into _RTMatrix where the worldview matrix for this mesh will be stored. (only used outside the Tech Room)
+using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
 

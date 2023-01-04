@@ -94,7 +94,7 @@ class D3dRenderer
 {
 public:
 	int _currentOptMeshIndex;
-	LBVH *_lbvh;
+	LBVH *_lbvh; // Global LBVH, used in the Tech Room
 	bool _isRTInitialized;
 	// Set to true in the current frame if the BLAS needs to be updated.
 	bool _BLASNeedsUpdate;
@@ -125,6 +125,7 @@ public:
 	void SetRenderTypeIllum(int type);
 	void BuildSingleBLASFromCurrentBVHMap();
 	void BuildMultipleBLASFromCurrentBVHMap();
+	void ReAllocateBvhBuffers();
 
 protected:
 	DeviceResources* _deviceResources;

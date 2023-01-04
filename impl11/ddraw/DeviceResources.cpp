@@ -1740,6 +1740,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			g_bRTCaptureCameraAABB = true;
 		}
 
+		g_iRTTotalNumNodesInFrame = g_iRTTotalNumNodesInPrevFrame = 0;
+		g_iRTTotalMeshesInFrame = g_iRTTotalMeshesInPrevFrame = 0;
+		g_iRTMatricesNextSlot = 0;
+		g_bRTReAllocateBuffers = false;
 		if (this->_RTBvh != nullptr)
 			this->_RTBvh->Release();
 		if (this->_RTMatrices != nullptr)

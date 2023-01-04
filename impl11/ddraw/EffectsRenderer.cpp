@@ -13,9 +13,18 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 
 // Control vars
 bool g_bEnableAnimations = true;
+// Raytracing
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTCaptureCameraAABB = true;
+// Used for in-flight RT, to create the BVH buffer that will store all the
+// individual BLASes needed for the current frame.
+int g_iRTTotalNumNodesInFrame = 0;
+int g_iRTTotalNumNodesInPrevFrame = 0;
+int g_iRTTotalMeshesInFrame = 0;
+int g_iRTTotalMeshesInPrevFrame = 0;
+int g_iRTMatricesNextSlot = 0;
+bool g_bRTReAllocateBuffers = false;
 AABB g_CameraAABB; // AABB built from the camera's frustrum
 AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
 XwaVector3 g_CameraRange;
@@ -2170,7 +2179,7 @@ void EffectsRenderer::ApplyNormalMapping()
 	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
 }
 
-void EffectsRenderer::ApplyRTShadows()
+void EffectsRenderer::ApplyRTShadows(const SceneCompData* scene)
 {
 	_bModifiedShaders = true;
 	// TODO: These conditions need to be updated to allow In-flight RT
@@ -2183,23 +2192,49 @@ void EffectsRenderer::ApplyRTShadows()
 	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
 
-	// The scale is no longer needed. The BLAS is computed with the same data that is used
-	// to render the object -- not from the OPT file.
-	//Matrix4 RTScale = Matrix4().scale(1.0f / _lbvh->scale);
-	//Matrix4 transformWorldViewInv = RTScale * _constants.transformWorldView;
-	Matrix4 transformWorldViewInv = _constants.transformWorldView;
-	transformWorldViewInv = transformWorldViewInv.invert();
+	if (g_bInTechRoom)
+	{
+		Matrix4 transformWorldViewInv = _constants.transformWorldView;
+		transformWorldViewInv = transformWorldViewInv.invert();
 
-	// Update the matrices buffer
-	D3D11_MAPPED_SUBRESOURCE map;
-	ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-	HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-	if (SUCCEEDED(hr)) {
-		memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
-		context->Unmap(resources->_RTMatrices.Get(), 0);
+		// Update the matrices buffer
+		D3D11_MAPPED_SUBRESOURCE map;
+		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr)) {
+			memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
+			context->Unmap(resources->_RTMatrices.Get(), 0);
+		}
+		else
+			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
 	}
 	else
-		log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
+	{
+		// Populate the matrices for all the meshes
+		// The current matrix is associated with a mesh, and a meshKey
+		// Using the meshKey, we can find the entry in g_LBVHMap
+		// The entry in g_LBVHMap should tell us the offset into _RTMatrices where this matrix
+		// will be written to. We don't need to iterate over all the entries in g_LBVHMap: we just
+		// need to overwrite one entry.
+		D3D11_MAPPED_SUBRESOURCE map;
+		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		// TODO: Optimization opportunity. Only Map the matrix slot we want to update.
+		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr))
+		{
+			const int32_t meshKey = MakeMeshKey(scene);
+			const auto &meshData = g_LBVHMap[meshKey];
+			const int matrixSlot = std::get<3>(meshData);
+			Matrix4 WInv = XwaTransformToMatrix4(scene->WorldViewTransform);
+			WInv = WInv.invert();
+			// This isn't working...
+			uint8_t* base_ptr = (uint8_t*)map.pData + sizeof(Matrix4) * matrixSlot;
+			memcpy(base_ptr, WInv.get(), sizeof(Matrix4));
+			context->Unmap(resources->_RTMatrices.Get(), 0);
+		}
+		else
+			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
+	}
 
 	// Non-embedded geometry:
 	/*
@@ -2375,6 +2410,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	int32_t meshKey = MakeMeshKey(scene);
 	auto it = g_LBVHMap.find(meshKey);
 	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
+	int matrixSlot = -1;
 
 	// We have seen this mesh before, but we need to check if we've seen
 	// the FG as well
@@ -2383,6 +2419,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 		// Check if we've seen this FG group before
 		meshData = it->second;
 		FGs = std::get<0>(meshData);
+		matrixSlot = std::get<3>(meshData);
 		// The FG key is FaceIndices:
 		auto it = FGs.find((int32_t)scene->FaceIndices);
 		if (it != FGs.end())
@@ -2390,6 +2427,12 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 			// We've seen this mesh/FG combination before, ignore
 			return;
 		}
+	}
+	else
+	{
+		// We haven't seen this mesh before, reserve a slot in _RTMatrices
+		matrixSlot = g_iRTMatricesNextSlot;
+		g_iRTMatricesNextSlot++;
 	}
 
 	// Signal that there's at least one BLAS that needs to be rebuilt
@@ -2406,7 +2449,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	std::get<0>(meshData) = FGs;
 	std::get<1>(meshData) = scene->VerticesCount;
 	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	std::get<3>(meshData) = XwaTransformToMatrix4(scene->WorldViewTransform);
+	std::get<3>(meshData) = matrixSlot;
 	g_LBVHMap[meshKey] = meshData;
 }
 
@@ -2640,7 +2683,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyMeshTransform();
 
 	if (g_bInTechRoom)
-		ApplyRTShadows();
+		ApplyRTShadows(scene);
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
