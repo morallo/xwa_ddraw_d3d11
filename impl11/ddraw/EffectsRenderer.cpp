@@ -816,8 +816,15 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 		CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
 
+		//log_debug("[DBG] viewingFilmState: %d, inMissionFilmState: %d",
+		//	*viewingFilmState, *inMissionFilmState);
+		// *viewingFilmState is 0 during regular flight and becomes 2 when playing back a movie.
+		// Fun fact: the gimbal lock fix is still active when playing back a film, so we can steer
+		// while playing a film!
+		// *inMissionFilmState is 0 during regular flight, and becomes 1 when recording (I think)
+
 		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
-			!(*g_playerInHangar) && hyperspacePhase == 0 &&
+			!(*g_playerInHangar) && hyperspacePhase == 0 && *viewingFilmState == 0 &&
 			// currentManr == 18 when the ship is docking
 			craftInstance != nullptr && craftInstance->currentManr != 18;
 
